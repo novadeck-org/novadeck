@@ -27,8 +27,8 @@ rename mode. In Canvas, its top-left corner is placed at that canvas point witho
 camera. Terminals created with the New terminal control open in rename mode with their name
 selected: in the sidebar when visible, or in the terminal header otherwise. Enter or clicking
 away saves the name; Escape keeps the original name. In any
-view, double-click or double-tap a
-terminal name to rename it directly. The header and sidebar share rename mode and
+view, double-click or double-tap a terminal's name in its header to rename it
+directly; in the sidebar, use the tab's Rename button or F2. The header and sidebar share rename mode and
 the live draft. Move between either name field to continue editing; saving or
 canceling ends the edit in both places.
 
@@ -94,14 +94,15 @@ leave Zen to show the requested panel. Zen is temporary and resets on reload.
 When navigating the workspace outside terminal input, text editors, and dialogs,
 these simpler keys work in both normal and Zen mode:
 
-| Key  | Action                                            |
-| ---- | ------------------------------------------------- |
-| `T`  | New terminal                                      |
-| `/`  | Find a terminal                                   |
-| `F`  | Toggle Focus and the previous Grid or Canvas view |
-| `Z`  | Toggle Zen                                        |
-| `B`  | Toggle terminal sidebar (leaves Zen to show it)   |
-| `F2` | Rename the active terminal                        |
+| Key      | Action                                            |
+| -------- | ------------------------------------------------- |
+| `T`      | New terminal                                      |
+| `/`      | Find a terminal                                   |
+| `F`      | Toggle Focus and the previous Grid or Canvas view |
+| `Z`      | Toggle Zen                                        |
+| `B`      | Toggle terminal sidebar (leaves Zen to show it)   |
+| `F2`     | Rename the active terminal                        |
+| `Delete` | Close the active terminal                         |
 
 The modifier shortcuts above remain available from terminal input. Workspace keys
 never replace typing, editing, or dialog navigation.
@@ -169,14 +170,15 @@ Source lives in `application/ui/src/`:
 
 | Location                                                               | What belongs here                                                       |
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `app/`                                                                 | App composition, browser effects, and integration tests.                |
+| `app/`                                                                 | App composition and browser effects.                                    |
 | `ui-toolkit/`                                                          | Reusable styled controls and direct Ark UI imports.                     |
-| `workspace/model/`                                                     | Shared types, the pure workspace reducer, selectors, and tests.         |
+| `workspace/model/`                                                     | Shared types, the pure workspace reducer, and selectors.                |
 | `workspace/terminals/`                                                 | Terminal cards and sortable tabs.                                       |
 | `workspace/layouts/`                                                   | Grid and Canvas views, layout logic, and view transitions.              |
 | `workspace/sidebar/`, `projects/`, `preferences/`, `search/`, `shell/` | Feature components, navigation, and app chrome, all under `workspace/`. |
 | `workspace/mock/`                                                      | Sample projects, transcripts, and command replies.                      |
 | `styles.css`                                                           | Theme tokens, global primitives, and specialized library/canvas styles. |
+| `specs/`                                                               | Behaviour specs for the whole UI, run in a real browser.                |
 
 Navigation uses React Router with hash URLs in both the browser and Electron,
 so links work with the packaged `file://` UI and static hosting. For example:
@@ -203,8 +205,25 @@ them. XYFlow owns live Canvas gestures; save geometry and camera state when a
 gesture ends or the view unmounts.
 
 Keep direct Ark UI imports in `ui-toolkit/`; features own their content and state.
-Use Tailwind utilities for ordinary component styling and colocate tests with
-the feature they cover. See [CODING.md](CODING.md) for broader conventions.
+Use Tailwind utilities for ordinary component styling. See [CODING.md](CODING.md)
+for broader conventions.
+
+### UI behaviour specs
+
+`src/specs/` describes the UI the way a person uses it and guards the UX while
+the implementation changes. Each spec renders the whole app in headless Chromium
+with real CSS, layout, pointer, and keyboard input, and reduced motion enabled.
+Specs find elements by accessible role, name, or text, and assert only what a
+person can observe: what is visible, focused, selected, or where it sits on
+screen. They never import components, mock app modules, or select by CSS class,
+so a refactor that keeps the UI intact keeps them green. `specs/support/` holds
+the shared vocabulary (for example `openWorkspace`, `terminal`, `chooseView`);
+when markup changes on purpose, update it there. If a behaviour can't be reached
+through accessible markup, improve the markup rather than adding test IDs.
+
+Install the browser once with `pnpm --filter @novadeck/ui exec playwright install chromium`.
+Run a single spec with `pnpm --filter @novadeck/ui exec vitest run --project behaviour src/specs/canvas.spec.tsx`,
+or `--project unit` for the non-UI unit tests.
 
 ## Configuration
 
@@ -236,8 +255,8 @@ pnpm build
 ```
 
 Use package filters for focused checks, for example `pnpm --filter @novadeck/ui test`.
-Tests use Vitest, React Testing Library for renderer interactions, and MSW for
-HTTP behavior. The PR workflows run formatting, lint, typechecking, tests,
+Tests use Vitest: UI behaviour specs run in Vitest Browser Mode on Chromium, and
+MSW covers HTTP behavior. The PR workflows run formatting, lint, typechecking, tests,
 builds, and PR metadata checks on Linux. PRs marked ready for review package
 and smoke-test the app on Linux, macOS, and Windows using the same workflow as
 releases. Draft PRs skip packaging; PR checks never create tags or publish releases.

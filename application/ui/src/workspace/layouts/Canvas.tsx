@@ -15,8 +15,10 @@ import {
 } from "@xyflow/react"
 import { Plus } from "lucide-react"
 import {
+  createContext,
   forwardRef,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -40,7 +42,6 @@ import { useTerminalVisibility } from "./useTerminalVisibility"
 
 type TerminalNode = Node<
   {
-    content: ReactNode
     compactHeader: boolean
     minimized: boolean
     hiding: boolean
@@ -80,7 +81,12 @@ export type CanvasHandle = {
 }
 type TerminalCanvasProps = CanvasProps & { handleRef: Ref<CanvasHandle> }
 
+// Terminal content comes from the canvas's current render, not from node data: node data
+// reaches XYFlow a commit later, which would briefly show controlled inputs stale values.
+const TerminalContent = createContext<(id: string) => ReactNode>(() => null)
+
 const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): React.JSX.Element => {
+  const contentOf = useContext(TerminalContent)
   const content = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (data.focusRequest === null) return
@@ -109,7 +115,7 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
         >
           <span className="terminal-resize-pattern" title="Resize" />
         </NodeResizeControl>
-        {data.content}
+        {contentOf(id)}
       </div>
     </div>
   )
@@ -426,22 +432,6 @@ const TerminalCanvas = ({
           preview: preview === session.id,
           focusRequest: selected === session.id ? keyboardFocusRequest : null,
           hiding: hidden[session.id] ?? false,
-          content: render(
-            session,
-            {
-              minimized: isMinimized,
-              onToggle: () =>
-                onLayoutChange((previous) => ({
-                  ...previous,
-                  minimized: {
-                    ...previous.minimized,
-                    [session.id]: !previous.minimized[session.id],
-                  },
-                })),
-            },
-            () => flyTo(session),
-            () => resizeToViewport(session.id),
-          ),
           compactHeader: width / chromeScale < 240,
           minimized: isMinimized,
           onResizeStart: () => beginResize(session.id),
@@ -453,17 +443,34 @@ const TerminalCanvas = ({
       beginResize,
       chromeScale,
       finishResize,
-      flyTo,
-      resizeToViewport,
       hidden,
       preview,
       removed,
       minimized,
-      onLayoutChange,
-      render,
       selected,
       keyboardFocusRequest,
     ],
+  )
+
+  const contentOf = useCallback(
+    (id: string): ReactNode => {
+      const session = sessions.find((item) => item.id === id)
+      if (!session) return null
+      return render(
+        session,
+        {
+          minimized: minimized[id] ?? false,
+          onToggle: () =>
+            onLayoutChange((previous) => ({
+              ...previous,
+              minimized: { ...previous.minimized, [id]: !previous.minimized[id] },
+            })),
+        },
+        () => flyTo(session),
+        () => resizeToViewport(id),
+      )
+    },
+    [flyTo, minimized, onLayoutChange, render, resizeToViewport, sessions],
   )
 
   // XYFlow owns pointer-time geometry so dragging does not rerender the application or terminals.
@@ -758,100 +765,102 @@ const TerminalCanvas = ({
         }
       }}
     >
-      <ReactFlow<TerminalNode>
-        defaultNodes={sessions.map((session) => nodeFrom(session, geometry[session.id]))}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onNodeClick={(_, node) => onSelect(node.id)}
-        onPaneClick={(event) => {
-          onSelect("")
-          event.currentTarget
-            .closest<HTMLElement>(".canvas-viewport")
-            ?.focus({ preventScroll: true })
-        }}
-        elevateNodesOnSelect={false}
-        nodesConnectable={false}
-        deleteKeyCode={null}
-        multiSelectionKeyCode={null}
-        selectionKeyCode={null}
-        disableKeyboardA11y
-        minZoom={0.15}
-        maxZoom={maxZoom}
-        defaultViewport={initialViewport ?? { x: 0, y: 0, zoom: 1 }}
-        onInit={(instance) => {
-          if (!container.current || (initialViewport && !revealOnMount)) return
-          const selectedNode = navigation ? instance.getNode(selected) : undefined
-          const target = selectedNode?.hidden ? undefined : selectedNode
-          if (initialViewport && target && !fitOnNavigate) {
-            const center = centerOf(target, initialViewport.zoom)
+      <TerminalContent.Provider value={contentOf}>
+        <ReactFlow<TerminalNode>
+          defaultNodes={sessions.map((session) => nodeFrom(session, geometry[session.id]))}
+          nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onNodeClick={(_, node) => onSelect(node.id)}
+          onPaneClick={(event) => {
+            onSelect("")
+            event.currentTarget
+              .closest<HTMLElement>(".canvas-viewport")
+              ?.focus({ preventScroll: true })
+          }}
+          elevateNodesOnSelect={false}
+          nodesConnectable={false}
+          deleteKeyCode={null}
+          multiSelectionKeyCode={null}
+          selectionKeyCode={null}
+          disableKeyboardA11y
+          minZoom={0.15}
+          maxZoom={maxZoom}
+          defaultViewport={initialViewport ?? { x: 0, y: 0, zoom: 1 }}
+          onInit={(instance) => {
+            if (!container.current || (initialViewport && !revealOnMount)) return
+            const selectedNode = navigation ? instance.getNode(selected) : undefined
+            const target = selectedNode?.hidden ? undefined : selectedNode
+            if (initialViewport && target && !fitOnNavigate) {
+              const center = centerOf(target, initialViewport.zoom)
+              lastNavigation.current = navigation
+              void instance.setCenter(center.x, center.y, { zoom: initialViewport.zoom })
+              return
+            }
+            const visible = instance.getNodes().filter((node) => !node.hidden)
+            if (!visible.length) return
+            const bounds = getNodesBounds(target ? [target] : visible)
             lastNavigation.current = navigation
-            void instance.setCenter(center.x, center.y, { zoom: initialViewport.zoom })
-            return
-          }
-          const visible = instance.getNodes().filter((node) => !node.hidden)
-          if (!visible.length) return
-          const bounds = getNodesBounds(target ? [target] : visible)
-          lastNavigation.current = navigation
-          // Compute the first camera before a view-transition snapshot, without waiting for paint.
-          void instance.setViewport(
-            getViewportForBounds(
-              bounds,
-              container.current.clientWidth,
-              container.current.clientHeight,
-              0.15,
-              target && fitOnNavigate ? 1.5 : fitOptions.maxZoom,
-              fitOptions.padding,
-            ),
-          )
-        }}
-        onMoveStart={(_, viewport) => trackViewport(viewport)}
-        onMove={(event, viewport) => {
-          const previous = viewportRef.current
-          if (
-            event &&
-            (viewport.x !== previous.x ||
-              viewport.y !== previous.y ||
-              viewport.zoom !== previous.zoom)
-          )
-            visit.clear()
-          trackViewport(viewport)
-        }}
-        onMoveEnd={(_, viewport) => {
-          const current = getViewport()
-          if (
-            !mounted.current ||
-            current.x !== viewport.x ||
-            current.y !== viewport.y ||
-            current.zoom !== viewport.zoom
-          )
-            return
-          trackViewport(viewport)
-          commitViewport()
-        }}
-        panOnDrag
-        panOnScroll={false}
-        zoomOnScroll
-        zoomOnDoubleClick={false}
-        zoomActivationKeyCode={["Control", "Meta"]}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background
-          id="grid"
-          className="canvas-grid"
-          gap={canvasStep}
-          size={1.6}
-          color="var(--color-muted)"
-          bgColor="transparent"
-        />
-        <Background
-          id="grid-spotlight"
-          className="canvas-grid-spotlight"
-          gap={canvasStep}
-          size={1.6}
-          color="var(--color-muted)"
-          bgColor="transparent"
-        />
-      </ReactFlow>
+            // Compute the first camera before a view-transition snapshot, without waiting for paint.
+            void instance.setViewport(
+              getViewportForBounds(
+                bounds,
+                container.current.clientWidth,
+                container.current.clientHeight,
+                0.15,
+                target && fitOnNavigate ? 1.5 : fitOptions.maxZoom,
+                fitOptions.padding,
+              ),
+            )
+          }}
+          onMoveStart={(_, viewport) => trackViewport(viewport)}
+          onMove={(event, viewport) => {
+            const previous = viewportRef.current
+            if (
+              event &&
+              (viewport.x !== previous.x ||
+                viewport.y !== previous.y ||
+                viewport.zoom !== previous.zoom)
+            )
+              visit.clear()
+            trackViewport(viewport)
+          }}
+          onMoveEnd={(_, viewport) => {
+            const current = getViewport()
+            if (
+              !mounted.current ||
+              current.x !== viewport.x ||
+              current.y !== viewport.y ||
+              current.zoom !== viewport.zoom
+            )
+              return
+            trackViewport(viewport)
+            commitViewport()
+          }}
+          panOnDrag
+          panOnScroll={false}
+          zoomOnScroll
+          zoomOnDoubleClick={false}
+          zoomActivationKeyCode={["Control", "Meta"]}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background
+            id="grid"
+            className="canvas-grid"
+            gap={canvasStep}
+            size={1.6}
+            color="var(--color-muted)"
+            bgColor="transparent"
+          />
+          <Background
+            id="grid-spotlight"
+            className="canvas-grid-spotlight"
+            gap={canvasStep}
+            size={1.6}
+            color="var(--color-muted)"
+            bgColor="transparent"
+          />
+        </ReactFlow>
+      </TerminalContent.Provider>
     </div>
   )
   return (

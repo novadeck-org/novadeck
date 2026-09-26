@@ -1240,7 +1240,9 @@ export const WorkspaceApp = (): React.JSX.Element => {
         className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] flex h-7 shrink-0 items-center justify-between border-t border-line bg-paper px-4 text-[10px] text-muted"
       >
         <span className="flex items-center gap-2">
-          <span>{sessions.length} terminals</span>
+          <span>
+            {sessions.length} {sessions.length === 1 ? "terminal" : "terminals"}
+          </span>
           <span className="footer-running max-[701px]:hidden ml-2 border-l border-line pl-3">
             {sessions.filter((session) => session.state === "running").length} running
           </span>
