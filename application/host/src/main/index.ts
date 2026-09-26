@@ -1,16 +1,18 @@
 import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
-import { startRuntime, type Runtime } from "@novadeck/runtime"
-import { app, BrowserWindow, session, shell } from "electron"
+import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
+import { app, BrowserWindow, ipcMain, session, shell } from "electron"
 
-import { apiUrlArgumentPrefix } from "../bridge.js"
+import { apiUrlArgumentPrefix, runnerPortChannel } from "../bridge.js"
+import { startRunner, type RunnerHost } from "./runner.js"
 
 const appId = "dev.mzpk.novadeck"
 const developmentOrigin = "http://127.0.0.1:5173"
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
 
-let runtime: Runtime | undefined
+let server: HttpServer | undefined
+let runner: RunnerHost | undefined
 let stopping = false
 
 const waitFor = async (origin: string, attempts = 100): Promise<void> => {
@@ -27,8 +29,16 @@ const waitFor = async (origin: string, attempts = 100): Promise<void> => {
   return waitFor(origin, attempts - 1)
 }
 
-const createWindow = (runtimeOrigin: string): BrowserWindow => {
-  const apiUrl = new URL("/api/", runtimeOrigin).href
+/** Whether a frame shows this app's own UI: the packaged page or the dev server. */
+const isAppPage = (url: string): boolean => {
+  const page = new URL(url)
+  if (!app.isPackaged) return page.origin === developmentOrigin
+  const packaged = pathToFileURL(join(process.resourcesPath, "ui", "index.html"))
+  return page.protocol === "file:" && page.pathname === packaged.pathname
+}
+
+const createWindow = (origin: string): BrowserWindow => {
+  const apiUrl = new URL("/api/", origin).href
   const window = new BrowserWindow({
     width: 1120,
     height: 720,
@@ -65,14 +75,26 @@ const createWindow = (runtimeOrigin: string): BrowserWindow => {
 }
 
 const launch = async (): Promise<void> => {
-  runtime = await startRuntime({
+  runner = startRunner({
+    entry: join(currentDirectory, "runner.js"),
+    database: join(app.getPath("userData"), "workspace.sqlite"),
+  })
+  // A port is shell access: only the main frame of this app's own window showing its
+  // own UI may ask for one.
+  ipcMain.on(runnerPortChannel, (event, id: unknown) => {
+    const frame = event.senderFrame
+    if (!BrowserWindow.fromWebContents(event.sender) || frame !== event.sender.mainFrame) return
+    if (!frame || !isAppPage(frame.url) || typeof id !== "string") return
+    runner?.connect(event.sender, id)
+  })
+  server = await startHttpServer({
     port: 0,
-    corsOrigins: app.isPackaged ? ["null"] : [developmentOrigin],
+    origins: app.isPackaged ? ["null"] : [developmentOrigin],
   })
 
   if (!app.isPackaged) await waitFor(developmentOrigin)
 
-  createWindow(runtime.origin)
+  createWindow(server.origin)
 }
 
 app.setAppUserModelId(appId)
@@ -90,17 +112,17 @@ app.whenReady().then(() => {
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      if (runtime) createWindow(runtime.origin)
+      if (server) createWindow(server.origin)
     }
   })
 })
 
 app.on("before-quit", (event) => {
-  if (!runtime || stopping) return
+  if ((!server && !runner) || stopping) return
 
   event.preventDefault()
   stopping = true
-  void runtime.close().finally(() => app.quit())
+  void Promise.allSettled([runner?.close(), server?.close()]).finally(() => app.quit())
 })
 
 app.on("window-all-closed", () => {

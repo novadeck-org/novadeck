@@ -13,18 +13,25 @@
     "package:linux": "pnpm --workspace-root exec turbo run build --filter=@novadeck/host && electron-builder --linux --x64 --publish never",
     "package:mac": "pnpm --workspace-root exec turbo run build --filter=@novadeck/host && electron-builder --mac --universal --publish never",
     "package:win": "pnpm --workspace-root exec turbo run build --filter=@novadeck/host && electron-builder --win --x64 --publish never",
-    "test": "pnpm run build && vitest run",
+    "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "node-pty": "1.2.0-beta.14"
   },
   "devDependencies": {
-    "@novadeck/runtime": "workspace:*",
+    "@novadeck/protocol": "workspace:*",
+    "@novadeck/runner": "workspace:*",
     "@novadeck/ui": "workspace:*",
     "@types/node": "^26.6.2",
     "concurrently": "^10.0.5",
     "electron": "^44.4.3",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "esbuild": "0.28.2",
+    "playwright": "^1.63.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
     "vitest": "^5.0.1"

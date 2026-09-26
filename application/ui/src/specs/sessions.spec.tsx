@@ -1,6 +1,7 @@
 import { afterEach, describe as context, describe, expect, it } from "vitest"
 import { page } from "vitest/browser"
 
+import { pressShortcut } from "./support/keyboard"
 import {
   currentSessionName,
   emptyWorkspace,
@@ -313,9 +314,8 @@ describe("narrow screens", () => {
       await phone()
       await openWorkspace()
       await commandInput("Checkout implementation").click()
-      const modifier = isMac() ? "Meta" : "Control"
 
-      await press(`{${modifier}>}{Shift>}T{/Shift}{/${modifier}}`)
+      await pressShortcut("newTerminal")
 
       await expect.element(terminal("Terminal 07")).toBeVisible()
       await expectStaysAbsent(sidebar())

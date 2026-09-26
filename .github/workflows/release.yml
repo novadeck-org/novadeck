@@ -267,6 +267,17 @@ jobs:
             throw "The Windows application did not stop after smoke-test cleanup."
           }
 
+      - name: Smoke Test Packaged Runner
+        timeout-minutes: 5
+        shell: bash
+        working-directory: application/host
+        run: |
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run -a pnpm run smoke
+          else
+            pnpm run smoke
+          fi
+
       - name: Upload Packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

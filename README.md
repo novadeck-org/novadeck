@@ -138,7 +138,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` launches the Electron desktop application. To run the UI and runtime
+`pnpm dev` launches the Electron desktop application. To run the UI and runner
 in a browser instead:
 
 ```sh
@@ -152,17 +152,27 @@ Open <http://127.0.0.1:5173>. For UI-only work, use
 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo.
 
-| Package               | Responsibility                                                   |
-| --------------------- | ---------------------------------------------------------------- |
-| `application/ui`      | React frontend built with Vite, Tailwind CSS, and Lucide icons.  |
-| `application/runtime` | Hono API running on Node.js, independent of frontend delivery.   |
-| `application/host`    | Electron host that starts the runtime and loads the packaged UI. |
-| `scripts`             | Repository checks and automation.                                |
+| Package                | Responsibility                                                  |
+| ---------------------- | --------------------------------------------------------------- |
+| `application/ui`       | React frontend built with Vite, Tailwind CSS, and Lucide icons. |
+| `application/runner`   | The runner: shells and metadata, served over WebSocket or port. |
+| `application/protocol` | Shared Zod contracts and the `connectRunner` client for UIs.    |
+| `application/host`     | Electron host that starts the runner and loads the packaged UI. |
+| `scripts`              | Repository checks and automation.                               |
 
 The terminal interface currently uses sample output and in-memory commands, not
 real shell processes or model calls. Projects, sessions, and layouts reset on
 reload; preferences and sidebar settings are stored locally. Keep this boundary
-in mind when changing terminal behavior or adding runtime integration.
+in mind when changing terminal behavior or adding runner integration.
+
+See the [terminal backend plan](docs/backend-plan.md) for the proposed runner
+architecture and typed API.
+
+The standalone backend now supports authenticated, real terminal processes and
+persistent project/session metadata. The Electron host runs it in a utility process,
+but the interface above is **not connected yet** and still uses mock data. See the
+[backend API guide](docs/backend-api.md) for configuration, client examples, and
+backend-only tests.
 
 ### Working on the UI
 
@@ -227,17 +237,21 @@ or `--project unit` for the non-UI unit tests.
 
 ## Configuration
 
-For standalone UI/runtime configuration, copy the environment templates:
+For standalone UI/runner configuration, copy the environment templates:
 
 ```sh
 cp application/ui/example.env application/ui/.env
-cp application/runtime/example.env application/runtime/.env
+cp application/runner/example.env application/runner/.env
 ```
 
 - UI: `VITE_API_URL` sets the API URL at build time; the default is same-origin `/api`.
-- Runtime: `HOST`, `PORT`, and `CORS_ORIGINS` control the listener and allowed frontend origins.
-- Electron: the host starts the bundled runtime on a local, OS-selected port and
-  supplies its URL through a sandboxed preload bridge. Package `.env` files are not used.
+- Runner: `HOST`, `PORT`, and `CORS_ORIGINS` control the listener and allowed frontend origins.
+- Terminal API: `NOVADECK_TOKEN` enables authenticated WebSocket RPC;
+  `NOVADECK_DATABASE` optionally selects the SQLite metadata file. Without a token,
+  only the existing HTTP status API is available.
+- Electron: the host runs the runner in a utility process and hands each window a
+  MessagePort through a sandboxed preload bridge. It also serves the status endpoint
+  on a local, OS-selected port. Package `.env` files are not used.
 
 For a separately hosted frontend, set `VITE_API_URL` to the public HTTPS API URL
 before building and add the frontend origin to `CORS_ORIGINS`. The generated
@@ -254,10 +268,16 @@ pnpm test
 pnpm build
 ```
 
-Use package filters for focused checks, for example `pnpm --filter @novadeck/ui test`.
+Use package filters for focused checks, for example `pnpm exec turbo run test --filter=@novadeck/ui`,
+which builds what the tests need first. `pnpm test` runs one package's tests at a time:
+the UI's browser tests and the runner's real-PTY tests are timing-sensitive, and running
+them together starved the smaller CI runners enough to time out.
 Tests use Vitest: UI behaviour specs run in Vitest Browser Mode on Chromium, and
-MSW covers HTTP behavior. The PR workflows run formatting, lint, typechecking, tests,
-builds, and PR metadata checks on Linux. PRs marked ready for review package
+MSW covers HTTP behavior. The PR workflows run formatting, lint, typechecking,
+builds, and PR metadata checks on Linux. The Test jobs run all package and repository
+tests on Linux, macOS, and Windows, including for draft PRs. Each runs UI tests in
+Chromium alongside backend API, real PTY, and built-CLI tests. The required `Test`
+check passes only when the entire Quality matrix succeeds. PRs marked ready for review package
 and smoke-test the app on Linux, macOS, and Windows using the same workflow as
 releases. Draft PRs skip packaging; PR checks never create tags or publish releases.
 Quality checks run on PR opening, reopening, and commits. Marking a draft PR ready

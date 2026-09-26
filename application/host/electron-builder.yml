@@ -2,6 +2,12 @@ appId: dev.mzpk.novadeck
 productName: novadeck.
 executableName: novadeck
 asar: true
+# PTY libraries and their spawn helpers must run from the real filesystem.
+asarUnpack:
+  - node_modules/node-pty/**
+# node-pty ships N-API prebuilds for every target, which Electron loads unchanged.
+# Rebuilding from source would shadow them without the bundled ConPTY files.
+npmRebuild: false
 directories:
   output: release
 files:
@@ -12,6 +18,9 @@ extraResources:
     to: ui
 artifactName: novadeck-${version}-${os}-${arch}.${ext}
 mac:
+  # node-pty ships prebuilds for both architectures; the universal merge sees them
+  # unchanged in the x64 and arm64 copies, and node-pty loads the one for the host.
+  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/*
   # Electron resolves helpers from CFBundleName; builder strips the branding's trailing dot.
   extendInfo:
     CFBundleName: novadeck

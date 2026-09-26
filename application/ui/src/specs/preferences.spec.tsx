@@ -109,6 +109,7 @@ describe("Preferences", () => {
 describe("shortcut list", () => {
   context("on Windows and Linux", () => {
     it("groups modifier shortcuts under Anywhere with Ctrl labels", async () => {
+      vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32")
       await openWorkspace()
 
       await showShortcuts()

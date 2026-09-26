@@ -1,0 +1,33 @@
+diff --git a/lib/windowsPtyAgent.js b/lib/windowsPtyAgent.js
+index 2728b765aa8f03bcfdadf46db0be5f77dcf20a25..01cb24d0472c989dc6718aa4c3a57de1ebecb715 100644
+--- a/lib/windowsPtyAgent.js
++++ b/lib/windowsPtyAgent.js
+@@ -82,6 +82,15 @@ var WindowsPtyAgent = /** @class */ (function () {
+             writable: true
+         });
+         this._inSocket.setEncoding('utf8');
++        // A failed input write, such as EAGAIN, would otherwise be an uncaught exception
++        // that ends the host process (microsoft/node-pty#942, #976). The failed socket
++        // destroys itself, so the terminal could never take input again: end it, so its
++        // owner sees an exit instead of a terminal that silently ignores the keyboard.
++        var agent = this;
++        this._inSocket.on('error', function (err) {
++            console.warn('node-pty ended a terminal after an input write failed: ' + (err.code || err.message));
++            agent.kill();
++        });
+     }
+     Object.defineProperty(WindowsPtyAgent.prototype, "onError", {
+         get: function () { return this._onError.event; },
+@@ -152,6 +161,12 @@ var WindowsPtyAgent = /** @class */ (function () {
+     };
+     WindowsPtyAgent.prototype.kill = function () {
+         var _this = this;
++        // Closing a pseudoconsole twice is undefined; a failed write and its owner may
++        // both end the terminal.
++        if (this._killed) {
++            return;
++        }
++        this._killed = true;
+         // Prevent deferred connection from completing after kill
+         this._pendingPtyInfo = undefined;
+         // Tell the agent to kill the pty, this releases handles to the process

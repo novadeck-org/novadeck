@@ -377,7 +377,8 @@ describe("closing terminals", () => {
         await chooseView(name)
         await terminalTab("Dev server").click()
         await commandInput("Dev server").fill("npm run")
-        await press("{Home}")
+        // Home does not move the input caret to its start on macOS.
+        await press("{ArrowLeft}".repeat("npm run".length))
 
         await press("{Delete}")
 
