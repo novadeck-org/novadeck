@@ -50,9 +50,22 @@ describe("compiled desktop runner", () => {
       const runner = start(database)
       try {
         const client = await runner.connect()
-        const project = await client.projects.create({ name: "Desktop", cwd: directory })
-        const session = await client.sessions.create({ projectId: project.id, name: "Shell" })
-        const created = await client.terminals.create({ sessionId: session.id, cols: 80, rows: 24 })
+        const project = await client.projects.create({
+          id: crypto.randomUUID(),
+          name: "Desktop",
+          cwd: directory,
+        })
+        const session = await client.sessions.create({
+          id: crypto.randomUUID(),
+          projectId: project.id,
+          name: "Shell",
+        })
+        const created = await client.terminals.create({
+          id: crypto.randomUUID(),
+          sessionId: session.id,
+          cols: 80,
+          rows: 24,
+        })
         const terminal = await client.terminals.attach(created.id)
         let text = ""
         const reading = (async () => {
@@ -75,13 +88,47 @@ describe("compiled desktop runner", () => {
       }
     }, 20_000)
 
+    it("has no terminal limit, unlike a standalone runner", async () => {
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
+      const runner = start(join(directory, "workspace.sqlite"))
+      try {
+        const client = await runner.connect()
+        const project = await client.projects.create({
+          id: crypto.randomUUID(),
+          name: "Many",
+          cwd: directory,
+        })
+        const session = await client.sessions.create({
+          id: crypto.randomUUID(),
+          projectId: project.id,
+          name: "Many",
+        })
+        // All at once: the desktop MessagePort connection allows 1,024 calls in flight.
+        const created = await Promise.all(
+          Array.from({ length: 33 }, () =>
+            client.terminals.create({
+              id: crypto.randomUUID(),
+              sessionId: session.id,
+              cols: 80,
+              rows: 24,
+            }),
+          ),
+        )
+        expect(created.filter((terminal) => terminal.exit === null)).toHaveLength(33)
+        await client.close()
+      } finally {
+        await runner.close()
+        await rm(directory, { recursive: true, force: true })
+      }
+    }, 20_000)
+
     it("keeps metadata when the host starts a new runner", async () => {
       const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
       const database = join(directory, "workspace.sqlite")
       try {
         const first = start(database)
         const client = await first.connect()
-        await client.projects.create({ name: "Persisted", cwd: directory })
+        await client.projects.create({ id: crypto.randomUUID(), name: "Persisted", cwd: directory })
         await client.close()
         await first.close()
 

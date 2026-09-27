@@ -25,6 +25,12 @@ export type UiState = {
   }
   // The terminal created last, highlighted briefly in its session.
   readonly created: { readonly context: string; readonly id: string } | null
+  // A close waiting for the person to confirm it, since a program runs in the terminal.
+  readonly closing: { readonly context: string; readonly id: string } | null
+  // The person chose "Not now" for this crash loop; it asks again only after the next one.
+  readonly crashLoopDismissed: boolean
+  // How many crashes the backend reports while its far side keeps crashing; 0 otherwise.
+  readonly crashLoop: number
 }
 
 export type UiLocation = {
@@ -54,6 +60,9 @@ export const initialUi = ({
   rename: null,
   recent: { switcher: null, byContext: {} },
   created: null,
+  closing: null,
+  crashLoopDismissed: false,
+  crashLoop: 0,
 })
 
 export const updateShell = (ui: UiStore, change: (shell: ShellState) => ShellState): void =>
@@ -138,3 +147,37 @@ export const watchSwitcher = (workspace: Store<Workspace>, ui: UiStore): (() => 
   const stops = [workspace.subscribe(check), ui.subscribe(check)]
   return () => stops.forEach((stop) => stop())
 }
+
+// Mirrors the backend's crash count, which the crash-loop dialog, the footer and
+// keyboard routing read; a crash loop that ends forgets "Not now", so the next one
+// asks again.
+export const watchCrashLoop = (crashes: Store<number> | undefined, ui: UiStore): (() => void) => {
+  if (!crashes) return () => {}
+  const check = (): void => {
+    const crashLoop = crashes.getSnapshot()
+    ui.update((state) => {
+      const crashLoopDismissed = crashLoop > 0 && state.crashLoopDismissed
+      return state.crashLoop === crashLoop && state.crashLoopDismissed === crashLoopDismissed
+        ? state
+        : { ...state, crashLoop, crashLoopDismissed }
+    })
+  }
+  check()
+  return crashes.subscribe(check)
+}
+
+// A close confirmation belongs to the session it was asked in: leaving that session
+// drops it, so it never comes back unasked. So does the terminal going away on its own
+// (its shell exits): the dialog stops showing, and a question left behind would still
+// hold every shortcut back.
+export const watchClosing = (workspace: Store<Workspace>, ui: UiStore): (() => void) =>
+  workspace.subscribe(() => {
+    const { closing } = ui.getSnapshot()
+    if (!closing) return
+    const snapshot = workspace.getSnapshot()
+    if (
+      closing.context !== currentContext(snapshot) ||
+      !currentState(snapshot).roster.terminals.some((terminal) => terminal.id === closing.id)
+    )
+      ui.update((state) => ({ ...state, closing: null }))
+  })

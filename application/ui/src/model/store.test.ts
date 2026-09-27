@@ -198,12 +198,13 @@ describe("terminal status", () => {
       type: "terminal/status",
       target,
       terminalId: "01",
-      status: { state: "exited", exitCode: 2 },
+      status: { state: "exited", exitCode: 2, signal: null },
     })
     expect(statusOf(store.getSnapshot())).toEqual({
       ...terminalFixture(1, "~/project"),
       state: "exited",
       exitCode: 2,
+      signal: null,
     })
     store.dispatch({
       type: "terminal/status",
@@ -221,7 +222,7 @@ describe("terminal status", () => {
     const store = createWorkspaceStore(initial())
     let notifications = 0
     store.subscribe(() => notifications++)
-    const exited = { state: "exited", exitCode: null } as const
+    const exited = { state: "exited", exitCode: null, signal: null } as const
     store.dispatch({ type: "terminal/status", target, terminalId: "01", status: exited })
     const previous = store.getSnapshot()
     store.dispatch({ type: "terminal/status", target, terminalId: "01", status: { ...exited } })
@@ -262,17 +263,55 @@ describe("terminal status", () => {
       type: "terminal/status",
       target,
       terminalId: "01",
-      status: { state: "exited", exitCode: 1 },
+      status: { state: "exited", exitCode: 1, signal: null },
     })
     const previous = store.getSnapshot()
     store.dispatch({
       type: "terminal/status",
       target,
       terminalId: "01",
-      status: { state: "exited", exitCode: 0 },
+      status: { state: "exited", exitCode: 0, signal: null },
     })
     expect(store.getSnapshot()).not.toBe(previous)
     expect(statusOf(store.getSnapshot())).toMatchObject({ exitCode: 0 })
+  })
+})
+
+describe("terminal process", () => {
+  const terminalOf = (workspace: Workspace) => state(workspace).roster.terminals[0]!
+
+  it("updates what runs in the foreground and keeps the status", () => {
+    const store = createWorkspaceStore(initial())
+    store.dispatch({
+      type: "terminal/process",
+      target,
+      terminalId: "01",
+      process: { process: "claude", kind: "claude" },
+    })
+    expect(terminalOf(store.getSnapshot())).toEqual({
+      ...terminalFixture(1, "~/project"),
+      process: "claude",
+      kind: "claude",
+    })
+  })
+
+  it("ignores an unchanged process or a missing terminal", () => {
+    const store = createWorkspaceStore(initial())
+    const before = store.getSnapshot()
+    const { process, kind } = terminalOf(before)
+    store.dispatch({
+      type: "terminal/process",
+      target,
+      terminalId: "01",
+      process: { process, kind },
+    })
+    store.dispatch({
+      type: "terminal/process",
+      target,
+      terminalId: "gone",
+      process: { process: "git", kind: "git" },
+    })
+    expect(store.getSnapshot()).toBe(before)
   })
 })
 

@@ -1,0 +1,12 @@
+/* xterm.css paints its scroll viewport black under the themed screen. At fractional
+   display scales the screen's edges land between pixels and that black shows through
+   as thin lines, so the viewport takes the surface's own background. */
+.runner-terminal .xterm .xterm-viewport {
+  background-color: transparent;
+}
+
+/* Canvas scales its resize grip (28px, at the node's bottom-right corner) with
+   --canvas-chrome-scale; the end-of-session bar keeps its Restart button clear of it. */
+.canvas-node .runner-ending {
+  padding-right: calc(28px * var(--canvas-chrome-scale, 1) + 4px);
+}

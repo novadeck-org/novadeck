@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "allotment/dist/style.css" layer(base);
+/* Inter ships with the app: the CSP only loads fonts from the app itself. */
+@import "@fontsource-variable/inter";
 
 @theme {
   --color-paper: #ffffff;
@@ -12,7 +14,18 @@
   --color-scrim: rgb(38 40 38 / 0.18);
   --color-soft: #eff1ed;
   --color-strong: #373c35;
-  --font-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+  /* Signal cyan, the brand accent: for small marks only (the logo's cursor, the boot
+     hairline and attach flash), never for text. */
+  --color-accent: #12b0c4;
+  /* Status colours: soft tints for surfaces such as the footer while the runner is
+     away, each with a dark text colour of the same hue (every pair meets WCAG AA). */
+  --color-success: #dcebdd;
+  --color-success-fg: #24593a;
+  --color-warning: #f5e6b8;
+  --color-warning-fg: #6b4e0a;
+  --color-danger: #f6d5d1;
+  --color-danger-fg: #8a2a22;
+  --font-sans: "Inter Variable", "Inter", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --radius-control: 2px;
   --radius-panel: 3px;
@@ -26,6 +39,17 @@
   --motion-layout: 200ms;
   --motion-view: 140ms;
   --ease-interface: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* The status colours for a dark theme: deep tints with light text of the same hue;
+   the app is light-only until that theme lands. */
+:root[data-theme="dark"] {
+  --color-success: #1f3326;
+  --color-success-fg: #b9dcc0;
+  --color-warning: #3a3015;
+  --color-warning-fg: #ecd592;
+  --color-danger: #3d2220;
+  --color-danger-fg: #f1b8b1;
 }
 
 @layer base {

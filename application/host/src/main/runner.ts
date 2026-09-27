@@ -16,6 +16,8 @@ export type RunnerHost = {
    * later connection requests are ignored.
    */
   close(timeoutMs?: number): Promise<void>
+  /** For the debug panel: kills the runner process as a crash would; false when none runs. */
+  kill(): boolean
 }
 
 const send = (worker: UtilityProcess, command: RunnerCommand, ports: MessagePortMain[] = []) =>
@@ -46,6 +48,9 @@ export const startRunner = (options: { entry: string; database: string }): Runne
       const { port1, port2 } = new MessageChannelMain()
       send(child ?? spawn(), { type: "connect" }, [port1])
       contents.postMessage(runnerPortChannel, id, [port2])
+    },
+    kill() {
+      return child?.kill() ?? false
     },
     close(timeoutMs = 5_000) {
       closing ??= new Promise<void>((resolve) => {

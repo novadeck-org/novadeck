@@ -1,4 +1,3 @@
-import { memo } from "react"
 import { HashRouter } from "react-router"
 
 import type { CreateBackend } from "../backend/port"
@@ -10,12 +9,15 @@ import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
 import { ZenDock } from "../shell/ZenDock"
 import { selectBackend } from "./backend"
+import { BackendGate } from "./BackendGate"
+import { BootReporter } from "./BootReporter"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useKeyboard } from "./controller/useKeyboard"
 import { useWorkspaceEffects } from "./controller/useWorkspaceEffects"
 import { HeaderSection } from "./HeaderSection"
-import { currentState, shallowEqual } from "./selectors"
+import { currentState, currentTarget, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
+import { WorkspaceFooter } from "./WorkspaceFooter"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
 import { WorkspaceProvider } from "./WorkspaceProvider"
 import { WorkspaceStage } from "./WorkspaceStage"
@@ -25,40 +27,40 @@ export type AppProps = {
   readonly createBackend?: CreateBackend
 }
 
-export const App = ({ createBackend = selectBackend }: AppProps): React.JSX.Element => (
-  <HashRouter useTransitions={false}>
-    <WorkspaceProvider createBackend={createBackend}>
-      <WorkspaceApp />
-    </WorkspaceProvider>
-  </HashRouter>
+export const App = ({ createBackend }: AppProps): React.JSX.Element => (
+  <BackendGate
+    selection={createBackend ? { createBackend } : selectBackend}
+    render={(create, boot) => (
+      <HashRouter useTransitions={false}>
+        <WorkspaceProvider createBackend={create}>
+          <BootReporter report={boot} />
+          <WorkspaceApp />
+        </WorkspaceProvider>
+      </HashRouter>
+    )}
+  />
 )
 
-// The terminal counts under the workspace.
-const WorkspaceFooter = memo((): React.JSX.Element => {
-  const zen = useUiState((state) => Boolean(state.shell.zen))
-  const { count, running } = useWorkspaceState((workspace) => {
-    const { terminals } = currentState(workspace).roster
-    return {
-      count: terminals.length,
-      running: terminals.filter((terminal) => terminal.state === "running").length,
-    }
-  }, shallowEqual)
+// The backend's debug panel, where this launch offers one.
+const DebugSection = (): React.JSX.Element | null => {
+  const { backend, commands, workspace } = useWorkspaceServices()
+  const Panel = backend.DebugPanel
+  if (!Panel) return null
   return (
-    <footer
-      hidden={zen}
-      className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] flex h-7 shrink-0 items-center justify-between border-t border-line bg-paper px-4 text-[10px] text-muted"
-    >
-      <span className="flex items-center gap-2">
-        <span>
-          {count} {count === 1 ? "terminal" : "terminals"}
-        </span>
-        <span className="footer-running max-[701px]:hidden ml-2 border-l border-line pl-3">
-          {running} running
-        </span>
-      </span>
-    </footer>
+    <Panel
+      addTerminal={() => {
+        const terminalId = commands.add({ beginRename: false })
+        return { ...currentTarget(workspace.getSnapshot()), terminalId }
+      }}
+      startFresh={commands.startFresh}
+      selected={() => {
+        const snapshot = workspace.getSnapshot()
+        const terminalId = currentState(snapshot).selected
+        return terminalId ? { ...currentTarget(snapshot), terminalId } : undefined
+      }}
+    />
   )
-})
+}
 
 // Hosts the effects that follow store changes; it renders nothing.
 const WorkspaceEffects = (): null => {
@@ -138,6 +140,7 @@ export const WorkspaceApp = (): React.JSX.Element => {
       </div>
       <WorkspaceFooter />
       <WorkspaceOverlays />
+      <DebugSection />
     </main>
   )
 }

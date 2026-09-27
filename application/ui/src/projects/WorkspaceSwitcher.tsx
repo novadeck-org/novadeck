@@ -8,12 +8,15 @@ type WorkspaceSwitcherProps = {
   projects: Project[]
   current: Project
   onSelect: (id: string) => void
+  // Absent where no folder can be opened, which disables "Open folder…".
+  onOpenFolder?: (() => void) | undefined
 }
 
 export const WorkspaceSwitcher = ({
   projects,
   current,
   onSelect,
+  onOpenFolder,
 }: WorkspaceSwitcherProps): React.JSX.Element => {
   const [open, setOpen] = useState(false)
   return (
@@ -86,8 +89,12 @@ export const WorkspaceSwitcher = ({
           <button
             className="workspace-switcher-new flex w-full items-center gap-2.25 rounded-control px-2.5 py-[9px] text-left text-[11px] text-muted disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
-            disabled
-            title="Unavailable"
+            disabled={!onOpenFolder}
+            title={onOpenFolder ? undefined : "Unavailable"}
+            onClick={() => {
+              setOpen(false)
+              onOpenFolder?.()
+            }}
           >
             <FolderOpen aria-hidden="true" className="shrink-0" size={15} strokeWidth={1.65} />
             <span>Open folder…</span>

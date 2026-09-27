@@ -3,6 +3,7 @@ import type { IncomingMessage } from "node:http"
 import type { Duplex } from "node:stream"
 
 import type { ServerType } from "@hono/node-server"
+import { maxWebSocketMessageBytes } from "@novadeck/protocol"
 import { RPCHandler } from "@orpc/server/ws"
 import { WebSocket, WebSocketServer } from "ws"
 
@@ -41,7 +42,7 @@ export const serveWebSocket = (runner: Runner, options: WebSocketOptions) => {
   const handler = new RPCHandler(runner.router)
   const wss = new WebSocketServer({
     noServer: true,
-    maxPayload: 64 * 1024,
+    maxPayload: maxWebSocketMessageBytes,
     perMessageDeflate: false,
   })
   let stopping = false
@@ -56,6 +57,8 @@ export const serveWebSocket = (runner: Runner, options: WebSocketOptions) => {
       verify,
       terminate: () => socket.terminate(),
       onAuthenticated: () => clearTimeout(timer),
+      // An untrusted peer may not queue unbounded work.
+      maxCalls: 32,
     })
     const cleanup = () => {
       clearTimeout(timer)

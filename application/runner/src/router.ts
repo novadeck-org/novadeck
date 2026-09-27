@@ -1,3 +1,5 @@
+import { homedir } from "node:os"
+
 import { contract, errors as contractErrors, protocolVersion } from "@novadeck/protocol"
 import { implement, ORPCError } from "@orpc/server"
 
@@ -12,6 +14,8 @@ export type Connection = {
   /** Ends the transport, e.g. when a newer connection of the same client takes over. */
   readonly terminate: () => void
   readonly onAuthenticated: () => void
+  /** Calls this connection may have in flight; beyond it, calls fail with `RESOURCE_LIMIT`. */
+  readonly maxCalls: number
   clientId: string | undefined
   authenticated: boolean
   closed: boolean
@@ -39,7 +43,8 @@ export const createRouter = (options: {
   const authorized = api.use(async ({ context, next }) => {
     const connection = context.connection
     if (!connection.authenticated || connection.closed) throw new ORPCError("UNAUTHORIZED")
-    if (connection.calls >= 32) throw new ORPCError("RESOURCE_LIMIT", { status: 429 })
+    if (connection.calls >= connection.maxCalls)
+      throw new ORPCError("RESOURCE_LIMIT", { status: 429 })
     connection.calls += 1
     try {
       return await next()
@@ -64,24 +69,21 @@ export const createRouter = (options: {
         return {
           runnerId: options.runnerId,
           protocolVersion,
-          capabilities: [
-            "workspace-metadata",
-            "terminal-replay",
-            "terminal-ack",
-            "terminal-observers",
-          ],
         }
       }),
     },
     projects: {
       list: authorized.projects.list.handler(() => store.projects()),
-      create: authorized.projects.create.handler(({ input }) => store.createProject(input)),
+      create: authorized.projects.create.handler(({ input }) =>
+        store.createProject({ ...input, cwd: input.cwd ?? homedir() }),
+      ),
       rename: authorized.projects.rename.handler(({ input }) => store.renameProject(input)),
     },
     sessions: {
       list: authorized.sessions.list.handler(({ input }) => store.sessions(input.projectId)),
       create: authorized.sessions.create.handler(({ input }) => store.createSession(input)),
       rename: authorized.sessions.rename.handler(({ input }) => store.renameSession(input)),
+      save: authorized.sessions.save.handler(({ input }) => store.saveSession(input)),
     },
     terminals: {
       list: authorized.terminals.list.handler(({ input }) => {
@@ -92,6 +94,15 @@ export const createRouter = (options: {
         const session = store.session(input.sessionId)
         const project = store.project(session.projectId)
         return terminals.create({ ...input, cwd: input.cwd ?? project.cwd }, context.connection.id)
+      }),
+      watch: authorized.terminals.watch.handler(async function* ({ context, signal }) {
+        // A connection that closed before this stream began has already been released.
+        if (context.connection.closed) return
+        try {
+          yield* terminals.watch(context.connection.id, signal)
+        } catch (error) {
+          throw apiError(error)
+        }
       }),
       attach: authorized.terminals.attach.handler(async function* ({ input, context, signal }) {
         try {
@@ -116,6 +127,9 @@ export const createRouter = (options: {
       ),
       ack: authorized.terminals.ack.handler(({ input, context }) =>
         terminals.ack(input, context.connection.id),
+      ),
+      restart: authorized.terminals.restart.handler(({ input, context }) =>
+        terminals.restart(input, context.connection.id),
       ),
       close: authorized.terminals.close.handler(({ input, context }) =>
         terminals.close(input, context.connection.id),

@@ -6,7 +6,7 @@ import type { CommandContext } from "./context"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
 import { createRecentCommands, type RecentCommands } from "./recent"
 import { createRenameCommands, type RenameCommands } from "./rename"
-import { newWorkspaceSession } from "./sessions"
+import { folderProject, newWorkspaceSession } from "./sessions"
 import { createShellCommands, shellEdits, type ShellCommands } from "./shell"
 
 export type AddTerminalOptions = { fromKeyboard?: boolean; beginRename?: boolean }
@@ -20,6 +20,8 @@ export type WorkspaceCommands = ShellCommands &
     readonly switchSession: (id: string) => void
     readonly startFresh: () => void
     readonly switchProject: (next: Project) => void
+    // Asks the backend for a folder and opens it as a new project; no-op without one.
+    readonly openFolder: () => Promise<void>
     // Selects a terminal and brings it into view, optionally fitting Canvas around it.
     readonly select: (id: string, fit?: boolean) => void
     readonly setSelected: (terminal: string) => void
@@ -34,14 +36,22 @@ export type WorkspaceCommands = ShellCommands &
     readonly chooseRecent: (id: string) => void
     // Returns the new terminal's ID.
     readonly add: (options?: AddTerminalOptions) => string
+    // Closes the terminal, or asks first while a program runs in it.
     readonly close: (terminalId: string) => void
+    // Answers the pending close confirmation.
+    readonly confirmClose: () => void
+    readonly cancelClose: () => void
+    // Answers the crash-loop dialog: start the terminals over, or leave it until the
+    // next crash loop.
+    readonly retryAfterCrashLoop: () => void
+    readonly dismissCrashLoop: () => void
   }
 
 // The terminal created last stays highlighted this long.
 const createdHighlight = 900
 
 export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands => {
-  const { workspace, ui, navigation, newTerminal, effects } = ctx
+  const { workspace, ui, navigation, newTerminal, pickDirectory, crashLoop, effects } = ctx
   const { go, navigateWorkspace } = navigation
   const { set, pulse } = shellEdits(ctx)
   const shell = createShellCommands(ctx)
@@ -77,6 +87,31 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     effects.after(createdHighlight, () =>
       ui.update((state) => (state.created === created ? { ...state, created: null } : state)),
     )
+  }
+
+  const closeNow = (terminalId: string): void => {
+    const snapshot = workspace.getSnapshot()
+    const { view, selected } = currentState(snapshot)
+    const active = rename.activeRename()
+    if (active?.id === terminalId) rename.finishRename(active, false)
+    navigateWorkspace(
+      [{ type: "terminal/close", target: currentTarget(snapshot), terminalId }],
+      {},
+      true,
+    )
+    if (selected === terminalId && view !== "canvas") pulse()
+  }
+
+  const switchProject = (next: Project): void => {
+    if (next.id === workspace.getSnapshot().activeProjectId) return
+    navigateWorkspace([
+      {
+        type: "project/select",
+        projectId: next.id,
+        now: effects.now(),
+        enabledViews: preferences().enabledViews,
+      },
+    ])
   }
 
   return {
@@ -117,13 +152,30 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         panel: "sessions",
       })
     },
-    switchProject: (next) => {
-      if (next.id === workspace.getSnapshot().activeProjectId) return
+    switchProject,
+    openFolder: async () => {
+      // A picker that fails leaves the workspace as it was; it has nothing to show.
+      const directory = await pickDirectory?.().catch((error: unknown) => {
+        console.error("Could not open the folder picker", error)
+        return null
+      })
+      if (!directory) return
+      // A folder already open as a project opens that project again.
+      const existing = workspace
+        .getSnapshot()
+        .projects.find((project) => project.directory === directory)
+      if (existing) return switchProject(existing)
+      const project = folderProject(directory, effects.newId())
+      const initialSession = newWorkspaceSession(currentState(workspace.getSnapshot()), {
+        id: effects.newId(),
+        now: effects.now(),
+      })
       navigateWorkspace([
         {
-          type: "project/select",
-          projectId: next.id,
-          now: effects.now(),
+          type: "project/add",
+          project,
+          activate: true,
+          initialSession,
           enabledViews: preferences().enabledViews,
         },
       ])
@@ -217,15 +269,32 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     },
     close: (terminalId) => {
       const snapshot = workspace.getSnapshot()
-      const { view, selected } = currentState(snapshot)
-      const active = rename.activeRename()
-      if (active?.id === terminalId) rename.finishRename(active, false)
-      navigateWorkspace(
-        [{ type: "terminal/close", target: currentTarget(snapshot), terminalId }],
-        {},
-        true,
+      const closing = currentState(snapshot).roster.terminals.find(
+        (terminal) => terminal.id === terminalId,
       )
-      if (selected === terminalId && view !== "canvas") pulse()
+      // Closing ends the shell, so ask first while a program still runs in it; the
+      // confirmation dialog renders from this and answers with confirmClose or cancelClose.
+      if (closing?.state === "running")
+        return void ui.update((state) => ({
+          ...state,
+          closing: { context: currentContext(snapshot), id: terminalId },
+        }))
+      closeNow(terminalId)
     },
+    confirmClose: () => {
+      const pending = ui.getSnapshot().closing
+      if (!pending) return
+      ui.update((state) => ({ ...state, closing: null }))
+      // Only in the session it was asked in; a session change drops it.
+      if (pending.context === currentContext(workspace.getSnapshot())) closeNow(pending.id)
+    },
+    cancelClose: () => ui.update((state) => (state.closing ? { ...state, closing: null } : state)),
+    retryAfterCrashLoop: () => {
+      ui.update((state) =>
+        state.crashLoopDismissed ? { ...state, crashLoopDismissed: false } : state,
+      )
+      crashLoop?.retry()
+    },
+    dismissCrashLoop: () => ui.update((state) => ({ ...state, crashLoopDismissed: true })),
   }
 }

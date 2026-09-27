@@ -77,9 +77,22 @@ describe("built runner CLI", () => {
     await expect(cli.connect("wrong")).rejects.toMatchObject({ code: "UNAUTHORIZED" })
     const runner = await cli.connect(token)
     expect(runner.status).toEqual({ state: "connected", runnerId: expect.any(String) })
-    const project = await runner.projects.create({ name: "CLI workspace", cwd: directory })
-    const session = await runner.sessions.create({ projectId: project.id, name: "CLI session" })
-    const created = await runner.terminals.create({ sessionId: session.id, cols: 80, rows: 24 })
+    const project = await runner.projects.create({
+      id: crypto.randomUUID(),
+      name: "CLI workspace",
+      cwd: directory,
+    })
+    const session = await runner.sessions.create({
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      name: "CLI session",
+    })
+    const created = await runner.terminals.create({
+      id: crypto.randomUUID(),
+      sessionId: session.id,
+      cols: 80,
+      rows: 24,
+    })
     const terminal = await runner.terminals.attach(created.id)
     const output = reader(terminal, resources)
     const command =
@@ -94,7 +107,7 @@ describe("built runner CLI", () => {
       // eslint-disable-next-line no-await-in-loop -- The exit follows the shell's remaining output.
       event = await output.next()
     }
-    expect(event.exitCode).toBe(7)
+    expect(event.exit.code).toBe(7)
     await expect(terminal.next()).resolves.toEqual({ value: undefined, done: true })
     expect(output.output()).not.toContain(token)
     const first = runner.status
@@ -117,9 +130,22 @@ describe("built runner CLI", () => {
       const directory = await directoryFixture(resources)
       const cli = await launchCli(directory, resources)
       const runner = await cli.connect(token)
-      const project = await runner.projects.create({ name: "Shutdown", cwd: directory })
-      const session = await runner.sessions.create({ projectId: project.id, name: "Live shell" })
-      const created = await runner.terminals.create({ sessionId: session.id, cols: 80, rows: 24 })
+      const project = await runner.projects.create({
+        id: crypto.randomUUID(),
+        name: "Shutdown",
+        cwd: directory,
+      })
+      const session = await runner.sessions.create({
+        id: crypto.randomUUID(),
+        projectId: project.id,
+        name: "Live shell",
+      })
+      const created = await runner.terminals.create({
+        id: crypto.randomUUID(),
+        sessionId: session.id,
+        cols: 80,
+        rows: 24,
+      })
       const terminal = await runner.terminals.attach(created.id)
       const output = reader(terminal, resources)
       await terminal.write("printf 'OWNED_%s_PID=%s\\n' SHELL \"$$\"\r")

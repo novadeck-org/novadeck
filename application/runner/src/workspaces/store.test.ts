@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import {
   chmodSync,
   mkdirSync,
@@ -44,11 +45,15 @@ describe("workspace metadata", () => {
     const cwd = directory()
     const path = join(cwd, "metadata", "workspace.sqlite")
     const original = store(path)
-    const first = await original.createProject({ name: "Zebra", cwd })
-    const second = await original.createProject({ name: "Alpha", cwd })
-    const initial = original.createSession({ projectId: first.id, name: "Zebra" })
-    const next = original.createSession({ projectId: first.id, name: "Alpha" })
-    const other = original.createSession({ projectId: second.id, name: "Other project" })
+    const first = await original.createProject({ id: randomUUID(), name: "Zebra", cwd })
+    const second = await original.createProject({ id: randomUUID(), name: "Alpha", cwd })
+    const initial = original.createSession({ id: randomUUID(), projectId: first.id, name: "Zebra" })
+    const next = original.createSession({ id: randomUUID(), projectId: first.id, name: "Alpha" })
+    const other = original.createSession({
+      id: randomUUID(),
+      projectId: second.id,
+      name: "Other project",
+    })
     const renamed = original.renameProject({ projectId: first.id, name: "Renamed project" })
     const session = original.renameSession({ sessionId: initial.id, name: "Renamed session" })
     original.close()
@@ -75,12 +80,63 @@ describe("workspace metadata", () => {
     }
   })
 
+  it("keeps the given ids and rejects taken ones as conflicts", async ({ directory, store }) => {
+    const cwd = directory()
+    const workspace = store()
+    const projectId = randomUUID()
+    const sessionId = randomUUID()
+    const project = await workspace.createProject({
+      id: projectId,
+      name: "Chosen",
+      cwd,
+    })
+    const session = workspace.createSession({
+      id: sessionId,
+      projectId,
+      name: "Chosen",
+    })
+    expect(project.id).toBe(projectId)
+    expect(session).toEqual({ id: sessionId, projectId, name: "Chosen", state: null })
+    await expect(
+      workspace.createProject({ id: projectId, name: "Again", cwd }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    expect(() => workspace.createSession({ id: sessionId, projectId, name: "Again" })).toThrow(
+      expect.objectContaining({ code: "CONFLICT" }),
+    )
+    expect(workspace.projects()).toEqual([project])
+    expect(workspace.sessions(projectId)).toEqual([session])
+  })
+
+  it("replaces a session's saved state and keeps it across reopen", async ({
+    directory,
+    store,
+  }) => {
+    const cwd = directory()
+    const path = join(cwd, "workspace.sqlite")
+    const original = store(path)
+    const project = await original.createProject({ id: randomUUID(), name: "Project", cwd })
+    const session = original.createSession({
+      id: randomUUID(),
+      projectId: project.id,
+      name: "Session",
+    })
+    original.saveSession({ sessionId: session.id, state: '{"layout":1}' })
+    original.saveSession({ sessionId: session.id, state: '{"layout":2}' })
+    expect(() => original.saveSession({ sessionId: randomUUID(), state: "{}" })).toThrow(
+      expect.objectContaining({ code: "NOT_FOUND" }),
+    )
+    original.close()
+    const reopened = store(path)
+    expect(reopened.session(session.id)).toEqual({ ...session, state: '{"layout":2}' })
+    expect(reopened.sessions(project.id)).toEqual([{ ...session, state: '{"layout":2}' }])
+  })
+
   it("rejects missing projects and sessions without creating orphan records", ({ store }) => {
     const workspace = store()
     const operations = [
       () => workspace.project("missing"),
       () => workspace.sessions("missing"),
-      () => workspace.createSession({ projectId: "missing", name: "Orphan" }),
+      () => workspace.createSession({ id: randomUUID(), projectId: "missing", name: "Orphan" }),
       () => workspace.renameProject({ projectId: "missing", name: "Renamed" }),
       () => workspace.session("missing"),
       () => workspace.renameSession({ sessionId: "missing", name: "Renamed" }),
@@ -98,7 +154,7 @@ describe("workspace metadata", () => {
     const link = join(cwd, "link")
     mkdirSync(target)
     symlinkSync(target, link, "junction")
-    const project = await store().createProject({ name: "Project", cwd: link })
+    const project = await store().createProject({ id: randomUUID(), name: "Project", cwd: link })
     // Match native canonicalization, including expansion of Windows 8.3 paths.
     expect(project.cwd).toBe(realpathSync.native(target))
   })
@@ -110,7 +166,9 @@ describe("workspace metadata", () => {
     const workspace = store()
     await Promise.all(
       ["relative", join(cwd, "missing"), file].map((path) =>
-        expect(workspace.createProject({ name: "Invalid", cwd: path })).rejects.toMatchObject({
+        expect(
+          workspace.createProject({ id: randomUUID(), name: "Invalid", cwd: path }),
+        ).rejects.toMatchObject({
           code: "INVALID_DIRECTORY",
         }),
       ),
@@ -121,14 +179,22 @@ describe("workspace metadata", () => {
   it("rejects empty and oversized names at the storage boundary", async ({ directory, store }) => {
     const cwd = directory()
     const workspace = store()
-    const project = await workspace.createProject({ name: "Project", cwd })
-    const session = workspace.createSession({ projectId: project.id, name: "Session" })
+    const project = await workspace.createProject({ id: randomUUID(), name: "Project", cwd })
+    const session = workspace.createSession({
+      id: randomUUID(),
+      projectId: project.id,
+      name: "Session",
+    })
     const names = ["", "x".repeat(201)]
     await Promise.all(
-      names.map((name) => expect(workspace.createProject({ name, cwd })).rejects.toThrow(/CHECK/)),
+      names.map((name) =>
+        expect(workspace.createProject({ id: randomUUID(), name, cwd })).rejects.toThrow(/CHECK/),
+      ),
     )
     for (const name of names) {
-      expect(() => workspace.createSession({ projectId: project.id, name })).toThrow(/CHECK/)
+      expect(() =>
+        workspace.createSession({ id: randomUUID(), projectId: project.id, name }),
+      ).toThrow(/CHECK/)
       expect(() => workspace.renameProject({ projectId: project.id, name })).toThrow(/CHECK/)
       expect(() => workspace.renameSession({ sessionId: session.id, name })).toThrow(/CHECK/)
     }

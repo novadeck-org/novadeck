@@ -34,6 +34,18 @@ describe("compiled desktop host", () => {
       expect(preload).toContain("requestRunner")
     })
 
+    it("offers a folder picker parented to the requesting window", async () => {
+      const main = await read("main/index.js")
+      const preload = await read("preload/index.cjs")
+
+      expect(main).toContain("ipcMain.handle(directoryPickerChannel")
+      expect(main).toContain("showOpenDialog")
+      expect(main).toContain("openDirectory")
+      expect(main).toContain("createDirectory")
+      expect(preload).toContain("novadeck:pick-directory")
+      expect(preload).toContain("pickDirectory")
+    })
+
     it("blocks renderer navigation and denies permissions by default", async () => {
       const main = await read("main/index.js")
 

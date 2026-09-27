@@ -1,0 +1,230 @@
+import type { TerminalSummary } from "@novadeck/protocol"
+import { RunnerError, type RunnerStatus, type TerminalWatchItem } from "@novadeck/protocol/client"
+import { afterAll, vi } from "vitest"
+
+import { workspaceFromSeed } from "../../model/seed"
+import { activeSession, createTerminalState, workspaceReducer } from "../../model/state"
+import type { Workspace } from "../../model/types"
+import { context, describe, expect, it } from "../../test"
+import type { BackendAction } from "../port"
+import { runnerBackend, type RunnerApi } from "./backend"
+import { startingTerminal, type RunnerListing } from "./seed"
+import { encodeSession } from "./session-state"
+import { startTestRunner } from "./testing"
+
+// Values pushed by the test, read by the adapter as a stream.
+const channel = <T>() => {
+  const queued: T[] = []
+  let wake: (() => void) | undefined
+  const iterator: AsyncIterableIterator<T, undefined> = {
+    [Symbol.asyncIterator]: () => iterator,
+    next: async () => {
+      // eslint-disable-next-line no-await-in-loop -- Waits for the next pushed value.
+      while (!queued.length) await new Promise<void>((resolve) => (wake = resolve))
+      return { value: queued.shift()!, done: false }
+    },
+    return: async () => ({ value: undefined, done: true }),
+  }
+  return {
+    iterator,
+    push: (value: T) => {
+      queued.push(value)
+      wake?.()
+    },
+  }
+}
+
+const unused = (): never => {
+  throw new Error("not used here")
+}
+
+const terminalId = "00000000-0000-4000-8000-000000000001"
+const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
+  id: terminalId,
+  sessionId: "s",
+  cwd: "/tmp",
+  cols: 80,
+  rows: 24,
+  run: 1,
+  exit: null,
+  process: "zsh",
+  ...change,
+})
+
+// A runner the test drives step by step: what its watches report, and when a restart
+// answers. Timing like this cannot be arranged with a real runner.
+const scripted = (listed: TerminalSummary) => {
+  const changes = channel<TerminalWatchItem>()
+  const statuses = channel<RunnerStatus>()
+  const restarts: ((summary: TerminalSummary) => void)[] = []
+  const api = {
+    watch: () => statuses.iterator,
+    projects: { list: unused, create: unused, rename: unused },
+    sessions: { list: unused, create: unused, rename: unused, save: async () => {} },
+    terminals: {
+      list: unused,
+      watch: () => changes.iterator,
+      // Never answers: a fresh shell stays starting.
+      create: () => new Promise(() => {}),
+      close: async () => {},
+      restart: () => new Promise<TerminalSummary>((resolve) => restarts.push(resolve)),
+      attach: () => new Promise(() => {}),
+    },
+  } as unknown as RunnerApi
+  const session = {
+    id: "s",
+    name: "S",
+    visitedAt: 5,
+    state: createTerminalState([startingTerminal(terminalId, 1, "/tmp")], "grid", "grid"),
+  }
+  const listing: RunnerListing = [
+    {
+      project: { id: "p", name: "P", cwd: "/tmp" },
+      sessions: [
+        {
+          session: { id: "s", projectId: "p", name: "S", state: encodeSession(session, 2) },
+          terminals: [listed],
+        },
+      ],
+    },
+  ]
+  const created = runnerBackend(api, listing, { saveDelay: 10 })
+  created.backend.commit(
+    workspaceFromSeed(created.backend.seed, { view: "grid", windowedView: "grid", now: 1 }),
+    [],
+  )
+  const received: BackendAction[] = []
+  const stop = created.backend.start!({ dispatch: (actions) => received.push(...actions) })
+  statuses.push({ state: "connected", runnerId: "runner-1" })
+  const statusesOf = () =>
+    received.flatMap((action) => (action.type === "terminal/status" ? [action.status] : []))
+  const key = { projectId: "p", workspaceSessionId: "s", terminalId }
+  return { ...created, changes, statuses, restarts, received, statusesOf, stop, key }
+}
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 20))
+
+describe("runs of a terminal", () => {
+  context("while a restart has not answered yet", () => {
+    it("ignores late reports about the run it replaces", async () => {
+      const exited = { code: 2, signal: null, ranMs: 9_000 }
+      const app = scripted(summary({ exit: exited, process: null }))
+      await flush()
+      app.restart(app.key)
+      await flush()
+      app.changes.push({
+        type: "changed",
+        terminal: summary({ exit: exited, process: null }),
+      })
+      app.changes.push({ type: "changed", terminal: summary({ run: 2, process: "vim" }) })
+      await flush()
+      app.restarts[0]!(summary({ run: 2 }))
+      await flush()
+      expect(app.statusesOf()).toEqual([{ state: "starting" }, { state: "running" }])
+      app.stop()
+    })
+  })
+
+  context("when the watch starts a fresh sequence", () => {
+    it("counts a terminal the new sequence leaves out as lost, without a reconnecting status", async () => {
+      const app = scripted(summary({ run: 1 }))
+      await flush()
+      app.changes.push({ type: "changed", terminal: summary({ run: 1 }) })
+      app.changes.push({ type: "synced" })
+      // Reported during the old sequence, after its `synced`.
+      app.changes.push({ type: "changed", terminal: summary({ run: 1, process: "vim" }) })
+      await flush()
+      // The link came back at once: no reconnecting status, only a new sequence.
+      app.changes.push({ type: "reset" })
+      app.changes.push({ type: "synced" })
+      await flush()
+      expect(app.statusesOf()).toEqual([{ state: "running" }, { state: "starting" }])
+      app.stop()
+    })
+  })
+
+  context("when the runner comes back as a new process", () => {
+    it("counts runs afresh", async () => {
+      const app = scripted(summary({ run: 5 }))
+      await flush()
+      app.statuses.push({ state: "connected", runnerId: "runner-2" })
+      await flush()
+      app.changes.push({ type: "changed", terminal: summary({ run: 1, process: "vim" }) })
+      await flush()
+      expect(app.statusesOf()).toContainEqual({ state: "running" })
+      app.stop()
+    })
+  })
+})
+
+// A runner that holds one terminal at most.
+const limited = await startTestRunner({ terminals: { maxTerminals: 1 } })
+afterAll(() => limited.close())
+
+describe("terminal limits and retries", () => {
+  it("fails a terminal over the runner's limit instead of retrying it", async () => {
+    const created = runnerBackend(limited.client, limited.listing, { saveDelay: 10 })
+    const { backend } = created
+    let workspace: Workspace = workspaceFromSeed(backend.seed, {
+      view: "grid",
+      windowedView: "grid",
+      now: 1,
+    })
+    backend.commit(workspace, [])
+    const received: BackendAction[] = []
+    const stop = backend.start!({ dispatch: (actions) => received.push(...actions) })
+    const target = {
+      projectId: workspace.activeProjectId,
+      workspaceSessionId: activeSession(workspace)!.id,
+    }
+    for (const number of [1, 2]) {
+      const terminal = backend.newTerminal({ number, directory: "/tmp" })
+      const action = { type: "terminal/add", target, terminal } as const
+      workspace = workspaceReducer(workspace, action)
+      backend.commit(workspace, [action])
+    }
+    await created.idle()
+    expect(received).toContainEqual(
+      expect.objectContaining({
+        type: "terminal/status",
+        status: { state: "failed", message: "Terminal limit reached" },
+      }),
+    )
+    stop()
+  })
+
+  it("stops retrying a busy runner once the terminal is closed", async () => {
+    let creates = 0
+    const busy = {
+      ...limited.client,
+      watch: () => limited.client.watch(),
+      terminals: {
+        ...limited.client.terminals,
+        watch: () => limited.client.terminals.watch(),
+        create: async () => {
+          creates += 1
+          throw new RunnerError("RESOURCE_LIMIT")
+        },
+      },
+    } as RunnerApi
+    const created = runnerBackend(busy, limited.listing, { saveDelay: 10 })
+    const { backend } = created
+    let workspace = workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 1 })
+    backend.commit(workspace, [])
+    const target = {
+      projectId: workspace.activeProjectId,
+      workspaceSessionId: activeSession(workspace)!.id,
+    }
+    const terminal = backend.newTerminal({ number: 3, directory: "/tmp" })
+    const add = { type: "terminal/add", target, terminal } as const
+    workspace = workspaceReducer(workspace, add)
+    backend.commit(workspace, [add])
+    await vi.waitFor(() => expect(creates).toBeGreaterThan(1))
+    const close = { type: "terminal/close", target, terminalId: terminal.id } as const
+    backend.commit(workspaceReducer(workspace, close), [close])
+    await created.idle()
+    const after = creates
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
+    expect(creates).toBe(after)
+  })
+})

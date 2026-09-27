@@ -81,6 +81,9 @@ const vendors: Record<string, readonly string[]> = {
   "@dnd-kit": ["terminals/"],
   "react-router": ["app/", "shell/"],
   "react-dom": ["layouts/transition.ts", "main.tsx", "test/"],
+  // The runner client, its test runner, and the terminal emulator serve one adapter.
+  "@novadeck": ["backend/runner/"],
+  "@xterm": ["backend/runner/"],
 }
 
 const src = join(process.cwd(), "src")

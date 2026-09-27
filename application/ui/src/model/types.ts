@@ -4,18 +4,28 @@ export type PreferencesValue = { fontSize: number; enabledViews: ViewMode[] }
 export type Project = { id: string; name: string; directory: string }
 
 // What a terminal's process is doing. Exit and failure details replace each other.
+// An exited process reports its code, or the signal that killed it.
 export type TerminalStatus =
   | { readonly state: "starting" | "running" | "idle" | "finished" }
-  | { readonly state: "exited"; readonly exitCode: number | null }
+  | { readonly state: "exited"; readonly exitCode: number | null; readonly signal: string | null }
   | { readonly state: "failed"; readonly message: string }
 
+export type TerminalKind =
+  | "shell"
+  | "server"
+  | "tests"
+  | "git"
+  | "logs"
+  | "build"
+  | "claude"
+  | "codex"
 export type TerminalMetadata = {
   id: string
   name: string
   directory: string
   command: string
   process: string
-  kind: "shell" | "server" | "tests" | "git" | "logs" | "build" | "claude" | "codex"
+  kind: TerminalKind
 } & TerminalStatus
 
 export type CanvasLayout = {

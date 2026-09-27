@@ -14,7 +14,9 @@ import {
   removeTerminal,
   renameTerminal,
   reorderTerminals,
+  setTerminalProcess,
   setTerminalStatus,
+  type TerminalProcess,
 } from "./roster"
 import type {
   CanvasLayout,
@@ -75,6 +77,12 @@ export type WorkspaceAction =
   | { type: "terminal/close"; target: WorkspaceTarget; terminalId: string }
   | { type: "terminal/reorder"; target: WorkspaceTarget; tabOrder: string[] }
   | { type: "terminal/status"; target: WorkspaceTarget; terminalId: string; status: TerminalStatus }
+  | {
+      type: "terminal/process"
+      target: WorkspaceTarget
+      terminalId: string
+      process: TerminalProcess
+    }
   | { type: "terminal/select"; target: WorkspaceTarget; terminalId: string }
   | { type: "terminal/visibility"; target: WorkspaceTarget; terminalId: string; hidden: boolean }
   | {
@@ -353,6 +361,11 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
     case "terminal/status":
       return updateTarget(workspace, action.target, (state) => {
         const roster = setTerminalStatus(state.roster, action.terminalId, action.status)
+        return roster === state.roster ? state : { ...state, roster }
+      })
+    case "terminal/process":
+      return updateTarget(workspace, action.target, (state) => {
+        const roster = setTerminalProcess(state.roster, action.terminalId, action.process)
         return roster === state.roster ? state : { ...state, roster }
       })
     case "terminal/select":

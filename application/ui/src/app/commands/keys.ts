@@ -3,7 +3,13 @@ import { orderedTerminals } from "../../model/roster"
 import { viewModes } from "../../model/state"
 import { sidebarVisible } from "../../shell/shell-state"
 import { cycleRecent, moveRecent } from "../../terminals/recent"
-import { activeTerminal, currentContext, currentState, windowedDestination } from "../selectors"
+import {
+  activeTerminal,
+  alertOpen,
+  currentContext,
+  currentState,
+  windowedDestination,
+} from "../selectors"
 import type { CommandContext } from "./context"
 import type { WorkspaceCommands } from "./workspace"
 
@@ -218,13 +224,17 @@ const direction = (args: number | undefined): 1 | -1 => (args !== undefined && a
 
 // What routing needs to know about the stores right now.
 export const keyState = (
-  { ui }: Pick<CommandContext, "ui">,
+  { ui, workspace }: Pick<CommandContext, "ui" | "workspace">,
   commands: Pick<WorkspaceCommands, "visibleSwitcher">,
-): KeyState => ({
-  dialog: ui.getSnapshot().location.route.dialog !== null,
-  switcher: commands.visibleSwitcher()?.mode ?? null,
-  held: ui.getSnapshot().recent.switcher?.mode === "held",
-})
+): KeyState => {
+  const alert = alertOpen(ui.getSnapshot(), workspace.getSnapshot())
+  return {
+    dialog: ui.getSnapshot().location.route.dialog !== null || alert,
+    alert,
+    switcher: commands.visibleSwitcher()?.mode ?? null,
+    held: ui.getSnapshot().recent.switcher?.mode === "held",
+  }
+}
 
 // Runs routed bindings in order until one handles the key. An unavailable command
 // ends routing and lets the key through; a repeat of a `swallow` binding is handled

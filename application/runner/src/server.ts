@@ -18,7 +18,8 @@ export const startServer = async (options: ServerOptions = {}): Promise<HttpServ
   const { createRunner, serveWebSocket } = await import("./index.js")
   const runner = createRunner({
     ...(options.database !== undefined && { database: options.database }),
-    ...(options.terminals !== undefined && { terminals: options.terminals }),
+    // A shared, network-reachable runner keeps a cap; the desktop runner has none.
+    terminals: { maxTerminals: 32, ...options.terminals },
   })
   let sockets: ReturnType<typeof serveWebSocket>
   try {

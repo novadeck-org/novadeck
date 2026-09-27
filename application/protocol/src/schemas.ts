@@ -8,17 +8,56 @@ export const columns = z.number().int().min(2).max(500)
 export const rows = z.number().int().min(1).max(200)
 export const sequence = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 
+/** The largest incoming WebSocket message a runner accepts; every call must fit in one. */
+export const maxWebSocketMessageBytes = 256 * 1024
+/**
+ * The longest saved session state, in characters. Over WebSocket, the whole
+ * `sessions.save` call must also fit in `maxWebSocketMessageBytes`.
+ */
+export const maxClientStateLength = 196_608
+
+// Opaque client-owned state the runner stores without reading, such as a UI layout.
+export const clientState = z.string().max(maxClientStateLength)
+
 export const project = z.strictObject({ id, name, cwd: directory })
-export const workspaceSession = z.strictObject({ id, projectId: id, name })
+export const workspaceSession = z.strictObject({
+  id,
+  projectId: id,
+  name,
+  // Last value saved with `sessions.save`, or null before the first save.
+  state: clientState.nullable(),
+})
+// How a shell ended: its exit code, or the signal that killed it (null on Windows),
+// and how long it ran, so a client can tell a quick startup failure from a later exit.
+export const terminalExit = z.strictObject({
+  code: z.number().int().nullable(),
+  signal: z.string().max(32).nullable(),
+  ranMs: z.number().int().nonnegative(),
+})
+
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
   cwd: directory,
   cols: columns,
   rows,
-  status: z.enum(["running", "exited"]),
-  exitCode: z.number().int().nullable(),
+  // Counts the shells this terminal has run: 1 at creation, +1 per restart. A report
+  // about an older run is stale.
+  run: z.number().int().positive(),
+  // How the shell ended; null while it runs.
+  exit: terminalExit.nullable(),
+  // The terminal's foreground process name, such as the shell or a program it runs.
+  // Null once exited or when the platform cannot tell.
+  process: z.string().max(256).nullable(),
 })
+
+// `terminals.watch` events: every terminal's summary, then each later change.
+export const terminalChange = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("changed"), terminal: terminalSummary }),
+  z.strictObject({ type: z.literal("removed"), terminalId: id, sessionId: id }),
+  // Follows the initial `changed` events: terminals not reported by now do not exist.
+  z.strictObject({ type: z.literal("synced") }),
+])
 
 const envelope = { terminalId: id, sequence }
 export const terminalEvent = z.discriminatedUnion("type", [
@@ -28,15 +67,15 @@ export const terminalEvent = z.discriminatedUnion("type", [
     data: z.string(),
     cols: columns,
     rows,
-    status: z.enum(["running", "exited"]),
-    exitCode: z.number().int().nullable(),
+    // Null while the shell runs.
+    exit: terminalExit.nullable(),
   }),
   z.strictObject({ ...envelope, type: z.literal("output"), data: z.string() }),
   z.strictObject({ ...envelope, type: z.literal("resized"), cols: columns, rows }),
   z.strictObject({
     ...envelope,
     type: z.literal("exited"),
-    exitCode: z.number().int().nullable(),
+    exit: terminalExit,
   }),
 ])
 
@@ -49,6 +88,8 @@ export const terminalAttached = z.strictObject({
 
 export type Project = z.infer<typeof project>
 export type WorkspaceSession = z.infer<typeof workspaceSession>
+export type TerminalExit = z.infer<typeof terminalExit>
 export type TerminalSummary = z.infer<typeof terminalSummary>
+export type TerminalChange = z.infer<typeof terminalChange>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>

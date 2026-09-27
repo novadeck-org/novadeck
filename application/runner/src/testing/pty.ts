@@ -32,5 +32,7 @@ export const command = (
     | { type: "startNoise" }
     | { type: "stopNoise" }
     | { type: "styled"; cols: number; lines: number; checkpoint?: string }
-    | { type: "exit"; code?: number; data?: string },
+    | { type: "exit"; code?: number; data?: string }
+    /** Renames the child, which Linux then reports as the terminal's foreground process. */
+    | { type: "title"; value: string },
 ): string => `${Buffer.from(JSON.stringify(value)).toString("base64")}\n`

@@ -1,4 +1,4 @@
-import { runnerPortMessage, type DesktopBridge } from "./bridge.js"
+import { runnerPortMessage, type DesktopHost } from "./bridge.js"
 import { RunnerError } from "./errors.js"
 import type { Transport } from "./runner.js"
 import { messagePort } from "./transports.js"
@@ -13,7 +13,7 @@ const request = (signal: AbortSignal) =>
       reject(signal.reason)
       return
     }
-    const host = (globalThis as { novadeck?: Partial<DesktopBridge> }).novadeck
+    const host = (globalThis as { novadeck?: Partial<DesktopHost> }).novadeck
     if (!host?.requestRunner) {
       reject(new RunnerError("CLOSED", "No desktop host provides a runner."))
       return

@@ -39,4 +39,18 @@ describe("frontend Content Security Policy", () => {
       )
     })
   })
+
+  context("when a browser build names its runner", () => {
+    it("allows the runner's WebSocket origin", () => {
+      expect(
+        contentSecurityPolicyConnectSources(undefined, false, "wss://runner.example.com/api/rpc"),
+      ).toEqual(["'self'", "http://127.0.0.1:*", "wss://runner.example.com"])
+    })
+
+    it("rejects a runner URL that is not a WebSocket", () => {
+      expect(() =>
+        contentSecurityPolicyConnectSources(undefined, false, "https://runner.example.com"),
+      ).toThrow("VITE_NOVADECK_RUNNER_URL must be an absolute ws: or wss: URL")
+    })
+  })
 })

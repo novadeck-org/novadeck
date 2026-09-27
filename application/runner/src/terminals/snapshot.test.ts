@@ -13,8 +13,9 @@ const summary: TerminalSummary = {
   cwd: "/tmp",
   cols: 20,
   rows: 4,
-  status: "running",
-  exitCode: null,
+  exit: null,
+  process: null,
+  run: 1,
 }
 
 const text = (terminal: InstanceType<typeof Terminal>) =>

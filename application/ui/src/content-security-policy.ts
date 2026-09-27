@@ -1,10 +1,25 @@
+// The origin of the runner a browser build connects to, which must be a WebSocket URL.
+const runnerOrigin = (runnerUrl: string): string => {
+  try {
+    const url = new URL(runnerUrl)
+    if (url.protocol === "ws:" || url.protocol === "wss:") return url.origin
+  } catch {
+    // Reported below.
+  }
+  throw new Error("VITE_NOVADECK_RUNNER_URL must be an absolute ws: or wss: URL")
+}
+
 export const contentSecurityPolicyConnectSources = (
   apiUrl: string | undefined,
   development: boolean,
+  runnerUrl?: string | undefined,
 ): readonly string[] => {
   const sources = new Set(["'self'", "http://127.0.0.1:*"])
 
   if (development) sources.add("ws://127.0.0.1:*")
+
+  const configuredRunner = runnerUrl?.trim()
+  if (configuredRunner) sources.add(runnerOrigin(configuredRunner))
 
   const configuredUrl = apiUrl?.trim()
   if (!configuredUrl) return [...sources]

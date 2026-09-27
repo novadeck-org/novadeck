@@ -1,13 +1,27 @@
 import { afterEach, vi } from "vitest"
 
+import { createStore } from "../../model/store"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import { workspaceFixture } from "../../test/fixtures"
+import { keyState } from "./keys"
 
 const terminal = (app: ReturnType<typeof openCommands>, id: string) =>
   app.state().roster.terminals.find((item) => item.id === id)!
 
 afterEach(() => void vi.useRealTimers())
+
+// A workspace whose first terminal runs a program.
+const running = () => {
+  const workspace = workspaceFixture()
+  const state = workspace.projects[0]!.history[0]!.state
+  state.roster.terminals[0] = {
+    ...state.roster.terminals[0]!,
+    state: "running",
+    process: "vim",
+  }
+  return workspace
+}
 
 describe("workspace commands", () => {
   context("when adding a terminal while another is being renamed", () => {
@@ -84,6 +98,137 @@ describe("workspace commands", () => {
         sidebar: true,
         sidebarCollapsed: false,
       })
+    })
+  })
+
+  context("when opening a folder", () => {
+    it("adds a project named after it with a fresh session and switches to it", async () => {
+      const app = openCommands({ pickDirectory: () => Promise.resolve("/work/storefront/") })
+      await app.commands.openFolder()
+      const snapshot = app.workspace.getSnapshot()
+      const opened = snapshot.projects.at(-1)!
+      expect(opened).toMatchObject({ name: "storefront", directory: "/work/storefront/" })
+      expect(opened.history).toHaveLength(1)
+      expect(snapshot.activeProjectId).toBe(opened.id)
+      expect(app.ui.getSnapshot().location.route).toMatchObject({
+        projectId: opened.id,
+        sessionId: opened.history[0]!.id,
+      })
+    })
+
+    it("switches to the project a folder is already open as", async () => {
+      const app = openCommands({ pickDirectory: () => Promise.resolve("/work/api") })
+      await app.commands.openFolder()
+      const first = app.workspace.getSnapshot()
+      app.commands.switchProject(first.projects[0]!)
+      await app.commands.openFolder()
+      const snapshot = app.workspace.getSnapshot()
+      expect(snapshot.projects).toHaveLength(first.projects.length)
+      expect(snapshot.activeProjectId).toBe(first.activeProjectId)
+    })
+
+    it("changes nothing when the picker fails", async () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {})
+      const app = openCommands({ pickDirectory: () => Promise.reject(new Error("no dialog")) })
+      const before = app.workspace.getSnapshot()
+      await expect(app.commands.openFolder()).resolves.toBeUndefined()
+      expect(app.workspace.getSnapshot()).toBe(before)
+      expect(error).toHaveBeenCalled()
+    })
+
+    it("changes nothing when the person cancels", async () => {
+      const app = openCommands({ pickDirectory: () => Promise.resolve(null) })
+      const before = app.workspace.getSnapshot()
+      await app.commands.openFolder()
+      expect(app.workspace.getSnapshot()).toBe(before)
+    })
+  })
+
+  context("when closing a terminal a program runs in", () => {
+    it("asks first and keeps the terminal until the person answers", () => {
+      const app = openCommands({ workspace: running() })
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toMatchObject({ id: "01" })
+      expect(terminal(app, "01")).toBeDefined()
+    })
+
+    it("keeps it when the person cancels", () => {
+      const app = openCommands({ workspace: running() })
+      app.commands.close("01")
+      app.commands.cancelClose()
+      expect(app.ui.getSnapshot().closing).toBeNull()
+      expect(terminal(app, "01")).toBeDefined()
+    })
+
+    it("closes it once the person confirms", () => {
+      const app = openCommands({ workspace: running() })
+      app.commands.close("01")
+      app.commands.confirmClose()
+      expect(app.ui.getSnapshot().closing).toBeNull()
+      expect(app.state().roster.terminals.map((item) => item.id)).not.toContain("01")
+    })
+
+    it("does not close it after the session changed", () => {
+      const app = openCommands({ workspace: running() })
+      app.commands.close("01")
+      app.commands.startFresh()
+      app.commands.confirmClose()
+      expect(
+        app.workspace
+          .getSnapshot()
+          .projects[0]!.history.some((session) =>
+            session.state.roster.terminals.some((item) => item.id === "01"),
+          ),
+      ).toBe(true)
+    })
+
+    it("drops the question when the person leaves the session", () => {
+      const app = openCommands({ workspace: running() })
+      app.commands.close("01")
+      app.commands.startFresh()
+      expect(app.ui.getSnapshot().closing).toBeNull()
+    })
+
+    it("drops the question when the terminal goes away on its own", () => {
+      const app = openCommands({ workspace: running() })
+      app.commands.close("01")
+      app.workspace.dispatch({
+        type: "terminal/close",
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        terminalId: "01",
+      })
+      expect(app.ui.getSnapshot().closing).toBeNull()
+      expect(keyState(app.context, app.commands)).toMatchObject({ dialog: false, alert: false })
+    })
+
+    it("counts as an alert that holds every shortcut back", () => {
+      const app = openCommands({ workspace: running() })
+      app.commands.close("01")
+      expect(keyState(app.context, app.commands)).toMatchObject({ dialog: true, alert: true })
+    })
+
+    it("closes an idle terminal without asking", () => {
+      const app = openCommands()
+      app.commands.close("01")
+      expect(app.ui.getSnapshot().closing).toBeNull()
+      expect(app.state().roster.terminals.map((item) => item.id)).not.toContain("01")
+    })
+  })
+
+  context("when the runner keeps crashing", () => {
+    it("leaves it for this crash loop on Not now", () => {
+      const app = openCommands()
+      app.commands.dismissCrashLoop()
+      expect(app.ui.getSnapshot().crashLoopDismissed).toBe(true)
+    })
+
+    it("asks the backend to start over on Try again, and would ask again next time", () => {
+      let retries = 0
+      const app = openCommands({ crashLoop: { crashes: createStore(4), retry: () => retries++ } })
+      app.commands.dismissCrashLoop()
+      app.commands.retryAfterCrashLoop()
+      expect(retries).toBe(1)
+      expect(app.ui.getSnapshot().crashLoopDismissed).toBe(false)
     })
   })
 

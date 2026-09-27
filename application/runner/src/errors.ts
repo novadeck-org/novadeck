@@ -1,18 +1,13 @@
-export type DomainErrorCode =
-  | "NOT_FOUND"
-  | "INVALID_DIRECTORY"
-  | "CONFLICT"
-  | "RESOURCE_LIMIT"
-  | "TERMINAL_NOT_FOUND"
-  | "TERMINAL_EXITED"
-  | "CONTROL_IN_USE"
-  | "CONTROL_REQUIRED"
-  | "ALREADY_ATTACHED"
-  | "SLOW_CONSUMER"
-  | "SNAPSHOT_TOO_LARGE"
-  | "INVALID_CURSOR"
-  | "SPAWN_FAILED"
-  | "RUNTIME_CLOSING"
+import type { ErrorCode } from "@novadeck/protocol"
+
+/**
+ * The contract's errors a domain operation can raise. Authentication, protocol and
+ * call-limit failures belong to the transport and router instead.
+ */
+export type DomainErrorCode = Exclude<
+  ErrorCode,
+  "UNAUTHORIZED" | "INCOMPATIBLE_PROTOCOL" | "RESOURCE_LIMIT"
+>
 
 export class DomainError extends Error {
   constructor(

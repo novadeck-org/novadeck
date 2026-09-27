@@ -8,6 +8,7 @@ import type {
   WorkspaceTarget,
 } from "../model/types"
 import type { FocusPreview } from "../shell/shell-state"
+import type { UiState } from "./ui-store"
 
 // The active session's state; the workspace always has one once seeded.
 export const currentState = (workspace: Workspace): WorkspaceState =>
@@ -65,3 +66,21 @@ export const activeTerminal = (
   const displayed = selected || (focusPreview?.context === context ? focusPreview.id : "")
   return terminals.find((terminal) => terminal.id === displayed) ?? terminals[0]
 }
+
+// The terminal whose close waits on the person: only in the session it was asked in,
+// and only while the terminal is still there.
+export const closeQuestion = (
+  ui: Pick<UiState, "closing">,
+  workspace: Workspace,
+): TerminalMetadata | undefined =>
+  ui.closing?.context === currentContext(workspace)
+    ? currentState(workspace).roster.terminals.find((terminal) => terminal.id === ui.closing!.id)
+    : undefined
+
+// The crash count the crash-loop dialog shows; 0 when it does not ask.
+export const crashLoopQuestion = (ui: Pick<UiState, "crashLoop" | "crashLoopDismissed">): number =>
+  ui.crashLoopDismissed ? 0 : ui.crashLoop
+
+// Whether an alert dialog is on screen, which holds every shortcut back.
+export const alertOpen = (ui: UiState, workspace: Workspace): boolean =>
+  closeQuestion(ui, workspace) !== undefined || crashLoopQuestion(ui) > 0

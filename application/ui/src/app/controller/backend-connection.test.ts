@@ -60,7 +60,7 @@ describe("backend connection", () => {
           type: "terminal/status",
           target,
           terminalId: "02",
-          status: { state: "exited", exitCode: 0 },
+          status: { state: "exited", exitCode: 0, signal: null },
         },
       ])
       expect(statuses(store.getSnapshot())).toEqual(["finished", "exited"])

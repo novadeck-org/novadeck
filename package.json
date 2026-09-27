@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "dev": "pnpm --filter @novadeck/host dev",
-    "dev:web": "concurrently --kill-others-on-fail --names runner,ui \"pnpm --filter @novadeck/runner dev\" \"pnpm --filter @novadeck/ui dev\"",
+    "dev:web": "node scripts/dev-web/main.ts",
     "build": "turbo run build",
     "preview": "pnpm --filter @novadeck/runner start",
     "package": "pnpm --filter @novadeck/host package",

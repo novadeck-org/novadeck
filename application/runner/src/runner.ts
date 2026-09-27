@@ -7,6 +7,7 @@ import { WorkspaceStore } from "./workspaces/store.js"
 export type RunnerOptions = {
   /** SQLite file for project and session metadata; in memory when omitted. */
   database?: string
+  /** Terminal limits; the number of terminals is unlimited unless `maxTerminals` is set. */
   terminals?: TerminalOptions
 }
 
@@ -20,7 +21,9 @@ export type Runner = {
    * Opens a client connection whose handshake accepts the tokens `verify` approves.
    * `terminate` ends its transport when a newer connection of the same client replaces it.
    */
-  connect(transport: Pick<Connection, "verify" | "terminate" | "onAuthenticated">): Connection
+  connect(
+    transport: Pick<Connection, "verify" | "terminate" | "onAuthenticated" | "maxCalls">,
+  ): Connection
   /** Releases a connection's attachments and terminal control. Its shells keep running. */
   disconnect(connection: Connection): void
   /** Ends every shell and closes the metadata store. */

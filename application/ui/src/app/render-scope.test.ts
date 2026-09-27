@@ -91,6 +91,12 @@ vi.mock("../search/TerminalSearch", async (original) => {
 // Rendering the whole page in jsdom is slow on small CI runners, Windows in particular.
 vi.setConfig({ testTimeout: 30_000 })
 
+// Tests run on the backend app/backend.ts picks for them, which is ready at once.
+const demoBackend = () => {
+  if (!("createBackend" in selectBackend)) throw new Error("Tests expect a ready backend")
+  return selectBackend.createBackend
+}
+
 const mounted = new Set<{ unmount: () => void }>()
 afterEach(() => {
   // Unmount even when a test fails, so no page outlives its test.
@@ -123,7 +129,7 @@ const open = async () => {
         createElement(
           WorkspaceProvider,
           // The children follow as arguments.
-          { createBackend: selectBackend } as ComponentProps<typeof WorkspaceProvider>,
+          { createBackend: demoBackend() } as ComponentProps<typeof WorkspaceProvider>,
           createElement(Grab, { found }),
           createElement(WorkspaceApp),
         ),

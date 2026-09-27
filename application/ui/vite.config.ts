@@ -11,6 +11,7 @@ const connectSourcesPlaceholder = "__NOVADECK_CONNECT_SOURCES__"
 const contentSecurityPolicy = (): Plugin => {
   let environment: ConfigEnv
   let apiUrl: string | undefined
+  let runnerUrl: string | undefined
 
   return {
     name: "novadeck-content-security-policy",
@@ -18,13 +19,18 @@ const contentSecurityPolicy = (): Plugin => {
       environment = configEnvironment
       const fileEnvironment = loadEnv(environment.mode, process.cwd(), "VITE_")
       apiUrl = process.env.VITE_API_URL ?? fileEnvironment.VITE_API_URL
+      runnerUrl = process.env.VITE_NOVADECK_RUNNER_URL ?? fileEnvironment.VITE_NOVADECK_RUNNER_URL
     },
     transformIndexHtml(html) {
       if (!html.includes(connectSourcesPlaceholder)) {
         throw new Error("Content Security Policy connect-src placeholder is missing")
       }
 
-      const sources = contentSecurityPolicyConnectSources(apiUrl, environment.command === "serve")
+      const sources = contentSecurityPolicyConnectSources(
+        apiUrl,
+        environment.command === "serve",
+        runnerUrl,
+      )
       return html.replace(connectSourcesPlaceholder, sources.join(" "))
     },
   }

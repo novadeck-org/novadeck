@@ -75,7 +75,11 @@ export type KeyBinding = {
 }
 
 export type KeyState = {
+  // A dialog is open: a route dialog or an alert.
   readonly dialog: boolean
+  // An alert dialog asks the person something, such as whether to close a terminal
+  // or what to do about a crashing runner; even app-wide shortcuts wait for it.
+  readonly alert: boolean
   // The switcher as it shows now, if it does.
   readonly switcher: "held" | "click" | null
   // A held switcher exists, even one that no longer shows.
@@ -127,7 +131,7 @@ const gates: Record<
     !state.switcher &&
     (input.target.viewSwitch || (!input.target.editing && !input.target.navigationControl)),
   switcher: (_input, state) => Boolean(state.switcher),
-  anywhere: () => true,
+  anywhere: (_input, state) => !state.alert,
   app: (_input, state) => !state.dialog,
   // Single keys work only while navigating the workspace itself.
   workspace: (input, state, environment) =>

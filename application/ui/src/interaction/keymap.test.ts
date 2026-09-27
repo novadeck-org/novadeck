@@ -50,7 +50,7 @@ const route = (
       ...press,
       target: { ...nowhere, ...target },
     },
-    { dialog: false, switcher: null, held: false, ...state },
+    { dialog: false, alert: false, switcher: null, held: false, ...state },
     { overlayOpen: () => false, tabInteraction: () => false, ...environment },
   ).map((binding) =>
     binding.args === undefined ? binding.command : `${binding.command} ${binding.args}`,
@@ -210,6 +210,15 @@ describe("keymap", () => {
           expect(
             keydown(platform, { ...command(platform), key: "Enter", target: terminalInput }),
           ).toEqual(["view.toggleFocus 1"])
+        })
+      })
+
+      context("while an alert asks something", () => {
+        it("runs no shortcut at all, not even Find, Preferences or a new terminal", () => {
+          const alert = { state: { dialog: true, alert: true } }
+          const preferences = { ctrlKey: platform !== "mac", metaKey: platform === "mac", key: "," }
+          for (const press of [find, preferences, { ...command(platform), key: "t" }, { key: "t" }])
+            expect(keydown(platform, press, alert)).toEqual([])
         })
       })
 

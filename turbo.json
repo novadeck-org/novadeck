@@ -3,7 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "env": ["VITE_API_URL"],
+      "env": ["VITE_API_URL", "VITE_NOVADECK_RUNNER_URL", "VITE_NOVADECK_RUNNER_TOKEN"],
       "outputs": ["dist/**", "out/**"]
     },
     "dev": {
@@ -12,7 +12,7 @@
     },
     "test": {
       "dependsOn": ["build", "^build", "^test"],
-      "env": ["VITE_API_URL"],
+      "env": ["VITE_API_URL", "VITE_NOVADECK_RUNNER_URL", "VITE_NOVADECK_RUNNER_TOKEN"],
       "passThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH"],
       "outputs": []
     },

@@ -2,10 +2,14 @@ import { useSortable } from "@dnd-kit/react/sortable"
 import { Check, Eye, EyeOff, Pencil, Terminal as TerminalIcon, X } from "lucide-react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
+import { endingText, terminalEnding } from "../model/terminal-ending"
 import type { TerminalMetadata } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
+
+// Whole class strings, so Tailwind finds them.
+const endingDots = { danger: "bg-danger-fg", warning: "bg-warning-fg" } as const
 
 const actionClasses =
   "terminal-tab-action flex size-6 shrink-0 items-center justify-center rounded-control p-1.5 text-muted hover:bg-soft hover:text-ink [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100 focus-visible:[&>svg]:opacity-100"
@@ -38,6 +42,10 @@ export const TerminalTab = ({
   onClose: () => void
 }): React.JSX.Element => {
   const editing = Boolean(rename)
+  // A shell that ended shows a dot in its tone; the words go to assistive technology
+  // and the tooltip.
+  const ending = terminalEnding(terminal)
+  const ended = ending ? endingText(ending) : undefined
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,
@@ -51,10 +59,22 @@ export const TerminalTab = ({
         handleRef={handleRef}
         name={terminal.name}
         icon={<TerminalIcon size={14} strokeWidth={1.5} />}
-        detail={<span className="terminal-tab-command truncate font-mono">{terminal.command}</span>}
+        detail={
+          <>
+            {ending && (
+              <span
+                aria-hidden
+                data-terminal-ending={ending.tone}
+                className={`size-1.5 shrink-0 rounded-full ${endingDots[ending.tone]}`}
+              />
+            )}
+            <span className="terminal-tab-command truncate font-mono">{terminal.command}</span>
+          </>
+        }
         selected={selected}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
-        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.command}`}
+        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.command}${ended ? `\n${ended}` : ""}`}
+        {...(ended ? { description: ended } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
         data-terminal-hidden={hidden}

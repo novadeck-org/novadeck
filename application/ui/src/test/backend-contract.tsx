@@ -86,6 +86,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
           terminalKey={key}
           terminal={terminal}
           projectName={project.name}
+          fontSize={13}
           focusInput={false}
           onInputFocused={ignore}
           {...props}
@@ -267,11 +268,18 @@ export const describeBackendContract = (name: string, options: BackendContractOp
           expect(backend.start).toBeTypeOf("function")
           backend.start!(sink(1))()
           const stop = backend.start!(sink(2))
-          const exited: TerminalStatus = { state: "exited", exitCode: 3 }
+          const exited: TerminalStatus = { state: "exited", exitCode: 3, signal: null }
           await driver!.status(key, exited)
           await settle()
           const { terminalId, ...target } = key
-          expect(received.filter(({ action }) => action.terminalId === terminalId)).toEqual([
+          // An adapter may also report what it learns on the way, such as the process running.
+          const reports = received.filter(
+            ({ action }) =>
+              action.terminalId === terminalId &&
+              action.type === "terminal/status" &&
+              action.status.state === exited.state,
+          )
+          expect(reports).toEqual([
             { sink: 2, action: { type: "terminal/status", target, terminalId, status: exited } },
           ])
           stop()

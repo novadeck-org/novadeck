@@ -27,6 +27,14 @@ export const tabAction = (label: string): Locator =>
 export const headerAction = (name: string, label: string): Locator =>
   terminal(name).getByRole("button", { name: label, exact: true })
 
+/** The question asked before closing a terminal a program still runs in. */
+export const closeConfirmation = (): Locator => page.getByRole("alertdialog")
+
+/** Answers that question with "Close terminal", as closing a running demo terminal asks. */
+export const confirmClose = async (): Promise<void> => {
+  await closeConfirmation().getByRole("button", { name: "Close terminal" }).click()
+}
+
 export const hiddenTerminalTab = (name: string): Locator =>
   page.getByRole("button", { name: `Select ${name} (hidden)`, exact: true })
 

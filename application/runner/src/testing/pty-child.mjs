@@ -82,6 +82,7 @@ process.stdin.on("data", (data) => {
           `\u001b[0m${command.checkpoint ?? "COLORED_READY"}\r\n`,
       )
     }
+    if (command.type === "title") process.title = command.value
     if (command.type === "exit") {
       process.stdout.write(command.data ?? "", () => process.exit(command.code ?? 0))
     }

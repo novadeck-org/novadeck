@@ -8,6 +8,7 @@ const database = process.argv
   .find((value) => value.startsWith(databaseArgumentPrefix))
   ?.slice(databaseArgumentPrefix.length)
 
+// Without `maxTerminals`, the desktop runner starts as many terminals as the user opens.
 const runner = createRunner(database === undefined ? {} : { database })
 
 process.parentPort.on(

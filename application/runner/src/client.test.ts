@@ -1,5 +1,5 @@
-import { mkdtemp, rm } from "node:fs/promises"
-import { tmpdir } from "node:os"
+import { mkdtemp, realpath, rm } from "node:fs/promises"
+import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { MessageChannel } from "node:worker_threads"
 
@@ -12,6 +12,7 @@ import {
   type Channel,
   type Runner,
   type RunnerStatus,
+  type TerminalWatchItem,
   type Transport,
 } from "@novadeck/protocol/client"
 
@@ -119,9 +120,12 @@ const interruptible = (transport: Transport) => {
   }
 }
 
+/** Input for an 80x24 terminal with a fresh id. */
+const shell = (sessionId: string) => ({ id: crypto.randomUUID(), sessionId, cols: 80, rows: 24 })
+
 const session = async (runner: Runner, cwd: string) => {
-  const project = await runner.projects.create({ name: "Client", cwd })
-  return runner.sessions.create({ projectId: project.id, name: "Session" })
+  const project = await runner.projects.create({ id: crypto.randomUUID(), name: "Client", cwd })
+  return runner.sessions.create({ id: crypto.randomUUID(), projectId: project.id, name: "Session" })
 }
 
 /** Reads a terminal the way a renderer does: output appends and a snapshot replaces. */
@@ -150,6 +154,26 @@ const view = (terminal: AttachedTerminal, resources: Resources) => {
 const print = (terminal: AttachedTerminal, value: string) =>
   terminal.write(command({ type: "write", data: `${value}\r\n` }))
 
+/** Reads `terminals.watch()` until a change matches, collecting everything it read. */
+const changes = (runner: Runner, resources: Resources) => {
+  const stream = runner.terminals.watch()
+  resources.defer(async () => {
+    await stream.return?.()
+  })
+  const seen: TerminalWatchItem[] = []
+  const until = async (predicate: (change: TerminalWatchItem) => boolean) => {
+    while (true) {
+      // eslint-disable-next-line no-await-in-loop -- Changes are read in order.
+      const result = await stream.next()
+      if (result.done) throw new Error(`Watch ended; seen=${JSON.stringify(seen)}`)
+      seen.push(result.value)
+      if (predicate(result.value)) return result.value
+    }
+  }
+  const synced = () => until((change) => change.type === "synced")
+  return { stream, seen, until, synced }
+}
+
 const statuses = (runner: Runner) => {
   const seen: RunnerStatus["state"][] = []
   const watching = (async () => {
@@ -172,13 +196,13 @@ describe("runner client over WebSocket", () => {
     const runner = await app.connect()
     expect(runner.status).toEqual({ state: "connected", runnerId: expect.any(String) })
     const { id: sessionId } = await session(runner, app.directory)
-    const created = await runner.terminals.create({ sessionId, cols: 80, rows: 24 })
+    const created = await runner.terminals.create(shell(sessionId))
     await expect(runner.terminals.list({ sessionId })).resolves.toEqual([created])
 
     const terminal = await runner.terminals.attach(created.id)
     expect(terminal).toMatchObject({ id: created.id, mode: "control" })
     const screen = view(terminal, resources)
-    expect(await screen.next()).toMatchObject({ type: "snapshot", status: "running" })
+    expect(await screen.next()).toMatchObject({ type: "snapshot", exit: null })
     await screen.until("PTY_READY")
     await print(terminal, "HELLO_RUNNER")
     await screen.until("HELLO_RUNNER")
@@ -187,9 +211,11 @@ describe("runner client over WebSocket", () => {
     const rest: TerminalEvent[] = []
     for await (const event of terminal) rest.push(event)
     expect(rest).toContainEqual(expect.objectContaining({ type: "resized", cols: 100, rows: 30 }))
-    expect(rest.at(-1)).toMatchObject({ type: "exited", exitCode: 3 })
+    expect(rest.at(-1)).toMatchObject({ type: "exited", exit: { code: 3 } })
     await expect(terminal.write("ignored")).rejects.toMatchObject({ code: "TERMINAL_EXITED" })
-    await expect(terminal.close()).resolves.toBeUndefined()
+    // Closing an exited terminal needs no attachment and forgets it.
+    await runner.terminals.close(created.id)
+    await expect(runner.terminals.list({ sessionId })).resolves.toEqual([])
   })
 
   it("rejects a wrong token and unknown terminals with typed errors", async ({ resources }) => {
@@ -204,7 +230,11 @@ describe("runner client over WebSocket", () => {
       code: "TERMINAL_NOT_FOUND",
     })
     await expect(
-      runner.projects.create({ name: "Missing", cwd: join(app.directory, "missing") }),
+      runner.projects.create({
+        id: crypto.randomUUID(),
+        name: "Missing",
+        cwd: join(app.directory, "missing"),
+      }),
     ).rejects.toMatchObject({ code: "INVALID_DIRECTORY" })
   })
 
@@ -216,7 +246,7 @@ describe("runner client over WebSocket", () => {
     const runner = await app.connect(link.transport)
     const status = statuses(runner)
     const { id: sessionId } = await session(runner, app.directory)
-    const created = await runner.terminals.create({ sessionId, cols: 80, rows: 24 })
+    const created = await runner.terminals.create(shell(sessionId))
     const terminal = await runner.terminals.attach(created.id)
     const screen = view(terminal, resources)
     await screen.until("PTY_READY")
@@ -260,7 +290,7 @@ describe("runner client over WebSocket", () => {
     })
     const runner = await app.connect()
     const { id: sessionId } = await session(runner, app.directory)
-    const created = await runner.terminals.create({ sessionId, cols: 80, rows: 24 })
+    const created = await runner.terminals.create(shell(sessionId))
     const terminal = await runner.terminals.attach(created.id)
     const writer = view(terminal, resources)
     await writer.until("PTY_READY")
@@ -287,7 +317,7 @@ describe("runner client over WebSocket", () => {
     const app = await deployed(resources)
     const runner = await app.connect()
     const { id: sessionId } = await session(runner, app.directory)
-    const created = await runner.terminals.create({ sessionId, cols: 80, rows: 24 })
+    const created = await runner.terminals.create(shell(sessionId))
     const terminal = await runner.terminals.attach(created.id)
     await view(terminal, resources).until("PTY_READY")
     const pending = terminal.next()
@@ -297,8 +327,225 @@ describe("runner client over WebSocket", () => {
     await expect(runner.projects.list()).rejects.toMatchObject({ code: "CLOSED" })
     const again = await app.connect()
     await expect(again.terminals.list({ sessionId })).resolves.toEqual([
-      expect.objectContaining({ id: created.id, status: "running" }),
+      expect.objectContaining({ id: created.id, exit: null }),
     ])
+  })
+})
+
+describe("runner client workspace", () => {
+  it("rejects taken ids, defaults the project directory and stores session state", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const runner = await app.connect()
+    const ids = { project: crypto.randomUUID(), session: crypto.randomUUID() }
+    const project = await runner.projects.create({ id: ids.project, name: "Home" })
+    expect(project).toEqual({ id: ids.project, name: "Home", cwd: await realpath(homedir()) })
+    await expect(
+      runner.projects.create({ id: ids.project, name: "Again", cwd: app.directory }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    const created = await runner.sessions.create({
+      id: ids.session,
+      projectId: project.id,
+      name: "A",
+    })
+    expect(created).toEqual({ id: ids.session, projectId: project.id, name: "A", state: null })
+    await expect(
+      runner.sessions.create({ id: ids.session, projectId: project.id, name: "B" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+
+    await expect(
+      runner.sessions.save({ sessionId: created.id, state: '{"layout":"split"}' }),
+    ).resolves.toBeUndefined()
+    await expect(runner.sessions.list({ projectId: project.id })).resolves.toEqual([
+      { ...created, state: '{"layout":"split"}' },
+    ])
+    await expect(
+      runner.sessions.save({ sessionId: crypto.randomUUID(), state: "{}" }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+
+    const terminal = { id: crypto.randomUUID(), sessionId: created.id, cols: 80, rows: 24 }
+    await expect(runner.terminals.create(terminal)).resolves.toMatchObject({ id: terminal.id })
+    await expect(runner.terminals.create(terminal)).rejects.toMatchObject({ code: "CONFLICT" })
+  })
+})
+
+describe("runner client terminal closing", () => {
+  it("closes terminals without attaching, unless another connection controls them", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const creator = await app.connect()
+    const other = await app.connect()
+    const { id: sessionId } = await session(creator, app.directory)
+    const held = await creator.terminals.create(shell(sessionId))
+    const left = await creator.terminals.create(shell(sessionId))
+    await expect(other.terminals.close(held.id)).rejects.toMatchObject({ code: "CONTROL_IN_USE" })
+    await creator.terminals.close(held.id)
+    await expect(creator.terminals.list({ sessionId })).resolves.toEqual([
+      expect.objectContaining({ id: left.id }),
+    ])
+    // Once its creator has gone, nobody controls the terminal and anyone may close it.
+    await creator.close()
+    // The runner releases control when it notices the disconnection.
+    let closed = false
+    while (!closed) {
+      // eslint-disable-next-line no-await-in-loop -- Retry until the release lands.
+      closed = await other.terminals.close(left.id).then(
+        () => true,
+        async (error: unknown) => {
+          expect(error).toMatchObject({ code: "CONTROL_IN_USE" })
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          return false
+        },
+      )
+    }
+    await expect(other.terminals.list({ sessionId })).resolves.toEqual([])
+    await expect(other.terminals.close(left.id)).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
+  })
+})
+
+describe("runner client terminal restart", () => {
+  it("restarts an exited terminal in place and attaches to its new screen", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const runner = await app.connect()
+    const { id: sessionId } = await session(runner, app.directory)
+    const created = await runner.terminals.create(shell(sessionId))
+    const size = { cols: 90, rows: 20 }
+    await expect(runner.terminals.restart(created.id, size)).rejects.toMatchObject({
+      code: "CONFLICT",
+    })
+    const first = await runner.terminals.attach(created.id)
+    const screen = view(first, resources)
+    await screen.until("PTY_READY")
+    await first.write(command({ type: "exit", code: 4 }))
+    for await (const event of first) {
+      if (event.type === "exited") expect(event.exit).toMatchObject({ code: 4, signal: null })
+    }
+
+    await expect(runner.terminals.restart(created.id, size)).resolves.toMatchObject({
+      id: created.id,
+      exit: null,
+      ...size,
+    })
+    const again = await runner.terminals.attach(created.id)
+    const next = view(again, resources)
+    expect(await next.next()).toMatchObject({ type: "snapshot", exit: null, ...size })
+    await next.until("PTY_READY")
+    await print(again, "SECOND_RUN")
+    await next.until("SECOND_RUN")
+    await expect(runner.terminals.restart(crypto.randomUUID(), size)).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
+  })
+})
+
+describe("runner client terminal watch", () => {
+  it("resynchronizes after a reconnection with every terminal, then synced", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const link = interruptible(websocket(app.url, { token }))
+    const runner = await app.connect(link.transport)
+    const status = statuses(runner)
+    const { id: sessionId } = await session(runner, app.directory)
+    const watch = changes(runner, resources)
+    await watch.synced()
+    expect(watch.seen).toEqual([{ type: "reset" }, { type: "synced" }])
+    const first = await runner.terminals.create(shell(sessionId))
+    await watch.until((change) => change.type === "changed" && change.terminal.id === first.id)
+
+    link.interrupt()
+    await status.until("reconnecting")
+    // Created by another client during the gap, so only the fresh sync can report it.
+    const other = await app.connect()
+    const second = await other.terminals.create(shell(sessionId))
+    link.resume()
+    watch.seen.length = 0
+    await watch.synced()
+    // `reset` opens the fresh sequence, so a consumer knows to start its set over.
+    expect(watch.seen).toEqual([
+      { type: "reset" },
+      { type: "changed", terminal: expect.objectContaining({ id: first.id }) },
+      { type: "changed", terminal: expect.objectContaining({ id: second.id }) },
+      { type: "synced" },
+    ])
+
+    const pending = watch.stream.next()
+    await watch.stream.return?.()
+    await expect(pending).resolves.toEqual({ value: undefined, done: true })
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "keeps retrying on a live link while the runner refuses for too many calls",
+    async ({ resources }) => {
+      // Shells that ignore a hangup hold each close in flight for about a second.
+      const app = await deployed(resources, {
+        terminals: { shell: "/bin/sh", shellArgs: ["-c", "trap '' HUP; exec cat"] },
+      })
+      const runner = await app.connect()
+      const { id: sessionId } = await session(runner, app.directory)
+      const busy = []
+      for (let index = 0; index < 32; index += 1) {
+        // eslint-disable-next-line no-await-in-loop -- Creation stays under the call limit.
+        busy.push(await runner.terminals.create(shell(sessionId)))
+      }
+      const closing = Promise.all(busy.map((terminal) => runner.terminals.close(terminal.id)))
+      await expect(runner.projects.list()).rejects.toMatchObject({ code: "RESOURCE_LIMIT" })
+
+      const watch = changes(runner, resources)
+      await watch.synced()
+      // The refused attempts yield nothing; the one subscription that lands opens with `reset`.
+      expect(watch.seen[0]).toEqual({ type: "reset" })
+      expect(watch.seen.filter((change) => change.type === "reset")).toHaveLength(1)
+      await closing
+      const later = await runner.terminals.create(shell(sessionId))
+      await watch.until((change) => change.type === "changed" && change.terminal.id === later.id)
+    },
+  )
+
+  it("starts over after a runner restart and ends when the client closes", async ({
+    resources,
+  }) => {
+    const directory = await temporary(resources)
+    const database = join(directory, "workspace.sqlite")
+    const start = async () => {
+      const server = await startServer({ port: 0, token, database, terminals: ptyOptions })
+      resources.defer(() => server.close())
+      return { server, url: `${server.origin.replace(/^http/, "ws")}/api/rpc` }
+    }
+    let current = await start()
+    const runner = await connectRunner(
+      { token, connect: (signal) => websocket(current.url, { token }).connect(signal) },
+      fast,
+    )
+    resources.defer(() => runner.close())
+    const status = statuses(runner)
+    const { id: sessionId } = await session(runner, directory)
+    await runner.terminals.create(shell(sessionId))
+    const watch = changes(runner, resources)
+    await watch.synced()
+    expect(watch.seen).toEqual([
+      { type: "reset" },
+      { type: "changed", terminal: expect.anything() },
+      { type: "synced" },
+    ])
+
+    await current.server.close()
+    await status.until("reconnecting")
+    current = await start()
+    watch.seen.length = 0
+    // The terminal ended with the old runner; the fresh sync omits it.
+    await watch.synced()
+    expect(watch.seen).toEqual([{ type: "reset" }, { type: "synced" }])
+
+    const pending = watch.stream.next()
+    await runner.close()
+    await expect(pending).resolves.toEqual({ value: undefined, done: true })
   })
 })
 
@@ -308,7 +555,7 @@ describe("runner client resilience", () => {
     const link = interruptible(websocket(app.url, { token }))
     const runner = await app.connect(link.transport)
     const { id: sessionId } = await session(runner, app.directory)
-    const created = await runner.terminals.create({ sessionId, cols: 80, rows: 24 })
+    const created = await runner.terminals.create(shell(sessionId))
     const terminal = await runner.terminals.attach(created.id)
     const screen = view(terminal, resources)
     await screen.until("PTY_READY")
@@ -337,7 +584,7 @@ describe("runner client resilience", () => {
     const runner = await app.connect(link.transport)
     const status = statuses(runner)
     const { id: sessionId } = await session(runner, app.directory)
-    const created = await runner.terminals.create({ sessionId, cols: 80, rows: 24 })
+    const created = await runner.terminals.create(shell(sessionId))
     const terminal = await runner.terminals.attach(created.id)
     await terminal.next()
     link.interrupt()
@@ -387,7 +634,7 @@ describe("runner client over MessagePort", () => {
     const app = await bundled(resources)
     const { client } = await app.connect()
     const { id: sessionId } = await session(client, app.directory)
-    const created = await client.terminals.create({ sessionId, cols: 80, rows: 24 })
+    const created = await client.terminals.create(shell(sessionId))
     const terminal = await client.terminals.attach(created.id)
     const screen = view(terminal, resources)
     await screen.until("PTY_READY")
@@ -402,6 +649,19 @@ describe("runner client over MessagePort", () => {
     expect(restored.text()).toContain("OVER_PORT")
     await print(replacement, "NEW_OWNER")
     await restored.until("NEW_OWNER")
+  })
+
+  it("lets the trusted desktop client burst beyond a WebSocket client's call limit", async ({
+    resources,
+  }) => {
+    const app = await bundled(resources)
+    const { client } = await app.connect()
+    const created = await Promise.all(
+      Array.from({ length: 64 }, () =>
+        client.projects.create({ id: crypto.randomUUID(), name: "Burst", cwd: app.directory }),
+      ),
+    )
+    expect(created).toHaveLength(64)
   })
 
   it("closes with CLOSED when a single port ends, since it cannot reconnect", async ({

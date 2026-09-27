@@ -1,14 +1,24 @@
 import { memo, Suspense, useLayoutEffect } from "react"
 
+import { terminalElement } from "../interaction/dom"
 import { orderedTerminals } from "../model/roster"
 import { activeProject } from "../model/state"
 import type { TerminalMetadata } from "../model/types"
+import { CrashLoopDialog } from "../shell/CrashLoopDialog"
+import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
 import { visibleSwitcher } from "../terminals/recent"
 import { TerminalSwitcher } from "../terminals/TerminalSwitcher"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useRouteDialog, type RouteDialog } from "./controller/useRouteDialog"
 import { Preferences, TerminalSearch } from "./deferred-views"
-import { currentContext, currentState, sameItems, shallowEqual } from "./selectors"
+import {
+  closeQuestion,
+  crashLoopQuestion,
+  currentContext,
+  currentState,
+  sameItems,
+  shallowEqual,
+} from "./selectors"
 
 // Rendered beside a deferred dialog, so it mounts only once the dialog's view has loaded.
 const Loaded = ({
@@ -27,6 +37,12 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { commands, navigation } = useWorkspaceServices()
   const { go, closeDialog } = navigation
   const { chooseRecent, updatePreferences, openSearchResult, closeSwitcher } = commands
+  const { confirmClose, cancelClose, retryAfterCrashLoop, dismissCrashLoop } = commands
+  const crashes = useUiState(crashLoopQuestion)
+  const pending = useUiState((state) => state.closing)
+  const closingTerminal = useWorkspaceState(
+    (workspace) => closeQuestion({ closing: pending }, workspace) ?? null,
+  )
   const { projectName, context, view } = useWorkspaceState(
     (workspace) => ({
       projectName: activeProject(workspace)!.name,
@@ -52,6 +68,19 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { searching, settings, onExitComplete, onLoaded } = useRouteDialog(dialog, context)
   return (
     <>
+      <CrashLoopDialog
+        crashes={crashes || null}
+        onRetry={retryAfterCrashLoop}
+        onDismiss={dismissCrashLoop}
+      />
+      <CloseTerminalDialog
+        terminal={closingTerminal}
+        onConfirm={confirmClose}
+        onCancel={cancelClose}
+        returnFocus={(id) =>
+          terminalElement(id)?.querySelector<HTMLElement>("[data-terminal-input]") ?? null
+        }
+      />
       {switcher && (
         <TerminalSwitcher
           mode={switcher.mode}

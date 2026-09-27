@@ -10,6 +10,7 @@ import {
   visit,
   workspaceSwitcher,
 } from "./support/sessions"
+import { confirmClose } from "./support/terminals"
 import {
   chooseView,
   commandInput,
@@ -141,6 +142,7 @@ describe("deep links", () => {
       await openWorkspace()
       await terminalTab("Runtime").click()
       await terminal("Runtime").getByRole("button", { name: "Close Runtime" }).click()
+      await confirmClose()
       await expect.element(terminalTab("Runtime")).not.toBeInTheDocument()
 
       visit(home.replace("terminal=01", "terminal=05"))
@@ -212,6 +214,7 @@ describe("browser history", () => {
       await openWorkspace(home)
       await terminalTab("Runtime").click()
       await terminal("Runtime").getByRole("button", { name: "Close Runtime" }).click()
+      await confirmClose()
       await expect.element(terminalTab("Runtime")).not.toBeInTheDocument()
       await expect.element(terminal("Build")).toBeVisible()
 

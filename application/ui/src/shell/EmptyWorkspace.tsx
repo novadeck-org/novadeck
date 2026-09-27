@@ -1,7 +1,8 @@
-import { Plus, Terminal as TerminalIcon } from "lucide-react"
+import { Plus } from "lucide-react"
 
 import { backgroundPointerHandlers } from "../layouts/background"
 import type { ViewMode } from "../model/types"
+import { DeckMark } from "../ui-toolkit/DeckLogo"
 
 export const EmptyWorkspace = ({
   view,
@@ -26,9 +27,7 @@ export const EmptyWorkspace = ({
       </>
     )}
     <section className="empty-state pointer-events-auto relative z-1 flex w-full max-w-96 flex-col items-center rounded-panel border border-line bg-paper p-8 shadow-panel">
-      <span className="empty-state-icon mb-4 flex size-11 items-center justify-center rounded-control border border-line bg-shell text-muted">
-        <TerminalIcon size={22} strokeWidth={1.4} />
-      </span>
+      <DeckMark size={44} className="empty-state-icon mb-4" />
       <h2 className="text-base font-medium tracking-tight text-ink">No terminals open</h2>
       <p className="mt-2 max-w-60 text-xs leading-relaxed">
         Open a terminal or pick up a previous session.

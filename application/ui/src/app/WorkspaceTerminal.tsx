@@ -44,7 +44,7 @@ export const WorkspaceTerminal = ({
     shallowEqual,
   )
   const { projectId, workspaceSessionId } = useWorkspaceState(currentTarget, sameTarget)
-  const { fresh, rename, keyboardFocus, enabledViews } = useUiState(
+  const { fresh, rename, keyboardFocus, enabledViews, fontSize } = useUiState(
     (state) => ({
       fresh: state.created?.context === context && state.created.id === terminalId,
       rename:
@@ -52,6 +52,7 @@ export const WorkspaceTerminal = ({
       keyboardFocus:
         state.shell.keyboardFocus?.id === terminalId ? state.shell.keyboardFocus : null,
       enabledViews: state.preferences.enabledViews,
+      fontSize: state.preferences.fontSize,
     }),
     shallowEqual,
   )
@@ -106,6 +107,7 @@ export const WorkspaceTerminal = ({
         terminalKey={terminalKey}
         terminal={terminal}
         projectName={projectName}
+        fontSize={fontSize}
         minimized={minimize?.minimized}
         clipContent={minimize?.clipContent}
         focusInput={keyboardFocus?.view === view && active}

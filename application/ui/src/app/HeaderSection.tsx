@@ -13,8 +13,8 @@ const sameProjects = (a: readonly Project[], b: readonly Project[]): boolean =>
 
 // The app header wired to the workspace: projects, views, search and preferences.
 export const HeaderSection = memo((): React.JSX.Element => {
-  const { commands, navigation } = useWorkspaceServices()
-  const { switchProject, changeView, enterZen, setSwitcher } = commands
+  const { backend, commands, navigation } = useWorkspaceServices()
+  const { switchProject, openFolder, changeView, enterZen, setSwitcher } = commands
   const projects = useWorkspaceState(
     (workspace) => workspace.projects.map(({ id, name, directory }) => ({ id, name, directory })),
     sameProjects,
@@ -51,6 +51,7 @@ export const HeaderSection = memo((): React.JSX.Element => {
         const next = projects.find((item) => item.id === id)
         if (next) switchProject(next)
       }}
+      onOpenFolder={backend.pickDirectory ? () => void openFolder() : undefined}
       onViewChange={(id) => {
         if (view === id) return
         const direction = viewModes.indexOf(id) > viewModes.indexOf(view) ? 1 : -1

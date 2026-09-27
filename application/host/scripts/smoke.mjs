@@ -82,9 +82,18 @@ try {
       const { connectRunner, desktop } = globalThis.NovaDeck
       const runner = await connectRunner(desktop())
       globalThis.smoke = runner
-      const project = await runner.projects.create({ name: "Smoke", cwd })
-      const session = await runner.sessions.create({ projectId: project.id, name: "Smoke" })
-      const created = await runner.terminals.create({ sessionId: session.id, cols: 80, rows: 24 })
+      const project = await runner.projects.create({ id: crypto.randomUUID(), name: "Smoke", cwd })
+      const session = await runner.sessions.create({
+        id: crypto.randomUUID(),
+        projectId: project.id,
+        name: "Smoke",
+      })
+      const created = await runner.terminals.create({
+        id: crypto.randomUUID(),
+        sessionId: session.id,
+        cols: 80,
+        rows: 24,
+      })
       const terminal = await runner.terminals.attach(created.id)
       globalThis.smokeTerminal = terminal
       let text = ""

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto"
 import { chmodSync, closeSync, mkdirSync, openSync, statSync } from "node:fs"
 import { realpath, stat } from "node:fs/promises"
 import { dirname, isAbsolute } from "node:path"
@@ -9,6 +8,23 @@ import type { Project, WorkspaceSession } from "@novadeck/protocol"
 import { DomainError } from "../errors.js"
 
 const schemaVersion = 1
+const schema = `
+  CREATE TABLE projects (
+    position INTEGER PRIMARY KEY,
+    id TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 200),
+    cwd TEXT NOT NULL CHECK(length(cwd) > 0)
+  ) STRICT;
+  CREATE TABLE sessions (
+    position INTEGER PRIMARY KEY,
+    id TEXT NOT NULL UNIQUE,
+    project_id TEXT NOT NULL REFERENCES projects(id),
+    name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 200),
+    -- Opaque client state, such as a UI layout; null until the first save.
+    state TEXT
+  ) STRICT;
+  CREATE INDEX sessions_project ON sessions(project_id, position);
+`
 
 const prepareFile = (path: string): void => {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
@@ -25,31 +41,15 @@ const prepareFile = (path: string): void => {
   }
 }
 
-const migrate = (database: DatabaseSync): void => {
+/** Creates the schema in a new database and refuses one written by a newer runner. */
+const prepareSchema = (database: DatabaseSync): void => {
   database.exec("BEGIN IMMEDIATE")
   try {
     const version = database.prepare("PRAGMA user_version").get()?.user_version
     if (typeof version !== "number" || version > schemaVersion) {
       throw new Error("The workspace database schema is newer than this runner supports")
     }
-    if (version === 0) {
-      database.exec(`
-        CREATE TABLE projects (
-          position INTEGER PRIMARY KEY,
-          id TEXT NOT NULL UNIQUE,
-          name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 200),
-          cwd TEXT NOT NULL CHECK(length(cwd) > 0)
-        ) STRICT;
-        CREATE TABLE sessions (
-          position INTEGER PRIMARY KEY,
-          id TEXT NOT NULL UNIQUE,
-          project_id TEXT NOT NULL REFERENCES projects(id),
-          name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 200)
-        ) STRICT;
-        CREATE INDEX sessions_project ON sessions(project_id, position);
-        PRAGMA user_version = 1;
-      `)
-    }
+    if (version === 0) database.exec(`${schema} PRAGMA user_version = ${schemaVersion};`)
     database.exec("COMMIT")
   } catch (error) {
     database.exec("ROLLBACK")
@@ -68,7 +68,7 @@ export class WorkspaceStore {
       timeout: 5_000,
     })
     try {
-      migrate(this.database)
+      prepareSchema(this.database)
     } catch (error) {
       this.database.close()
       throw error
@@ -80,7 +80,8 @@ export class WorkspaceStore {
     return this.queries.all`SELECT id, name, cwd FROM projects ORDER BY position` as Project[]
   }
 
-  async createProject(input: { name: string; cwd: string }): Promise<Project> {
+  /** Creates a project in an existing directory; a taken `id` is a `CONFLICT`. */
+  async createProject(input: Project): Promise<Project> {
     if (!isAbsolute(input.cwd)) {
       throw new DomainError("INVALID_DIRECTORY", "Project directories must be absolute")
     }
@@ -91,7 +92,10 @@ export class WorkspaceStore {
     } catch {
       throw new DomainError("INVALID_DIRECTORY", "Project directory does not exist")
     }
-    const project = { id: randomUUID(), name: input.name, cwd }
+    const project = { id: input.id, name: input.name, cwd }
+    if (this.queries.get`SELECT 1 FROM projects WHERE id = ${project.id}`) {
+      throw new DomainError("CONFLICT", "Project id is already taken")
+    }
     void this.queries
       .run`INSERT INTO projects (id, name, cwd) VALUES (${project.id}, ${project.name}, ${project.cwd})`
     return project
@@ -114,14 +118,18 @@ export class WorkspaceStore {
   sessions(projectId: string): WorkspaceSession[] {
     this.project(projectId)
     return this.queries.all`
-      SELECT id, project_id AS projectId, name FROM sessions
+      SELECT id, project_id AS projectId, name, state FROM sessions
       WHERE project_id = ${projectId} ORDER BY position
     ` as WorkspaceSession[]
   }
 
-  createSession(input: { projectId: string; name: string }): WorkspaceSession {
+  /** Creates a session in an existing project; a taken `id` is a `CONFLICT`. */
+  createSession(input: { id: string; projectId: string; name: string }): WorkspaceSession {
     this.project(input.projectId)
-    const session = { id: randomUUID(), projectId: input.projectId, name: input.name }
+    const session = { ...input, state: null }
+    if (this.queries.get`SELECT 1 FROM sessions WHERE id = ${session.id}`) {
+      throw new DomainError("CONFLICT", "Session id is already taken")
+    }
     void this.queries
       .run`INSERT INTO sessions (id, project_id, name) VALUES (${session.id}, ${session.projectId}, ${session.name})`
     return session
@@ -133,9 +141,15 @@ export class WorkspaceStore {
     return this.session(input.sessionId)
   }
 
+  /** Replaces the session's client state without interpreting it. */
+  saveSession(input: { sessionId: string; state: string }): void {
+    this.session(input.sessionId)
+    void this.queries.run`UPDATE sessions SET state = ${input.state} WHERE id = ${input.sessionId}`
+  }
+
   session(sessionId: string): WorkspaceSession {
     const session = this.queries.get`
-      SELECT id, project_id AS projectId, name FROM sessions WHERE id = ${sessionId}
+      SELECT id, project_id AS projectId, name, state FROM sessions WHERE id = ${sessionId}
     ` as WorkspaceSession | undefined
     if (!session) throw new DomainError("NOT_FOUND", "Session not found")
     return session

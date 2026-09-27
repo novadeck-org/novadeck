@@ -9,7 +9,7 @@ export const workspaceShortcutTarget = (target: EventTarget | null): boolean =>
 export const workspaceOverlayOpen = (): boolean =>
   Boolean(
     document.querySelector(
-      '[role="dialog"]:not([aria-hidden="true"]), [role="menu"]:not([hidden]), [role="listbox"][data-state="open"], [data-scope="popover"][data-state="open"]',
+      '[role="dialog"]:not([aria-hidden="true"]), [role="alertdialog"]:not([aria-hidden="true"]), [role="menu"]:not([hidden]), [role="listbox"][data-state="open"], [data-scope="popover"][data-state="open"]',
     ),
   )
 

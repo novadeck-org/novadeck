@@ -5,7 +5,6 @@ import {
   Search,
   Settings2,
   SquareDashedMousePointer,
-  Terminal as TerminalIcon,
 } from "lucide-react"
 import { useSyncExternalStore } from "react"
 import { Link } from "react-router"
@@ -13,6 +12,7 @@ import { Link } from "react-router"
 import { shortcutBindings, workspaceShortcutBindings } from "../interaction/shortcuts"
 import type { Project, ViewMode } from "../model/types"
 import { WorkspaceSwitcher } from "../projects/WorkspaceSwitcher"
+import { DeckMark, DeckWordmark } from "../ui-toolkit/DeckLogo"
 import { SegmentGroup } from "../ui-toolkit/SegmentGroup"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 
@@ -37,6 +37,7 @@ export const WorkspaceHeader = ({
   projects,
   project,
   onProjectSelect,
+  onOpenFolder,
   onViewChange,
   homeTo,
   onSearch,
@@ -49,6 +50,8 @@ export const WorkspaceHeader = ({
   projects: Project[]
   project: Project
   onProjectSelect: (id: string) => void
+  // Absent where no folder can be opened; the switcher then shows it disabled.
+  onOpenFolder?: (() => void) | undefined
   onViewChange: (mode: ViewMode) => void
   homeTo: string
   onSearch: () => void
@@ -70,14 +73,15 @@ export const WorkspaceHeader = ({
           className="brand max-[701px]:w-auto max-[701px]:text-[17px] max-[701px]:gap-[7px] [&>span:last-child]:max-[1001px]:hidden flex shrink-0 items-center gap-2 text-[16px] font-semibold tracking-[-0.6px] no-underline"
           aria-label="novadeck. home"
         >
-          <span className="brand-symbol max-[701px]:size-[25px] flex size-7 items-center justify-center rounded-control border border-strong bg-strong text-white">
-            <TerminalIcon size={18} strokeWidth={2} />
-          </span>
-          <span>
-            novadeck<span className="text-muted">.</span>
-          </span>
+          <DeckMark size={28} className="brand-symbol" />
+          <DeckWordmark />
         </Link>
-        <WorkspaceSwitcher projects={projects} current={project} onSelect={onProjectSelect} />
+        <WorkspaceSwitcher
+          projects={projects}
+          current={project}
+          onSelect={onProjectSelect}
+          onOpenFolder={onOpenFolder}
+        />
       </div>
       <div
         data-workspace-view-switch

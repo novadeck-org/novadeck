@@ -2,6 +2,7 @@ import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
 import {
+  clientState,
   columns,
   directory,
   id,
@@ -11,6 +12,7 @@ import {
   rows,
   sequence,
   terminalAttached,
+  terminalChange,
   terminalEvent,
   terminalSummary,
   workspaceSession,
@@ -23,6 +25,7 @@ export const errors = {
   INVALID_DIRECTORY: { status: 400 },
   CONFLICT: { status: 409 },
   RESOURCE_LIMIT: { status: 429 },
+  TERMINAL_LIMIT: { status: 429 },
   TERMINAL_NOT_FOUND: { status: 404 },
   TERMINAL_EXITED: { status: 409 },
   CONTROL_IN_USE: { status: 409 },
@@ -54,27 +57,42 @@ export const contract = {
         z.strictObject({
           runnerId: id,
           protocolVersion: z.literal(protocolVersion),
-          capabilities: z.array(
-            z.enum(["workspace-metadata", "terminal-replay", "terminal-ack", "terminal-observers"]),
-          ),
         }),
       ),
   },
   projects: {
     list: procedure.input(z.void()).output(z.array(project)),
-    create: procedure.input(z.strictObject({ name, cwd: directory })).output(project),
+    // The client names the project before the runner answers; a taken id is a
+    // CONFLICT. Without `cwd`, the project opens in the runner owner's home directory.
+    create: procedure
+      .input(z.strictObject({ id, name, cwd: directory.optional() }))
+      .output(project),
     rename: procedure.input(z.strictObject({ projectId: id, name })).output(project),
   },
   sessions: {
     list: procedure.input(z.strictObject({ projectId: id })).output(z.array(workspaceSession)),
-    create: procedure.input(z.strictObject({ projectId: id, name })).output(workspaceSession),
+    create: procedure.input(z.strictObject({ id, projectId: id, name })).output(workspaceSession),
     rename: procedure.input(z.strictObject({ sessionId: id, name })).output(workspaceSession),
+    // Replaces the session's client state; the runner stores it without reading it.
+    save: procedure.input(z.strictObject({ sessionId: id, state: clientState })).output(z.void()),
   },
   terminals: {
     list: procedure.input(z.strictObject({ sessionId: id })).output(z.array(terminalSummary)),
     create: procedure
-      .input(z.strictObject({ sessionId: id, cwd: directory.optional(), cols: columns, rows }))
+      .input(
+        z.strictObject({
+          id,
+          sessionId: id,
+          cwd: directory.optional(),
+          cols: columns,
+          rows,
+        }),
+      )
       .output(terminalSummary),
+    // Every terminal across sessions: `changed` for each, `synced`, then later changes
+    // (creation, size, foreground process, exit, restart) and `removed` when a record
+    // is closed or evicted.
+    watch: procedure.input(z.void()).output(eventIterator(terminalChange)),
     attach: procedure
       .input(
         z.strictObject({
@@ -92,6 +110,11 @@ export const contract = {
       .output(z.void()),
     ack: procedure.input(z.strictObject({ terminalId: id, sequence })).output(z.void()),
     close: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
+    // Starts a fresh shell in an exited terminal, keeping its id, session and cwd; the
+    // caller gains control. A running terminal is a CONFLICT.
+    restart: procedure
+      .input(z.strictObject({ terminalId: id, cols: columns, rows }))
+      .output(terminalSummary),
   },
 }
 
