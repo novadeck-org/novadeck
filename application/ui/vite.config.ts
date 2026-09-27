@@ -32,6 +32,7 @@ const contentSecurityPolicy = (): Plugin => {
 
 export default defineConfig({
   base: "./",
+  build: { manifest: true },
   plugins: [tailwindcss(), react(), contentSecurityPolicy()],
   resolve: {
     alias: [{ find: /^react$/, replacement: resolve("node_modules/react/index.js") }],

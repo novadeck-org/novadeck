@@ -1,7 +1,13 @@
 import { matchPath } from "react-router"
 
-import { activeProject, activeSession, workspaceReducer } from "../workspace/model/state"
-import type { PreferencesValue, ViewMode, Workspace } from "../workspace/model/types"
+import {
+  activeProject,
+  activeSession,
+  workspaceReducer,
+  type WorkspaceAction,
+} from "../model/state"
+import type { WorkspaceTransaction } from "../model/store"
+import type { PreferencesValue, ViewMode, Workspace } from "../model/types"
 
 export type WorkspaceRoute = {
   projectId: string
@@ -11,6 +17,22 @@ export type WorkspaceRoute = {
   panel: "terminals" | "sessions"
   dialog: "search" | "preferences" | null
   section: "general" | "shortcuts"
+}
+
+// URL-driven navigation over the workspace and UI stores. Each call commits the
+// destination's workspace actions and route before it navigates, so a command's
+// store changes and its URL change render together.
+export type WorkspaceNavigator = {
+  readonly go: (changes: Partial<WorkspaceRoute>, replace?: boolean) => void
+  // Commits actions first, then navigates to the route they produce.
+  readonly navigateWorkspace: (
+    actions: WorkspaceTransaction,
+    changes?: Partial<WorkspaceRoute>,
+    replace?: boolean,
+  ) => void
+  // Returns through history to the dialog's background entry when there is one.
+  readonly closeDialog: () => void
+  readonly href: (changes: Partial<WorkspaceRoute>) => string
 }
 
 export const workspaceRoute = (workspace: Workspace): WorkspaceRoute => ({
@@ -39,7 +61,7 @@ export const resolveRoute = (
   location: { pathname: string; search: string },
   preferences: PreferencesValue,
   now: number,
-): { workspace: Workspace; route: WorkspaceRoute } => {
+): { workspace: Workspace; route: WorkspaceRoute; actions: WorkspaceAction[] } => {
   const match = matchPath("/projects/:projectId/sessions/:sessionId/:view", location.pathname)
   const params = match?.params
   const project =
@@ -48,10 +70,16 @@ export const resolveRoute = (
     project.history.find((item) => item.id === params?.sessionId) ??
     project.history.find((item) => item.id === project.activeSessionId)!
   let next = workspace
+  const actions: WorkspaceAction[] = []
+  const apply = (action: WorkspaceAction): Workspace => {
+    actions.push(action)
+    next = workspaceReducer(next, action)
+    return next
+  }
   if (next.activeProjectId !== project.id)
-    next = workspaceReducer(next, { type: "project/select", projectId: project.id, now })
+    next = apply({ type: "project/select", projectId: project.id, now })
   if (project.activeSessionId !== session.id)
-    next = workspaceReducer(next, {
+    next = apply({
       type: "session/select",
       projectId: project.id,
       workspaceSessionId: session.id,
@@ -65,22 +93,24 @@ export const resolveRoute = (
   const search = new URLSearchParams(location.search)
   const requestedTerminal = search.get("terminal")
   const terminal =
-    requestedTerminal === "" || session.state.sessions.some((item) => item.id === requestedTerminal)
+    requestedTerminal === "" ||
+    session.state.roster.terminals.some((item) => item.id === requestedTerminal)
       ? requestedTerminal!
       : session.state.selected
   const target = { projectId: project.id, workspaceSessionId: session.id }
   if (session.state.view !== view)
-    next = workspaceReducer(next, {
+    next = apply({
       type: "view/change",
       target,
       view,
       enabledViews: preferences.enabledViews,
     })
   if (session.state.selected !== terminal)
-    next = workspaceReducer(next, { type: "terminal/select", target, terminalId: terminal })
+    next = apply({ type: "terminal/select", target, terminalId: terminal })
   const dialog = search.get("dialog")
   return {
     workspace: next,
+    actions,
     route: {
       projectId: project.id,
       sessionId: session.id,

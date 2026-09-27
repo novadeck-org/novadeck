@@ -1,0 +1,73 @@
+@import "react-grid-layout/css/styles.css" layer(base);
+@reference "../../styles.css";
+
+.grid-terminal[aria-hidden="true"] > .react-resizable-handle {
+  visibility: hidden;
+}
+.grid-terminal.selected {
+  opacity: 1;
+}
+.grid-terminal.selected[data-preview="true"] {
+  opacity: 0.5;
+}
+.grid-viewport[data-has-selection="false"] .grid-terminal {
+  opacity: 1;
+}
+.terminal-grid .grid-terminal.cssTransforms {
+  transition:
+    transform var(--motion-layout) ease,
+    width var(--motion-layout) ease,
+    height var(--motion-layout) ease,
+    opacity var(--motion-state) var(--ease-interface);
+}
+.terminal-grid .grid-terminal:is(.react-draggable-dragging, .resizing) {
+  @apply z-3;
+  transition: opacity var(--motion-state) var(--ease-interface);
+}
+/* Match the collapsed three-row card, including its outer borders, in both states. */
+.terminal-grid .grid-terminal .terminal-header {
+  height: 54px;
+}
+.grid-terminal.minimized .terminal-header {
+  border-bottom-color: transparent;
+}
+.terminal-grid .terminal-header {
+  touch-action: none;
+  cursor: grab;
+}
+.terminal-grid .react-draggable-dragging .terminal-header {
+  cursor: grabbing;
+}
+.terminal-grid .react-grid-placeholder {
+  @apply rounded-panel border border-line bg-soft;
+  opacity: 1;
+}
+.terminal-grid .react-resizable-handle {
+  @apply size-7 text-muted;
+  opacity: 0.35;
+  user-select: none;
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.terminal-grid:has(.grid-terminal.resizing),
+.terminal-grid:has(.grid-terminal.resizing) * {
+  user-select: none;
+}
+.terminal-grid .grid-terminal.minimized .react-resizable-handle {
+  width: 16px;
+  cursor: ew-resize;
+}
+.terminal-grid .grid-terminal.minimized .react-resizable-handle::after {
+  right: 3px;
+}
+.terminal-grid .react-resizable-handle:hover {
+  opacity: 0.8;
+}
+.terminal-grid .react-resizable-handle::after {
+  right: 7px;
+  bottom: 7px;
+  width: 11px;
+  height: 11px;
+  border: 0;
+  background: repeating-linear-gradient(135deg, transparent 0 3px, currentColor 3px 4px);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}

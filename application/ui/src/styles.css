@@ -1,6 +1,4 @@
 @import "tailwindcss";
-@import "@xyflow/react/dist/base.css" layer(base);
-@import "react-grid-layout/css/styles.css" layer(base);
 @import "allotment/dist/style.css" layer(base);
 
 @theme {
@@ -128,7 +126,7 @@
   outline: none;
   background: linear-gradient(var(--color-muted), var(--color-muted)) center / 2px 100% no-repeat;
 }
-.session-action:focus-visible {
+.terminal-tab-action:focus-visible {
   outline-offset: -2px;
 }
 .focus-stage .workspace-dots {
@@ -149,9 +147,6 @@
 .grid-terminal.selected .terminal-heading::before,
 .canvas-node.selected .terminal-heading::before {
   opacity: 1;
-}
-.output-gap {
-  margin-top: 19px;
 }
 .workspace-dots {
   background-image: radial-gradient(circle, var(--color-muted) 0.8px, transparent 0.8px);
@@ -182,76 +177,9 @@
     scale: 0.97;
   }
 }
-.grid-terminal[aria-hidden="true"] > .react-resizable-handle {
-  visibility: hidden;
-}
-.grid-terminal.selected {
-  opacity: 1;
-}
 .grid-terminal:not(.selected):hover,
 .canvas-node:not(.selected):hover {
   opacity: var(--terminal-hover-opacity);
-}
-.grid-viewport[data-has-selection="false"] .grid-terminal {
-  opacity: 1;
-}
-.terminal-grid .grid-terminal.cssTransforms {
-  transition:
-    transform var(--motion-layout) ease,
-    width var(--motion-layout) ease,
-    height var(--motion-layout) ease,
-    opacity var(--motion-state) var(--ease-interface);
-}
-.terminal-grid .grid-terminal:is(.react-draggable-dragging, .resizing) {
-  @apply z-3;
-  transition: opacity var(--motion-state) var(--ease-interface);
-}
-/* Match the collapsed three-row card, including its outer borders, in both states. */
-.terminal-grid .grid-terminal .terminal-header {
-  height: 54px;
-}
-.grid-terminal.minimized .terminal-header {
-  border-bottom-color: transparent;
-}
-.terminal-grid .terminal-header {
-  touch-action: none;
-  cursor: grab;
-}
-.terminal-grid .react-draggable-dragging .terminal-header {
-  cursor: grabbing;
-}
-.terminal-grid .react-grid-placeholder {
-  @apply rounded-panel border border-line bg-soft;
-  opacity: 1;
-}
-.terminal-grid .react-resizable-handle {
-  @apply size-7 text-muted;
-  opacity: 0.35;
-  user-select: none;
-  transition: opacity var(--motion-feedback) var(--ease-interface);
-}
-.terminal-grid:has(.grid-terminal.resizing),
-.terminal-grid:has(.grid-terminal.resizing) * {
-  user-select: none;
-}
-.terminal-grid .grid-terminal.minimized .react-resizable-handle {
-  width: 16px;
-  cursor: ew-resize;
-}
-.terminal-grid .grid-terminal.minimized .react-resizable-handle::after {
-  right: 3px;
-}
-.terminal-grid .react-resizable-handle:hover {
-  opacity: 0.8;
-}
-.terminal-grid .react-resizable-handle::after {
-  right: 7px;
-  bottom: 7px;
-  width: 11px;
-  height: 11px;
-  border: 0;
-  background: repeating-linear-gradient(135deg, transparent 0 3px, currentColor 3px 4px);
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
 }
 .terminal-compact .terminal-content {
   @apply px-4 pt-4;
@@ -264,21 +192,6 @@
 .terminal-compact .terminal-header,
 .terminal-focused .terminal-header {
   @apply h-12 px-4;
-}
-.terminal-compact .terminal-meta {
-  @apply mb-3 gap-x-3 text-[9px];
-}
-.terminal-compact .output-gap {
-  margin-top: 13px;
-}
-.terminal-compact .file-list {
-  @apply grid-cols-2 gap-x-4;
-}
-.terminal-compact .command-form {
-  @apply mt-4;
-}
-.canvas-viewport {
-  touch-action: none;
 }
 .workspace-background {
   --terminal-idle-opacity: 0.5;
@@ -304,9 +217,6 @@
   background-size: 192px 192px;
   opacity: var(--canvas-grain-opacity);
 }
-.canvas-viewport .react-flow {
-  --xy-background-color: transparent;
-}
 .canvas-grid {
   pointer-events: none;
   opacity: var(--canvas-grid-opacity);
@@ -328,108 +238,6 @@
   .workspace-background[data-pointer-inside="true"] .canvas-grid-spotlight {
     opacity: var(--canvas-grid-spotlight-opacity);
   }
-}
-.canvas-viewport .react-flow__node {
-  transition:
-    transform 160ms ease-out,
-    width 160ms ease-out,
-    height 160ms ease-out;
-}
-.canvas-viewport .react-flow__node.dragging,
-.canvas-viewport .react-flow__node.resizing {
-  transition: none;
-}
-.canvas-node {
-  opacity: var(--terminal-idle-opacity);
-  transition: opacity var(--motion-state) var(--ease-interface);
-}
-.canvas-node.selected {
-  opacity: 1;
-}
-.grid-terminal[data-preview="true"],
-.canvas-node[data-preview="true"] {
-  opacity: 0.5;
-}
-.canvas-node .terminal-resize-grip {
-  @apply absolute right-px bottom-px z-10 flex size-7 items-end justify-end border-0 bg-transparent p-1.5 text-muted;
-  top: auto;
-  left: auto;
-  translate: none;
-  transform: scale(var(--canvas-chrome-scale));
-  transform-origin: bottom right;
-  opacity: 0.35;
-  transition: opacity var(--motion-feedback) var(--ease-interface);
-}
-.terminal-resize-grip:hover {
-  opacity: 0.8;
-}
-.terminal-resize-pattern {
-  width: 11px;
-  height: 11px;
-  background: repeating-linear-gradient(135deg, transparent 0 3px, currentColor 3px 4px);
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
-  pointer-events: none;
-}
-.canvas-node .terminal-heading {
-  height: calc(var(--canvas-header-height) * var(--canvas-chrome-scale));
-}
-.canvas-node .terminal-header {
-  width: calc(100% / var(--canvas-chrome-scale));
-  height: var(--canvas-header-height);
-  padding: 7px 16px;
-  gap: 6px;
-  line-height: 16px;
-  transform: scale(var(--canvas-chrome-scale));
-  transform-origin: top left;
-  cursor: move;
-}
-.canvas-node.compact-header .terminal-header {
-  gap: 4px;
-  padding: 5px 6px;
-}
-.canvas-node.compact-header .terminal-title {
-  gap: 4px;
-  padding: 0 2px;
-  line-height: 16px;
-}
-.canvas-node.compact-header .terminal-actions {
-  justify-content: flex-end;
-  gap: 0;
-}
-.canvas-node.compact-header .terminal-actions .icon-button {
-  width: 22px;
-  height: 22px;
-  min-width: 0;
-  flex-shrink: 1;
-  padding: 0;
-}
-.canvas-node.minimized .terminal-header {
-  border-bottom-color: transparent;
-}
-.canvas-node.minimized .terminal-resize-grip {
-  width: 16px;
-  padding-right: 3px;
-  padding-left: 0;
-  cursor: ew-resize;
-}
-.canvas-node.minimized.compact-header .terminal-resize-grip {
-  height: 12px;
-  padding-bottom: 1px;
-}
-.canvas-node .terminal-content {
-  overscroll-behavior: contain;
-}
-.canvas-node:not(.selected) .terminal-content {
-  pointer-events: none;
-  user-select: none;
-}
-.canvas-node:not(.selected) .terminal-window,
-.canvas-node:not(.selected) .terminal-header {
-  cursor: grab;
-}
-.canvas-node.selected .terminal-content {
-  user-select: text;
-  cursor: text;
 }
 @media (min-width: 1650px) {
   .terminal-content,
@@ -474,16 +282,6 @@
   .terminal-compact .terminal-content {
     padding: 18px 14px;
     font-size: calc(var(--terminal-font-size, 13px) - 1px);
-  }
-  .file-list,
-  .terminal-compact .file-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 24px;
-  }
-  .terminal-meta,
-  .terminal-compact .terminal-meta {
-    font-size: 10px;
-    gap: 3px 10px;
   }
   .small-button {
     padding: 0 12px;
@@ -618,7 +416,7 @@
     opacity: 0.25;
   }
   .icon-button > svg,
-  .session-action > svg {
+  .terminal-tab-action > svg {
     @apply shrink-0;
   }
   kbd {

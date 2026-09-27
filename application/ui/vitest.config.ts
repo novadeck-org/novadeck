@@ -20,9 +20,8 @@ export default mergeConfig(
           test: {
             name: "unit",
             environment: "jsdom",
-            include: ["src/**/*.spec.ts"],
+            include: ["src/**/*.test.ts"],
             exclude: ["src/specs/**"],
-            setupFiles: ["./src/test/setup.ts"],
           },
         },
         {
@@ -32,6 +31,7 @@ export default mergeConfig(
           test: {
             name: "behaviour",
             include: ["src/specs/**/*.spec.tsx"],
+            exclude: ["src/specs/motion.spec.tsx"],
             setupFiles: ["./src/specs/setup.ts"],
             // Whole-app renders under CI load can take longer than the 1s default.
             expect: { poll: { timeout: 5000 } },
@@ -40,6 +40,24 @@ export default mergeConfig(
               headless: true,
               screenshotFailures: false,
               provider: playwright({ contextOptions: { reducedMotion: "reduce" } }),
+              instances: [{ browser: "chromium" }],
+              viewport: { width: 1440, height: 900 },
+            },
+          },
+        },
+        {
+          extends: true,
+          server: { strictPort: false },
+          test: {
+            name: "motion",
+            include: ["src/specs/motion.spec.tsx"],
+            setupFiles: ["./src/specs/setup.ts"],
+            expect: { poll: { timeout: 5000 } },
+            browser: {
+              enabled: true,
+              headless: true,
+              screenshotFailures: false,
+              provider: playwright({ contextOptions: { reducedMotion: "no-preference" } }),
               instances: [{ browser: "chromium" }],
               viewport: { width: 1440, height: 900 },
             },

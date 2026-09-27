@@ -1,0 +1,30 @@
+@reference "../../styles.css";
+
+/* Demo output styles. The frame marks compact terminals with .terminal-compact. */
+.output-gap {
+  margin-top: 19px;
+}
+.terminal-compact .terminal-meta {
+  @apply mb-3 gap-x-3 text-[9px];
+}
+.terminal-compact .output-gap {
+  margin-top: 13px;
+}
+.terminal-compact .file-list {
+  @apply grid-cols-2 gap-x-4;
+}
+.terminal-compact .command-form {
+  @apply mt-4;
+}
+@media (max-width: 700px) {
+  .file-list,
+  .terminal-compact .file-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+  }
+  .terminal-meta,
+  .terminal-compact .terminal-meta {
+    font-size: 10px;
+    gap: 3px 10px;
+  }
+}

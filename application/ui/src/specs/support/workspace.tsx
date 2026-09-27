@@ -1,3 +1,4 @@
+import { StrictMode } from "react"
 import { expect } from "vitest"
 import { cleanup, render } from "vitest-browser-react"
 import { page, userEvent, type Locator } from "vitest/browser"
@@ -20,7 +21,11 @@ export const openWorkspace = async (route?: string): Promise<void> => {
   // A same-page history entry below the app keeps an extra Back inside the test page.
   window.history.replaceState(null, "", "/")
   window.history.pushState(null, "", route === undefined ? "/" : `/#${route}`)
-  await render(<App />)
+  await render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
   // A link may open with a modal dialog, which hides the rest of the app.
   await expect.element(viewSwitcher().or(page.getByRole("dialog"))).toBeVisible()
   await layoutSettled()
@@ -31,6 +36,9 @@ export const openWorkspace = async (route?: string): Promise<void> => {
  * themselves after the first paint, so gestures aimed at a point wait for this.
  */
 export const layoutSettled = async (): Promise<void> => {
+  await expect
+    .element(page.getByRole("status", { name: "Loading workspace" }))
+    .not.toBeInTheDocument()
   const current = page.getByRole("region", {
     name: /^(focus|grid|canvas) view$/,
     includeHidden: true,
