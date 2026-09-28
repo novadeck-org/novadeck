@@ -11,9 +11,9 @@ import {
 import type { Workspace, WorkspaceTarget } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
-import { runnerBackend, type RunnerBackend } from "./backend"
+import { runnerBackend, type RunnerBackend, type RunnerBackendOptions } from "./backend"
 import { runnerSeed, startingTerminal, type RunnerListing } from "./seed"
-import { encodeSession } from "./session-state"
+import { decodeSession, encodeSession } from "./session-state"
 import { startTestRunner, typeInto } from "./testing"
 
 // The runner samples the foreground process about once a second.
@@ -26,8 +26,11 @@ const runner = await startTestRunner()
 afterAll(() => runner.close())
 
 // A backend over the runner as the app drives it: seeded, committed and started.
-const open = (listing: RunnerListing = runner.listing) => {
-  const created: RunnerBackend = runnerBackend(runner.client, listing, { saveDelay: 10 })
+const open = (listing: RunnerListing = runner.listing, options: RunnerBackendOptions = {}) => {
+  const created: RunnerBackend = runnerBackend(runner.client, listing, {
+    saveDelay: 10,
+    ...options,
+  })
   const { backend } = created
   let workspace = workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 1 })
   backend.commit(workspace, [])
@@ -313,6 +316,40 @@ describe("runner backend", () => {
     })
   })
 
+  context("when the app quits", () => {
+    it.skipIf(process.platform !== "linux")(
+      "saves the program in the foreground before the host ends the shells",
+      async () => {
+        const quits: (() => Promise<void>)[] = []
+        const app = open(runner.listing, {
+          // Only the save before quitting may send the change.
+          saveDelay: 60_000,
+          beforeQuit: (save) => {
+            quits.push(save)
+            return () => void quits.splice(quits.indexOf(save), 1)
+          },
+        })
+        const terminal = app.addTerminal()
+        await app.idle()
+        await typeInto(runner.client, terminal.id, "title claude\r")
+        await vi.waitFor(
+          () => expect(app.received).toContainEqual(expect.objectContaining({ process: "claude" })),
+          eventually,
+        )
+        app.commit([...app.received])
+        await quits[0]!()
+        const saved = (await runner.reload())
+          .flatMap(({ sessions }) => sessions)
+          .map(({ session }) => decodeSession(session.state))
+          .flatMap((session) => session?.state.roster.terminals ?? [])
+          .find((item) => item.id === terminal.id)
+        expect(saved?.lastProcess).toBe("claude")
+        app.stop()
+        expect(quits).toEqual([])
+      },
+    )
+  })
+
   context("when the runner reports on a terminal", () => {
     it.skipIf(process.platform !== "linux")(
       "reports the foreground program, then the exit code",
@@ -328,7 +365,7 @@ describe("runner backend", () => {
               type: "terminal/process",
               target,
               terminalId,
-              process: { process: "claude", kind: "claude" },
+              process: "claude",
             }),
           eventually,
         )
@@ -553,7 +590,7 @@ describe("runner backend", () => {
             type: "terminal/process",
             target,
             terminalId,
-            process: { process: "claude", kind: "claude" },
+            process: "claude",
           })
           expect(statusOf(app, terminalId).at(-1)?.status).toEqual({ state: "running" })
         }, eventually)
@@ -614,7 +651,7 @@ describe("runner backend", () => {
                   rows: 24,
                   exit: null,
                   run: 1,
-                  process: "zsh",
+                  process: { name: "zsh", argv: null },
                 },
               ],
             },

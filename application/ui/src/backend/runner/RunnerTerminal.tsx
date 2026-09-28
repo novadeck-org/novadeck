@@ -2,7 +2,15 @@ import "@xterm/xterm/css/xterm.css"
 import "./runner.css"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal, type ITheme } from "@xterm/xterm"
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react"
 
 import { endingText, terminalEnding, type TerminalEnding } from "../../model/terminal-ending"
 import type { TerminalSurfaceProps } from "../port"
@@ -69,8 +77,8 @@ const endingTones: Record<TerminalEnding["tone"], string> = {
 // How the shell ended, along the surface's bottom edge, with the restart Enter also
 // asks for. In Canvas its right end follows the resize grip's scale so the button stays
 // clear of it (runner.css). Restart waits while typing is paused, as a restart then
-// could not reach the runner. It keeps the last ending on screen while it slides away,
-// and announces a new one politely.
+// could not reach the runner. It keeps the last ending on screen while it slides away;
+// the surface announces it.
 const EndingBar = ({
   ending,
   paused,
@@ -85,41 +93,33 @@ const EndingBar = ({
   // Each render derives a fresh ending; only a different one replaces the shown one.
   if (ending && (ending.tone !== shown?.tone || endingText(ending) !== text)) setShown(ending)
   return (
-    <>
-      {/* Announced from outside the bar: the bar is inert while hidden, and an inert
-          region that appears with its text already in place is not announced. Empty
-          while no ending shows, so a repeat of the same ending is announced again. */}
-      <span aria-live="polite" aria-atomic className="sr-only">
-        {ending ? endingText(ending) : ""}
-      </span>
-      <div
-        className={`runner-ending absolute inset-x-0 bottom-0 flex h-7 items-center justify-between gap-3 border-t pr-6 pl-3 text-[10px] transition-[opacity,translate] duration-(--motion-state) ease-interface ${shown ? endingTones[shown.tone] : ""} ${ending ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}
-        inert={!ending}
-        data-terminal-ending={ending?.tone}
+    <div
+      className={`runner-ending absolute inset-x-0 bottom-0 flex h-7 items-center justify-between gap-3 border-t pr-6 pl-3 text-[10px] transition-[opacity,translate] duration-(--motion-state) ease-interface ${shown ? endingTones[shown.tone] : ""} ${ending ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}
+      inert={!ending}
+      data-terminal-ending={ending?.tone}
+    >
+      <span
+        className="min-w-0 truncate font-bold tracking-wider uppercase"
+        title={text || undefined}
       >
-        <span
-          className="min-w-0 truncate font-bold tracking-wider uppercase"
-          title={text || undefined}
+        {text}
+      </span>
+      {shown && (
+        <button
+          type="button"
+          aria-disabled={paused || undefined}
+          className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-control px-1.5 py-0.5 font-bold tracking-wider uppercase underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--ending-ring) aria-disabled:cursor-default aria-disabled:no-underline aria-disabled:opacity-50"
+          onClick={() => {
+            if (!paused) onRestart()
+          }}
         >
-          {text}
-        </span>
-        {shown && (
-          <button
-            type="button"
-            aria-disabled={paused || undefined}
-            className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-control px-1.5 py-0.5 font-bold tracking-wider uppercase underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--ending-ring) aria-disabled:cursor-default aria-disabled:no-underline aria-disabled:opacity-50"
-            onClick={() => {
-              if (!paused) onRestart()
-            }}
-          >
-            Restart
-            <span aria-hidden className="font-normal opacity-60">
-              ↵
-            </span>
-          </button>
-        )}
-      </div>
-    </>
+          Restart
+          <span aria-hidden className="font-normal opacity-60">
+            ↵
+          </span>
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -133,9 +133,14 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
     clipContent,
     focusInput,
     onInputFocused,
+    renderWindow,
   }: TerminalSurfaceProps): React.JSX.Element => {
-    const root = useRef<HTMLDivElement>(null)
-    const host = useRef<HTMLDivElement>(null)
+    // React owns each surface's mount slot; the runner owns this one emulator host.
+    // Moving the host preserves its textarea, screen, selection, and PTY attachment.
+    const host = useMemo(() => document.createElement("div"), [])
+    const root = useRef<HTMLDivElement | null>(null)
+    const wasFocused = useRef(false)
+    const refitFrame = useRef<number | null>(null)
     const view = useRef<{ xterm: Terminal; followed: FollowedTerminal | undefined }>(null)
     const initialFont = useRef(fontSize)
     const name = terminal.name
@@ -158,8 +163,55 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
     const [streamWaits, setStreamWaits] = useState(false)
     const locked = connection !== "connected" || (!waiting && !streamWaits && !live)
 
+    const onWheel = useCallback((event: WheelEvent): void => {
+      // Intercept before XYFlow's native listener, but let zoom gestures reach it.
+      if (!event.ctrlKey && !event.metaKey) event.stopPropagation()
+    }, [])
+    const onRootMount = useCallback(
+      (element: HTMLDivElement | null): void => {
+        root.current?.removeEventListener("wheel", onWheel)
+        root.current = element
+        element?.addEventListener("wheel", onWheel, { passive: true })
+      },
+      [onWheel],
+    )
+    const onHostMount = useCallback(
+      (element: HTMLDivElement | null): void => {
+        if (!element) {
+          if (host.contains(document.activeElement)) wasFocused.current = true
+          return
+        }
+        element.append(host)
+        view.current?.followed?.refit()
+        if (refitFrame.current !== null) cancelAnimationFrame(refitFrame.current)
+        refitFrame.current = requestAnimationFrame(() => {
+          refitFrame.current = null
+          if (host.isConnected) view.current?.followed?.refit()
+        })
+        if (wasFocused.current) {
+          view.current?.xterm.focus()
+          wasFocused.current = false
+        }
+      },
+      [host],
+    )
+
+    useLayoutEffect(() => {
+      host.setAttribute(
+        "class",
+        `min-h-0 flex-1 transition-[filter,margin-bottom] duration-(--motion-state) ease-interface ${locked ? "grayscale delay-200" : ""} ${ending ? "mb-7" : ""}`,
+      )
+    }, [host, locked, ending])
+
+    useEffect(
+      () => () => {
+        if (refitFrame.current !== null) cancelAnimationFrame(refitFrame.current)
+      },
+      [],
+    )
+
     useEffect(() => {
-      const element = host.current!
+      const element = host
       const xterm = new Terminal({
         fontSize: initialFont.current,
         fontFamily: monospace(element),
@@ -241,7 +293,7 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
         followed.stop()
         xterm.dispose()
       }
-    }, [terminalKey])
+    }, [terminalKey, host])
 
     useEffect(() => {
       const hint = restart.current
@@ -274,55 +326,55 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
       onInputFocused()
     }, [focusInput, onInputFocused])
 
-    useEffect(() => {
-      const element = root.current
-      if (!element) return
-      const onWheel = (event: WheelEvent): void => {
-        // Intercept before XYFlow's native listener, but let zoom gestures reach it.
-        if (!event.ctrlKey && !event.metaKey) event.stopPropagation()
-      }
-      element.addEventListener("wheel", onWheel, { passive: true })
-      return () => element.removeEventListener("wheel", onWheel)
-    }, [])
-
+    // A different program body remounts this content; the host moves into the new slot.
     return (
-      <div
-        ref={root}
-        data-terminal-content
-        className="terminal-content runner-terminal nodrag nopan relative flex min-h-0 flex-1 flex-col p-3"
-        hidden={minimized && !clipContent}
-        aria-hidden={minimized}
-        inert={minimized}
-        data-locked={locked || undefined}
-      >
-        <div
-          ref={host}
-          className={`min-h-0 flex-1 transition-[filter,margin-bottom] duration-(--motion-state) ease-interface ${locked ? "grayscale delay-200" : ""} ${ending ? "mb-7" : ""}`}
-        />
-        {/* Room for the bar keeps the output clear of it, as far above it as the
-            surface's own padding. */}
-        <EndingBar
-          ending={ending}
-          paused={locked}
-          onRestart={() => {
-            restart.current.run()
-            // The button leaves with the bar; typing goes on in the fresh shell.
-            view.current?.xterm.focus()
-          }}
-        />
-        {locked && (
+      <>
+        {renderWindow(
           <div
-            role="status"
-            className="pointer-events-none absolute inset-0 flex items-center justify-center bg-canvas/80 transition-opacity delay-200 duration-(--motion-state) ease-interface starting:opacity-0"
+            ref={onRootMount}
+            data-terminal-content
+            className="terminal-content runner-terminal nodrag nopan relative flex min-h-0 flex-1 flex-col p-3"
+            hidden={minimized && !clipContent}
+            aria-hidden={minimized}
+            inert={minimized}
+            data-locked={locked || undefined}
           >
-            <LockNotice
-              notice={
-                lockNotices[connection === "connected" && resuming ? "reconnecting" : connection]
-              }
+            <div ref={onHostMount} className="flex min-h-0 flex-1 flex-col" />
+            {/* Room for the bar keeps the output clear of it, as far above it as the
+                surface's own padding. */}
+            <EndingBar
+              ending={ending}
+              paused={locked}
+              onRestart={() => {
+                restart.current.run()
+                // The button leaves with the bar; typing goes on in the fresh shell.
+                view.current?.xterm.focus()
+              }}
             />
-          </div>
+            {locked && (
+              <div
+                role="status"
+                className="pointer-events-none absolute inset-0 flex items-center justify-center bg-canvas/80 transition-opacity delay-200 duration-(--motion-state) ease-interface starting:opacity-0"
+              >
+                <LockNotice
+                  notice={
+                    lockNotices[
+                      connection === "connected" && resuming ? "reconnecting" : connection
+                    ]
+                  }
+                />
+              </div>
+            )}
+          </div>,
         )}
-      </div>
+        {/* Announced from outside the window: the bar is inert while hidden, the content
+            remounts when the program's body changes, as when an agent's shell ends, and
+            a region that appears with its text already in place is not announced. Empty
+            while no ending shows, so a repeat of the same ending is announced again. */}
+        <span aria-live="polite" aria-atomic className="sr-only">
+          {ending ? endingText(ending) : ""}
+        </span>
+      </>
     )
   }
   return RunnerTerminal

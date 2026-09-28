@@ -35,6 +35,15 @@ export const terminalExit = z.strictObject({
   ranMs: z.number().int().nonnegative(),
 })
 
+// `name` is the process's own name. `argv` is the foreground process group leader's
+// command line, which tells a script apart from its interpreter; null where the
+// platform cannot tell and before the runner first looks. The runner truncates both
+// to fit.
+export const foregroundProcess = z.strictObject({
+  name: z.string().max(256),
+  argv: z.array(z.string().max(4096)).max(64).nullable(),
+})
+
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
@@ -46,9 +55,9 @@ export const terminalSummary = z.strictObject({
   run: z.number().int().positive(),
   // How the shell ended; null while it runs.
   exit: terminalExit.nullable(),
-  // The terminal's foreground process name, such as the shell or a program it runs.
-  // Null once exited or when the platform cannot tell.
-  process: z.string().max(256).nullable(),
+  // The terminal's foreground process, such as the shell or a program it runs. Null
+  // once exited or when the platform cannot tell.
+  process: foregroundProcess.nullable(),
 })
 
 // `terminals.watch` events: every terminal's summary, then each later change.
@@ -89,6 +98,7 @@ export const terminalAttached = z.strictObject({
 export type Project = z.infer<typeof project>
 export type WorkspaceSession = z.infer<typeof workspaceSession>
 export type TerminalExit = z.infer<typeof terminalExit>
+export type ForegroundProcess = z.infer<typeof foregroundProcess>
 export type TerminalSummary = z.infer<typeof terminalSummary>
 export type TerminalChange = z.infer<typeof terminalChange>
 export type TerminalEvent = z.infer<typeof terminalEvent>

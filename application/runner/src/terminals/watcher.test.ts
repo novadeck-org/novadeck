@@ -10,7 +10,7 @@ const terminal = (id: string, changes: Partial<TerminalSummary> = {}): TerminalS
   cols: 80,
   rows: 24,
   exit: null,
-  process: "sh",
+  process: { name: "sh", argv: null },
   run: 1,
   ...changes,
 })
@@ -38,15 +38,15 @@ describe("terminal watcher", () => {
 
   it("keeps only the latest unread summary of each terminal, oldest change first", async () => {
     const watcher = new Watcher([])
-    watcher.changed(terminal("a", { process: "vim" }))
+    watcher.changed(terminal("a", { process: { name: "vim", argv: null } }))
     watcher.changed(terminal("b"))
     for (let index = 0; index < 1000; index += 1) {
-      watcher.changed(terminal("a", { process: `step-${index}` }))
+      watcher.changed(terminal("a", { process: { name: `step-${index}`, argv: null } }))
     }
     expect(await read(watcher, 3)).toEqual([
       { type: "synced" },
       { type: "changed", terminal: terminal("b") },
-      { type: "changed", terminal: terminal("a", { process: "step-999" }) },
+      { type: "changed", terminal: terminal("a", { process: { name: "step-999", argv: null } }) },
     ])
   })
 

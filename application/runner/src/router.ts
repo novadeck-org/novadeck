@@ -37,6 +37,8 @@ export const createRouter = (options: {
   claim: (connection: Connection, clientId: string) => void
   store: WorkspaceStore
   terminals: Terminals
+  /** Whether the runner is shutting down. */
+  closing: () => boolean
 }) => {
   const { store, terminals } = options
   const api = implement(contract).$context<Context>()
@@ -83,7 +85,12 @@ export const createRouter = (options: {
       list: authorized.sessions.list.handler(({ input }) => store.sessions(input.projectId)),
       create: authorized.sessions.create.handler(({ input }) => store.createSession(input)),
       rename: authorized.sessions.rename.handler(({ input }) => store.renameSession(input)),
-      save: authorized.sessions.save.handler(({ input }) => store.saveSession(input)),
+      save: authorized.sessions.save.handler(({ input }) => {
+        // Shells exiting during shutdown would otherwise overwrite the last state saved
+        // before it with one where nothing runs.
+        if (options.closing()) throw new DomainError("RUNTIME_CLOSING")
+        store.saveSession(input)
+      }),
     },
     terminals: {
       list: authorized.terminals.list.handler(({ input }) => {

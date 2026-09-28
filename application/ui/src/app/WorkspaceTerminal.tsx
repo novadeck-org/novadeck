@@ -1,9 +1,14 @@
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, type ReactNode } from "react"
 
 import { activeProject } from "../model/state"
 import type { TerminalMetadata } from "../model/types"
+import { presentedProgram, terminalProfile } from "../terminals/processes/profiles"
 import { renameView } from "../terminals/rename-state"
-import { TerminalFrame, type TerminalLayoutControls } from "../terminals/TerminalFrame"
+import {
+  WindowShell,
+  type TerminalLayoutControls,
+  type WindowShellProps,
+} from "../terminals/WindowShell"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import {
   currentContext,
@@ -14,7 +19,8 @@ import {
   windowedDestination,
 } from "./selectors"
 
-// One terminal in the current view: the shared frame around the backend's surface.
+// One terminal in the current view: the backend's surface, which keeps its controller
+// mounted while the shared window, and the body its program calls for, wrap its content.
 export const WorkspaceTerminal = ({
   terminal,
   controls: { minimize, onFlyTo, onResizePreset },
@@ -65,55 +71,56 @@ export const WorkspaceTerminal = ({
     [projectId, workspaceSessionId, terminalId],
   )
   const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
+  const { icon: Icon, Body } = terminalProfile(terminal)
+  const processWindow = presentedProgram(terminal)
+  const frame: Omit<WindowShellProps, "children"> = {
+    terminal,
+    icon: <Icon size={14} strokeWidth={1.5} />,
+    ...(processWindow ? { processWindow } : {}),
+    active,
+    fresh,
+    rename: renameView(rename),
+    onBeginRename: () => startRename(terminal, "header"),
+    onRenameDraft: (draft) => changeRenameDraft(terminal.id, draft),
+    onRenameSave: () => saveRename(terminal.id),
+    onRenameCancel: () => cancelRename(terminal.id),
+    compact,
+    switcher: { onOpen: (button) => openSwitcher(terminal.id, button) },
+    onClose: () => close(terminal.id),
+    ...(minimize ? { minimize } : {}),
+    ...(onFlyTo ? { onFlyTo } : {}),
+    ...(onResizePreset
+      ? {
+          onResizePreset: (button: HTMLButtonElement) => {
+            setSelected(terminal.id)
+            onResizePreset(button)
+          },
+          resizeView: view === "grid" ? ("grid" as const) : ("canvas" as const),
+        }
+      : {}),
+    large,
+    ...(compact && enabledViews.includes("focus")
+      ? { onFocus: () => openFocus(terminal.id) }
+      : !compact && destination
+        ? { windowed: { destination: windowedLabel, onOpen: () => openWindowed(terminal.id) } }
+        : {}),
+  }
+  // One shell element whatever runs, so only the body around the content changes.
+  const renderWindow = (content: ReactNode): ReactNode => (
+    <WindowShell {...frame}>{Body ? <Body>{content}</Body> : content}</WindowShell>
+  )
   return (
-    <TerminalFrame
+    <backend.TerminalSurface
+      terminalKey={terminalKey}
       terminal={terminal}
-      active={active}
-      fresh={fresh}
-      rename={renameView(rename)}
-      onBeginRename={() => startRename(terminal, "header")}
-      onRenameDraft={(draft) => changeRenameDraft(terminal.id, draft)}
-      onRenameSave={() => saveRename(terminal.id)}
-      onRenameCancel={() => cancelRename(terminal.id)}
-      compact={compact}
-      switcher={{ onOpen: (button) => openSwitcher(terminal.id, button) }}
-      onClose={() => close(terminal.id)}
-      {...(minimize ? { minimize } : {})}
-      {...(onFlyTo ? { onFlyTo } : {})}
-      {...(onResizePreset
-        ? {
-            onResizePreset: (button: HTMLButtonElement) => {
-              setSelected(terminal.id)
-              onResizePreset(button)
-            },
-            resizeView: view === "grid" ? ("grid" as const) : ("canvas" as const),
-          }
-        : {})}
-      large={large}
-      {...(compact && enabledViews.includes("focus")
-        ? {
-            onFocus: () => openFocus(terminal.id),
-          }
-        : !compact && destination
-          ? {
-              windowed: {
-                destination: windowedLabel,
-                onOpen: () => openWindowed(terminal.id),
-              },
-            }
-          : {})}
-    >
-      <backend.TerminalSurface
-        terminalKey={terminalKey}
-        terminal={terminal}
-        projectName={projectName}
-        fontSize={fontSize}
-        minimized={minimize?.minimized}
-        clipContent={minimize?.clipContent}
-        focusInput={keyboardFocus?.view === view && active}
-        onInputFocused={onInputFocused}
-      />
-    </TerminalFrame>
+      projectName={projectName}
+      fontSize={fontSize}
+      minimized={minimize?.minimized}
+      clipContent={minimize?.clipContent}
+      focusInput={keyboardFocus?.view === view && active}
+      onInputFocused={onInputFocused}
+      renderWindow={renderWindow}
+    />
   )
 }
 

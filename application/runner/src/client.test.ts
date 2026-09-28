@@ -63,7 +63,7 @@ const bundled = async (resources: Resources) => {
     resources.defer(() => client.close())
     return { client, dispose }
   }
-  return { directory, connect }
+  return { directory, runner, connect }
 }
 
 /**
@@ -662,6 +662,20 @@ describe("runner client over MessagePort", () => {
       ),
     )
     expect(created).toHaveLength(64)
+  })
+
+  it("refuses session saves once the runner starts shutting down", async ({ resources }) => {
+    const app = await bundled(resources)
+    const { client } = await app.connect()
+    const { id: sessionId } = await session(client, app.directory)
+    // A running shell keeps shutdown busy while it ends, as the desktop app's do.
+    await client.terminals.create(shell(sessionId))
+    await expect(client.sessions.save({ sessionId, state: "before" })).resolves.toBeUndefined()
+    const closing = app.runner.close()
+    await expect(client.sessions.save({ sessionId, state: "after" })).rejects.toMatchObject({
+      code: "RUNTIME_CLOSING",
+    })
+    await closing
   })
 
   it("closes with CLOSED when a single port ends, since it cannot reconnect", async ({

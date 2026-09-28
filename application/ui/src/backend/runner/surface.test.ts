@@ -1,4 +1,6 @@
-import { act, createElement } from "react"
+import type { AttachedTerminal } from "@novadeck/protocol/client"
+import { Terminal } from "@xterm/xterm"
+import { act, createElement, type ReactNode } from "react"
 import { afterEach, vi } from "vitest"
 
 import { createStore } from "../../model/store"
@@ -74,13 +76,15 @@ const show = (
       fontSize: 13,
       focusInput: false,
       onInputFocused: () => {},
+      renderWindow: (content) => content,
     }),
   )
   mounted.push(page)
   return page
 }
 
-const input = (page: Rendered) => page.container.querySelector("[data-terminal-input]")!
+const input = (page: Rendered) =>
+  page.container.querySelector<HTMLTextAreaElement>("[data-terminal-input]")!
 
 // A surface whose shell ended as `terminal` says, recording the restarts it asks for.
 const ended = (terminal: Partial<TerminalMetadata>) => {
@@ -94,7 +98,119 @@ const ended = (terminal: Partial<TerminalMetadata>) => {
   return { page, bar, restarts, connection }
 }
 
+// Two programs' bodies, each its own component, so switching remounts the content.
+const Agent = (props: { children: ReactNode }) => createElement("section", props)
+const Plain = (props: { children: ReactNode }) => createElement("article", props)
+
 describe("runner terminal surface", () => {
+  it("keeps one live xterm, its output and focus while the body around it changes", async () => {
+    const { runtime } = starting()
+    const views: Terminal[] = []
+    const originalOpen = Terminal.prototype.open
+    const open = vi.spyOn(Terminal.prototype, "open").mockImplementation(function (
+      this: Terminal,
+      element,
+    ) {
+      views.push(this)
+      return originalOpen.call(this, element)
+    })
+    const attachment: AttachedTerminal = {
+      id: "01",
+      mode: "control",
+      [Symbol.asyncIterator]: () => attachment,
+      next: vi
+        .fn<AttachedTerminal["next"]>()
+        .mockResolvedValueOnce({
+          value: {
+            terminalId: "01",
+            sequence: 1,
+            type: "snapshot",
+            cols: 80,
+            rows: 24,
+            data: "hello from the same shell\r\n",
+            exit: null,
+          },
+          done: false,
+        })
+        .mockImplementation(() => new Promise(() => {})),
+      return: async () => ({ value: undefined, done: true as const }),
+      write: async () => {},
+      resize: async () => {},
+      detach: async () => {},
+    }
+    const attach = vi.fn<SurfaceRuntime["attach"]>(async () => attachment)
+    const screen = vi.fn<SurfaceRuntime["screen"]>()
+    const Surface = createRunnerTerminal({
+      ...runtime,
+      entry: () => ({
+        ready: Promise.resolve(true),
+        revived: new Promise<void>(() => {}),
+        closed: false,
+        size: { cols: 80, rows: 24 },
+      }),
+      attach,
+      screen,
+    })
+    const external = document.createElement("button")
+    external.textContent = "Outside"
+    document.body.append(external)
+    // Each program's body is its own component, so switching remounts the content inside it.
+    const bodies = {
+      terminal: (props: { children: ReactNode }) => createElement("section", props),
+      claude: (props: { children: ReactNode }) =>
+        createElement("section", { "data-body": "claude", ...props }),
+      codex: (props: { children: ReactNode }) =>
+        createElement("section", { "data-body": "codex", ...props }),
+    }
+    const props = (body: keyof typeof bodies) =>
+      createElement(Surface, {
+        terminalKey: key,
+        terminal: { ...terminalFixture(1, "~"), state: "running" },
+        projectName: "P",
+        fontSize: 13,
+        focusInput: false,
+        onInputFocused: () => {},
+        renderWindow: (content) => createElement(bodies[body], null, content),
+      })
+    try {
+      const page = render(props("terminal"))
+      mounted.push(page)
+      await vi.waitFor(() =>
+        expect(views[0]?.buffer.active.getLine(0)?.translateToString()).toContain(
+          "hello from the same shell",
+        ),
+      )
+      const textarea = input(page)
+      const xterm = page.container.querySelector(".xterm")
+      const content = page.container.querySelector("[data-terminal-content]")
+      act(() => textarea.focus())
+      expect(document.activeElement).toBe(textarea)
+
+      page.rerender(props("claude"))
+      expect(page.container.querySelector("[data-terminal-content]")).not.toBe(content)
+      expect(page.container.querySelector("[data-body=claude]")?.contains(xterm)).toBe(true)
+      expect(input(page)).toBe(textarea)
+      expect(document.activeElement).toBe(textarea)
+      page.rerender(props("codex"))
+      expect(page.container.querySelector("[data-body=codex]")?.contains(xterm)).toBe(true)
+      expect(document.activeElement).toBe(textarea)
+
+      act(() => external.focus())
+      page.rerender(props("terminal"))
+      expect(document.activeElement).toBe(external)
+      expect(input(page)).toBe(textarea)
+      expect(page.container.querySelectorAll(".xterm")).toHaveLength(1)
+      expect(views[0]?.buffer.active.getLine(0)?.translateToString()).toContain(
+        "hello from the same shell",
+      )
+      expect(attach).toHaveBeenCalledTimes(1)
+      expect(screen.mock.calls.map((call) => call[1])).toEqual(["mounted", "shown"])
+    } finally {
+      open.mockRestore()
+      external.remove()
+    }
+  })
+
   context("while its shell has no stream yet", () => {
     it("refuses input where the person can see it", () => {
       const { runtime } = starting()
@@ -115,13 +231,40 @@ describe("runner terminal surface", () => {
 
   context("once its shell ended", () => {
     it("says how under its output, in honey for an exit code, and announces it", () => {
-      const { bar } = ended({ state: "exited", exitCode: 3, signal: null })
+      const { page, bar } = ended({ state: "exited", exitCode: 3, signal: null })
       expect(bar?.dataset.terminalEnding).toBe("warning")
       // The announcer sits outside the bar, which is inert while hidden.
-      const announcer = bar?.parentElement?.querySelector(":scope > [aria-live=polite]")
+      const announcer = page.container.querySelector("[aria-live=polite]")
       expect(announcer?.textContent).toBe("Exited · code 3")
       expect(announcer?.closest("[inert]")).toBeNull()
       expect(bar?.querySelector("[title]")?.textContent).toBe("Exited · code 3")
+    })
+
+    it("announces it from a region that outlives the program's body changing", () => {
+      const { runtime } = starting()
+      const Surface = createRunnerTerminal(runtime)
+      const surface = (terminal: TerminalMetadata, Body: typeof Agent) =>
+        createElement(Surface, {
+          terminalKey: key,
+          terminal,
+          projectName: "P",
+          fontSize: 13,
+          focusInput: false,
+          onInputFocused: () => {},
+          renderWindow: (content) => createElement(Body, null, content),
+        })
+      const page = render(surface({ ...terminalFixture(1, "~"), state: "running" }, Agent))
+      mounted.push(page)
+      const announcer = page.container.querySelector("[aria-live=polite]")
+      const content = page.container.querySelector("[data-terminal-content]")
+      expect(announcer?.textContent).toBe("")
+
+      // The agent's shell is killed: the plain body replaces the agent's.
+      const killed = { state: "exited", exitCode: null, signal: "SIGKILL" } as const
+      page.rerender(surface({ ...terminalFixture(1, "~"), ...killed }, Plain))
+      expect(page.container.querySelector("[data-terminal-content]")).not.toBe(content)
+      expect(page.container.querySelector("[aria-live=polite]")).toBe(announcer)
+      expect(announcer?.textContent).toBe("Killed · SIGKILL")
     })
 
     it("names why it could not start, in rose", () => {

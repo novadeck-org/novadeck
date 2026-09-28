@@ -42,6 +42,9 @@ export type RunnerBackendOptions = {
   // How long saving waits for more changes, in milliseconds.
   readonly saveDelay?: number
   readonly pickDirectory?: () => Promise<string | null>
+  // Where the host lets the page finish its saves before its window closes or the app
+  // quits; returns the undo.
+  readonly beforeQuit?: (save: () => Promise<void>) => () => void
   readonly now?: () => number
   // The debug panel's hooks, when this launch offers the panel.
   readonly debug?: RunnerDebug | undefined
@@ -132,8 +135,6 @@ const statusKey = (status: TerminalStatus): string => {
   if (status.state === "failed") return `failed:${status.message}`
   return status.state
 }
-const processKey = ({ process, kind }: { process: string; kind: string }): string =>
-  `${kind}:${process}`
 
 const connectionState = (status: RunnerStatus): BackendConnectionState => {
   if (status.state === "connected") return "connected"
@@ -294,8 +295,8 @@ export const runnerBackend = (
     if (restartable(activity.status)) entry.settled = true
     const actions = statusAction(entry, activity.status)
     const { process } = activity
-    if (!process || entry.process === processKey(process)) return actions
-    entry.process = processKey(process)
+    if (process === undefined || entry.process === process) return actions
+    entry.process = process
     return [
       ...actions,
       { type: "terminal/process", target: target(entry.key), terminalId, process },
@@ -489,6 +490,12 @@ export const runnerBackend = (
 
   // Starts a fresh shell for the terminal, keeping its id: a restart when the runner
   // still has the exited record, a create when it does not. Its surface attaches again.
+  // Every replacement shell starts here, while the terminal's `restoredProcess` still
+  // names the program it lost: where resuming that program would go. Resume only once
+  // create or restart returned a summary, as a CONFLICT settles here too while the old
+  // shell lives on, and a failed attach ("Another window controls it") captures a
+  // restore without losing the shell. Copy the restore onto the entry first: the fresh
+  // shell's first idle report drops it from the store.
   const freshShell = (entry: RunnerEntry): void => {
     if (entry.closed || entry.starting) return
     const { terminalId, workspaceSessionId } = entry.key
@@ -608,7 +615,7 @@ export const runnerBackend = (
         closed: false,
         attachment: undefined,
         status: terminal,
-        process: processKey(terminal),
+        process: terminal.process,
       }
       if (isNew) entry.ready = createTerminal(entry)
       entries.set(key.terminalId, entry)
@@ -770,6 +777,9 @@ export const runnerBackend = (
     void consume(changes, onChange)
     void consume(statuses, onStatus)
     window.addEventListener("pagehide", flush)
+    // The host waits for these saves before a close or quit can end the shells, so they
+    // name what still runs.
+    const stopQuit = options.beforeQuit?.(saves.settle)
     const stopOutage = options.debug?.outage.subscribe(showConnection)
     return () => {
       live = false
@@ -777,6 +787,7 @@ export const runnerBackend = (
       void changes.return?.()
       void statuses.return?.()
       window.removeEventListener("pagehide", flush)
+      stopQuit?.()
       stopOutage?.()
       // The last changes are saved; nothing retries after this.
       flush()

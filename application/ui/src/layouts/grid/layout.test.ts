@@ -10,7 +10,6 @@ const terminals: TerminalMetadata[] = ["one", "two"].map((id) => ({
   command: "",
   process: "shell",
   state: "idle",
-  kind: "shell",
 }))
 const saved: GridLayouts = {
   desktop: [

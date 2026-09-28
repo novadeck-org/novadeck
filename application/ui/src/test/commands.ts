@@ -102,7 +102,6 @@ export const openCommands = ({
       directory,
       command: "zsh",
       process: "zsh",
-      kind: "shell",
       state: "idle",
     }),
     canvas: { current: canvas ?? null },

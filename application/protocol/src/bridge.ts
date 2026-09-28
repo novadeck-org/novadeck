@@ -9,6 +9,13 @@ export type DesktopBridge = {
   requestRunner(id: string): void
   /** Asks the user to choose a folder; resolves its absolute path, or null when cancelled. */
   pickDirectory(): Promise<string | null>
+  /**
+   * Registers what the page finishes before its window closes or the app quits, such
+   * as its last saves; the host goes on only after it resolves, or after a short wait,
+   * so saves land while the runner's shells still run. Returns a function that
+   * unregisters it.
+   */
+  beforeQuit(save: () => Promise<void>): () => void
 }
 
 /** Present only when the host enables its debug panel for this launch. */

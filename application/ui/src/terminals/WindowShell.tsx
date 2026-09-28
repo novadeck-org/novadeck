@@ -7,7 +7,6 @@ import {
   ArrowUpRight,
   Minus,
   Plus,
-  Terminal as TerminalIcon,
   X,
 } from "lucide-react"
 import { useRef, type ReactNode } from "react"
@@ -33,9 +32,13 @@ export type TerminalLayoutControls = {
 const headerActionClasses =
   "icon-button [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100"
 
-export type TerminalFrameProps = {
+export type WindowShellProps = {
   terminal: TerminalMetadata
-  children: ReactNode
+  children?: ReactNode
+  // The header's icon, which also opens the terminal switcher.
+  icon: ReactNode
+  // Names the program the window presents as, for its styles and tests.
+  processWindow?: string
   onFocus?: () => void
   switcher?: { onOpen: (button: HTMLButtonElement) => void }
   onFlyTo?: () => void
@@ -55,9 +58,12 @@ export type TerminalFrameProps = {
   onRenameCancel: () => void
 }
 
-export const TerminalFrame = ({
+// The window every terminal shares, whatever program runs in it.
+export const WindowShell = ({
   terminal,
   children,
+  icon,
+  processWindow,
   onFocus,
   switcher,
   onFlyTo,
@@ -75,7 +81,7 @@ export const TerminalFrame = ({
   onRenameDraft,
   onRenameSave,
   onRenameCancel,
-}: TerminalFrameProps): React.JSX.Element => {
+}: WindowShellProps): React.JSX.Element => {
   const resizeLabel = large
     ? resizeView === "grid"
       ? "Restore width"
@@ -97,6 +103,7 @@ export const TerminalFrame = ({
       className={`terminal-window flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-panel transition-[border-color] duration-(--motion-state) ease-interface ${compact ? "terminal-compact" : "terminal-focused"}`}
       aria-label={`${terminal.name} terminal`}
       data-terminal={terminal.id}
+      data-process-window={processWindow}
       data-new={fresh}
     >
       <div className="terminal-heading relative shrink-0">
@@ -190,11 +197,11 @@ export const TerminalFrame = ({
                     switcher.onOpen(event.currentTarget)
                   }}
                 >
-                  <TerminalIcon size={14} strokeWidth={1.5} />
+                  {icon}
                 </button>
               </Tooltip>
             ) : (
-              <TerminalIcon size={14} strokeWidth={1.5} />
+              icon
             )}
             <>
               <Heading hidden={renaming} data-terminal-name="">

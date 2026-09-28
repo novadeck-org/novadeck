@@ -1,39 +1,7 @@
 import type { TerminalExit, TerminalSummary } from "@novadeck/protocol"
 
-import type { TerminalProcess } from "../../model/roster"
-import type { TerminalKind, TerminalStatus } from "../../model/types"
-
-// Programs that wait for commands rather than doing work of their own.
-const shells = new Set([
-  "bash",
-  "zsh",
-  "fish",
-  "sh",
-  "dash",
-  "ksh",
-  "mksh",
-  "tcsh",
-  "csh",
-  "ash",
-  "pwsh",
-  "powershell",
-  "cmd",
-  "nu",
-  "elvish",
-  "xonsh",
-])
-const kinds: Readonly<Record<string, TerminalKind>> = {
-  claude: "claude",
-  codex: "codex",
-  git: "git",
-}
-
-// "/usr/bin/zsh", "-zsh" (a login shell) and "pwsh.exe" all name the program "zsh" or "pwsh".
-export const programName = (process: string): string =>
-  (process.split(/[\\/]/).at(-1) ?? process)
-    .replace(/^-/, "")
-    .replace(/\.exe$/i, "")
-    .toLowerCase()
+import { isShellProcess, programName } from "../../model/process"
+import type { TerminalStatus } from "../../model/types"
 
 // A shell that exits sooner than this after starting counts as failing to start.
 export const quickExitMs = 2000
@@ -50,20 +18,20 @@ export const exitStatus = (exit: TerminalExit): TerminalStatus | "clean" => {
 
 export type TerminalActivity = {
   readonly status: TerminalStatus | "clean"
-  // Absent once the process exited: the last foreground program stays on show.
-  readonly process?: TerminalProcess
+  // The foreground program's name; absent once the process exited, so the last
+  // program stays on show.
+  readonly process?: string
 }
 
-// What the UI shows for a terminal the runner reports: its icon, and whether it is
-// busy (a program runs in the foreground) or idle (the shell waits for input). A
-// terminal without an exit is running.
+// What the UI shows for a terminal the runner reports: which program it runs, and
+// whether it is busy (a program runs in the foreground) or idle (the shell waits for
+// input). A terminal without an exit is running.
 export const terminalActivity = (summary: TerminalSummary): TerminalActivity => {
   if (summary.exit) return { status: exitStatus(summary.exit) }
-  const process = summary.process ?? ""
-  const program = programName(process)
+  const program = summary.process ? programName(summary.process) : ""
   return {
-    status: { state: !program || shells.has(program) ? "idle" : "running" },
-    process: { process, kind: kinds[program] ?? "shell" },
+    status: { state: !program || isShellProcess(program) ? "idle" : "running" },
+    process: program,
   }
 }
 

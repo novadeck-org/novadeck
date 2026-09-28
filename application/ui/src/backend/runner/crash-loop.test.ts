@@ -53,7 +53,7 @@ const crashingRunner = () => {
         rows: 24,
         run: 1,
         exit: null,
-        process: "zsh",
+        process: { name: "zsh", argv: null },
       }
     generation += 1
     for (const resolve of wake) resolve()

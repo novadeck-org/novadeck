@@ -15,7 +15,7 @@ import type {
   GridLayouts,
   GridRestoreWidths,
 } from "../../model/types"
-import type { TerminalLayoutControls } from "../../terminals/TerminalFrame"
+import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { ContextMenu } from "../../ui-toolkit/ContextMenu"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"

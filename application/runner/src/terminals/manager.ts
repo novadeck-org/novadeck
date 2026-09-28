@@ -4,6 +4,7 @@ import { constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, resolve as resolvePath } from "node:path"
 
 import type {
+  ForegroundProcess,
   TerminalAttached,
   TerminalChange,
   TerminalEvent,
@@ -16,6 +17,7 @@ import type { Terminal as Screen } from "@xterm/headless"
 import * as pty from "node-pty"
 
 import { DomainError } from "../errors.js"
+import { sampleForeground, type Foreground } from "./foreground.js"
 import { snapshot } from "./snapshot.js"
 import { Subscription } from "./subscription.js"
 import { Watcher } from "./watcher.js"
@@ -66,27 +68,26 @@ type Record = {
   restarting: boolean
   /** When the shell last exited, in exit order across terminals; eviction goes oldest first. */
   exitOrder: number
+  /** The current shell's last foreground sample; undefined until the first. */
+  foreground: Foreground | undefined
 }
 
 /** A spawned shell with its own headless screen, before it belongs to a record. */
 type Started = { process: pty.IPty; screen: Screen; serializer: Serializer; startedAt: number }
 
-/**
- * The name of the terminal's foreground process. Windows reports no such process, and
- * node-pty's answer there is the terminal type, so it counts as unknown.
- */
-const foreground = (child: pty.IPty): string | null => {
-  if (process.platform === "win32") return null
-  try {
-    return basename(child.process).slice(0, 256) || null
-  } catch {
-    return null
-  }
+/** The shell until the first sample, which may add its command line; Windows reports none. */
+const shellProcess = (shell: string): ForegroundProcess | null => {
+  const name = basename(shell).slice(0, 256)
+  return process.platform === "win32" || !name ? null : { name, argv: null }
 }
 
-/** The shell's name until the first sample; Windows reports none. */
-const shellName = (shell: string): string | null =>
-  process.platform === "win32" ? null : basename(shell).slice(0, 256) || null
+const sameProcess = (a: ForegroundProcess | null, b: ForegroundProcess | null): boolean =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.name === b.name &&
+    a.argv?.length === b.argv?.length &&
+    (a.argv ?? []).every((arg, index) => arg === b.argv?.[index]))
 
 /** A signal number's name, such as `SIGKILL`; Windows has no signals. */
 const signalName = (signal: number | undefined): string | null => {
@@ -170,7 +171,7 @@ export class Terminals {
           cols: input.cols,
           rows: input.rows,
           exit: null,
-          process: shellName(shell),
+          process: shellProcess(shell),
           run: 1,
         },
         ...started,
@@ -189,6 +190,7 @@ export class Terminals {
         closing: undefined,
         restarting: false,
         exitOrder: 0,
+        foreground: undefined,
       }
       this.records.set(record.summary.id, record)
       this.listen(record)
@@ -262,9 +264,10 @@ export class Terminals {
             cols: input.cols,
             rows: input.rows,
             exit: null,
-            process: shellName(shell),
+            process: shellProcess(shell),
             run: record.summary.run + 1,
           } satisfies TerminalSummary,
+          foreground: undefined,
           // Skipping a sequence number sends any earlier cursor to a fresh snapshot.
           sequence: record.sequence + 1,
           history: [],
@@ -484,15 +487,16 @@ export class Terminals {
     this.sampler.unref()
   }
 
-  /** Each sample costs one system call and a small read per running terminal. */
+  /** Each sample asks node-pty, and on Linux reads a small /proc file, per running terminal. */
   private sample(): void {
     let running = false
     for (const record of this.records.values()) {
       if (record.summary.exit !== null || record.exitQueued) continue
       running = true
-      const name = foreground(record.process)
-      if (name === record.summary.process) continue
-      record.summary = { ...record.summary, process: name }
+      record.foreground = sampleForeground(record.process, record.foreground)
+      const current = record.foreground.process
+      if (sameProcess(current, record.summary.process)) continue
+      record.summary = { ...record.summary, process: current }
       this.announce(record)
     }
     if (running) return

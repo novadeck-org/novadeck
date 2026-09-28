@@ -1,4 +1,4 @@
-import { act } from "react"
+import { act, type ReactNode } from "react"
 import { afterEach, vi } from "vitest"
 
 import type {
@@ -54,6 +54,18 @@ const commit = (backend: Backend, workspace: Workspace, actions: WorkspaceAction
 }
 
 const ignore = (): void => {}
+// The content alone, with no window around it.
+const bare = (content: ReactNode): ReactNode => content
+// Two windows of different component types, as two programs' bodies are: switching
+// between them remounts the content inside.
+const FirstWindow = ({ children }: { readonly children: ReactNode }): React.JSX.Element => (
+  <section data-window="first">{children}</section>
+)
+const SecondWindow = ({ children }: { readonly children: ReactNode }): React.JSX.Element => (
+  <article data-window="second">{children}</article>
+)
+const inFirst = (content: ReactNode): ReactNode => <FirstWindow>{content}</FirstWindow>
+const inSecond = (content: ReactNode): ReactNode => <SecondWindow>{content}</SecondWindow>
 
 // Checks the port contract in backend/port.ts against one adapter. Call it from the
 // adapter's colocated contract.test.ts.
@@ -89,6 +101,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
           fontSize={13}
           focusInput={false}
           onInputFocused={ignore}
+          renderWindow={bare}
           {...props}
           {...next}
         />
@@ -204,6 +217,30 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         surface.rerender({ onInputFocused, focusInput: true })
         expect(document.activeElement).toBe(surface.root.querySelector("[data-terminal-input]"))
         expect(onInputFocused).toHaveBeenCalled()
+      })
+    })
+
+    context("when the UI wraps its content in a window", () => {
+      it("renders its one content element inside the window", () => {
+        const { container } = withTerminal().mount({ renderWindow: inFirst })
+        const window = container.querySelector("[data-window=first]")!
+        expect(window.querySelectorAll("[data-terminal-content]")).toHaveLength(1)
+        expect(container.querySelectorAll("[data-terminal-content]")).toHaveLength(1)
+      })
+
+      it("keeps the terminal and starts no I/O when the window changes and back", async () => {
+        const { probe, key, mount } = withTerminal()
+        const surface = mount({ renderWindow: inFirst })
+        await act(settle)
+        const io = [...probe.io()]
+        for (const renderWindow of [inSecond, inFirst]) {
+          surface.rerender({ renderWindow })
+          // eslint-disable-next-line no-await-in-loop -- Each change settles before the next.
+          await act(settle)
+          expect(surface.container.querySelectorAll("[data-terminal-content]")).toHaveLength(1)
+        }
+        expect(probe.holds(key)).toBe(true)
+        expect(probe.io()).toEqual(io)
       })
     })
 

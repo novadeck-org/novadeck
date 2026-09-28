@@ -46,8 +46,11 @@ const showShortcuts = async (): Promise<void> => {
 /** Rendered size of a terminal's output text. */
 const outputTextSize = (): number =>
   parseFloat(
-    getComputedStyle(terminal("Checkout implementation").getByText("✻ Worked for 38s").element())
-      .fontSize,
+    getComputedStyle(
+      terminal("Checkout implementation")
+        .getByText("Nothing to commit, working tree clean.")
+        .element(),
+    ).fontSize,
   )
 
 describe("Preferences", () => {

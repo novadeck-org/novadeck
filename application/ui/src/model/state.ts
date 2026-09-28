@@ -16,7 +16,6 @@ import {
   reorderTerminals,
   setTerminalProcess,
   setTerminalStatus,
-  type TerminalProcess,
 } from "./roster"
 import type {
   CanvasLayout,
@@ -81,7 +80,7 @@ export type WorkspaceAction =
       type: "terminal/process"
       target: WorkspaceTarget
       terminalId: string
-      process: TerminalProcess
+      process: string
     }
   | { type: "terminal/select"; target: WorkspaceTarget; terminalId: string }
   | { type: "terminal/visibility"; target: WorkspaceTarget; terminalId: string; hidden: boolean }

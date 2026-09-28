@@ -9,7 +9,7 @@ import { context, describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { startingTerminal, type RunnerListing } from "./seed"
-import { encodeSession } from "./session-state"
+import { encodeSession, type SavedTerminal } from "./session-state"
 import { startTestRunner } from "./testing"
 
 // Values pushed by the test, read by the adapter as a stream.
@@ -47,13 +47,14 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   rows: 24,
   run: 1,
   exit: null,
-  process: "zsh",
+  process: { name: "zsh", argv: null },
   ...change,
 })
 
 // A runner the test drives step by step: what its watches report, and when a restart
 // answers. Timing like this cannot be arranged with a real runner.
-const scripted = (listed: TerminalSummary) => {
+// `lastProcess` is what the session saved for the terminal, to restore.
+const scripted = (listed: TerminalSummary, lastProcess = "") => {
   const changes = channel<TerminalWatchItem>()
   const statuses = channel<RunnerStatus>()
   const restarts: ((summary: TerminalSummary) => void)[] = []
@@ -75,7 +76,16 @@ const scripted = (listed: TerminalSummary) => {
     id: "s",
     name: "S",
     visitedAt: 5,
-    state: createTerminalState([startingTerminal(terminalId, 1, "/tmp")], "grid", "grid"),
+    state: createTerminalState(
+      [
+        {
+          ...startingTerminal(terminalId, 1, "/tmp"),
+          ...(lastProcess ? { restoredProcess: lastProcess } : {}),
+        },
+      ],
+      "grid",
+      "grid",
+    ),
   }
   const listing: RunnerListing = [
     {
@@ -104,6 +114,62 @@ const scripted = (listed: TerminalSummary) => {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 20))
 
+// The terminal once the store applied every action the adapter sent: its state, the
+// program waiting to be restored, and what the next save records.
+const restoreOf = (app: ReturnType<typeof scripted>) => {
+  const seeded = workspaceFromSeed(app.backend.seed, { view: "grid", windowedView: "grid", now: 1 })
+  const session = activeSession(app.received.reduce<Workspace>(workspaceReducer, seeded))!
+  const terminal = session.state.roster.terminals[0]!
+  const saved = JSON.parse(encodeSession(session, 2)) as {
+    state: { roster: { terminals: SavedTerminal[] } }
+  }
+  return {
+    state: terminal.state,
+    restored: terminal.restoredProcess,
+    saved: saved.state.roster.terminals[0]!.lastProcess,
+  }
+}
+
+describe("a terminal the runner loses", () => {
+  it("keeps the program it was running to restore in the fresh shell", async () => {
+    const app = scripted(summary({ process: { name: "claude", argv: null } }))
+    await flush()
+    // A new runner reports its terminals, and this one is not among them.
+    app.statuses.push({ state: "connected", runnerId: "runner-2" })
+    app.changes.push({ type: "reset" })
+    app.changes.push({ type: "synced" })
+    await vi.waitFor(() => expect(app.statusesOf().at(-1)).toEqual({ state: "starting" }))
+    expect(restoreOf(app)).toEqual({ state: "starting", restored: "claude", saved: "claude" })
+    app.stop()
+  })
+})
+
+describe("a program saved to resume", () => {
+  it("is nothing to restore in a shell still live", async () => {
+    const app = scripted(summary({ process: { name: "bash", argv: null } }), "claude")
+    await flush()
+    expect(restoreOf(app)).toEqual({ state: "idle", restored: undefined, saved: "" })
+    app.stop()
+  })
+
+  it("waits through a restart with Enter until the fresh shell reports", async () => {
+    const ended = { exit: { code: null, signal: "SIGKILL", ranMs: 9_000 }, process: null }
+    const app = scripted(summary(ended), "claude")
+    await flush()
+    expect(restoreOf(app).restored).toBe("claude")
+    app.restart(app.key)
+    await flush()
+    expect(restoreOf(app)).toEqual({ state: "starting", restored: "claude", saved: "claude" })
+    // The runner answers, and announces the fresh shell at its prompt.
+    const fresh = summary({ run: 2, process: { name: "bash", argv: null } })
+    app.restarts[0]!(fresh)
+    app.changes.push({ type: "changed", terminal: fresh })
+    await vi.waitFor(() => expect(restoreOf(app).state).toBe("idle"))
+    expect(restoreOf(app)).toEqual({ state: "idle", restored: undefined, saved: "" })
+    app.stop()
+  })
+})
+
 describe("runs of a terminal", () => {
   context("while a restart has not answered yet", () => {
     it("ignores late reports about the run it replaces", async () => {
@@ -116,7 +182,10 @@ describe("runs of a terminal", () => {
         type: "changed",
         terminal: summary({ exit: exited, process: null }),
       })
-      app.changes.push({ type: "changed", terminal: summary({ run: 2, process: "vim" }) })
+      app.changes.push({
+        type: "changed",
+        terminal: summary({ run: 2, process: { name: "vim", argv: null } }),
+      })
       await flush()
       app.restarts[0]!(summary({ run: 2 }))
       await flush()
@@ -132,7 +201,10 @@ describe("runs of a terminal", () => {
       app.changes.push({ type: "changed", terminal: summary({ run: 1 }) })
       app.changes.push({ type: "synced" })
       // Reported during the old sequence, after its `synced`.
-      app.changes.push({ type: "changed", terminal: summary({ run: 1, process: "vim" }) })
+      app.changes.push({
+        type: "changed",
+        terminal: summary({ run: 1, process: { name: "vim", argv: null } }),
+      })
       await flush()
       // The link came back at once: no reconnecting status, only a new sequence.
       app.changes.push({ type: "reset" })
@@ -149,7 +221,10 @@ describe("runs of a terminal", () => {
       await flush()
       app.statuses.push({ state: "connected", runnerId: "runner-2" })
       await flush()
-      app.changes.push({ type: "changed", terminal: summary({ run: 1, process: "vim" }) })
+      app.changes.push({
+        type: "changed",
+        terminal: summary({ run: 1, process: { name: "vim", argv: null } }),
+      })
       await flush()
       expect(app.statusesOf()).toContainEqual({ state: "running" })
       app.stop()

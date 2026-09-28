@@ -26,7 +26,7 @@ export type Runner = {
   ): Connection
   /** Releases a connection's attachments and terminal control. Its shells keep running. */
   disconnect(connection: Connection): void
-  /** Ends every shell and closes the metadata store. */
+  /** Refuses further session saves, then ends every shell and closes the metadata store. */
   close(): Promise<void>
 }
 
@@ -58,7 +58,13 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
   }
   return {
     id,
-    router: createRouter({ runnerId: id, claim, store, terminals }),
+    router: createRouter({
+      runnerId: id,
+      claim,
+      store,
+      terminals,
+      closing: () => closing !== undefined,
+    }),
     snapshotBytes: options.terminals?.snapshotBytes ?? 32 * 1024 * 1024,
     connect: (transport) => ({
       ...transport,

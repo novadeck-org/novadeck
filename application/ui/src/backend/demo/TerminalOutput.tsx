@@ -1,18 +1,19 @@
 import type { TerminalMetadata } from "../../model/types"
 import { AgentOutput } from "./AgentOutput"
+import { demoAgent, sampleOutput } from "./samples"
 
 export const TerminalOutput = ({
-  kind,
-  directory,
+  terminal,
   projectName,
 }: {
-  kind: TerminalMetadata["kind"]
-  directory: string
+  terminal: TerminalMetadata
   projectName: string
 }): React.JSX.Element => {
-  if (kind === "claude" || kind === "codex")
-    return <AgentOutput agent={kind} directory={directory} />
-  if (kind === "shell")
+  const { directory } = terminal
+  const agent = demoAgent(terminal)
+  if (agent) return <AgentOutput agent={agent} directory={directory} />
+  const output = sampleOutput(terminal)
+  if (output === "shell")
     return (
       <>
         <div className="terminal-meta mb-8 grid gap-x-5 gap-y-0.5 text-[11px] grid-cols-[max-content_auto] [&>span:nth-child(odd)]:text-muted">
@@ -42,7 +43,7 @@ export const TerminalOutput = ({
         </p>
       </>
     )
-  if (kind === "server")
+  if (output === "server")
     return (
       <>
         <p>
@@ -63,7 +64,7 @@ export const TerminalOutput = ({
         <p className="text-muted">09:42:18 [vite] hmr update /src/styles.css</p>
       </>
     )
-  if (kind === "tests")
+  if (output === "tests")
     return (
       <>
         <p>
@@ -103,7 +104,7 @@ export const TerminalOutput = ({
         <p className="text-muted">press h to show help, press q to quit</p>
       </>
     )
-  if (kind === "git")
+  if (output === "git")
     return (
       <>
         <p>
@@ -132,7 +133,7 @@ export const TerminalOutput = ({
         <p className="text-muted">Working tree clean.</p>
       </>
     )
-  if (kind === "logs")
+  if (output === "logs")
     return (
       <>
         <p>

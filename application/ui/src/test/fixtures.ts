@@ -11,7 +11,6 @@ export const terminalFixture = (number: number, directory: string): TerminalMeta
     command: "zsh",
     process: "zsh",
     state: "idle",
-    kind: "shell",
   }
 }
 

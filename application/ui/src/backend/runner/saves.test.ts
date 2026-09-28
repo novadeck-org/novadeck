@@ -82,4 +82,34 @@ describe("session saves", () => {
       expect(app.saves.busy()).toBe(false)
     })
   })
+
+  context("before a window closes or the app quits", () => {
+    it("sends what changed at once and settles once the runner answered", async () => {
+      let accept!: () => void
+      const app = open(() => new Promise((resolve) => (accept = resolve)))
+      const first = workspaceFixture()
+      app.commit(first)
+      app.commit(renamed(first, "Renamed"))
+      let settled = false
+      const settling = app.saves.settle().then(() => (settled = true))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(app.sent).toEqual(["initial"])
+      expect(settled).toBe(false)
+      accept()
+      await settling
+    })
+
+    it("takes the runner refusing saves while it shuts down as the end of saving", async () => {
+      const app = open(async () => {
+        throw new RunnerError("RUNTIME_CLOSING", "Closing.")
+      })
+      const first = workspaceFixture()
+      app.commit(first)
+      app.commit(renamed(first, "Renamed"))
+      await expect(app.saves.settle()).resolves.toBeUndefined()
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(app.sent).toEqual(["initial"])
+      expect(app.saves.busy()).toBe(false)
+    })
+  })
 })

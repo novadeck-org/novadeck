@@ -10,8 +10,12 @@ import type {
 // build cannot read starts the session fresh instead of breaking the load.
 const version = 1
 
-// The metadata a saved terminal keeps; its status and process come from the runner.
-export type SavedTerminal = Pick<TerminalMetadata, "id" | "name" | "directory">
+// Live status is never saved. `lastProcess` names the program to resume ("" for none):
+// the one running at the save, or else the one the terminal lost with its shell, which
+// never both exist. Only the name: a command line can hold secrets.
+export type SavedTerminal = Pick<TerminalMetadata, "id" | "name" | "directory"> & {
+  readonly lastProcess: string
+}
 
 export type SavedSession = {
   readonly visitedAt: number
@@ -49,7 +53,13 @@ export const encodeSession = (session: WorkspaceSession, rank: number): string =
     rank,
     state: {
       roster: {
-        terminals: roster.terminals.map(({ id, name, directory }) => ({ id, name, directory })),
+        terminals: roster.terminals.map((terminal) => ({
+          id: terminal.id,
+          name: terminal.name,
+          directory: terminal.directory,
+          lastProcess:
+            terminal.state === "running" ? terminal.process : (terminal.restoredProcess ?? ""),
+        })),
         order: roster.order,
         nextNumber: roster.nextNumber,
       },
@@ -69,8 +79,17 @@ const isString = (value: unknown): value is string => typeof value === "string"
 const views: readonly unknown[] = ["focus", "grid", "canvas"] satisfies ViewMode[]
 
 const terminal = (value: unknown): SavedTerminal | undefined =>
-  isObject(value) && isString(value.id) && isString(value.name) && isString(value.directory)
-    ? { id: value.id, name: value.name, directory: value.directory }
+  isObject(value) &&
+  isString(value.id) &&
+  isString(value.name) &&
+  isString(value.directory) &&
+  isString(value.lastProcess)
+    ? {
+        id: value.id,
+        name: value.name,
+        directory: value.directory,
+        lastProcess: value.lastProcess,
+      }
     : undefined
 
 const layoutKeys = [

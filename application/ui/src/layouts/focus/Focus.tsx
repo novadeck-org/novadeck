@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from "react"
 
 import type { TerminalMetadata } from "../../model/types"
-import type { TerminalLayoutControls } from "../../terminals/TerminalFrame"
+import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 

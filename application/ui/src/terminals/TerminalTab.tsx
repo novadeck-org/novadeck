@@ -1,11 +1,12 @@
 import { useSortable } from "@dnd-kit/react/sortable"
-import { Check, Eye, EyeOff, Pencil, Terminal as TerminalIcon, X } from "lucide-react"
+import { Check, Eye, EyeOff, Pencil, X } from "lucide-react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { endingText, terminalEnding } from "../model/terminal-ending"
 import type { TerminalMetadata } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
 import { Tooltip } from "../ui-toolkit/Tooltip"
+import { terminalProfile } from "./processes/profiles"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 
 // Whole class strings, so Tailwind finds them.
@@ -42,6 +43,8 @@ export const TerminalTab = ({
   onClose: () => void
 }): React.JSX.Element => {
   const editing = Boolean(rename)
+  const Icon = terminalProfile(terminal).icon
+  const icon = <Icon size={14} strokeWidth={1.5} />
   // A shell that ended shows a dot in its tone; the words go to assistive technology
   // and the tooltip.
   const ending = terminalEnding(terminal)
@@ -58,7 +61,7 @@ export const TerminalTab = ({
         ref={ref}
         handleRef={handleRef}
         name={terminal.name}
-        icon={<TerminalIcon size={14} strokeWidth={1.5} />}
+        icon={icon}
         detail={
           <>
             {ending && (
@@ -68,12 +71,12 @@ export const TerminalTab = ({
                 className={`size-1.5 shrink-0 rounded-full ${endingDots[ending.tone]}`}
               />
             )}
-            <span className="terminal-tab-command truncate font-mono">{terminal.command}</span>
+            <span className="terminal-tab-process truncate font-mono">{terminal.process}</span>
           </>
         }
         selected={selected}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
-        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.command}${ended ? `\n${ended}` : ""}`}
+        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${ended ? `\n${ended}` : ""}`}
         {...(ended ? { description: ended } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
@@ -85,7 +88,7 @@ export const TerminalTab = ({
           rename ? (
             <div className="terminal-tab-rename flex min-w-0 flex-1 items-start gap-2 px-2.5 py-[9px]">
               <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center text-muted">
-                <TerminalIcon size={14} strokeWidth={1.5} />
+                {icon}
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <TerminalRenameInput
@@ -100,8 +103,8 @@ export const TerminalTab = ({
                   className="w-full border-0 bg-transparent p-0 text-[12px] leading-[18px] font-medium text-ink shadow-none outline-none"
                 />
                 <span className="sidebar-item-detail flex h-6 min-w-0 items-center overflow-hidden pr-(--sidebar-actions-space) whitespace-nowrap text-[10px] leading-[18px] text-muted">
-                  <span className="terminal-tab-command truncate font-mono">
-                    {terminal.command}
+                  <span className="terminal-tab-process truncate font-mono">
+                    {terminal.process}
                   </span>
                 </span>
               </div>

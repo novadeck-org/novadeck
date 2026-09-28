@@ -1,7 +1,7 @@
 import type { TerminalSummary } from "@novadeck/protocol"
 
 import { context, describe, expect, it } from "../../test"
-import { programName, terminalActivity } from "./activity"
+import { terminalActivity } from "./activity"
 
 const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   id: "00000000-0000-4000-8000-000000000001",
@@ -11,41 +11,39 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   rows: 24,
   exit: null,
   run: 1,
-  process: "zsh",
+  process: { name: "zsh", argv: null },
   ...change,
 })
+const named = (name: string, argv: string[] | null = null) => summary({ process: { name, argv } })
 
 describe("terminal activity", () => {
   context("while a shell waits in the foreground", () => {
     it("is idle and shows a shell", () => {
-      expect(terminalActivity(summary({ process: "zsh" }))).toEqual({
+      expect(terminalActivity(named("zsh"))).toEqual({
         status: { state: "idle" },
-        process: { process: "zsh", kind: "shell" },
+        process: "zsh",
       })
     })
 
     it("recognises login shells, paths and Windows executables", () => {
       const states = ["-bash", "/usr/bin/fish", "pwsh.exe", "C:\\Windows\\cmd.exe", "nu"].map(
-        (process) => terminalActivity(summary({ process })).status,
+        (name) => terminalActivity(named(name)).status,
       )
       expect(states).toEqual(Array.from({ length: 5 }, () => ({ state: "idle" })))
     })
   })
 
   context("while another program runs", () => {
-    it("is running and picks the icon for agents and git", () => {
-      const kinds = ["claude", "codex", "git", "vim"].map(
-        (process) => terminalActivity(summary({ process })).process?.kind,
-      )
-      expect(kinds).toEqual(["claude", "codex", "git", "shell"])
-      expect(terminalActivity(summary({ process: "vim" })).status).toEqual({ state: "running" })
+    it("is running and names the program", () => {
+      expect(terminalActivity(named("/opt/bin/Vim"))).toEqual({
+        status: { state: "running" },
+        process: "vim",
+      })
     })
 
-    it("keeps the program's own name for the terminal", () => {
-      expect(terminalActivity(summary({ process: "/opt/bin/Claude" })).process).toEqual({
-        process: "/opt/bin/Claude",
-        kind: "claude",
-      })
+    it("names a Node CLI after the script it launched", () => {
+      const codex = named("node", ["/usr/bin/node", "/lib/node_modules/@openai/codex/bin/codex.js"])
+      expect(terminalActivity(codex)).toEqual({ status: { state: "running" }, process: "codex" })
     })
   })
 
@@ -53,7 +51,7 @@ describe("terminal activity", () => {
     it("shows an idle shell", () => {
       expect(terminalActivity(summary({ process: null }))).toEqual({
         status: { state: "idle" },
-        process: { process: "", kind: "shell" },
+        process: "",
       })
     })
   })
@@ -87,16 +85,5 @@ describe("terminal activity", () => {
         status: { state: "exited", exitCode: null, signal: "SIGKILL" },
       })
     })
-  })
-})
-
-describe("program name", () => {
-  it("drops the directory, login dash and .exe suffix", () => {
-    expect(["/bin/zsh", "-zsh", "PWSH.EXE", "git"].map(programName)).toEqual([
-      "zsh",
-      "zsh",
-      "pwsh",
-      "git",
-    ])
   })
 })

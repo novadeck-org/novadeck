@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto"
-import { mkdtempSync, rmSync, symlinkSync } from "node:fs"
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
 import type { TerminalChange, TerminalEvent } from "@novadeck/protocol"
 import headless from "@xterm/headless"
+import { vi } from "vitest"
 
 import { describe, expect, it as base } from "../test.js"
 import { command, ptyOptions } from "../testing/pty.js"
@@ -454,8 +455,8 @@ describe.skipIf(process.platform === "win32")("terminal manager", () => {
   })
 })
 
-/** The fixture child's name before it renames itself; Windows reports none. */
-const child = process.platform === "win32" ? null : basename(process.execPath)
+/** The fixture child before it renames itself or is sampled; Windows reports none. */
+const child = process.platform === "win32" ? null : { name: basename(process.execPath), argv: null }
 const changed =
   (id: string) =>
   (change: TerminalChange): change is Extract<TerminalChange, { type: "changed" }> =>
@@ -470,7 +471,7 @@ describe("terminal watching", () => {
       { id: randomUUID(), sessionId: "one", cwd, cols: 80, rows: 24 },
       "owner",
     )
-    expect(existing.process).toBe(child)
+    expect(existing.process).toEqual(child)
     const watch = terminals.watch(manager, "watcher")
     await watch.until((change) => change.type === "synced")
     expect(watch.seen).toEqual([{ type: "changed", terminal: existing }, { type: "synced" }])
@@ -525,9 +526,50 @@ describe("terminal watching", () => {
         "owner",
       )
       await watch.until(
-        (change) => change.type === "changed" && change.terminal.process === "novadeck-probe",
+        (change) => change.type === "changed" && change.terminal.process?.name === "novadeck-probe",
       )
-      expect(manager.get(terminal.id).process).toBe("novadeck-probe")
+      expect(manager.get(terminal.id).process?.name).toBe("novadeck-probe")
+    },
+  )
+
+  it.skipIf(process.platform !== "linux")(
+    "reports the foreground group leader's command line, never a background job's",
+    async ({ terminals, resources }) => {
+      const directory = mkdtempSync(join(tmpdir(), "novadeck-foreground-"))
+      resources.defer(() => rmSync(directory, { recursive: true, force: true }))
+      const script = join(directory, "agent")
+      writeFileSync(script, "setInterval(() => {}, 1000)\n")
+
+      const manager = terminals.manager({ processPollMs: 20 })
+      const terminal = await manager.create(
+        { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+        "owner",
+      )
+      const send = (data: string) => manager.write({ terminalId: terminal.id, data }, "owner")
+      const current = () => manager.get(terminal.id).process
+      const sampled = { timeout: 5_000, interval: 20 }
+      const node = { name: basename(process.execPath), argv: [process.execPath, script, "--yes"] }
+
+      send(`'${process.execPath}' '${script}' --yes\r`)
+      await vi.waitFor(() => expect(current()).toEqual(node), sampled)
+      send("\u0003")
+      await vi.waitFor(() => expect(current()?.name).toBe("sh"), sampled)
+
+      // A background job never speaks for the terminal while another command holds the
+      // foreground process group.
+      send(`'${process.execPath}' '${script}' & sleep 1\r`)
+      await vi.waitFor(
+        () => expect(current()).toEqual({ name: "sleep", argv: ["sleep", "1"] }),
+        sampled,
+      )
+      await vi.waitFor(() => expect(current()?.name).toBe("sh"), sampled)
+      send("kill $!\r")
+
+      // exec keeps the shell's PID and process group; the new name reads the new command line.
+      send(`exec '${process.execPath}' '${script}' --yes\r`)
+      await vi.waitFor(() => expect(current()).toEqual(node), sampled)
+      send("\u0003")
+      await vi.waitFor(() => expect(manager.get(terminal.id).exit).not.toBeNull(), sampled)
     },
   )
 

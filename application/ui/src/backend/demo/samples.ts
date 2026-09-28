@@ -2,15 +2,29 @@ import type { WorkspaceSeed } from "../../model/seed"
 import { sessionName } from "../../model/session-name"
 import type { CanvasLayout, Project, TerminalMetadata } from "../../model/types"
 
-const samples: (TerminalMetadata & { x: number; y: number; height: number })[] = [
+// The sample transcript a demo terminal opens with, unless an agent runs in it.
+export type SampleOutput = "shell" | "server" | "tests" | "git" | "logs" | "build"
+// The agents the demo simulates, by program name.
+export const demoAgents = { claude: "Claude", codex: "Codex" } as const
+export type DemoAgent = keyof typeof demoAgents
+
+export const demoAgent = (terminal: TerminalMetadata): DemoAgent | undefined =>
+  Object.hasOwn(demoAgents, terminal.process) ? (terminal.process as DemoAgent) : undefined
+
+const samples: (TerminalMetadata & {
+  output: SampleOutput
+  x: number
+  y: number
+  height: number
+})[] = [
   {
     id: "01",
     name: "Checkout implementation",
     directory: "~/projects/novadeck",
-    command: "claude",
+    command: "zsh",
     state: "running",
-    kind: "claude",
-    process: "claude",
+    output: "shell",
+    process: "zsh",
     x: 80,
     y: 80,
     height: 400,
@@ -21,7 +35,7 @@ const samples: (TerminalMetadata & { x: number; y: number; height: number })[] =
     directory: "~/projects/novadeck/ui",
     command: "pnpm dev",
     state: "running",
-    kind: "server",
+    output: "server",
     process: "vite",
     x: 690,
     y: 80,
@@ -33,7 +47,7 @@ const samples: (TerminalMetadata & { x: number; y: number; height: number })[] =
     directory: "~/projects/novadeck/ui",
     command: "pnpm test",
     state: "running",
-    kind: "tests",
+    output: "tests",
     process: "vitest",
     x: 1300,
     y: 80,
@@ -43,10 +57,10 @@ const samples: (TerminalMetadata & { x: number; y: number; height: number })[] =
     id: "04",
     name: "Checkout review",
     directory: "~/projects/novadeck",
-    command: "codex",
+    command: "zsh",
     state: "running",
-    kind: "codex",
-    process: "codex",
+    output: "shell",
+    process: "zsh",
     x: 80,
     y: 540,
     height: 330,
@@ -57,7 +71,7 @@ const samples: (TerminalMetadata & { x: number; y: number; height: number })[] =
     directory: "~/projects/novadeck/runtime",
     command: "pnpm dev",
     state: "running",
-    kind: "logs",
+    output: "logs",
     process: "node",
     x: 690,
     y: 450,
@@ -69,7 +83,7 @@ const samples: (TerminalMetadata & { x: number; y: number; height: number })[] =
     directory: "~/projects/novadeck",
     command: "pnpm build",
     state: "finished",
-    kind: "build",
+    output: "build",
     process: "vite",
     x: 1300,
     y: 525,
@@ -78,8 +92,14 @@ const samples: (TerminalMetadata & { x: number; y: number; height: number })[] =
 ]
 
 export const terminals: TerminalMetadata[] = samples.map(
-  ({ x: _x, y: _y, height: _height, ...terminal }) => terminal,
+  ({ output: _output, x: _x, y: _y, height: _height, ...terminal }) => terminal,
 )
+
+const outputs = new Map(samples.map(({ id, output }) => [id, output]))
+
+// Terminals the demo adds open as a plain shell.
+export const sampleOutput = (terminal: TerminalMetadata): SampleOutput =>
+  outputs.get(terminal.id) ?? "shell"
 
 export const demoCanvasLayout = (): CanvasLayout => ({
   minimized: {},
@@ -100,21 +120,23 @@ export const initialProjects: Project[] = [
   { id: "api-service", name: "api-service", directory: "~/projects/api-service" },
 ]
 
-export const projectTerminals = (project: Project): TerminalMetadata[] =>
+export const projectTerminals = (project: Project, agents = false): TerminalMetadata[] =>
   terminals.map((terminal) => ({
     ...terminal,
     directory: terminal.directory.replace(/^~\/projects\/[^/]+/, project.directory),
+    ...(agents && terminal.id === "01" ? { command: "claude", process: "claude" } : {}),
+    ...(agents && terminal.id === "04" ? { command: "codex", process: "codex" } : {}),
   }))
 
 // Each sample project opens one session with the stable ID "initial".
-export const demoSeed = (now: number): WorkspaceSeed => ({
+export const demoSeed = (now: number, agents = false): WorkspaceSeed => ({
   projects: initialProjects.map((project) => ({
     ...project,
     sessions: [
       {
         id: "initial",
         name: sessionName(now),
-        terminals: projectTerminals(project),
+        terminals: projectTerminals(project, agents),
         canvasLayout: demoCanvasLayout(),
       },
     ],
@@ -130,7 +152,6 @@ export const createMockTerminal = (number: number, directory: string): TerminalM
     command: "zsh",
     process: "zsh",
     state: "idle",
-    kind: "shell",
   }
 }
 
@@ -145,7 +166,7 @@ export const mockReply = (command: string, terminal: TerminalMetadata): string =
   if (input === "date") return new Date().toLocaleString()
   if (input === "echo") return ""
   if (input.startsWith("echo ")) return input.slice(5)
-  if (terminal.kind === "claude" || terminal.kind === "codex")
+  if (demoAgent(terminal))
     return "This is a mock AI session. Your message is saved here, but no model is connected."
   return `Preview shell: “${input}” isn't connected to a process. Type help to explore.`
 }

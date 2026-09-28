@@ -1,8 +1,10 @@
+import type { DemoAgent } from "./samples"
+
 export const AgentOutput = ({
   agent,
   directory,
 }: {
-  agent: "claude" | "codex"
+  agent: DemoAgent
   directory: string
 }): React.JSX.Element => (
   <div

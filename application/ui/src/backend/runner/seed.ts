@@ -2,7 +2,7 @@ import type { Project, TerminalSummary, WorkspaceSession } from "@novadeck/proto
 
 import type { SessionSeed, WorkspaceSeed } from "../../model/seed"
 import type { TerminalMetadata } from "../../model/types"
-import { terminalActivity } from "./activity"
+import { restartable, terminalActivity } from "./activity"
 import { decodeSession, type SavedTerminal } from "./session-state"
 
 // Everything the runner reported at startup, one entry per project.
@@ -28,9 +28,16 @@ export const startingTerminal = (
   directory,
   command: "",
   process: "",
-  kind: "shell",
   state: "starting",
 })
+
+// What a saved terminal keeps as itself; its `lastProcess` only feeds `restoredProcess`.
+const identity = ({ id, name, directory }: SavedTerminal) => ({ id, name, directory })
+
+// The program to resume in a terminal whose shell was lost or ended; a live shell has
+// nothing to restore.
+const restored = (saved: SavedTerminal): Pick<TerminalMetadata, "restoredProcess"> =>
+  saved.lastProcess ? { restoredProcess: saved.lastProcess } : {}
 
 // A terminal as the runner reports it, or undefined once its shell exited cleanly,
 // which closes it.
@@ -41,10 +48,10 @@ const liveTerminal = (
   const { status, process } = terminalActivity(summary)
   if (status === "clean") return undefined
   return {
-    ...saved,
+    ...identity(saved),
+    ...(restartable(status) ? restored(saved) : {}),
     command: "",
-    process: process?.process ?? "",
-    kind: process?.kind ?? "shell",
+    process: process ?? "",
     ...status,
   }
 }
@@ -52,10 +59,10 @@ const liveTerminal = (
 // A saved terminal whose process the runner no longer has, as after a restart or a
 // relaunch. The adapter starts a fresh shell for it in place.
 const lostTerminal = (saved: SavedTerminal): TerminalMetadata => ({
-  ...saved,
+  ...identity(saved),
+  ...restored(saved),
   command: "",
   process: "",
-  kind: "shell",
   state: "starting",
 })
 
@@ -82,7 +89,12 @@ const sessionSeed = (session: WorkspaceSession, summaries: readonly TerminalSumm
     )
     .flatMap((summary, index) => {
       const current = liveTerminal(
-        { id: summary.id, name: terminalName(first + index), directory: summary.cwd },
+        {
+          id: summary.id,
+          name: terminalName(first + index),
+          directory: summary.cwd,
+          lastProcess: "",
+        },
         summary,
       )
       return current ? [current] : []

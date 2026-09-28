@@ -76,11 +76,11 @@ vi.mock("../terminals/TerminalTab", async (original) => {
     TerminalTab: await counted("tab", actual.TerminalTab, (props) => props.terminal.id),
   }
 })
-vi.mock("../terminals/TerminalFrame", async (original) => {
-  const actual = await original<typeof import("../terminals/TerminalFrame")>()
+vi.mock("../terminals/WindowShell", async (original) => {
+  const actual = await original<typeof import("../terminals/WindowShell")>()
   return {
     ...actual,
-    TerminalFrame: await counted("frame", actual.TerminalFrame, (props) => props.terminal.id),
+    WindowShell: await counted("frame", actual.WindowShell, (props) => props.terminal.id),
   }
 })
 vi.mock("../search/TerminalSearch", async (original) => {

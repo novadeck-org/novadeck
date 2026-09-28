@@ -29,6 +29,9 @@ export type SessionSaves = {
   readonly schedule: () => void
   // Sends what changed now.
   readonly flush: () => void
+  // Sends what changed now and resolves once every save sent so far has been answered,
+  // as before a window closes or the app quits.
+  readonly settle: () => Promise<void>
   // Whether a send waits for its spell.
   readonly busy: () => boolean
 }
@@ -73,6 +76,7 @@ export const createSessionSaves = ({
   const dirty = new Set<string>()
   let baseline = false
   let timer: ReturnType<typeof setTimeout> | undefined
+  const sending = new Set<Promise<void>>()
   const flush = (): void => {
     clearTimeout(timer)
     timer = undefined
@@ -84,7 +88,7 @@ export const createSessionSaves = ({
       const state = encodeSession(found.session, found.rank)
       // Unchanged, or more than the runner accepts: a state it would reject is dropped.
       if (saved.get(id) === state || !fitsRunner(state)) continue
-      void track(
+      const sent = track(
         exists.then(async (ok) => {
           if (!ok) return
           try {
@@ -102,6 +106,8 @@ export const createSessionSaves = ({
           }
         }),
       )
+      sending.add(sent)
+      void sent.then(() => sending.delete(sent))
     }
   }
   const schedule = (): void => {
@@ -119,6 +125,11 @@ export const createSessionSaves = ({
     },
     schedule,
     flush,
+    settle: async () => {
+      flush()
+      // eslint-disable-next-line no-await-in-loop -- An answer may leave more to wait for.
+      while (sending.size) await Promise.allSettled(sending)
+    },
     busy: () => timer !== undefined,
   }
 }

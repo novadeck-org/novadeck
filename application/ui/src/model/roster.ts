@@ -1,4 +1,5 @@
-import type { TerminalKind, TerminalMetadata, TerminalRoster, TerminalStatus } from "./types"
+import { isShellProcess } from "./process"
+import type { TerminalMetadata, TerminalRoster, TerminalStatus } from "./types"
 
 export const createRoster = (terminals: TerminalMetadata[]): TerminalRoster => ({
   terminals,
@@ -84,16 +85,31 @@ const statusFields = (status: TerminalStatus): TerminalStatus => {
   return { state: status.state }
 }
 
+// A restore exists only while the terminal has no live shell. A program that loses its
+// shell while running, as when the runner is lost or the shell is killed, becomes it; a
+// live shell, at its prompt or running a program, ends it. Other changes, as an ended
+// shell starting afresh, keep it.
+const restoredAfter = (terminal: TerminalMetadata, status: TerminalStatus): string | undefined => {
+  if (status.state === "idle" || status.state === "running") return undefined
+  const lost = status.state === "starting" || status.state === "exited" || status.state === "failed"
+  if (lost && terminal.state === "running" && !isShellProcess(terminal.process))
+    return terminal.process || undefined
+  return terminal.restoredProcess
+}
+
 // Rebuilds the terminal from its identity so no exit code or message outlives its status.
-const withStatus = (terminal: TerminalMetadata, status: TerminalStatus): TerminalMetadata => ({
-  id: terminal.id,
-  name: terminal.name,
-  directory: terminal.directory,
-  command: terminal.command,
-  process: terminal.process,
-  kind: terminal.kind,
-  ...statusFields(status),
-})
+const withStatus = (terminal: TerminalMetadata, status: TerminalStatus): TerminalMetadata => {
+  const restoredProcess = restoredAfter(terminal, status)
+  return {
+    id: terminal.id,
+    name: terminal.name,
+    directory: terminal.directory,
+    command: terminal.command,
+    process: terminal.process,
+    ...(restoredProcess ? { restoredProcess } : {}),
+    ...statusFields(status),
+  }
+}
 
 export const setTerminalStatus = (
   roster: TerminalRoster,
@@ -110,20 +126,18 @@ export const setTerminalStatus = (
   }
 }
 
-// What runs in the foreground, which picks the terminal's icon.
-export type TerminalProcess = { readonly process: string; readonly kind: TerminalKind }
-
+// The program now in the foreground.
 export const setTerminalProcess = (
   roster: TerminalRoster,
   terminalId: string,
-  { process, kind }: TerminalProcess,
+  process: string,
 ): TerminalRoster => {
   const current = roster.terminals.find((terminal) => terminal.id === terminalId)
-  if (!current || (current.process === process && current.kind === kind)) return roster
+  if (!current || current.process === process) return roster
   return {
     ...roster,
     terminals: roster.terminals.map((terminal) =>
-      terminal === current ? { ...terminal, process, kind } : terminal,
+      terminal === current ? { ...terminal, process } : terminal,
     ),
   }
 }

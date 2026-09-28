@@ -286,30 +286,28 @@ describe("terminal process", () => {
       type: "terminal/process",
       target,
       terminalId: "01",
-      process: { process: "claude", kind: "claude" },
+      process: "claude",
     })
     expect(terminalOf(store.getSnapshot())).toEqual({
       ...terminalFixture(1, "~/project"),
       process: "claude",
-      kind: "claude",
     })
   })
 
   it("ignores an unchanged process or a missing terminal", () => {
     const store = createWorkspaceStore(initial())
     const before = store.getSnapshot()
-    const { process, kind } = terminalOf(before)
     store.dispatch({
       type: "terminal/process",
       target,
       terminalId: "01",
-      process: { process, kind },
+      process: terminalOf(before).process,
     })
     store.dispatch({
       type: "terminal/process",
       target,
       terminalId: "gone",
-      process: { process: "git", kind: "git" },
+      process: "git",
     })
     expect(store.getSnapshot()).toBe(before)
   })

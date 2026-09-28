@@ -1,4 +1,4 @@
-import type { ComponentType } from "react"
+import type { ComponentType, ReactNode } from "react"
 
 import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
@@ -9,7 +9,8 @@ import type { TerminalMetadata, Workspace, WorkspaceTarget } from "../model/type
 
 export type TerminalKey = WorkspaceTarget & { readonly terminalId: string }
 
-// What a terminal's content area receives; the frame around it stays in terminals/.
+// What a terminal's content area receives. The surface renders one content element and
+// hands it to `renderWindow`; the window around it is the UI's to choose.
 //
 // The rest of the UI relies on this markup from the surface:
 // - Its root carries `data-terminal-content` (view transitions morph it) and the
@@ -25,6 +26,11 @@ export type TerminalKey = WorkspaceTarget & { readonly terminalId: string }
 //   `terminal-focused` (Focus) classes; ship them with the adapter.
 // Attach to a running terminal from the surface's effects; `commit` handles lifecycle.
 export type TerminalSurfaceProps = {
+  // Wraps the content in the terminal's window and the body its program calls for;
+  // render what it returns. The surface keeps its controller and emulator mounted above
+  // it: a different body remounts the content element, which must not restart the
+  // session or its emulator.
+  readonly renderWindow: (content: ReactNode) => ReactNode
   // Stable for the terminal's lifetime, so it is safe in effect dependencies.
   readonly terminalKey: TerminalKey
   readonly terminal: TerminalMetadata

@@ -329,7 +329,7 @@ describe("closing terminals", () => {
       await expect
         .element(dialog.getByRole("heading", { name: "Close “Checkout implementation”?" }))
         .toBeVisible()
-      await expect.element(dialog.getByText("claude is still running in it.")).toBeVisible()
+      await expect.element(dialog.getByText("zsh is still running in it.")).toBeVisible()
       await expect.element(dialog.getByRole("button", { name: "Cancel" })).toHaveFocus()
 
       await dialog.getByRole("button", { name: "Cancel" }).click()

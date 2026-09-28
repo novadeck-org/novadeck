@@ -5,7 +5,7 @@ import type { TerminalMetadata } from "../model/types"
 import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
 import { render } from "../test/render"
-import { TerminalFrame, type TerminalFrameProps } from "./TerminalFrame"
+import { WindowShell, type WindowShellProps } from "./WindowShell"
 
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
@@ -13,8 +13,9 @@ afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 const ignore = (): void => {}
 
 const renderFrame = (terminal: TerminalMetadata): HTMLElement => {
-  const props: TerminalFrameProps = {
+  const props: WindowShellProps = {
     terminal,
+    icon: null,
     children: null,
     rename: null,
     onBeginRename: ignore,
@@ -22,7 +23,7 @@ const renderFrame = (terminal: TerminalMetadata): HTMLElement => {
     onRenameSave: ignore,
     onRenameCancel: ignore,
   }
-  const { container, unmount } = render(createElement(TerminalFrame, props))
+  const { container, unmount } = render(createElement(WindowShell, props))
   unmounts.push(unmount)
   return container
 }

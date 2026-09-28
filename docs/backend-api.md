@@ -166,7 +166,8 @@ runner stores with the session without reading it, such as a UI layout. Sessions
 report `null` until the first save. A state holds at most `maxClientStateLength`
 (196,608) characters, and over WebSocket the whole call must also fit in one
 `maxWebSocketMessageBytes` (256 KiB) message; both limits are exported from
-`@novadeck/protocol`.
+`@novadeck/protocol`. Once the runner starts shutting down it refuses saves with
+`RUNTIME_CLOSING`, so shells ending on the way out cannot overwrite the last state.
 
 `runner.terminals.watch()` follows every terminal on the runner, across sessions:
 
@@ -191,8 +192,10 @@ slow consumer skips intermediate states instead of growing a backlog. A refused
 subscription, such as `RESOURCE_LIMIT` while the connection has too many calls in
 flight, is retried after a delay growing from 200 ms to 3 s. Iteration ends only
 when the client closes or on `return()`. A terminal summary's `process`
-is its foreground process name, such as the shell or a program running in it; it is
-`null` once the terminal exits and on Windows, where no foreground process is known.
+is its foreground process, such as the shell or a program running in it: its `name`,
+and `argv`, the process group leader's command line, on Linux (`null` elsewhere and
+before the first sample). It is `null` once the terminal exits and on Windows, where
+no foreground process is known.
 
 Calls made while reconnecting reject with `DISCONNECTED`; input and creation are
 never retried automatically. Each client sends a random client ID in its handshake,
@@ -240,7 +243,10 @@ reconnection, asks for a fresh port. `window.novadeck.pickDirectory()` opens a f
 picker attached to the page's window, with the same sender checks, and resolves the
 chosen path or `null` when cancelled. If the runner process dies, the host starts a
 new one on the next request; shells end with it, and metadata remains. Quitting the
-app ends the runner's shells before exiting.
+app, or closing a window, first asks the pages involved to finish their saves, through
+the callback each registered with `window.novadeck.beforeQuit(save)`. It waits up to
+1.5 s for the answers, and not for a page that crashed or went away; only then does
+the window close or the app end the runner's shells and exit.
 
 ### Wire contract
 

@@ -32,6 +32,43 @@ directly; in the sidebar, use the tab's Rename button or F2. The header and side
 the live draft. Move between either name field to continue editing; saving or
 canceling ends the edit in both places.
 
+Terminal tabs show the program in the foreground in small gray text beneath the
+name, updating as programs start and finish; the line stays empty when it is unknown.
+The runner reports each terminal's foreground process as its name and, on Linux, the
+process group leader's command line (`argv`); macOS reports only the name, and Windows
+reports none. `application/ui/src/model/process.ts` turns that into a program name,
+resolving known Node CLIs from the script Node runs, so the Codex and Claude packages
+show as `codex` and `claude` while other Node programs stay `node`.
+
+While a program holds the foreground, its profile decides how the terminal looks.
+`application/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
+header icon and a body around the terminal's content; programs it does not list,
+shells, and terminals starting or ended use Lucide's Terminal icon and no body. Every
+terminal keeps the same `application/ui/src/terminals/WindowShell.tsx` window, so a
+program starting or ending never replaces the header: a rename in progress, focus,
+and the terminal switcher carry on. Claude and Codex have their own icons in
+`application/ui/src/ui-toolkit/icons/` and their own bodies beside the profiles, where
+their presentation can grow. To give another program its own look, add a profile
+entry, with its own body if needed, and a launcher entry in `model/process.ts` if it
+runs as a Node script. Profiles are presentation only: per-program behaviour, such as
+resuming a restored program, goes beside `programName` in `model/`.
+
+The backend port keeps windows out of the backend: a surface renders one content
+element and passes it to `renderWindow`, and `WorkspaceTerminal.tsx` wraps it in the
+shared window and the profile's body. The surface keeps its controller mounted above
+that, so a program change swaps the body without restarting the terminal; the runner
+surface moves its one xterm host into the new body, keeping output, selection and focus.
+
+Saved sessions record one required program name per terminal (`lastProcess`, never
+its command line, which can hold secrets): the program running at the save, or else the
+one the terminal lost with its shell. A terminal has a `restoredProcess` only while it
+has no live shell: a program running when the runner lost the shell, the shell was
+killed, or the app closed becomes it, and it ends once a shell reaches its prompt or
+runs a program; every replacement shell starts in the runner backend's `freshShell`,
+where resuming that program will go. Quitting or closing the desktop app's window saves
+before the runner ends its shells, except on macOS, where closing the last window leaves
+them running, so the save reflects that close rather than the final quit.
+
 Use the terminal header's resize control to alternate between two sizes. In Canvas,
 **Enlarge** matches the current Canvas viewport aspect ratio at a fixed area equivalent
 to 1200×800, independent of zoom. **Compact** sets 600×400. Extreme ratios respect the

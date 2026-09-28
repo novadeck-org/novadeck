@@ -12,6 +12,7 @@ import {
   debugKillRunnerChannel,
   directoryPickerChannel,
   runnerPortChannel,
+  saveBeforeQuitChannel,
 } from "../bridge.js"
 
 const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPrefix))
@@ -24,6 +25,17 @@ if (apiUrl.protocol !== "http:" || apiUrl.hostname !== "127.0.0.1" || !apiUrl.po
   throw new Error("NovaDeck API URL must be an HTTP loopback URL with an explicit port")
 }
 
+// What the page finishes before its window closes or the app quits; a page without one
+// answers at once.
+let beforeQuit: (() => Promise<void>) | undefined
+
+ipcRenderer.on(saveBeforeQuitChannel, () => {
+  void Promise.resolve()
+    .then(() => beforeQuit?.())
+    .catch(() => {})
+    .finally(() => ipcRenderer.send(saveBeforeQuitChannel))
+})
+
 const bridge = {
   requestRunner: (id) => {
     if (typeof id === "string") ipcRenderer.send(runnerPortChannel, id)
@@ -31,6 +43,12 @@ const bridge = {
   pickDirectory: async () => {
     const path: unknown = await ipcRenderer.invoke(directoryPickerChannel)
     return typeof path === "string" ? path : null
+  },
+  beforeQuit: (save) => {
+    beforeQuit = save
+    return () => {
+      if (beforeQuit === save) beforeQuit = undefined
+    }
   },
 } satisfies DesktopBridge
 
