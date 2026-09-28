@@ -53,7 +53,24 @@ const outputTextSize = (): number =>
     ).fontSize,
   )
 
+const transcriptsSwitch = (): Locator =>
+  preferencesDialog().getByRole("switch", { name: "Terminal transcripts" })
+
 describe("Preferences", () => {
+  context("when choosing whether terminals keep transcripts", () => {
+    it("keeps them by default, says they may hold secrets, and turns them off", async () => {
+      await openWorkspace()
+      await openPreferences()
+      await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "true")
+      await expect.element(transcriptsSwitch()).toHaveAccessibleDescription(/secrets/)
+      await transcriptsSwitch().click()
+      await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "false")
+      await closePreferences()
+      await openPreferences()
+      await expect.element(transcriptsSwitch()).toHaveAttribute("aria-checked", "false")
+    })
+  })
+
   context("when opened from the header", () => {
     it("shows the General section with its settings", async () => {
       await openWorkspace()

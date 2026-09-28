@@ -19,5 +19,11 @@ export const debugArgument = "--novadeck-debug"
 /** Debug panel: renderer-to-main request to kill the runner utility process. */
 export const debugKillRunnerChannel = "novadeck:debug-kill-runner"
 
-/** Messages from the main process to the runner's utility process. */
-export type RunnerCommand = { readonly type: "connect" } | { readonly type: "close" }
+/**
+ * Messages from the main process to the runner's utility process: a client's port,
+ * a save of every terminal before the system session ends, or the final close.
+ */
+export type RunnerCommand =
+  | { readonly type: "connect" }
+  | { readonly type: "persist" }
+  | { readonly type: "close" }

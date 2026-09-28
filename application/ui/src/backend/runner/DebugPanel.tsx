@@ -16,6 +16,8 @@ export type DebugInspector = {
     readonly restarts: number
     readonly terminals: number
   }
+  // Opens the first-run dialog for connecting agents again.
+  readonly showOnboarding: () => void
 }
 
 type Action = {
@@ -92,6 +94,11 @@ export const createDebugPanel = (debug: RunnerDebug, inspect: DebugInspector) =>
             label: "Splash (sim)",
             hint: "Boots again and holds the splash; press Esc to go on.",
             run: () => debug.rehearse({ hold: true }),
+          },
+          {
+            label: "Welcome dialog",
+            hint: "Opens the first-run dialog for connecting agents again.",
+            run: inspect.showOnboarding,
           },
           ...startupCodes.map((code) => ({
             label: `Error ${code} (sim)`,

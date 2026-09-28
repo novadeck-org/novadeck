@@ -7,7 +7,9 @@ import { viewModes } from "../model/state"
 import type { PreferencesValue } from "../model/types"
 import { Dialog } from "../ui-toolkit/Dialog"
 import { Select } from "../ui-toolkit/Select"
+import { Switch } from "../ui-toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "../ui-toolkit/Tabs"
+import { AgentSwitches, agentsExplanation, type AgentSwitch } from "./AgentSwitches"
 
 import motion from "../ui-toolkit/ModalMotion.module.css"
 
@@ -22,6 +24,8 @@ export const Preferences = ({
   onExitComplete,
   tab,
   onTabChange,
+  transcripts,
+  agents,
 }: {
   open: boolean
   tab: "general" | "shortcuts"
@@ -30,6 +34,14 @@ export const Preferences = ({
   onChange: (value: PreferencesValue) => void
   onClose: () => void
   onExitComplete?: () => void
+  // Whether terminals' screens are kept to show again when they restore; absent where
+  // the backend keeps none.
+  transcripts?: { readonly enabled: boolean; readonly onChange: (enabled: boolean) => void }
+  // Agents whose sessions resume once connected; absent where the backend has none.
+  agents?: {
+    readonly list: readonly AgentSwitch[]
+    readonly onChange: (agent: AgentSwitch["agent"], connected: boolean) => void
+  }
 }): React.JSX.Element => {
   const dialog = useRef<HTMLDivElement>(null)
   const panels = useRef<HTMLDivElement>(null)
@@ -134,6 +146,37 @@ export const Preferences = ({
               onOpenChange={(expanded) => setOpenSelect(expanded ? "font-size" : null)}
               portalContainer={dialog}
             />
+            {transcripts && (
+              <div className="preference-row flex min-h-[62px] items-center justify-between gap-4 border-b border-line py-3 text-[12px] text-ink">
+                <div className="flex flex-col gap-1">
+                  <span id="transcripts-label">Terminal transcripts</span>
+                  <span
+                    id="transcripts-description"
+                    className="text-[10px] leading-relaxed text-muted"
+                  >
+                    Keeps each terminal's recent output on this computer and shows it again after a
+                    restart. It can include secrets that were typed or printed.
+                  </span>
+                </div>
+                <Switch
+                  checked={transcripts.enabled}
+                  onChange={transcripts.onChange}
+                  labelledBy="transcripts-label"
+                  describedBy="transcripts-description"
+                />
+              </div>
+            )}
+            {agents && (
+              <section className="mt-4" aria-labelledby="agents-heading">
+                <h3 id="agents-heading" className="m-0 text-[12px] font-normal">
+                  Resume agents
+                </h3>
+                <p className="mt-1 mb-1 text-[10px] leading-relaxed text-muted">
+                  {agentsExplanation}
+                </p>
+                <AgentSwitches agents={agents.list} onChange={agents.onChange} />
+              </section>
+            )}
             <fieldset className="view-preferences m-0 mt-4 min-w-0 border-0 p-0">
               <legend className="mb-2.5 p-0 text-[12px]">View modes</legend>
               <div className="view-preference-options grid grid-cols-3 gap-1.5">

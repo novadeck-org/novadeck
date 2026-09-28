@@ -57,5 +57,16 @@ export const programName = ({ name, argv }: ForegroundProcess): string => {
   return launchedProgram(script) ?? program
 }
 
+// The program a terminal runs, from what the runner reports: its foreground process, and
+// the agent that reported a session since the shell's last prompt. The agent names the
+// program where the process cannot: on Windows, which reports no process, and for a Node
+// CLI whose command line the platform hides, as macOS does.
+export const runningProgram = (process: ForegroundProcess | null, agent: string | null): string => {
+  const program = process ? programName(process) : ""
+  if (!agent) return program
+  const hidden = (program === "node" || program === "nodejs") && !process?.argv
+  return !program || hidden ? agent : program
+}
+
 // Takes a name from `programName`.
 export const isShellProcess = (program: string): boolean => shells.has(program)

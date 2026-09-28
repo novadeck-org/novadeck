@@ -97,12 +97,46 @@ export type Backend = {
   // Optional. How far the restored session is from ready, so the boot splash can stay
   // up until its terminals are attached. Absent means ready at once.
   readonly boot?: Store<BootProgress>
+  // Optional. Whether each terminal's screen is kept on disk, to show again above its
+  // fresh shell when it restores, and a way to change that. Absent where the backend
+  // keeps none.
+  readonly transcripts?: {
+    readonly enabled: Store<boolean>
+    readonly set: (enabled: boolean) => void
+  }
+  // Optional. The agents whose sessions resume after a restart once connected: each
+  // connection installs a small plugin into the agent, and disconnecting removes it.
+  // Absent where the backend cannot connect agents.
+  readonly agents?: {
+    readonly state: Store<readonly AgentConnection[]>
+    // Connects or disconnects the agent; the state shows the change as it goes.
+    readonly set: (agent: AgentId, connected: boolean) => void
+    // Looks again at which agents are installed and connected.
+    readonly refresh: () => void
+    // Whether to offer connecting them when the app opens for the first time.
+    readonly onboarding: Store<boolean>
+    readonly finishOnboarding: () => void
+  }
   // Optional. Asks the person for a folder to open as a project; null when cancelled.
   // Absent where the backend cannot offer one.
   readonly pickDirectory?: () => Promise<string | null>
   // Optional. The debug panel, where this launch offers it: it triggers the states
   // the backend can be in. See README "Debug panel".
   readonly DebugPanel?: ComponentType<DebugPanelProps>
+}
+
+export type AgentId = "claude" | "codex" | "agy"
+
+// An agent the backend can connect, as the Preferences switches show it.
+export type AgentConnection = {
+  readonly agent: AgentId
+  // Installed where the backend runs.
+  readonly available: boolean
+  readonly connected: boolean
+  // A connect or disconnect is under way.
+  readonly busy: boolean
+  // Why the last change did not work, for the person.
+  readonly error?: string
 }
 
 // What the debug panel may ask of the workspace.

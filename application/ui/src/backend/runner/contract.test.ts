@@ -40,6 +40,7 @@ describeBackendContract("runner", {
     const io: string[] = []
     const created = runnerBackend(recordingRunner(runner.client, io), runner.listing, {
       saveDelay: 10,
+      transcripts: true,
     })
     latest = created
     return {

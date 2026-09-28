@@ -5,7 +5,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 
 import { saveBeforeQuitChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
-import { saveBeforeClose, savePages } from "./quit"
+import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit"
 
 // A page's WebContents as saving sees it: the requests it gets and its lifecycle events.
 class FakePage extends EventEmitter {
@@ -155,6 +155,32 @@ describe("saving before a window closes", () => {
       const { window, saves } = guarded(true)
       window.close()
       expect([window.closed, saves.length]).toEqual([1, 0])
+    })
+  })
+})
+
+describe("the operating system ending the session", () => {
+  context("on Linux and macOS", () => {
+    it("holds the shutdown back and quits, which saves on the way out", () => {
+      const power = new EventEmitter()
+      const quit = vi.fn<() => void>()
+      quitOnShutdown(power, quit)
+      const preventDefault = vi.fn<() => void>()
+      power.emit("shutdown", { preventDefault })
+      expect(preventDefault).toHaveBeenCalledOnce()
+      expect(quit).toHaveBeenCalledOnce()
+    })
+  })
+
+  context("on Windows", () => {
+    it("saves while the shells still run once the session may end, and quits when it does", () => {
+      const window = new EventEmitter()
+      const calls: string[] = []
+      saveOnSessionEnd(window, { save: () => calls.push("save"), quit: () => calls.push("quit") })
+      window.emit("query-session-end", {})
+      expect(calls).toEqual(["save"])
+      window.emit("session-end", {})
+      expect(calls).toEqual(["save", "quit"])
     })
   })
 })

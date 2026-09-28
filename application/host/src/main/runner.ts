@@ -16,6 +16,8 @@ export type RunnerHost = {
    * later connection requests are ignored.
    */
   close(timeoutMs?: number): Promise<void>
+  /** Saves every terminal's restore state now, as when the system session is ending. */
+  persist(): void
   /** For the debug panel: kills the runner process as a crash would; false when none runs. */
   kill(): boolean
 }
@@ -48,6 +50,9 @@ export const startRunner = (options: { entry: string; database: string }): Runne
       const { port1, port2 } = new MessageChannelMain()
       send(child ?? spawn(), { type: "connect" }, [port1])
       contents.postMessage(runnerPortChannel, id, [port2])
+    },
+    persist() {
+      if (child && !closing) send(child, { type: "persist" })
     },
     kill() {
       return child?.kill() ?? false

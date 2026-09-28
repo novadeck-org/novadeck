@@ -1,7 +1,8 @@
 import { once } from "node:events"
-import { mkdtemp, rm, stat } from "node:fs/promises"
+import { mkdtemp, readdir, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { DatabaseSync } from "node:sqlite"
 import { pathToFileURL } from "node:url"
 import { MessageChannel, Worker } from "node:worker_threads"
 
@@ -33,13 +34,16 @@ const start = (database: string) => {
     worker.postMessage({ data: { type: "connect" }, ports: [port1] }, [port1])
     return connectRunner(messagePort(port2), { timeout: 10_000 })
   }
+  const persist = () =>
+    // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
+    worker.postMessage({ data: { type: "persist" }, ports: [] })
   const close = async () => {
     const exited = once(worker, "exit")
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
     worker.postMessage({ data: { type: "close" }, ports: [] })
     await exited
   }
-  return { worker, connect, close }
+  return { worker, connect, persist, close }
 }
 
 describe("compiled desktop runner", () => {
@@ -80,8 +84,32 @@ describe("compiled desktop runner", () => {
           process.platform === "win32" ? "echo DESKTOP_4^2\r" : 'echo DESKTOP_4""2\r',
         )
         await reading
+        // Asked to before the system session ends, it saves the terminal's screen.
+        runner.persist()
+        const saved = new DatabaseSync(database, { readOnly: true })
+        try {
+          await expect
+            .poll(
+              () =>
+                (
+                  saved.prepare("SELECT transcript FROM terminals WHERE id = ?").get(created.id) as
+                    | { transcript: string | null }
+                    | undefined
+                )?.transcript ?? "",
+            )
+            .toContain("DESKTOP_42")
+        } finally {
+          saved.close()
+        }
         await client.close()
         expect((await stat(database)).isFile()).toBe(true)
+        // Its shell integration, and the plugins agents install from, live beside the
+        // database, in the app's own directory.
+        expect((await readdir(join(directory, "shell", "plugins"))).toSorted()).toEqual([
+          "agy",
+          "claude",
+          "codex",
+        ])
       } finally {
         await runner.close()
         await rm(directory, { recursive: true, force: true })

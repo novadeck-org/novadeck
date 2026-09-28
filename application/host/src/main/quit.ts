@@ -69,6 +69,42 @@ export const savePages = <P extends Page>(
     }
   })
 
+// The part of Electron's powerMonitor that hears the system shutting down. Electron
+// passes the event its documentation describes, which its typings leave out.
+type Power = {
+  on(event: "shutdown", listener: (event?: { preventDefault(): void }) => void): unknown
+}
+
+// The part of a BrowserWindow that hears Windows ending the session.
+type SessionWindow = {
+  on(event: "query-session-end" | "session-end", listener: () => void): unknown
+}
+
+/**
+ * Saves before the operating system ends the session, not only when someone quits. On
+ * Linux and macOS the system's shutdown asks the app to quit, which saves every page
+ * and the runner on the way out; Electron holds the shutdown back meanwhile.
+ */
+export const quitOnShutdown = (power: Power, quit: () => void): void => {
+  power.on("shutdown", (event) => {
+    event?.preventDefault()
+    quit()
+  })
+}
+
+/**
+ * On Windows a window hears that the session may end, and then that it ends: the
+ * first saves while the shells still run, since the system may end the app without
+ * waiting; the second quits, which saves again on the way out.
+ */
+export const saveOnSessionEnd = (
+  window: SessionWindow,
+  { save, quit }: { readonly save: () => void; readonly quit: () => void },
+): void => {
+  window.on("query-session-end", save)
+  window.on("session-end", quit)
+}
+
 // The part of a BrowserWindow that closing uses.
 type Closable = {
   on(event: "close", listener: (event: { preventDefault(): void }) => void): unknown

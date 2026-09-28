@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto"
 
 import { createRouter, type Connection } from "./router.js"
+import { createAgents, type AgentsOptions } from "./shell/agents.js"
+import { installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { WorkspaceStore } from "./workspaces/store.js"
 
@@ -9,6 +11,13 @@ export type RunnerOptions = {
   database?: string
   /** Terminal limits; the number of terminals is unlimited unless `maxTerminals` is set. */
   terminals?: TerminalOptions
+  /**
+   * Where the shell integration, hook and agent plugins are written, such as a `shell`
+   * folder beside the database. Without it shells start without the integration.
+   */
+  shell?: string
+  /** Where agents are looked for and how their plugin commands run; for tests. */
+  agents?: AgentsOptions
 }
 
 export type Runner = {
@@ -26,15 +35,36 @@ export type Runner = {
   ): Connection
   /** Releases a connection's attachments and terminal control. Its shells keep running. */
   disconnect(connection: Connection): void
-  /** Refuses further session saves, then ends every shell and closes the metadata store. */
+  /** Saves every terminal's restore state now, as when the system is shutting down. */
+  persist(): void
+  /**
+   * Saves every terminal, then refuses further saves of sessions and terminals, ends
+   * every shell and closes the metadata store.
+   */
   close(): Promise<void>
 }
 
 /** Owns shells and workspace metadata, independent of how clients reach it. */
 export const createRunner = (options: RunnerOptions = {}): Runner => {
   const id = randomUUID()
-  const terminals = new Terminals(options.terminals)
   const store = new WorkspaceStore(options.database)
+  // Written once, for the shells and for the agents that install NovaDeck's plugin.
+  const shellFiles =
+    options.shell === undefined
+      ? Promise.resolve(undefined)
+      : installShellFiles(options.shell).catch((error: unknown) => {
+          console.error("NovaDeck shell integration is unavailable:", error)
+          return undefined
+        })
+  const agents = createAgents(() => shellFiles, options.agents)
+  const terminals = new Terminals({
+    records: store,
+    shellFiles,
+    // Codex runs through NovaDeck's shim while it is connected; see `posixCodexShim`.
+    codexShim: () => agents.connected("codex"),
+    transcripts: store.settings().transcripts,
+    ...options.terminals,
+  })
   const clients = new Map<string, Connection>()
   let closing: Promise<void> | undefined
   const disconnect = (connection: Connection) => {
@@ -63,6 +93,7 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
       claim,
       store,
       terminals,
+      agents,
       closing: () => closing !== undefined,
     }),
     snapshotBytes: options.terminals?.snapshotBytes ?? 32 * 1024 * 1024,
@@ -75,6 +106,9 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
       calls: 0,
     }),
     disconnect,
+    persist: () => {
+      if (!closing) terminals.persist()
+    },
     close() {
       closing ??= (async () => {
         try {

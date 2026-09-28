@@ -2,6 +2,8 @@ import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
 import {
+  agentIntegration,
+  agentName,
   clientState,
   columns,
   directory,
@@ -10,6 +12,7 @@ import {
   project,
   protocolVersion,
   rows,
+  runnerSettings,
   sequence,
   terminalAttached,
   terminalChange,
@@ -36,6 +39,7 @@ export const errors = {
   INVALID_CURSOR: { status: 400 },
   SPAWN_FAILED: { status: 500 },
   RUNTIME_CLOSING: { status: 503 },
+  AGENT_SETUP_FAILED: { status: 500 },
 }
 
 const procedure = oc.errors(errors)
@@ -78,6 +82,11 @@ export const contract = {
   },
   terminals: {
     list: procedure.input(z.strictObject({ sessionId: id })).output(z.array(terminalSummary)),
+    // `restore` starts where the runner's saved record of this terminal left off: in its
+    // last directory, showing its saved transcript before the shell's output. `resume`
+    // names the agent that ran there: while it is connected, the runner resumes the
+    // session it last reported in this terminal, instead of showing the transcript.
+    // A session resumes in one terminal only, never beside another terminal running it.
     create: procedure
       .input(
         z.strictObject({
@@ -86,6 +95,8 @@ export const contract = {
           cwd: directory.optional(),
           cols: columns,
           rows,
+          restore: z.boolean().optional(),
+          resume: agentName.optional(),
         }),
       )
       .output(terminalSummary),
@@ -111,10 +122,24 @@ export const contract = {
     ack: procedure.input(z.strictObject({ terminalId: id, sequence })).output(z.void()),
     close: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
     // Starts a fresh shell in an exited terminal, keeping its id, session and cwd; the
-    // caller gains control. A running terminal is a CONFLICT.
+    // caller gains control. A running terminal is a CONFLICT. The earlier shell's screen
+    // shows above the new one's, unless `resume` resumes an agent session, as for create.
     restart: procedure
-      .input(z.strictObject({ terminalId: id, cols: columns, rows }))
+      .input(z.strictObject({ terminalId: id, cols: columns, rows, resume: agentName.optional() }))
       .output(terminalSummary),
+  },
+  // Agents whose sessions resume once NovaDeck's plugin is installed into them.
+  agents: {
+    list: procedure.input(z.void()).output(z.array(agentIntegration)),
+    // Installs or removes the plugin through the agent's own commands.
+    set: procedure
+      .input(z.strictObject({ agent: agentName, connected: z.boolean() }))
+      .output(agentIntegration),
+  },
+  settings: {
+    get: procedure.input(z.void()).output(runnerSettings),
+    // Changes the settings given; the others stay.
+    set: procedure.input(runnerSettings.partial()).output(z.void()),
   },
 }
 

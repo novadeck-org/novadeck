@@ -1,5 +1,5 @@
 import { context, describe, expect, it } from "../test"
-import { isShellProcess, programName } from "./process"
+import { isShellProcess, programName, runningProgram } from "./process"
 
 const named = (name: string, ...argv: string[]) =>
   programName({ name, argv: argv.length ? argv : null })
@@ -32,6 +32,28 @@ describe("program name", () => {
 
     it("only reads the script for Node itself", () => {
       expect(named("python", "/usr/bin/python", "/tmp/codex")).toBe("python")
+    })
+  })
+})
+
+describe("running program", () => {
+  it("is the foreground process's program", () => {
+    expect(runningProgram({ name: "vim", argv: null }, null)).toBe("vim")
+    expect(runningProgram(null, null)).toBe("")
+  })
+
+  context("when an agent reported its session since the last prompt", () => {
+    it("names the program where no process is known, as on Windows", () => {
+      expect(runningProgram(null, "claude")).toBe("claude")
+    })
+
+    it("names a Node CLI whose command line the platform hides, as on macOS", () => {
+      expect(runningProgram({ name: "node", argv: null }, "codex")).toBe("codex")
+    })
+
+    it("leaves a program the process names alone", () => {
+      expect(runningProgram({ name: "claude", argv: null }, "codex")).toBe("claude")
+      expect(runningProgram({ name: "node", argv: ["node", "/srv/app.js"] }, "codex")).toBe("node")
     })
   })
 })

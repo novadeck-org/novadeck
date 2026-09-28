@@ -38,7 +38,9 @@ The runner reports each terminal's foreground process as its name and, on Linux,
 process group leader's command line (`argv`); macOS reports only the name, and Windows
 reports none. `application/ui/src/model/process.ts` turns that into a program name,
 resolving known Node CLIs from the script Node runs, so the Codex and Claude packages
-show as `codex` and `claude` while other Node programs stay `node`.
+show as `codex` and `claude` while other Node programs stay `node`. Where the process
+cannot tell, as on Windows or for a Node CLI on macOS, a connected agent that reported
+its session since the shell's last prompt names the program.
 
 While a program holds the foreground, its profile decides how the terminal looks.
 `application/ui/src/terminals/processes/profiles.ts` maps program names to a tab and
@@ -50,8 +52,8 @@ and the terminal switcher carry on. Claude and Codex have their own icons in
 `application/ui/src/ui-toolkit/icons/` and their own bodies beside the profiles, where
 their presentation can grow. To give another program its own look, add a profile
 entry, with its own body if needed, and a launcher entry in `model/process.ts` if it
-runs as a Node script. Profiles are presentation only: per-program behaviour, such as
-resuming a restored program, goes beside `programName` in `model/`.
+runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
+`programName` in `model/`, as `model/resume.ts` names the agents whose sessions resume.
 
 The backend port keeps windows out of the backend: a surface renders one content
 element and passes it to `renderWindow`, and `WorkspaceTerminal.tsx` wraps it in the
@@ -64,10 +66,13 @@ its command line, which can hold secrets): the program running at the save, or e
 one the terminal lost with its shell. A terminal has a `restoredProcess` only while it
 has no live shell: a program running when the runner lost the shell, the shell was
 killed, or the app closed becomes it, and it ends once a shell reaches its prompt or
-runs a program; every replacement shell starts in the runner backend's `freshShell`,
-where resuming that program will go. Quitting or closing the desktop app's window saves
-before the runner ends its shells, except on macOS, where closing the last window leaves
-them running, so the save reflects that close rather than the final quit.
+runs a program. Every replacement shell starts in the runner backend's `freshShell`,
+which resumes that program when it can (see [Restoring terminals](#restoring-terminals)).
+Quitting or closing the desktop app's window saves before the runner ends its shells,
+except on macOS, where closing the last window leaves them running, so the save reflects
+that close rather than the final quit. A system shutdown or log-off saves the same way:
+on Linux and macOS it quits the app, and on Windows the window saves as soon as the
+session may end.
 
 Use the terminal header's resize control to alternate between two sizes. In Canvas,
 **Enlarge** matches the current Canvas viewport aspect ratio at a fixed area equivalent
@@ -93,6 +98,70 @@ Hidden terminals retain
 their content and layout and remain available in Focus view.
 Showing and hiding use a short fade and scale transition; reduced motion skips it.
 Switching terminal tabs in Focus uses the same transition.
+
+## Restoring terminals
+
+After a reboot, NovaDeck opens each terminal where it was: in the directory its shell
+was last in, with its earlier output shown above a fresh prompt, and with Claude Code,
+Codex or Antigravity resumed in the session that was running once you connect that
+agent.
+
+- **Shell integration.** Each shell NovaDeck starts loads your own startup files first,
+  then reports its directory at every prompt: bash through `--init-file`, zsh through
+  `ZDOTDIR`, fish through `--init-command`, PowerShell by dot-sourcing a script after
+  your profile, and cmd through its `PROMPT`. Other shells start as they are. A new
+  terminal and a restart open in the last reported directory. This comes from files in
+  NovaDeck's own data directory (a `shell` folder beside `workspace.sqlite`) and never
+  touches your rc files.
+- **Connecting agents.** Preferences, and a short welcome dialog the first time the app
+  opens, have a switch for each agent, off until you turn it on; an agent that is not
+  installed cannot be switched. Turning one on installs a small NovaDeck plugin into
+  it with the agent's own plugin commands (`claude plugin`, `codex plugin`,
+  `agy plugin`, from a local marketplace or folder in NovaDeck's data directory);
+  turning it off uninstalls it. The plugin holds a single hook that tells the NovaDeck
+  terminal it runs in which session it is, and does nothing when the agent runs
+  anywhere else. It adds nothing to the model's context. Without a connected agent
+  there is no resume, even for sessions it reported before: disconnecting forgets them,
+  and the terminal comes back as a plain shell with its transcript.
+- **Resuming.** When a terminal lost a connected agent, its fresh shell comes back
+  with that session already running: the runner runs `claude --resume <id>`,
+  `codex resume <id>` or `agy --conversation <id>` as the shell starts, after your rc
+  files and prompt hooks, as if you had typed it at the first prompt, but nothing is
+  typed and nothing goes into your shell history. When the agent exits you are at
+  that shell's prompt. Typing before it starts, as while a slow rc file runs, cancels
+  it, so the shell gets what you typed. A terminal without a known session gets a
+  plain shell, never "continue the last session", a session resumes in one terminal
+  only, never beside another running it, and a shell NovaDeck cannot integrate shows
+  its transcript instead. An rc file that replaces the shell, as with `exec fish` or
+  `exec tmux`, resumes nothing. Terminals with an agent to resume start at once, in every session and
+  hidden or not; the others start when their session is shown.
+- **Transcripts.** Each terminal's recent output is kept, and a restored terminal shows
+  it read-only above a separator and its fresh prompt; a resumed agent shows its own
+  history instead. Transcripts are on by default and can be turned off in Preferences,
+  which also forgets the saved ones. They can contain secrets that were typed or
+  printed: they live in `workspace.sqlite`, readable by your account only, with up to
+  256 KiB kept per terminal.
+
+Codex may ask you once to review NovaDeck's hook ("Hooks need review") and records the
+answer itself; the hook never changes between NovaDeck versions, so it asks only once.
+Interactive Codex normally runs its sessions, hooks included, in a shared background
+server that cannot tell which terminal a session belongs to. So while Codex is
+connected, NovaDeck's shells run `codex` through a small shim that adds `--no-daemon`,
+keeping the session in the terminal; `codex agents` and `--remote`, which need that
+server, go unchanged, and Codex started by its full path bypasses the shim and does not
+resume. Sessions started this way do not show in `codex agents`.
+Antigravity runs the hook before each model call, and Codex with your first message,
+so their sessions are known from then on. On Windows, Claude Code runs the hook through
+PowerShell.
+
+Removing NovaDeck does not remove plugins you left connected, as packaged builds have
+no uninstaller: switch agents off first, or remove the `novadeck` plugin with the
+agent's own `plugin` command. A plugin left behind does nothing.
+
+The runner saves each terminal's directory and agent sessions as they change, and its
+output every few seconds and when the app quits, so a crash or a power cut loses little.
+Once the runner starts shutting down it saves nothing more, so shells ending on the way
+out cannot replace what it saved while they ran.
 
 ## Zen mode
 
@@ -204,6 +273,7 @@ connection state, runner restarts in the last minute, and the terminal count.
 - **Startup:** boot again from the splash without reloading. "Splash" holds it
   until you press Escape; each "Error" fails the first attempt with that code, so
   transient errors retry on their own and the others wait for Retry or Quit.
+  "Welcome dialog" opens the first-run dialog for connecting agents again.
 - **Runner:** kill the runner process once, or four times 1.5 s apart to trip the
   crash-loop guard, or show a 5 s outage.
 - **Selected terminal:** type `exit`, `exit 3`, `kill -9 $$`, `sleep 600`, or run a
@@ -397,8 +467,9 @@ commits arrive, and saves each changed session after a short pause and on
 `pagehide`. On load it restores saved sessions, most recently visited first, and adds
 running terminals the save did not know. A terminal the runner no longer has, after
 a runner restart or a relaunch, gets a fresh shell in place with the same id, name
-and layout once its session is on screen; more than three runner restarts in a
-minute stop that, and each terminal then waits for Enter. An exited, killed, or
+and layout once its session is on screen, or at once when it has an agent to resume;
+more than three runner restarts in a minute stop that, and each terminal then waits
+for Enter. An exited, killed, or
 failed terminal shows "Press Enter to restart", which starts a fresh shell in the
 same tile. While the runner is away, surfaces dim and refuse input.
 

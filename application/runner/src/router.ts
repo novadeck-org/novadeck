@@ -1,9 +1,15 @@
 import { homedir } from "node:os"
 
-import { contract, errors as contractErrors, protocolVersion } from "@novadeck/protocol"
+import {
+  contract,
+  errors as contractErrors,
+  protocolVersion,
+  type AgentName,
+} from "@novadeck/protocol"
 import { implement, ORPCError } from "@orpc/server"
 
 import { DomainError } from "./errors.js"
+import type { Agents } from "./shell/agents.js"
 import type { Terminals } from "./terminals/index.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 
@@ -37,10 +43,14 @@ export const createRouter = (options: {
   claim: (connection: Connection, clientId: string) => void
   store: WorkspaceStore
   terminals: Terminals
+  agents: Agents
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
-  const { store, terminals } = options
+  const { store, terminals, agents } = options
+  // A disconnected agent resumes nothing, whatever it reported before.
+  const connected = async (agent: AgentName | undefined): Promise<AgentName | undefined> =>
+    agent && (await agents.connected(agent)) ? agent : undefined
   const api = implement(contract).$context<Context>()
   const authorized = api.use(async ({ context, next }) => {
     const connection = context.connection
@@ -97,10 +107,13 @@ export const createRouter = (options: {
         store.session(input.sessionId)
         return terminals.list(input.sessionId)
       }),
-      create: authorized.terminals.create.handler(({ input, context }) => {
+      create: authorized.terminals.create.handler(async ({ input, context }) => {
         const session = store.session(input.sessionId)
         const project = store.project(session.projectId)
-        return terminals.create({ ...input, cwd: input.cwd ?? project.cwd }, context.connection.id)
+        return terminals.create(
+          { ...input, cwd: input.cwd ?? project.cwd, resume: await connected(input.resume) },
+          context.connection.id,
+        )
       }),
       watch: authorized.terminals.watch.handler(async function* ({ context, signal }) {
         // A connection that closed before this stream began has already been released.
@@ -135,12 +148,32 @@ export const createRouter = (options: {
       ack: authorized.terminals.ack.handler(({ input, context }) =>
         terminals.ack(input, context.connection.id),
       ),
-      restart: authorized.terminals.restart.handler(({ input, context }) =>
-        terminals.restart(input, context.connection.id),
+      restart: authorized.terminals.restart.handler(async ({ input, context }) =>
+        terminals.restart(
+          { ...input, resume: await connected(input.resume) },
+          context.connection.id,
+        ),
       ),
       close: authorized.terminals.close.handler(({ input, context }) =>
         terminals.close(input, context.connection.id),
       ),
+    },
+    agents: {
+      list: authorized.agents.list.handler(() => agents.list()),
+      set: authorized.agents.set.handler(async ({ input }) => {
+        const result = await agents.set(input.agent, input.connected)
+        if (!result.connected) terminals.forgetAgent(input.agent)
+        return result
+      }),
+    },
+    // The store keeps the settings; the terminals apply the transcript switch.
+    settings: {
+      get: authorized.settings.get.handler(() => store.settings()),
+      set: authorized.settings.set.handler(({ input }) => {
+        if (options.closing()) throw new DomainError("RUNTIME_CLOSING")
+        store.saveSettings(input)
+        if (input.transcripts !== undefined) terminals.keepTranscripts(input.transcripts)
+      }),
     },
   })
 }

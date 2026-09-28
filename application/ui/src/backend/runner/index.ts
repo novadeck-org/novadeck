@@ -123,6 +123,10 @@ export const connectRunnerBackend = async (
   progress("loading")
   try {
     const listing = await loadListing(runner, newId, Date.now)
+    const [{ transcripts, onboarded }, agents] = await Promise.all([
+      runner.settings.get(),
+      runner.agents.list(),
+    ])
     const pick = desktopHost()?.pickDirectory
     const beforeQuit = desktopHost()?.beforeQuit
     const kill = desktopHost()?.debugKillRunner
@@ -139,6 +143,9 @@ export const connectRunnerBackend = async (
           ...(pick ? { pickDirectory: () => pick() } : {}),
           ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
           debug,
+          transcripts,
+          agents,
+          onboarded,
         })
         created.push(next)
         return next.backend

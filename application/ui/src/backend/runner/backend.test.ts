@@ -652,6 +652,7 @@ describe("runner backend", () => {
                   exit: null,
                   run: 1,
                   process: { name: "zsh", argv: null },
+                  agent: null,
                 },
               ],
             },

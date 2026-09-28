@@ -1,6 +1,6 @@
 import type { TerminalExit, TerminalSummary } from "@novadeck/protocol"
 
-import { isShellProcess, programName } from "../../model/process"
+import { isShellProcess, runningProgram } from "../../model/process"
 import type { TerminalStatus } from "../../model/types"
 
 // A shell that exits sooner than this after starting counts as failing to start.
@@ -28,7 +28,7 @@ export type TerminalActivity = {
 // input). A terminal without an exit is running.
 export const terminalActivity = (summary: TerminalSummary): TerminalActivity => {
   if (summary.exit) return { status: exitStatus(summary.exit) }
-  const program = summary.process ? programName(summary.process) : ""
+  const program = runningProgram(summary.process, summary.agent)
   return {
     status: { state: !program || isShellProcess(program) ? "idle" : "running" },
     process: program,

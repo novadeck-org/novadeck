@@ -1,3 +1,5 @@
+import { dirname, join } from "node:path"
+
 import { createRunner, servePort } from "@novadeck/runner"
 import type { MessagePortMain } from "electron"
 
@@ -9,12 +11,16 @@ const database = process.argv
   ?.slice(databaseArgumentPrefix.length)
 
 // Without `maxTerminals`, the desktop runner starts as many terminals as the user opens.
-const runner = createRunner(database === undefined ? {} : { database })
+// Its shell integration lives beside the database, in the app's own data directory.
+const runner = createRunner(
+  database === undefined ? {} : { database, shell: join(dirname(database), "shell") },
+)
 
 process.parentPort.on(
   "message",
   ({ data, ports }: { data: RunnerCommand; ports: MessagePortMain[] }) => {
     if (data.type === "connect" && ports[0]) servePort(runner, ports[0])
+    if (data.type === "persist") runner.persist()
     if (data.type === "close") void runner.close().finally(() => process.exit(0))
   },
 )

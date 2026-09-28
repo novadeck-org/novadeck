@@ -10,6 +10,7 @@ const terminal = (id: string, changes: Partial<TerminalSummary> = {}): TerminalS
   cols: 80,
   rows: 24,
   exit: null,
+  agent: null,
   process: { name: "sh", argv: null },
   run: 1,
   ...changes,

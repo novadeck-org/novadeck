@@ -1,6 +1,8 @@
+import { act, createElement } from "react"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
+import { render } from "../../test/render"
 import { createBootRehearsals } from "../boot-rehearsal"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { createRunnerDebug } from "./debug"
@@ -50,6 +52,36 @@ describe("the debug panel", () => {
 
   it("is absent when the launch does not offer it", () => {
     expect(runnerBackend(runner, listing).backend.DebugPanel).toBeUndefined()
+  })
+
+  it("opens the welcome dialog again", () => {
+    const { backend } = runnerBackend(runner, listing, {
+      debug: debug(),
+      agents: [],
+      onboarded: true,
+    })
+    const Panel = backend.DebugPanel!
+    const app = render(
+      createElement(Panel, {
+        addTerminal: () => {
+          throw new Error("Not used here.")
+        },
+        startFresh: () => {},
+        selected: () => undefined,
+      }),
+    )
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "D", ctrlKey: true, shiftKey: true }),
+      )
+    })
+    const button = [...app.container.querySelectorAll("button")].find((element) =>
+      element.textContent?.startsWith("Welcome dialog"),
+    )
+    expect(backend.agents?.onboarding.getSnapshot()).toBe(false)
+    act(() => button!.click())
+    expect(backend.agents?.onboarding.getSnapshot()).toBe(true)
+    app.unmount()
   })
 
   it("is there when the launch offers it", () => {

@@ -125,6 +125,16 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       attach: async (id, options) =>
         attachment(await note(`attach ${id}`, () => runner.terminals.attach(id, options))),
     },
+    agents: {
+      list: () => runner.agents.list(),
+      set: (agent, connected) =>
+        note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
+    },
+    settings: {
+      get: () => runner.settings.get(),
+      set: (settings) =>
+        note(`settings ${JSON.stringify(settings)}`, () => runner.settings.set(settings)),
+    },
   }
 }
 

@@ -3,6 +3,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -234,4 +235,64 @@ describe("workspace metadata", () => {
       expect(statSync(path).mode & 0o777).toBe(0o600)
     },
   )
+})
+
+describe("saved terminals", () => {
+  it("keep what restores a terminal, in the owner-only metadata file", async ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = store(path)
+    const terminal = {
+      id: randomUUID(),
+      sessionId: randomUUID(),
+      cwd: "/work",
+      agents: { claude: { sessionId: "abc", seq: 2 } },
+      promptedAt: 1_000,
+    }
+    first.saveTerminal({ ...terminal, transcript: "screen" })
+    // Saving without a transcript leaves the saved one as it is.
+    first.saveTerminal({ ...terminal, cwd: "/work/sub" })
+    first.close()
+    const reopened = store(path)
+    expect(reopened.terminal(terminal.id)).toEqual({
+      ...terminal,
+      cwd: "/work/sub",
+      transcript: "screen",
+      savedAt: expect.any(Number),
+    })
+    if (process.platform !== "win32") expect(statSync(path).mode & 0o777).toBe(0o600)
+    reopened.clearTranscripts()
+    expect(reopened.terminal(terminal.id)?.transcript).toBeNull()
+    reopened.removeTerminal(terminal.id)
+    expect(reopened.terminal(terminal.id)).toBeUndefined()
+  })
+
+  it("overwrite forgotten transcripts, which may hold secrets", ({ directory, store }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const workspace = store(path)
+    const terminal = { id: randomUUID(), sessionId: "s", cwd: "/", agents: {}, promptedAt: null }
+    workspace.saveTerminal({ ...terminal, transcript: "SECRET_TRANSCRIPT_TEXT" })
+    workspace.clearTranscripts()
+    workspace.close()
+    expect(readFileSync(path).includes("SECRET_TRANSCRIPT_TEXT")).toBe(false)
+  })
+
+  it("keep the most recently saved terminals only", ({ store }) => {
+    const workspace = store()
+    const ids = Array.from({ length: 130 }, () => randomUUID())
+    for (const id of ids)
+      workspace.saveTerminal({ id, sessionId: "s", cwd: "/", agents: {}, promptedAt: null })
+    expect(workspace.terminal(ids[0]!)).toBeUndefined()
+    expect(workspace.terminal(ids.at(-1)!)).toBeDefined()
+  })
+
+  it("keep transcripts until they are turned off", ({ store }) => {
+    const workspace = store()
+    expect(workspace.settings()).toEqual({ transcripts: true, onboarded: false })
+    workspace.saveSettings({ transcripts: false })
+    workspace.saveSettings({ onboarded: true })
+    expect(workspace.settings()).toEqual({ transcripts: false, onboarded: true })
+  })
 })

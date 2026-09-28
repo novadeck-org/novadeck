@@ -2,7 +2,10 @@ import type { WireClient } from "./contract.js"
 import { hasCode, normalize, RunnerError } from "./errors.js"
 import {
   protocolVersion,
+  type AgentIntegration,
+  type AgentName,
   type Project,
+  type RunnerSettings,
   type TerminalAttached,
   type TerminalChange,
   type TerminalEvent,
@@ -106,6 +109,16 @@ export type Runner = {
       readonly cwd?: string
       readonly cols: number
       readonly rows: number
+      /**
+       * Starts where the runner's saved record of this terminal left off: in its last
+       * directory, with its saved transcript shown before the shell's output.
+       */
+      readonly restore?: boolean
+      /**
+       * The agent that ran there: while it is connected, the runner resumes the session
+       * it last reported in this terminal, and shows no transcript.
+       */
+      readonly resume?: AgentName
     }): Promise<TerminalSummary>
     /**
      * Follows every terminal on the runner, across sessions. Each subscription, the
@@ -133,13 +146,26 @@ export type Runner = {
      */
     restart(
       terminalId: string,
-      size: { readonly cols: number; readonly rows: number },
+      size: { readonly cols: number; readonly rows: number; readonly resume?: AgentName },
     ): Promise<TerminalSummary>
     /** Resolves once the runner has granted the attachment; `control` is the default mode. */
     attach(
       terminalId: string,
       options?: { readonly mode?: TerminalMode },
     ): Promise<AttachedTerminal>
+  }
+  readonly agents: {
+    list(): Promise<AgentIntegration[]>
+    /**
+     * Installs or removes NovaDeck's plugin in the agent through its own commands;
+     * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
+     */
+    set(agent: AgentName, connected: boolean): Promise<AgentIntegration>
+  }
+  readonly settings: {
+    get(): Promise<RunnerSettings>
+    /** Changes the settings given; the others stay. */
+    set(settings: Partial<RunnerSettings>): Promise<void>
   }
   /** Disconnects. Attached terminals finish; their shells keep running on the runner. */
   close(): Promise<void>
@@ -717,13 +743,23 @@ export const connectRunner = async (
       create: (input) => call((wire) => wire.terminals.create(input)),
       watch: () => new TerminalWatch(connection),
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
-      restart: (terminalId, { cols, rows }) =>
-        call((wire) => wire.terminals.restart({ terminalId, cols, rows })),
+      restart: (terminalId, { cols, rows, resume }) =>
+        call((wire) =>
+          wire.terminals.restart({ terminalId, cols, rows, ...(resume ? { resume } : {}) }),
+        ),
       async attach(terminalId, { mode = "control" } = {}) {
         const terminal = new Attachment(connection, terminalId, mode)
         await terminal.attach(connection.current())
         return terminal
       },
+    },
+    agents: {
+      list: () => call((wire) => wire.agents.list()),
+      set: (agent, connected) => call((wire) => wire.agents.set({ agent, connected })),
+    },
+    settings: {
+      get: () => call((wire) => wire.settings.get()),
+      set: (settings) => call((wire) => wire.settings.set(settings)),
     },
     close: () => connection.close(),
   }

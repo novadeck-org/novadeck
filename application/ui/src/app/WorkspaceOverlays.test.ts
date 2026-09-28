@@ -1,5 +1,5 @@
 import { act, createElement } from "react"
-import { vi } from "vitest"
+import { beforeAll, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
@@ -58,6 +58,13 @@ const dialog = (label: string): Element | null =>
   document.querySelector(`[role="dialog"][aria-label="${label}"]`)
 
 describe("workspace dialogs that load on demand", () => {
+  // Their modules load once up front, which can take a while on a slow machine; the
+  // test is about the order the dialogs open in, not how long loading them takes.
+  beforeAll(async () => {
+    await import("../search/TerminalSearch")
+    await import("../preferences/Preferences")
+  }, 60_000)
+
   it("opens the dialog requested last when an earlier one never finished loading", async () => {
     window.location.hash = ""
     const app = render(createElement(App))

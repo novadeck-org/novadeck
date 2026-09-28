@@ -142,6 +142,22 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       })
     })
 
+    context("when it keeps transcripts", () => {
+      it("reports the setting and changes it when asked", async () => {
+        const { backend } = options.create()
+        if (!backend.transcripts) return
+        const { enabled, set } = backend.transcripts
+        const changed = vi.fn<() => void>()
+        const stop = enabled.subscribe(changed)
+        const before = enabled.getSnapshot()
+        set(!before)
+        await settle()
+        expect(enabled.getSnapshot()).toBe(!before)
+        expect(changed).toHaveBeenCalled()
+        stop()
+      })
+    })
+
     context("when the UI creates a terminal", () => {
       it("allocates it synchronously with an id the session does not use", () => {
         const { backend } = options.create()

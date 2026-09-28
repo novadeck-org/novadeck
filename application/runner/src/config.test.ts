@@ -1,3 +1,5 @@
+import { join, resolve } from "node:path"
+
 import { readConfig } from "./config.js"
 import { describe, expect, it } from "./test.js"
 
@@ -9,7 +11,14 @@ describe("server configuration", () => {
         NOVADECK_TOKEN: token,
         NOVADECK_DATABASE: "/tmp/novadeck-test.sqlite",
       }),
-    ).toMatchObject({ token, database: "/tmp/novadeck-test.sqlite" })
+    ).toMatchObject({ token, database: resolve("/tmp/novadeck-test.sqlite") })
+  })
+
+  it("makes a relative database path absolute, with the shell integration beside it", () => {
+    const token = "configuration-tests-only-not-a-real-credential"
+    const config = readConfig({ NOVADECK_TOKEN: token, NOVADECK_DATABASE: "data/workspace.sqlite" })
+    expect(config.database).toBe(resolve("data/workspace.sqlite"))
+    expect(config.shell).toBe(join(resolve("data"), "shell"))
   })
 
   it("rejects empty, short, and oversized credentials", () => {

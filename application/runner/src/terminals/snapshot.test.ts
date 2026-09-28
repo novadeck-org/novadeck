@@ -15,6 +15,7 @@ const summary: TerminalSummary = {
   rows: 4,
   exit: null,
   process: null,
+  agent: null,
   run: 1,
 }
 

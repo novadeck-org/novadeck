@@ -8,6 +8,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  powerMonitor,
   session,
   shell,
   type IpcMainEvent,
@@ -21,7 +22,7 @@ import {
   runnerPortChannel,
 } from "../bridge.js"
 import { debugEnabled, registerDebugIpc } from "./debug.js"
-import { saveBeforeClose, savePages } from "./quit.js"
+import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { startRunner, type RunnerHost } from "./runner.js"
 
 const appId = "dev.mzpk.novadeck"
@@ -118,6 +119,12 @@ const createWindow = (origin: string): BrowserWindow => {
     () => stopping,
   )
 
+  // Windows ends a session through its windows: save while the shells still run.
+  saveOnSessionEnd(window, {
+    save: () => void saveWindows([window]).then(() => runner?.persist()),
+    quit: () => app.quit(),
+  })
+
   window.webContents.on("will-navigate", (event) => event.preventDefault())
 
   window.webContents.setWindowOpenHandler(({ url }) => {
@@ -173,6 +180,8 @@ const launch = async (): Promise<void> => {
 app.setAppUserModelId(appId)
 
 app.whenReady().then(() => {
+  // A system shutdown quits, which saves every page and terminal before the shells end.
+  quitOnShutdown(powerMonitor, () => app.quit())
   session.defaultSession.setPermissionCheckHandler(() => false)
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, respond) =>
     respond(false),
