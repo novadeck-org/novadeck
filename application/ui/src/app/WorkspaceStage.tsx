@@ -1,4 +1,4 @@
-import { memo, Suspense, useCallback, useMemo, type RefObject } from "react"
+import { memo, Suspense, useCallback, useEffect, useMemo, type RefObject } from "react"
 
 import type { CanvasHandle } from "../layouts/canvas/types"
 import { Focus } from "../layouts/focus/Focus"
@@ -6,7 +6,7 @@ import type { ValueUpdate } from "../model/state"
 import type { CanvasLayout, GridLayouts } from "../model/types"
 import { EmptyWorkspace } from "../shell/EmptyWorkspace"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
-import { Canvas, Grid } from "./deferred-views"
+import { Canvas, Grid, preloadViews } from "./deferred-views"
 import {
   activeTerminal,
   currentContext,
@@ -24,6 +24,15 @@ const useLayoutHidden = (hidden: Record<string, boolean>, preview: string) =>
 export const WorkspaceStage = memo(
   ({ canvas }: { readonly canvas: RefObject<CanvasHandle | null> }): React.JSX.Element => {
     const { commands } = useWorkspaceServices()
+    // Loads the other views once the workspace has settled after starting.
+    useEffect(() => {
+      if (typeof requestIdleCallback === "function") {
+        const idle = requestIdleCallback(preloadViews, { timeout: 2000 })
+        return () => cancelIdleCallback(idle)
+      }
+      const timer = setTimeout(preloadViews, 1000)
+      return () => clearTimeout(timer)
+    }, [])
     const target = useWorkspaceState(currentTarget, sameTarget)
     const { context, view, selected, terminals, layout } = useWorkspaceState((workspace) => {
       const state = currentState(workspace)

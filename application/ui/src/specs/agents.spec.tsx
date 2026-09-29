@@ -30,7 +30,7 @@ describe("Connecting agents", () => {
       await expect.element(agentSwitch(dialog, "Antigravity")).toBeDisabled()
       await expect
         .element(agentSwitch(dialog, "Antigravity"))
-        .toHaveAccessibleDescription("Not installed on this computer")
+        .toHaveAccessibleDescription("Not installed")
     })
 
     it("connects and disconnects an agent", async () => {
@@ -39,15 +39,16 @@ describe("Connecting agents", () => {
       const claude = agentSwitch(preferencesDialog(), "Claude Code")
       await claude.click()
       await expect.element(claude).toHaveAttribute("aria-checked", "true")
-      await expect.element(claude).toHaveAccessibleDescription(/sessions resume/)
+      // The switch speaks for itself; a connected agent needs no note.
+      await expect.element(claude).not.toHaveAccessibleDescription()
       await claude.click()
       await expect.element(claude).toHaveAttribute("aria-checked", "false")
     })
   })
 
   context("when the app opens for the first time", () => {
-    it("previews each layout without leaving onboarding or connecting agents", async () => {
-      await openWorkspace("/?demo=onboarding")
+    it("previews each layout without leaving the welcome dialog or connecting agents", async () => {
+      await openWorkspace("/?demo=welcome")
       const dialog = welcome()
       await expect
         .element(dialog.getByRole("heading", { name: "Big ideas. Room to build." }))
@@ -61,27 +62,32 @@ describe("Connecting agents", () => {
       await expect.element(dialog.getByText("Everything side by side.")).toBeVisible()
       await dialog.getByRole("button", { name: "Canvas", exact: true }).click()
       await expect.element(dialog.getByText("Spread out on a zoomable canvas.")).toBeVisible()
-      await expect.element(agentChoice(dialog, "Claude Code")).not.toBeChecked()
+      await expect.element(agentChoice(dialog, "Claude Code")).toBeChecked()
       await expect.element(agentChoice(dialog, "Antigravity")).toBeDisabled()
     })
 
-    it("asks which agents to connect, all off, and does not ask again", async () => {
-      await openWorkspace("/?demo=onboarding")
+    it("chooses every installed agent, connects the chosen ones, and does not ask again", async () => {
+      await openWorkspace("/?demo=welcome")
       await expect.element(welcome()).toBeVisible()
-      await expect.element(agentChoice(welcome(), "Codex")).not.toBeChecked()
+      await expect.element(agentChoice(welcome(), "Claude Code")).toBeChecked()
+      await expect.element(agentChoice(welcome(), "Codex")).toBeChecked()
+      await expect.element(agentChoice(welcome(), "Antigravity")).not.toBeChecked()
       await agentChoice(welcome(), "Codex").click()
       await welcome().getByRole("button", { name: "Let’s build something" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferences()
       await expect
-        .element(agentSwitch(preferencesDialog(), "Codex"))
+        .element(agentSwitch(preferencesDialog(), "Claude Code"))
         .toHaveAttribute("aria-checked", "true")
+      await expect
+        .element(agentSwitch(preferencesDialog(), "Codex"))
+        .toHaveAttribute("aria-checked", "false")
     })
 
     it("discards its choices when dismissed", async () => {
-      await openWorkspace("/?demo=onboarding")
+      await openWorkspace("/?demo=welcome")
       await expect.element(welcome()).toBeVisible()
-      await agentChoice(welcome(), "Codex").click()
+      await expect.element(agentChoice(welcome(), "Codex")).toBeChecked()
       await userEvent.keyboard("{Escape}")
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferences()
@@ -91,14 +97,39 @@ describe("Connecting agents", () => {
     })
 
     it("skips setup without connecting selected agents", async () => {
-      await openWorkspace("/?demo=onboarding")
-      await agentChoice(welcome(), "Claude Code").click()
+      await openWorkspace("/?demo=welcome")
+      await expect.element(agentChoice(welcome(), "Claude Code")).toBeChecked()
       await welcome().getByRole("button", { name: "Skip for now" }).click()
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferences()
       await expect
         .element(agentSwitch(preferencesDialog(), "Claude Code"))
         .toHaveAttribute("aria-checked", "false")
+    })
+
+    it("keeps transcripts on unless turned off and started", async () => {
+      await openWorkspace("/?demo=welcome")
+      const choice = welcome().getByRole("checkbox", { name: "Transcripts" })
+      await expect.element(choice).toBeChecked()
+      await expect.element(choice).toHaveAccessibleDescription(/secrets/)
+      await choice.click()
+      await welcome().getByRole("button", { name: "Let’s build something" }).click()
+      await expect.element(welcome()).not.toBeInTheDocument()
+      await openPreferences()
+      await expect
+        .element(preferencesDialog().getByRole("switch", { name: "Transcripts" }))
+        .toHaveAttribute("aria-checked", "false")
+    })
+
+    it("leaves transcripts as they were when skipped", async () => {
+      await openWorkspace("/?demo=welcome")
+      await welcome().getByRole("checkbox", { name: "Transcripts" }).click()
+      await welcome().getByRole("button", { name: "Skip for now" }).click()
+      await expect.element(welcome()).not.toBeInTheDocument()
+      await openPreferences()
+      await expect
+        .element(preferencesDialog().getByRole("switch", { name: "Transcripts" }))
+        .toHaveAttribute("aria-checked", "true")
     })
   })
 

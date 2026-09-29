@@ -1,11 +1,11 @@
 import { describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
-import { endingText, terminalEnding } from "./terminal-ending"
+import { endingText, terminalEnding, terminalPhase } from "./terminal-ending"
 
 const terminal = terminalFixture(1, "~/project")
 
 describe("terminal ending", () => {
-  it("names the exit code of a shell that exited, in honey", () => {
+  it("names the exit code of a shell that exited, as a warning", () => {
     const ending = terminalEnding({ ...terminal, state: "exited", exitCode: 130, signal: null })
     expect(ending?.tone).toBe("warning")
     expect(ending && endingText(ending)).toBe("Exited · code 130")
@@ -16,7 +16,7 @@ describe("terminal ending", () => {
     expect(ending && endingText(ending)).toBe("Exited")
   })
 
-  it("names the signal that killed a shell, in rose", () => {
+  it("names the signal that killed a shell, as danger", () => {
     const ending = terminalEnding({
       ...terminal,
       state: "exited",
@@ -26,7 +26,7 @@ describe("terminal ending", () => {
     expect(ending).toEqual({ tone: "danger", status: "Killed", reason: "SIGKILL" })
   })
 
-  it("gives the reason a shell failed to start, in rose", () => {
+  it("gives the reason a shell failed to start, as danger", () => {
     const ending = terminalEnding({ ...terminal, state: "failed", message: "Folder not found" })
     expect(ending?.tone).toBe("danger")
     expect(ending && endingText(ending)).toBe("Failed to start · Folder not found")
@@ -40,5 +40,14 @@ describe("terminal ending", () => {
       null,
       null,
     ])
+  })
+
+  it("reads each state as a phase for tabs and windows", () => {
+    expect(terminalPhase({ ...terminal, state: "starting" })).toBe("starting")
+    expect(terminalPhase({ ...terminal, state: "idle" })).toBe("idle")
+    expect(terminalPhase({ ...terminal, state: "running" })).toBe("running")
+    expect(terminalPhase({ ...terminal, state: "finished" })).toBe("idle")
+    expect(terminalPhase({ ...terminal, state: "exited", exitCode: 1, signal: null })).toBe("ended")
+    expect(terminalPhase({ ...terminal, state: "failed", message: "" })).toBe("ended")
   })
 })

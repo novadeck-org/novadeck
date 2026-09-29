@@ -38,6 +38,8 @@ const waitForLayout = (id?: string): Promise<void> =>
     setTimeout(measure, 16)
   })
 
+const nextTick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+
 const transitionView = (update: () => void, id?: string, direction: 1 | -1 = 1): void => {
   const pending = active
   cancelTerminalTransition()
@@ -83,7 +85,10 @@ const transitionView = (update: () => void, id?: string, direction: 1 | -1 = 1):
   const transition = document.startViewTransition(async () => {
     if (version !== revision) return
     flushSync(update)
-    await waitForLayout(id)
+    // A terminal's flight needs its settled place; a view switch waits only one tick for
+    // the new view's own measuring, since the screen stays frozen until this resolves.
+    if (id) await waitForLayout(id)
+    else await nextTick()
     if (version === revision) markTerminal()
   })
   active = transition

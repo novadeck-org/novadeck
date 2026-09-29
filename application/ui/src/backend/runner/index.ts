@@ -123,7 +123,7 @@ export const connectRunnerBackend = async (
   progress("loading")
   try {
     const listing = await loadListing(runner, newId, Date.now)
-    const [{ transcripts, onboarded }, agents] = await Promise.all([
+    const [{ transcripts, welcomed }, agents] = await Promise.all([
       runner.settings.get(),
       runner.agents.list(),
     ])
@@ -145,7 +145,7 @@ export const connectRunnerBackend = async (
           debug,
           transcripts,
           agents,
-          onboarded,
+          welcomed,
         })
         created.push(next)
         return next.backend

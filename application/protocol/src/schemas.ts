@@ -119,7 +119,7 @@ export const runnerSettings = z.strictObject({
   // Whether each terminal's screen is kept on disk, to show again when it restores.
   transcripts: z.boolean(),
   // Whether the person has seen the first-run choice of agents to connect.
-  onboarded: z.boolean(),
+  welcomed: z.boolean(),
 })
 
 export type Project = z.infer<typeof project>

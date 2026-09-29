@@ -4,7 +4,7 @@ export const sidebarListClasses =
   "sidebar-list mt-2.5 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-3"
 
 const sidebarItemClasses =
-  "sidebar-item relative flex min-h-17 min-w-0 shrink-0 rounded-control border border-transparent text-ink transition-[background-color,border-color,box-shadow] duration-(--motion-feedback) ease-interface hover:bg-soft focus-within:bg-soft data-[selected=true]:border-line data-[selected=true]:bg-paper data-[selected=true]:shadow-control [&.dragging]:z-50 [&.dragging]:border-line [&.dragging]:bg-paper [&.dragging]:shadow-control before:absolute before:top-2.5 before:bottom-2.5 before:-left-px before:w-0.5 before:rounded-control before:bg-strong before:opacity-0 before:content-[''] before:transition-opacity before:duration-(--motion-state) before:ease-interface data-[selected=true]:before:opacity-100"
+  "sidebar-item relative flex min-h-17 min-w-0 shrink-0 rounded-control border border-transparent text-ink transition-[background-color,border-color,box-shadow] duration-(--motion-feedback) ease-interface hover:bg-soft focus-within:bg-soft data-[selected=true]:border-line data-[selected=true]:bg-paper data-[selected=true]:shadow-control [&.dragging]:z-50 [&.dragging]:border-line [&.dragging]:bg-paper [&.dragging]:shadow-control before:absolute before:top-1/4 before:bottom-1/4 before:left-0 before:w-0.5 before:bg-strong before:opacity-0 before:content-[''] before:transition-opacity before:duration-(--motion-state) before:ease-interface data-[selected=true]:before:opacity-100"
 
 export const SidebarItem = ({
   name,

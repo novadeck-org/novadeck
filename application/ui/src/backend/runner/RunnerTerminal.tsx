@@ -38,12 +38,19 @@ const themeOf = (element: Element): ITheme => {
   const style = getComputedStyle(element)
   const background = token(style, "--color-paper")
   const foreground = token(style, "--color-ink")
-  const selection = token(style, "--color-line-strong")
+  const selection = token(style, "--color-selection")
+  // The scrollbar matches the app's own: a line-grey thumb that darkens when used.
+  const slider = token(style, "--color-line")
+  const sliderHover = token(style, "--color-line-strong")
+  const sliderActive = token(style, "--color-muted")
   return {
     ...(background ? { background } : {}),
     ...(foreground ? { foreground, cursor: foreground } : {}),
     ...(background ? { cursorAccent: background } : {}),
     ...(selection ? { selectionBackground: selection } : {}),
+    ...(slider ? { scrollbarSliderBackground: slider } : {}),
+    ...(sliderHover ? { scrollbarSliderHoverBackground: sliderHover } : {}),
+    ...(sliderActive ? { scrollbarSliderActiveBackground: sliderActive } : {}),
   }
 }
 
@@ -66,14 +73,6 @@ const LockNotice = ({ notice }: { readonly notice: string }): React.JSX.Element 
   </span>
 )
 
-// Whole class strings, so Tailwind finds them: the footer's tints, a top border of the
-// same hue, and a focus ring in it.
-const endingTones: Record<TerminalEnding["tone"], string> = {
-  danger: "border-danger-fg/20 bg-danger text-danger-fg [--ending-ring:var(--color-danger-fg)]",
-  warning:
-    "border-warning-fg/20 bg-warning text-warning-fg [--ending-ring:var(--color-warning-fg)]",
-}
-
 // How the shell ended, along the surface's bottom edge, with the restart Enter also
 // asks for. In Canvas its right end follows the resize grip's scale so the button stays
 // clear of it (runner.css). Restart waits while typing is paused, as a restart then
@@ -94,29 +93,27 @@ const EndingBar = ({
   if (ending && (ending.tone !== shown?.tone || endingText(ending) !== text)) setShown(ending)
   return (
     <div
-      className={`runner-ending absolute inset-x-0 bottom-0 flex h-7 items-center justify-between gap-3 border-t pr-6 pl-3 text-[10px] transition-[opacity,translate] duration-(--motion-state) ease-interface ${shown ? endingTones[shown.tone] : ""} ${ending ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}
+      className={`runner-ending absolute inset-x-0 bottom-0 flex h-7 items-center justify-between gap-3 border-t border-line bg-shell pr-6 pl-3 text-[11px] text-ink transition-[opacity,translate] duration-(--motion-state) ease-interface ${ending ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}
       inert={!ending}
       data-terminal-ending={ending?.tone}
     >
-      <span
-        className="min-w-0 truncate font-bold tracking-wider uppercase"
-        title={text || undefined}
-      >
-        {text}
+      <span className="min-w-0 truncate" title={text || undefined}>
+        <span className="font-medium">{shown?.status}</span>
+        {shown?.reason && <span className="text-muted"> · {shown.reason}</span>}
       </span>
       {shown && (
         <button
           type="button"
           aria-disabled={paused || undefined}
-          className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-control px-1.5 py-0.5 font-bold tracking-wider uppercase underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--ending-ring) aria-disabled:cursor-default aria-disabled:no-underline aria-disabled:opacity-50"
+          className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-control px-1.5 py-0.5 font-medium hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-strong aria-disabled:cursor-default aria-disabled:bg-transparent aria-disabled:opacity-50"
           onClick={() => {
             if (!paused) onRestart()
           }}
         >
           Restart
-          <span aria-hidden className="font-normal opacity-60">
+          <kbd aria-hidden className="min-h-4 border-line bg-paper px-1 text-[9px] text-muted">
             ↵
-          </span>
+          </kbd>
         </button>
       )}
     </div>

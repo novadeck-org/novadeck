@@ -135,7 +135,7 @@ export const scripted = ({
       { agent: "claude", available: true, connected: false },
       { agent: "agy", available: false, connected: false },
     ],
-    onboarded: false,
+    welcomed: false,
   })
   created.backend.commit(
     workspaceFromSeed(created.backend.seed, { view: "grid", windowedView: "grid", now: 1 }),

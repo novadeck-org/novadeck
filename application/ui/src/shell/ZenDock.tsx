@@ -78,7 +78,7 @@ export const ZenDock = ({
         <ChevronLeft size={12} className={open ? "rotate-180" : ""} />
       </button>
       <div className="zen-dock-reveal" inert={!open} aria-hidden={!open} id={controls}>
-        <div className="zen-dock-actions flex items-center gap-0.5">
+        <div className="zen-dock-actions flex min-w-0 items-center gap-0.5 overflow-hidden whitespace-nowrap">
           <div
             data-workspace-view-switch
             className="view-switch flex gap-0.5"

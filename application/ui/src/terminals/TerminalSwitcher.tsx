@@ -58,7 +58,7 @@ export const TerminalSwitcher = ({
         <header className="flex min-h-17 shrink-0 items-center gap-3 border-b border-line px-5 py-3 text-muted">
           <Layers size={16} className="shrink-0 text-muted" aria-hidden="true" />
           <div className="min-w-0 flex-1">
-            <h2 className="m-0 text-sm font-normal text-ink">Switch terminal</h2>
+            <h2 className="m-0 text-sm font-medium text-ink">Switch terminal</h2>
             <p className="m-0 mt-0.5 truncate text-[10px] text-muted">{project}</p>
           </div>
           <span className="shrink-0 font-mono text-[10px] text-muted">

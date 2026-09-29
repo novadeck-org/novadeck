@@ -23,8 +23,7 @@ const copyText = async (text: string): Promise<boolean> => {
   }
 }
 
-const primary =
-  "rounded-control border border-strong bg-strong px-3 py-1.5 text-[12px] text-white shadow-control transition-[opacity] duration-(--motion-feedback) hover:opacity-90"
+const primary = "small-button primary"
 const quiet =
   "rounded-control px-1.5 py-0.5 text-[11px] text-muted underline-offset-2 hover:text-ink hover:underline"
 

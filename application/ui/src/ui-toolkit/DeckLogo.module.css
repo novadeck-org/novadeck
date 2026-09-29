@@ -1,9 +1,4 @@
 /* The Deck mark and wordmark, and how they assemble on the boot splash. */
-.mark {
-  position: relative;
-  display: inline-block;
-  flex: none;
-}
 .card,
 .face {
   position: absolute;
@@ -15,17 +10,17 @@
 }
 .card {
   transform: translate(var(--ox), var(--oy));
-  box-shadow: inset 0 0 0 1px rgb(38 40 38 / 0.07);
+  box-shadow: inset 0 0 0 1px rgb(21 24 28 / 0.07);
 }
 .k1 {
   --ox: var(--k1);
   --oy: calc(var(--k1) * -1);
-  background: #d9ddd6;
+  background: #d7dade;
 }
 .k2 {
   --ox: var(--k2);
   --oy: calc(var(--k2) * -1);
-  background: #eaece8;
+  background: #eaecee;
 }
 .face {
   display: flex;
@@ -33,31 +28,16 @@
   justify-content: center;
   overflow: hidden;
   color: #fff;
-  background: linear-gradient(180deg, #3f443d, #30342e);
+  background: linear-gradient(180deg, #2b2f35, #15181c);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.08),
-    0 1px 2px rgb(38 40 38 / 0.12);
+    0 1px 2px rgb(21 24 28 / 0.12);
 }
 .large .face {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.08),
-    0 1px 2px rgb(38 40 38 / 0.12),
-    0 16px 32px -16px rgb(38 40 38 / 0.5);
-}
-.glyph {
-  position: relative;
-  z-index: 1;
-  width: 64%;
-  height: 64%;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  overflow: visible;
-}
-.cursor {
-  stroke: var(--color-accent);
+    0 1px 2px rgb(21 24 28 / 0.12),
+    0 16px 32px -16px rgb(21 24 28 / 0.5);
 }
 .scan {
   position: absolute;
@@ -65,27 +45,7 @@
   height: 16px;
   z-index: 2;
   opacity: 0;
-  background: linear-gradient(
-    transparent,
-    color-mix(in srgb, var(--color-accent) 45%, transparent) 50%,
-    transparent
-  );
-}
-
-.word {
-  display: inline-flex;
-  align-items: baseline;
-  font-weight: 600;
-  color: var(--color-ink);
-}
-.word > span {
-  display: inline-block;
-}
-.nova {
-  font-weight: 400;
-}
-.dot {
-  color: var(--color-muted);
+  background: linear-gradient(transparent, rgb(255 255 255 / 0.3) 50%, transparent);
 }
 
 /* Assembling: the face pops in, the cards fan out, the prompt draws itself and the

@@ -45,7 +45,7 @@ export const SessionsPanel = ({
           aria-label="New session"
           onClick={onFresh}
         >
-          <Plus size={14} strokeWidth={1.65} className="shrink-0" />
+          <Plus size={14} className="shrink-0" />
           <span className="min-w-0 truncate">Session</span>
           <kbd className="mb-[-2px] ml-auto min-h-0 shrink-0 whitespace-nowrap border-0 bg-transparent p-0 text-[9px] text-muted opacity-70">
             {shortcut}

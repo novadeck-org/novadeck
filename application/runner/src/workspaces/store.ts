@@ -286,10 +286,10 @@ export class WorkspaceStore implements TerminalRecords {
       value: string
     }[]
     const saved = new Map(rows.map((row) => [row.key, row.value]))
-    // Transcripts are kept unless turned off; onboarding waits until seen.
+    // Transcripts are kept unless turned off; the welcome dialog waits until seen.
     return {
       transcripts: saved.get("transcripts") !== "false",
-      onboarded: saved.get("onboarded") === "true",
+      welcomed: saved.get("welcomed") === "true",
     }
   }
 

@@ -5,6 +5,16 @@
   background-color: transparent;
 }
 
+/* xterm draws its own scrollbar with a wide slider; thin it to the app's scrollbar
+   (one spacing unit, control radius) against the right edge. The track keeps its width
+   so the slider stays easy to grab. */
+.runner-terminal .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  left: auto !important;
+  right: 2px;
+  width: var(--spacing) !important;
+  border-radius: var(--radius-control);
+}
+
 /* Canvas scales its resize grip (28px, at the node's bottom-right corner) with
    --canvas-chrome-scale; the end-of-session bar keeps its Restart button clear of it. */
 .canvas-node .runner-ending {

@@ -13,11 +13,11 @@ const sampleAgents: readonly AgentConnection[] = [
 
 // A self-contained backend with sample projects and simulated terminals. It keeps no
 // transcripts and connects no agents, but its settings switch like the runner's.
-// `onboarding` offers the first-run choice of agents.
-export const demoBackend = (engine: DemoEngine, onboarding = false): Backend => {
+// `welcome` opens the first-run welcome dialog.
+export const demoBackend = (engine: DemoEngine, welcome = false): Backend => {
   const transcripts = createStore(true)
   const agents = createStore(sampleAgents)
-  const onboard = createStore(onboarding)
+  const welcomeOpen = createStore(welcome)
   return {
     seed: demoSeed(Date.now()),
     newTerminal: ({ number, directory }) => createMockTerminal(number, directory),
@@ -31,8 +31,8 @@ export const demoBackend = (engine: DemoEngine, onboarding = false): Backend => 
           list.map((item) => (item.agent === agent ? { ...item, connected } : item)),
         ),
       refresh: () => {},
-      onboarding: onboard,
-      finishOnboarding: () => onboard.update(() => false),
+      welcome: welcomeOpen,
+      finishWelcome: () => welcomeOpen.update(() => false),
     },
   }
 }
@@ -43,8 +43,7 @@ export const createDemoBackend: CreateBackend = () => {
   const engine = createDemoEngine()
   const backend = demoBackend(
     engine,
-    demo === "onboarding" ||
-      (import.meta.env.DEV && import.meta.env.VITE_ONBOARDING_PREVIEW === "true"),
+    demo === "welcome" || (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
   )
   return agents ? { ...backend, seed: demoSeed(Date.now(), true) } : backend
 }

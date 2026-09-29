@@ -4,19 +4,22 @@
 @import "@fontsource-variable/inter";
 
 @theme {
+  /* Graphite, one colour: a near-black with greys carrying a trace of blue. Black is
+     for primary actions, on states (filled buttons, switches, checkboxes), what is
+     selected, and focus rings; everything else stays grey. */
   --color-paper: #ffffff;
-  --color-shell: #f8f9f8;
-  --color-canvas: #f3f4f3;
-  --color-ink: #262826;
-  --color-muted: #6b7069;
-  --color-line: #e6e8e4;
-  --color-line-strong: #cdd2ca;
-  --color-scrim: rgb(38 40 38 / 0.18);
-  --color-soft: #eff1ed;
-  --color-strong: #373c35;
-  /* Signal cyan, the brand accent: for small marks only (the logo's cursor, the boot
-     hairline and attach flash), never for text. */
-  --color-accent: #12b0c4;
+  --color-shell: #f8f9fa;
+  --color-canvas: #f2f3f5;
+  --color-ink: #1a1d21;
+  --color-muted: #676c74;
+  --color-line: #e4e6e9;
+  --color-line-strong: #cdd1d6;
+  --color-scrim: rgb(21 24 28 / 0.18);
+  --color-soft: #eef0f2;
+  --color-strong: #15181c;
+  --color-strong-hover: #2b2f35;
+  /* Behind selected text, in the page and in terminals. */
+  --color-selection: #d6dbe1;
   /* Status colours: soft tints for surfaces such as the footer while the runner is
      away, each with a dark text colour of the same hue (every pair meets WCAG AA). */
   --color-success: #dcebdd;
@@ -30,10 +33,10 @@
   --radius-control: 2px;
   --radius-panel: 3px;
   --radius-popover: 4px;
-  --shadow-control: 0 1px 3px rgb(38 40 38 / 0.04);
-  --shadow-panel: 0 1px 2px rgb(38 40 38 / 0.025), 0 4px 12px -6px rgb(38 40 38 / 0.08);
-  --shadow-floating: 0 2px 5px -2px rgb(38 40 38 / 0.06), 0 10px 24px -12px rgb(38 40 38 / 0.16);
-  --shadow-modal: 0 2px 6px -2px rgb(38 40 38 / 0.05), 0 20px 60px -20px rgb(38 40 38 / 0.14);
+  --shadow-control: 0 1px 3px rgb(21 24 28 / 0.04);
+  --shadow-panel: 0 1px 2px rgb(21 24 28 / 0.025), 0 4px 12px -6px rgb(21 24 28 / 0.08);
+  --shadow-floating: 0 2px 5px -2px rgb(21 24 28 / 0.06), 0 10px 24px -12px rgb(21 24 28 / 0.16);
+  --shadow-modal: 0 2px 6px -2px rgb(21 24 28 / 0.05), 0 20px 60px -20px rgb(21 24 28 / 0.14);
   --motion-feedback: 120ms;
   --motion-state: 180ms;
   --motion-layout: 200ms;
@@ -95,7 +98,7 @@
     outline: none;
   }
   :focus-visible {
-    outline: 1px solid var(--color-muted);
+    outline: 2px solid var(--color-strong);
     outline-offset: 2px;
   }
   input:focus-visible,
@@ -115,14 +118,14 @@
     min-width: 0;
   }
   ::selection {
-    background: #dce1d8;
-    color: #20241e;
+    background: var(--color-selection);
+    color: var(--color-ink);
   }
 }
 
 .workspace-panels {
   --separator-border: var(--color-line);
-  --focus-border: var(--color-muted);
+  --focus-border: var(--color-strong);
   --sash-hover-size: 2px;
 }
 .workspace-panels .sidebar {
@@ -148,22 +151,18 @@
 }
 .sidebar-keyboard-resize:focus-visible {
   outline: none;
-  background: linear-gradient(var(--color-muted), var(--color-muted)) center / 2px 100% no-repeat;
-}
-.terminal-tab-action:focus-visible {
-  outline-offset: -2px;
-}
-.focus-stage .workspace-dots {
-  background-position: -8px -8px;
+  background: linear-gradient(var(--color-strong), var(--color-strong)) center / 2px 100% no-repeat;
 }
 .terminal-focused,
 .grid-terminal.selected .terminal-window,
 .canvas-node.selected .terminal-window {
   border-color: var(--color-line-strong);
 }
+/* The selection bar is one size in every view, centred on the header whatever its
+   height; Canvas scales it with the rest of the header chrome. */
 .terminal-heading::before {
   content: "";
-  @apply absolute left-0 top-3 bottom-3 z-1 w-0.5 bg-strong;
+  @apply absolute left-0 top-1/2 z-1 h-6 w-0.5 -translate-y-1/2 bg-strong;
   opacity: 0;
   transition: opacity var(--motion-state) var(--ease-interface);
 }
@@ -172,12 +171,146 @@
 .canvas-node.selected .terminal-heading::before {
   opacity: 1;
 }
+/* A terminal's phase. Its tab reads it as text: a braille spinner beside a running
+   program, as command-line tools show work, and a faint hatch once it has ended. Its
+   window reads it from a line under the header, legible at any Canvas zoom: a sweep
+   while a program runs, dots while the shell starts, dashes once it has ended, and
+   nothing while idle. Reduced motion holds the spinner and sweep still. */
+/* Each tab keeps a one-glyph slot before its program, so the text never shifts. Only
+   what needs a look is marked: a spinner while a program runs, a dot while the shell
+   starts, and a cross once it has ended; an idle tab leaves it blank. */
+.terminal-glyph::before {
+  content: "\00a0";
+}
+.terminal-tab[data-terminal-phase="starting"] .terminal-glyph {
+  color: var(--color-muted);
+}
+.terminal-tab[data-terminal-phase="starting"] .terminal-glyph::before {
+  content: "·";
+}
+.terminal-tab[data-terminal-phase="ended"] .terminal-glyph::before {
+  content: "×";
+}
+.terminal-tab[data-terminal-phase="running"] .terminal-glyph::before {
+  content: "⠋";
+  animation: terminal-spin 800ms steps(1) infinite;
+}
+@keyframes terminal-spin {
+  0% {
+    content: "⠋";
+  }
+  10% {
+    content: "⠙";
+  }
+  20% {
+    content: "⠹";
+  }
+  30% {
+    content: "⠸";
+  }
+  40% {
+    content: "⠼";
+  }
+  50% {
+    content: "⠴";
+  }
+  60% {
+    content: "⠦";
+  }
+  70% {
+    content: "⠧";
+  }
+  80% {
+    content: "⠇";
+  }
+  90% {
+    content: "⠏";
+  }
+}
+/* An ended terminal is hatched, in its tab and across its window; the window's hatch
+   lies over its output, which is drawn on an opaque canvas, and lets clicks through. */
+.terminal-tab[data-terminal-phase="ended"],
+.terminal-window[data-terminal-phase="ended"]::after {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    rgb(21 24 28 / 0.035) 6px 7px
+  );
+}
+.terminal-window[data-terminal-phase="ended"] {
+  position: relative;
+}
+.terminal-window[data-terminal-phase="ended"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.terminal-tab[data-terminal-phase="ended"] .sidebar-item-select strong,
+.terminal-tab[data-terminal-phase="ended"] .sidebar-item-icon {
+  color: var(--color-muted);
+}
+/* The state line is a border, like the header's hairline beneath it, so both snap to
+   the same device pixel at any display scale or Canvas zoom. */
+.terminal-heading::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  height: 0;
+  border-top: 1px solid transparent;
+  pointer-events: none;
+}
+@property --terminal-sweep {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: -35%;
+}
+.terminal-window[data-terminal-phase="running"] .terminal-heading::after {
+  border-image: linear-gradient(
+      to right,
+      var(--color-line) calc(var(--terminal-sweep) - 25%),
+      var(--color-strong) calc(var(--terminal-sweep) - 10%),
+      var(--color-strong) calc(var(--terminal-sweep) + 10%),
+      var(--color-line) calc(var(--terminal-sweep) + 25%)
+    )
+    1;
+  animation: terminal-sweep 2.2s var(--ease-interface) infinite;
+}
+.terminal-window[data-terminal-phase="starting"] .terminal-heading::after {
+  border-top-style: dotted;
+  border-top-color: var(--color-muted);
+  animation: terminal-pulse 1.2s ease-in-out infinite;
+}
+.terminal-window[data-terminal-phase="ended"] .terminal-heading::after {
+  border-top-style: dashed;
+  border-top-color: var(--color-strong);
+}
+.terminal-window[data-terminal-phase="ended"] .runner-terminal .xterm {
+  opacity: 0.55;
+}
+@keyframes terminal-sweep {
+  to {
+    --terminal-sweep: 135%;
+  }
+}
+@keyframes terminal-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .terminal-window[data-terminal-phase="running"] .terminal-heading::after {
+    border-image: none;
+    border-top-color: var(--color-strong);
+  }
+}
 .workspace-dots {
   background-image: radial-gradient(circle, var(--color-muted) 0.8px, transparent 0.8px);
   background-size: 24px 24px;
-}
-.context-menu-positioner {
-  z-index: 50 !important;
 }
 .grid-terminal {
   opacity: var(--terminal-idle-opacity);
@@ -446,11 +579,15 @@
   kbd {
     @apply inline-flex min-h-5 items-center justify-center rounded-control border border-line bg-shell px-1.5 font-mono text-[9px];
   }
+  /* The one button recipe: grey outline, or black when it is the primary action. */
   .small-button {
-    @apply flex h-9 items-center gap-2 rounded-control border border-line bg-paper px-4 text-[11px] shadow-control hover:bg-soft;
+    @apply flex h-9 items-center justify-center gap-2 rounded-control border border-line-strong bg-paper px-4 text-[11px] text-ink shadow-control hover:bg-soft;
   }
   .small-button.primary {
-    @apply border-strong bg-strong text-white hover:bg-ink;
+    @apply border-strong bg-strong text-white hover:border-strong-hover hover:bg-strong-hover;
+  }
+  .small-button:disabled {
+    @apply pointer-events-none opacity-50;
   }
 }
 
@@ -492,11 +629,6 @@
     grid-template-columns var(--motion-state) var(--ease-interface),
     opacity var(--motion-feedback) var(--ease-interface),
     visibility var(--motion-state);
-}
-.zen-dock-actions {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
 }
 .zen-dock[data-open="true"] .zen-dock-reveal {
   grid-template-columns: 1fr;

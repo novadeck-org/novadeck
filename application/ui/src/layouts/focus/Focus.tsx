@@ -34,8 +34,14 @@ export const Focus = ({
         if ((event.target as Element).closest("[data-terminal]")) onSelect(displayed)
       }}
     >
-      <div className="workspace-dots absolute inset-0 canvas-grid" aria-hidden="true" />
-      <div className="workspace-dots absolute inset-0 canvas-grid-spotlight" aria-hidden="true" />
+      <div
+        className="workspace-dots absolute inset-0 bg-position-[-8px_-8px] canvas-grid"
+        aria-hidden="true"
+      />
+      <div
+        className="workspace-dots absolute inset-0 bg-position-[-8px_-8px] canvas-grid-spotlight"
+        aria-hidden="true"
+      />
       {terminals
         .filter((terminal) => !removed[terminal.id])
         .map((terminal) => (

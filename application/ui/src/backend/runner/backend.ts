@@ -58,7 +58,7 @@ export type RunnerBackendOptions = {
   // The agents the runner can connect, and whether the person has seen the first-run
   // choice, as it said at startup; agents are not offered when absent.
   readonly agents?: readonly AgentIntegration[]
-  readonly onboarded?: boolean
+  readonly welcomed?: boolean
 }
 
 export type TerminalSize = { readonly cols: number; readonly rows: number }
@@ -236,7 +236,7 @@ export const runnerBackend = (
   const agents = createStore<readonly AgentConnection[]>(
     (options.agents ?? []).map((agent) => ({ ...agent, busy: false })),
   )
-  const onboarding = createStore(options.onboarded === false)
+  const welcome = createStore(options.welcomed === false)
   // Replaces one agent's entry, keeping the others.
   const updateAgent = (
     agent: AgentConnection["agent"],
@@ -907,10 +907,10 @@ export const runnerBackend = (
             state: agents,
             set: connectAgent,
             refresh: refreshAgents,
-            onboarding,
-            finishOnboarding: () => {
-              onboarding.update(() => false)
-              void track(runner.settings.set({ onboarded: true })).catch(() => {})
+            welcome,
+            finishWelcome: () => {
+              welcome.update(() => false)
+              void track(runner.settings.set({ welcomed: true })).catch(() => {})
             },
           },
         }
@@ -931,7 +931,7 @@ export const runnerBackend = (
               restarts: restarts.filter((time) => now() - time < restartWindowMs).length,
               terminals: entries.size,
             }),
-            showOnboarding: () => onboarding.update(() => true),
+            showWelcome: () => welcome.update(() => true),
           }),
         }
       : {}),

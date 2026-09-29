@@ -38,9 +38,9 @@ const contentSecurityPolicy = (): Plugin => {
 
 export default defineConfig({
   base: "./",
-  // The demo always previews onboarding; Vitest keeps explicit first-run fixtures.
+  // The demo always previews the welcome dialog; Vitest keeps explicit first-run fixtures.
   define: {
-    "import.meta.env.VITE_ONBOARDING_PREVIEW": JSON.stringify(
+    "import.meta.env.VITE_WELCOME_PREVIEW": JSON.stringify(
       process.env.VITEST === "true" ? "false" : "true",
     ),
   },

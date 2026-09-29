@@ -290,9 +290,9 @@ describe("saved terminals", () => {
 
   it("keep transcripts until they are turned off", ({ store }) => {
     const workspace = store()
-    expect(workspace.settings()).toEqual({ transcripts: true, onboarded: false })
+    expect(workspace.settings()).toEqual({ transcripts: true, welcomed: false })
     workspace.saveSettings({ transcripts: false })
-    workspace.saveSettings({ onboarded: true })
-    expect(workspace.settings()).toEqual({ transcripts: false, onboarded: true })
+    workspace.saveSettings({ welcomed: true })
+    expect(workspace.settings()).toEqual({ transcripts: false, welcomed: true })
   })
 })

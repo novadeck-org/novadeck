@@ -2,18 +2,15 @@ import { useSortable } from "@dnd-kit/react/sortable"
 import { Check, Eye, EyeOff, Pencil, X } from "lucide-react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
-import { endingText, terminalEnding } from "../model/terminal-ending"
+import { endingText, terminalEnding, terminalPhase } from "../model/terminal-ending"
 import type { TerminalMetadata } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { terminalProfile } from "./processes/profiles"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 
-// Whole class strings, so Tailwind finds them.
-const endingDots = { danger: "bg-danger-fg", warning: "bg-warning-fg" } as const
-
 const actionClasses =
-  "terminal-tab-action flex size-6 shrink-0 items-center justify-center rounded-control p-1.5 text-muted hover:bg-soft hover:text-ink [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100 focus-visible:[&>svg]:opacity-100"
+  "terminal-tab-action flex size-6 shrink-0 items-center justify-center rounded-control p-1.5 text-muted hover:bg-soft hover:text-ink [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100 focus-visible:outline-offset-[-2px] focus-visible:[&>svg]:opacity-100"
 
 export const TerminalTab = ({
   terminal,
@@ -45,8 +42,10 @@ export const TerminalTab = ({
   const editing = Boolean(rename)
   const Icon = terminalProfile(terminal).icon
   const icon = <Icon size={14} strokeWidth={1.5} />
-  // A shell that ended shows a dot in its tone; the words go to assistive technology
-  // and the tooltip.
+  // The detail line shows the phase: a glyph (a spinner while a program runs) beside
+  // the program, or a note while the shell starts. A tab that has ended is hatched (styles.css); the
+  // tooltip and assistive technology say how it ended.
+  const phase = terminalPhase(terminal)
   const ending = terminalEnding(terminal)
   const ended = ending ? endingText(ending) : undefined
   const { ref, handleRef, isDragSource } = useSortable({
@@ -64,14 +63,20 @@ export const TerminalTab = ({
         icon={icon}
         detail={
           <>
-            {ending && (
+            {/* One glyph wide in every phase, so the text beside it never shifts. */}
+            <span
+              aria-hidden
+              className="terminal-glyph inline-block w-[1ch] shrink-0 text-center font-mono text-ink"
+            />
+            {phase === "starting" ? (
+              <span className="terminal-tab-starting truncate font-mono italic">starting…</span>
+            ) : (
               <span
-                aria-hidden
-                data-terminal-ending={ending.tone}
-                className={`size-1.5 shrink-0 rounded-full ${endingDots[ending.tone]}`}
-              />
+                className={`terminal-tab-process truncate font-mono ${phase === "running" ? "text-ink" : ""}`}
+              >
+                {terminal.process}
+              </span>
             )}
-            <span className="terminal-tab-process truncate font-mono">{terminal.process}</span>
           </>
         }
         selected={selected}
@@ -80,6 +85,7 @@ export const TerminalTab = ({
         {...(ended ? { description: ended } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
+        data-terminal-phase={phase}
         data-terminal-hidden={hidden}
 
         className={`terminal-tab [--sidebar-actions-space:76px] ${hidden ? "[&_.sidebar-item-select]:opacity-50" : ""} ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}

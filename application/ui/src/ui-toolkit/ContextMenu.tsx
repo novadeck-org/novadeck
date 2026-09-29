@@ -21,7 +21,7 @@ export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.
     <ArkMenu.Root positioning={{ strategy: "fixed", overflowPadding: 12 }} immediate>
       <ArkMenu.ContextTrigger asChild>{trigger}</ArkMenu.ContextTrigger>
       <Portal>
-        <ArkMenu.Positioner className="context-menu-positioner">
+        <ArkMenu.Positioner className="context-menu-positioner z-50!">
           <ArkMenu.Content
             aria-labelledby={labelId}
             className="min-w-40 rounded-popover border border-line bg-paper p-1 text-[11px] text-ink shadow-floating focus-visible:outline-none"

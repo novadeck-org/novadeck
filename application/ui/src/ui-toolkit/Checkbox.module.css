@@ -1,0 +1,9 @@
+/* The check draws itself in as the box fills. */
+.check path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: stroke-dashoffset 220ms var(--ease-interface);
+}
+:global(.peer):checked ~ .check path {
+  stroke-dashoffset: 0;
+}

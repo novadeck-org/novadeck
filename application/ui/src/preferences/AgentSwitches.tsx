@@ -1,4 +1,5 @@
 import { Switch } from "../ui-toolkit/Switch"
+import { settingRowClasses, settingsCardClasses } from "./settings"
 
 // An agent the person can connect, as its switch shows it.
 export type AgentSwitch = {
@@ -15,11 +16,17 @@ export const agentLabels: Record<AgentSwitch["agent"], string> = {
   agy: "Antigravity",
 }
 
-const note = ({ available, connected, busy, error }: AgentSwitch): string => {
+// Only a state worth knowing gets a note; the switch already shows on or off.
+export const agentNote = ({
+  available,
+  connected,
+  busy,
+  error,
+}: AgentSwitch): string | undefined => {
   if (busy) return connected ? "Disconnecting…" : "Connecting…"
   if (error) return error
-  if (!available) return "Not installed on this computer"
-  return connected ? "Connected: sessions resume after a restart" : "Not connected"
+  if (!available) return "Not installed"
+  return undefined
 }
 
 // One switch per agent: on installs NovaDeck's plugin into it, off removes it. An agent
@@ -31,32 +38,40 @@ export const AgentSwitches = ({
   readonly agents: readonly AgentSwitch[]
   readonly onChange: (agent: AgentSwitch["agent"], connected: boolean) => void
 }): React.JSX.Element => (
-  <ul className="m-0 list-none p-0" aria-label="Agents">
+  <ul className={`m-0 list-none p-0 ${settingsCardClasses}`} aria-label="Agents">
     {agents.map((item) => {
       const label = agentLabels[item.agent]
+      const note = agentNote(item)
       return (
-        <li
-          key={item.agent}
-          className="flex min-h-[52px] items-center justify-between gap-4 border-b border-line text-[12px] text-ink"
-        >
+        <li key={item.agent} className={settingRowClasses}>
           <div className="flex min-w-0 flex-col gap-1">
             <span id={`agent-${item.agent}`}>{label}</span>
-            <span
-              id={`agent-${item.agent}-note`}
-              className={`text-[10px] leading-relaxed ${item.error ? "text-ink" : "text-muted"}`}
-              role={item.error ? "alert" : undefined}
-            >
-              {note(item)}
-            </span>
+            {note && item.error && (
+              <span
+                id={`agent-${item.agent}-note`}
+                className="text-[11px] leading-relaxed text-danger-fg"
+                role="alert"
+              >
+                {note}
+              </span>
+            )}
           </div>
-          <Switch
-            checked={item.connected}
-            onChange={(connected) => onChange(item.agent, connected)}
-            labelledBy={`agent-${item.agent}`}
-            describedBy={`agent-${item.agent}-note`}
-            disabled={!item.available || item.busy}
-            busy={item.busy}
-          />
+          {/* A short state sits beside the switch, so the row keeps its height. */}
+          <div className="flex shrink-0 items-center gap-3">
+            {note && !item.error && (
+              <span id={`agent-${item.agent}-note`} className="text-[11px] text-muted">
+                {note}
+              </span>
+            )}
+            <Switch
+              checked={item.connected}
+              onChange={(connected) => onChange(item.agent, connected)}
+              labelledBy={`agent-${item.agent}`}
+              {...(note ? { describedBy: `agent-${item.agent}-note` } : {})}
+              disabled={!item.available || item.busy}
+              busy={item.busy}
+            />
+          </div>
         </li>
       )
     })}
@@ -65,4 +80,4 @@ export const AgentSwitches = ({
 
 // What connecting means, shown above the switches.
 export const agentsExplanation =
-  "Connect an agent to resume its session in the same terminal after a restart. NovaDeck installs a small plugin into the agent, which does nothing outside NovaDeck; switching it off removes the plugin."
+  "Unlock NovaDeck features inside your coding agents, like resuming sessions after a restart. Connecting adds a small plugin; switching it off removes it."

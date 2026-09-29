@@ -69,18 +69,13 @@ export const ConfirmDialog = <Subject,>({
         {shown === null ? null : description(shown)}
       </DialogDescription>
       <div className="mt-3 flex justify-end gap-2">
-        <button
-          ref={cancel}
-          type="button"
-          className="rounded-control border border-line-strong bg-paper px-3 py-1.5 text-[12px] text-ink shadow-control transition-[background] duration-(--motion-feedback) hover:bg-soft"
-          onClick={onCancel}
-        >
+        <button ref={cancel} type="button" className="small-button" onClick={onCancel}>
           {cancelLabel}
         </button>
         <button
           ref={confirm}
           type="button"
-          className="rounded-control border border-strong bg-strong px-3 py-1.5 text-[12px] text-white shadow-control transition-[opacity] duration-(--motion-feedback) hover:opacity-90"
+          className="small-button primary"
           onClick={() => {
             confirmed.current = true
             onConfirm()

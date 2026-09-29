@@ -115,10 +115,10 @@ agent.
   touches your rc files.
 - **Connecting agents.** The first-run welcome dialog includes an interactive preview
   of Focus, Grid, and Canvas, which shows each layout once until you pick one (never with
-  reduced motion), plus optional agent choices, all off initially. A chosen agent's
-  preview terminal shows it connected.
+  reduced motion), plus a choice of agents, with every installed one chosen, and of
+  transcripts, on. A chosen agent's preview terminal shows it connected.
   “Let’s build something” applies those choices; skipping, Escape, or clicking outside
-  dismisses the dialog without connecting agents. The preview is illustrative and
+  dismisses the dialog without connecting agents or changing transcripts. The preview is illustrative and
   starts no terminals. Preferences offers the same agents as immediate switches;
   an agent that is not installed cannot be selected. Connecting installs a small NovaDeck plugin into
   it with the agent's own plugin commands (`claude plugin`, `codex plugin`,

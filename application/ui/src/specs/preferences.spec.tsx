@@ -54,7 +54,7 @@ const outputTextSize = (): number =>
   )
 
 const transcriptsSwitch = (): Locator =>
-  preferencesDialog().getByRole("switch", { name: "Terminal transcripts" })
+  preferencesDialog().getByRole("switch", { name: "Transcripts" })
 
 describe("Preferences", () => {
   context("when choosing whether terminals keep transcripts", () => {
@@ -85,7 +85,7 @@ describe("Preferences", () => {
         .toHaveTextContent("Monochrome")
       await expect.element(general.getByRole("switch", { name: "Dark mode" })).toBeDisabled()
       await expect
-        .element(general.getByRole("combobox", { name: "Terminal text size" }))
+        .element(general.getByRole("combobox", { name: "Text size" }))
         .toHaveTextContent("13px")
       await expect.element(viewModeChoice("Focus")).toBeChecked()
       await expect.element(viewModeChoice("Grid")).toBeChecked()
@@ -245,10 +245,10 @@ describe("terminal text size preference", () => {
       const initial = outputTextSize()
       await openPreferences()
 
-      await preferencesDialog().getByRole("combobox", { name: "Terminal text size" }).click()
+      await preferencesDialog().getByRole("combobox", { name: "Text size" }).click()
       await preferencesDialog().getByRole("option", { name: "15px" }).click()
       await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Terminal text size" }))
+        .element(preferencesDialog().getByRole("combobox", { name: "Text size" }))
         .toHaveTextContent("15px")
       await closePreferences()
 
@@ -258,7 +258,7 @@ describe("terminal text size preference", () => {
       await expect.poll(outputTextSize).toBeGreaterThan(initial)
       await openPreferences()
       await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Terminal text size" }))
+        .element(preferencesDialog().getByRole("combobox", { name: "Text size" }))
         .toHaveTextContent("15px")
     })
   })

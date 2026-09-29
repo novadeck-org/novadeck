@@ -114,8 +114,8 @@ export type Backend = {
     // Looks again at which agents are installed and connected.
     readonly refresh: () => void
     // Whether to offer connecting them when the app opens for the first time.
-    readonly onboarding: Store<boolean>
-    readonly finishOnboarding: () => void
+    readonly welcome: Store<boolean>
+    readonly finishWelcome: () => void
   }
   // Optional. Asks the person for a folder to open as a project; null when cancelled.
   // Absent where the backend cannot offer one.

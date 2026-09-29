@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
 import { ClaudeIcon } from "../ui-toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "../ui-toolkit/icons/CodexIcon"
 
-import styles from "./OnboardingPreview.module.css"
+import styles from "./WelcomePreview.module.css"
 
 const views = [
   {
@@ -40,10 +40,21 @@ type Line = {
   readonly kind: "prompt" | "response" | "check"
 }
 
+const lineClasses: Record<Line["kind"], string> = {
+  prompt: "text-ink",
+  response: "text-muted",
+  check: "flex items-center gap-[5px] text-muted",
+}
+
+// Each terminal card's title bar and output; the stage's layout rules restyle the output.
+const barClasses =
+  "flex h-7 items-center gap-1.5 border-b border-line bg-shell px-[9px] text-[8px] whitespace-nowrap text-ink"
+const codeClasses = `${styles.code} flex flex-col gap-[7px] p-3 font-mono text-[8px] leading-[1.4] whitespace-nowrap`
+
 // Each line types itself in after the terminals are dealt, `at` ms after opening.
 const TypedLine = ({ text, kind, at }: Line & { readonly at: number }): React.JSX.Element => (
   <span
-    className={`${styles.typed} ${styles[kind]}`}
+    className={`${styles.typed} w-fit ${lineClasses[kind]}`}
     style={
       { "--chars": text.length + (kind === "check" ? 2 : 0), "--at": `${at}ms` } as CSSProperties
     }
@@ -58,20 +69,27 @@ const typed = (lines: readonly Line[], from: number): React.JSX.Element[] =>
 
 // A connected agent's terminal says so, and plays a short scan the moment it connects.
 const Status = ({ connected }: { readonly connected?: boolean }): React.JSX.Element => (
-  <span className={styles.status} data-connected={connected === true || undefined}>
+  <span
+    className={`${styles.status} ml-auto flex items-center gap-1.5`}
+    data-connected={connected === true || undefined}
+  >
     {connected && (
-      <span className={styles.connected}>
+      <span
+        className={`${styles.connected} flex items-center gap-[3px] font-mono text-[7px] leading-[normal] tracking-[0.4px] text-muted`}
+      >
         <Plug size={7} strokeWidth={2.2} />
         connected
       </span>
     )}
-    <span className={styles.dot} />
+    <span
+      className={`${styles.dot} relative size-1 rounded-[50%] transition-[background-color] duration-(--motion-state) ease-interface ${connected ? "bg-strong" : "bg-line-strong"}`}
+    />
   </span>
 )
 
 const reducedMotion = (): boolean => window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
-export const OnboardingPreview = ({
+export const WelcomePreview = ({
   connected,
 }: {
   readonly connected: { readonly claude: boolean; readonly codex: boolean }
@@ -135,19 +153,19 @@ export const OnboardingPreview = ({
     >
       <div
         ref={stage}
-        className={styles.stage}
+        className={`${styles.stage} relative isolate h-[236px] overflow-hidden rounded-panel border border-line bg-canvas shadow-[inset_0_1px_2px_rgb(21_24_28/0.04)]`}
         data-view={view.id}
         aria-hidden="true"
         onPointerMove={follow}
         onPointerLeave={settle}
       >
         <div className={`${styles.terminal} ${styles.agent}`}>
-          <div className={styles.bar}>
+          <div className={barClasses}>
             <ClaudeIcon size={13} />
             <span>Build something great</span>
             <Status connected={connected.claude} />
           </div>
-          <div className={styles.code}>
+          <div className={codeClasses}>
             {typed(
               [
                 { text: "❯ Let’s bring this idea to life.", kind: "prompt" },
@@ -157,19 +175,19 @@ export const OnboardingPreview = ({
               ],
               1300,
             )}
-            <span className={styles.cursor}>
-              ❯ <i />
+            <span className={`${styles.cursor} flex items-center gap-1.5 text-ink`}>
+              ❯ <i className="block h-[9px] w-1 bg-strong" />
             </span>
           </div>
           {connected.claude && <i className={styles.scan} />}
         </div>
         <div className={`${styles.terminal} ${styles.review}`}>
-          <div className={styles.bar}>
+          <div className={barClasses}>
             <CodexIcon size={13} />
             <span>A fresh perspective</span>
             <Status connected={connected.codex} />
           </div>
-          <div className={styles.code}>
+          <div className={codeClasses}>
             {typed(
               [
                 { text: "❯ Review the changes", kind: "prompt" },
@@ -182,12 +200,12 @@ export const OnboardingPreview = ({
           {connected.codex && <i className={styles.scan} />}
         </div>
         <div className={`${styles.terminal} ${styles.server}`}>
-          <div className={styles.bar}>
+          <div className={barClasses}>
             <Terminal size={13} />
             <span>Dev server</span>
             <Status />
           </div>
-          <div className={styles.code}>
+          <div className={codeClasses}>
             {typed(
               [
                 { text: "$ pnpm dev", kind: "prompt" },
@@ -198,7 +216,9 @@ export const OnboardingPreview = ({
             )}
           </div>
         </div>
-        <div className={styles.scale}>
+        <div
+          className={`${styles.scale} absolute bottom-[9px] left-3 flex gap-3 font-mono text-[8px] leading-[normal] text-muted transition-opacity duration-(--motion-state) ease-interface`}
+        >
           − <span>{view.id === "canvas" ? "75%" : "100%"}</span> +
         </div>
       </div>
@@ -225,7 +245,7 @@ export const OnboardingPreview = ({
               {active && touring && step >= 0 && !held && (
                 <span
                   key={step}
-                  className={styles.progress}
+                  className={`${styles.progress} absolute right-2 bottom-0 left-2 h-px origin-left bg-strong`}
                   style={{ "--step": `${tourStep}ms` } as CSSProperties}
                   aria-hidden="true"
                 />
@@ -241,7 +261,7 @@ export const OnboardingPreview = ({
         aria-live={touring ? "off" : "polite"}
         aria-atomic="true"
       >
-        <p key={view.id} className={`m-0 text-[12px] text-muted ${styles.caption}`}>
+        <p key={view.id} className={`m-0 text-[12px] text-balance text-muted ${styles.caption}`}>
           {view.caption}
         </p>
       </div>

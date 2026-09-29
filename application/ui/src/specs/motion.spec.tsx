@@ -12,11 +12,19 @@ import {
 } from "./support/workspace"
 
 // This project uses ordinary motion: the main behavior suite opts out of animations.
+// Transitions finish; a running terminal's spinner and header sweep loop for as long as
+// it runs, so they never count.
 const animationsFinished = async (): Promise<void> => {
   await expect
     .poll(
       () =>
-        document.getAnimations().filter((animation) => animation.playState === "running").length,
+        document
+          .getAnimations()
+          .filter(
+            (animation) =>
+              animation.playState === "running" &&
+              animation.effect?.getTiming().iterations !== Infinity,
+          ).length,
     )
     .toBe(0)
 }

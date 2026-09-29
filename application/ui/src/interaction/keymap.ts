@@ -301,21 +301,19 @@ export type ShortcutGroup = {
 export const shortcutGroups = (platform: Platform): readonly ShortcutGroup[] => [
   {
     title: "Workspace",
-    description:
-      "When navigating the workspace, outside text inputs, editors, and dialogs. Works with Zen on or off.",
+    description: "When you’re not typing in a terminal, field, or dialog.",
     items: [
       ...Object.values(workspaceShortcutBindings()),
       { label: "Previous / next terminal", display: ["↑", "↓"] },
       { label: "Previous / next view", display: ["←", "→"] },
       { label: "Deselect, then hide sidebar", display: ["Esc"] },
-      { label: "Zoom in / out · Canvas background", display: ["+", "−"] },
-      { label: "Fit all · Canvas background", display: ["0"] },
+      { label: "Zoom canvas in / out", display: ["+", "−"] },
+      { label: "Fit canvas to all terminals", display: ["0"] },
     ],
   },
   {
     title: "Anywhere",
-    description:
-      "Modifier shortcuts also work from terminal input. Editors and dialogs keep their own controls.",
+    description: "These also work while typing in a terminal.",
     items: Object.values(shortcutBindings(platform)),
   },
 ]

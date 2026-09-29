@@ -62,14 +62,14 @@ describe("the agent switches", () => {
     app.stop()
   })
 
-  it("offer onboarding until it is done, which the runner remembers", async () => {
+  it("offer the welcome dialog until it is done, which the runner remembers", async () => {
     const app = scripted({ shown: [] })
     const agents = app.backend.agents!
-    expect(agents.onboarding.getSnapshot()).toBe(true)
-    agents.finishOnboarding()
-    expect(agents.onboarding.getSnapshot()).toBe(false)
+    expect(agents.welcome.getSnapshot()).toBe(true)
+    agents.finishWelcome()
+    expect(agents.welcome.getSnapshot()).toBe(false)
     await app.idle()
-    expect(app.of("settings")).toEqual([{ onboarded: true }])
+    expect(app.of("settings")).toEqual([{ welcomed: true }])
     app.stop()
   })
 })

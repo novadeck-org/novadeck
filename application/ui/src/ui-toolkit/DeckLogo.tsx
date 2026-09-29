@@ -30,7 +30,7 @@ export const DeckMark = ({
     <span
       aria-hidden="true"
       className={cn(
-        styles.mark,
+        "relative inline-block flex-none",
         animated && styles.animated,
         size >= 64 && styles.large,
         className,
@@ -40,7 +40,12 @@ export const DeckMark = ({
       <span className={cn(styles.card, styles.k2)} />
       <span className={cn(styles.card, styles.k1)} />
       <span className={styles.face}>
-        <svg className={styles.glyph} viewBox="0 0 24 24">
+        <svg
+          className="relative z-1 size-[64%] overflow-visible fill-none stroke-current stroke-2"
+          viewBox="0 0 24 24"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <path className={styles.chevron} pathLength={1} d="m5 16.5 5.5-5.5-5.5-5.5" />
           <path className={styles.cursor} pathLength={1} d="M12.5 18.5h6.5" />
         </svg>
@@ -60,12 +65,20 @@ export const DeckWordmark = ({
   readonly className?: string | undefined
 }): React.JSX.Element => {
   const letters = [
-    ..."nova".split("").map((letter) => ({ letter, className: styles.nova })),
+    ..."nova".split("").map((letter) => ({ letter, className: "font-normal" })),
     ..."deck".split("").map((letter) => ({ letter, className: undefined })),
-    { letter: ".", className: styles.dot },
+    { letter: ".", className: "text-muted" },
   ]
   return (
-    <span className={cn(styles.word, animated && styles.animated, className)} aria-hidden="true">
+    <span
+      className={cn(
+        styles.word,
+        "inline-flex items-baseline font-semibold text-ink *:inline-block",
+        animated && styles.animated,
+        className,
+      )}
+      aria-hidden="true"
+    >
       {letters.map(({ letter, className: letterClass }, index) => (
         <span
           // The letters never reorder.
@@ -80,6 +93,9 @@ export const DeckWordmark = ({
     </span>
   )
 }
+
+const patternMask =
+  "linear-gradient(to right, transparent 10%, black 78%), radial-gradient(ellipse at 100% 0%, black 10%, transparent 72%)"
 
 // A quiet repeat of the layered terminal mark for branded backgrounds. It fades in
 // from the right so foreground content can keep a clean reading surface.
@@ -97,8 +113,12 @@ export const DeckPattern = ({
       viewBox="0 0 640 240"
       preserveAspectRatio="xMidYMid slice"
       style={{
-        maskImage: "linear-gradient(to right, transparent 10%, black 78%)",
-        WebkitMaskImage: "linear-gradient(to right, transparent 10%, black 78%)",
+        // Fades toward the left and away from the top-right corner, where the two
+        // gradients overlap, so the pattern has no hard edge beside the copy.
+        maskImage: patternMask,
+        WebkitMaskImage: patternMask,
+        maskComposite: "intersect",
+        WebkitMaskComposite: "source-in",
       }}
     >
       <defs>
@@ -142,7 +162,7 @@ export const DeckPattern = ({
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <path d="M39 57h9" fill="none" stroke="var(--color-accent)" strokeLinecap="round" />
+            <path d="M39 57h9" fill="none" stroke="currentColor" strokeLinecap="round" />
           </g>
         </pattern>
       </defs>

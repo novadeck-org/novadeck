@@ -18,6 +18,8 @@ export type SegmentGroupProps = {
   onValueChange: (value: string) => void
   className?: string
   itemClassName?: string
+  // The active item's look, drawn behind the items and sliding between them.
+  indicatorClassName?: string
 }
 
 export const SegmentGroup = ({
@@ -28,6 +30,7 @@ export const SegmentGroup = ({
   onValueChange,
   className,
   itemClassName,
+  indicatorClassName,
 }: SegmentGroupProps): React.JSX.Element => {
   const id = useId()
   const itemId = (item: string): string => `${id}:${item}`
@@ -37,7 +40,7 @@ export const SegmentGroup = ({
       ids={{ item: itemId }}
       orientation="horizontal"
       aria-label={label}
-      className={className}
+      className={cn("relative", className)}
       value={value}
       onValueChange={(details) => {
         if (details.value !== null) onValueChange(details.value)
@@ -49,9 +52,12 @@ export const SegmentGroup = ({
             id={itemId(item.value)}
             value={item.value}
             className={cn(
-              "relative cursor-pointer transition-[background-color,color,border-color] duration-(--motion-feedback) ease-interface data-focus-visible:outline data-focus-visible:outline-1 data-focus-visible:outline-muted data-focus-visible:outline-offset-2",
+              "relative z-1 cursor-pointer transition-[background-color,color,border-color] duration-(--motion-feedback) ease-interface data-focus-visible:outline data-focus-visible:outline-2 data-focus-visible:outline-strong data-focus-visible:outline-offset-2",
               itemClassName,
-              value === item.value && "active border-line bg-paper text-ink shadow-control",
+              value === item.value &&
+                (indicatorClassName
+                  ? "active bg-transparent text-ink hover:bg-transparent"
+                  : "active border-line bg-paper text-ink shadow-control"),
             )}
           >
             {item.icon}
@@ -61,6 +67,14 @@ export const SegmentGroup = ({
           </ArkSegmentGroup.Item>
         </Tooltip>
       ))}
+      {indicatorClassName && (
+        <ArkSegmentGroup.Indicator
+          className={cn(
+            "pointer-events-none top-(--top) z-0 h-(--height) w-(--width) [--transition-duration:var(--motion-state)] [--transition-timing-function:var(--ease-interface)]",
+            indicatorClassName,
+          )}
+        />
+      )}
     </ArkSegmentGroup.Root>
   )
 }

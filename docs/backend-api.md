@@ -442,7 +442,7 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   waits), falling back to `~/.claude/local/claude` for Claude Code's local install; on
   Windows they run through cmd. It answers where the agent stands after, or rejects with
   `AGENT_SETUP_FAILED` saying why.
-- `settings.get()` and `settings.set({ transcripts?, onboarded? })` read and change
+- `settings.get()` and `settings.set({ transcripts?, welcomed? })` read and change
   whether transcripts are kept (unless turned off; turning them off forgets every saved
   transcript) and whether the person has seen the first-run choice of agents.
 

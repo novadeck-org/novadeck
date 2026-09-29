@@ -5,7 +5,7 @@ import { terminalElement } from "../interaction/dom"
 import { orderedTerminals } from "../model/roster"
 import { activeProject } from "../model/state"
 import type { TerminalMetadata } from "../model/types"
-import { OnboardingDialog } from "../preferences/OnboardingDialog"
+import { WelcomeDialog } from "../preferences/WelcomeDialog"
 import { CrashLoopDialog } from "../shell/CrashLoopDialog"
 import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
 import { visibleSwitcher } from "../terminals/recent"
@@ -53,11 +53,11 @@ const useAgents = (agents: Backend["agents"]) => {
     agents?.state.subscribe ?? always,
     () => agents?.state.getSnapshot() ?? noAgents,
   )
-  const onboarding = useSyncExternalStore(
-    agents?.onboarding.subscribe ?? always,
-    () => agents?.onboarding.getSnapshot() ?? false,
+  const welcome = useSyncExternalStore(
+    agents?.welcome.subscribe ?? always,
+    () => agents?.welcome.getSnapshot() ?? false,
   )
-  return { list, onboarding }
+  return { list, welcome }
 }
 
 // Dialogs and the terminal switcher, above the workspace.
@@ -104,11 +104,12 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   return (
     <>
       {backend.agents && (
-        <OnboardingDialog
-          open={agents.onboarding}
+        <WelcomeDialog
+          open={agents.welcome}
           agents={agents.list}
           onChange={backend.agents.set}
-          onDone={backend.agents.finishOnboarding}
+          transcripts={transcripts}
+          onDone={backend.agents.finishWelcome}
         />
       )}
       <CrashLoopDialog

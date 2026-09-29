@@ -1,9 +1,6 @@
 @import "@xyflow/react/dist/base.css" layer(base);
 @reference "../../styles.css";
 
-.canvas-viewport {
-  touch-action: none;
-}
 .canvas-viewport .react-flow {
   --xy-background-color: transparent;
 }
@@ -49,6 +46,12 @@
 }
 .canvas-node .terminal-heading {
   height: calc(var(--canvas-header-height) * var(--canvas-chrome-scale));
+}
+/* The selection bar keeps its place in the header at any zoom, and its 2px width on
+   screen: the node is scaled by the zoom, which the chrome scale squared undoes. */
+.canvas-node .terminal-heading::before {
+  width: calc(2px * var(--canvas-chrome-scale) * var(--canvas-chrome-scale));
+  height: calc(24px * var(--canvas-chrome-scale));
 }
 .canvas-node .terminal-header {
   width: calc(100% / var(--canvas-chrome-scale));

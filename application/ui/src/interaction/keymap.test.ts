@@ -316,8 +316,8 @@ describe("keymap", () => {
         "Previous / next terminal: ↑ ↓",
         "Previous / next view: ← →",
         "Deselect, then hide sidebar: Esc",
-        "Zoom in / out · Canvas background: + −",
-        "Fit all · Canvas background: 0",
+        "Zoom canvas in / out: + −",
+        "Fit canvas to all terminals: 0",
       ]
       expect(rows("other")).toEqual([
         workspace,
@@ -350,8 +350,8 @@ describe("keymap", () => {
         ],
       ])
       expect(shortcutGroups("mac").map(({ description }) => description)).toEqual([
-        "When navigating the workspace, outside text inputs, editors, and dialogs. Works with Zen on or off.",
-        "Modifier shortcuts also work from terminal input. Editors and dialogs keep their own controls.",
+        "When you’re not typing in a terminal, field, or dialog.",
+        "These also work while typing in a terminal.",
       ])
     })
   })

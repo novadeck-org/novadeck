@@ -58,7 +58,7 @@ describe("the debug panel", () => {
     const { backend } = runnerBackend(runner, listing, {
       debug: debug(),
       agents: [],
-      onboarded: true,
+      welcomed: true,
     })
     const Panel = backend.DebugPanel!
     const app = render(
@@ -78,9 +78,9 @@ describe("the debug panel", () => {
     const button = [...app.container.querySelectorAll("button")].find((element) =>
       element.textContent?.startsWith("Welcome dialog"),
     )
-    expect(backend.agents?.onboarding.getSnapshot()).toBe(false)
+    expect(backend.agents?.welcome.getSnapshot()).toBe(false)
     act(() => button!.click())
-    expect(backend.agents?.onboarding.getSnapshot()).toBe(true)
+    expect(backend.agents?.welcome.getSnapshot()).toBe(true)
     app.unmount()
   })
 

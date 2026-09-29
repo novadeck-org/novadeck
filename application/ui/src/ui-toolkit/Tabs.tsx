@@ -20,8 +20,24 @@ export const Tabs = ({
   </ArkTabs.Root>
 )
 
-export const TabList = ({ label, ...props }: PartProps & { label: string }): React.JSX.Element => (
-  <ArkTabs.List aria-label={label} {...props} />
+// The indicator slides to the selected tab; give it its look with `indicatorClassName`.
+export const TabList = ({
+  label,
+  children,
+  className,
+  indicatorClassName,
+}: PartProps & { label: string; indicatorClassName?: string }): React.JSX.Element => (
+  <ArkTabs.List aria-label={label} className={cn("relative", className)}>
+    {children}
+    {indicatorClassName && (
+      <ArkTabs.Indicator
+        className={cn(
+          "pointer-events-none w-(--width) [--transition-duration:var(--motion-state)] [--transition-timing-function:var(--ease-interface)]",
+          indicatorClassName,
+        )}
+      />
+    )}
+  </ArkTabs.List>
 )
 
 export const Tab = (props: PartProps & { value: string }): React.JSX.Element => (

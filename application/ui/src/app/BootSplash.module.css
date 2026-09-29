@@ -1,156 +1,10 @@
 /* The boot splash (concept H, "Attach"): the lockup in the middle while the camera
    eases back over empty terminal slots that jack in one by one. Decorative apart from
-   the hairline and the status line, which follow real progress. */
-.splash {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  overflow: hidden;
-  background: var(--color-paper);
-  container-type: size;
-  user-select: none;
-  transition: opacity 400ms var(--ease-interface);
-}
-.leaving {
-  opacity: 0;
-  pointer-events: none;
-}
-.field {
-  position: absolute;
-  inset: 0;
-  transform-origin: 50% 50%;
-}
-.slot {
-  position: absolute;
-  border: 1px dashed var(--color-line-strong);
-  border-radius: 3px;
-}
-.terminal {
-  position: absolute;
-  inset: -1px;
-  display: flex;
-  flex-direction: column;
-  gap: 1.1cqh;
-  padding: 0 1.5cqmin;
-  border: 1px solid var(--color-line);
-  border-radius: 3px;
-  background: var(--color-paper);
-  box-shadow: var(--shadow-panel);
-}
-.head {
-  display: flex;
-  align-items: center;
-  height: 2.8cqh;
-  margin: 0 -1.5cqmin 0.4cqh;
-  padding: 0 1.5cqmin;
-  border-bottom: 1px solid var(--color-line);
-}
-.head i,
-.line {
-  display: block;
-  height: 0.8cqh;
-  border-radius: 1px;
-}
-.head i {
-  background: var(--color-line-strong);
-}
-.line {
-  background: var(--color-soft);
-}
-.command {
-  background: var(--color-line);
-}
-.cursor {
-  display: block;
-  width: 0.9cqh;
-  height: 1.5cqh;
-  background: var(--color-line-strong);
-}
-.flash {
-  position: absolute;
-  inset: -1px;
-  border: 1px solid var(--color-accent);
-  border-radius: 3px;
-  opacity: 0;
-}
+   the hairline and the status line, which follow real progress. The markup lays it
+   out; this file holds its motion and its failed state. */
 
-.hero {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 56px;
-  pointer-events: none;
-}
-.lockup {
-  display: flex;
-  align-items: center;
-  gap: 26px;
-}
-.text {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.word {
-  font-size: 52px;
-  line-height: 1;
-  letter-spacing: -0.045em;
-  overflow: hidden;
-  padding-block: 0.08em 0.12em;
-  margin-block: -0.08em -0.12em;
-}
-.tag {
-  padding-left: 3px;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--color-muted);
-}
-.status {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-.hairline {
-  position: relative;
-  width: 128px;
-  height: 1px;
-  overflow: hidden;
-  background: var(--color-line);
-}
-.hairline i {
-  position: absolute;
-  inset: 0;
-  background: var(--color-accent);
-  transform-origin: 0 50%;
-  transition: transform 300ms var(--ease-interface);
-}
 /* The phase line and a failure share one spot and cross-fade. The failure hangs down
    from that spot, so the lockup above never moves. */
-.lines {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  height: 18px;
-}
-.lines > * {
-  transition: opacity 300ms var(--ease-interface);
-}
-.failure {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: max-content;
-  max-width: min(360px, calc(100vw - 32px));
-  transform: translateX(-50%);
-  opacity: 0;
-  pointer-events: none;
-}
 .failed .phase {
   opacity: 0;
 }
@@ -158,20 +12,12 @@
   opacity: 1;
   pointer-events: auto;
 }
-.field {
-  transition: opacity 600ms var(--ease-interface);
-}
 .failed .field {
   opacity: 0.22;
 }
 .failed .field,
 .failed .field * {
   animation-play-state: paused;
-}
-.hairline i {
-  transition:
-    transform 300ms var(--ease-interface),
-    background-color 300ms var(--ease-interface);
 }
 /* A failure fills the hairline in the danger tone, whatever the progress was. */
 .failed .hairline i {
@@ -184,13 +30,6 @@
 .settled .hero *,
 .settled .hero {
   animation: none !important;
-}
-.phase {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--color-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 /* Without motion the splash is a still composition: every slot already filled. */
