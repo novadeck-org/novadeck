@@ -69,9 +69,9 @@ const runHook = (agent: AgentName, hook: string | undefined, stdin: string) => {
 }
 
 describe("agent plugin hook commands", () => {
-  // Codex and Antigravity trust a hook by its definition: changing these strings asks
-  // everyone who connected an agent to review NovaDeck's hook again.
-  it("stay byte-identical across versions", () => {
+  // Codex and Antigravity trust a hook by its definition, so a change asks whoever
+  // connected them to review NovaDeck's hook again: change these on purpose only.
+  it("change only on purpose", () => {
     expect(harnesses.claude.hook("linux")).toBe(
       '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude || true',
     )

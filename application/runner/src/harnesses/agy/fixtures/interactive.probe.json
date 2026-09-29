@@ -1,0 +1,389 @@
+{
+  "harness": "agy",
+  "version": "1.2.13",
+  "source": "captured",
+  "how": "driven interactively in a PTY (120x40), in a scratch workspace whose .agents/hooks.json registered every event",
+  "scenarios": {
+    "clear": {
+      "what": "A prompt, /clear, another prompt, then /exit, in one agy process",
+      "events": [
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000001",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000001",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000001",
+            "error": "",
+            "executionNum": 0,
+            "fullyIdle": true,
+            "modelName": "gemini-3.8-flash-high",
+            "terminationReason": "NO_TOOL_CALL",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000002",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000002",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000002",
+            "error": "",
+            "executionNum": 0,
+            "fullyIdle": true,
+            "modelName": "gemini-3.8-flash-high",
+            "terminationReason": "NO_TOOL_CALL",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        }
+      ]
+    },
+    "confirm": {
+      "what": "Hook answered force_ask: a touch approved with 1, a touch denied with 4, then `sleep 25` approved; Antigravity moved it to the background after about 2 s and ended the turn, before Esc was sent",
+      "events": [
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "modelName": "gemini-3.8-flash-high",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "CommandLine": "<command>",
+                "Cwd": "<path>",
+                "WaitMsBeforeAsync": 2000,
+                "toolAction": "Creating file",
+                "toolSummary": "Touch file"
+              },
+              "name": "run_command"
+            },
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "error": "",
+            "modelName": "gemini-3.8-flash-high",
+            "stepIdx": 2,
+            "toolCall": {
+              "args": {
+                "CommandLine": "<command>",
+                "Cwd": "<path>",
+                "WaitMsBeforeAsync": 2000,
+                "toolAction": "Creating file",
+                "toolSummary": "Touch file"
+              },
+              "name": "run_command"
+            },
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 3,
+            "invocationNum": 1,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 3,
+            "invocationNum": 1,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "error": "",
+            "executionNum": 0,
+            "fullyIdle": true,
+            "modelName": "gemini-3.8-flash-high",
+            "terminationReason": "NO_TOOL_CALL",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 5,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "modelName": "gemini-3.8-flash-high",
+            "stepIdx": 6,
+            "toolCall": {
+              "args": {
+                "CommandLine": "<command>",
+                "Cwd": "<path>",
+                "WaitMsBeforeAsync": 2000,
+                "toolAction": "Creating file",
+                "toolSummary": "Touch file"
+              },
+              "name": "run_command"
+            },
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 8,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "modelName": "gemini-3.8-flash-high",
+            "stepIdx": 9,
+            "toolCall": {
+              "args": {
+                "CommandLine": "<command>",
+                "Cwd": "<path>",
+                "WaitMsBeforeAsync": 2000,
+                "toolAction": "Running sleep",
+                "toolSummary": "Sleep command"
+              },
+              "name": "run_command"
+            },
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 8,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 10,
+            "invocationNum": 1,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "initialNumSteps": 10,
+            "invocationNum": 1,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000003",
+            "error": "",
+            "executionNum": 0,
+            "fullyIdle": false,
+            "modelName": "gemini-3.8-flash-high",
+            "terminationReason": "NO_TOOL_CALL",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        }
+      ]
+    },
+    "interrupt": {
+      "what": "Hook answered force_ask: Esc 2.5 s into a long reply, then Esc 0.4 s after approving `sleep 25`, then /exit",
+      "events": [
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000004",
+            "initialNumSteps": 1,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreInvocation",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000004",
+            "initialNumSteps": 2,
+            "invocationNum": 0,
+            "modelName": "gemini-3.8-flash-high",
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "artifactDirectoryPath": "<path>",
+            "conversationId": "50000000-0000-4000-8000-000000000004",
+            "modelName": "gemini-3.8-flash-high",
+            "stepIdx": 3,
+            "toolCall": {
+              "args": {
+                "CommandLine": "<command>",
+                "Cwd": "<path>",
+                "WaitMsBeforeAsync": 10000,
+                "toolAction": "Running sleep command",
+                "toolSummary": "Run sleep 25"
+              },
+              "name": "run_command"
+            },
+            "transcriptPath": "<path>",
+            "workspacePaths": ["<path>"]
+          },
+          "harnessProcess": "process-1"
+        }
+      ]
+    }
+  }
+}

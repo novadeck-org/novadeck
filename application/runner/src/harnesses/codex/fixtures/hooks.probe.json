@@ -1,0 +1,243 @@
+{
+  "harness": "codex",
+  "version": "0.158.0",
+  "source": "captured",
+  "how": "codex exec --json in a throwaway CODEX_HOME whose only hooks were these, run with --dangerously-bypass-hook-trust; a shell command and a spawned subagent running one",
+  "hookAncestry": ["codex"],
+  "hookEnvironment": [
+    "CODEX_HOME",
+    "CODEX_MANAGED_BY_NPM",
+    "CODEX_MANAGED_PACKAGE_ROOT",
+    "TERM_PROGRAM"
+  ],
+  "events": [
+    {
+      "event": "SessionStart",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "SessionStart",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "source": "startup"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "UserPromptSubmit",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "prompt": "<text>"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "PreToolUse",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "<value>"
+        },
+        "tool_use_id": "toolu_fixture01"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "PostToolUse",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "<value>"
+        },
+        "tool_response": "<text>",
+        "tool_use_id": "toolu_fixture01"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "PreToolUse",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "tool_name": "collaborationspawn_agent",
+        "tool_input": {
+          "task_name": "<value>",
+          "fork_turns": "<value>",
+          "message": "<value>"
+        },
+        "tool_use_id": "toolu_fixture02"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "PostToolUse",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "tool_name": "collaborationspawn_agent",
+        "tool_input": {
+          "task_name": "<value>",
+          "fork_turns": "<value>",
+          "message": "<value>"
+        },
+        "tool_response": "<text>",
+        "tool_use_id": "toolu_fixture02"
+      }
+    },
+    {
+      "event": "SubagentStart",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000002",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "SubagentStart",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "agent_id": "40000000-0000-7000-8000-000000000001",
+        "agent_type": "default"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "PreToolUse",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "tool_name": "collaborationwait_agent",
+        "tool_input": {
+          "timeout_ms": "<value>"
+        },
+        "tool_use_id": "toolu_fixture03"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000002",
+        "agent_id": "40000000-0000-7000-8000-000000000001",
+        "agent_type": "default",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "PreToolUse",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "<value>"
+        },
+        "tool_use_id": "toolu_fixture04"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000002",
+        "agent_id": "40000000-0000-7000-8000-000000000001",
+        "agent_type": "default",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "PostToolUse",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "tool_name": "Bash",
+        "tool_input": {
+          "command": "<value>"
+        },
+        "tool_response": "<text>",
+        "tool_use_id": "toolu_fixture04"
+      }
+    },
+    {
+      "event": "SubagentStop",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000002",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "agent_transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-40000000-0000-7000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "SubagentStop",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "stop_hook_active": false,
+        "agent_id": "40000000-0000-7000-8000-000000000001",
+        "agent_type": "default",
+        "last_assistant_message": "<text>"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "PostToolUse",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "tool_name": "collaborationwait_agent",
+        "tool_input": {
+          "timeout_ms": "<value>"
+        },
+        "tool_response": "<text>",
+        "tool_use_id": "toolu_fixture03"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "turn_id": "20000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "Stop",
+        "model": "gpt-6-astra",
+        "permission_mode": "bypassPermissions",
+        "stop_hook_active": false,
+        "last_assistant_message": "<text>"
+      }
+    },
+    {
+      "event": "SessionEnd",
+      "payload": {
+        "session_id": "00000000-0000-4000-8000-000000000001",
+        "transcript_path": "/home/user/.codex/sessions/2026/09/29/rollout-2026-09-29T23-05-15-00000000-0000-4000-8000-000000000001.jsonl",
+        "cwd": "/home/user/project",
+        "hook_event_name": "SessionEnd",
+        "reason": "other"
+      }
+    }
+  ]
+}

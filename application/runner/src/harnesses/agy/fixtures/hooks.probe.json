@@ -1,0 +1,223 @@
+{
+  "harness": "agy",
+  "version": "1.2.12",
+  "source": "captured",
+  "how": "agy -p in a scratch workspace whose .agents/hooks.json registered every event. Its PreToolUse hook answered {}, which Antigravity reads as a denial, so every tool call was denied.",
+  "hookAncestry": ["sh", "agy"],
+  "hookEnvironment": ["ANTIGRAVITY_CONVERSATION_ID", "TERM_PROGRAM"],
+  "inheritedEnvironment": "Variables of any ancestor harness reach the hook too; this probe ran under Claude Code, and its CLAUDE_* variables appeared.",
+  "events": [
+    {
+      "event": "PreInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 1,
+        "invocationNum": 0,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "modelName": "gemini-3.8-flash-high",
+        "stepIdx": 2,
+        "toolCall": {
+          "args": {
+            "CommandLine": "<value>",
+            "Cwd": "<value>",
+            "WaitMsBeforeAsync": "<value>",
+            "toolAction": "<value>",
+            "toolSummary": "<value>"
+          },
+          "name": "run_command"
+        },
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PostInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 1,
+        "invocationNum": 0,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PreInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 3,
+        "invocationNum": 1,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "modelName": "gemini-3.8-flash-high",
+        "stepIdx": 4,
+        "toolCall": {
+          "args": {
+            "AbsolutePath": "<value>",
+            "toolAction": "<value>",
+            "toolSummary": "<value>"
+          },
+          "name": "view_file"
+        },
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PostInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 3,
+        "invocationNum": 1,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PreInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 5,
+        "invocationNum": 2,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "modelName": "gemini-3.8-flash-high",
+        "stepIdx": 6,
+        "toolCall": {
+          "args": {
+            "AbsolutePath": "<value>",
+            "toolAction": "<value>",
+            "toolSummary": "<value>"
+          },
+          "name": "view_file"
+        },
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PostInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 5,
+        "invocationNum": 2,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PreInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 7,
+        "invocationNum": 3,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "modelName": "gemini-3.8-flash-high",
+        "stepIdx": 8,
+        "toolCall": {
+          "args": {
+            "Action": "<value>",
+            "toolAction": "<value>",
+            "toolSummary": "<value>"
+          },
+          "name": "manage_task"
+        },
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PostInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 7,
+        "invocationNum": 3,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PreInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 9,
+        "invocationNum": 4,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "PostInvocation",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "initialNumSteps": 9,
+        "invocationNum": 4,
+        "modelName": "gemini-3.8-flash-high",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001",
+        "conversationId": "50000000-0000-4000-8000-000000000001",
+        "error": "",
+        "executionNum": 0,
+        "fullyIdle": true,
+        "modelName": "gemini-3.8-flash-high",
+        "terminationReason": "NO_TOOL_CALL",
+        "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/50000000-0000-4000-8000-000000000001/.system_generated/logs/transcript_full.jsonl",
+        "workspacePaths": ["/home/user/project"]
+      }
+    }
+  ]
+}

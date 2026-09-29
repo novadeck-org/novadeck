@@ -1,0 +1,882 @@
+{
+  "harness": "claude",
+  "version": "2.1.285",
+  "source": "captured",
+  "how": "driven interactively in a PTY (120x40), with every hook event registered through --settings and inherited CLAUDE_* variables removed",
+  "scenarios": {
+    "interrupt": {
+      "what": "Esc while an allowed `sleep 20` Bash call ran, then /exit",
+      "events": [
+        {
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000001",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<text>"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000001",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "<command>",
+              "description": "Sleep for 20 seconds"
+            },
+            "tool_use_id": "toolu_fixture01"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "SessionEnd",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000002",
+            "hook_event_name": "SessionEnd",
+            "reason": "prompt_input_exit"
+          },
+          "harnessProcess": "process-1"
+        }
+      ]
+    },
+    "deny": {
+      "what": "A Bash permission prompt answered 3 (No), then /exit",
+      "events": [
+        {
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000002",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000002",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000003",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<text>"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000002",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000003",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "<command>",
+              "description": "Create empty file"
+            },
+            "tool_use_id": "toolu_fixture02"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PermissionRequest",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000002",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000003",
+            "permission_mode": "default",
+            "hook_event_name": "PermissionRequest",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "<command>",
+              "description": "Create empty file"
+            },
+            "permission_suggestions": [
+              {
+                "type": "addDirectories",
+                "directories": ["<path>"],
+                "destination": "session"
+              },
+              {
+                "type": "setMode",
+                "mode": "acceptEdits",
+                "destination": "session"
+              }
+            ]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "SessionEnd",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000002",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000004",
+            "hook_event_name": "SessionEnd",
+            "reason": "prompt_input_exit"
+          },
+          "harnessProcess": "process-1"
+        }
+      ]
+    },
+    "allow": {
+      "what": "A Bash permission prompt answered 1 (Yes), then /exit",
+      "events": [
+        {
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000003",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000003",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000005",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<text>"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000003",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000005",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "<command>",
+              "description": "Create file allowed.txt"
+            },
+            "tool_use_id": "toolu_fixture03"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PermissionRequest",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000003",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000005",
+            "permission_mode": "default",
+            "hook_event_name": "PermissionRequest",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "<command>",
+              "description": "Create file allowed.txt"
+            },
+            "permission_suggestions": [
+              {
+                "type": "addDirectories",
+                "directories": ["<path>"],
+                "destination": "session"
+              },
+              {
+                "type": "setMode",
+                "mode": "acceptEdits",
+                "destination": "session"
+              }
+            ]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000003",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000005",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_input": {
+              "command": "<command>",
+              "description": "Create file allowed.txt"
+            },
+            "tool_response": {
+              "stdout": "",
+              "stderr": "",
+              "interrupted": false,
+              "isImage": false,
+              "noOutputExpected": true
+            },
+            "tool_use_id": "toolu_fixture03",
+            "duration_ms": 126
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000003",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000005",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "Bash",
+                "tool_input": {
+                  "command": "<command>",
+                  "description": "Create file allowed.txt"
+                },
+                "tool_use_id": "toolu_fixture03",
+                "tool_response": "(Bash completed with no output)"
+              }
+            ]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "MessageDisplay",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000003",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000005",
+            "hook_event_name": "MessageDisplay",
+            "turn_id": "20000000-0000-4000-8000-000000000001",
+            "message_id": "<id>",
+            "index": 0,
+            "final": true,
+            "delta": "<text>"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000003",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000005",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "<text>",
+            "background_tasks": [],
+            "session_crons": []
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "SessionEnd",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000003",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000006",
+            "hook_event_name": "SessionEnd",
+            "reason": "prompt_input_exit"
+          },
+          "harnessProcess": "process-1"
+        }
+      ]
+    },
+    "question": {
+      "what": "AskUserQuestion with one question and two options; the first option chosen, then /exit",
+      "events": [
+        {
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000004",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000004",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000007",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<text>"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000004",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000007",
+            "permission_mode": "default",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Which color?",
+                  "header": "Color",
+                  "options": [
+                    {
+                      "label": "Red",
+                      "description": "The color red"
+                    },
+                    {
+                      "label": "Blue",
+                      "description": "The color blue"
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ]
+            },
+            "tool_use_id": "toolu_fixture04"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PermissionRequest",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000004",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000007",
+            "permission_mode": "default",
+            "hook_event_name": "PermissionRequest",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Which color?",
+                  "header": "Color",
+                  "options": [
+                    {
+                      "label": "Red",
+                      "description": "The color red"
+                    },
+                    {
+                      "label": "Blue",
+                      "description": "The color blue"
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ]
+            }
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000004",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000007",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "AskUserQuestion",
+            "tool_input": {
+              "questions": [
+                {
+                  "question": "Which color?",
+                  "header": "Color",
+                  "options": [
+                    {
+                      "label": "Red",
+                      "description": "The color red"
+                    },
+                    {
+                      "label": "Blue",
+                      "description": "The color blue"
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ],
+              "answers": {
+                "Which color?": "Red"
+              },
+              "annotations": {}
+            },
+            "tool_response": {
+              "questions": [
+                {
+                  "question": "Which color?",
+                  "header": "Color",
+                  "options": [
+                    {
+                      "label": "Red",
+                      "description": "The color red"
+                    },
+                    {
+                      "label": "Blue",
+                      "description": "The color blue"
+                    }
+                  ],
+                  "multiSelect": false
+                }
+              ],
+              "answers": {
+                "Which color?": "Red"
+              },
+              "annotations": {}
+            },
+            "tool_use_id": "toolu_fixture04",
+            "duration_ms": 1
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000004",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000007",
+            "permission_mode": "default",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "AskUserQuestion",
+                "tool_input": {
+                  "questions": [
+                    {
+                      "question": "Which color?",
+                      "header": "Color",
+                      "multiSelect": false,
+                      "options": [
+                        {
+                          "label": "Red",
+                          "description": "The color red"
+                        },
+                        {
+                          "label": "Blue",
+                          "description": "The color blue"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "tool_use_id": "toolu_fixture04",
+                "tool_response": "<text>"
+              }
+            ]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "MessageDisplay",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000004",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000007",
+            "hook_event_name": "MessageDisplay",
+            "turn_id": "20000000-0000-4000-8000-000000000002",
+            "message_id": "<id>",
+            "index": 0,
+            "final": true,
+            "delta": "<text>"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000004",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000007",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "<text>",
+            "background_tasks": [],
+            "session_crons": []
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "SessionEnd",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000004",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000008",
+            "hook_event_name": "SessionEnd",
+            "reason": "prompt_input_exit"
+          },
+          "harnessProcess": "process-1"
+        }
+      ]
+    },
+    "plan": {
+      "what": "Started with --permission-mode plan; the ExitPlanMode prompt rejected with Esc, then /exit",
+      "events": [
+        {
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000009",
+            "permission_mode": "plan",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<text>"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000009",
+            "permission_mode": "plan",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<path>",
+              "content": "<text>"
+            },
+            "tool_use_id": "toolu_fixture05"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000009",
+            "permission_mode": "plan",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Write",
+            "tool_input": {
+              "file_path": "<path>",
+              "content": "<text>"
+            },
+            "tool_response": {
+              "type": "create",
+              "filePath": "<path>",
+              "content": "<text>",
+              "structuredPatch": [],
+              "originalFile": null,
+              "userModified": false
+            },
+            "tool_use_id": "toolu_fixture05",
+            "duration_ms": 29
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000009",
+            "permission_mode": "plan",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:ExitPlanMode",
+              "max_results": 1
+            },
+            "tool_use_id": "toolu_fixture06"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000009",
+            "permission_mode": "plan",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "ToolSearch",
+            "tool_input": {
+              "query": "select:ExitPlanMode",
+              "max_results": 1
+            },
+            "tool_response": {
+              "matches": ["ExitPlanMode"],
+              "query": "select:ExitPlanMode",
+              "total_deferred_tools": 40
+            },
+            "tool_use_id": "toolu_fixture06",
+            "duration_ms": 2
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PostToolBatch",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000009",
+            "permission_mode": "plan",
+            "hook_event_name": "PostToolBatch",
+            "tool_calls": [
+              {
+                "tool_name": "Write",
+                "tool_input": {
+                  "file_path": "<path>",
+                  "content": "<text>"
+                },
+                "tool_use_id": "toolu_fixture05",
+                "tool_response": "<path>"
+              },
+              {
+                "tool_name": "ToolSearch",
+                "tool_input": {
+                  "query": "select:ExitPlanMode",
+                  "max_results": 1
+                },
+                "tool_use_id": "toolu_fixture06",
+                "tool_response": [
+                  {
+                    "type": "tool_reference",
+                    "tool_name": "ExitPlanMode"
+                  }
+                ]
+              }
+            ]
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PreToolUse",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000009",
+            "permission_mode": "plan",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "ExitPlanMode",
+            "tool_input": {
+              "plan": "<text>",
+              "planFilePath": "<path>"
+            },
+            "tool_use_id": "toolu_fixture07"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "PermissionRequest",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000009",
+            "permission_mode": "plan",
+            "hook_event_name": "PermissionRequest",
+            "tool_name": "ExitPlanMode",
+            "tool_input": {
+              "plan": "<text>",
+              "planFilePath": "<path>"
+            }
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "SessionEnd",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000005",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000010",
+            "hook_event_name": "SessionEnd",
+            "reason": "prompt_input_exit"
+          },
+          "harnessProcess": "process-1"
+        }
+      ]
+    },
+    "hangup": {
+      "what": "One reply, then the terminal closed (SIGHUP) instead of /exit",
+      "events": [
+        {
+          "event": "SessionStart",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000006",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "hook_event_name": "SessionStart",
+            "source": "startup",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "UserPromptSubmit",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000006",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000011",
+            "permission_mode": "default",
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "<text>"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "MessageDisplay",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000006",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000011",
+            "hook_event_name": "MessageDisplay",
+            "turn_id": "20000000-0000-4000-8000-000000000003",
+            "message_id": "<id>",
+            "index": 0,
+            "final": true,
+            "delta": "<text>"
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "Stop",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000006",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000011",
+            "permission_mode": "default",
+            "hook_event_name": "Stop",
+            "stop_hook_active": false,
+            "last_assistant_message": "<text>",
+            "background_tasks": [],
+            "session_crons": []
+          },
+          "harnessProcess": "process-1"
+        },
+        {
+          "event": "SessionEnd",
+          "payload": {
+            "session_id": "00000000-0000-4000-8000-000000000006",
+            "transcript_path": "<path>",
+            "cwd": "<path>",
+            "scratchpad_dir": "<path>",
+            "prompt_id": "10000000-0000-4000-8000-000000000011",
+            "hook_event_name": "SessionEnd",
+            "reason": "other"
+          },
+          "harnessProcess": "process-1"
+        }
+      ]
+    }
+  }
+}
