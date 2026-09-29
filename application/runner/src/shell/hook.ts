@@ -1,28 +1,32 @@
 /**
- * The agent hook, run by the NovaDeck plugin of a connected agent (Claude Code's and
- * Codex's SessionStart, Antigravity's PreInvocation) through the launcher on NovaDeck's
- * own runtime, so it needs no bash or python3. It reports which agent session runs in
- * the NovaDeck terminal it was started from, and nothing else. It prints nothing, since
- * Claude Code shows a SessionStart hook's output to the model, except the empty JSON
- * object Antigravity expects; it exits at once outside NovaDeck's terminals and gives
- * up within two seconds.
+ * The agent hook, run by the NovaDeck plugin of a connected agent through the launcher
+ * on NovaDeck's own runtime, so it needs no bash or python3. It forwards the event its
+ * agent reported, a bounded copy of the agent's payload, and which agent process ran it,
+ * to the NovaDeck terminal it was started from; the runner decodes it (see
+ * `harnesses/<id>/decode.ts`). It prints nothing, since Claude Code shows some hooks'
+ * output to the model, except the JSON Antigravity expects: a PreToolUse answer must say
+ * "ask" there, or Antigravity denies the tool. It exits at once outside NovaDeck's
+ * terminals and gives up within two seconds.
  */
 export const hookScript = `// NovaDeck agent hook. Written by NovaDeck into its own data directory, and
 // overwritten on each start. Only agents started from NovaDeck's terminals run it.
+import { spawnSync } from "node:child_process"
+import { readFileSync } from "node:fs"
 import { connect } from "node:net"
+import { basename } from "node:path"
 
-const agent = process.argv[2]
+const [agent, event = ""] = process.argv.slice(2)
 const env = process.env
 const terminalId = env.NOVADECK_TERMINAL_ID
 const endpoint = env.NOVADECK_REPORT
 const token = env.NOVADECK_REPORT_TOKEN
-// Antigravity reads a hook's answer as JSON; the others show nothing.
 let finished = false
 const done = () => {
   if (finished) return
   finished = true
-  if (agent === "agy") process.stdout.write("{}\\n", () => process.exit(0))
-  else process.exit(0)
+  if (agent !== "agy") return process.exit(0)
+  const answer = event === "PreToolUse" ? { decision: "ask" } : {}
+  process.stdout.write(JSON.stringify(answer) + "\\n", () => process.exit(0))
 }
 if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(agent)) {
   done()
@@ -31,18 +35,47 @@ if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(a
   // Wall-clock time with sub-millisecond precision: a later hook reports a larger one.
   const seq = performance.timeOrigin + performance.now()
 
-  // The session the payload names, unless it is not this terminal's own: a Claude Code
-  // subagent's, Claude Code running inside Cursor, or a Codex started by another Codex.
-  const sessionOf = (payload) => {
-    if (typeof payload !== "object" || payload === null) return undefined
-    const id = agent === "agy" ? payload.conversationId : payload.session_id
-    if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) return undefined
-    if (payload.hook_event_name !== undefined && payload.hook_event_name !== "SessionStart")
-      return undefined
-    if (agent === "claude" && (payload.agent_id !== undefined || payload.cursor_version !== undefined || env.CURSOR_VERSION))
-      return undefined
-    if (agent === "codex" && env.CODEX_THREAD_ID && env.CODEX_THREAD_ID !== id) return undefined
-    return id
+  // A copy small enough to send: text past a path's length cut short, deep or wide values
+  // dropped.
+  const prune = (value, depth, limit) => {
+    if (typeof value === "string") return value.length > limit ? value.slice(0, limit) : value
+    if (typeof value !== "object" || value === null) return value
+    if (depth > 6) return null
+    if (Array.isArray(value)) return value.slice(0, 50).map((each) => prune(each, depth + 1, limit))
+    const copy = {}
+    for (const [key, each] of Object.entries(value).slice(0, 100)) copy[key] = prune(each, depth + 1, limit)
+    return copy
+  }
+
+  // A process's name and parent, where the platform tells.
+  const parent = (pid) => {
+    try {
+      if (process.platform === "linux") {
+        const stat = readFileSync("/proc/" + pid + "/stat", "utf8")
+        const name = stat.slice(stat.indexOf("(") + 1, stat.lastIndexOf(")"))
+        return { name, ppid: Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]) }
+      }
+      if (process.platform === "darwin") {
+        const out = spawnSync("ps", ["-o", "ppid=,comm=", "-p", String(pid)], { encoding: "utf8", timeout: 500 })
+        const match = /^\\s*(\\d+)\\s+(.+)$/.exec(out.stdout.trim())
+        return match ? { name: basename(match[2]), ppid: Number(match[1]) } : undefined
+      }
+    } catch {}
+    return undefined
+  }
+
+  // The agent process that ran this hook: Claude Code names itself; the others are the
+  // nearest ancestor with the agent's own name. Unknown where the platform hides it.
+  const instance = () => {
+    if (agent === "claude" && env.CLAUDE_PID) return env.CLAUDE_PID
+    let pid = process.ppid
+    for (let step = 0; step < 8 && pid > 1; step += 1) {
+      const found = parent(pid)
+      if (!found) return null
+      if (found.name === agent) return String(pid)
+      pid = found.ppid
+    }
+    return null
   }
 
   let text = ""
@@ -59,15 +92,25 @@ if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(a
     } catch {
       return done()
     }
-    const sessionId = sessionOf(payload)
-    if (!sessionId) return done()
-    const source = typeof payload.source === "string" ? payload.source.slice(0, 32) : undefined
-    const where = agent === "agy" ? payload.workspacePaths?.[0] : payload.cwd
-    const cwd = typeof where === "string" ? where : undefined
+    if (typeof payload !== "object" || payload === null) return done()
+    const report = {
+      terminalId,
+      token,
+      agent,
+      event: event || (typeof payload.hook_event_name === "string" ? payload.hook_event_name : ""),
+      seq,
+      instance: instance(),
+      // Only what tells nested agents apart; nothing else of the environment leaves.
+      env: { cursor: Boolean(env.CURSOR_VERSION), codexThread: env.CODEX_THREAD_ID || undefined },
+      payload: prune(payload, 0, 4096),
+    }
+    let line = JSON.stringify(report)
+    if (line.length > 60_000) line = JSON.stringify({ ...report, payload: prune(payload, 0, 200) })
+    if (line.length > 60_000) return done()
     const socket = connect(endpoint)
     socket.on("error", done)
     socket.on("close", done)
-    socket.end(JSON.stringify({ terminalId, token, agent, sessionId, source, seq, cwd }) + "\\n")
+    socket.end(line + "\\n")
   })
 }
 `

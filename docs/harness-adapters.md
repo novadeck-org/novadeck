@@ -35,7 +35,7 @@ transcripts and telemetry are fixed only after per-harness coverage probes
 | `runner/src/shell/agents.ts`              | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
 | `runner/src/shell/resume.ts`              | Build the exact resume command for an identified session                      | `resume` field                                                           |
 | `runner/src/shell/scripts.ts`             | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
-| `runner/src/shell/hook.ts`                | Native payload interpretation, nested-session filtering, hook response format | Per-harness `hook.ts` decoders; shared hook host                         |
+| `runner/src/shell/hook.ts`                | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in the runner; one shared hook script            |
 | `runner/src/shell/reports.ts`             | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
 | `runner/src/terminals/manager.ts`         | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
 | `ui/src/model/process.ts` and `resume.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
@@ -96,12 +96,9 @@ harnesses/
   bindings.ts      # Pure ownership and observation transitions
   model.ts         # Accepted state → agent model snapshots/changes
   events.ts        # Dependency-light normalized facts
-  hooks/
-    host.ts        # Short-lived executable and local reporting
-    registry.ts    # Record<AgentName, Decoder>
   claude/
     index.ts       # claude: Harness
-    hook.ts        # Decoder, compiled for the hook process
+    decode.ts      # Its hook reports, as normalized events
   codex/           # Same shape; its shim is in its `shims`
   agy/
 ```
@@ -372,45 +369,35 @@ than depending on registry order.
 
 ### Hook decoders
 
-Hook decoders are not part of `Harness`, because they run in the short-lived
-hook process, which must not import runner code. Each harness keeps one beside
-its module, and a separate hook registry collects them:
+Hooks do not decode anything. The one hook script, shared by every harness
+(`shell/hook.ts`), forwards to the runner:
+
+- the hook event,
+- a bounded copy of the harness's payload: long text cut to 4,096 characters,
+  deep or wide values dropped, and the whole report under 60,000 characters,
+- the harness process that ran it,
+- the few environment facts that tell nested agents apart.
+
+The harness's `decode` turns that `Report` into normalized events inside the
+runner:
 
 ```ts
-// harnesses/claude/hook.ts: imports only protocol types and Node built-ins
-export const decoder = {
-  completion: "silent",
-  decode: (input: HookInput): Decoded => …,
-} satisfies Decoder
-
-// harnesses/hooks/registry.ts
-const decoders = { claude, codex, agy } satisfies Record<AgentName, Decoder>
-
-type Decoder = {
-  /** How the hook ends harmlessly: silently, or by printing `{}`. */
-  readonly completion: "silent" | "empty-json"
-  decode(input: HookInput): Decoded
-}
-
-type Decoded =
-  | { readonly kind: "events"; readonly events: readonly HarnessEvent[] }
-  | { readonly kind: "irrelevant" }
-  | { readonly kind: "invalid"; readonly reason: "malformed-payload" | "unsupported-schema" }
+readonly decode: (report: Report) => readonly HarnessEvent[]
 ```
 
-`HookInput` contains the unknown native payload, its registered event where the
-harness does not include one, and a small allowlist of environment values.
-`decode` performs no I/O. Invalid input becomes a bounded, rate-limited
-diagnostic with a reason code, never a payload dump. A decoder exception
-completes the hook harmlessly and invalidates the affected coverage; it never
-crashes or blocks the harness. Decoded hook records reach the harness's `watch`
-through its run feed (see [Where sources merge](#where-sources-merge)).
+Decoding in the runner keeps decoders ordinary, tested TypeScript beside their
+harness, checked against the captured fixtures, with no separate build for the
+hook process. The payload travels only over NovaDeck's local report socket to
+the runner, which already sees the terminal's output. `decode` performs no I/O,
+and ignores events it does not use by returning none.
 
-Until the decoders are compiled per harness, the existing single hook script
-keeps running unchanged, and it sends the native `source`. In the runner, the
-harness's `continuity` turns that into `startup`, `native-switch` or
-`conversation-observed` before `acceptReport` sees it. So shared ownership
-policy already reads no native values.
+The hook names the harness process through `CLAUDE_PID` for Claude Code, and
+otherwise through the nearest ancestor process with the harness's own name
+(`/proc` on Linux, `ps` on macOS). It reports `null` where the platform hides it.
+
+The hook answers each harness the way it needs. It prints nothing for Claude
+Code and Codex. For Antigravity it prints `{}`, or `{"decision": "ask"}` for
+`PreToolUse`, which Antigravity would otherwise read as a denial.
 
 ## Where sources merge
 
@@ -422,7 +409,7 @@ joined in exactly one place.
 runs per terminal run, starting from a provisional launch identity before any
 native session ID is known. Its `Run` holds that identity, the run's `Install`,
 bounded read ports, the `capturePlan` port, and the bounded feed of
-authenticated, decoded hook records for that run. It merges that feed with any
+authenticated hook records for that run, decoded by its harness. It merges that feed with any
 native streams or readers it owns and emits a single normalized fact stream. A
 hook-only harness forwards the feed.
 
@@ -818,30 +805,26 @@ outstanding operations before their late results can change state.
 
 ## Hook distribution
 
-The runner adapter and hook decoder run in different environments. The hook
-process is short-lived and needs a small executable, NovaDeck's runtime, and no
-install inside the user's project.
+The hook runs in a short-lived process on NovaDeck's own runtime, through a
+launcher in NovaDeck's integration directory, so it needs no install inside the
+person's project. It is one script for every harness, written on each start.
+Each plugin's hook command passes the harness and the event.
 
-Keep each decoder as a normal TypeScript module, `harnesses/<id>/hook.ts`.
-Compile the hook registry's dependency-light module graph to standalone ESM
-files and copy it into NovaDeck's integration directory, with an explicit
-artifact manifest for both the standalone runner and Electron. Hook code depends
-only on those modules and Node built-ins. The harness and decoder registries
-are both `Record<AgentName, …>`, so the type checker keeps them in step; a build
-check requires every hook registered in a harness's `files` to name a packaged
-decoder entry.
+The shared hook does the following:
 
-The shared hook host owns bounded stdin, deadline, environment checks, framing,
-local transport and completion. Provider modules own decoding and whether
-harmless completion is silence or `{}`. Send only the normalized fields a
-feature needs, never whole payloads, prompts or tool arguments.
+- bounds stdin,
+- keeps a two-second deadline,
+- checks it runs in a NovaDeck terminal,
+- frames and sends the report,
+- answers the harness.
+
+Everything harness-specific happens in the runner (see
+[Hook decoders](#hook-decoders)).
 
 NovaDeck has no users yet, so hook definitions change whenever that improves
 the integration. Codex and AGY trust a hook by its definition, so a changed
 definition or a new event registration asks whoever connected them to review
 the hook again; installation and hook trust are distinct states.
-Publish artifacts as a complete versioned directory with an atomic entry-point
-update, so a running hook never imports a half-updated module graph.
 
 ## Local MCP
 
@@ -968,8 +951,10 @@ declaration.
 **Harness environment**
 
 - NovaDeck's shells drop harness session variables inherited from the runner's
-  own environment (`CLAUDECODE`, `CLAUDE_CODE_*`, `CLAUDE_PID`, `CODEX_THREAD_ID`,
-  `ANTIGRAVITY_CONVERSATION_ID`). Otherwise a runner started from inside Claude
+  own environment: Claude Code's session markers (`CLAUDECODE`,
+  `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID` and the
+  like, never the person's own `CLAUDE_CODE_*` settings), `CODEX_THREAD_ID` and
+  `ANTIGRAVITY_CONVERSATION_ID`. Otherwise a runner started from inside Claude
   Code makes every Claude Code in its terminals a child session, whose
   transcript saving is off.
 - NovaDeck's Antigravity hook answers `PreToolUse` with `{"decision": "ask"}`, and

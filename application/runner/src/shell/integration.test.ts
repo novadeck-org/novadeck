@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import {
   chmodSync,
@@ -141,7 +142,14 @@ const create = (
 // another, then waits.
 const reporter = (
   home: string,
-  reports: { agent: string; sessionId: string; seq: number; source: string }[],
+  reports: {
+    agent: string
+    sessionId: string
+    seq: number
+    source: string
+    /** The agent process that reported it; unknown when left out. */
+    instance?: string
+  }[],
 ): string => {
   const bin = join(home, "bin")
   mkdirSync(bin, { recursive: true })
@@ -158,8 +166,12 @@ const reporter = (
       '  if (index === reports.length) { console.log("reports sent"); return process.stdin.resume() }',
       "  const socket = net.connect(process.env.NOVADECK_REPORT)",
       '  socket.on("close", () => send(index + 1))',
-      "  const report = { ...reports[index], seq: base + reports[index].seq }",
-      '  socket.end(JSON.stringify({ terminalId, token, ...report }) + "\\n")',
+      "  const { agent, sessionId, seq, source, instance = null } = reports[index]",
+      // As the hook forwards it: the event, and the agent's own payload.
+      '  const event = agent === "agy" ? "PreInvocation" : "SessionStart"',
+      '  const payload = agent === "agy" ? { conversationId: sessionId } : { hook_event_name: event, session_id: sessionId, source }',
+      "  const report = { terminalId, token, agent, event, seq: base + seq, instance, env: { cursor: false }, payload }",
+      '  socket.end(JSON.stringify(report) + "\\n")',
       "}",
       "send(0)",
     ].join("\n"),
@@ -445,6 +457,78 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, terminal.id, "reports sent")
     await expect.poll(() => manager.reportedSession(terminal.id, "claude")).toBe("cleared")
     expect(manager.reportedSession(terminal.id, "codex")).toBeNull()
+  })
+
+  it("lets a later process of the same agent bind once the bound one is gone", async ({
+    shell,
+  }) => {
+    // As in tmux, where no prompt shows between the two: the first has exited.
+    const gone = String(spawnSync(process.execPath, ["-e", ""]).pid)
+    const alive = String(process.pid)
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "one", seq: 1, source: "startup", instance: gone },
+      { agent: "claude", sessionId: "two", seq: 2, source: "resume", instance: alive },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await shell.until(manager, terminal.id, "reports sent")
+    await expect.poll(() => manager.reportedSession(terminal.id, "claude")).toBe("two")
+  })
+
+  it("refuses another live process of the bound agent", async ({ shell }) => {
+    const bin = reporter(shell.home, [
+      {
+        agent: "claude",
+        sessionId: "one",
+        seq: 1,
+        source: "startup",
+        instance: String(process.pid),
+      },
+      // Nested, as a Claude Code run from the one in the foreground resuming its own.
+      {
+        agent: "claude",
+        sessionId: "two",
+        seq: 2,
+        source: "resume",
+        instance: String(process.ppid),
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await shell.until(manager, terminal.id, "reports sent")
+    await expect.poll(() => manager.reportedSession(terminal.id, "claude")).toBe("one")
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(manager.reportedSession(terminal.id, "claude")).toBe("one")
+  })
+
+  it("keeps an agent session's own markers out of its shells", async ({ shell }) => {
+    // As when NovaDeck itself was started from inside Claude Code.
+    const manager = shell.manager({
+      env: {
+        HOME: shell.home,
+        PS1: "$ ",
+        CLAUDECODE: "1",
+        CLAUDE_CODE_CHILD_SESSION: "1",
+        CODEX_THREAD_ID: "outer",
+        CLAUDE_CODE_USE_BEDROCK: "kept",
+      },
+    })
+    const terminal = await create(manager, shell)
+    manager.write(
+      {
+        terminalId: terminal.id,
+        data: 'echo "[$CLAUDECODE$CLAUDE_CODE_CHILD_SESSION$CODEX_THREAD_ID|$CLAUDE_CODE_USE_BEDROCK]"\r',
+      },
+      "owner",
+    )
+    // The person's own settings stay.
+    await shell.until(manager, terminal.id, "[|kept]")
   })
 
   it("ignores a switch announced by another agent than the one in the foreground", async ({

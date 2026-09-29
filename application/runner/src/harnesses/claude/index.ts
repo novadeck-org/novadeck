@@ -1,16 +1,17 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { json, marketplace, plugin, sessionStart, type Harness, type Install } from "../harness.js"
+import { json, marketplace, plugin, type Harness, type Install } from "../harness.js"
+import { decode } from "./decode.js"
 
 const id = "novadeck@novadeck"
 
 const home = ({ env, home: user }: Install) => env.CLAUDE_CONFIG_DIR || join(user, ".claude")
 
-const hook = (platform: NodeJS.Platform): string =>
+const hook = (platform: NodeJS.Platform, event: string): string =>
   platform === "win32"
-    ? "if ($env:NOVADECK_HOOK) { & $env:NOVADECK_HOOK claude }"
-    : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude || true`
+    ? `if ($env:NOVADECK_HOOK) { & $env:NOVADECK_HOOK claude ${event} }`
+    : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude ${event} || true`
 
 export const claude = {
   id: "claude",
@@ -51,7 +52,7 @@ export const claude = {
               hooks: [
                 {
                   type: "command",
-                  command: hook(platform),
+                  command: hook(platform, "SessionStart"),
                   ...(platform === "win32" && { shell: "powershell" }),
                 },
               ],
@@ -62,5 +63,5 @@ export const claude = {
     },
   ],
   resume: (session) => ["claude", "--resume", session],
-  continuity: sessionStart,
+  decode,
 } satisfies Harness

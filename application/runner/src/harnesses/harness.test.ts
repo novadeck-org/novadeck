@@ -1,3 +1,9 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
+import type { AgentName } from "@novadeck/protocol"
+
+import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
 import { sessionStart } from "./harness.js"
 import { harnesses } from "./registry.js"
@@ -12,9 +18,71 @@ describe("a SessionStart source", () => {
       expect(sessionStart(source)).toBe("native-switch")
   })
 
-  it("only observes the conversation when there is none, as from Antigravity", () => {
+  it("only observes the conversation when there is none", () => {
     expect(sessionStart(undefined)).toBe("conversation-observed")
-    expect(harnesses.agy.continuity(undefined)).toBe("conversation-observed")
+  })
+})
+
+type Probe = { events: { event: string; payload: Report["payload"] }[] }
+const probe = (harness: string): Probe =>
+  JSON.parse(
+    readFileSync(join(import.meta.dirname, harness, "fixtures", "hooks.probe.json"), "utf8"),
+  ) as Probe
+// A captured hook as the runner receives it.
+const report = (
+  agent: AgentName,
+  { event, payload }: Probe["events"][number],
+  fields: Partial<Report> = {},
+): Report => ({
+  terminalId: "t",
+  token: "0".repeat(48),
+  agent,
+  event,
+  seq: 2_000,
+  instance: "42",
+  env: { cursor: false },
+  payload,
+  ...fields,
+})
+const decoded = (agent: AgentName, fields: Partial<Report> = {}) =>
+  probe(agent).events.flatMap((each) => harnesses[agent].decode(report(agent, each, fields)))
+
+describe("decoding captured hooks", () => {
+  it("observes Claude Code's session at its start, and nothing from its subagents", () => {
+    const [start] = probe("claude").events
+    expect(decoded("claude")).toEqual([
+      {
+        type: "session-observed",
+        agent: "claude",
+        sessionId: start!.payload.session_id,
+        evidence: "startup",
+        startedAt: 2_000,
+        instance: "42",
+        cwd: start!.payload.cwd,
+      },
+    ])
+  })
+
+  it("ignores Claude Code inside Cursor, and a subagent's own session start", () => {
+    expect(decoded("claude", { env: { cursor: true } })).toEqual([])
+    const [start] = probe("claude").events
+    const subagent = { ...start!, payload: { ...start!.payload, agent_id: "a1" } }
+    expect(harnesses.claude.decode(report("claude", subagent))).toEqual([])
+  })
+
+  it("observes Codex's session at its start, unless another Codex started it", () => {
+    expect(decoded("codex")).toMatchObject([{ agent: "codex", evidence: "startup" }])
+    expect(decoded("codex", { env: { cursor: false, codexThread: "someone-else" } })).toEqual([])
+  })
+
+  it("observes Antigravity's conversation in every hook", () => {
+    const events = decoded("agy")
+    expect(events.length).toBe(probe("agy").events.length)
+    expect(events[0]).toMatchObject({
+      agent: "agy",
+      evidence: "conversation-observed",
+      cwd: "/home/user/project",
+    })
   })
 })
 

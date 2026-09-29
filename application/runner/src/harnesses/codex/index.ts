@@ -1,17 +1,18 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { json, marketplace, plugin, sessionStart, type Harness, type Install } from "../harness.js"
+import { json, marketplace, plugin, type Harness, type Install } from "../harness.js"
+import { decode } from "./decode.js"
 import { cmdShim, posixShim } from "./shim.js"
 
 const id = "novadeck@novadeck"
 
 const home = ({ env, home: user }: Install) => env.CODEX_HOME || join(user, ".codex")
 
-const hook = (platform: NodeJS.Platform): string =>
+const hook = (platform: NodeJS.Platform, event: string): string =>
   platform === "win32"
-    ? "if defined NOVADECK_HOOK %NOVADECK_HOOK% codex"
-    : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" codex || true`
+    ? `if defined NOVADECK_HOOK %NOVADECK_HOOK% codex ${event}`
+    : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" codex ${event} || true`
 
 export const codex = {
   id: "codex",
@@ -44,7 +45,7 @@ export const codex = {
           SessionStart: [
             {
               matcher: "startup|resume|clear|compact",
-              hooks: [{ type: "command", command: hook(platform) }],
+              hooks: [{ type: "command", command: hook(platform, "SessionStart") }],
             },
           ],
         },
@@ -58,5 +59,5 @@ export const codex = {
       ? [{ path: "codex.cmd", content: cmdShim }]
       : [{ path: "codex", content: posixShim, mode: 0o700 }],
   resume: (session) => ["codex", "resume", session],
-  continuity: sessionStart,
+  decode,
 } satisfies Harness

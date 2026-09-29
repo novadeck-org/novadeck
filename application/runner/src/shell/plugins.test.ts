@@ -56,10 +56,10 @@ const it = base.extend<{ plugins: Fixture }>({
 // Runs a plugin's hook command the way its agent does: sh -c for Claude Code and
 // Antigravity, the login shell for Codex; PowerShell for Claude Code and cmd for the
 // others on Windows.
-const runHook = (agent: AgentName, hook: string | undefined, stdin: string) => {
+const runHook = (agent: AgentName, event: string, hook: string | undefined, stdin: string) => {
   const { NOVADECK_HOOK: _outer, ...rest } = process.env
   const env = hook ? { ...rest, NOVADECK_HOOK: hook } : rest
-  const command = harnesses[agent].hook(process.platform)
+  const command = harnesses[agent].hook(process.platform, event)
   const [program, args] = windows
     ? agent === "claude"
       ? ["powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]]
@@ -68,31 +68,36 @@ const runHook = (agent: AgentName, hook: string | undefined, stdin: string) => {
   return spawnSync(program, args, { env, input: stdin, encoding: "utf8", timeout: 15_000 })
 }
 
+// The event each plugin registers today.
+const events = { claude: "SessionStart", codex: "SessionStart", agy: "PreInvocation" } as const
+
 describe("agent plugin hook commands", () => {
   // Codex and Antigravity trust a hook by its definition, so a change asks whoever
   // connected them to review NovaDeck's hook again: change these on purpose only.
   it("change only on purpose", () => {
-    expect(harnesses.claude.hook("linux")).toBe(
-      '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude || true',
+    expect(harnesses.claude.hook("linux", "SessionStart")).toBe(
+      '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude SessionStart || true',
     )
-    expect(harnesses.codex.hook("linux")).toBe(
-      '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" codex || true',
+    expect(harnesses.codex.hook("linux", "SessionStart")).toBe(
+      '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" codex SessionStart || true',
     )
-    expect(harnesses.agy.hook("linux")).toBe(
-      `if [ -n "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" agy; else echo '{}'; fi`,
+    expect(harnesses.agy.hook("linux", "PreInvocation")).toBe(
+      `if [ -n "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" agy PreInvocation; else echo '{}'; fi`,
     )
-    expect(harnesses.claude.hook("win32")).toBe(
-      "if ($env:NOVADECK_HOOK) { & $env:NOVADECK_HOOK claude }",
+    expect(harnesses.claude.hook("win32", "SessionStart")).toBe(
+      "if ($env:NOVADECK_HOOK) { & $env:NOVADECK_HOOK claude SessionStart }",
     )
-    expect(harnesses.codex.hook("win32")).toBe("if defined NOVADECK_HOOK %NOVADECK_HOOK% codex")
-    expect(harnesses.agy.hook("win32")).toBe(
-      "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy) else (echo {})",
+    expect(harnesses.codex.hook("win32", "SessionStart")).toBe(
+      "if defined NOVADECK_HOOK %NOVADECK_HOOK% codex SessionStart",
+    )
+    expect(harnesses.agy.hook("win32", "PreInvocation")).toBe(
+      "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy PreInvocation) else (echo {})",
     )
   })
 
   for (const agent of ["claude", "codex", "agy"] as const) {
     it(`do nothing outside NovaDeck's shells for ${agent}`, ({ plugins }) => {
-      const result = runHook(agent, undefined, "{}")
+      const result = runHook(agent, events[agent], undefined, "{}")
       expect(result.status).toBe(0)
       // Antigravity reads a hook's answer as JSON.
       expect(result.stdout.trim()).toBe(agent === "agy" ? "{}" : "")
@@ -101,8 +106,11 @@ describe("agent plugin hook commands", () => {
 
     it(`hand the agent's payload to NovaDeck's hook for ${agent}`, ({ plugins }) => {
       const payload = JSON.stringify({ session_id: "abc", conversationId: "abc" })
-      expect(runHook(agent, plugins.launcher, payload).status).toBe(0)
-      expect(plugins.recorded()).toEqual({ args: [agent], stdin: expect.stringContaining(payload) })
+      expect(runHook(agent, events[agent], plugins.launcher, payload).status).toBe(0)
+      expect(plugins.recorded()).toEqual({
+        args: [agent, events[agent]],
+        stdin: expect.stringContaining(payload),
+      })
     })
   }
 })

@@ -1,4 +1,9 @@
-import type { AgentName } from "@novadeck/protocol"
+import { isAbsolute } from "node:path"
+
+import { agentSessionId, type AgentName } from "@novadeck/protocol"
+
+import type { Report } from "../shell/reports.js"
+import type { HarnessEvent } from "./events.js"
 
 /** Where a harness lives on this machine, as its setup and inspection need it. */
 export type Install = {
@@ -40,16 +45,16 @@ export type Harness = {
   /** Its plugin commands, run in order. */
   readonly connect: (install: Install) => readonly Command[]
   readonly disconnect: readonly Command[]
-  /** The command its plugin's hook runs, through the harness's own shell. */
-  readonly hook: (platform: NodeJS.Platform) => string
+  /** The command its plugin runs for a hook `event`, through the harness's own shell. */
+  readonly hook: (platform: NodeJS.Platform, event: string) => string
   /** Its plugin's manifests and hook registrations, relative to its plugin directory. */
   readonly files: (platform: NodeJS.Platform) => readonly File[]
   /** Programs NovaDeck's shells put first on PATH while it is connected. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
   /** The words that continue its session by id, which a shell runs as they are. */
   readonly resume?: (session: string) => readonly string[]
-  /** What a hook report's `source` says of the session it names. */
-  readonly continuity: (source: string | undefined) => Continuity
+  /** The normalized facts in one of its hooks' reports; none for one it ignores. */
+  readonly decode: (report: Report) => readonly HarnessEvent[]
 }
 
 export const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
@@ -78,3 +83,13 @@ export const sessionStart = (source: string | undefined): Continuity =>
     : source === "startup"
       ? "startup"
       : "native-switch"
+
+/** A session id a shell can run as a plain word, or undefined. */
+export const sessionId = (value: unknown): string | undefined =>
+  agentSessionId.safeParse(value).success ? (value as string) : undefined
+
+/** An absolute path here, or undefined. */
+export const absolute = (value: unknown): string | undefined =>
+  typeof value === "string" && value.length <= 4096 && !value.includes("\0") && isAbsolute(value)
+    ? value
+    : undefined

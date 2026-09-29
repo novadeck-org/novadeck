@@ -7,7 +7,12 @@ import type { SessionObserved } from "./events.js"
  * The harness session that holds a terminal's foreground since the shell's last prompt.
  * It is live state: a prompt, exit, restart or disconnection ends it, and it is never saved.
  */
-export type Binding = { readonly agent: AgentName; readonly sessionId: string }
+export type Binding = {
+  readonly agent: AgentName
+  readonly sessionId: string
+  /** The harness process that reported it; null where the platform hides it. */
+  readonly instance: string | null
+}
 
 /** What a terminal knows of its harness sessions, which an observation may change. */
 export type Sessions = {
@@ -31,15 +36,19 @@ export type Facts = {
 }
 
 /**
- * Whether an observation may replace the bound session. Only its own harness can: with
- * the same session, a switch it announced itself (/clear, /resume), or a conversation it
- * observed (Antigravity reports no source, and no instance evidence yet). A fresh start
- * while another session is bound is a nested session, such as a subagent's, a Codex
- * started by another Codex, or an agent run from the one in the foreground.
+ * Whether an observation may replace the bound session. Only the same harness process
+ * can: with the same session, a switch it announced itself (/clear, /resume), or a
+ * conversation it observed (Antigravity reports no source). Another process of the same
+ * harness is a nested one, as is a fresh start while a session is bound: a subagent's, a
+ * Codex started by another Codex, or an agent run from the one in the foreground. Where
+ * the platform hides the process, the harness alone has to do.
  */
-const replaces = (binding: Binding, event: SessionObserved): boolean =>
-  binding.agent === event.agent &&
-  (binding.sessionId === event.sessionId || event.evidence !== "startup")
+const replaces = (binding: Binding, event: SessionObserved): boolean => {
+  if (binding.agent !== event.agent) return false
+  if (binding.instance !== null && event.instance !== null && binding.instance !== event.instance)
+    return false
+  return binding.sessionId === event.sessionId || event.evidence !== "startup"
+}
 
 /**
  * The terminal's sessions after an observation, or undefined when it is not this
@@ -68,7 +77,7 @@ export const observe = (
   return event.startedAt > (facts.promptedAt ?? 0)
     ? {
         sessions,
-        binding: { agent: event.agent, sessionId: event.sessionId },
+        binding: { agent: event.agent, sessionId: event.sessionId, instance: event.instance },
         cwd: event.cwd ?? state.cwd,
       }
     : { ...state, sessions }

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -9,9 +9,16 @@ import { listenForReports, type Report } from "./reports.js"
 
 type Fixture = {
   endpoint: string
+  /** The hook script, as written. */
+  script: string
   reports: Report[]
-  /** Runs the hook as an agent would, and resolves once it exits. */
-  hook: (agent: string, payload: unknown, env?: NodeJS.ProcessEnv) => Promise<number | null>
+  /** Runs the hook as an agent would for `event`, and resolves once it exits. */
+  hook: (
+    agent: string,
+    payload: unknown,
+    env?: NodeJS.ProcessEnv,
+    event?: string,
+  ) => Promise<number | null>
 }
 
 const terminalId = "00000000-0000-4000-8000-000000000001"
@@ -28,9 +35,9 @@ const it = base.extend<{ fixture: Fixture }>({
     const reports: Report[] = []
     const listening = await listenForReports((report) => reports.push(report))
     resources.defer(() => listening.close())
-    const hook: Fixture["hook"] = (agent, payload, env = {}) =>
+    const hook: Fixture["hook"] = (agent, payload, env = {}, event) =>
       new Promise((resolve) => {
-        const child = spawn(process.execPath, [script, agent], {
+        const child = spawn(process.execPath, [script, agent, ...(event ? [event] : [])], {
           env: {
             ...process.env,
             NOVADECK_TERMINAL_ID: terminalId,
@@ -45,13 +52,14 @@ const it = base.extend<{ fixture: Fixture }>({
         let printed = ""
         child.stdout.on("data", (data: Buffer) => (printed += data.toString()))
         child.on("exit", (code) => {
-          // Claude Code shows a SessionStart hook's output to the model; Antigravity
-          // reads it as JSON.
-          resolve(printed === (agent === "agy" ? "{}\n" : "") ? code : -1)
+          // Claude Code shows some hooks' output to the model; Antigravity reads it as JSON,
+          // and denies a tool whose PreToolUse answer does not say "ask".
+          const answer = event === "PreToolUse" ? '{"decision":"ask"}\n' : "{}\n"
+          resolve(printed === (agent === "agy" ? answer : "") ? code : -1)
         })
         child.stdin.end(typeof payload === "string" ? payload : JSON.stringify(payload))
       })
-    await use({ endpoint: listening.endpoint, reports, hook })
+    await use({ endpoint: listening.endpoint, script, reports, hook })
   },
 })
 
@@ -64,38 +72,85 @@ const start = (fields: object = {}) => ({
 })
 
 describe("agent hook", () => {
-  it("reports the session to its terminal with its token", async ({ fixture }) => {
-    expect(await fixture.hook("claude", start())).toBe(0)
+  it("forwards its event and the agent's payload to its terminal, with its token", async ({
+    fixture,
+  }) => {
+    expect(await fixture.hook("claude", start(), {}, "SessionStart")).toBe(0)
     expect(fixture.reports).toEqual([
-      expect.objectContaining({
+      {
         terminalId,
         token,
         agent: "claude",
-        sessionId: session,
+        event: "SessionStart",
         seq: expect.any(Number),
-      }),
+        instance: expect.toSatisfy((value) => value === null || /^\d+$/.test(String(value))),
+        env: { cursor: false },
+        payload: start(),
+      },
     ])
   })
 
+  it("takes the event from the payload when its command names none", async ({ fixture }) => {
+    await fixture.hook("claude", start({ hook_event_name: "Stop" }))
+    expect(fixture.reports[0]?.event).toBe("Stop")
+  })
+
+  it("names the Claude Code process that ran it", async ({ fixture }) => {
+    await fixture.hook("claude", start(), { CLAUDE_PID: "4242" }, "SessionStart")
+    expect(fixture.reports[0]?.instance).toBe("4242")
+  })
+
+  // Linux tells a process's name and parent through /proc.
+  it.runIf(process.platform === "linux")(
+    "names the nearest ancestor with its agent's name as the agent process",
+    async ({ fixture }) => {
+      // A shell named codex that waits for the hook, as Codex runs its hooks.
+      const directory = mkdtempSync(join(tmpdir(), "novadeck-codex-"))
+      const codex = join(directory, "codex")
+      symlinkSync("/bin/sh", codex)
+      const pid = await new Promise<number | undefined>((resolve) => {
+        const child = spawn(
+          codex,
+          ["-c", `"${process.execPath}" "${fixture.script}" codex SessionStart; true`],
+          {
+            env: {
+              ...process.env,
+              CLAUDE_PID: "",
+              NOVADECK_TERMINAL_ID: terminalId,
+              NOVADECK_REPORT: fixture.endpoint,
+              NOVADECK_REPORT_TOKEN: token,
+            },
+            stdio: ["pipe", "ignore", "inherit"],
+          },
+        )
+        child.stdin.end(JSON.stringify(start()))
+        child.on("exit", () => resolve(child.pid))
+      })
+      rmSync(directory, { recursive: true, force: true })
+      expect(fixture.reports[0]?.instance).toBe(String(pid))
+    },
+  )
+
+  it("forwards only what tells nested agents apart of its environment", async ({ fixture }) => {
+    await fixture.hook(
+      "codex",
+      start(),
+      { CURSOR_VERSION: "1.0", CODEX_THREAD_ID: "t" },
+      "SessionStart",
+    )
+    expect(fixture.reports[0]?.env).toEqual({ cursor: true, codexThread: "t" })
+  })
+
+  it("cuts long text short, so a report stays small", async ({ fixture }) => {
+    await fixture.hook("claude", start({ prompt: "x".repeat(10_000) }), {}, "UserPromptSubmit")
+    expect(String(fixture.reports[0]?.payload.prompt)).toHaveLength(4096)
+  })
+
   it("orders reports by when each hook started", async ({ fixture }) => {
-    await fixture.hook("claude", start())
-    await fixture.hook("claude", start({ source: "clear", session_id: "second" }))
+    await fixture.hook("claude", start(), {}, "SessionStart")
+    await fixture.hook("claude", start({ source: "clear" }), {}, "SessionStart")
     const [first, second] = fixture.reports
     expect(second!.seq).toBeGreaterThan(first!.seq)
-  })
-
-  it("ignores Claude Code subagents and Claude Code inside Cursor", async ({ fixture }) => {
-    await fixture.hook("claude", start({ agent_id: "sub" }))
-    await fixture.hook("claude", start({ cursor_version: "1.0" }))
-    await fixture.hook("claude", start(), { CURSOR_VERSION: "1.0" })
-    expect(fixture.reports).toEqual([])
-  })
-
-  it("ignores a Codex started by another Codex", async ({ fixture }) => {
-    await fixture.hook("codex", start({ model: "gpt" }), { CODEX_THREAD_ID: "another" })
-    expect(fixture.reports).toEqual([])
-    await fixture.hook("codex", start({ model: "gpt" }), { CODEX_THREAD_ID: session })
-    expect(fixture.reports).toHaveLength(1)
   })
 
   it("exits quietly outside NovaDeck's terminals and on anything malformed", async ({
@@ -103,22 +158,17 @@ describe("agent hook", () => {
   }) => {
     expect(await fixture.hook("claude", start(), { NOVADECK_TERMINAL_ID: "" })).toBe(0)
     expect(await fixture.hook("claude", "not json")).toBe(0)
-    expect(await fixture.hook("claude", start({ session_id: "../../etc" }))).toBe(0)
-    expect(await fixture.hook("claude", start({ hook_event_name: "Stop" }))).toBe(0)
+    expect(await fixture.hook("claude", "42")).toBe(0)
     expect(await fixture.hook("gemini", start())).toBe(0)
     expect(fixture.reports).toEqual([])
   })
 
-  it("reads Antigravity's conversation and workspace, and answers it with JSON", async ({
-    fixture,
-  }) => {
-    const workspace = process.platform === "win32" ? "C:\\work" : "/work"
-    const payload = { conversationId: session, workspacePaths: [workspace], modelName: "auto" }
-    expect(await fixture.hook("agy", payload)).toBe(0)
-    expect(fixture.reports).toEqual([
-      expect.objectContaining({ agent: "agy", sessionId: session, cwd: workspace }),
-    ])
-    expect(await fixture.hook("agy", payload, { NOVADECK_TERMINAL_ID: "" })).toBe(0)
+  it("answers Antigravity with JSON, letting its policy decide on tools", async ({ fixture }) => {
+    const payload = { conversationId: session, workspacePaths: ["/work"], modelName: "auto" }
+    expect(await fixture.hook("agy", payload, {}, "PreInvocation")).toBe(0)
+    expect(await fixture.hook("agy", payload, {}, "PreToolUse")).toBe(0)
+    expect(await fixture.hook("agy", payload, { NOVADECK_TERMINAL_ID: "" }, "PreToolUse")).toBe(0)
+    expect(fixture.reports.map(({ event }) => event)).toEqual(["PreInvocation", "PreToolUse"])
   })
 
   it("gives up without blocking the agent when NovaDeck is gone", async ({ fixture }) => {

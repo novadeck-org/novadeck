@@ -21,7 +21,6 @@ import * as pty from "node-pty"
 import { DomainError } from "../errors.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
-import { observed } from "../harnesses/events.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch, type ShellLaunch } from "../shell/integration.js"
@@ -154,7 +153,19 @@ type Started = {
 /** The runner's shell integration, once its files are written and reports are heard. */
 type Integration = { readonly paths: InstalledShell; readonly reports: Reports }
 
-// Variables of NovaDeck's own shells, which a runner started from one must not pass on.
+// Whether process `pid` still runs; one the platform refuses to signal belongs to someone
+// else, and runs.
+const alive = (pid: string): boolean => {
+  try {
+    process.kill(Number(pid), 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM"
+  }
+}
+
+// Variables of NovaDeck's own shells and of agent sessions, which a runner started from
+// inside one must not pass on.
 const inherited = [
   "NOVADECK_TOKEN",
   "NOVADECK_TERMINAL_ID",
@@ -164,6 +175,20 @@ const inherited = [
   "NOVADECK_BIN",
   "NOVADECK_ZDOTDIR",
   "NOVADECK_RESUME",
+  // An agent's own session markers, when NovaDeck was started from inside one: an agent
+  // in NovaDeck's shells would take itself for that session's child. Claude Code, for
+  // one, then stops saving its transcript.
+  "CLAUDECODE",
+  "CLAUDE_CODE_CHILD_SESSION",
+  "CLAUDE_CODE_SESSION_ID",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CLAUDE_CODE_EXECPATH",
+  "CLAUDE_CODE_MESSAGING_SOCKET",
+  "CLAUDE_CODE_SESSION_ATTENDED",
+  "CLAUDE_PID",
+  "CLAUDE_PROJECT_DIR",
+  "CODEX_THREAD_ID",
+  "ANTIGRAVITY_CONVERSATION_ID",
 ]
 
 // Input the terminal itself sends, not typing: focus reports, cursor-position and device
@@ -1110,12 +1135,14 @@ export class Terminals {
   }
 
   /**
-   * A harness hook reported its session; `observe` decides whether it is this terminal's
-   * own and the latest, and what it changes.
+   * A harness hook reported; its harness decodes it, and `observe` decides whether each
+   * session it names is this terminal's own and the latest, and what it changes.
    */
   private async report(report: Report): Promise<void> {
     const record = this.records.get(report.terminalId)
     if (!record || record.exitQueued || !sameToken(record.token, report.token)) return
+    const events = harnesses[report.agent].decode(report)
+    if (events.length === 0) return
     const { process: child } = record
     const disconnections = this.disconnections.get(report.agent)
     const [foreground, connected] = await Promise.all([
@@ -1125,26 +1152,40 @@ export class Terminals {
     if (record.process !== child || record.exitQueued) return
     // A disconnection while this waited forgot what the report would bring back.
     if (this.disconnections.get(report.agent) !== disconnections) return
-    const next = observe(
-      { sessions: record.agents, binding: record.binding, cwd: record.summary.cwd },
-      observed(report),
-      {
-        promptedAt: record.promptedAt,
-        shellInForeground: foreground,
-        submitted: record.submitted,
-        connected,
-        platform: process.platform,
-      },
-    )
-    if (!next) return
-    record.agents = next.sessions
-    record.binding = next.binding
-    const agent = next.binding?.agent ?? null
-    if (record.summary.agent !== agent || record.summary.cwd !== next.cwd) {
-      record.summary = { ...record.summary, agent, cwd: next.cwd }
-      this.announce(record)
+    // The bound agent process may have exited without the shell showing a prompt, as in
+    // tmux or a nested shell: its binding ended with it, and a later process may bind.
+    let changed = false
+    if (record.binding?.instance && !alive(record.binding.instance)) {
+      record.binding = null
+      if (record.summary.agent !== null) {
+        record.summary = { ...record.summary, agent: null }
+        this.announce(record)
+      }
     }
-    this.save(record, false)
+    const facts = {
+      promptedAt: record.promptedAt,
+      shellInForeground: foreground,
+      submitted: record.submitted,
+      connected,
+      platform: process.platform,
+    }
+    for (const event of events) {
+      const next = observe(
+        { sessions: record.agents, binding: record.binding, cwd: record.summary.cwd },
+        event,
+        facts,
+      )
+      if (!next) continue
+      record.agents = next.sessions
+      record.binding = next.binding
+      changed = true
+      const agent = next.binding?.agent ?? null
+      if (record.summary.agent !== agent || record.summary.cwd !== next.cwd) {
+        record.summary = { ...record.summary, agent, cwd: next.cwd }
+        this.announce(record)
+      }
+    }
+    if (changed) this.save(record, false)
   }
 
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */

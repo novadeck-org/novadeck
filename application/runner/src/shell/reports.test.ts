@@ -16,7 +16,15 @@ describe("the report endpoint", () => {
     const received: Report[] = []
     const reports = await listenForReports((accepted) => received.push(accepted))
     resources.defer(() => reports.close())
-    const base = { terminalId: "t", agent: "claude", sessionId: "a", seq: 1 }
+    const base = {
+      terminalId: "t",
+      agent: "claude",
+      event: "SessionStart",
+      seq: 1,
+      instance: "42",
+      env: { cursor: false },
+      payload: { session_id: "a" },
+    }
     const token = "0123456789abcdef".repeat(3)
     // A token as long as a runner's, in characters but not in bytes, and others.
     const bad = ["ż".repeat(48), "short", token.toUpperCase(), 42]
@@ -24,6 +32,9 @@ describe("the report endpoint", () => {
       bad.map((wrong) => send(reports.endpoint, JSON.stringify({ ...base, token: wrong }))),
     )
     await send(reports.endpoint, "not json")
+    // A payload that is not an object, and an unknown agent.
+    await send(reports.endpoint, JSON.stringify({ ...base, token, payload: "text" }))
+    await send(reports.endpoint, JSON.stringify({ ...base, token, agent: "gemini" }))
     await send(reports.endpoint, JSON.stringify({ ...base, token }))
     expect(received).toEqual([{ ...base, token }])
   })

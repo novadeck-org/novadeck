@@ -1,15 +1,19 @@
 import { access } from "node:fs/promises"
 import { join } from "node:path"
 
-import { json, plugin, sessionStart, type Harness } from "../harness.js"
+import { json, plugin, type Harness } from "../harness.js"
+import { decode } from "./decode.js"
 
 // Antigravity keeps its own state beside other Google tools in ~/.gemini.
 const gemini = (home: string) => join(home, ".gemini")
 
-const hook = (platform: NodeJS.Platform): string =>
+// Antigravity reads every hook's answer as JSON, even outside NovaDeck's shells. It
+// denies a tool whose PreToolUse answer says nothing, so registering PreToolUse needs an
+// answer of "ask" here too, in a form cmd passes on intact; none is registered yet.
+const hook = (platform: NodeJS.Platform, event: string): string =>
   platform === "win32"
-    ? "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy) else (echo {})"
-    : `if [ -n "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" agy; else echo '{}'; fi`
+    ? `if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy ${event}) else (echo {})`
+    : `if [ -n "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" agy ${event}; else echo '{}'; fi`
 
 export const agy = {
   id: "agy",
@@ -34,11 +38,12 @@ export const agy = {
     {
       path: "hooks.json",
       content: json({
-        novadeck: { PreInvocation: [{ type: "command", command: hook(platform) }] },
+        novadeck: {
+          PreInvocation: [{ type: "command", command: hook(platform, "PreInvocation") }],
+        },
       }),
     },
   ],
   resume: (session) => ["agy", "--conversation", session],
-  // A PreInvocation payload names no source: it only says the conversation runs.
-  continuity: sessionStart,
+  decode,
 } satisfies Harness
