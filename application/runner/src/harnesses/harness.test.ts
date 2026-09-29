@@ -45,7 +45,9 @@ const report = (
   ...fields,
 })
 const decoded = (agent: AgentName, fields: Partial<Report> = {}) =>
-  probe(agent).events.flatMap((each) => harnesses[agent].decode(report(agent, each, fields)))
+  probe(agent)
+    .events.flatMap((each) => harnesses[agent].decode(report(agent, each, fields)))
+    .filter(({ type }) => type === "session-observed")
 
 describe("decoding captured hooks", () => {
   it("observes Claude Code's session at its start, and nothing from its subagents", () => {
@@ -77,7 +79,7 @@ describe("decoding captured hooks", () => {
 
   it("observes Antigravity's conversation in every hook", () => {
     const events = decoded("agy")
-    expect(events.length).toBe(probe("agy").events.length)
+    expect(events).toHaveLength(probe("agy").events.length)
     expect(events[0]).toMatchObject({
       agent: "agy",
       evidence: "conversation-observed",

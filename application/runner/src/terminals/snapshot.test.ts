@@ -16,6 +16,7 @@ const summary: TerminalSummary = {
   exit: null,
   process: null,
   agent: null,
+  activity: null,
   run: 1,
 }
 

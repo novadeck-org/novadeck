@@ -147,6 +147,7 @@ const sameStatus = (a: TerminalStatus, b: TerminalStatus): boolean => statusKey(
 const statusKey = (status: TerminalStatus): string => {
   if (status.state === "exited") return `exited:${status.exitCode}:${status.signal}`
   if (status.state === "failed") return `failed:${status.message}`
+  if (status.state === "running") return `running:${JSON.stringify(status.agent ?? null)}`
   return status.state
 }
 

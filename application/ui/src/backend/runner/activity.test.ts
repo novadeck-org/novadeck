@@ -13,6 +13,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   run: 1,
   process: { name: "zsh", argv: null },
   agent: null,
+  activity: null,
   ...change,
 })
 const named = (name: string, argv: string[] | null = null) => summary({ process: { name, argv } })
@@ -45,6 +46,37 @@ describe("terminal activity", () => {
     it("names a Node CLI after the script it launched", () => {
       const codex = named("node", ["/usr/bin/node", "/lib/node_modules/@openai/codex/bin/codex.js"])
       expect(terminalActivity(codex)).toEqual({ status: { state: "running" }, process: "codex" })
+    })
+  })
+
+  context("while an agent reports through its hooks", () => {
+    const claude = (activity: TerminalSummary["activity"]) =>
+      terminalActivity(
+        summary({ process: { name: "claude", argv: null }, agent: "claude", activity }),
+      )
+
+    it("runs, working or idle as the agent says", () => {
+      const idle = { state: "idle" as const, attention: { pending: 0, kind: null } }
+      expect(claude(idle).status).toEqual({ state: "running", agent: { working: false } })
+      expect(claude({ ...idle, state: "unknown" }).status).toEqual({
+        state: "running",
+        agent: { working: true },
+      })
+    })
+
+    it("carries the requests waiting on the person", () => {
+      const asking = {
+        state: "working" as const,
+        attention: { pending: 2, kind: "question" as const },
+      }
+      expect(claude(asking).status).toEqual({
+        state: "running",
+        agent: { working: true, attention: { kind: "question", count: 2 } },
+      })
+    })
+
+    it("runs as before for an agent whose hooks said nothing", () => {
+      expect(claude(null).status).toEqual({ state: "running" })
     })
   })
 

@@ -149,6 +149,9 @@ const reporter = (
     source: string
     /** The agent process that reported it; unknown when left out. */
     instance?: string
+    /** The hook event, SessionStart when left out, and more of its payload. */
+    event?: string
+    fields?: object
   }[],
 ): string => {
   const bin = join(home, "bin")
@@ -166,10 +169,10 @@ const reporter = (
       '  if (index === reports.length) { console.log("reports sent"); return process.stdin.resume() }',
       "  const socket = net.connect(process.env.NOVADECK_REPORT)",
       '  socket.on("close", () => send(index + 1))',
-      "  const { agent, sessionId, seq, source, instance = null } = reports[index]",
+      "  const { agent, sessionId, seq, source, instance = null, fields = {} } = reports[index]",
       // As the hook forwards it: the event, and the agent's own payload.
-      '  const event = agent === "agy" ? "PreInvocation" : "SessionStart"',
-      '  const payload = agent === "agy" ? { conversationId: sessionId } : { hook_event_name: event, session_id: sessionId, source }',
+      '  const event = reports[index].event ?? (agent === "agy" ? "PreInvocation" : "SessionStart")',
+      '  const payload = agent === "agy" ? { conversationId: sessionId, ...fields } : { hook_event_name: event, session_id: sessionId, source, ...fields }',
       "  const report = { terminalId, token, agent, event, seq: base + seq, instance, env: { cursor: false }, payload }",
       '  socket.end(JSON.stringify(report) + "\\n")',
       "}",
@@ -505,6 +508,68 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await expect.poll(() => manager.reportedSession(terminal.id, "claude")).toBe("one")
     await new Promise((resolve) => setTimeout(resolve, 500))
     expect(manager.reportedSession(terminal.id, "claude")).toBe("one")
+  })
+
+  it("shows what the agent is doing, and the requests waiting on the person", async ({ shell }) => {
+    const call = { tool_name: "Bash", tool_input: { command: "touch x" } }
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "s", seq: 1, source: "startup" },
+      { agent: "claude", sessionId: "s", seq: 2, source: "", event: "UserPromptSubmit" },
+      {
+        agent: "claude",
+        sessionId: "s",
+        seq: 3,
+        source: "",
+        event: "PermissionRequest",
+        fields: call,
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const next = shell.watch(manager)
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await next(
+      (summary) =>
+        summary.id === terminal.id &&
+        summary.activity?.state === "working" &&
+        summary.activity.attention.pending === 1 &&
+        summary.activity.attention.kind === "permission",
+    )
+    // Returning to the prompt ends the agent, and its activity with it.
+    manager.write({ terminalId: terminal.id, data: "\u0003" }, "owner")
+    await expect
+      .poll(() => manager.list(terminal.sessionId)[0], { timeout: 10_000 })
+      .toMatchObject({ agent: null, activity: null })
+  })
+
+  it("starts a switched session's activity afresh", async ({ shell }) => {
+    const call = { tool_name: "Bash", tool_input: { command: "touch x" } }
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "s1", seq: 1, source: "startup" },
+      { agent: "claude", sessionId: "s1", seq: 2, source: "", event: "UserPromptSubmit" },
+      {
+        agent: "claude",
+        sessionId: "s1",
+        seq: 3,
+        source: "",
+        event: "PermissionRequest",
+        fields: call,
+      },
+      // /clear in the agent in the foreground.
+      { agent: "claude", sessionId: "s2", seq: 4, source: "clear" },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await shell.until(manager, terminal.id, "reports sent")
+    await expect
+      .poll(() => manager.list(terminal.sessionId)[0]?.activity, { timeout: 10_000 })
+      .toEqual({ state: "idle", attention: { pending: 0, kind: null } })
+    expect(manager.reportedSession(terminal.id, "claude")).toBe("s2")
   })
 
   it("keeps an agent session's own markers out of its shells", async ({ shell }) => {

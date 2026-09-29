@@ -12,7 +12,7 @@ import {
 import { useRef, type ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
-import { terminalPhase } from "../model/terminal-ending"
+import { attentionText, terminalPhase } from "../model/terminal-ending"
 import type { TerminalMetadata, WindowedView } from "../model/types"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
@@ -105,6 +105,7 @@ export const WindowShell = ({
       aria-label={`${terminal.name} terminal`}
       data-terminal={terminal.id}
       data-terminal-phase={terminalPhase(terminal)}
+      {...(attentionText(terminal) ? { "aria-description": attentionText(terminal) } : {})}
       data-process-window={processWindow}
       data-new={fresh}
     >

@@ -20,6 +20,7 @@ const summary = (n: number, session: number, change: Partial<TerminalSummary> = 
   run: 1,
   process: { name: "zsh", argv: null },
   agent: null,
+  activity: null,
   ...change,
 })
 const foreground = (name: string) => ({ process: { name, argv: null } })

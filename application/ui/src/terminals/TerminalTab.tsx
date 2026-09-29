@@ -2,7 +2,7 @@ import { useSortable } from "@dnd-kit/react/sortable"
 import { Check, Eye, EyeOff, Pencil, X } from "lucide-react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
-import { endingText, terminalEnding, terminalPhase } from "../model/terminal-ending"
+import { attentionText, endingText, terminalEnding, terminalPhase } from "../model/terminal-ending"
 import type { TerminalMetadata } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
 import { Tooltip } from "../ui-toolkit/Tooltip"
@@ -48,6 +48,10 @@ export const TerminalTab = ({
   const phase = terminalPhase(terminal)
   const ending = terminalEnding(terminal)
   const ended = ending ? endingText(ending) : undefined
+  // What the agent waits on the person for, said like an ending: in the tooltip and to
+  // assistive technology.
+  const waiting = attentionText(terminal)
+  const note = ended ?? waiting
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,
@@ -72,7 +76,7 @@ export const TerminalTab = ({
               <span className="terminal-tab-starting truncate font-mono italic">starting…</span>
             ) : (
               <span
-                className={`terminal-tab-process truncate font-mono ${phase === "running" ? "text-ink" : ""}`}
+                className={`terminal-tab-process truncate font-mono ${phase === "running" || phase === "attention" ? "text-ink" : ""}`}
               >
                 {terminal.process}
               </span>
@@ -81,11 +85,14 @@ export const TerminalTab = ({
         }
         selected={selected}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
-        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${ended ? `\n${ended}` : ""}`}
-        {...(ended ? { description: ended } : {})}
+        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}`}
+        {...(note ? { description: note } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
         data-terminal-phase={phase}
+        {...(phase === "attention" && terminal.state === "running" && terminal.agent?.attention
+          ? { "data-terminal-attention": terminal.agent.attention.kind }
+          : {})}
         data-terminal-hidden={hidden}
 
         className={`terminal-tab [--sidebar-actions-space:76px] ${hidden ? "[&_.sidebar-item-select]:opacity-50" : ""} ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}

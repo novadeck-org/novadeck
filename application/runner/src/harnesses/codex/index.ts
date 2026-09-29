@@ -9,6 +9,16 @@ const id = "novadeck@novadeck"
 
 const home = ({ env, home: user }: Install) => env.CODEX_HOME || join(user, ".codex")
 
+// The hooks `decode` reads: the session, its turns, and the requests waiting on the person.
+const events = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "Stop",
+  "Interrupt",
+  "PermissionRequest",
+  "PostToolUse",
+]
+
 const hook = (platform: NodeJS.Platform, event: string): string =>
   platform === "win32"
     ? `if defined NOVADECK_HOOK %NOVADECK_HOOK% codex ${event}`
@@ -41,14 +51,17 @@ export const codex = {
     {
       path: join("novadeck", "hooks", "hooks.json"),
       content: json({
-        hooks: {
-          SessionStart: [
-            {
-              matcher: "startup|resume|clear|compact",
-              hooks: [{ type: "command", command: hook(platform, "SessionStart") }],
-            },
-          ],
-        },
+        hooks: Object.fromEntries(
+          events.map((event) => [
+            event,
+            [
+              {
+                ...(event === "SessionStart" && { matcher: "startup|resume|clear|compact|fork" }),
+                hooks: [{ type: "command", command: hook(platform, event) }],
+              },
+            ],
+          ]),
+        ),
       }),
     },
   ],

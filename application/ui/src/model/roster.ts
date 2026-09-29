@@ -74,6 +74,11 @@ const sameStatus = (terminal: TerminalMetadata, status: TerminalStatus): boolean
     )
   if (status.state === "failed")
     return terminal.state === "failed" && terminal.message === status.message
+  if (status.state === "running")
+    return (
+      terminal.state === "running" &&
+      JSON.stringify(terminal.agent) === JSON.stringify(status.agent)
+    )
   return terminal.state === status.state
 }
 
@@ -82,6 +87,8 @@ const statusFields = (status: TerminalStatus): TerminalStatus => {
   if (status.state === "exited")
     return { state: status.state, exitCode: status.exitCode, signal: status.signal }
   if (status.state === "failed") return { state: status.state, message: status.message }
+  if (status.state === "running")
+    return { state: status.state, ...(status.agent ? { agent: status.agent } : {}) }
   return { state: status.state }
 }
 

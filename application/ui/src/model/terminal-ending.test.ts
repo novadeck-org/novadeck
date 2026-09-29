@@ -1,6 +1,6 @@
 import { describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
-import { endingText, terminalEnding, terminalPhase } from "./terminal-ending"
+import { attentionText, endingText, terminalEnding, terminalPhase } from "./terminal-ending"
 
 const terminal = terminalFixture(1, "~/project")
 
@@ -49,5 +49,29 @@ describe("terminal ending", () => {
     expect(terminalPhase({ ...terminal, state: "finished" })).toBe("idle")
     expect(terminalPhase({ ...terminal, state: "exited", exitCode: 1, signal: null })).toBe("ended")
     expect(terminalPhase({ ...terminal, state: "failed", message: "" })).toBe("ended")
+  })
+
+  it("reads an agent by what its hooks say: working, idle, or waiting on the person", () => {
+    const agent = (working: boolean, kind?: "permission" | "question") =>
+      terminalPhase({
+        ...terminal,
+        state: "running",
+        agent: { working, ...(kind ? { attention: { kind, count: 1 } } : {}) },
+      })
+    expect(agent(true)).toBe("running")
+    expect(agent(false)).toBe("idle")
+    expect(agent(true, "permission")).toBe("attention")
+  })
+
+  it("says what an agent waits on the person for", () => {
+    const waiting = (kind: "permission" | "question", count: number) =>
+      attentionText({
+        ...terminal,
+        state: "running",
+        agent: { working: true, attention: { kind, count } },
+      })
+    expect(waiting("permission", 1)).toBe("Needs permission")
+    expect(waiting("question", 2)).toBe("Asks a question · 2 waiting")
+    expect(attentionText({ ...terminal, state: "running" })).toBeUndefined()
   })
 })

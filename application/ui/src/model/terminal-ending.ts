@@ -34,12 +34,25 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
   reason ? `${status} · ${reason}` : status
 
 // What a terminal shows at a glance, in its tab and on its window: a shell starting,
-// idle at its prompt, running a program, or ended. A clean exit closes the terminal,
-// so a finished one reads as idle for the moment it remains.
-export type TerminalPhase = "starting" | "idle" | "running" | "ended"
+// idle at its prompt, running a program, waiting on the person, or ended. An agent that
+// reports through its hooks reads as running only while it works, and as waiting while
+// it asks for permission or a question. A clean exit closes the terminal, so a finished
+// one reads as idle for the moment it remains.
+export type TerminalPhase = "starting" | "idle" | "running" | "attention" | "ended"
 
 export const terminalPhase = (terminal: TerminalMetadata): TerminalPhase => {
   if (terminal.state === "exited" || terminal.state === "failed") return "ended"
-  if (terminal.state === "starting" || terminal.state === "running") return terminal.state
-  return "idle"
+  if (terminal.state === "starting") return "starting"
+  if (terminal.state !== "running") return "idle"
+  if (terminal.agent?.attention) return "attention"
+  return terminal.agent && !terminal.agent.working ? "idle" : "running"
+}
+
+// What the agent in a terminal waits on the person for, in a few words; undefined when
+// nothing waits.
+export const attentionText = (terminal: TerminalMetadata): string | undefined => {
+  const attention = terminal.state === "running" ? terminal.agent?.attention : undefined
+  if (!attention) return undefined
+  const what = attention.kind === "question" ? "Asks a question" : "Needs permission"
+  return attention.count > 1 ? `${what} · ${attention.count} waiting` : what
 }

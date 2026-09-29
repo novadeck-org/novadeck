@@ -17,6 +17,21 @@ const openPreferences = async (): Promise<void> => {
   await expectFocusWithin(preferencesDialog())
 }
 
+describe("An agent waiting on the person", () => {
+  it("says so on its terminal's tab and window", async () => {
+    // The demo's Codex waits for permission to run a command.
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    const tab = page.getByRole("button", { name: "Select Checkout review" })
+    await expect.element(tab).toHaveAttribute("aria-description", "Needs permission")
+    await tab.click()
+    await expect
+      .element(page.getByRole("region", { name: "Checkout review terminal" }))
+      .toHaveAttribute("aria-description", "Needs permission")
+  })
+})
+
 describe("Connecting agents", () => {
   context("in Preferences", () => {
     it("offers each installed agent switched off, and not the ones missing", async () => {

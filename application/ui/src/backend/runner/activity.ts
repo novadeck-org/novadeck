@@ -1,7 +1,7 @@
-import type { TerminalExit, TerminalSummary } from "@novadeck/protocol"
+import type { AgentActivity, TerminalExit, TerminalSummary } from "@novadeck/protocol"
 
 import { isShellProcess, runningProgram } from "../../model/process"
-import type { TerminalStatus } from "../../model/types"
+import type { AgentStatus, TerminalStatus } from "../../model/types"
 
 // A shell that exits sooner than this after starting counts as failing to start.
 export const quickExitMs = 2000
@@ -23,16 +23,24 @@ export type TerminalActivity = {
   readonly process?: string
 }
 
+// What an agent's hooks say it does, for its terminal's status.
+const agentStatus = ({ state, attention }: AgentActivity): AgentStatus => ({
+  working: state !== "idle",
+  ...(attention.pending > 0 && attention.kind
+    ? { attention: { kind: attention.kind, count: attention.pending } }
+    : {}),
+})
+
 // What the UI shows for a terminal the runner reports: which program it runs, and
 // whether it is busy (a program runs in the foreground) or idle (the shell waits for
-// input). A terminal without an exit is running.
+// input). An agent in the foreground adds what its hooks say it does. A terminal
+// without an exit is running.
 export const terminalActivity = (summary: TerminalSummary): TerminalActivity => {
   if (summary.exit) return { status: exitStatus(summary.exit) }
   const program = runningProgram(summary.process, summary.agent)
-  return {
-    status: { state: !program || isShellProcess(program) ? "idle" : "running" },
-    process: program,
-  }
+  if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }
+  const agent = summary.agent && summary.activity ? agentStatus(summary.activity) : undefined
+  return { status: { state: "running", ...(agent ? { agent } : {}) }, process: program }
 }
 
 // Statuses that keep a tile waiting for Enter to start a fresh shell.

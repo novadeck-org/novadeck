@@ -191,6 +191,18 @@
 .terminal-tab[data-terminal-phase="ended"] .terminal-glyph::before {
   content: "×";
 }
+/* An agent waiting on the person is marked in the warning colour: "?" for a question,
+   "!" for a permission. */
+.terminal-tab[data-terminal-phase="attention"] .terminal-glyph {
+  color: var(--color-warning-fg);
+  font-weight: 700;
+}
+.terminal-tab[data-terminal-phase="attention"] .terminal-glyph::before {
+  content: "!";
+}
+.terminal-tab[data-terminal-attention="question"] .terminal-glyph::before {
+  content: "?";
+}
 .terminal-tab[data-terminal-phase="running"] .terminal-glyph::before {
   content: "⠋";
   animation: terminal-spin 800ms steps(1) infinite;
@@ -285,6 +297,12 @@
   border-top-color: var(--color-muted);
   animation: terminal-pulse 1.2s ease-in-out infinite;
 }
+/* Waiting on the person: a steady line in the warning colour, which a slow pulse draws
+   the eye to unless motion is reduced. */
+.terminal-window[data-terminal-phase="attention"] .terminal-heading::after {
+  border-top: 2px solid var(--color-warning-fg);
+  animation: terminal-pulse 1.6s ease-in-out infinite;
+}
 .terminal-window[data-terminal-phase="ended"] .terminal-heading::after {
   border-top-style: dashed;
   border-top-color: var(--color-strong);
@@ -303,6 +321,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .terminal-window[data-terminal-phase="attention"] .terminal-heading::after {
+    animation: none;
+  }
   .terminal-window[data-terminal-phase="running"] .terminal-heading::after {
     border-image: none;
     border-top-color: var(--color-strong);

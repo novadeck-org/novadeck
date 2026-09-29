@@ -128,16 +128,33 @@ describe("agent plugins", () => {
     expect(read(claude, "novadeck", ".claude-plugin", "plugin.json")).toMatchObject({
       name: "novadeck",
     })
-    expect(read(claude, "novadeck", "hooks", "hooks.json").hooks.SessionStart).toHaveLength(1)
+    expect(Object.keys(read(claude, "novadeck", "hooks", "hooks.json").hooks)).toEqual([
+      "SessionStart",
+      "UserPromptSubmit",
+      "Stop",
+      "StopFailure",
+      "PermissionRequest",
+      "PostToolUse",
+      "PostToolUseFailure",
+    ])
     expect(read(codex, "novadeck", ".codex-plugin", "plugin.json")).toMatchObject({
       name: "novadeck",
       hooks: "./hooks/hooks.json",
     })
-    expect(read(codex, "novadeck", "hooks", "hooks.json").hooks.SessionStart[0]).toMatchObject({
-      matcher: "startup|resume|clear|compact",
+    const codexHooks = read(codex, "novadeck", "hooks", "hooks.json").hooks
+    expect(codexHooks.SessionStart[0]).toMatchObject({
+      matcher: "startup|resume|clear|compact|fork",
     })
+    expect(Object.keys(codexHooks)).toEqual([
+      "SessionStart",
+      "UserPromptSubmit",
+      "Stop",
+      "Interrupt",
+      "PermissionRequest",
+      "PostToolUse",
+    ])
     expect(read(agy, "plugin.json")).toEqual({ name: "novadeck" })
-    expect(read(agy, "hooks.json").novadeck.PreInvocation).toHaveLength(1)
+    expect(Object.keys(read(agy, "hooks.json").novadeck)).toEqual(["PreInvocation", "Stop"])
   })
 })
 

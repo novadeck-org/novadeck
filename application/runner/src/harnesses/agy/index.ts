@@ -32,7 +32,7 @@ export const agy = {
   disconnect: [{ argv: ["agy", "plugin", "uninstall", "novadeck"], optional: true }],
   hook,
   // Antigravity runs PreInvocation hooks before each model call, the first time with the
-  // conversation's first message.
+  // conversation's first message, and Stop once the turn ends.
   files: (platform) => [
     { path: "plugin.json", content: json({ name: plugin.name }) },
     {
@@ -40,6 +40,7 @@ export const agy = {
       content: json({
         novadeck: {
           PreInvocation: [{ type: "command", command: hook(platform, "PreInvocation") }],
+          Stop: [{ type: "command", command: hook(platform, "Stop") }],
         },
       }),
     },

@@ -19,6 +19,12 @@ import type { Terminal as Screen } from "@xterm/headless"
 import * as pty from "node-pty"
 
 import { DomainError } from "../errors.js"
+import {
+  apply,
+  started as fresh,
+  summary as activitySummary,
+  type Activity,
+} from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
 import { harnesses } from "../harnesses/registry.js"
@@ -120,6 +126,8 @@ type Record = {
   agents: { [agent in AgentName]?: AgentReport }
   /** The harness session holding the current shell's foreground; `summary.agent` shows it. */
   binding: Binding | null
+  /** What the bound agent is doing, as its hooks said; null without a binding. */
+  activity: Activity | null
   /** When the shell last showed its prompt, in epoch milliseconds. */
   promptedAt: number | null
   /** Unsaved changes: output, directory, or prompts. */
@@ -361,6 +369,7 @@ export class Terminals {
           process: shellProcess(shell),
           run: 1,
           agent: null,
+          activity: null,
         },
         ...started,
         sequence: 0,
@@ -382,6 +391,7 @@ export class Terminals {
         origin,
         agents: saved?.agents ?? {},
         binding: null,
+        activity: null,
         promptedAt: saved?.promptedAt ?? null,
         changed: false,
         savedAt: 0,
@@ -503,9 +513,11 @@ export class Terminals {
             process: shellProcess(shell),
             run: record.summary.run + 1,
             agent: null,
+            activity: null,
           } satisfies TerminalSummary,
           foreground: undefined,
           binding: null,
+          activity: null,
           // Skipping a sequence number sends any earlier cursor to a fresh snapshot.
           sequence: record.sequence + 1,
           history: [],
@@ -623,7 +635,8 @@ export class Terminals {
       // Its binding ends too: a disconnected harness holds no terminal's foreground.
       if (record.binding?.agent === agent) {
         record.binding = null
-        record.summary = { ...record.summary, agent: null }
+        record.activity = null
+        record.summary = { ...record.summary, agent: null, activity: null }
         this.announce(record)
       }
     }
@@ -1117,8 +1130,9 @@ export class Terminals {
     record.changed = true
     const moved = cwd !== record.summary.cwd
     record.binding = null
+    record.activity = null
     if (moved || record.summary.agent !== null) {
-      record.summary = { ...record.summary, cwd, agent: null }
+      record.summary = { ...record.summary, cwd, agent: null, activity: null }
       this.announce(record)
     }
     if (moved) this.save(record, false)
@@ -1157,8 +1171,9 @@ export class Terminals {
     let changed = false
     if (record.binding?.instance && !alive(record.binding.instance)) {
       record.binding = null
+      record.activity = null
       if (record.summary.agent !== null) {
-        record.summary = { ...record.summary, agent: null }
+        record.summary = { ...record.summary, agent: null, activity: null }
         this.announce(record)
       }
     }
@@ -1169,23 +1184,53 @@ export class Terminals {
       connected,
       platform: process.platform,
     }
+    const cwd = record.summary.cwd
     for (const event of events) {
+      if (event.type !== "session-observed") {
+        const next =
+          record.binding && record.activity && apply(record.activity, record.binding, event)
+        if (next) record.activity = next
+        continue
+      }
       const next = observe(
         { sessions: record.agents, binding: record.binding, cwd: record.summary.cwd },
         event,
         facts,
       )
       if (!next) continue
+      const before = record.binding
       record.agents = next.sessions
       record.binding = next.binding
       changed = true
-      const agent = next.binding?.agent ?? null
-      if (record.summary.agent !== agent || record.summary.cwd !== next.cwd) {
-        record.summary = { ...record.summary, agent, cwd: next.cwd }
-        this.announce(record)
-      }
+      // A newly bound session waits for its first prompt; one still bound keeps its activity.
+      const same =
+        before !== null &&
+        next.binding !== null &&
+        before.agent === next.binding.agent &&
+        before.sessionId === next.binding.sessionId
+      if (!same) record.activity = next.binding ? fresh(event.startedAt) : null
+      record.summary = { ...record.summary, cwd: next.cwd }
     }
+    this.publishAgent(record, record.summary.cwd !== cwd)
     if (changed) this.save(record, false)
+  }
+
+  /**
+   * Shows the bound agent and its activity in the summary, announcing a change, or the
+   * summary's own change when `moved`.
+   */
+  private publishAgent(record: Record, moved: boolean): void {
+    const agent = record.binding?.agent ?? null
+    const activity = record.binding && record.activity ? activitySummary(record.activity) : null
+    const { summary } = record
+    if (
+      !moved &&
+      summary.agent === agent &&
+      JSON.stringify(summary.activity) === JSON.stringify(activity)
+    )
+      return
+    record.summary = { ...summary, agent, activity }
+    this.announce(record)
   }
 
   /** Shows a transcript on the record's fresh screen, ahead of its shell's output. */
@@ -1250,7 +1295,8 @@ export class Terminals {
     const exit = { ...ended, ranMs: Math.max(0, Math.round(performance.now() - record.startedAt)) }
     void this.enqueue(record, () => {
       record.binding = null
-      record.summary = { ...record.summary, exit, process: null, agent: null }
+      record.activity = null
+      record.summary = { ...record.summary, exit, process: null, agent: null, activity: null }
       this.cancelResume(record)
       this.save(record, true)
       this.exits += 1

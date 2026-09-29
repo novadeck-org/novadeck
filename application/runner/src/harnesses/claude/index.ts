@@ -8,6 +8,17 @@ const id = "novadeck@novadeck"
 
 const home = ({ env, home: user }: Install) => env.CLAUDE_CONFIG_DIR || join(user, ".claude")
 
+// The hooks `decode` reads: the session, its turns, and the requests waiting on the person.
+const events = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "Stop",
+  "StopFailure",
+  "PermissionRequest",
+  "PostToolUse",
+  "PostToolUseFailure",
+]
+
 const hook = (platform: NodeJS.Platform, event: string): string =>
   platform === "win32"
     ? `if ($env:NOVADECK_HOOK) { & $env:NOVADECK_HOOK claude ${event} }`
@@ -46,19 +57,22 @@ export const claude = {
     {
       path: join("novadeck", "hooks", "hooks.json"),
       content: json({
-        hooks: {
-          SessionStart: [
-            {
-              hooks: [
-                {
-                  type: "command",
-                  command: hook(platform, "SessionStart"),
-                  ...(platform === "win32" && { shell: "powershell" }),
-                },
-              ],
-            },
-          ],
-        },
+        hooks: Object.fromEntries(
+          events.map((event) => [
+            event,
+            [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command: hook(platform, event),
+                    ...(platform === "win32" && { shell: "powershell" }),
+                  },
+                ],
+              },
+            ],
+          ]),
+        ),
       }),
     },
   ],

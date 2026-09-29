@@ -3,10 +3,20 @@ export type WindowedView = Exclude<ViewMode, "focus">
 export type PreferencesValue = { fontSize: number; enabledViews: ViewMode[] }
 export type Project = { id: string; name: string; directory: string }
 
+// What the agent running in a terminal says it is doing: working on a turn or waiting
+// for the next prompt, and how many of its requests wait on the person, by the kind of
+// the oldest: permission for a tool, or a question.
+export type AgentStatus = {
+  readonly working: boolean
+  readonly attention?: { readonly kind: "permission" | "question"; readonly count: number }
+}
+
 // What a terminal's process is doing. Exit and failure details replace each other.
-// An exited process reports its code, or the signal that killed it.
+// An exited process reports its code, or the signal that killed it. A running agent
+// that reports through its hooks adds what it is doing.
 export type TerminalStatus =
-  | { readonly state: "starting" | "running" | "idle" | "finished" }
+  | { readonly state: "starting" | "idle" | "finished" }
+  | { readonly state: "running"; readonly agent?: AgentStatus }
   | { readonly state: "exited"; readonly exitCode: number | null; readonly signal: string | null }
   | { readonly state: "failed"; readonly message: string }
 

@@ -883,7 +883,18 @@ an action by typing guessed keys into a terminal.
    listed there as still to probe.
 4. **Observe.** Implement each adapter's `watch`, transcripts and telemetry
    readers to the probed coverage, plus the agent model summary, detail and
-   stream tiers in the protocol.
+   stream tiers in the protocol. In parts:
+   1. The hook foundation: reports with process identity, decoding in the
+      runner, and a clean shell environment.
+   2. Activity and attention: turns and permission or question requests from
+      hooks. `TerminalSummary.activity` carries working or idle and the pending
+      requests, and the UI marks a terminal waiting on the person. Nothing
+      reports a denial or an Esc in Claude Code and Antigravity, so a request or
+      turn stays open until the next turn starts. Later sources (Claude Code's
+      transcript, the status line) close that gap.
+   3. Subagents and transcripts.
+   4. The status line bridge and telemetry.
+   5. Planning signals.
 5. **Operate.** Add caller/operation, messaging, artifact and presentation
    services, with MCP and UI exercising the same operations, including the
    spawn-Codex and present-plan walkthroughs in the companion design.

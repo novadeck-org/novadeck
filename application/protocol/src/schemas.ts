@@ -50,6 +50,17 @@ export const foregroundProcess = z.strictObject({
 export const agentName = z.enum(["claude", "codex", "agy"])
 export const agentSessionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
 
+// What the agent holding a terminal's foreground is doing, as its own hooks report it:
+// working on a turn, idle between turns, or unknown when they have not said. `attention`
+// counts the requests waiting on the person, and names the kind of the oldest one.
+export const agentActivity = z.strictObject({
+  state: z.enum(["working", "idle", "unknown"]),
+  attention: z.strictObject({
+    pending: z.number().int().nonnegative(),
+    kind: z.enum(["permission", "question"]).nullable(),
+  }),
+})
+
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
@@ -69,6 +80,8 @@ export const terminalSummary = z.strictObject({
   // The agent that reported a session in this shell since its last prompt, so a client
   // can name the program where the process alone cannot, as on Windows. Null otherwise.
   agent: agentName.nullable(),
+  // What that agent is doing; null without one.
+  activity: agentActivity.nullable(),
 })
 
 // `terminals.watch` events: every terminal's summary, then each later change.
@@ -131,5 +144,6 @@ export type TerminalChange = z.infer<typeof terminalChange>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
 export type AgentName = z.infer<typeof agentName>
+export type AgentActivity = z.infer<typeof agentActivity>
 export type AgentIntegration = z.infer<typeof agentIntegration>
 export type RunnerSettings = z.infer<typeof runnerSettings>

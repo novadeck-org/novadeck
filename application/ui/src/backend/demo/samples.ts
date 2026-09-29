@@ -125,7 +125,15 @@ export const projectTerminals = (project: Project, agents = false): TerminalMeta
     ...terminal,
     directory: terminal.directory.replace(/^~\/projects\/[^/]+/, project.directory),
     ...(agents && terminal.id === "01" ? { command: "claude", process: "claude" } : {}),
-    ...(agents && terminal.id === "04" ? { command: "codex", process: "codex" } : {}),
+    // Codex waits for the person to allow a command, as an agent's hooks report it.
+    ...(agents && terminal.id === "04"
+      ? {
+          command: "codex",
+          process: "codex",
+          state: "running" as const,
+          agent: { working: true, attention: { kind: "permission" as const, count: 1 } },
+        }
+      : {}),
   }))
 
 // Each sample project opens one session with the stable ID "initial".
