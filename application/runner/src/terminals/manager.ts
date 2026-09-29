@@ -19,11 +19,12 @@ import type { Terminal as Screen } from "@xterm/headless"
 import * as pty from "node-pty"
 
 import { DomainError } from "../errors.js"
+import { harnesses } from "../harnesses/registry.js"
+import { resumeCommand } from "../harnesses/resume.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch, type ShellLaunch } from "../shell/integration.js"
 import { osc7Directory, osc9Directory } from "../shell/osc.js"
 import { acceptReport, listenForReports, type Report, type Reports } from "../shell/reports.js"
-import { resumeCommand } from "../shell/resume.js"
 import {
   sampleForeground,
   shellInForeground,
@@ -60,8 +61,8 @@ export type TerminalOptions = {
   shellFiles?: Promise<InstalledShell | undefined>
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
-  /** Whether new shells put the Codex shim first on PATH: while Codex is connected. */
-  codexShim?: () => Promise<boolean>
+  /** Whether new shells put harnesses' shims first on PATH: while one with shims is connected. */
+  shims?: () => Promise<boolean>
   /** Whether terminals' transcripts are kept, until `keepTranscripts` changes it. */
   transcripts?: boolean
   /** How often changed terminals are saved, in milliseconds. */
@@ -210,15 +211,12 @@ export class Terminals {
   private sampler: ReturnType<typeof setInterval> | undefined
   private saver: ReturnType<typeof setInterval> | undefined
   private readonly options: Required<
-    Omit<
-      TerminalOptions,
-      "env" | "shellArgs" | "shellFiles" | "records" | "codexShim" | "transcripts"
-    >
+    Omit<TerminalOptions, "env" | "shellArgs" | "shellFiles" | "records" | "shims" | "transcripts">
   > & {
     env: NodeJS.ProcessEnv
     shellArgs: readonly string[] | undefined
     records: TerminalRecords | undefined
-    codexShim: () => Promise<boolean>
+    shims: () => Promise<boolean>
   }
   private readonly integration: Promise<Integration | undefined>
   private transcripts: boolean
@@ -251,7 +249,7 @@ export class Terminals {
       ackWindowBytes: positive(options.ackWindowBytes, 256 * 1024),
       processPollMs: positive(options.processPollMs, 1000),
       records: options.records,
-      codexShim: options.codexShim ?? (() => Promise.resolve(false)),
+      shims: options.shims ?? (() => Promise.resolve(false)),
       saveMs: positive(options.saveMs, 5000),
       transcriptChars: positive(options.transcriptChars, 256 * 1024),
     }
@@ -563,11 +561,11 @@ export class Terminals {
     this.persisting(() => this.options.records?.forgetAgent(agent))
   }
 
-  /** The integration for a new shell, with whether it gets the Codex shim. */
-  private async shellIntegration(): Promise<(Integration & { codexShim: boolean }) | undefined> {
+  /** The integration for a new shell, with whether it gets the connected harnesses' shims. */
+  private async shellIntegration(): Promise<(Integration & { shims: boolean }) | undefined> {
     const integration = await this.integration
     if (!integration) return undefined
-    return { ...integration, codexShim: await this.options.codexShim().catch(() => false) }
+    return { ...integration, shims: await this.options.shims().catch(() => false) }
   }
 
   /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
@@ -938,7 +936,7 @@ export class Terminals {
     shell: string,
     cwd: string,
     input: Size & { id?: string; terminalId?: string },
-    integration: (Integration & { codexShim: boolean }) | undefined,
+    integration: (Integration & { shims: boolean }) | undefined,
     resume?: readonly string[],
   ): Started {
     const { cols, rows } = input
@@ -947,7 +945,7 @@ export class Terminals {
     const launch = (withResume: boolean): ShellLaunch =>
       integration
         ? shellLaunch(shell, integration.paths, this.options.env, {
-            codexShim: integration.codexShim,
+            shims: integration.shims,
             ...(withResume &&
               resume &&
               this.options.shellArgs === undefined && {
@@ -1069,7 +1067,7 @@ export class Terminals {
    * An agent hook reported its session; `acceptReport` decides whether it is this
    * terminal's own and the latest, and what it changes.
    */
-  private async report({ terminalId, token, ...report }: Report): Promise<void> {
+  private async report({ terminalId, token, source, ...report }: Report): Promise<void> {
     const record = this.records.get(terminalId)
     if (!record || record.exitQueued || !sameToken(record.token, token)) return
     const { process: child } = record
@@ -1077,7 +1075,7 @@ export class Terminals {
     if (record.process !== child || record.exitQueued) return
     const next = acceptReport(
       { agents: record.agents, active: record.summary.agent, cwd: record.summary.cwd },
-      report,
+      { ...report, continuity: harnesses[report.agent].continuity(source) },
       {
         promptedAt: record.promptedAt,
         shellInForeground: foreground,

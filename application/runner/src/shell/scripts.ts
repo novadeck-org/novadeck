@@ -2,24 +2,24 @@ import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
 
+import { agents, harnesses } from "../harnesses/registry.js"
+import { header } from "./header.js"
+
 // The files NovaDeck puts in shells it starts, and the plugins agents install when the
 // person connects them, as text. They are written into NovaDeck's own data directory;
 // only connecting an agent installs anything elsewhere, through the agent's own commands.
 
 /** Where each file lives under the shell directory. */
 export type ShellPaths = {
-  /** Put first on PATH while Codex is connected: the `codex` shim. */
+  /** Put first on PATH while a harness with shims is connected, as Codex's `codex`. */
   readonly bin: string
   readonly bash: string
   /** ZDOTDIR for zsh. */
   readonly zsh: string
   readonly fish: string
   readonly powershell: string
-  /**
-   * The plugin sources each agent installs from when the person connects it: a local
-   * marketplace for Claude Code and Codex, a plugin folder for Antigravity.
-   */
-  readonly plugins: { readonly claude: string; readonly codex: string; readonly agy: string }
+  /** The plugin sources each agent installs from when the person connects it. */
+  readonly plugins: { readonly [agent in AgentName]: string }
   /** Where a fresh shell finds the command that resumes its agent, one file per shell. */
   readonly resume: string
   /** The hook's launcher. */
@@ -33,11 +33,9 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   zsh: join(directory, "zsh"),
   fish: join(directory, "fish", "novadeck.fish"),
   powershell: join(directory, "powershell", "novadeck.ps1"),
-  plugins: {
-    claude: join(directory, "plugins", "claude"),
-    codex: join(directory, "plugins", "codex"),
-    agy: join(directory, "plugins", "agy", "novadeck"),
-  },
+  plugins: Object.fromEntries(
+    agents.map((agent) => [agent, join(directory, "plugins", harnesses[agent].plugin)]),
+  ) as ShellPaths["plugins"],
   resume: join(directory, "resume"),
   hook: join(directory, platform === "win32" ? "hook.cmd" : "hook"),
   hookScript: join(directory, "hook.mjs"),
@@ -50,13 +48,6 @@ export const fishQuote = (value: string): string =>
   `'${value.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`
 // Batch files expand %VAR% even inside quotes; a path cannot hold a double quote.
 const cmdQuote = (value: string): string => `"${value.replaceAll("%", "%%")}"`
-
-const header = (comment: string, what: string): string =>
-  [
-    `${comment} NovaDeck ${what}.`,
-    `${comment} Written by NovaDeck into its own data directory, and overwritten on each start.`,
-    `${comment} Only NovaDeck's shells, and agents you connected, use it.`,
-  ].join("\n")
 
 /**
  * bash, started with `--init-file`: reads the user's own ~/.bashrc as bash would, then
@@ -245,143 +236,6 @@ if ($env:NOVADECK_RESUME) {
 }
 `
 
-// Interactive Codex runs its sessions, and their hooks, in a shared background server
-// that knows nothing of the terminal it was started from. While Codex is connected,
-// NovaDeck's shells run it through this shim, which adds --no-daemon so the session and
-// its hook run in the terminal. `codex agents` and --remote need the server, so they go
-// unchanged, as does anything outside NovaDeck's shells.
-const posixCodexShim = `#!/bin/sh
-${header("#", "shim for codex")}
-# Runs the real codex with --no-daemon, so its hooks can tell NovaDeck which session runs
-# in this terminal.
-novadeck_real=
-novadeck_ifs=$IFS
-IFS=:
-set -f
-for novadeck_dir in $PATH; do
-  [ -n "$novadeck_dir" ] || continue
-  novadeck_candidate=$novadeck_dir/codex
-  if [ -f "$novadeck_candidate" ] && [ -x "$novadeck_candidate" ] && ! [ "$novadeck_candidate" -ef "$0" ]; then
-    novadeck_real=$novadeck_candidate
-    break
-  fi
-done
-set +f
-IFS=$novadeck_ifs
-if [ -z "$novadeck_real" ]; then
-  echo "codex: command not found" >&2
-  exit 127
-fi
-[ -n "\${NOVADECK_TERMINAL_ID:-}" ] || exec "$novadeck_real" "$@"
-for novadeck_arg in "$@"; do
-  case $novadeck_arg in
-    agents | --remote | --remote=* | --no-daemon) exec "$novadeck_real" "$@" ;;
-  esac
-done
-exec "$novadeck_real" --no-daemon "$@"
-`
-
-// `where` lists matches in PATH order, including this shim, and on npm installs an
-// extensionless script that only other shells run; the first other runnable one wins.
-const cmdCodexShim = `@echo off
-${header("rem", "shim for codex")}
-rem Runs the real codex with --no-daemon, so its hooks can tell NovaDeck which session
-rem runs in this terminal.
-setlocal
-set "novadeck_real="
-for /f "delims=" %%i in ('where codex 2^>nul') do call :consider "%%~fi"
-if not defined novadeck_real (
-  echo codex: command not found 1>&2
-  exit /b 9009
-)
-if not defined NOVADECK_TERMINAL_ID goto plain
-for %%a in (%*) do (
-  if /i "%%~a"=="agents" goto plain
-  if /i "%%~a"=="--remote" goto plain
-  if /i "%%~a"=="--no-daemon" goto plain
-)
-"%novadeck_real%" --no-daemon %*
-exit /b %ERRORLEVEL%
-:plain
-"%novadeck_real%" %*
-exit /b %ERRORLEVEL%
-:consider
-if defined novadeck_real exit /b
-if /i "%~dp1"=="%~dp0" exit /b
-if /i "%~x1"==".exe" set "novadeck_real=%~1"
-if /i "%~x1"==".cmd" set "novadeck_real=%~1"
-if /i "%~x1"==".bat" set "novadeck_real=%~1"
-exit /b
-`
-
-/**
- * The hook command each agent's plugin runs, through the agent's own shell: sh (Claude
- * Code, Antigravity) or the login shell (Codex) elsewhere; on Windows, PowerShell for
- * Claude Code and cmd for the others. Outside NovaDeck's shells NOVADECK_HOOK is unset
- * and the command does nothing, so a plugin left behind never gets in the way.
- * Antigravity expects JSON back even then. Codex and Antigravity trust a hook by its
- * definition, so these strings must never change.
- */
-export const hookCommand = (agent: AgentName, platform = process.platform): string => {
-  if (platform === "win32") {
-    // Unquoted: an agent may escape inner quotes in a way cmd does not read.
-    if (agent === "claude") return "if ($env:NOVADECK_HOOK) { & $env:NOVADECK_HOOK claude }"
-    if (agent === "agy") return "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy) else (echo {})"
-    return "if defined NOVADECK_HOOK %NOVADECK_HOOK% codex"
-  }
-  if (agent === "agy")
-    return `if [ -n "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" agy; else echo '{}'; fi`
-  return `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" ${agent} || true`
-}
-
-const plugin = {
-  name: "novadeck",
-  version: "1.0.0",
-  description: "Tells NovaDeck which session runs in its terminal, so it can resume it.",
-}
-
-const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
-
-// Claude Code and Codex install from a marketplace; both read this local one.
-const marketplace = json({
-  name: "novadeck",
-  owner: { name: "NovaDeck" },
-  plugins: [{ name: "novadeck", source: "./novadeck", description: plugin.description }],
-})
-
-const claudeHooks = (platform: NodeJS.Platform) => ({
-  hooks: {
-    SessionStart: [
-      {
-        hooks: [
-          {
-            type: "command",
-            command: hookCommand("claude", platform),
-            ...(platform === "win32" && { shell: "powershell" }),
-          },
-        ],
-      },
-    ],
-  },
-})
-
-const codexHooks = (platform: NodeJS.Platform) => ({
-  hooks: {
-    SessionStart: [
-      {
-        matcher: "startup|resume|clear|compact",
-        hooks: [{ type: "command", command: hookCommand("codex", platform) }],
-      },
-    ],
-  },
-})
-
-// Antigravity runs PreInvocation hooks before each model call, the first time with the
-// conversation's first message.
-const agyHooks = (platform: NodeJS.Platform) => ({
-  novadeck: { PreInvocation: [{ type: "command", command: hookCommand("agy", platform) }] },
-})
-
 // The launcher runs the hook on NovaDeck's own runtime: Electron acting as Node, or Node
 // itself for a standalone runner. It is rewritten on each start, as that path moves.
 const posixLauncher = (runtime: string, paths: ShellPaths): string => `#!/bin/sh
@@ -408,7 +262,6 @@ export const shellFiles = (
   hookScript: string,
   platform = process.platform,
 ): ShellFile[] => {
-  const { claude, codex, agy } = paths.plugins
   const common = [
     file(paths.bash, bash),
     file(join(paths.zsh, ".zshenv"), zshenv),
@@ -416,28 +269,17 @@ export const shellFiles = (
     file(join(paths.zsh, ".zshrc"), zshrc),
     file(paths.fish, fish),
     file(paths.powershell, powershell),
-    file(join(claude, ".claude-plugin", "marketplace.json"), marketplace),
-    file(join(claude, "novadeck", ".claude-plugin", "plugin.json"), json(plugin)),
-    file(join(claude, "novadeck", "hooks", "hooks.json"), json(claudeHooks(platform))),
-    file(join(codex, ".claude-plugin", "marketplace.json"), marketplace),
-    file(
-      join(codex, "novadeck", ".codex-plugin", "plugin.json"),
-      json({ ...plugin, hooks: "./hooks/hooks.json" }),
+    ...agents.flatMap((agent) =>
+      harnesses[agent]
+        .files(platform)
+        .map((each) => file(join(paths.plugins[agent], each.path), each.content, each.mode)),
     ),
-    file(join(codex, "novadeck", "hooks", "hooks.json"), json(codexHooks(platform))),
-    file(join(agy, "plugin.json"), json({ name: plugin.name })),
-    file(join(agy, "hooks.json"), json(agyHooks(platform))),
     file(paths.hookScript, hookScript),
   ]
+  // Every harness's shims, which the shells put first on PATH only while one is connected.
+  const shims = agents.flatMap((agent) => harnesses[agent].shims?.(platform) ?? [])
+  const bin = shims.map((each) => file(join(paths.bin, each.path), each.content, each.mode))
   return platform === "win32"
-    ? [
-        ...common,
-        file(paths.hook, cmdLauncher(runtime, paths)),
-        file(join(paths.bin, "codex.cmd"), cmdCodexShim),
-      ]
-    : [
-        ...common,
-        file(paths.hook, posixLauncher(runtime, paths), 0o700),
-        file(join(paths.bin, "codex"), posixCodexShim, 0o700),
-      ]
+    ? [...common, file(paths.hook, cmdLauncher(runtime, paths)), ...bin]
+    : [...common, file(paths.hook, posixLauncher(runtime, paths), 0o700), ...bin]
 }

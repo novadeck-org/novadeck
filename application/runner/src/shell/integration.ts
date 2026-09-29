@@ -33,7 +33,7 @@ const pathKey = (env: NodeJS.ProcessEnv): string =>
  * runs it as an init command, PowerShell dot-sources it after the profile, and cmd
  * reports through its PROMPT. Each first loads the user's own startup files. Other
  * shells start as they are. Every shell gets the hook's launcher in NOVADECK_HOOK, and
- * with `codexShim` the Codex shim first on PATH.
+ * with `shims` the connected harnesses' shims, as Codex's, first on PATH.
  *
  * A `resume` command, plain words from `resumeCommand`, runs once as the shell starts,
  * as if typed at its first prompt. The integration reads it from the file
@@ -46,22 +46,22 @@ export const shellLaunch = (
   paths: InstalledShell,
   env: NodeJS.ProcessEnv,
   {
-    codexShim = false,
+    shims = false,
     resume,
   }: {
-    readonly codexShim?: boolean
+    readonly shims?: boolean
     readonly resume?: { readonly argv: readonly string[]; readonly file: string } | undefined
   } = {},
 ): ShellLaunch => {
   const key = pathKey(env)
   const path = env[key]
   // Connected agents' hooks name the launcher through NOVADECK_HOOK; see `hookCommand`.
-  // With the Codex shim, its folder goes first on PATH, and the integration puts it back
+  // With shims, their folder goes first on PATH, and the integration puts it back
   // there after the user's startup files.
   const withHook = {
     ...env,
     NOVADECK_HOOK: paths.launcher,
-    ...(codexShim && {
+    ...(shims && {
       [key]: path ? `${paths.bin}${delimiter}${path}` : paths.bin,
       NOVADECK_BIN: paths.bin,
     }),

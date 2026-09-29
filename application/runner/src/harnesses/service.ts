@@ -1,14 +1,16 @@
 import { spawn } from "node:child_process"
-import { access, readFile } from "node:fs/promises"
+import { access } from "node:fs/promises"
 import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
 
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import type { ShellPaths } from "./scripts.js"
+import type { ShellPaths } from "../shell/scripts.js"
+import type { Harness, Install } from "./harness.js"
+import { agents, harnesses } from "./registry.js"
 
-export type AgentsOptions = {
+export type HarnessesOptions = {
   readonly env?: NodeJS.ProcessEnv
   readonly home?: string
   readonly platform?: NodeJS.Platform
@@ -16,90 +18,11 @@ export type AgentsOptions = {
   readonly timeoutMs?: number
 }
 
-const agents = ["claude", "codex", "agy"] as const satisfies readonly AgentName[]
-
 const exists = (path: string): Promise<boolean> =>
   access(path).then(
     () => true,
     () => false,
   )
-
-const text = (path: string): Promise<string> => readFile(path, "utf8").catch(() => "")
-
-type Agent = {
-  /** The agent's own home, whose presence says it is installed. */
-  readonly home: string
-  /** Whether the agent's own configuration lists NovaDeck's plugin as installed. */
-  readonly connected: () => Promise<boolean>
-  /** Its plugin commands, run in order; a failing one marked `optional` is skipped. */
-  readonly connect: readonly Command[]
-  readonly disconnect: readonly Command[]
-}
-type Command = { readonly argv: readonly string[]; readonly optional?: boolean }
-
-const plugin = "novadeck@novadeck"
-
-/**
- * Each agent, as its own files and commands describe it. NovaDeck only reads the
- * agent's configuration; installing and removing its plugin goes through the agent's
- * own `plugin` commands, which own that configuration.
- */
-const describe = (paths: ShellPaths, env: NodeJS.ProcessEnv, home: string) => {
-  const claude = env.CLAUDE_CONFIG_DIR || join(home, ".claude")
-  const codex = env.CODEX_HOME || join(home, ".codex")
-  const gemini = join(home, ".gemini")
-  return {
-    claude: {
-      home: claude,
-      connected: async () => {
-        try {
-          const settings = JSON.parse(await text(join(claude, "settings.json"))) as {
-            enabledPlugins?: Record<string, unknown>
-          }
-          return settings.enabledPlugins?.[plugin] === true
-        } catch {
-          return false
-        }
-      },
-      connect: [
-        // A marketplace left from an earlier connection is replaced, not added twice.
-        { argv: ["claude", "plugin", "marketplace", "remove", "novadeck"], optional: true },
-        { argv: ["claude", "plugin", "marketplace", "add", paths.plugins.claude] },
-        { argv: ["claude", "plugin", "install", plugin] },
-      ],
-      disconnect: [
-        { argv: ["claude", "plugin", "uninstall", plugin], optional: true },
-        { argv: ["claude", "plugin", "marketplace", "remove", "novadeck"], optional: true },
-      ],
-    },
-    codex: {
-      home: codex,
-      connected: async () =>
-        /\[plugins\."novadeck@novadeck"\][^[]*?\benabled\s*=\s*true/.test(
-          await text(join(codex, "config.toml")),
-        ),
-      connect: [
-        { argv: ["codex", "plugin", "marketplace", "remove", "novadeck"], optional: true },
-        { argv: ["codex", "plugin", "marketplace", "add", paths.plugins.codex] },
-        { argv: ["codex", "plugin", "add", plugin] },
-      ],
-      disconnect: [
-        { argv: ["codex", "plugin", "remove", plugin], optional: true },
-        { argv: ["codex", "plugin", "marketplace", "remove", "novadeck"], optional: true },
-      ],
-    },
-    // Antigravity keeps its own state beside other Google tools in ~/.gemini.
-    agy: {
-      home: join(gemini, "antigravity-cli"),
-      connected: () => exists(join(gemini, "config", "plugins", "novadeck", "plugin.json")),
-      connect: [
-        { argv: ["agy", "plugin", "uninstall", "novadeck"], optional: true },
-        { argv: ["agy", "plugin", "install", paths.plugins.agy] },
-      ],
-      disconnect: [{ argv: ["agy", "plugin", "uninstall", "novadeck"], optional: true }],
-    },
-  } satisfies Record<AgentName, Agent>
-}
 
 // Windows' cmd reads an argument in double quotes as it is; a path cannot hold one.
 const cmdLine = (argv: readonly string[]): string =>
@@ -154,17 +77,12 @@ const loginEnvironment = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform) =>
     child.on("exit", () => setTimeout(finish, 100))
   })
 
-// Claude Code's local install is an alias in the user's rc file, not on PATH.
-const fallbacks: Partial<Record<string, (home: string) => string>> = {
-  claude: (home) => join(home, ".claude", "local", "claude"),
-}
-
-// The program to run: the one on PATH, or where its installer puts it otherwise.
-const locate = async (program: string, env: NodeJS.ProcessEnv, home: string): Promise<string> => {
-  for (const directory of (env.PATH ?? "").split(delimiter).filter(Boolean))
+// The program to run: the one on PATH, or where the harness's installer puts it otherwise.
+const locate = async (program: string, harness: Harness, install: Install): Promise<string> => {
+  for (const directory of (install.env.PATH ?? "").split(delimiter).filter(Boolean))
     // eslint-disable-next-line no-await-in-loop -- The first match wins.
     if (await exists(join(directory, program))) return program
-  const fallback = fallbacks[program]?.(home)
+  const fallback = program === harness.id ? harness.fallback?.(install.home) : undefined
   return fallback && (await exists(fallback)) ? fallback : program
 }
 
@@ -213,10 +131,10 @@ const run = (
     })
   })
 
-/** The agents NovaDeck can connect, and connecting or disconnecting each one. */
-export const createAgents = (
+/** The harnesses NovaDeck can connect, and connecting or disconnecting each one. */
+export const createHarnesses = (
   paths: () => Promise<ShellPaths | undefined>,
-  options: AgentsOptions = {},
+  options: HarnessesOptions = {},
 ) => {
   const base = options.env ?? process.env
   const home = options.home ?? base.HOME ?? homedir()
@@ -231,45 +149,60 @@ export const createAgents = (
       return found
     })
   void lookUp()
-  const state = async (agent: AgentName, found: Agent): Promise<AgentIntegration> => ({
-    agent,
-    available: await exists(found.home),
-    connected: await found.connected(),
+  const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => ({
+    agent: harness.id,
+    available: await exists(harness.home(install)),
+    connected: await harness.connected(install),
   })
-  const known = async (fresh = false) => {
+  // Where each harness lives, once the shell files say where its plugin is.
+  const installs = async (fresh = false) => {
     const shell = await paths()
     const env = fresh ? await lookUp() : (latest ?? base)
-    return shell && describe(shell, env, home)
+    return (
+      shell &&
+      ((agent: AgentName): Install => ({ env, home, platform, plugin: shell.plugins[agent] }))
+    )
   }
   // One change at a time: an agent's plugin commands edit its configuration.
   let queue = Promise.resolve()
   return {
     /** Whether NovaDeck's plugin is installed into the agent. */
     connected: async (agent: AgentName): Promise<boolean> => {
-      const described = await known()
-      return described ? described[agent].connected() : false
+      const install = await installs()
+      return install ? harnesses[agent].connected(install(agent)) : false
+    },
+    /** Whether a connected harness needs its shims first on NovaDeck's shells' PATH. */
+    shims: async (): Promise<boolean> => {
+      const install = await installs()
+      if (!install) return false
+      const shimmed = agents.filter((agent) => harnesses[agent].shims)
+      const connected = await Promise.all(
+        shimmed.map((agent) => harnesses[agent].connected(install(agent))),
+      )
+      return connected.includes(true)
     },
     list: async (): Promise<AgentIntegration[]> => {
-      const described = await known()
-      if (!described) return agents.map((agent) => ({ agent, available: false, connected: false }))
-      return Promise.all(agents.map((agent) => state(agent, described[agent])))
+      const install = await installs()
+      if (!install) return agents.map((agent) => ({ agent, available: false, connected: false }))
+      return Promise.all(agents.map((agent) => state(harnesses[agent], install(agent))))
     },
     /** Installs or removes NovaDeck's plugin in the agent; resolves to where it stands after. */
     set: (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
       const change = queue.then(async () => {
-        const described = await known(true)
+        const install = await installs(true)
         const env = latest ?? base
         const settings = { env, platform, timeoutMs }
-        if (!described)
+        if (!install)
           throw new DomainError("AGENT_SETUP_FAILED", "Shell integration is unavailable.")
-        const found = described[agent]
-        if (!(await exists(found.home)))
+        const harness = harnesses[agent]
+        const where = install(agent)
+        if (!(await exists(harness.home(where))))
           throw new DomainError("AGENT_SETUP_FAILED", `${agent} is not installed here.`)
-        for (const command of connected ? found.connect : found.disconnect) {
+        for (const command of connected ? harness.connect(where) : harness.disconnect) {
           try {
             const [program = "", ...args] = command.argv
             // eslint-disable-next-line no-await-in-loop -- Each step needs the one before.
-            const located = platform === "win32" ? program : await locate(program, env, home)
+            const located = platform === "win32" ? program : await locate(program, harness, where)
             // eslint-disable-next-line no-await-in-loop -- As above.
             await run([located, ...args], settings)
           } catch (error) {
@@ -280,7 +213,7 @@ export const createAgents = (
             )
           }
         }
-        const after = await state(agent, found)
+        const after = await state(harness, where)
         if (after.connected !== connected)
           throw new DomainError(
             "AGENT_SETUP_FAILED",
@@ -297,4 +230,4 @@ export const createAgents = (
   }
 }
 
-export type Agents = ReturnType<typeof createAgents>
+export type Harnesses = ReturnType<typeof createHarnesses>

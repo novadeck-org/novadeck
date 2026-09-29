@@ -401,7 +401,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     mkdirSync(bin)
     writeFileSync(join(bin, "codex"), '#!/bin/sh\necho "codex args: $*"\n', { mode: 0o755 })
     writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
-    const connected = shell.manager({ codexShim: () => Promise.resolve(true) })
+    const connected = shell.manager({ shims: () => Promise.resolve(true) })
     const on = await create(connected, shell)
     connected.write({ terminalId: on.id, data: "codex resume abc\r" }, "owner")
     await shell.until(connected, on.id, "codex args: --no-daemon resume abc")

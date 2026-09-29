@@ -5,9 +5,10 @@ import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
 
+import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
-import { hookCommand, type ShellPaths } from "./scripts.js"
+import type { ShellPaths } from "./scripts.js"
 
 const windows = process.platform === "win32"
 
@@ -58,7 +59,7 @@ const it = base.extend<{ plugins: Fixture }>({
 const runHook = (agent: AgentName, hook: string | undefined, stdin: string) => {
   const { NOVADECK_HOOK: _outer, ...rest } = process.env
   const env = hook ? { ...rest, NOVADECK_HOOK: hook } : rest
-  const command = hookCommand(agent)
+  const command = harnesses[agent].hook(process.platform)
   const [program, args] = windows
     ? agent === "claude"
       ? ["powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]]
@@ -71,20 +72,20 @@ describe("agent plugin hook commands", () => {
   // Codex and Antigravity trust a hook by its definition: changing these strings asks
   // everyone who connected an agent to review NovaDeck's hook again.
   it("stay byte-identical across versions", () => {
-    expect(hookCommand("claude", "linux")).toBe(
+    expect(harnesses.claude.hook("linux")).toBe(
       '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude || true',
     )
-    expect(hookCommand("codex", "linux")).toBe(
+    expect(harnesses.codex.hook("linux")).toBe(
       '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" codex || true',
     )
-    expect(hookCommand("agy", "linux")).toBe(
+    expect(harnesses.agy.hook("linux")).toBe(
       `if [ -n "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" agy; else echo '{}'; fi`,
     )
-    expect(hookCommand("claude", "win32")).toBe(
+    expect(harnesses.claude.hook("win32")).toBe(
       "if ($env:NOVADECK_HOOK) { & $env:NOVADECK_HOOK claude }",
     )
-    expect(hookCommand("codex", "win32")).toBe("if defined NOVADECK_HOOK %NOVADECK_HOOK% codex")
-    expect(hookCommand("agy", "win32")).toBe(
+    expect(harnesses.codex.hook("win32")).toBe("if defined NOVADECK_HOOK %NOVADECK_HOOK% codex")
+    expect(harnesses.agy.hook("win32")).toBe(
       "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy) else (echo {})",
     )
   })

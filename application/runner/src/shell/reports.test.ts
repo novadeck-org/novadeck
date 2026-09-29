@@ -20,12 +20,15 @@ const report = (fields: Partial<Parameters<typeof acceptReport>[1]> = {}) => ({
   agent: "claude" as const,
   sessionId: "a",
   seq: 2_000,
+  continuity: "conversation-observed" as const,
   ...fields,
 })
 
 describe("accepting an agent's report", () => {
   it("records the session of the agent now holding the foreground, in its directory", () => {
-    expect(acceptReport(idle, report({ cwd: "/work", source: "startup" }), facts)).toEqual({
+    expect(
+      acceptReport(idle, report({ cwd: "/work", continuity: "startup" as const }), facts),
+    ).toEqual({
       agents: { claude: { sessionId: "a", seq: 2_000 } },
       active: "claude",
       cwd: "/work",
@@ -42,7 +45,7 @@ describe("accepting an agent's report", () => {
 
   it("refuses a report older than the one it has", () => {
     const state = { ...idle, agents: { claude: { sessionId: "b", seq: 3_000 } } }
-    expect(acceptReport(state, report({ source: "clear" }), facts)).toBeUndefined()
+    expect(acceptReport(state, report({ continuity: "native-switch" }), facts)).toBeUndefined()
   })
 
   it("refuses a report while the shell itself holds the foreground", () => {
@@ -62,19 +65,22 @@ describe("accepting an agent's report", () => {
   }
 
   it("refuses a nested agent's new session while another holds the foreground", () => {
-    const nested = { sessionId: "n", seq: 3_000, source: "startup" }
+    const nested = { sessionId: "n", seq: 3_000, continuity: "startup" as const }
     expect(acceptReport(running, report(nested), facts)).toBeUndefined()
     expect(acceptReport(running, report({ ...nested, agent: "codex" }), facts)).toBeUndefined()
   })
 
   it("takes a session switch of the agent in the foreground", () => {
-    for (const source of ["clear", "resume", "compact"])
-      expect(
-        acceptReport(running, report({ sessionId: "c", seq: 3_000, source }), facts)?.agents.claude,
-      ).toEqual({ sessionId: "c", seq: 3_000 })
+    expect(
+      acceptReport(
+        running,
+        report({ sessionId: "c", seq: 3_000, continuity: "native-switch" }),
+        facts,
+      )?.agents.claude,
+    ).toEqual({ sessionId: "c", seq: 3_000 })
   })
 
-  it("takes Antigravity's next conversation, reported without a source", () => {
+  it("takes the next conversation its own agent reports, without a switch", () => {
     const agy: AgentState = {
       agents: { agy: { sessionId: "one", seq: 2_000 } },
       active: "agy",

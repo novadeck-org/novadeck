@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 
+import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { createRouter, type Connection } from "./router.js"
-import { createAgents, type AgentsOptions } from "./shell/agents.js"
 import { installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { WorkspaceStore } from "./workspaces/store.js"
@@ -17,7 +17,7 @@ export type RunnerOptions = {
    */
   shell?: string
   /** Where agents are looked for and how their plugin commands run; for tests. */
-  agents?: AgentsOptions
+  agents?: HarnessesOptions
 }
 
 export type Runner = {
@@ -56,12 +56,12 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
           console.error("NovaDeck shell integration is unavailable:", error)
           return undefined
         })
-  const agents = createAgents(() => shellFiles, options.agents)
+  const agents = createHarnesses(() => shellFiles, options.agents)
   const terminals = new Terminals({
     records: store,
     shellFiles,
     // Codex runs through NovaDeck's shim while it is connected; see `posixCodexShim`.
-    codexShim: () => agents.connected("codex"),
+    shims: () => agents.shims(),
     transcripts: store.settings().transcripts,
     ...options.terminals,
   })

@@ -7,11 +7,11 @@ import { MessageChannel } from "node:worker_threads"
 import { connectRunner, messagePort } from "@novadeck/protocol/client"
 
 import { createRunner, servePort } from "../index.js"
+import { installShellFiles } from "../shell/install.js"
+import type { ShellPaths } from "../shell/scripts.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { createAgents } from "./agents.js"
-import { installShellFiles } from "./install.js"
-import type { ShellPaths } from "./scripts.js"
+import { createHarnesses } from "./service.js"
 
 const windows = process.platform === "win32"
 
@@ -53,7 +53,7 @@ type Fixture = {
   /** Where the stand-in agents are on PATH. */
   bin: string
   paths: ShellPaths
-  agents: (env?: NodeJS.ProcessEnv) => ReturnType<typeof createAgents>
+  agents: (env?: NodeJS.ProcessEnv) => ReturnType<typeof createHarnesses>
   calls: () => string[][]
 }
 
@@ -99,7 +99,7 @@ const it = base.extend<{ fixture: Fixture }>({
       ...env,
     })
     const agents = (env: NodeJS.ProcessEnv = {}) =>
-      createAgents(() => Promise.resolve(paths), { home, env: environment(env) })
+      createHarnesses(() => Promise.resolve(paths), { home, env: environment(env) })
     const calls = () => {
       try {
         return readFileSync(log, "utf8")

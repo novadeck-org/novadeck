@@ -6,6 +6,7 @@ import { isAbsolute, join } from "node:path"
 
 import { agentName, agentSessionId, type AgentName } from "@novadeck/protocol"
 
+import type { Continuity } from "../harnesses/harness.js"
 import type { AgentReport } from "../terminals/records.js"
 
 /** What the agent hook reports: which session runs in which terminal. */
@@ -73,20 +74,28 @@ export type ReportFacts = {
  * too: a tmux server or an editor started from it, while its shell holds the foreground
  * (Windows does not tell, so there an agent counts only once a line was entered), and an
  * agent run by the agent in the foreground, which starts a new session of its own. A
- * session switch of the agent in the foreground, as /clear or /resume, says so in its
- * source; a report without one (Antigravity's) switches its own agent's conversation.
+ * session switch the harness announced itself, as /clear or /resume, replaces the
+ * foreground agent's session; a report that only observes a conversation (Antigravity's)
+ * switches its own agent's. The harness reads that `continuity` from its native report.
  * Since the last prompt, the reporting agent holds the foreground, and its directory is
  * where the terminal restores, as a shell that ran `cd … && claude` shows no prompt there.
  */
 export const acceptReport = (
   state: AgentState,
-  { agent, sessionId, seq, cwd, source }: Omit<Report, "terminalId" | "token">,
+  {
+    agent,
+    sessionId,
+    seq,
+    cwd,
+    continuity,
+  }: Omit<Report, "terminalId" | "token" | "source"> & { readonly continuity: Continuity },
   facts: ReportFacts,
 ): AgentState | undefined => {
   if (facts.shellInForeground) return undefined
   if (facts.platform === "win32" && !facts.submitted) return undefined
   const { active } = state
-  const switched = source === undefined ? agent === active : source !== "startup"
+  const switched =
+    continuity === "conversation-observed" ? agent === active : continuity === "native-switch"
   if (active !== null && !switched)
     if (active !== agent || state.agents[active]?.sessionId !== sessionId) return undefined
   const known = state.agents[agent]

@@ -9,7 +9,7 @@ import {
 import { implement, ORPCError } from "@orpc/server"
 
 import { DomainError } from "./errors.js"
-import type { Agents } from "./shell/agents.js"
+import type { Harnesses } from "./harnesses/service.js"
 import type { Terminals } from "./terminals/index.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 
@@ -43,7 +43,7 @@ export const createRouter = (options: {
   claim: (connection: Connection, clientId: string) => void
   store: WorkspaceStore
   terminals: Terminals
-  agents: Agents
+  agents: Harnesses
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
