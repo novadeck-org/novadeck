@@ -8,7 +8,6 @@ import {
   type TerminalWatchItem,
 } from "@novadeck/protocol/client"
 
-import { resumableProgram } from "../../model/resume"
 import { createStore } from "../../model/store"
 import type { TerminalMetadata, TerminalStatus, Workspace } from "../../model/types"
 import type {
@@ -25,6 +24,7 @@ import { createBootProgress } from "./boot-progress"
 import type { RunnerDebug } from "./debug"
 import { createDebugPanel } from "./DebugPanel"
 import { pause } from "./pause"
+import { resumableProgram } from "./resumable"
 import { createRunnerTerminal } from "./RunnerTerminal"
 import { createSessionSaves } from "./saves"
 import {

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "../test"
-import { resumableProgram } from "./resume"
+import { describe, expect, it } from "../../test"
+import { resumableProgram } from "./resumable"
 
 describe("resuming a program", () => {
   it("knows Claude Code, Codex and Antigravity", () => {

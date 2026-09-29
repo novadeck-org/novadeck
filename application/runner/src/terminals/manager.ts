@@ -19,12 +19,14 @@ import type { Terminal as Screen } from "@xterm/headless"
 import * as pty from "node-pty"
 
 import { DomainError } from "../errors.js"
+import { observe, type Binding } from "../harnesses/bindings.js"
+import { resumeAvailability } from "../harnesses/eligibility.js"
+import { observed } from "../harnesses/events.js"
 import { harnesses } from "../harnesses/registry.js"
-import { resumeCommand } from "../harnesses/resume.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch, type ShellLaunch } from "../shell/integration.js"
 import { osc7Directory, osc9Directory } from "../shell/osc.js"
-import { acceptReport, listenForReports, type Report, type Reports } from "../shell/reports.js"
+import { listenForReports, type Report, type Reports } from "../shell/reports.js"
 import {
   sampleForeground,
   shellInForeground,
@@ -63,6 +65,11 @@ export type TerminalOptions = {
   records?: TerminalRecords
   /** Whether new shells put harnesses' shims first on PATH: while one with shims is connected. */
   shims?: () => Promise<boolean>
+  /**
+   * Whether NovaDeck's plugin is installed into the harness: a disconnected one resumes
+   * nothing and its reports are ignored. Every harness counts as connected when omitted.
+   */
+  connected?: (agent: AgentName) => Promise<boolean>
   /** Whether terminals' transcripts are kept, until `keepTranscripts` changes it. */
   transcripts?: boolean
   /** How often changed terminals are saved, in milliseconds. */
@@ -112,6 +119,8 @@ type Record = {
   origin: string
   /** The latest session each agent reported in this terminal, across its shells. */
   agents: { [agent in AgentName]?: AgentReport }
+  /** The harness session holding the current shell's foreground; `summary.agent` shows it. */
+  binding: Binding | null
   /** When the shell last showed its prompt, in epoch milliseconds. */
   promptedAt: number | null
   /** Unsaved changes: output, directory, or prompts. */
@@ -211,12 +220,16 @@ export class Terminals {
   private sampler: ReturnType<typeof setInterval> | undefined
   private saver: ReturnType<typeof setInterval> | undefined
   private readonly options: Required<
-    Omit<TerminalOptions, "env" | "shellArgs" | "shellFiles" | "records" | "shims" | "transcripts">
+    Omit<
+      TerminalOptions,
+      "env" | "shellArgs" | "shellFiles" | "records" | "shims" | "connected" | "transcripts"
+    >
   > & {
     env: NodeJS.ProcessEnv
     shellArgs: readonly string[] | undefined
     records: TerminalRecords | undefined
     shims: () => Promise<boolean>
+    connected: (agent: AgentName) => Promise<boolean>
   }
   private readonly integration: Promise<Integration | undefined>
   private transcripts: boolean
@@ -224,6 +237,8 @@ export class Terminals {
   private reports = Promise.resolve()
   /** Sessions given out to resume, as agent:session, and the terminal each went to. */
   private readonly claims = new Map<string, string>()
+  /** How many times each harness was disconnected, so a report that waited meanwhile is dropped. */
+  private readonly disconnections = new Map<AgentName, number>()
   private creating = 0
   private exits = 0
   private stopping = false
@@ -250,6 +265,7 @@ export class Terminals {
       processPollMs: positive(options.processPollMs, 1000),
       records: options.records,
       shims: options.shims ?? (() => Promise.resolve(false)),
+      connected: options.connected ?? (() => Promise.resolve(true)),
       saveMs: positive(options.saveMs, 5000),
       transcriptChars: positive(options.transcriptChars, 256 * 1024),
     }
@@ -297,11 +313,13 @@ export class Terminals {
       const cwd = saved ? await this.directory(saved.cwd).catch(() => origin) : origin
       const shell = await this.executable(cwd)
       const integration = await this.shellIntegration()
+      const connected = await this.connected(input.resume)
       if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
       // A concurrent creation may have taken the id meanwhile.
       this.available(input.id)
-      const session = input.resume && saved?.agents[input.resume]?.sessionId
-      const resume = session ? this.resumable(input.id, input.resume!, session) : undefined
+      const resume =
+        input.resume &&
+        this.resumable(input.id, input.resume, saved?.agents[input.resume]?.sessionId, connected)
       const started = this.spawn(shell, cwd, input, integration, resume?.argv)
       if (resume && started.resumes) {
         this.claims.set(resume.key, input.id)
@@ -338,6 +356,7 @@ export class Terminals {
         foreground: undefined,
         origin,
         agents: saved?.agents ?? {},
+        binding: null,
         promptedAt: saved?.promptedAt ?? null,
         changed: false,
         savedAt: 0,
@@ -422,15 +441,20 @@ export class Terminals {
       )
       const shell = await this.executable(cwd)
       const integration = await this.shellIntegration()
+      const connected = await this.connected(input.resume)
       // The swap waits for the old shell's queued work, which still uses the old screen.
       return await this.enqueue(record, () => {
         if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
         if (this.records.get(input.terminalId) !== record)
           throw new DomainError("TERMINAL_NOT_FOUND")
-        const session = input.resume && record.agents[input.resume]?.sessionId
-        const resume = session
-          ? this.resumable(record.summary.id, input.resume!, session)
-          : undefined
+        const resume =
+          input.resume &&
+          this.resumable(
+            record.summary.id,
+            input.resume,
+            record.agents[input.resume]?.sessionId,
+            connected,
+          )
         const started = this.spawn(shell, cwd, input, integration, resume?.argv)
         if (resume && started.resumes) {
           this.claims.set(resume.key, record.summary.id)
@@ -456,6 +480,7 @@ export class Terminals {
             agent: null,
           } satisfies TerminalSummary,
           foreground: undefined,
+          binding: null,
           // Skipping a sequence number sends any earlier cursor to a fresh snapshot.
           sequence: record.sequence + 1,
           history: [],
@@ -509,29 +534,42 @@ export class Terminals {
     return (live ?? this.saved(terminalId))?.agents[agent]?.sessionId ?? null
   }
 
+  /** Whether `agent` is connected; false without one, or when that cannot be told. */
+  private async connected(agent: AgentName | undefined): Promise<boolean> {
+    return agent !== undefined && (await this.options.connected(agent).catch(() => false))
+  }
+
   /**
    * The command that resumes `agent`'s `session` in the terminal, and the claim to
-   * record once a shell runs it; undefined when it may not. One session resumes in one
-   * terminal: not while another terminal runs it, nor once another terminal claimed it,
-   * until that terminal closes.
+   * record once a shell runs it; undefined when it may not (see `resumeAvailability`).
+   * One session resumes in one terminal: not while another terminal has it bound, nor
+   * once another terminal claimed it, until that terminal closes.
    */
   private resumable(
     terminalId: string,
     agent: AgentName,
-    session: string,
+    session: string | undefined,
+    connected: boolean,
   ): { argv: readonly string[]; key: string } | undefined {
+    const { resume } = harnesses[agent]
     const key = `${agent}:${session}`
     const claimant = this.claims.get(key)
-    if (claimant !== undefined && claimant !== terminalId) return undefined
-    for (const other of this.records.values())
-      if (
+    const bound = [...this.records.values()].some(
+      (other) =>
         other.summary.id !== terminalId &&
-        other.summary.agent === agent &&
-        other.agents[agent]?.sessionId === session
-      )
-        return undefined
-    const argv = resumeCommand(agent, session)
-    return argv && { argv, key }
+        other.binding?.agent === agent &&
+        other.binding.sessionId === session,
+    )
+    const inUse = (claimant !== undefined && claimant !== terminalId) || bound
+    const availability = resumeAvailability({
+      agent,
+      resumes: resume !== undefined,
+      connected,
+      session,
+      inUse,
+    })
+    if (availability.state !== "ready" || !resume || session === undefined) return undefined
+    return { argv: resume(session), key }
   }
 
   /**
@@ -553,9 +591,16 @@ export class Terminals {
 
   /** Forgets every session `agent` reported, as once it is disconnected. */
   forgetAgent(agent: AgentName): void {
+    this.disconnections.set(agent, (this.disconnections.get(agent) ?? 0) + 1)
     for (const record of this.records.values()) {
       const { [agent]: _forgotten, ...rest } = record.agents
       record.agents = rest
+      // Its binding ends too: a disconnected harness holds no terminal's foreground.
+      if (record.binding?.agent === agent) {
+        record.binding = null
+        record.summary = { ...record.summary, agent: null }
+        this.announce(record)
+      }
     }
     for (const key of this.claims.keys()) if (key.startsWith(`${agent}:`)) this.claims.delete(key)
     this.persisting(() => this.options.records?.forgetAgent(agent))
@@ -1046,6 +1091,7 @@ export class Terminals {
     this.cancelResume(record)
     record.changed = true
     const moved = cwd !== record.summary.cwd
+    record.binding = null
     if (moved || record.summary.agent !== null) {
       record.summary = { ...record.summary, cwd, agent: null }
       this.announce(record)
@@ -1064,29 +1110,38 @@ export class Terminals {
   }
 
   /**
-   * An agent hook reported its session; `acceptReport` decides whether it is this
-   * terminal's own and the latest, and what it changes.
+   * A harness hook reported its session; `observe` decides whether it is this terminal's
+   * own and the latest, and what it changes.
    */
-  private async report({ terminalId, token, source, ...report }: Report): Promise<void> {
-    const record = this.records.get(terminalId)
-    if (!record || record.exitQueued || !sameToken(record.token, token)) return
+  private async report(report: Report): Promise<void> {
+    const record = this.records.get(report.terminalId)
+    if (!record || record.exitQueued || !sameToken(record.token, report.token)) return
     const { process: child } = record
-    const foreground = await shellInForeground(child.pid)
+    const disconnections = this.disconnections.get(report.agent)
+    const [foreground, connected] = await Promise.all([
+      shellInForeground(child.pid),
+      this.connected(report.agent),
+    ])
     if (record.process !== child || record.exitQueued) return
-    const next = acceptReport(
-      { agents: record.agents, active: record.summary.agent, cwd: record.summary.cwd },
-      { ...report, continuity: harnesses[report.agent].continuity(source) },
+    // A disconnection while this waited forgot what the report would bring back.
+    if (this.disconnections.get(report.agent) !== disconnections) return
+    const next = observe(
+      { sessions: record.agents, binding: record.binding, cwd: record.summary.cwd },
+      observed(report),
       {
         promptedAt: record.promptedAt,
         shellInForeground: foreground,
         submitted: record.submitted,
+        connected,
         platform: process.platform,
       },
     )
     if (!next) return
-    record.agents = next.agents
-    if (record.summary.agent !== next.active || record.summary.cwd !== next.cwd) {
-      record.summary = { ...record.summary, agent: next.active, cwd: next.cwd }
+    record.agents = next.sessions
+    record.binding = next.binding
+    const agent = next.binding?.agent ?? null
+    if (record.summary.agent !== agent || record.summary.cwd !== next.cwd) {
+      record.summary = { ...record.summary, agent, cwd: next.cwd }
       this.announce(record)
     }
     this.save(record, false)
@@ -1153,6 +1208,7 @@ export class Terminals {
     record.exitQueued = true
     const exit = { ...ended, ranMs: Math.max(0, Math.round(performance.now() - record.startedAt)) }
     void this.enqueue(record, () => {
+      record.binding = null
       record.summary = { ...record.summary, exit, process: null, agent: null }
       this.cancelResume(record)
       this.save(record, true)

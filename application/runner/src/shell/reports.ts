@@ -6,9 +6,6 @@ import { isAbsolute, join } from "node:path"
 
 import { agentName, agentSessionId, type AgentName } from "@novadeck/protocol"
 
-import type { Continuity } from "../harnesses/harness.js"
-import type { AgentReport } from "../terminals/records.js"
-
 /** What the agent hook reports: which session runs in which terminal. */
 export type Report = {
   readonly terminalId: string
@@ -47,63 +44,6 @@ const parse = (value: unknown): Report | undefined => {
     ...(where !== undefined && { cwd: where }),
     ...(typeof source === "string" && source.length <= 32 && { source }),
   }
-}
-
-/** What a terminal knows of its agents, which a report may change. */
-export type AgentState = {
-  readonly agents: { readonly [agent in AgentName]?: AgentReport }
-  /** The agent that reported since the shell's last prompt, holding the foreground. */
-  readonly active: AgentName | null
-  readonly cwd: string
-}
-
-/** What the runner can tell about the terminal as a report arrives. */
-export type ReportFacts = {
-  /** When the shell last showed its prompt, in epoch milliseconds. */
-  readonly promptedAt: number | null
-  /** Whether the shell itself holds the foreground; undefined where the platform hides it. */
-  readonly shellInForeground: boolean | undefined
-  /** Whether a line was entered since the last prompt, for platforms that hide the foreground. */
-  readonly submitted: boolean
-  readonly platform: NodeJS.Platform
-}
-
-/**
- * The terminal's agents after a report, or undefined when it is not this terminal's own
- * or not the latest. Processes that merely inherited the terminal's environment report
- * too: a tmux server or an editor started from it, while its shell holds the foreground
- * (Windows does not tell, so there an agent counts only once a line was entered), and an
- * agent run by the agent in the foreground, which starts a new session of its own. A
- * session switch the harness announced itself, as /clear or /resume, replaces the
- * foreground agent's session; a report that only observes a conversation (Antigravity's)
- * switches its own agent's. The harness reads that `continuity` from its native report.
- * Since the last prompt, the reporting agent holds the foreground, and its directory is
- * where the terminal restores, as a shell that ran `cd … && claude` shows no prompt there.
- */
-export const acceptReport = (
-  state: AgentState,
-  {
-    agent,
-    sessionId,
-    seq,
-    cwd,
-    continuity,
-  }: Omit<Report, "terminalId" | "token" | "source"> & { readonly continuity: Continuity },
-  facts: ReportFacts,
-): AgentState | undefined => {
-  if (facts.shellInForeground) return undefined
-  if (facts.platform === "win32" && !facts.submitted) return undefined
-  const { active } = state
-  const switched =
-    continuity === "conversation-observed" ? agent === active : continuity === "native-switch"
-  if (active !== null && !switched)
-    if (active !== agent || state.agents[active]?.sessionId !== sessionId) return undefined
-  const known = state.agents[agent]
-  if (known && known.seq >= seq) return undefined
-  const agents = { ...state.agents, [agent]: { sessionId, seq } }
-  return seq > (facts.promptedAt ?? 0)
-    ? { agents, active: agent, cwd: cwd ?? state.cwd }
-    : { agents, active, cwd: state.cwd }
 }
 
 const maxBytes = 4096

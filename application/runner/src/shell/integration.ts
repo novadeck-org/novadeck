@@ -35,7 +35,7 @@ const pathKey = (env: NodeJS.ProcessEnv): string =>
  * shells start as they are. Every shell gets the hook's launcher in NOVADECK_HOOK, and
  * with `shims` the connected harnesses' shims, as Codex's, first on PATH.
  *
- * A `resume` command, plain words from `resumeCommand`, runs once as the shell starts,
+ * A `resume` command, plain words from the harness's `resume`, runs once as the shell starts,
  * as if typed at its first prompt. The integration reads it from the file
  * NOVADECK_RESUME names, which it removes, and unsets the variable first, so nothing
  * the command starts runs it again; removing the file first cancels it. bash, zsh and

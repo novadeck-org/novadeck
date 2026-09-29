@@ -447,6 +447,81 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(manager.reportedSession(terminal.id, "codex")).toBeNull()
   })
 
+  it("ignores a switch announced by another agent than the one in the foreground", async ({
+    shell,
+  }) => {
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "outer", seq: 1, source: "startup" },
+      // A Codex the agent in the foreground resumed, as from its shell tool.
+      { agent: "codex", sessionId: "resumed-codex", seq: 2, source: "resume" },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await shell.until(manager, terminal.id, "reports sent")
+    await expect.poll(() => manager.reportedSession(terminal.id, "claude")).toBe("outer")
+    // Long enough for the second report to have been taken.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(manager.reportedSession(terminal.id, "codex")).toBeNull()
+    expect(manager.list(terminal.sessionId)[0]?.agent).toBe("claude")
+  })
+
+  it("resumes nothing for a disconnected agent, and ignores its reports", async ({ shell }) => {
+    writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "late", seq: 1, source: "startup" },
+    ])
+    fakeAgent(shell.home, "claude")
+    const id = randomUUID()
+    shell.saveSession(id, "claude", "abc-1")
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      connected: () => Promise.resolve(false),
+    })
+    await create(manager, shell, { id, restore: true, resume: "claude" })
+    manager.write({ terminalId: id, data: "report\r" }, "owner")
+    const shown = await shell.until(manager, id, "reports sent")
+    expect(shown).not.toContain("args:")
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(manager.reportedSession(id, "claude")).toBe("abc-1")
+  })
+
+  it("lets go of the foreground agent once it is disconnected", async ({ shell }) => {
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "running", seq: 1, source: "startup" },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const next = shell.watch(manager)
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await next((summary) => summary.id === terminal.id && summary.agent === "claude")
+    manager.forgetAgent("claude")
+    await next((summary) => summary.id === terminal.id && summary.agent === null)
+    expect(manager.reportedSession(terminal.id, "claude")).toBeNull()
+  })
+
+  it("drops a report that was still waiting when its agent was disconnected", async ({ shell }) => {
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "late", seq: 1, source: "startup" },
+    ])
+    // Whether it is connected takes a while to tell, long enough to disconnect meanwhile.
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      connected: () => new Promise((resolve) => setTimeout(() => resolve(true), 1_500)),
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await shell.until(manager, terminal.id, "reports sent")
+    manager.forgetAgent("claude")
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
+    expect(manager.reportedSession(terminal.id, "claude")).toBeNull()
+    expect(manager.list(terminal.sessionId)[0]?.agent).toBeNull()
+  })
+
   // Linux and macOS tell which process group holds a terminal's foreground.
   it.runIf(process.platform === "linux" || process.platform === "darwin")(
     "ignores reports made while the shell holds the foreground",

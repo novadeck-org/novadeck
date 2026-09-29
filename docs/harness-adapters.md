@@ -91,7 +91,7 @@ Keep the implementation within `application/runner/src/harnesses/` initially:
 harnesses/
   harness.ts       # The Harness type and shared plugin helpers
   registry.ts      # harnesses: Record<AgentName, Harness>
-  resume.ts        # Validated session ID → the harness's resume words
+  eligibility.ts   # Availability of features such as resume, with typed reasons
   service.ts       # createHarnesses: inspection, setup and lifecycle
   bindings.ts      # Pure ownership and observation transitions
   model.ts         # Accepted state → agent model snapshots/changes
@@ -519,9 +519,13 @@ Session acquisition is service policy:
 - Replacement requires the same harness, valid run/foreground evidence, and a
   matching previous session, verified root-instance continuity or a native
   switch tied to the accepted root. A missing predecessor proves nothing.
-- `conversation-observed` (AGY's current payload) stays an unbound candidate
-  without further continuity evidence. Any tightening of today's permissive AGY
-  switching is called out explicitly in the migration and covered by probes.
+- `conversation-observed` (AGY's current payload) may replace only its own
+  harness's binding, which keeps today's AGY conversation switching. It never
+  replaces another harness's binding. Once a probe establishes root-instance
+  evidence for AGY, tighten this to `same-root-instance` and treat an
+  observation without it as an unbound candidate.
+- Integration disablement ends the harness's bindings and gates acceptance:
+  a still-running hook of a disconnected harness changes nothing.
 - Unknown or contradictory ownership stays unknown.
 
 The report envelope carries its schema version, terminal/run scope, per-shell

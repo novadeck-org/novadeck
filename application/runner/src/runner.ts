@@ -62,6 +62,7 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
     shellFiles,
     // Codex runs through NovaDeck's shim while it is connected; see `posixCodexShim`.
     shims: () => agents.shims(),
+    connected: (agent) => agents.connected(agent),
     transcripts: store.settings().transcripts,
     ...options.terminals,
   })
