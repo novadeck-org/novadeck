@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../../test"
-import { runnerSize } from "./RunnerTerminal"
+import { runnerSize } from "./screens"
 
 describe("runner terminal size", () => {
   it("keeps a fitted size within what the runner accepts", () => {

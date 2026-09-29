@@ -81,7 +81,15 @@ export const startTestRunner = async (options: RunnerOptions = {}): Promise<Test
   }
 }
 
-// The runner client, noting each call that reaches the runner in `io`.
+// What xterm answers on its own to the shell's output: focus reports and colours. On
+// Windows, ConPTY turns focus reports on as the shell starts, sometimes only after the
+// terminal is shown, and xterm reports its focus at once; that is the shell's doing,
+// not the surface's.
+// oxlint-disable-next-line no-control-regex
+const replies = /^\u001b(\[[IO]|\]1[0-2];rgb:[^\u0007\u001b]*(\u0007|\u001b\\))$/
+
+// The runner client, noting each call that reaches the runner in `io`, apart from
+// xterm's own replies.
 export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
   const note = <T>(entry: string, call: () => Promise<T>): Promise<T> => {
     io.push(entry)
@@ -97,7 +105,10 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         await attached.detach()
         return { done: true, value: undefined }
       },
-      write: (data) => note(`write ${attached.id}`, () => attached.write(data)),
+      write: (data) =>
+        replies.test(data)
+          ? attached.write(data)
+          : note(`write ${attached.id}`, () => attached.write(data)),
       resize: (size) => note(`resize ${attached.id}`, () => attached.resize(size)),
       detach: () => attached.detach(),
     }

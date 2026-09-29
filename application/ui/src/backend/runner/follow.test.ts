@@ -53,6 +53,7 @@ describe("following a runner terminal", () => {
       connection: { getSnapshot: () => "connected", subscribe: () => () => {} },
       track: (work) => work,
       screen: () => {},
+      shown: () => false,
     } satisfies SurfaceRuntime
     const followed = followTerminal(runtime, key, {
       write: async (data) => void drawn.push(data),

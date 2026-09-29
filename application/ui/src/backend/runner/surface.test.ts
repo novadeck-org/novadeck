@@ -34,7 +34,17 @@ vi.hoisted(() => {
 })
 
 const mounted: Rendered[] = []
-afterEach(() => mounted.splice(0).forEach((page) => page.unmount()))
+// A screen closes a moment after its last surface goes; it closes here instead, while
+// the file's DOM is still there to take its listeners off.
+afterEach(() => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+  try {
+    mounted.splice(0).forEach((page) => page.unmount())
+    vi.runOnlyPendingTimers()
+  } finally {
+    vi.useRealTimers()
+  }
+})
 
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }
 
@@ -59,6 +69,7 @@ const starting = () => {
     connection,
     track: (work) => work,
     screen: () => {},
+    shown: () => false,
   }
   return { runtime, connection }
 }
@@ -209,6 +220,135 @@ describe("runner terminal surface", () => {
       open.mockRestore()
       external.remove()
     }
+  })
+
+  context("when a view switch mounts it in another place", () => {
+    // A live stream that drew one line and then waits, and a surface over it; `shown`
+    // says whether the terminal's session is on screen.
+    const following = (shown: boolean) => {
+      const { runtime } = starting()
+      const opened: Terminal[] = []
+      const originalOpen = Terminal.prototype.open
+      const open = vi.spyOn(Terminal.prototype, "open").mockImplementation(function (
+        this: Terminal,
+        element,
+      ) {
+        opened.push(this)
+        return originalOpen.call(this, element)
+      })
+      const detach = vi.fn<AttachedTerminal["detach"]>(async () => {})
+      const attachment: AttachedTerminal = {
+        id: "01",
+        mode: "control",
+        [Symbol.asyncIterator]: () => attachment,
+        next: vi
+          .fn<AttachedTerminal["next"]>()
+          .mockResolvedValueOnce({
+            value: {
+              terminalId: "01",
+              sequence: 1,
+              type: "snapshot",
+              cols: 80,
+              rows: 24,
+              data: "still the same shell\r\n",
+              exit: null,
+            },
+            done: false,
+          })
+          .mockImplementation(() => new Promise(() => {})),
+        return: async () => ({ value: undefined, done: true as const }),
+        write: async () => {},
+        resize: async () => {},
+        detach,
+      }
+      const attach = vi.fn<SurfaceRuntime["attach"]>(async () => attachment)
+      const screen = vi.fn<SurfaceRuntime["screen"]>()
+      const Surface = createRunnerTerminal({
+        ...runtime,
+        entry: () => ({
+          ready: Promise.resolve(true),
+          revived: new Promise<void>(() => {}),
+          closed: false,
+          size: { cols: 80, rows: 24 },
+        }),
+        attach,
+        screen,
+        shown: () => shown,
+      })
+      // Each view places its terminals under its own element, so a switch remounts them.
+      const inView = (view: string) =>
+        createElement(
+          "div",
+          { key: view, "data-view": view },
+          createElement(Surface, {
+            terminalKey: key,
+            terminal: { ...terminalFixture(1, "~"), state: "running" },
+            projectName: "P",
+            fontSize: 13,
+            focusInput: false,
+            onInputFocused: () => {},
+            renderWindow: (content) => content,
+          }),
+        )
+      return { opened, open, attach, detach, screen, inView }
+    }
+
+    it("keeps its one xterm, attachment, output and focus", async () => {
+      const { opened, open, attach, screen, inView } = following(true)
+      try {
+        const page = render(inView("grid"))
+        mounted.push(page)
+        await vi.waitFor(() =>
+          expect(opened[0]?.buffer.active.getLine(0)?.translateToString()).toContain(
+            "still the same shell",
+          ),
+        )
+        const textarea = input(page)
+        act(() => textarea.focus())
+
+        page.rerender(inView("canvas"))
+        page.rerender(inView("focus"))
+
+        const view = page.container.querySelector("[data-view=focus]")
+        expect(view?.contains(textarea)).toBe(true)
+        expect(page.container.querySelectorAll(".xterm")).toHaveLength(1)
+        expect(document.activeElement).toBe(textarea)
+        expect(opened).toHaveLength(1)
+        expect(attach).toHaveBeenCalledTimes(1)
+        expect(screen.mock.calls.map((call) => call[1])).toEqual(["mounted", "shown"])
+      } finally {
+        open.mockRestore()
+      }
+    })
+
+    it("lets its screen go once no view shows it and its session is off screen", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      const { open, screen, inView } = following(false)
+      try {
+        const page = render(inView("grid"))
+        page.unmount()
+        expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
+        await vi.advanceTimersByTimeAsync(1100)
+        expect(screen.mock.calls.map((call) => call[1])).toContain("gone")
+      } finally {
+        vi.useRealTimers()
+        open.mockRestore()
+      }
+    })
+
+    it("keeps its screen while its session stays on screen", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      const { open, screen, inView } = following(true)
+      try {
+        const page = render(inView("grid"))
+        page.unmount()
+        await vi.advanceTimersByTimeAsync(5000)
+        expect(screen.mock.calls.map((call) => call[1])).not.toContain("gone")
+      } finally {
+        vi.useRealTimers()
+        open.mockRestore()
+      }
+    })
   })
 
   context("while its shell has no stream yet", () => {

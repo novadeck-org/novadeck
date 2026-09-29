@@ -6,6 +6,8 @@ import {
   ReactFlowProvider,
   useReactFlow,
   useStore,
+  useStoreApi,
+  type ReactFlowState,
   type XYPosition,
 } from "@xyflow/react"
 import { Plus } from "lucide-react"
@@ -13,6 +15,7 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -34,6 +37,9 @@ import { useCanvasNavigation } from "./useCanvasNavigation"
 import { useCanvasPersistence } from "./useCanvasPersistence"
 import { useCanvasVisit } from "./useCanvasVisit"
 export type { CanvasHandle } from "./types"
+
+// The chrome that reads `--canvas-chrome-scale` (canvas.css, runner.css).
+const chromeReaders = ".terminal-heading, .terminal-resize-grip, .runner-ending"
 
 const TerminalCanvas = ({
   presets,
@@ -58,7 +64,7 @@ const TerminalCanvas = ({
   const removed = useTerminalVisibility(hidden)
   const { fitView, zoomIn, zoomOut, getViewport, getNode, setNodes, screenToFlowPosition } =
     useReactFlow<TerminalNode>()
-  const zoom = useStore((state) => state.transform[2])
+  const store = useStoreApi<TerminalNode>()
   const viewportWidth = useStore((state) => state.width)
   const viewportHeight = useStore((state) => state.height)
   const maxZoom = Math.max(
@@ -66,7 +72,6 @@ const TerminalCanvas = ({
     layout.viewport?.zoom ?? 1,
     Math.min(viewportWidth / 320, viewportHeight / 200),
   )
-  const chromeScale = chromeScaleAt(zoom)
   const container = useRef<HTMLDivElement>(null)
   const [initialViewport] = useState(layout.viewport)
   const { visit, animateVisit } = useCanvasVisit(handleRef)
@@ -81,6 +86,50 @@ const TerminalCanvas = ({
     trackViewport,
     commitViewport,
   } = persistence
+  // Zoom reaches the nodes only where it changes them: a header turning compact, and a
+  // minimized terminal's height, which follows the header's scale. The chrome itself
+  // scales in CSS (below), so zooming rerenders no terminal until one of those changes.
+  useStore(
+    useCallback(
+      (state: ReactFlowState) => {
+        const scale = chromeScaleAt(state.transform[2])
+        const compact = terminals
+          .map((terminal) =>
+            (geometryRef.current[terminal.id]?.width ?? 550) / scale < 240 ? "1" : "0",
+          )
+          .join("")
+        return terminals.some((terminal) => minimized[terminal.id])
+          ? `${compact}:${scale}`
+          : compact
+      },
+      [terminals, geometryRef, minimized],
+    ),
+  )
+  const chromeScale = chromeScaleAt(store.getState().transform[2])
+  // The chrome's scale is a CSS variable, but setting it on the canvas restyles everything
+  // inside, thousands of terminal rows included, on every frame of a zoom. So a zoom sets
+  // it only on the chrome that reads it, and the canvas takes it once the zoom rests, for
+  // chrome that mounts afterwards.
+  useLayoutEffect(() => {
+    const element = container.current
+    if (!element) return
+    let zoom = store.getState().transform[2]
+    let resting: ReturnType<typeof setTimeout> | undefined
+    element.style.setProperty("--canvas-chrome-scale", String(chromeScaleAt(zoom)))
+    const unsubscribe = store.subscribe((state) => {
+      if (state.transform[2] === zoom) return
+      zoom = state.transform[2]
+      const scale = String(chromeScaleAt(zoom))
+      for (const chrome of element.querySelectorAll<HTMLElement>(chromeReaders))
+        chrome.style.setProperty("--canvas-chrome-scale", scale)
+      clearTimeout(resting)
+      resting = setTimeout(() => element.style.setProperty("--canvas-chrome-scale", scale), 150)
+    })
+    return () => {
+      unsubscribe()
+      clearTimeout(resting)
+    }
+  }, [store])
   const knownTerminals = useRef(new Set(terminals.map((terminal) => terminal.id)))
   const createdPositions = useRef(new Map<string, XYPosition>())
   const pointerCreated = useRef(new Set<string>())
@@ -364,7 +413,6 @@ const TerminalCanvas = ({
       ref={container}
       style={
         {
-          "--canvas-chrome-scale": chromeScale,
           "--canvas-header-height": `${terminalHeaderHeight}px`,
         } as CSSProperties
       }

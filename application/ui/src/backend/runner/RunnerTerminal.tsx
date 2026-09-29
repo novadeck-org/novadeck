@@ -1,12 +1,9 @@
 import "@xterm/xterm/css/xterm.css"
 import "./runner.css"
-import { FitAddon } from "@xterm/addon-fit"
-import { Terminal, type ITheme } from "@xterm/xterm"
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -16,48 +13,8 @@ import { endingText, terminalEnding, type TerminalEnding } from "../../model/ter
 import type { TerminalSurfaceProps } from "../port"
 import { restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
-import { followTerminal, type FollowedTerminal, type Screen } from "./follow"
-import { silenceQueries } from "./queries"
+import { createScreens, type RunnerScreen, type ScreenStream } from "./screens"
 
-// The sizes the runner accepts.
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(max, Math.max(min, Math.floor(value)))
-export const runnerSize = (size: {
-  readonly cols: number
-  readonly rows: number
-}): { readonly cols: number; readonly rows: number } => ({
-  cols: clamp(size.cols, 2, 500),
-  rows: clamp(size.rows, 1, 200),
-})
-
-const token = (style: CSSStyleDeclaration, name: string): string | undefined =>
-  style.getPropertyValue(name).trim() || undefined
-
-// The app's colour tokens, read from the page so a theme change reaches the terminal.
-const themeOf = (element: Element): ITheme => {
-  const style = getComputedStyle(element)
-  const background = token(style, "--color-paper")
-  const foreground = token(style, "--color-ink")
-  const selection = token(style, "--color-selection")
-  // The scrollbar matches the app's own: a line-grey thumb that darkens when used.
-  const slider = token(style, "--color-line")
-  const sliderHover = token(style, "--color-line-strong")
-  const sliderActive = token(style, "--color-muted")
-  return {
-    ...(background ? { background } : {}),
-    ...(foreground ? { foreground, cursor: foreground } : {}),
-    ...(background ? { cursorAccent: background } : {}),
-    ...(selection ? { selectionBackground: selection } : {}),
-    ...(slider ? { scrollbarSliderBackground: slider } : {}),
-    ...(sliderHover ? { scrollbarSliderHoverBackground: sliderHover } : {}),
-    ...(sliderActive ? { scrollbarSliderActiveBackground: sliderActive } : {}),
-  }
-}
-
-const monospace = (element: Element): string =>
-  token(getComputedStyle(element), "--font-mono") ?? "monospace"
-
-const darkScheme = "(prefers-color-scheme: dark)"
 // Why typing is paused, set in capitals by CSS so assistive technology reads words.
 const lockNotices = {
   connected: "Starting shell…",
@@ -120,8 +77,14 @@ const EndingBar = ({
   )
 }
 
-// One component per backend, so its identity stays stable while the backend lives.
+const quiet: ScreenStream = { live: false, resuming: false, waits: false }
+const ignore = (): (() => void) => () => {}
+
+// One component per backend, so its identity stays stable while the backend lives. Its
+// screens outlive the surfaces: a view switch unmounts one surface and mounts the next,
+// which takes the same emulator and attachment instead of opening them again.
 export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
+  const screens = createScreens(runtime)
   const RunnerTerminal = ({
     terminalKey,
     terminal,
@@ -132,33 +95,30 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
     onInputFocused,
     renderWindow,
   }: TerminalSurfaceProps): React.JSX.Element => {
-    // React owns each surface's mount slot; the runner owns this one emulator host.
+    // React owns each surface's mount slot; the screen owns the one emulator host.
     // Moving the host preserves its textarea, screen, selection, and PTY attachment.
-    const host = useMemo(() => document.createElement("div"), [])
+    const [host] = useState(() => screens.host(terminalKey))
+    const [screen, setScreen] = useState<RunnerScreen | null>(null)
     const root = useRef<HTMLDivElement | null>(null)
-    const wasFocused = useRef(false)
     const refitFrame = useRef<number | null>(null)
-    const view = useRef<{ xterm: Terminal; followed: FollowedTerminal | undefined }>(null)
-    const initialFont = useRef(fontSize)
+    const opening = useRef({ fontSize, name: terminal.name })
     const name = terminal.name
-    const initialName = useRef(name)
     // An exited or failed terminal waits for Enter, or its bar's Restart. The stream
     // reports an exit in order with the output, sometimes before the status does; the
     // status covers a shell that never started, with no stream to tell.
     const waiting = restartable(terminal)
     const ending = terminalEnding(terminal)
-    const restart = useRef({ status: waiting, stream: false, run: () => {} })
     const connection = useSyncExternalStore(
       runtime.connection.subscribe,
       runtime.connection.getSnapshot,
     )
     // Input is refused while the runner is away, and while a running or starting shell
     // has no stream to take it, as right after a reconnection or a restart.
-    const [live, setLive] = useState(false)
-    const [resuming, setResuming] = useState(false)
-    // The stream can tell of an exit before the status does; Enter works from then on.
-    const [streamWaits, setStreamWaits] = useState(false)
-    const locked = connection !== "connected" || (!waiting && !streamWaits && !live)
+    const { live, resuming, waits } = useSyncExternalStore(
+      screen?.stream.subscribe ?? ignore,
+      () => screen?.stream.getSnapshot() ?? quiet,
+    )
+    const locked = connection !== "connected" || (!waiting && !waits && !live)
 
     const onWheel = useCallback((event: WheelEvent): void => {
       // Intercept before XYFlow's native listener, but let zoom gestures reach it.
@@ -172,25 +132,33 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
       },
       [onWheel],
     )
-    const onHostMount = useCallback(
-      (element: HTMLDivElement | null): void => {
-        if (!element) {
-          if (host.contains(document.activeElement)) wasFocused.current = true
-          return
-        }
-        element.append(host)
-        view.current?.followed?.refit()
+    // Places the host in this surface's slot, refitting it there and focusing it again
+    // when it left its previous slot focused.
+    const place = useCallback(
+      (target: HTMLDivElement, current: RunnerScreen | null): void => {
+        if (host.parentElement !== target) target.append(host)
+        current?.followed.refit()
         if (refitFrame.current !== null) cancelAnimationFrame(refitFrame.current)
         refitFrame.current = requestAnimationFrame(() => {
           refitFrame.current = null
-          if (host.isConnected) view.current?.followed?.refit()
+          if (host.isConnected) current?.followed.refit()
         })
-        if (wasFocused.current) {
-          view.current?.xterm.focus()
-          wasFocused.current = false
+        if (current?.refocus) {
+          current.xterm.focus()
+          current.refocus = false
         }
       },
       [host],
+    )
+    const onHostMount = useCallback(
+      (element: HTMLDivElement | null): void => {
+        if (!element) {
+          if (screen && host.contains(document.activeElement)) screen.refocus = true
+          return
+        }
+        place(element, screen)
+      },
+      [host, place, screen],
     )
 
     useLayoutEffect(() => {
@@ -207,121 +175,49 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
       [],
     )
 
+    // Takes the terminal's screen while this surface shows it: the first surface opens
+    // it, later ones find it as the last one left it.
     useEffect(() => {
-      const element = host
-      const xterm = new Terminal({
-        fontSize: initialFont.current,
-        fontFamily: monospace(element),
-        theme: themeOf(element),
-        scrollback: 1000,
-        allowTransparency: false,
+      const acquired = screens.acquire(terminalKey, {
+        fontSize: opening.current.fontSize,
+        name: opening.current.name,
+        waiting: restartable(terminal),
       })
-      const fit = new FitAddon()
-      xterm.loadAddon(fit)
-      xterm.open(element)
-      const queries = silenceQueries(xterm)
-      xterm.textarea?.setAttribute("data-terminal-input", "")
-      xterm.textarea?.setAttribute("aria-label", `Input for ${initialName.current}`)
-      const screen: Screen = {
-        exited: () => {},
-        live: () => {},
-        write: (data) => new Promise((resolve) => xterm.write(data, resolve)),
-        reset: () => xterm.reset(),
-        resize: ({ cols, rows }) => {
-          if (xterm.cols !== cols || xterm.rows !== rows) xterm.resize(cols, rows)
-        },
-        fit: () => {
-          if (!element.clientWidth || !element.clientHeight) return undefined
-          const size = fit.proposeDimensions()
-          return size && Number.isFinite(size.cols) && Number.isFinite(size.rows)
-            ? runnerSize(size)
-            : undefined
-        },
-      }
-      const hint = restart.current
-      hint.stream = false
-      const followed = followTerminal(runtime, terminalKey, {
-        ...screen,
-        reset: () => {
-          hint.stream = false
-          setStreamWaits(false)
-          screen.reset()
-        },
-        exited: (waits) => {
-          hint.stream = waits
-          setStreamWaits(waits)
-        },
-        live: (next, resumingNow = false) => {
-          setLive(next)
-          setResuming(resumingNow)
-        },
-      })
-      hint.run = () => {
-        // Locked until the fresh shell's screen arrives.
-        hint.stream = false
-        setStreamWaits(false)
-        runtime.restart(terminalKey)
-      }
-      const send = (data: string): void => {
-        // A shell that exited or failed to start only listens for Enter, to start again.
-        if (!hint.status && !hint.stream) return followed.input(data)
-        if (data.includes("\r")) hint.run()
-      }
-      const input = xterm.onData(send)
-      // Some mouse reports arrive as binary; they go to the shell the same way.
-      const binary = xterm.onBinary(send)
-      const resizes = new ResizeObserver(() => followed.refit())
-      resizes.observe(element)
-      const scheme = window.matchMedia?.(darkScheme)
-      const retheme = (): void => {
-        xterm.options.theme = themeOf(element)
-      }
-      scheme?.addEventListener("change", retheme)
-      view.current = { xterm, followed }
-      runtime.screen(terminalKey, "mounted")
+      setScreen(acquired)
       return () => {
-        runtime.screen(terminalKey, "gone")
-        view.current = null
-        scheme?.removeEventListener("change", retheme)
-        resizes.disconnect()
-        input.dispose()
-        binary.dispose()
-        queries.dispose()
-        followed.stop()
-        xterm.dispose()
+        if (host.contains(document.activeElement)) acquired.refocus = true
+        screens.release(terminalKey)
       }
+      // The screen follows the terminal, not its changing metadata.
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
     }, [terminalKey, host])
 
     useEffect(() => {
-      const hint = restart.current
-      hint.status = waiting
-      if (!waiting) hint.stream = false
-    }, [waiting])
+      if (screen) screen.waiting = waiting
+    }, [screen, waiting])
 
     // While the runner is away, keys are refused where the person can see it.
     useEffect(() => {
-      const current = view.current
-      if (!current) return
-      current.xterm.options.disableStdin = locked
-      current.xterm.textarea?.setAttribute("aria-disabled", String(locked))
-    }, [locked])
+      if (!screen) return
+      screen.xterm.options.disableStdin = locked
+      screen.xterm.textarea?.setAttribute("aria-disabled", String(locked))
+    }, [screen, locked])
 
     useEffect(() => {
-      const current = view.current
-      if (!current || current.xterm.options.fontSize === fontSize) return
-      current.xterm.options.fontSize = fontSize
-      current.followed?.refit()
-    }, [fontSize])
+      if (!screen || screen.xterm.options.fontSize === fontSize) return
+      screen.xterm.options.fontSize = fontSize
+      screen.followed.refit()
+    }, [screen, fontSize])
 
     useEffect(() => {
-      view.current?.xterm.textarea?.setAttribute("aria-label", `Input for ${name}`)
-    }, [name])
+      screen?.xterm.textarea?.setAttribute("aria-label", `Input for ${name}`)
+    }, [screen, name])
 
     useEffect(() => {
-      if (!focusInput || !view.current) return
-      view.current.xterm.focus()
+      if (!focusInput || !screen) return
+      screen.xterm.focus()
       onInputFocused()
-    }, [focusInput, onInputFocused])
+    }, [screen, focusInput, onInputFocused])
 
     // A different program body remounts this content; the host moves into the new slot.
     return (
@@ -343,9 +239,9 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
               ending={ending}
               paused={locked}
               onRestart={() => {
-                restart.current.run()
+                screen?.restart()
                 // The button leaves with the bar; typing goes on in the fresh shell.
-                view.current?.xterm.focus()
+                screen?.xterm.focus()
               }}
             />
             {locked && (

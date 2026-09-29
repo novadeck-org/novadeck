@@ -60,6 +60,10 @@ element and passes it to `renderWindow`, and `WorkspaceTerminal.tsx` wraps it in
 shared window and the profile's body. The surface keeps its controller mounted above
 that, so a program change swaps the body without restarting the terminal; the runner
 surface moves its one xterm host into the new body, keeping output, selection and focus.
+Switching between Focus, Grid and Canvas mounts a new surface, which takes the same
+xterm and attachment from `backend/runner/screens.ts` instead of opening and attaching
+again. A terminal no view shows keeps them while its session is on screen and lets them
+go a moment after its session leaves the screen or the terminal closes.
 
 Saved sessions record one required program name per terminal (`lastProcess`, never
 its command line, which can hold secrets): the program running at the save, or else the
