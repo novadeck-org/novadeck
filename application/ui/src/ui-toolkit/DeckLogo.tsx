@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react"
+import { useId, type CSSProperties } from "react"
 
 import { cn } from "../class-name"
 
@@ -78,6 +78,76 @@ export const DeckWordmark = ({
         </span>
       ))}
     </span>
+  )
+}
+
+// A quiet repeat of the layered terminal mark for branded backgrounds. It fades in
+// from the right so foreground content can keep a clean reading surface.
+export const DeckPattern = ({
+  className,
+}: {
+  readonly className?: string | undefined
+}): React.JSX.Element => {
+  const id = useId().replaceAll(":", "")
+  const pattern = `deck-pattern-${id}`
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      viewBox="0 0 640 240"
+      preserveAspectRatio="xMidYMid slice"
+      style={{
+        maskImage: "linear-gradient(to right, transparent 10%, black 78%)",
+        WebkitMaskImage: "linear-gradient(to right, transparent 10%, black 78%)",
+      }}
+    >
+      <defs>
+        <pattern id={pattern} width="112" height="92" patternUnits="userSpaceOnUse">
+          <g transform="rotate(-5 56 46)">
+            <rect
+              x="29"
+              y="10"
+              width="62"
+              height="48"
+              rx="3"
+              fill="var(--color-paper)"
+              fillOpacity="0.22"
+              stroke="currentColor"
+            />
+            <rect
+              x="22"
+              y="17"
+              width="62"
+              height="48"
+              rx="3"
+              fill="var(--color-paper)"
+              fillOpacity="0.34"
+              stroke="currentColor"
+            />
+            <rect
+              x="15"
+              y="24"
+              width="62"
+              height="48"
+              rx="3"
+              fill="var(--color-paper)"
+              fillOpacity="0.58"
+              stroke="currentColor"
+            />
+            <path d="M15 36h62" stroke="currentColor" />
+            <path
+              d="m27 46 5 5-5 5"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path d="M39 57h9" fill="none" stroke="var(--color-accent)" strokeLinecap="round" />
+          </g>
+        </pattern>
+      </defs>
+      <rect width="640" height="240" fill={`url(#${pattern})`} />
+    </svg>
   )
 }
 

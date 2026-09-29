@@ -1,0 +1,392 @@
+.stage {
+  --mx: -1000px;
+  --my: -1000px;
+  --px: 0;
+  --py: 0;
+  position: relative;
+  height: 236px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-canvas);
+  background-image:
+    radial-gradient(ellipse at 45% 30%, rgb(255 255 255 / 0.7), transparent 70%),
+    radial-gradient(var(--color-line-strong) 0.65px, transparent 0.65px);
+  background-size:
+    100% 100%,
+    14px 14px;
+  box-shadow: inset 0 1px 2px rgb(38 40 38 / 0.04);
+  isolation: isolate;
+}
+
+/* A denser grid that shows through around the pointer, as on the real Canvas. */
+.stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background-image: radial-gradient(var(--color-muted) 0.8px, transparent 0.8px);
+  background-size: 14px 14px;
+  mask-image: radial-gradient(circle 110px at var(--mx) var(--my), black, transparent);
+  transition: opacity 220ms ease-out;
+}
+@media (hover: hover) and (pointer: fine) {
+  .stage:hover::before {
+    opacity: 0.5;
+  }
+}
+
+.terminal {
+  --depth: 0;
+  position: absolute;
+  overflow: hidden;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 4px;
+  background: var(--color-paper);
+  box-shadow:
+    0 1px 2px rgb(38 40 38 / 0.04),
+    0 10px 22px -10px rgb(38 40 38 / 0.22);
+  translate: calc(var(--px) * var(--depth) * 1px) calc(var(--py) * var(--depth) * 1px);
+  transition:
+    top 650ms var(--ease-interface),
+    left 650ms var(--ease-interface),
+    width 650ms var(--ease-interface),
+    height 650ms var(--ease-interface),
+    opacity 300ms ease,
+    transform 650ms var(--ease-interface),
+    translate 500ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-shell);
+  color: var(--color-ink);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.dot {
+  position: relative;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-line-strong);
+  transition: background-color var(--motion-state) var(--ease-interface);
+}
+.status[data-connected] .dot {
+  background: var(--color-accent);
+}
+.connected {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-muted);
+  font: 7px var(--font-mono);
+  letter-spacing: 0.4px;
+}
+
+.code {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  font: 8px / 1.4 var(--font-mono);
+  white-space: nowrap;
+}
+.prompt {
+  color: var(--color-ink);
+}
+.response {
+  color: var(--color-muted);
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-muted);
+}
+.typed {
+  width: fit-content;
+}
+.cursor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink);
+}
+.cursor i {
+  display: block;
+  height: 9px;
+  width: 4px;
+  background: var(--color-accent);
+}
+
+/* The sweep a terminal shows as its agent connects: it has just come back. */
+.scan {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  height: 28px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--color-accent) 22%, transparent) 60%,
+    color-mix(in srgb, var(--color-accent) 55%, transparent) 97%,
+    transparent
+  );
+}
+
+.agent {
+  --deal-x: 70px;
+  --deal-y: 4px;
+  --depth: 5;
+  z-index: 3;
+  top: 38px;
+  left: 5%;
+  width: 58%;
+  height: 158px;
+  transform: rotate(-3deg);
+}
+.review {
+  --deal-x: -104px;
+  --deal-y: 24px;
+  --depth: 3;
+  z-index: 2;
+  top: 23px;
+  left: 51%;
+  width: 46%;
+  height: 132px;
+  transform: rotate(3deg);
+}
+.server {
+  --deal-x: -90px;
+  --deal-y: -62px;
+  --depth: 9;
+  z-index: 4;
+  top: 132px;
+  left: 48%;
+  width: 44%;
+  height: 91px;
+  transform: rotate(1deg);
+}
+
+.scale {
+  position: absolute;
+  bottom: 9px;
+  left: 12px;
+  display: flex;
+  gap: 12px;
+  color: var(--color-muted);
+  font: 8px var(--font-mono);
+  transition: opacity var(--motion-state) var(--ease-interface);
+}
+.stage[data-view="grid"] .terminal,
+.stage[data-view="focus"] .terminal {
+  --depth: 0;
+  transform: rotate(0);
+}
+/* Grid and Focus fill the stage with a 31px header strip and a 15px foot. */
+.stage[data-view="grid"] .agent {
+  top: 31px;
+  left: 3%;
+  width: 51%;
+  height: calc(100% - 46px);
+}
+.stage[data-view="grid"] .review {
+  top: 31px;
+  left: 56%;
+  width: 41%;
+  height: calc(50% - 26px);
+}
+.stage[data-view="grid"] .server {
+  top: calc(50% + 11px);
+  left: 56%;
+  width: 41%;
+  height: calc(50% - 26px);
+}
+.stage[data-view="grid"] .code {
+  font-size: 7px;
+  gap: 5px;
+  padding: 8px;
+}
+.stage[data-view="grid"] .scale,
+.stage[data-view="focus"] .scale {
+  opacity: 0;
+}
+.stage[data-view="focus"] .agent {
+  top: 31px;
+  left: 3%;
+  width: 94%;
+  height: calc(100% - 46px);
+}
+.stage[data-view="focus"] .agent .code {
+  font-size: 10px;
+  gap: 9px;
+}
+.stage[data-view="focus"] .review,
+.stage[data-view="focus"] .server {
+  opacity: 0;
+  transform: translateX(60px) scale(0.9);
+}
+
+.caption {
+  text-wrap: balance;
+}
+
+/* The tour's timer under the layout it is about to leave. */
+.progress {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 1px;
+  background: var(--color-accent);
+  transform-origin: left;
+  animation: progress var(--step) linear both;
+}
+
+@media (max-width: 819px) {
+  .stage {
+    height: 215px;
+    max-width: 470px;
+    margin-inline: auto;
+  }
+  .server {
+    top: 114px;
+  }
+}
+
+/* Opening: the stacked cards of the Deck mark deal out onto the canvas, then each
+   terminal types its lines. Without motion everything is simply in place. */
+@media (prefers-reduced-motion: no-preference) {
+  .terminal {
+    animation: deal 1100ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .server {
+    animation-delay: 650ms;
+  }
+  .agent {
+    animation-delay: 760ms;
+  }
+  .review {
+    animation-delay: 870ms;
+  }
+  .typed {
+    animation: type calc(var(--chars) * 14ms) steps(var(--chars)) var(--at) backwards;
+  }
+  .cursor {
+    animation: appear 1ms 2300ms backwards;
+  }
+  .cursor i {
+    animation: blink 1.1s step-end 2300ms infinite;
+  }
+  .scan {
+    animation: scan 900ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .status[data-connected] .dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--color-accent);
+    animation: ping 900ms cubic-bezier(0, 0, 0.2, 1) 2;
+  }
+  .connected {
+    animation: appear-left 300ms var(--ease-interface);
+  }
+  .caption {
+    animation: caption 360ms var(--ease-interface);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal {
+    --depth: 0;
+    transition: none;
+  }
+}
+
+@keyframes deal {
+  0% {
+    opacity: 0;
+    translate: var(--deal-x) var(--deal-y);
+    scale: 0.42;
+  }
+  30% {
+    opacity: 1;
+    translate: var(--deal-x) var(--deal-y);
+    scale: 0.5;
+  }
+}
+@keyframes type {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes scan {
+  0% {
+    opacity: 0;
+    transform: translateY(-28px);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(170px);
+  }
+}
+@keyframes ping {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(4);
+  }
+}
+@keyframes appear-left {
+  from {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+}
+@keyframes caption {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+@keyframes progress {
+  from {
+    transform: scaleX(0);
+  }
+}

@@ -41,6 +41,10 @@ export const createDemoBackend: CreateBackend = () => {
   const demo = new URLSearchParams(window.location.hash.split("?")[1]).get("demo")
   const agents = demo === "agents"
   const engine = createDemoEngine()
-  const backend = demoBackend(engine, demo === "onboarding")
+  const backend = demoBackend(
+    engine,
+    demo === "onboarding" ||
+      (import.meta.env.DEV && import.meta.env.VITE_ONBOARDING_PREVIEW === "true"),
+  )
   return agents ? { ...backend, seed: demoSeed(Date.now(), true) } : backend
 }

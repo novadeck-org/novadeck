@@ -9,7 +9,7 @@ export type AgentSwitch = {
   readonly error?: string
 }
 
-const labels: Record<AgentSwitch["agent"], string> = {
+export const agentLabels: Record<AgentSwitch["agent"], string> = {
   claude: "Claude Code",
   codex: "Codex",
   agy: "Antigravity",
@@ -33,7 +33,7 @@ export const AgentSwitches = ({
 }): React.JSX.Element => (
   <ul className="m-0 list-none p-0" aria-label="Agents">
     {agents.map((item) => {
-      const label = labels[item.agent]
+      const label = agentLabels[item.agent]
       return (
         <li
           key={item.agent}
