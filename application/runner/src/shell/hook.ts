@@ -10,28 +10,48 @@
  */
 export const hookScript = `// NovaDeck agent hook. Written by NovaDeck into its own data directory, and
 // overwritten on each start. Only agents started from NovaDeck's terminals run it.
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { connect } from "node:net"
-import { basename } from "node:path"
+import { homedir } from "node:os"
+import { basename, join } from "node:path"
 
 const [agent, event = ""] = process.argv.slice(2)
 const env = process.env
 const terminalId = env.NOVADECK_TERMINAL_ID
 const endpoint = env.NOVADECK_REPORT
 const token = env.NOVADECK_REPORT_TOKEN
+// Claude Code's status line runs through this hook in NovaDeck's shells, which then shows
+// the person's own status line: its output is what this hook prints.
+const statusLine = agent === "claude" && event === "StatusLine"
+let output = ""
+// The person's own status line, what it has printed so far, and whether its output ended.
+let own
+let printed = ""
+let ownEnded = false
 let finished = false
 const done = () => {
   if (finished) return
   finished = true
-  if (agent !== "agy") return process.exit(0)
+  if (own && !ownEnded) {
+    // Out of time, or a process it started still holds its output: show what it printed,
+    // and end it with whatever it started.
+    output = printed.slice(0, 65_536)
+    try {
+      process.kill(-own.pid, "SIGTERM")
+    } catch {}
+  }
+  if (agent !== "agy") {
+    if (!output) return process.exit(0)
+    return process.stdout.write(output, () => process.exit(0))
+  }
   const answer = event === "PreToolUse" ? { decision: "ask" } : {}
   process.stdout.write(JSON.stringify(answer) + "\\n", () => process.exit(0))
 }
 if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(agent)) {
   done()
 } else {
-  setTimeout(done, 2000).unref()
+  setTimeout(done, statusLine ? 5000 : 2000).unref()
   // Wall-clock time with sub-millisecond precision: a later hook reports a larger one.
   const seq = performance.timeOrigin + performance.now()
 
@@ -78,6 +98,55 @@ if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(a
     return null
   }
 
+  // The person's own status line command, as Claude Code's settings name it: the project's
+  // local settings, the project's, then the person's. NovaDeck's own settings, which name
+  // this hook, never count.
+  const ownStatusLine = (payload) => {
+    const home = env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude")
+    const project = payload.workspace?.project_dir || payload.cwd
+    const files = [join(home, "settings.json")]
+    if (typeof project === "string")
+      files.unshift(join(project, ".claude", "settings.local.json"), join(project, ".claude", "settings.json"))
+    for (const file of files) {
+      try {
+        const line = JSON.parse(readFileSync(file, "utf8")).statusLine
+        if (line?.type === "command" && typeof line.command === "string" && line.command && !line.command.includes("NOVADECK_HOOK"))
+          return line.command
+      } catch {}
+    }
+    return undefined
+  }
+
+  // Runs the person's status line with the same input, keeping at most 64 KiB it prints.
+  // It runs in its own process group, as Claude Code runs a status line, so a deadline
+  // ends everything it started.
+  const runStatusLine = (command, input, finish) => {
+    try {
+      const child = spawn(command, {
+        shell: true,
+        detached: process.platform !== "win32",
+        stdio: ["pipe", "pipe", "ignore"],
+      })
+      own = child
+      child.stdout.setEncoding("utf8")
+      child.stdout.on("data", (chunk) => {
+        if (printed.length < 65_536) printed += chunk
+      })
+      child.on("error", () => {
+        ownEnded = true
+        finish("")
+      })
+      child.on("close", () => {
+        ownEnded = true
+        finish(printed.slice(0, 65_536))
+      })
+      child.stdin.on("error", () => {})
+      child.stdin.end(input)
+    } catch {
+      finish("")
+    }
+  }
+
   let text = ""
   process.stdin.setEncoding("utf8")
   process.stdin.on("data", (chunk) => {
@@ -93,6 +162,20 @@ if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(a
       return done()
     }
     if (typeof payload !== "object" || payload === null) return done()
+    // The report and the person's own status line both finish before the hook does.
+    let pending = 1
+    const settle = () => {
+      pending -= 1
+      if (pending === 0) done()
+    }
+    const command = statusLine ? ownStatusLine(payload) : undefined
+    if (command) {
+      pending += 1
+      runStatusLine(command, text, (printed) => {
+        output = printed
+        settle()
+      })
+    }
     const report = {
       terminalId,
       token,
@@ -106,10 +189,16 @@ if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(a
     }
     let line = JSON.stringify(report)
     if (line.length > 60_000) line = JSON.stringify({ ...report, payload: prune(payload, 0, 200) })
-    if (line.length > 60_000) return done()
+    let sent = false
+    const delivered = () => {
+      if (sent) return
+      sent = true
+      settle()
+    }
+    if (line.length > 60_000) return delivered()
     const socket = connect(endpoint)
-    socket.on("error", done)
-    socket.on("close", done)
+    socket.on("error", delivered)
+    socket.on("close", delivered)
     socket.end(line + "\\n")
   })
 }

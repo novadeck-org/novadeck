@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { followLines } from "../follow.js"
 import { json, marketplace, plugin, type Harness, type Install } from "../harness.js"
 import { decode } from "./decode.js"
+import { posixShim } from "./shim.js"
 import { transcriptEvents } from "./transcript.js"
 
 const id = "novadeck@novadeck"
@@ -77,7 +78,23 @@ export const claude = {
         ),
       }),
     },
+    // The settings NovaDeck's shim adds: its hook as the status line, which passes on the
+    // person's own (see shell/hook.ts).
+    ...(platform === "win32"
+      ? []
+      : [
+          {
+            path: "statusline.json",
+            content: json({
+              statusLine: { type: "command", command: hook(platform, "StatusLine"), padding: 0 },
+            }),
+          },
+        ]),
   ],
+  // The status line NovaDeck's shim adds, where its shells run Claude Code; Windows keeps
+  // the person's own until the shim and its status line are proven there.
+  shims: (platform) =>
+    platform === "win32" ? [] : [{ path: "claude", content: posixShim, mode: 0o700 }],
   resume: (session) => ["claude", "--resume", session],
   decode,
   // The transcript records what no hook reports: an interrupted turn.

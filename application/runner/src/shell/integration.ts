@@ -33,7 +33,7 @@ const pathKey = (env: NodeJS.ProcessEnv): string =>
  * runs it as an init command, PowerShell dot-sources it after the profile, and cmd
  * reports through its PROMPT. Each first loads the user's own startup files. Other
  * shells start as they are. Every shell gets the hook's launcher in NOVADECK_HOOK, and
- * with `shims` the connected harnesses' shims, as Codex's, first on PATH.
+ * with `shims` the connected harnesses whose shims, as Codex's, go first on PATH.
  *
  * A `resume` command, plain words from the harness's `resume`, runs once as the shell starts,
  * as if typed at its first prompt. The integration reads it from the file
@@ -46,10 +46,10 @@ export const shellLaunch = (
   paths: InstalledShell,
   env: NodeJS.ProcessEnv,
   {
-    shims = false,
+    shims = [],
     resume,
   }: {
-    readonly shims?: boolean
+    readonly shims?: readonly string[]
     readonly resume?: { readonly argv: readonly string[]; readonly file: string } | undefined
   } = {},
 ): ShellLaunch => {
@@ -57,13 +57,15 @@ export const shellLaunch = (
   const path = env[key]
   // Connected agents' hooks name the launcher through NOVADECK_HOOK; see `hookCommand`.
   // With shims, their folder goes first on PATH, and the integration puts it back
-  // there after the user's startup files.
+  // there after the user's startup files. NOVADECK_SHIMS names the harnesses whose shims
+  // apply; any other shim there runs its program unchanged.
   const withHook = {
     ...env,
     NOVADECK_HOOK: paths.launcher,
-    ...(shims && {
+    ...(shims.length > 0 && {
       [key]: path ? `${paths.bin}${delimiter}${path}` : paths.bin,
       NOVADECK_BIN: paths.bin,
+      NOVADECK_SHIMS: shims.join(" "),
     }),
   }
   const resuming = resume ? { ...withHook, NOVADECK_RESUME: resume.file } : withHook

@@ -89,6 +89,11 @@ describe("decoding captured hooks", () => {
   })
 })
 
+const shimmed = (platform: NodeJS.Platform) =>
+  Object.values(harnesses)
+    .filter((harness) => (harness.shims?.(platform) ?? []).length > 0)
+    .map(({ id }) => id)
+
 describe("the harness registry", () => {
   it("resumes each harness's session by its own command", () => {
     expect(harnesses.claude.resume?.("s")).toEqual(["claude", "--resume", "s"])
@@ -96,11 +101,8 @@ describe("the harness registry", () => {
     expect(harnesses.agy.resume?.("s")).toEqual(["agy", "--conversation", "s"])
   })
 
-  it("gives only Codex a shim", () => {
-    expect(
-      Object.values(harnesses)
-        .filter((harness) => harness.shims)
-        .map(({ id }) => id),
-    ).toEqual(["codex"])
+  it("gives Codex a shim everywhere, and Claude Code one outside Windows", () => {
+    expect(shimmed("linux")).toEqual(["claude", "codex"])
+    expect(shimmed("win32")).toEqual(["codex"])
   })
 })

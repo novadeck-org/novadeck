@@ -1,0 +1,44 @@
+{
+  "harness": "claude",
+  "version": "2.1.285",
+  "source": "captured",
+  "how": "the JSON Claude Code gave a status line command set through --settings, in an interactive session after one reply; the session id, paths and model replaced, and other fields left out",
+  "payload": {
+    "context_window": {
+      "total_input_tokens": 36329,
+      "total_output_tokens": 124,
+      "context_window_size": 200000,
+      "current_usage": {
+        "input_tokens": 10,
+        "output_tokens": 124,
+        "cache_creation_input_tokens": 11347,
+        "cache_read_input_tokens": 24972
+      },
+      "used_percentage": 18,
+      "remaining_percentage": 82
+    },
+    "rate_limits": {
+      "five_hour": {
+        "used_percentage": 1,
+        "resets_at": 1790743800
+      },
+      "seven_day": {
+        "used_percentage": 5,
+        "resets_at": 1790938800
+      }
+    },
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "cwd": "/home/user/project",
+    "model": {
+      "id": "<model>",
+      "display_name": "<model>"
+    },
+    "cost": {
+      "total_cost_usd": 0.0267582,
+      "total_duration_ms": 16196,
+      "total_api_duration_ms": 2848,
+      "total_lines_added": 0,
+      "total_lines_removed": 0
+    }
+  }
+}

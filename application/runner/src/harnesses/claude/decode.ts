@@ -66,7 +66,62 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
           outcome: "allowed",
         },
       ]
+    case "StatusLine":
+      return statusLine(base, payload)
     default:
       return []
   }
+}
+
+const count = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
+
+// Claude Code's rate-limit windows, by their names in its status line.
+const windows = { five_hour: 300, seven_day: 10_080 } as const
+
+/**
+ * The status line Claude Code runs in NovaDeck's shells hands over what no other source
+ * says: the context window's size beside what it holds, and the account's five-hour and
+ * seven-day rate limits, used percentage and reset time in epoch seconds.
+ */
+const statusLine = (
+  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  payload: Report["payload"],
+): HarnessEvent[] => {
+  const window = (payload.context_window ?? {}) as Record<string, unknown>
+  const usage = (window.current_usage ?? {}) as Record<string, unknown>
+  const held = [
+    usage.input_tokens,
+    usage.cache_creation_input_tokens,
+    usage.cache_read_input_tokens,
+  ]
+    .map(count)
+    .filter((each): each is number => each !== undefined)
+  const capacity = count(window.context_window_size)
+  const limits = (payload.rate_limits ?? {}) as Record<string, unknown>
+  const known = Object.entries(windows).flatMap(([name, minutes]) => {
+    const { used_percentage: used, resets_at: resets } = (limits[name] ?? {}) as Record<
+      string,
+      unknown
+    >
+    const percent = count(used)
+    if (percent === undefined) return []
+    const at = count(resets)
+    return [
+      { minutes, used: Math.min(1, percent / 100), resetsAt: at !== undefined ? at * 1000 : null },
+    ]
+  })
+  return [
+    {
+      type: "telemetry-observed",
+      ...base,
+      ...(held.length > 0 && {
+        context: {
+          occupied: Math.round(held.reduce((sum, each) => sum + each, 0)),
+          capacity: capacity !== undefined && capacity >= 1 ? Math.round(capacity) : null,
+        },
+      }),
+      ...(payload.rate_limits !== undefined && { limits: known }),
+    },
+  ]
 }

@@ -271,11 +271,14 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     await restore(before)
     await client.agents.set("claude", true)
     await restore(after)
-    await expect
-      .poll(fixture.calls, { timeout: 10_000 })
-      .toContainEqual(["claude", "--resume", "after-connecting"])
+    // A connected Claude Code runs through NovaDeck's shim, which adds its status line.
+    const resumed = (id: string) =>
+      fixture
+        .calls()
+        .some((call) => call[0] === "claude" && call.slice(-2).join(" ") === `--resume ${id}`)
+    await expect.poll(() => resumed("after-connecting"), { timeout: 10_000 }).toBe(true)
     // By now the first shell is long at its prompt, where it would have resumed.
-    expect(fixture.calls()).not.toContainEqual(["claude", "--resume", "before-connecting"])
+    expect(resumed("before-connecting")).toBe(false)
     await client.agents.set("claude", false)
     expect(saved.terminal(after)?.agents).toEqual({})
   })

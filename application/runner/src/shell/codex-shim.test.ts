@@ -42,6 +42,7 @@ const it = base.extend<{ shim: Fixture }>({
           ...process.env,
           PATH: [paths.bin, real, process.env.PATH].join(delimiter),
           NOVADECK_TERMINAL_ID: "00000000-0000-4000-8000-000000000001",
+          NOVADECK_SHIMS: "claude codex",
           ...env,
         },
         encoding: "utf8" as const,
@@ -70,5 +71,10 @@ describe("codex shim", () => {
     expect(shim.run(["--remote", "ws://host"])).toEqual(["--remote", "ws://host"])
     expect(shim.run(["--no-daemon"])).toEqual(["--no-daemon"])
     expect(shim.run(["exec", "hi"], { NOVADECK_TERMINAL_ID: "" })).toEqual(["exec", "hi"])
+  })
+
+  it("leaves codex alone while Codex is not connected", ({ shim }) => {
+    // Another harness's shim put this folder on PATH.
+    expect(shim.run(["exec", "hi"], { NOVADECK_SHIMS: "claude" })).toEqual(["exec", "hi"])
   })
 })

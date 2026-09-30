@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -12,6 +12,8 @@ type Fixture = {
   /** The hook script, as written. */
   script: string
   reports: Report[]
+  /** Runs the hook as an agent would for `event`, and resolves with what it printed. */
+  run: (agent: string, payload: unknown, env: NodeJS.ProcessEnv, event: string) => Promise<string>
   /** Runs the hook as an agent would for `event`, and resolves once it exits. */
   hook: (
     agent: string,
@@ -59,7 +61,24 @@ const it = base.extend<{ fixture: Fixture }>({
         })
         child.stdin.end(typeof payload === "string" ? payload : JSON.stringify(payload))
       })
-    await use({ endpoint: listening.endpoint, script, reports, hook })
+    const run: Fixture["run"] = (agent, payload, env, event) =>
+      new Promise((resolve) => {
+        const child = spawn(process.execPath, [script, agent, event], {
+          env: {
+            ...process.env,
+            NOVADECK_TERMINAL_ID: terminalId,
+            NOVADECK_REPORT: listening.endpoint,
+            NOVADECK_REPORT_TOKEN: token,
+            ...env,
+          },
+          stdio: ["pipe", "pipe", "inherit"],
+        })
+        let printed = ""
+        child.stdout.on("data", (data: Buffer) => (printed += data.toString()))
+        child.on("exit", () => resolve(printed))
+        child.stdin.end(JSON.stringify(payload))
+      })
+    await use({ endpoint: listening.endpoint, script, reports, hook, run })
   },
 })
 
@@ -169,6 +188,99 @@ describe("agent hook", () => {
     expect(await fixture.hook("agy", payload, {}, "PreToolUse")).toBe(0)
     expect(await fixture.hook("agy", payload, { NOVADECK_TERMINAL_ID: "" }, "PreToolUse")).toBe(0)
     expect(fixture.reports.map(({ event }) => event)).toEqual(["PreInvocation", "PreToolUse"])
+  })
+
+  // NovaDeck gives Windows no Claude Code status line yet.
+  it.skipIf(process.platform === "win32")(
+    "shows the person's own Claude Code status line after forwarding its snapshot",
+    async ({ fixture }) => {
+      const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
+      writeFileSync(
+        join(home, "settings.json"),
+        JSON.stringify({ statusLine: { type: "command", command: "cat >/dev/null; echo mine" } }),
+      )
+      const printed = await fixture.run(
+        "claude",
+        { session_id: session, cwd: home, rate_limits: {} },
+        { CLAUDE_CONFIG_DIR: home },
+        "StatusLine",
+      )
+      rmSync(home, { recursive: true, force: true })
+      expect(printed.trim()).toBe("mine")
+      expect(fixture.reports.map(({ event }) => event)).toEqual(["StatusLine"])
+    },
+  )
+
+  it.skipIf(process.platform === "win32")(
+    "cuts off a status line that takes too long, keeping what it printed",
+    async ({ fixture }) => {
+      const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
+      const pidFile = join(home, "pid")
+      writeFileSync(
+        join(home, "settings.json"),
+        JSON.stringify({
+          statusLine: {
+            type: "command",
+            command: `echo partial; echo $$ > '${pidFile}'; exec sleep 30`,
+          },
+        }),
+      )
+      const started = performance.now()
+      const printed = await fixture.run(
+        "claude",
+        { session_id: session, cwd: home },
+        { CLAUDE_CONFIG_DIR: home },
+        "StatusLine",
+      )
+      expect(performance.now() - started).toBeLessThan(8_000)
+      expect(printed.trim()).toBe("partial")
+      const pid = Number(readFileSync(pidFile, "utf8"))
+      const alive = () => {
+        try {
+          process.kill(pid, 0)
+          return true
+        } catch {
+          return false
+        }
+      }
+      await expect.poll(alive, { timeout: 3_000 }).toBe(false)
+      rmSync(home, { recursive: true, force: true })
+    },
+    15_000,
+  )
+
+  it.skipIf(process.platform === "win32")(
+    "cuts off a status line whose background process holds its output",
+    async ({ fixture }) => {
+      const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
+      writeFileSync(
+        join(home, "settings.json"),
+        JSON.stringify({
+          statusLine: { type: "command", command: "cat >/dev/null; (sleep 30 &); echo bg" },
+        }),
+      )
+      const printed = await fixture.run(
+        "claude",
+        { session_id: session, cwd: home },
+        { CLAUDE_CONFIG_DIR: home },
+        "StatusLine",
+      )
+      rmSync(home, { recursive: true, force: true })
+      expect(printed.trim()).toBe("bg")
+    },
+    15_000,
+  )
+
+  it("shows no status line of its own when the person has none", async ({ fixture }) => {
+    const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
+    const printed = await fixture.run(
+      "claude",
+      { session_id: session, cwd: home },
+      { CLAUDE_CONFIG_DIR: home },
+      "StatusLine",
+    )
+    rmSync(home, { recursive: true, force: true })
+    expect(printed).toBe("")
   })
 
   it("gives up without blocking the agent when NovaDeck is gone", async ({ fixture }) => {

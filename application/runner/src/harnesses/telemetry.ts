@@ -9,7 +9,8 @@ export type Telemetry = AgentTelemetry & { readonly at: number }
 
 /**
  * The telemetry after a record, or undefined when it changes nothing: another session's,
- * or older than what is shown. A record names only what it knows; the rest stays.
+ * or older than what is shown. A record names only what it knows; the rest stays, the
+ * context's capacity too when a source that does not know it reports what it holds.
  */
 export const observeTelemetry = (
   telemetry: Telemetry | null,
@@ -19,7 +20,12 @@ export const observeTelemetry = (
   if (!bound(binding, event)) return undefined
   if (telemetry && event.startedAt < telemetry.at) return undefined
   return {
-    context: event.context !== undefined ? event.context : (telemetry?.context ?? null),
+    context:
+      event.context === undefined
+        ? (telemetry?.context ?? null)
+        : event.context && event.context.capacity === null && telemetry?.context?.capacity
+          ? { ...event.context, capacity: telemetry.context.capacity }
+          : event.context,
     limits: event.limits ?? telemetry?.limits ?? [],
     at: event.startedAt,
   }

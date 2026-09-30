@@ -26,6 +26,16 @@ describe("observing telemetry", () => {
     expect(next).toMatchObject({ context: { occupied: 2_000 }, limits: [limit] })
   })
 
+  it("keeps a known capacity when a source that does not know it reports", () => {
+    const first = observeTelemetry(null, binding, seen({ context }))!
+    const next = observeTelemetry(
+      first,
+      binding,
+      seen({ startedAt: 11, context: { occupied: 5_000, capacity: null } }),
+    )
+    expect(next?.context).toEqual({ occupied: 5_000, capacity: 200_000 })
+  })
+
   it("ignores an older record, and another session's", () => {
     const first = observeTelemetry(null, binding, seen({ context }))!
     expect(

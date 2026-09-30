@@ -70,8 +70,8 @@ export type TerminalOptions = {
   shellFiles?: Promise<InstalledShell | undefined>
   /** Where terminals are saved for restoring; unsaved when omitted. */
   records?: TerminalRecords
-  /** Whether new shells put harnesses' shims first on PATH: while one with shims is connected. */
-  shims?: () => Promise<boolean>
+  /** The connected harnesses whose shims new shells put first on PATH. */
+  shims?: () => Promise<readonly AgentName[]>
   /**
    * Whether NovaDeck's plugin is installed into the harness: a disconnected one resumes
    * nothing and its reports are ignored. Every harness counts as connected when omitted.
@@ -189,6 +189,7 @@ const inherited = [
   "NOVADECK_BIN",
   "NOVADECK_ZDOTDIR",
   "NOVADECK_RESUME",
+  "NOVADECK_SHIMS",
   // An agent's own session markers, when NovaDeck was started from inside one: an agent
   // in NovaDeck's shells would take itself for that session's child. Claude Code, for
   // one, then stops saving its transcript.
@@ -267,7 +268,7 @@ export class Terminals {
     env: NodeJS.ProcessEnv
     shellArgs: readonly string[] | undefined
     records: TerminalRecords | undefined
-    shims: () => Promise<boolean>
+    shims: () => Promise<readonly AgentName[]>
     connected: (agent: AgentName) => Promise<boolean>
   }
   private readonly integration: Promise<Integration | undefined>
@@ -303,7 +304,7 @@ export class Terminals {
       ackWindowBytes: positive(options.ackWindowBytes, 256 * 1024),
       processPollMs: positive(options.processPollMs, 1000),
       records: options.records,
-      shims: options.shims ?? (() => Promise.resolve(false)),
+      shims: options.shims ?? (() => Promise.resolve([])),
       connected: options.connected ?? (() => Promise.resolve(true)),
       saveMs: positive(options.saveMs, 5000),
       transcriptChars: positive(options.transcriptChars, 256 * 1024),
@@ -658,11 +659,13 @@ export class Terminals {
     this.persisting(() => this.options.records?.forgetAgent(agent))
   }
 
-  /** The integration for a new shell, with whether it gets the connected harnesses' shims. */
-  private async shellIntegration(): Promise<(Integration & { shims: boolean }) | undefined> {
+  /** The integration for a new shell, with the connected harnesses whose shims it gets. */
+  private async shellIntegration(): Promise<
+    (Integration & { shims: readonly AgentName[] }) | undefined
+  > {
     const integration = await this.integration
     if (!integration) return undefined
-    return { ...integration, shims: await this.options.shims().catch(() => false) }
+    return { ...integration, shims: await this.options.shims().catch(() => []) }
   }
 
   /** Turning transcripts off forgets every saved one; turning them on saves each anew. */
@@ -1034,7 +1037,7 @@ export class Terminals {
     shell: string,
     cwd: string,
     input: Size & { id?: string; terminalId?: string },
-    integration: (Integration & { shims: boolean }) | undefined,
+    integration: (Integration & { shims: readonly AgentName[] }) | undefined,
     resume?: readonly string[],
   ): Started {
     const { cols, rows } = input

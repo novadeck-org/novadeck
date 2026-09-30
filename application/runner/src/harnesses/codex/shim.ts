@@ -16,7 +16,10 @@ set -f
 for novadeck_dir in $PATH; do
   [ -n "$novadeck_dir" ] || continue
   novadeck_candidate=$novadeck_dir/codex
-  if [ -f "$novadeck_candidate" ] && [ -x "$novadeck_candidate" ] && ! [ "$novadeck_candidate" -ef "$0" ]; then
+  # Another NovaDeck's shim, as from a runner started in a NovaDeck terminal, would call
+  # this one back: only the program itself counts.
+  if [ -f "$novadeck_candidate" ] && [ -x "$novadeck_candidate" ] && ! [ "$novadeck_candidate" -ef "$0" ] &&
+    ! head -c 256 "$novadeck_candidate" 2>/dev/null | grep -q "NovaDeck shim for codex"; then
     novadeck_real=$novadeck_candidate
     break
   fi
@@ -28,6 +31,8 @@ if [ -z "$novadeck_real" ]; then
   exit 127
 fi
 [ -n "\${NOVADECK_TERMINAL_ID:-}" ] || exec "$novadeck_real" "$@"
+# Only while Codex is connected: NovaDeck's shells name the harnesses whose shims apply.
+case " \${NOVADECK_SHIMS:-} " in *" codex "*) ;; *) exec "$novadeck_real" "$@" ;; esac
 for novadeck_arg in "$@"; do
   case $novadeck_arg in
     agents | --remote | --remote=* | --no-daemon) exec "$novadeck_real" "$@" ;;
@@ -50,6 +55,8 @@ if not defined novadeck_real (
   exit /b 9009
 )
 if not defined NOVADECK_TERMINAL_ID goto plain
+rem Only while Codex is connected: NovaDeck's shells name the harnesses whose shims apply.
+echo " %NOVADECK_SHIMS% " | findstr /c:" codex " >nul || goto plain
 for %%a in (%*) do (
   if /i "%%~a"=="agents" goto plain
   if /i "%%~a"=="--remote" goto plain
@@ -63,6 +70,8 @@ exit /b %ERRORLEVEL%
 :consider
 if defined novadeck_real exit /b
 if /i "%~dp1"=="%~dp0" exit /b
+rem Another NovaDeck's shim would call this one back: only the program itself counts.
+if /i "%~x1"==".cmd" findstr /b /c:"rem NovaDeck shim for codex" "%~1" >nul && exit /b
 if /i "%~x1"==".exe" set "novadeck_real=%~1"
 if /i "%~x1"==".cmd" set "novadeck_real=%~1"
 if /i "%~x1"==".bat" set "novadeck_real=%~1"

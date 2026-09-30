@@ -903,6 +903,12 @@ an action by typing guessed keys into a terminal.
       context held. `TerminalSummary.telemetry` carries them, and each window's
       header shows the context and busiest limit. The status line bridge adds
       Claude Code's limits and context capacity, and Antigravity's telemetry.
+      For Claude Code, NovaDeck's shells run `claude` through a shim (while it
+      is connected, outside Windows) that adds `--settings` naming NovaDeck's
+      hook as the status line. The hook forwards the snapshot, then runs the
+      person's own status line command from their settings and prints its
+      output. Each shim now checks `NOVADECK_SHIMS`, so one harness's shim
+      never applies while only another is connected.
    5. Planning signals.
 5. **Operate.** Add caller/operation, messaging, artifact and presentation
    services, with MCP and UI exercising the same operations, including the
