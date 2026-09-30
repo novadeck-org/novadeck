@@ -24,8 +24,17 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
     case "SessionStart": {
       if (actor) return []
       const cwd = absolute(payload.cwd)
+      const transcript = absolute(payload.transcript_path)
       const evidence = sessionStart(text(payload.source))
-      return [{ type: "session-observed", ...base, evidence, ...(cwd !== undefined && { cwd }) }]
+      return [
+        {
+          type: "session-observed",
+          ...base,
+          evidence,
+          ...(cwd !== undefined && { cwd }),
+          ...(transcript !== undefined && { transcript }),
+        },
+      ]
     }
     case "UserPromptSubmit":
       return [{ type: "turn-started", ...base }]

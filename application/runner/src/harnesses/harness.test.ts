@@ -61,6 +61,7 @@ describe("decoding captured hooks", () => {
         startedAt: 2_000,
         instance: "42",
         cwd: start!.payload.cwd,
+        transcript: start!.payload.transcript_path,
       },
     ])
   })

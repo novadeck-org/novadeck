@@ -18,6 +18,8 @@ export type SessionObserved = {
   readonly instance: string | null
   /** The harness's own directory, when it is an absolute path here. */
   readonly cwd?: string
+  /** The session's transcript, when the harness names it with an absolute path. */
+  readonly transcript?: string
 }
 
 /**

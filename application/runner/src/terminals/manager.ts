@@ -27,6 +27,7 @@ import {
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
+import type { SessionObserved } from "../harnesses/events.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch, type ShellLaunch } from "../shell/integration.js"
@@ -128,6 +129,8 @@ type Record = {
   binding: Binding | null
   /** What the bound agent is doing, as its hooks said; null without a binding. */
   activity: Activity | null
+  /** Stops following the bound session's own sources, as its transcript. */
+  watching: AbortController | null
   /** When the shell last showed its prompt, in epoch milliseconds. */
   promptedAt: number | null
   /** Unsaved changes: output, directory, or prompts. */
@@ -392,6 +395,7 @@ export class Terminals {
         agents: saved?.agents ?? {},
         binding: null,
         activity: null,
+        watching: null,
         promptedAt: saved?.promptedAt ?? null,
         changed: false,
         savedAt: 0,
@@ -518,6 +522,7 @@ export class Terminals {
           foreground: undefined,
           binding: null,
           activity: null,
+          watching: null,
           // Skipping a sequence number sends any earlier cursor to a fresh snapshot.
           sequence: record.sequence + 1,
           history: [],
@@ -636,6 +641,7 @@ export class Terminals {
       if (record.binding?.agent === agent) {
         record.binding = null
         record.activity = null
+        this.unwatch(record)
         record.summary = { ...record.summary, agent: null, activity: null }
         this.announce(record)
       }
@@ -826,6 +832,7 @@ export class Terminals {
     clearInterval(this.saver)
     this.saver = undefined
     for (const watcher of this.watchers.keys()) watcher.finish()
+    for (const record of this.records.values()) this.unwatch(record)
     this.shutdownPromise = this.stop()
     return this.shutdownPromise
   }
@@ -1131,6 +1138,7 @@ export class Terminals {
     const moved = cwd !== record.summary.cwd
     record.binding = null
     record.activity = null
+    this.unwatch(record)
     if (moved || record.summary.agent !== null) {
       record.summary = { ...record.summary, cwd, agent: null, activity: null }
       this.announce(record)
@@ -1172,6 +1180,7 @@ export class Terminals {
     if (record.binding?.instance && !alive(record.binding.instance)) {
       record.binding = null
       record.activity = null
+      this.unwatch(record)
       if (record.summary.agent !== null) {
         record.summary = { ...record.summary, agent: null, activity: null }
         this.announce(record)
@@ -1208,11 +1217,44 @@ export class Terminals {
         next.binding !== null &&
         before.agent === next.binding.agent &&
         before.sessionId === next.binding.sessionId
-      if (!same) record.activity = next.binding ? fresh(event.startedAt) : null
+      if (!same) {
+        record.activity = next.binding ? fresh(event.startedAt) : null
+        this.follow(record, event)
+      }
       record.summary = { ...record.summary, cwd: next.cwd }
     }
     this.publishAgent(record, record.summary.cwd !== cwd)
     if (changed) this.save(record, false)
+  }
+
+  /**
+   * Follows the newly bound session's own sources, as its transcript, until its binding
+   * ends; what they say applies like its hooks' reports.
+   */
+  private follow(record: Record, event: SessionObserved): void {
+    this.unwatch(record)
+    const { binding } = record
+    const watch = binding && harnesses[binding.agent].watch
+    if (!binding || !watch || event.transcript === undefined) return
+    const controller = new AbortController()
+    record.watching = controller
+    const run = {
+      sessionId: binding.sessionId,
+      instance: binding.instance,
+      transcript: event.transcript,
+    }
+    void watch(run, controller.signal, (fact) => {
+      if (record.watching !== controller || fact.type === "session-observed") return
+      const next = record.binding && record.activity && apply(record.activity, record.binding, fact)
+      if (!next) return
+      record.activity = next
+      this.publishAgent(record, false)
+    }).catch((error: unknown) => console.error("NovaDeck stopped following an agent:", error))
+  }
+
+  private unwatch(record: Record): void {
+    record.watching?.abort()
+    record.watching = null
   }
 
   /**
@@ -1296,6 +1338,7 @@ export class Terminals {
     void this.enqueue(record, () => {
       record.binding = null
       record.activity = null
+      this.unwatch(record)
       record.summary = { ...record.summary, exit, process: null, agent: null, activity: null }
       this.cancelResume(record)
       this.save(record, true)

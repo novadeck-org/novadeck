@@ -892,7 +892,11 @@ an action by typing guessed keys into a terminal.
       reports a denial or an Esc in Claude Code and Antigravity, so a request or
       turn stays open until the next turn starts. Later sources (Claude Code's
       transcript, the status line) close that gap.
-   3. Subagents and transcripts.
+   3. Subagents and transcripts. It starts with a shared JSONL follower
+      (`harnesses/follow.ts`) and a harness `watch` the manager runs for each
+      binding: Claude Code's watch follows the session transcript, whose
+      interruption record ends the turn and settles its requests after an Esc
+      or a denial.
    4. The status line bridge and telemetry.
    5. Planning signals.
 5. **Operate.** Add caller/operation, messaging, artifact and presentation

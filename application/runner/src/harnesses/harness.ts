@@ -56,6 +56,15 @@ export type Harness = {
   readonly resume?: (session: string) => readonly string[]
   /** The normalized facts in one of its hooks' reports; none for one it ignores. */
   readonly decode: (report: Report) => readonly HarnessEvent[]
+  /**
+   * Follows a bound session's own sources beyond its hooks, as its transcript, emitting
+   * what they say until `signal` aborts.
+   */
+  readonly watch?: (
+    run: Run,
+    signal: AbortSignal,
+    emit: (event: HarnessEvent) => void,
+  ) => Promise<void>
 }
 
 export const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
@@ -84,6 +93,14 @@ export const sessionStart = (source: string | undefined): Continuity =>
     : source === "startup"
       ? "startup"
       : "native-switch"
+
+/** A session bound to a terminal, as a harness's `watch` follows it. */
+export type Run = {
+  readonly sessionId: string
+  readonly instance: string | null
+  /** Its transcript, as its hooks named it. */
+  readonly transcript: string
+}
 
 /** A session id a shell can run as a plain word, or undefined. */
 export const sessionId = (value: unknown): string | undefined =>

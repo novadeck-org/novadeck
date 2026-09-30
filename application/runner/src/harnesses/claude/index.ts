@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { followLines } from "../follow.js"
 import { json, marketplace, plugin, type Harness, type Install } from "../harness.js"
 import { decode } from "./decode.js"
+import { transcriptEvents } from "./transcript.js"
 
 const id = "novadeck@novadeck"
 
@@ -78,4 +80,9 @@ export const claude = {
   ],
   resume: (session) => ["claude", "--resume", session],
   decode,
+  // The transcript records what no hook reports: an interrupted turn.
+  watch: (run, signal, emit) =>
+    followLines(run.transcript, signal, (line) => {
+      for (const event of transcriptEvents(line, run)) emit(event)
+    }),
 } satisfies Harness

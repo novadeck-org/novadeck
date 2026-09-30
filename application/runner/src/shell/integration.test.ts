@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import {
+  appendFileSync,
   chmodSync,
   existsSync,
   mkdirSync,
@@ -542,6 +543,52 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await expect
       .poll(() => manager.list(terminal.sessionId)[0], { timeout: 10_000 })
       .toMatchObject({ agent: null, activity: null })
+  })
+
+  it("ends a Claude Code turn its transcript says the person interrupted", async ({ shell }) => {
+    // No hook reports an Esc or a denial; the session's transcript records them.
+    const transcript = join(shell.home, "session.jsonl")
+    writeFileSync(transcript, "")
+    const call = { tool_name: "Bash", tool_input: { command: "touch x" } }
+    const bin = reporter(shell.home, [
+      {
+        agent: "claude",
+        sessionId: "s",
+        seq: 1,
+        source: "startup",
+        fields: { transcript_path: transcript },
+      },
+      { agent: "claude", sessionId: "s", seq: 2, source: "", event: "UserPromptSubmit" },
+      {
+        agent: "claude",
+        sessionId: "s",
+        seq: 3,
+        source: "",
+        event: "PermissionRequest",
+        fields: call,
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    const activity = () => manager.list(terminal.sessionId)[0]?.activity
+    await expect.poll(activity, { timeout: 10_000 }).toMatchObject({ attention: { pending: 1 } })
+    appendFileSync(
+      transcript,
+      `${JSON.stringify({
+        type: "user",
+        timestamp: new Date(Date.now() + 1_000).toISOString(),
+        message: {
+          role: "user",
+          content: [{ type: "text", text: "[Request interrupted by user for tool use]" }],
+        },
+      })}\n`,
+    )
+    await expect
+      .poll(activity, { timeout: 10_000 })
+      .toEqual({ state: "idle", attention: { pending: 0, kind: null } })
   })
 
   it("starts a switched session's activity afresh", async ({ shell }) => {

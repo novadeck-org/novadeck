@@ -1,0 +1,146 @@
+{
+  "harness": "claude",
+  "version": "2.1.285",
+  "source": "captured",
+  "how": "conversation records of the interactive interrupt and deny probes transcripts; text other than the interruption markers replaced",
+  "scenarios": {
+    "interrupt": [
+      {
+        "type": "user",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:12:42.549Z",
+        "message": {
+          "role": "user",
+          "content": "<text>"
+        }
+      },
+      {
+        "type": "assistant",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:12:43.879Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:12:44.253Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use"
+            }
+          ]
+        }
+      },
+      {
+        "type": "user",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:12:48.708Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_strin",
+              "is_error": true
+            }
+          ]
+        }
+      },
+      {
+        "type": "user",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:12:48.712Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "[Request interrupted by user for tool use]"
+            }
+          ]
+        }
+      }
+    ],
+    "deny": [
+      {
+        "type": "user",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:13:33.243Z",
+        "message": {
+          "role": "user",
+          "content": "<text>"
+        }
+      },
+      {
+        "type": "assistant",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:13:36.094Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking"
+            }
+          ]
+        }
+      },
+      {
+        "type": "assistant",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:13:36.515Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use"
+            }
+          ]
+        }
+      },
+      {
+        "type": "user",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:13:37.830Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "content": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_strin",
+              "is_error": true
+            }
+          ]
+        }
+      },
+      {
+        "type": "user",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:13:37.834Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "[Request interrupted by user for tool use]"
+            }
+          ]
+        }
+      },
+      {
+        "type": "system",
+        "isSidechain": false,
+        "timestamp": "2026-09-29T22:13:37.842Z",
+        "subtype": "turn_duration"
+      }
+    ]
+  }
+}
