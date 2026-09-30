@@ -1,0 +1,4 @@
+# Plan fixtures and sample plans are read byte for byte, as an agent writes them, so
+# they keep LF line endings on every platform.
+application/ui/src/**/plan-editor/fixtures/*.md text eol=lf
+application/ui/src/backend/demo/showcase/plans/*.md text eol=lf

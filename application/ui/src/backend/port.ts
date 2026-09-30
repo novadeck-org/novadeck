@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from "react"
 
+import type { Companions } from "../model/companion"
 import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
 import type { Store } from "../model/store"
@@ -117,6 +118,11 @@ export type Backend = {
     readonly welcome: Store<boolean>
     readonly finishWelcome: () => void
   }
+  // Optional. What agents put in front of the user beside their terminals: the plans
+  // they write and what they show. A terminal it lists gets a taskbar and companion pane.
+  // Only the content-preview demo implements it so far; a runner would report the same
+  // from the agents' files.
+  readonly companions?: Companions
   // Optional. Asks the person for a folder to open as a project; null when cancelled.
   // Absent where the backend cannot offer one.
   readonly pickDirectory?: () => Promise<string | null>

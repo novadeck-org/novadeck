@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "pnpm --filter @novadeck/host dev",
     "dev:web": "node scripts/dev-web/main.ts",
+    "dev:previews": "pnpm --filter @novadeck/protocol build && pnpm --filter @novadeck/ui dev --mode content-preview --port 5181",
     "build": "turbo run build",
     "preview": "pnpm --filter @novadeck/runner start",
     "package": "pnpm --filter @novadeck/host package",

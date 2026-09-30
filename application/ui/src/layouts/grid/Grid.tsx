@@ -163,6 +163,9 @@ export const Grid = ({
         if ((event.target as Element).closest(".react-resizable-handle")) event.preventDefault()
       }}
       onPointerDownCapture={(event) => {
+        // Presses in a portal, such as a dialog a terminal opened, reach here through
+        // React but aren't on the grid.
+        if (!event.currentTarget.contains(event.target as Node)) return
         setResizeRequest(null)
         const id = (event.target as Element).closest<HTMLElement>("[data-grid-terminal]")?.dataset
           .gridTerminal

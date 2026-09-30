@@ -1,5 +1,6 @@
 import { createBootRehearsals } from "../backend/boot-rehearsal"
 import { createDemoBackend } from "../backend/demo"
+import { createContentDemo } from "../backend/demo/content"
 import type { BackendSelection } from "../backend/port"
 import { desktopHost } from "../backend/runner/desktop-host"
 
@@ -24,4 +25,8 @@ const runnerSelection = (): BackendSelection => {
 }
 
 export const selectBackend: BackendSelection =
-  import.meta.env.MODE === "test" ? { createBackend: createDemoBackend } : runnerSelection()
+  import.meta.env.MODE === "content-preview"
+    ? { createBackend: createContentDemo }
+    : import.meta.env.MODE === "test"
+      ? { createBackend: createDemoBackend }
+      : runnerSelection()

@@ -1,5 +1,5 @@
 import type { WorkspaceAction } from "../../model/state"
-import type { Workspace } from "../../model/types"
+import type { TerminalMetadata, Workspace } from "../../model/types"
 import type { TerminalKey } from "../port"
 import { createTerminalRegistry, terminalKeyId } from "../registry"
 import { mockReply } from "./samples"
@@ -31,8 +31,11 @@ const empty: DemoTerminalSnapshot = {
   cleared: false,
 }
 
-// Drafts, transcript and scroll offsets for the demo's simulated terminals.
-export const createDemoEngine = (): DemoEngine => {
+// Drafts, transcript and scroll offsets for the demo's simulated terminals. `reply`
+// answers a terminal's command instead of the sample shell, when it has an answer.
+export const createDemoEngine = (
+  reply?: (command: string, terminal: TerminalMetadata) => string | undefined,
+): DemoEngine => {
   const listeners = new Map<string, Set<() => void>>()
   const publish = (key: TerminalKey): void =>
     listeners.get(terminalKeyId(key))?.forEach((listener) => listener())
@@ -84,7 +87,11 @@ export const createDemoEngine = (): DemoEngine => {
               draft: "",
               entries: [
                 ...previous.entries,
-                { id: crypto.randomUUID(), command, reply: mockReply(command, terminal) },
+                {
+                  id: crypto.randomUUID(),
+                  command,
+                  reply: reply?.(command, terminal) ?? mockReply(command, terminal),
+                },
               ],
             },
       )

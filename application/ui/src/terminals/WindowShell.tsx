@@ -31,6 +31,8 @@ export type TerminalLayoutControls = {
   readonly minimize?: MinimizeControls
   readonly onFlyTo?: () => void
   readonly onResizePreset?: (button: HTMLButtonElement) => void
+  // Frames the terminal together with content hanging past its right edge.
+  readonly onReveal?: (extent: { readonly right: number; readonly height: number }) => void
 }
 
 const headerActionClasses =

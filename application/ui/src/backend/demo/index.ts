@@ -1,4 +1,7 @@
+import type { ReactNode } from "react"
+
 import { createStore } from "../../model/store"
+import type { TerminalMetadata } from "../../model/types"
 import type { AgentConnection, Backend, CreateBackend } from "../port"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
@@ -13,8 +16,13 @@ const sampleAgents: readonly AgentConnection[] = [
 
 // A self-contained backend with sample projects and simulated terminals. It keeps no
 // transcripts and connects no agents, but its settings switch like the runner's.
-// `welcome` opens the first-run welcome dialog.
-export const demoBackend = (engine: DemoEngine, welcome = false): Backend => {
+// `welcome` opens the first-run welcome dialog; `introOf` gives terminals their own
+// opening output.
+export const demoBackend = (
+  engine: DemoEngine,
+  welcome = false,
+  introOf?: (terminal: TerminalMetadata) => ReactNode,
+): Backend => {
   const transcripts = createStore(true)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
@@ -22,7 +30,7 @@ export const demoBackend = (engine: DemoEngine, welcome = false): Backend => {
     seed: demoSeed(Date.now()),
     newTerminal: ({ number, directory }) => createMockTerminal(number, directory),
     commit: engine.reconcile,
-    TerminalSurface: createDemoTerminal(engine),
+    TerminalSurface: createDemoTerminal(engine, introOf),
     transcripts: { enabled: transcripts, set: (enabled) => transcripts.update(() => enabled) },
     agents: {
       state: agents,

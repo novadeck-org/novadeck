@@ -28,6 +28,10 @@
   --color-warning-fg: #6b4e0a;
   --color-danger: #f6d5d1;
   --color-danger-fg: #8a2a22;
+  /* Notes the user leaves for an agent: a warm tint apart from the greys and from the
+     warning amber that marks what an agent changed, with a mark colour of its hue. */
+  --color-note: #fdf2eb;
+  --color-note-fg: #a85f3a;
   --font-sans: "Inter Variable", "Inter", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --radius-control: 2px;
@@ -53,6 +57,8 @@
   --color-warning-fg: #ecd592;
   --color-danger: #3d2220;
   --color-danger-fg: #f1b8b1;
+  --color-note: #33261e;
+  --color-note-fg: #e0a07c;
 }
 
 @layer base {

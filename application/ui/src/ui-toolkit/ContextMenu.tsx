@@ -1,6 +1,6 @@
 import { Menu as ArkMenu } from "@ark-ui/react/menu"
 import { Portal } from "@ark-ui/react/portal"
-import { useId, type ReactElement, type ReactNode } from "react"
+import { useId, useRef, type ReactElement, type ReactNode } from "react"
 
 export type ContextMenuItem = {
   value: string
@@ -17,9 +17,36 @@ export type ContextMenuProps = {
 
 export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.JSX.Element => {
   const labelId = useId()
+  // Where focus was when the menu was asked for. A context trigger often can't take
+  // focus, so closing the menu would otherwise leave focus nowhere.
+  const opener = useRef<HTMLElement | null>(null)
   return (
-    <ArkMenu.Root positioning={{ strategy: "fixed", overflowPadding: 12 }} immediate>
-      <ArkMenu.ContextTrigger asChild>{trigger}</ArkMenu.ContextTrigger>
+    <ArkMenu.Root
+      positioning={{ strategy: "fixed", overflowPadding: 12 }}
+      immediate
+      onOpenChange={({ open }) => {
+        if (open) return
+        // The closing menu keeps focus for a frame or two before letting it go.
+        const restore = (frames: number): void => {
+          requestAnimationFrame(() => {
+            const active = document.activeElement
+            if (!active || active === document.body) {
+              if (opener.current?.isConnected) opener.current.focus({ preventScroll: true })
+            } else if (frames > 0 && active.closest('[data-scope="menu"]')) restore(frames - 1)
+          })
+        }
+        restore(3)
+      }}
+    >
+      <ArkMenu.ContextTrigger
+        asChild
+        onContextMenu={() => {
+          opener.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null
+        }}
+      >
+        {trigger}
+      </ArkMenu.ContextTrigger>
       <Portal>
         <ArkMenu.Positioner className="context-menu-positioner z-50!">
           <ArkMenu.Content

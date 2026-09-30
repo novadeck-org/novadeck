@@ -29,6 +29,9 @@ export const insideTerminalRename = (target: EventTarget | null): boolean =>
   within(target, 'input[aria-label^="Rename "]')
 export const insideSwitcherClose = (target: EventTarget | null): boolean =>
   within(target, '[aria-label="Close terminal switcher"]')
+// A terminal's companion pane and its taskbar close themselves on Escape.
+export const insideCompanion = (target: EventTarget | null): boolean =>
+  within(target, "[data-workspace-companion]")
 // Terminal surfaces mark the element that receives typed input.
 export const insideTerminalInput = (target: EventTarget | null): boolean =>
   within(target, "[data-terminal-input]")
@@ -45,6 +48,7 @@ export type KeyTarget = {
   readonly terminalTab: boolean
   readonly switcherClose: boolean
   readonly zenDock: boolean
+  readonly companion: boolean
 }
 
 export const classifyKeyTarget = (target: EventTarget | null): KeyTarget => ({
@@ -57,6 +61,7 @@ export const classifyKeyTarget = (target: EventTarget | null): KeyTarget => ({
   terminalTab: insideTerminalTab(target),
   switcherClose: insideSwitcherClose(target),
   zenDock: insideOpenZenDock(target),
+  companion: insideCompanion(target),
 })
 
 export const terminalTabInteractionActive = (): boolean =>

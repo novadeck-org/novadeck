@@ -21,6 +21,7 @@ const nowhere: KeyTarget = {
   terminalTab: false,
   switcherClose: false,
   zenDock: false,
+  companion: false,
 }
 const terminalInput: Partial<KeyTarget> = { editing: true, terminalInput: true }
 
@@ -141,10 +142,11 @@ describe("keymap", () => {
           ])
         })
 
-        it("leaves it to dialogs, the Zen dock, overlays, editors and tab editing", () => {
+        it("leaves it to dialogs, the Zen dock, companion panes, overlays, editors and tab editing", () => {
           const cases: [Press, Situation][] = [
             [{ key: "Escape" }, { state: { dialog: true } }],
             [{ key: "Escape", target: { zenDock: true } }, {}],
+            [{ key: "Escape", target: { companion: true } }, {}],
             [{ key: "Escape", target: { editing: true } }, {}],
             [{ key: "Escape", target: terminalInput }, {}],
             [{ key: "Escape" }, { environment: { overlayOpen: () => true } }],
@@ -178,8 +180,9 @@ describe("keymap", () => {
           ).toEqual([])
         })
 
-        it("leaves them to inputs, dialogs and modified presses", () => {
+        it("leaves them to inputs, companion panes, dialogs and modified presses", () => {
           expect(keydown(platform, { key: "ArrowDown", target: terminalInput })).toEqual([])
+          expect(keydown(platform, { key: "ArrowDown", target: { companion: true } })).toEqual([])
           expect(keydown(platform, { key: "ArrowDown" }, { state: { dialog: true } })).toEqual([])
           expect(keydown(platform, { key: "ArrowDown", ctrlKey: true })).toEqual([])
           expect(keydown(platform, { key: "ArrowDown", shiftKey: true })).toEqual([])

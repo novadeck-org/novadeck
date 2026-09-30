@@ -76,6 +76,8 @@ const vendors: Record<string, readonly string[]> = {
   "tailwind-merge": ["class-name.ts"],
   "@ark-ui": ["ui-toolkit/"],
   "@xyflow/react": ["layouts/canvas/"],
+  "@codemirror": ["terminals/companion/plan-editor/"],
+  "@lezer": ["terminals/companion/plan-editor/"],
   "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
   "@dnd-kit": ["terminals/"],

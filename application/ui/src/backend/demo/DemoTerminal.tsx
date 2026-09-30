@@ -1,7 +1,8 @@
 import "./demo.css"
 import { GitBranch } from "lucide-react"
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
 
+import type { TerminalMetadata } from "../../model/types"
 import type { TerminalSurfaceProps } from "../port"
 import type { DemoEngine, DemoTerminalSnapshot } from "./engine"
 import { demoAgent, demoAgents } from "./samples"
@@ -12,6 +13,8 @@ type DemoTerminalSurfaceProps = Omit<TerminalSurfaceProps, "terminalKey" | "rend
     onCommand: (command: string) => void
     onDraftChange: (draft: string) => void
     onScrollChange: (offset: number) => void
+    // What the terminal opens with, instead of the sample output for its program.
+    intro: ReactNode
   }
 
 const DemoTerminalSurface = ({
@@ -28,6 +31,7 @@ const DemoTerminalSurface = ({
   onInputFocused,
   minimized,
   clipContent,
+  intro,
 }: DemoTerminalSurfaceProps): React.JSX.Element => {
   const agent = demoAgent(terminal)
   const input = draft
@@ -74,7 +78,7 @@ const DemoTerminalSurface = ({
         onScrollChange(event.currentTarget.scrollTop)
       }}
     >
-      {!cleared && <TerminalOutput terminal={terminal} projectName={projectName} />}
+      {!cleared && (intro ?? <TerminalOutput terminal={terminal} projectName={projectName} />)}
       {entries.map((entry) => (
         <div className="output-gap" key={entry.id}>
           <p>
@@ -119,7 +123,11 @@ const DemoTerminalSurface = ({
 }
 
 // One component per engine, so its identity stays stable while the backend lives.
-export const createDemoTerminal = (engine: DemoEngine) => {
+// `introOf` gives a terminal its own opening output, when it has one.
+export const createDemoTerminal = (
+  engine: DemoEngine,
+  introOf?: (terminal: TerminalMetadata) => ReactNode,
+) => {
   const DemoTerminal = ({
     terminalKey,
     renderWindow,
@@ -144,6 +152,7 @@ export const createDemoTerminal = (engine: DemoEngine) => {
         onDraftChange={(draft) => engine.setDraft(key, draft)}
         onScrollChange={(offset) => engine.setScrollOffset(key, offset)}
         onCommand={(command) => engine.run(key, command)}
+        intro={introOf?.(props.terminal)}
       />
     )
     return <>{renderWindow(content)}</>

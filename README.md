@@ -265,6 +265,70 @@ and hands the same token to the UI dev server. For UI-only work, use
 `pnpm --filter @novadeck/ui dev` with `VITE_NOVADECK_RUNNER_URL` and
 `VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started.
 
+### Plan review design preview
+
+Run `pnpm dev:previews` and open <http://127.0.0.1:5181> for a UI-only study of
+how an agent's plan is reviewed in each view. NovaDeck hosts other agents, so it
+neither dictates how a plan is written nor answers the agent's approval prompt.
+The reader shows the Markdown as written, and the plan file is the only channel
+back: notes you leave are written into it, and a small NovaDeck skill tells the
+agent to re-read the plan before acting on it, apply the notes, and remove each.
+
+Two samples show the range. “Build Studio” runs Codex with a structured plan
+(headings, a task list, file paths) and the skill installed. “Refactor auth” runs
+Claude Code with plain prose and no skill. Each terminal asks its own question:
+answer `y` to approve or type anything else to keep planning.
+
+A taskbar along each terminal's bottom has an icon for the plan. Opening it shows
+the plan beside its terminal, never over the workspace:
+
+- **Focus** and **Grid** split the window: terminal on the left, plan on the
+  right, with a draggable divider; a narrow window stacks them.
+- **Canvas** attaches the plan as a sheet beside the node, which pans and zooms
+  with it; the canvas frames both as it opens.
+
+The plan is always editable: it's the file's
+Markdown in a CodeMirror 6 live-preview editor. Markdown syntax shows, dimmed,
+only on the line being edited, so typing Markdown is how you format the plan;
+there are no formatting controls. A heading's `#` marks hang in the margin so its
+text doesn't move. Note wrappers never show. The note icon in the margin adds a
+note under a line, written into the file as an HTML comment; Backspace in an empty
+note removes it. Tables always render as tables: click a cell to edit it, Tab and
+Shift+Tab move between cells, Enter moves down, Escape cancels, and only that
+cell's text changes in the file. While a cell is being edited, a toolbar adds a
+row below or a column to the right and deletes the current row or column; Tab past
+the last cell starts a new row. Every row has its own note button: a row's note is
+written inside the row, at the end of its last cell, and shows under it; the
+header's note is on the whole table and goes after it. When the agent writes a new
+version, its changes merge into yours line by line, the lines it wrote are
+highlighted, and the notes it applied are gone. Without the skill, as in “Refactor
+auth”, notes wait until you ask the agent in its terminal to re-read the plan.
+Escape closes the plan. Plans never create sidebar tabs or separate windows.
+
+Besides its plan, an agent can show you other things: an image, a file from the
+project, a page in a preview browser. They join the plan in the terminal's
+companion pane, which has no header of its own.
+Each gets an icon in the taskbar, as an OS taskbar has, with several images grouped under one. The
+mark under an icon says whether it's new, showing, or seen; something new hops
+once, and nothing opens on its own unless you asked for it. Hover an icon to peek:
+a card per thing behind it, each a preview, its name and the same mark, with no
+copy. Click an icon or a card to open it, click the icon again (or press Escape) to
+hide the pane, and dismiss from a card's corner button or the icon's right-click. In
+“Build Studio”, type `show` to have Codex show the next thing, or `open` to play
+asking it to open it. Files show without highlighting, and a page shows as a
+snapshot until the pane hosts a browser.
+
+The pane reads everything from the backend's optional `companions` capability
+(`model/companion.ts`): each agent terminal's plan and what it has shown, events as
+the agent revises its plan or shows something, and a way to save the user's edits
+back to the plan file. Only the content-preview demo implements it, with sample
+agents in `backend/demo/showcase/`: their plans as Markdown files, their artifacts,
+transcripts and replies, and a simulation of their timing and of the skill's
+effect. The runner doesn't implement it yet, so its terminals show no taskbar;
+connecting it means reporting the same from the agents' files. The editor and its
+merge code load when a plan first opens.
+Normal development and packaged builds keep their runner behavior.
+
 ### Debug panel
 
 A small panel for reaching the app's runner states on demand. Press
@@ -331,11 +395,14 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `app/controller/`                                  | React glue: context, selector hook, route sync, keyboard dispatcher, effects.           |
 | `backend/`                                         | The UI-owned backend port and the shared terminal lifecycle registry.                   |
 | `backend/demo/`                                    | The demo adapter for tests and specs: sample projects and simulated terminals.          |
+| `backend/demo/showcase/`                           | The content preview's sample agents: plans, artifacts, and their simulated work.        |
 | `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm surface.     |
 | `model/`                                           | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
+| `model/companion.ts`                               | The contract for agents' plans and artifacts, and the plan note format.                 |
 | `model/roster.ts`                                  | A session's terminals, their sidebar order, and their status.                           |
 | `model/layout/workspace-layout.ts`                 | Where each terminal sits and how big it is in each view.                                |
 | `terminals/`                                       | Terminal frame, tabs, rename state, and the recent-terminal switcher.                   |
+| `terminals/companion/`                             | A terminal's taskbar and companion pane; the plan editor is in `plan-editor/`.          |
 | `layouts/canvas/`, `grid/`, `focus/`               | View adapters and colocated library styles.                                             |
 | `layouts/` (top level)                             | Helpers shared by views: view transitions, background gestures, visibility.             |
 | `shell/`                                           | Header, rail, panels, zen dock, sidebar, and shell state transitions.                   |

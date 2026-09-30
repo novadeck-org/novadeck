@@ -62,8 +62,16 @@ const TerminalCanvas = ({
 }: TerminalCanvasProps): React.JSX.Element => {
   const { minimized, geometry } = layout
   const removed = useTerminalVisibility(hidden)
-  const { fitView, zoomIn, zoomOut, getViewport, getNode, setNodes, screenToFlowPosition } =
-    useReactFlow<TerminalNode>()
+  const {
+    fitView,
+    fitBounds,
+    zoomIn,
+    zoomOut,
+    getViewport,
+    getNode,
+    setNodes,
+    screenToFlowPosition,
+  } = useReactFlow<TerminalNode>()
   const store = useStoreApi<TerminalNode>()
   const viewportWidth = useStore((state) => state.width)
   const viewportHeight = useStore((state) => state.height)
@@ -292,9 +300,22 @@ const TerminalCanvas = ({
         },
         onFlyTo: () => flyTo(terminal),
         onResizePreset: () => resizeToViewport(id),
+        onReveal: ({ right, height }) => {
+          const node = getNode(id)
+          if (!node) return
+          void fitBounds(
+            {
+              x: node.position.x,
+              y: node.position.y,
+              width: (node.measured?.width ?? node.width ?? 0) + right,
+              height: Math.max(node.measured?.height ?? node.height ?? 0, height),
+            },
+            { padding: 0.08, duration: 240 },
+          )
+        },
       })
     },
-    [flyTo, minimized, onLayoutChange, render, resizeToViewport, terminals],
+    [fitBounds, flyTo, getNode, minimized, onLayoutChange, render, resizeToViewport, terminals],
   )
 
   // XYFlow owns pointer-time geometry so dragging does not rerender the application or terminals.
