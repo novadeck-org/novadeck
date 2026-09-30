@@ -21,6 +21,7 @@ const snapshot = (text: string, revision: string): PlanSnapshot => ({
   path: "plan.md",
   agent: "Codex",
   skill: true,
+  writable: true,
   text,
   revision,
 })
@@ -229,6 +230,17 @@ describe("companion store", () => {
       expect(plan(actions)).toMatchObject({ text: `${first}ONE\nTWO\n`, writes: 0, revision: "2" })
       expect(saves[2]).toMatchObject({ basedOn: "2", text: `${first}ONE\nTWO\n` })
     })
+  })
+
+  it("takes no edits to a plan the backend can't write, and never saves it", async () => {
+    const { companions, saves, emit } = backend()
+    const actions = companionActions(companions, key)
+    emit({ type: "plan/changed", key, plan: { ...snapshot(first, "2"), writable: false } })
+    await settle()
+    actions.edit("root", `${first}No blog.\n`, [])
+    actions.flush("root")
+    expect(plan(actions)).toMatchObject({ text: first, writable: false })
+    expect(saves).toHaveLength(0)
   })
 
   it("saves once typing pauses", async () => {

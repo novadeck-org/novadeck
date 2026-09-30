@@ -86,9 +86,7 @@ const PlanTab = ({
       <div className="plan-document-scroll" data-changes={plan.showChanges}>
         <div className="plan-meta">
           <code className="plan-meta-path">{plan.path}</code>
-          <span>
-            v{plan.writes + 1} · {plan.writes ? "updated just now" : "written 2 min ago"}
-          </span>
+          <span>v{plan.writes + 1}</span>
           {marks.length > 0 && (
             <button
               className="plan-changes-toggle"
@@ -106,8 +104,14 @@ const PlanTab = ({
               {plan.agent} resolved {plural(plan.resolved, "note")}
             </span>
           )}
+          {!plan.writable && (
+            <span className="plan-meta-hint">Read-only: NovaDeck can't write this plan yet.</span>
+          )}
+          {plan.truncated && (
+            <span className="plan-meta-hint">It's long, so only its start is shown.</span>
+          )}
           {/* Without NovaDeck's skill, notes wait for the user to point the agent at them. */}
-          {!plan.skill && notesIn(plan.text) > 0 && (
+          {plan.writable && !plan.skill && notesIn(plan.text) > 0 && (
             <span className="plan-meta-hint">
               {plan.agent} doesn't have NovaDeck's skill. Ask it to re-read the plan.
             </span>
@@ -115,6 +119,7 @@ const PlanTab = ({
         </div>
         <Suspense fallback={null}>
           <PlanEditor
+            readOnly={!plan.writable}
             text={plan.text}
             marks={marks}
             onChange={(text, moved) => companion.edit(plan.ref, text, moved)}
@@ -162,7 +167,7 @@ export const CompanionPane = ({
       }}
     >
       {plan ? (
-        <PlanTab key={plan.ref} companion={companion} plan={plan} />
+        <PlanTab key={`${plan.ref}:${plan.writable}`} companion={companion} plan={plan} />
       ) : artifact ? (
         <ArtifactTab
           key={`${artifact.id}@${artifact.version}`}

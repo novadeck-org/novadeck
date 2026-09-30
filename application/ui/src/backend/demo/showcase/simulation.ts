@@ -65,6 +65,7 @@ export const createShowcase = (
     ref: planRef,
     role: "root",
     ...agent.sample.plan,
+    writable: true,
     text: agent.file,
     revision: String(agent.writes),
   })

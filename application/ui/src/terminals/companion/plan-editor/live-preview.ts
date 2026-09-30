@@ -321,7 +321,7 @@ const noteGutter = gutter({
   initialSpacer: () => addNoteMarker,
   domEventHandlers: {
     mousedown: (view, block) => {
-      if (block.widget) return false
+      if (block.widget || view.state.readOnly) return false
       addNote(view, block.from)
       return true
     },
@@ -407,6 +407,7 @@ const safeNoteInput = [
 
 // The keyboard's way to the note button: a note under the caret's line.
 const addNoteHere = (view: EditorView): boolean => {
+  if (view.state.readOnly) return false
   addNote(view, view.state.doc.lineAt(view.state.selection.main.head).from)
   return true
 }

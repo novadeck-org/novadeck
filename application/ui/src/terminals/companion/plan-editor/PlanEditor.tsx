@@ -29,6 +29,7 @@ export const PlanEditor = ({
   onChange,
   onReady,
   onClose,
+  readOnly = false,
 }: {
   text: string
   marks: readonly Mark[]
@@ -36,13 +37,15 @@ export const PlanEditor = ({
   onChange: (text: string, marks: readonly Mark[]) => void
   onReady: (handle: PlanEditorHandle) => void
   onClose: () => void
+  // The plan can't be written: it reads, and takes no edits or notes.
+  readOnly?: boolean
 }): React.JSX.Element => {
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   // The latest props, for the editor's listeners, which outlive a render.
-  const latest = useRef({ text, marks, onChange, onReady, onClose })
+  const latest = useRef({ text, marks, onChange, onReady, onClose, readOnly })
   useLayoutEffect(() => {
-    latest.current = { text, marks, onChange, onReady, onClose }
+    latest.current = { text, marks, onChange, onReady, onClose, readOnly }
   })
   useEffect(() => {
     const editor = new EditorView({
@@ -54,6 +57,17 @@ export const PlanEditor = ({
           keymap.of([...defaultKeymap, ...historyKeymap]),
           planMarkdown,
           EditorView.lineWrapping,
+          // Fixed for the editor's life: the pane remounts it if that changes.
+          EditorState.readOnly.of(latest.current.readOnly),
+          // Read-only holds for every change, not only typing: note keys, checkboxes and
+          // the table's own edits dispatch directly. Only the file's own changes land.
+          EditorState.transactionFilter.of((transaction) =>
+            transaction.docChanged &&
+            transaction.startState.readOnly &&
+            !transaction.annotation(fromAgent)
+              ? []
+              : transaction,
+          ),
           EditorView.contentAttributes.of({ "aria-label": "Plan" }),
           livePreview,
           EditorView.updateListener.of((update) => {
@@ -92,5 +106,11 @@ export const PlanEditor = ({
       annotations: [fromAgent.of(true), Transaction.addToHistory.of(false)],
     })
   }, [text, marks])
-  return <div ref={host} className="plan-editor nodrag nopan nowheel" />
+  return (
+    <div
+      ref={host}
+      className="plan-editor nodrag nopan nowheel"
+      data-readonly={readOnly || undefined}
+    />
+  )
 }

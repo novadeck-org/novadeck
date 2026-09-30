@@ -29,7 +29,8 @@ export type PlanPresentation = "split" | "attached"
 export type Mark = { readonly from: number; readonly to: number }
 
 // A plan as the pane holds it.
-export type PlanDoc = Omit<PlanSnapshot, "text" | "revision"> & {
+export type PlanDoc = Omit<PlanSnapshot, "text" | "revision" | "truncated"> & {
+  readonly truncated: boolean
   // The file as both sides last agreed on it, at `revision`: the agent's rewrites and
   // the user's edits merge against it.
   readonly base: string
@@ -73,6 +74,8 @@ const docOf = (plan: PlanSnapshot): PlanDoc => ({
   path: plan.path,
   agent: plan.agent,
   skill: plan.skill,
+  writable: plan.writable,
+  truncated: Boolean(plan.truncated),
   base: lf(plan.text),
   revision: plan.revision,
   eol: eolOf(plan.text),
@@ -251,7 +254,8 @@ const saveTimeout = 20_000
 const persist = (session: Session, key: CompanionKey, ref: string): void => {
   const id = planId(key, ref)
   const plan = planIn(session, key, ref)
-  if (session.saving.has(id) || !plan) return
+  // A plan the backend can't write is never saved.
+  if (session.saving.has(id) || !plan?.writable) return
   const mark = (unsaved: boolean): void => {
     change(session, key, (pane) =>
       withPlan(pane, ref, (current) =>
@@ -346,10 +350,23 @@ const revise = async (
   const echo = inFlight === theirs || unconfirmed.includes(theirs)
   change(session, key, (pane) =>
     withPlan(pane, snapshot.ref, (plan) => {
-      if (snapshot.revision === plan.revision && theirs === plan.base) return plan
+      if (
+        snapshot.revision === plan.revision &&
+        theirs === plan.base &&
+        snapshot.writable === plan.writable &&
+        Boolean(snapshot.truncated) === plan.truncated
+      )
+        return plan
       // A backend watching the file reports the user's own save back.
       if (echo || theirs === plan.text)
-        return { ...plan, base: theirs, revision: snapshot.revision, eol: eolOf(snapshot.text) }
+        return {
+          ...plan,
+          writable: snapshot.writable,
+          truncated: Boolean(snapshot.truncated),
+          base: theirs,
+          revision: snapshot.revision,
+          eol: eolOf(snapshot.text),
+        }
       // A save whose answer never came may have been written: the rewrite merges over
       // whichever the file now stands closest to, so a written save's edits aren't
       // merged in twice and an unwritten one's aren't taken for the agent's.
@@ -360,6 +377,8 @@ const revise = async (
       const writes = plan.writes + 1
       return {
         ...plan,
+        writable: snapshot.writable,
+        truncated: Boolean(snapshot.truncated),
         base: theirs,
         revision: snapshot.revision,
         eol: eolOf(snapshot.text),
@@ -474,7 +493,8 @@ export const companionActions = (companions: Companions, key: CompanionKey): Com
     edit: (ref, text, marks) => {
       const edited = change(session, key, (current) =>
         withPlan(current, ref, (plan) =>
-          text === plan.text ? plan : { ...plan, text, marks, marked: text },
+          // A plan the backend can't write takes no edits.
+          text === plan.text || !plan.writable ? plan : { ...plan, text, marks, marked: text },
         ),
       )
       if (edited) saveSoon(session, key, ref)
@@ -484,6 +504,7 @@ export const companionActions = (companions: Companions, key: CompanionKey): Com
       void import("./plan-editor/notes").then(({ withoutEmptyNotes }) => {
         change(session, key, (current) =>
           withPlan(current, ref, (plan) => {
+            if (!plan.writable) return plan
             const kept = withoutEmptyNotes(plan.text, currentMarks(plan))
             return kept ? { ...plan, ...kept, marked: kept.text } : plan
           }),

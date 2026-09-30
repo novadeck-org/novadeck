@@ -1035,3 +1035,10 @@
   width: 100%;
   height: auto;
 }
+
+/* A plan the backend can't write: no note buttons, no table tools. */
+.plan-editor[data-readonly] .cm-plan-note-gutter,
+.cm-plan-table-widget[data-readonly] .cm-plan-table-tools,
+.cm-plan-table-widget[data-readonly] .cm-plan-row-note-add {
+  display: none;
+}

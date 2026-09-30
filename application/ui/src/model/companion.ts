@@ -27,8 +27,13 @@ export type PlanSnapshot = {
   // Whether NovaDeck's skill is installed for this agent. It tells the agent to re-read
   // the plan before acting on it, apply the notes left in it, and remove each one.
   readonly skill: boolean
+  // Whether `save` can write it. A plan that lives only in the agent's messages, or a
+  // backend that can't write plans yet, leaves it read-only.
+  readonly writable: boolean
   readonly text: string
   readonly revision: string
+  // The backend sent only the start of a very long plan.
+  readonly truncated?: boolean
 }
 
 export type ArtifactKind = "image" | "file" | "page"

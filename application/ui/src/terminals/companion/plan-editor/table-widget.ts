@@ -1,4 +1,4 @@
-import { StateField, type EditorState } from "@codemirror/state"
+import { StateField, type ChangeSpec, type EditorState } from "@codemirror/state"
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view"
 
 import { addNote, noteIcon, noteLabel } from "./notes"
@@ -101,6 +101,7 @@ class TableWidget extends WidgetType {
   override toDOM(view: EditorView): HTMLElement {
     const wrapper = document.createElement("div")
     wrapper.className = "cm-plan-table-widget"
+    if (view.state.readOnly) wrapper.dataset.readonly = "true"
     const table = document.createElement("table")
     const width = columnsOf(this.table)
     const height = this.table.rows.length
@@ -124,6 +125,14 @@ class TableWidget extends WidgetType {
       if (!active) return false
       active.leave()
       return commit(view, start, active.place, active.text())
+    }
+
+    // Reshapes the table; a change the editor refused, as in a read-only plan, leaves
+    // no focus waiting for a table that isn't coming.
+    const dispatchReshape = (changes: ChangeSpec): void => {
+      const before = view.state.doc
+      view.dispatch({ changes })
+      if (view.state.doc === before) pending = null
     }
 
     // Opens a row's note, adding it if it has none. The header's note is on the whole
@@ -150,7 +159,7 @@ class TableWidget extends WidgetType {
       const added = addRowNote(current, row)
       if (!added) return
       pending = { row, note: true }
-      view.dispatch({ changes: added.change })
+      dispatchReshape(added.change)
     }
 
     const rowNoteButton = (row: number): HTMLButtonElement => {
@@ -183,6 +192,7 @@ class TableWidget extends WidgetType {
       const label = noteLabel()
       const input = document.createElement("textarea")
       input.className = "cm-plan-row-note-input"
+      input.readOnly = view.state.readOnly
       input.rows = 1
       input.spellcheck = false
       input.value = text
@@ -245,7 +255,7 @@ class TableWidget extends WidgetType {
       const { changes, focus } = reshape(current, place)
       if (!changes || (Array.isArray(changes) && !changes.length)) return
       pending = focus
-      view.dispatch({ changes })
+      dispatchReshape(changes)
     }
 
     const toolbar = document.createElement("div")
@@ -288,6 +298,8 @@ class TableWidget extends WidgetType {
         // A text area, not editable markup: typing changes its value, not the DOM the
         // editor watches, so the editor never mistakes it for an edit of its own.
         const cell = document.createElement("textarea")
+        // A plan the backend can't write reads, but takes no edits.
+        cell.readOnly = view.state.readOnly
         cell.className = "cm-plan-cell"
         cell.rows = 1
         cell.spellcheck = false

@@ -21,6 +21,7 @@ import type {
 import { createTerminalRegistry } from "../registry"
 import { exitStatus, restartable, terminalActivity } from "./activity"
 import { createBootProgress } from "./boot-progress"
+import { createRunnerCompanions } from "./companions"
 import type { RunnerDebug } from "./debug"
 import { createDebugPanel } from "./DebugPanel"
 import { pause } from "./pause"
@@ -634,6 +635,7 @@ export const runnerBackend = (
     const { revive } = entry
     Object.assign(entry, revival())
     revive()
+    followWhenReady(entry)
   }
 
   // The runner no longer has the terminal: start a fresh shell in place once its
@@ -682,6 +684,21 @@ export const runnerBackend = (
       }
   }
 
+  // The plans each terminal's agent keeps, followed while the backend runs.
+  const companions = createRunnerCompanions({
+    detail: (terminalId) => runner.agents.detail(terminalId),
+    plan: (terminalId, plan) => runner.agents.plan(terminalId, plan),
+  })
+  let following = false
+  // Follows a terminal's plans once the runner has it: its detail answers "not found"
+  // before then. Called whenever a shell is created or started afresh.
+  const followWhenReady = (entry: RunnerEntry): void => {
+    const { ready } = entry
+    void ready.then((ok) => {
+      if (ok && following && !entry.closed && entry.ready === ready) companions.follow(entry.key)
+    })
+  }
+
   const registry = createTerminalRegistry<RunnerEntry>({
     open: (key, terminal: TerminalMetadata, isNew) => {
       const lost = !isNew && lostAtStart.has(key.terminalId)
@@ -705,11 +722,13 @@ export const runnerBackend = (
       }
       if (isNew) entry.ready = createTerminal(entry)
       entries.set(key.terminalId, entry)
+      followWhenReady(entry)
       return entry
     },
     close: (entry, key) => {
       entry.closed = true
       entries.delete(key.terminalId)
+      companions.unfollow(key)
       void track(endShell(entry))
       checkBoot()
     },
@@ -866,6 +885,8 @@ export const runnerBackend = (
       )
     void consume(changes, onChange)
     void consume(statuses, onStatus)
+    following = true
+    for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     window.addEventListener("pagehide", flush)
     // The host waits for these saves before a close or quit can end the shells, so they
     // name what still runs.
@@ -879,6 +900,8 @@ export const runnerBackend = (
       window.removeEventListener("pagehide", flush)
       stopQuit?.()
       stopOutage?.()
+      following = false
+      companions.stop()
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true
@@ -891,6 +914,7 @@ export const runnerBackend = (
     commit,
     TerminalSurface: createRunnerTerminal(runtime),
     start,
+    companions,
     connection,
     crashLoop: { crashes: crashLooping, retry: retryAfterCrashLoop },
     boot: boot.store,
