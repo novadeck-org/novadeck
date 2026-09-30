@@ -442,6 +442,20 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   waits), falling back to `~/.claude/local/claude` for Claude Code's local install; on
   Windows they run through cmd. It answers where the agent stands after, or rejects with
   `AGENT_SETUP_FAILED` saying why.
+- `agents.detail({ terminalId })` streams what the agent in a terminal does, beyond its
+  summary: a snapshot on subscribing, then another on each change (a reader that falls
+  behind gets only the newest, and never one equal to the last it read). A snapshot names
+  the agent and its session, its activity and telemetry as in the summary, its actors
+  (the root first, then each subagent with its kind; a subagent's parent is null, as no
+  harness says which agent started a nested one; a subagent seen only through its requests is listed without a kind), each request waiting on the person
+  (its kind, tool, the actor asking, what it asks about: a command, a path, a question
+  and its answers, or a plan's file), and how much of each feature the agent's harness
+  tells (`unsupported`, `partial`, `complete`). Actors and requests have runner-issued
+  refs, never a harness's own ids; the summary's subagents use the same refs. Without an
+  agent bound, only `terminalId` is set. The stream follows the terminal from agent to
+  agent and ends when the terminal is closed; an unknown one is `TERMINAL_NOT_FOUND`.
+  The client's `agents.detail(terminalId)` resubscribes across reconnections and ends
+  once the terminal is gone.
 - `settings.get()` and `settings.set({ transcripts?, welcomed? })` read and change
   whether transcripts are kept (unless turned off; turning them off forgets every saved
   transcript) and whether the person has seen the first-run choice of agents.

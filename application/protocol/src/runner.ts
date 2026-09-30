@@ -2,6 +2,7 @@ import type { WireClient } from "./contract.js"
 import { hasCode, normalize, RunnerError } from "./errors.js"
 import {
   protocolVersion,
+  type AgentDetail,
   type AgentIntegration,
   type AgentName,
   type Project,
@@ -156,6 +157,13 @@ export type Runner = {
   }
   readonly agents: {
     list(): Promise<AgentIntegration[]>
+    /**
+     * Follows what the agent in a terminal does, in detail: a snapshot, then another on
+     * each change, across reconnections, each subscription starting with a fresh one. It
+     * follows the terminal from agent to agent; iteration ends once the terminal is gone,
+     * when the runner closes, or on `return()`.
+     */
+    detail(terminalId: string): AsyncIterableIterator<AgentDetail, undefined>
     /**
      * Installs or removes NovaDeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
@@ -583,6 +591,125 @@ class Attachment implements AttachedTerminal {
   }
 }
 
+/**
+ * `agents.detail()`: one subscription per connection, renewed after each reconnection or
+ * when the runner ends it, until the terminal is no longer found.
+ */
+class DetailWatch implements AsyncIterableIterator<AgentDetail, undefined> {
+  private stream:
+    | {
+        readonly details: AsyncIterator<AgentDetail>
+        readonly link: Link
+        readonly cancel: AbortController
+      }
+    | undefined
+  /** The link whose subscription failed; the next one waits for a different link. */
+  private spent: Link | undefined
+  private refusals = 0
+  private ended = false
+  private stop = () => {}
+  private readonly stopped = new Promise<undefined>((resolve) => {
+    this.stop = () => resolve(undefined)
+  })
+
+  constructor(
+    private readonly connection: Connection,
+    private readonly terminalId: string,
+  ) {}
+
+  [Symbol.asyncIterator](): this {
+    return this
+  }
+
+  /** Never throws: failures resubscribe, and iteration ends once the terminal is gone. */
+  async next(): Promise<IteratorResult<AgentDetail, undefined>> {
+    while (!this.ended) {
+      const stream = this.stream
+      if (!stream) {
+        // eslint-disable-next-line no-await-in-loop -- Subscribe before reading further.
+        if (!(await this.subscribe())) break
+        continue
+      }
+      try {
+        // eslint-disable-next-line no-await-in-loop -- Snapshots are delivered in order.
+        const result = await Promise.race([stream.details.next(), this.stopped])
+        if (this.ended || !result) break
+        if (!result.done) {
+          this.refusals = 0
+          return { value: result.value, done: false }
+        }
+        // The terminal closed, or the runner is shutting down: a new subscription tells.
+        this.drop()
+      } catch (error) {
+        if (this.ended) break
+        // eslint-disable-next-line no-await-in-loop -- Back off before resubscribing.
+        await this.recover(failure(error, stream.link), stream.link)
+      }
+    }
+    return done
+  }
+
+  return(): Promise<IteratorResult<AgentDetail, undefined>> {
+    this.end()
+    return Promise.resolve(done)
+  }
+
+  private async subscribe(): Promise<boolean> {
+    const link = await Promise.race([this.connection.ready().catch(() => undefined), this.stopped])
+    if (!link || this.ended) {
+      this.end()
+      return false
+    }
+    if (link === this.spent) {
+      await Promise.race([link.channel.closed, this.stopped])
+      return true
+    }
+    const cancel = new AbortController()
+    try {
+      const details = await link.wire.agents.detail(
+        { terminalId: this.terminalId },
+        { signal: cancel.signal },
+      )
+      if (this.ended) cancel.abort()
+      else this.stream = { details, link, cancel }
+    } catch (error) {
+      cancel.abort()
+      await this.recover(failure(error, link), link)
+    }
+    return !this.ended
+  }
+
+  /**
+   * A terminal no longer found ends iteration. A lost connection is followed to the next
+   * one; any other failure is retried after a growing delay.
+   */
+  private async recover(cause: unknown, link: Link): Promise<void> {
+    if (hasCode(cause, "TERMINAL_NOT_FOUND")) {
+      this.end()
+      return
+    }
+    this.drop()
+    if (hasCode(cause, "DISCONNECTED", "RUNTIME_CLOSING") || !link.channel.open) {
+      this.spent = link
+      return
+    }
+    const delay = Math.min(200 * 2 ** this.refusals, 3_000)
+    this.refusals += 1
+    await Promise.race([new Promise((resolve) => setTimeout(resolve, delay)), this.stopped])
+  }
+
+  private drop(): void {
+    this.stream?.cancel.abort()
+    this.stream = undefined
+  }
+
+  private end(): void {
+    this.ended = true
+    this.drop()
+    this.stop()
+  }
+}
+
 /** `terminals.watch()`: one subscription per connection, renewed after each reconnection. */
 class TerminalWatch implements AsyncIterableIterator<TerminalWatchItem, undefined> {
   private stream:
@@ -755,6 +882,7 @@ export const connectRunner = async (
     },
     agents: {
       list: () => call((wire) => wire.agents.list()),
+      detail: (terminalId) => new DetailWatch(connection, terminalId),
       set: (agent, connected) => call((wire) => wire.agents.set({ agent, connected })),
     },
     settings: {

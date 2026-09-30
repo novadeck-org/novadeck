@@ -45,6 +45,9 @@ export type ActivityEvent = {
       readonly actor: string | null
       readonly toolName: string
       readonly kind: "permission" | "question" | "plan"
+      /** What it asks about, and the answers it offers, where its call names them. */
+      readonly subject: string | null
+      readonly choices: readonly string[]
     }
   | {
       readonly type: "attention-resolved"

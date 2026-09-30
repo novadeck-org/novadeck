@@ -56,6 +56,8 @@ describe("Antigravity's status line, as captured", () => {
         actor: null,
         toolName: "confirmation",
         kind: "permission",
+        subject: null,
+        choices: [],
       },
     ])
     // Denied: the turn ends, and no hook says so.

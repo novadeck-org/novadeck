@@ -51,5 +51,17 @@ export const agy = {
   // the person, and its context and quotas.
   settings: statusLineSettings(cli),
   resume: (session) => ["agy", "--conversation", session],
+  // Its hooks and status line, which name no subagents; see docs/harness-coverage.md.
+  coverage: {
+    session: "partial",
+    activity: "partial",
+    attention: "partial",
+    actors: "unsupported",
+    transcripts: "unsupported",
+    planning: "partial",
+    usage: "unsupported",
+    limits: "partial",
+    context: "partial",
+  },
   decode,
 } satisfies Harness

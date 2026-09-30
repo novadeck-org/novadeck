@@ -2,6 +2,7 @@ import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
 import {
+  agentDetail,
   agentIntegration,
   agentName,
   clientState,
@@ -131,6 +132,10 @@ export const contract = {
   // Agents whose sessions resume once NovaDeck's plugin is installed into them.
   agents: {
     list: procedure.input(z.void()).output(z.array(agentIntegration)),
+    // What the agent in a terminal does, in more detail than its summary: a snapshot, then
+    // another on each change. It follows the terminal from agent to agent, and ends when
+    // the terminal is closed. An unknown terminal is TERMINAL_NOT_FOUND.
+    detail: procedure.input(z.strictObject({ terminalId: id })).output(eventIterator(agentDetail)),
     // Installs or removes the plugin through the agent's own commands.
     set: procedure
       .input(z.strictObject({ agent: agentName, connected: z.boolean() }))

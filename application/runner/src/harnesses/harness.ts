@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { isAbsolute } from "node:path"
 
-import { agentSessionId, type AgentName } from "@novadeck/protocol"
+import { agentSessionId, type AgentCoverage, type AgentName } from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
 import type { HarnessEvent } from "./events.js"
@@ -62,6 +62,8 @@ export type Harness = {
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
   /** The words that continue its session by id, which a shell runs as they are. */
   readonly resume?: (session: string) => readonly string[]
+  /** How much of each feature NovaDeck tells of it, from the sources its adapter reads. */
+  readonly coverage: AgentCoverage
   /** The normalized facts in one of its hooks' reports; none for one it ignores. */
   readonly decode: (report: Report) => readonly HarnessEvent[]
   /**
@@ -162,3 +164,49 @@ export const withMode = (
     },
   ]
 }
+
+// What a request shows of its subject and choices, bounded as the protocol takes them.
+const maxSubject = 1024
+const maxChoice = 256
+const maxChoices = 16
+
+const field = (input: Record<string, unknown>, ...names: string[]): string | undefined => {
+  for (const name of names) {
+    const value = input[name]
+    if (typeof value === "string" && value.trim()) return value
+    if (Array.isArray(value) && value.length > 0 && value.every((each) => typeof each === "string"))
+      return value.join(" ")
+  }
+  return undefined
+}
+
+/**
+ * What a tool call asks the person about, from its input, in the harness's own words: a
+ * question and its choices, a plan's file, a command, or the path or address it touches.
+ */
+export const subjectOf = (
+  input: unknown,
+): { readonly subject: string | null; readonly choices: readonly string[] } => {
+  if (typeof input !== "object" || input === null || Array.isArray(input))
+    return { subject: null, choices: [] }
+  const fields = input as Record<string, unknown>
+  const [question] = Array.isArray(fields.questions) ? fields.questions : []
+  if (typeof question === "object" && question !== null) {
+    const { question: prompt, options } = question as { question?: unknown; options?: unknown }
+    const choices = (Array.isArray(options) ? options : [])
+      .map((option) => (option as { label?: unknown } | null)?.label)
+      .filter((label): label is string => typeof label === "string" && label.length > 0)
+      .slice(0, maxChoices)
+      .map((label) => label.slice(0, maxChoice))
+    return { subject: typeof prompt === "string" ? prompt.slice(0, maxSubject) : null, choices }
+  }
+  const subject = field(fields, "planFilePath", "command", "file_path", "path", "url", "pattern")
+  return { subject: subject?.slice(0, maxSubject) ?? null, choices: [] }
+}
+
+/**
+ * An opaque reference to a native identity: clients tell actors and requests apart by
+ * it, never by a harness's own ids.
+ */
+export const ref = (...parts: readonly string[]): string =>
+  createHash("sha256").update(parts.join("\0")).digest("base64url").slice(0, 16)

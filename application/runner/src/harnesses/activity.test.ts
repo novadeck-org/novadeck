@@ -5,7 +5,7 @@ import type { AgentName } from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
-import { apply, started, summary, type Activity } from "./activity.js"
+import { apply, started, subagentRef, summary, type Activity } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import type { ActivityEvent } from "./events.js"
 import { harnesses } from "./registry.js"
@@ -224,7 +224,7 @@ describe("applying activity", () => {
       binding,
       fact({ type: "turn-started", startedAt: 9 }),
     )!
-    expect(summary(next).subagents).toEqual([{ id: "a", type: "explorer" }])
+    expect(summary(next).subagents).toEqual([{ id: subagentRef("a"), type: "explorer" }])
     // Its stop's hook started before the turn did; subagents answer to no turn.
     expect(summary(apply(next, binding, subagent("subagent-stopped", "a", 7))!).subagents).toEqual(
       [],
@@ -246,7 +246,7 @@ describe("applying activity", () => {
       binding,
       fact({ type: "turn-ended", outcome: "interrupted", startedAt: 20 }),
     )!
-    expect(summary(stopped).subagents).toEqual([{ id: "bg", type: "explorer" }])
+    expect(summary(stopped).subagents).toEqual([{ id: subagentRef("bg"), type: "explorer" }])
     // Its start's hook began before the interrupt, but its report came after.
     expect(apply(stopped, binding, subagent("subagent-started", "late", 15))).toBeUndefined()
     expect(apply(stopped, binding, subagent("subagent-started", "fg", 12))).toBeUndefined()
@@ -263,7 +263,7 @@ describe("applying activity", () => {
     const first = apply(started(0), binding, subagent("subagent-started", "r", 11))!
     const done = apply(first, binding, subagent("subagent-stopped", "r", 20))!
     const resumed = apply(done, binding, subagent("subagent-started", "r", 31))!
-    expect(summary(resumed).subagents).toEqual([{ id: "r", type: "explorer" }])
+    expect(summary(resumed).subagents).toEqual([{ id: subagentRef("r"), type: "explorer" }])
     expect(
       summary(apply(resumed, binding, subagent("subagent-stopped", "r", 40))!).subagents,
     ).toEqual([])

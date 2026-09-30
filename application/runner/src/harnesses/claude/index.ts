@@ -98,6 +98,18 @@ export const claude = {
   shims: (platform) =>
     platform === "win32" ? [] : [{ path: "claude", content: posixShim, mode: 0o700 }],
   resume: (session) => ["claude", "--resume", session],
+  // Its hooks, transcript and status line; see docs/harness-coverage.md.
+  coverage: {
+    session: "partial",
+    activity: "partial",
+    attention: "partial",
+    actors: "partial",
+    transcripts: "unsupported",
+    planning: "partial",
+    usage: "unsupported",
+    limits: "partial",
+    context: "partial",
+  },
   decode,
   // The transcript records what no hook reports: an interrupted turn.
   watch: (run, signal, emit) =>

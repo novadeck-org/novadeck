@@ -75,7 +75,14 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
   if (payload.agent_state === "idle")
     events.push({ type: "turn-ended", ...base, outcome: "completed" })
   else if (payload.tool_confirmation_pending === true)
-    events.push({ type: "attention-requested", ...base, ...confirmation, kind: "permission" })
+    events.push({
+      type: "attention-requested",
+      ...base,
+      ...confirmation,
+      kind: "permission",
+      subject: null,
+      choices: [],
+    })
   else if (payload.agent_state === "working" || payload.agent_state === "tool_use")
     events.push({ type: "turn-started", ...base })
   const window = (payload.context_window ?? {}) as Record<string, unknown>

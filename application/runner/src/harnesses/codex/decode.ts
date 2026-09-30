@@ -1,6 +1,6 @@
 import type { Report } from "../../shell/reports.js"
 import type { HarnessEvent } from "../events.js"
-import { absolute, callId, sessionId, sessionStart, text, withMode } from "../harness.js"
+import { absolute, callId, sessionId, sessionStart, subjectOf, text, withMode } from "../harness.js"
 
 /**
  * Codex's hooks, as normalized facts.
@@ -70,6 +70,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           requestId: callId(actor, tool, call),
           actor,
           toolName: tool,
+          ...subjectOf(input),
           kind: "permission",
         },
       ]

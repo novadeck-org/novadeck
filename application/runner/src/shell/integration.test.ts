@@ -15,7 +15,7 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import type { AgentName, TerminalChange, TerminalSummary } from "@novadeck/protocol"
+import type { AgentDetail, AgentName, TerminalChange, TerminalSummary } from "@novadeck/protocol"
 
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
 import { describe, expect, it as base } from "../test.js"
@@ -668,6 +668,47 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         planning: false,
       })
     expect(manager.reportedSession(terminal.id, "claude")).toBe("s2")
+  })
+
+  it("streams the agent's detail as its hooks change it, until the terminal closes", async ({
+    shell,
+  }) => {
+    const call = { tool_name: "Bash", tool_input: { command: "touch x" } }
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "s1", seq: 1, source: "startup" },
+      { agent: "claude", sessionId: "s1", seq: 2, source: "", event: "UserPromptSubmit" },
+      {
+        agent: "claude",
+        sessionId: "s1",
+        seq: 3,
+        source: "",
+        event: "PermissionRequest",
+        fields: call,
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    const snapshots: AgentDetail[] = []
+    const reading = (async () => {
+      for await (const detail of manager.detail(terminal.id)) snapshots.push(detail)
+    })()
+    await expect.poll(() => snapshots[0]).toMatchObject({ terminalId: terminal.id, agent: null })
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await shell.until(manager, terminal.id, "reports sent")
+    await expect
+      .poll(() => snapshots.at(-1)?.requests, { timeout: 10_000 })
+      .toMatchObject([{ kind: "permission", tool: "Bash", subject: "touch x" }])
+    expect(snapshots.at(-1)).toMatchObject({ agent: "claude", sessionId: "s1" })
+    // Disconnecting the agent ends its binding.
+    manager.forgetAgent("claude")
+    await expect.poll(() => snapshots.at(-1)).toMatchObject({ agent: null, requests: [] })
+    await manager.close({ terminalId: terminal.id }, "owner")
+    await reading
+    await expect(manager.detail(terminal.id).next()).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
   })
 
   it("keeps an agent session's own markers out of its shells", async ({ shell }) => {

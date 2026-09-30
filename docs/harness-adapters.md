@@ -942,6 +942,13 @@ an action by typing guessed keys into a terminal.
       next turn, as a denial does. Antigravity's status line names `cycle_mode` (`plan`,
       `accept-edits`) only while the mode is not the default, and reruns when
       it changes. Plan content and presentation belong to step 5.
+   6. The detail tier, as runner APIs only: `agents.detail` streams per
+      terminal the root and its subagents, each request waiting on the person
+      with what it asks about (from the call's input: a command, a path, a
+      question and its choices, a plan's file), and per-feature coverage from
+      each harness's table. Refs are runner-issued digests; the summary's
+      subagents use them too. Clients consume it later; see
+      [the backend API](backend-api.md).
 5. **Operate.** Add caller/operation, messaging, artifact and presentation
    services, with MCP and UI exercising the same operations, including the
    spawn-Codex and present-plan walkthroughs in the companion design.

@@ -76,6 +76,18 @@ export const codex = {
       ? [{ path: "codex.cmd", content: cmdShim }]
       : [{ path: "codex", content: posixShim, mode: 0o700 }],
   resume: (session) => ["codex", "resume", session],
+  // Its hooks and rollout; see docs/harness-coverage.md.
+  coverage: {
+    session: "partial",
+    activity: "partial",
+    attention: "partial",
+    actors: "partial",
+    transcripts: "unsupported",
+    planning: "partial",
+    usage: "unsupported",
+    limits: "complete",
+    context: "partial",
+  },
   decode,
   // The rollout records the session's tokens and the account's rate-limit windows.
   watch: (run, signal, emit) =>

@@ -407,6 +407,91 @@ describe("runner client terminal closing", () => {
   })
 })
 
+describe("runner client agent detail", () => {
+  it("follows a terminal's agent, and ends once the terminal is gone", async ({ resources }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const { id: sessionId } = await session(client, app.directory)
+    const terminal = await client.terminals.create(shell(sessionId))
+    const details = client.agents.detail(terminal.id)
+    await expect(details.next()).resolves.toEqual({
+      done: false,
+      value: {
+        terminalId: terminal.id,
+        agent: null,
+        sessionId: null,
+        activity: null,
+        telemetry: null,
+        actors: [],
+        requests: [],
+        coverage: null,
+      },
+    })
+    const ending = details.next()
+    await client.terminals.close(terminal.id)
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+    await expect(client.agents.detail(crypto.randomUUID()).next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    })
+  })
+})
+
+describe("runner client agent detail across reconnections", () => {
+  it("resubscribes after a reconnection and a half-open link", async ({ resources }) => {
+    const app = await deployed(resources)
+    const link = interruptible(websocket(app.url, { token }))
+    const runner = await app.connect(link.transport)
+    const status = statuses(runner)
+    const { id: sessionId } = await session(runner, app.directory)
+    const terminal = await runner.terminals.create(shell(sessionId))
+    const details = runner.agents.detail(terminal.id)
+    expect((await details.next()).value).toMatchObject({ terminalId: terminal.id })
+    link.interrupt()
+    await status.until("reconnecting")
+    const after = details.next()
+    link.resume()
+    await status.until("connected")
+    expect((await after).value).toMatchObject({ terminalId: terminal.id })
+    link.halfOpen()
+    await status.until("reconnecting")
+    const again = details.next()
+    link.resume()
+    await status.until("connected")
+    expect((await again).value).toMatchObject({ terminalId: terminal.id })
+    const ending = details.next()
+    await runner.terminals.close(terminal.id)
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+  })
+
+  it("keeps following a terminal across its exit and restart", async ({ resources }) => {
+    const app = await deployed(resources)
+    const runner = await app.connect()
+    const { id: sessionId } = await session(runner, app.directory)
+    const created = await runner.terminals.create(shell(sessionId))
+    const details = runner.agents.detail(created.id)
+    await details.next()
+    const terminal = await runner.terminals.attach(created.id)
+    const screen = view(terminal, resources)
+    await screen.until("PTY_READY")
+    await terminal.write(command({ type: "exit", code: 0 }))
+    await changes(runner, resources).until(
+      (change) =>
+        change.type === "changed" &&
+        change.terminal.id === created.id &&
+        change.terminal.exit !== null,
+    )
+    await runner.terminals.restart(created.id, { cols: 80, rows: 24 })
+    let settled = false
+    const ending = details.next()
+    void ending.then(() => (settled = true))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(settled).toBe(false)
+    await runner.terminals.close(created.id)
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+  })
+})
+
 describe("runner client terminal restart", () => {
   it("restarts an exited terminal in place and attaches to its new screen", async ({
     resources,

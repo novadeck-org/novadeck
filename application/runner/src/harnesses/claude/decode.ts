@@ -1,6 +1,6 @@
 import type { Report } from "../../shell/reports.js"
 import type { HarnessEvent } from "../events.js"
-import { absolute, callId, sessionId, sessionStart, text, withMode } from "../harness.js"
+import { absolute, callId, sessionId, sessionStart, subjectOf, text, withMode } from "../harness.js"
 
 /**
  * Claude Code's hooks, as normalized facts.
@@ -68,6 +68,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           requestId: callId(actor, tool, payload.tool_input),
           actor,
           toolName: tool,
+          ...subjectOf(payload.tool_input),
           kind:
             tool === "AskUserQuestion"
               ? "question"

@@ -2,6 +2,10 @@ import type { AgentActivity } from "@novadeck/protocol"
 
 import type { Binding } from "./bindings.js"
 import type { ActivityEvent } from "./events.js"
+import { ref } from "./harness.js"
+
+/** The reference clients know a subagent by. */
+export const subagentRef = (id: string): string => ref("subagent", id)
 
 /** A request waiting on the person, as its harness identified it. */
 type Request = {
@@ -9,6 +13,10 @@ type Request = {
   readonly actor: string | null
   readonly toolName: string
   readonly kind: "permission" | "question" | "plan"
+  readonly subject: string | null
+  readonly choices: readonly string[]
+  /** When its hook started: asked again later, the same call is another request. */
+  readonly askedAt: number
 }
 
 /** A subagent running under the bound agent, since its start hook started. */
@@ -121,10 +129,15 @@ export const apply = (
       const running = subagents.some(({ id }) => id === actor)
       if (actor.length > maxText || (!running && startedAt <= (endOf(ended, actor) ?? -1)))
         return undefined
-      // A stop may arrive before its start: remembered, it keeps that start out.
+      // A stop may arrive before its start: remembered, it keeps that start out. A
+      // stopped subagent waits on the person no longer, whatever it asked.
       return {
         ...activity,
-        subagents: subagents.filter(({ id }) => id !== actor),
+        pending: activity.pending.filter(
+          (request) => request.actor !== actor || request.askedAt > startedAt,
+        ),
+        // A resumed run that started after this stop runs on.
+        subagents: subagents.filter((each) => each.id !== actor || each.startedAt > startedAt),
         ended: end(ended, [actor], startedAt),
       }
     }
@@ -158,7 +171,10 @@ export const apply = (
     }
     case "attention-requested": {
       if (activity.pending.some(({ requestId }) => requestId === event.requestId)) return undefined
-      const { requestId, actor, toolName, kind } = event
+      // Asked by a subagent before it stopped, it waits on the person no longer.
+      const stopped = event.actor === null ? undefined : endOf(activity.ended, event.actor)
+      if (stopped !== undefined && event.startedAt < stopped) return undefined
+      const { requestId, actor, toolName, kind, subject, choices } = event
       // An actor shows one plan for review at a time: a revised one replaces it.
       const kept =
         kind === "plan"
@@ -167,7 +183,10 @@ export const apply = (
       return {
         ...activity,
         state: "working",
-        pending: [...kept, { requestId, actor, toolName, kind }],
+        pending: [
+          ...kept,
+          { requestId, actor, toolName, kind, subject, choices, askedAt: event.startedAt },
+        ],
       }
     }
     case "attention-resolved": {
@@ -183,5 +202,5 @@ export const summary = ({ state, pending, subagents, planning }: Activity): Agen
   state,
   planning,
   attention: { pending: pending.length, kind: pending[0]?.kind ?? null },
-  subagents: subagents.map(({ id, type }) => ({ id, type })),
+  subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
 })

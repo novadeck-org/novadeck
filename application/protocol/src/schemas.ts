@@ -94,6 +94,59 @@ export const agentTelemetry = z.strictObject({
     .max(8),
 })
 
+// A runner-issued reference to an agent's actor or request: clients compare it, and
+// never see a harness's own ids.
+export const agentRef = z.string().regex(/^[A-Za-z0-9_-]{16}$/)
+
+// How much of a feature NovaDeck can tell of an agent: all of it, some, or nothing.
+const coverageLevel = z.enum(["unsupported", "partial", "complete"])
+export const agentCoverage = z.strictObject({
+  session: coverageLevel,
+  activity: coverageLevel,
+  attention: coverageLevel,
+  actors: coverageLevel,
+  transcripts: coverageLevel,
+  planning: coverageLevel,
+  usage: coverageLevel,
+  limits: coverageLevel,
+  context: coverageLevel,
+})
+
+// `agents.detail` snapshots: the agent a terminal runs, its root and subagents (root
+// first; a subagent's parent is null where the harness does not say), each request
+// waiting on the person with what it asks about and the answers it offers, and how much
+// of each feature this harness tells. Without an agent bound, only `terminalId`.
+export const agentDetail = z.strictObject({
+  terminalId: id,
+  agent: agentName.nullable(),
+  sessionId: agentSessionId.nullable(),
+  activity: agentActivity.nullable(),
+  telemetry: agentTelemetry.nullable(),
+  actors: z
+    .array(
+      z.strictObject({
+        ref: agentRef,
+        role: z.enum(["root", "subagent"]),
+        parent: agentRef.nullable(),
+        type: z.string().max(256).nullable(),
+      }),
+    )
+    .max(33),
+  requests: z
+    .array(
+      z.strictObject({
+        ref: agentRef,
+        actor: agentRef,
+        kind: z.enum(["permission", "question", "plan"]),
+        tool: z.string().max(256),
+        subject: z.string().max(1024).nullable(),
+        choices: z.array(z.string().max(256)).max(16),
+      }),
+    )
+    .max(32),
+  coverage: agentCoverage.nullable(),
+})
+
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
@@ -181,5 +234,7 @@ export type TerminalAttached = z.infer<typeof terminalAttached>
 export type AgentName = z.infer<typeof agentName>
 export type AgentActivity = z.infer<typeof agentActivity>
 export type AgentTelemetry = z.infer<typeof agentTelemetry>
+export type AgentCoverage = z.infer<typeof agentCoverage>
+export type AgentDetail = z.infer<typeof agentDetail>
 export type AgentIntegration = z.infer<typeof agentIntegration>
 export type RunnerSettings = z.infer<typeof runnerSettings>

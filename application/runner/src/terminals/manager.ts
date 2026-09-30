@@ -5,6 +5,7 @@ import { constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
 
 import type {
+  AgentDetail,
   AgentName,
   ForegroundProcess,
   TerminalAttached,
@@ -26,6 +27,7 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
+import { agentDetail } from "../harnesses/detail.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
 import type { HarnessEvent, SessionObserved } from "../harnesses/events.js"
 import { harnesses } from "../harnesses/registry.js"
@@ -40,6 +42,7 @@ import {
   terminalForeground,
   type Foreground,
 } from "./foreground.js"
+import { Latest } from "./latest.js"
 import type { AgentReport, SavedTerminal, TerminalRecords } from "./records.js"
 import { snapshot } from "./snapshot.js"
 import { Subscription } from "./subscription.js"
@@ -257,6 +260,8 @@ export class Terminals {
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
   /** Each `watch` stream and the owner whose release ends it. */
   private readonly watchers = new Map<Watcher, string>()
+  /** Each terminal's `agents.detail` readers. */
+  private readonly details = new Map<string, Set<Latest<AgentDetail>>>()
   private sampler: ReturnType<typeof setInterval> | undefined
   private saver: ReturnType<typeof setInterval> | undefined
   private readonly options: Required<
@@ -812,6 +817,36 @@ export class Terminals {
     }
   }
 
+  /**
+   * What the agent in a terminal does, in detail: a snapshot, then another on each change,
+   * until the terminal is closed or `signal` aborts.
+   */
+  async *detail(terminalId: string, signal?: AbortSignal): AsyncGenerator<AgentDetail> {
+    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    const record = this.record(terminalId)
+    const reader = new Latest<AgentDetail>()
+    reader.push(this.detailOf(record))
+    const readers = this.details.get(terminalId) ?? new Set()
+    this.details.set(terminalId, readers.add(reader))
+    const abort = () => reader.finish()
+    signal?.addEventListener("abort", abort, { once: true })
+    if (signal?.aborted) reader.finish()
+    try {
+      while (true) {
+        // eslint-disable-next-line no-await-in-loop -- Snapshots are delivered in order.
+        const next = await reader.next()
+        if (next === undefined) return
+        yield next
+      }
+    } finally {
+      signal?.removeEventListener("abort", abort)
+      reader.finish()
+      readers.delete(reader)
+      if (readers.size === 0 && this.details.get(terminalId) === readers)
+        this.details.delete(terminalId)
+    }
+  }
+
   ack(input: { terminalId: string; sequence: number }, ownerId: string): void {
     // A closed terminal's viewers still acknowledge the events they drain.
     const record = this.draining.get(input.terminalId) ?? this.record(input.terminalId)
@@ -843,6 +878,7 @@ export class Terminals {
     clearInterval(this.saver)
     this.saver = undefined
     for (const watcher of this.watchers.keys()) watcher.finish()
+    for (const readers of this.details.values()) for (const reader of readers) reader.finish()
     for (const record of this.records.values()) this.unwatch(record)
     this.shutdownPromise = this.stop()
     return this.shutdownPromise
@@ -878,6 +914,25 @@ export class Terminals {
   /** Reports the record's current summary to every watcher. */
   private announce(record: Record): void {
     for (const watcher of this.watchers.keys()) watcher.changed({ ...record.summary })
+    this.detailed(record)
+  }
+
+  private detailOf(record: Record): AgentDetail {
+    return agentDetail(record.summary.id, record.binding, record.activity, record.telemetry)
+  }
+
+  /** Tells the terminal's detail readers of a change; each drops one it already has. */
+  private detailed(record: Record): void {
+    const readers = this.details.get(record.summary.id)
+    if (!readers) return
+    const detail = this.detailOf(record)
+    for (const reader of readers) reader.push(detail)
+  }
+
+  /** Ends the terminal's detail streams, as it is closed. */
+  private undetail(id: string): void {
+    for (const reader of this.details.get(id) ?? []) reader.finish()
+    this.details.delete(id)
   }
 
   /** Starts sampling foreground processes, which continues while some terminal runs. */
@@ -1284,6 +1339,8 @@ export class Terminals {
    * summary's own change when `moved`.
    */
   private publishAgent(record: Record, moved: boolean): void {
+    // Detail changes where the summary may not: a revised request, a subject.
+    this.detailed(record)
     const agent = record.binding?.agent ?? null
     const activity = record.binding && record.activity ? activitySummary(record.activity) : null
     const telemetry = record.binding && record.telemetry ? telemetrySummary(record.telemetry) : null
@@ -1452,6 +1509,7 @@ export class Terminals {
       this.dispose(record)
       this.records.delete(record.summary.id)
       for (const watcher of this.watchers.keys()) watcher.removed(record.summary)
+      this.undetail(record.summary.id)
     }
   }
 
@@ -1461,6 +1519,7 @@ export class Terminals {
     if (this.records.get(id) !== record) return
     this.records.delete(id)
     for (const watcher of this.watchers.keys()) watcher.removed(record.summary)
+    this.undetail(id)
     this.draining.set(id, record)
     this.settle(record)
   }
