@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { followLines } from "../follow.js"
-import { json, marketplace, plugin, type Harness, type Install } from "../harness.js"
+import { json, marketplace, mcpServer, plugin, type Harness, type Install } from "../harness.js"
 import { decode } from "./decode.js"
 import { posixShim } from "./shim.js"
 import { transcriptEvents } from "./transcript.js"
@@ -61,9 +61,15 @@ export const claude = {
     { argv: ["claude", "plugin", "marketplace", "remove", "novadeck"], optional: true },
   ],
   hook,
-  files: (platform) => [
+  files: (platform, launchers) => [
     { path: join(".claude-plugin", "marketplace.json"), content: marketplace },
     { path: join("novadeck", ".claude-plugin", "plugin.json"), content: json(plugin) },
+    // Its MCP server, which Claude Code finds at the plugin's root and starts with the
+    // terminal's environment.
+    {
+      path: join("novadeck", ".mcp.json"),
+      content: json({ mcpServers: { novadeck: mcpServer(platform, launchers) } }),
+    },
     {
       path: join("novadeck", "hooks", "hooks.json"),
       content: json({

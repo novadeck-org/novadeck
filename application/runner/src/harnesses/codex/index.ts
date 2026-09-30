@@ -1,7 +1,15 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { json, marketplace, plugin, type Harness, type Install } from "../harness.js"
+import {
+  json,
+  marketplace,
+  mcpServer,
+  mcpVariables,
+  plugin,
+  type Harness,
+  type Install,
+} from "../harness.js"
 import { decode } from "./decode.js"
 import { followRollout } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
@@ -46,11 +54,21 @@ export const codex = {
     { argv: ["codex", "plugin", "marketplace", "remove", "novadeck"], optional: true },
   ],
   hook,
-  files: (platform) => [
+  files: (platform, launchers) => [
     { path: join(".claude-plugin", "marketplace.json"), content: marketplace },
     {
       path: join("novadeck", ".codex-plugin", "plugin.json"),
-      content: json({ ...plugin, hooks: "./hooks/hooks.json" }),
+      content: json({ ...plugin, hooks: "./hooks/hooks.json", mcpServers: "./.mcp.json" }),
+    },
+    // Its MCP server. Codex starts MCP servers without the terminal's environment, so
+    // the variables that name the terminal are passed on by name.
+    {
+      path: join("novadeck", ".mcp.json"),
+      content: json({
+        mcpServers: {
+          novadeck: { ...mcpServer(platform, launchers), env_vars: [...mcpVariables] },
+        },
+      }),
     },
     {
       path: join("novadeck", "hooks", "hooks.json"),

@@ -1,7 +1,7 @@
 import { access } from "node:fs/promises"
 import { join } from "node:path"
 
-import { json, plugin, type Harness, type Install } from "../harness.js"
+import { json, mcpServer, plugin, type Harness, type Install } from "../harness.js"
 import { decode } from "./decode.js"
 import { statusLineSettings } from "./settings.js"
 import { transcripts } from "./transcripts.js"
@@ -37,8 +37,14 @@ export const agy = {
   // Antigravity runs PreInvocation hooks before each model call, the first time with the
   // conversation's first message, Stop once the turn ends, and PostToolUse after each
   // tool, which names the artifacts it writes, as a plan.
-  files: (platform) => [
+  files: (platform, launchers) => [
     { path: "plugin.json", content: json({ name: plugin.name }) },
+    // Its MCP server, which Antigravity takes from the plugin and starts with the
+    // terminal's environment.
+    {
+      path: "mcp_config.json",
+      content: json({ mcpServers: { novadeck: mcpServer(platform, launchers) } }),
+    },
     {
       path: "hooks.json",
       content: json({

@@ -297,10 +297,23 @@ from what this document describes:
   plan (root and subagents) and `agents.plan` streams its text on each change, which
   become `plan/changed` with the file's revision (a hash of its content).
   `plans.report` over MCP covers harnesses without native signals.
-- **Artifacts** come from `documents.present` over MCP, extended to images, project
-  files and preview-browser pages, with an `open` hint the agent sets when the user
-  asked for it (`asked`). Content is fetched through authorized artifact references,
-  never by path, and pages need a hosted browser view instead of a snapshot.
+- **Artifacts** come from NovaDeck's MCP server, which ships inside the agent plugin
+  NovaDeck already installs: `.mcp.json` for Claude Code, `mcpServers` in Codex's
+  plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
+  MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
+  Its one tool, `show`, takes a path, optional lines, a title and `open`, which the
+  agent sets when the user asked to see it (`asked`). The server finds its terminal
+  from `NOVADECK_TERMINAL_ID`, `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`. Like
+  the hooks, it is installed for every session, but outside NovaDeck's terminals it
+  lists no tools, so the agent never sees `show`, and a call anyway does nothing.
+  There its launcher answers itself (sh, or Windows Script Host's JScript on Windows,
+  which agents reach through `cmd.exe`) without starting NovaDeck's runtime, which a packaged NovaDeck
+  can unpack into a folder that goes when it quits. In a terminal it forwards the call
+  over the terminal's report endpoint, where the runner checks the token and shows only
+  images and text files inside the terminal's project folder, its starting folder
+  or Claude Code's plans folder, symlinks resolved. The UI reads them through
+  `agents.shown` and fetches each with `agents.artifact`, never by path. Pages, which
+  need a hosted browser view, come later.
 - **Saving** is a new authorized plan-write operation with the revision check above,
   scoped like `present`: the caller may write only the plan the terminal's agent keeps.
 

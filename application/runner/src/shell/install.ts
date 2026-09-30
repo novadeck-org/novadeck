@@ -1,9 +1,10 @@
 import { execFile } from "node:child_process"
 import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
-import { dirname } from "node:path"
+import { basename, dirname, join } from "node:path"
 import { promisify } from "node:util"
 
 import { hookScript } from "./hook.js"
+import { mcpScript } from "./mcp.js"
 import { shellFiles, shellPaths, type ShellPaths } from "./scripts.js"
 
 /**
@@ -23,7 +24,13 @@ export const installShellFiles = async (
   runtime = process.execPath,
 ): Promise<InstalledShell> => {
   const paths = shellPaths(directory)
-  for (const file of shellFiles(paths, runtime, hookScript)) {
+  await mkdir(directory, { recursive: true, mode: 0o700 })
+  // Plugins name the MCP launcher by its short name on Windows, as cmd starts it.
+  const mcp =
+    process.platform === "win32" ? join(await shortName(directory), basename(paths.mcp)) : paths.mcp
+  for (const file of shellFiles(paths, runtime, hookScript, mcpScript, process.platform, {
+    mcp,
+  })) {
     // eslint-disable-next-line no-await-in-loop -- A few small files, one after another.
     await mkdir(dirname(file.path), { recursive: true, mode: 0o700 })
     // eslint-disable-next-line no-await-in-loop -- Unchanged files are left alone.
@@ -42,23 +49,23 @@ export const installShellFiles = async (
   // A resume command left by a runner that stopped before its shell took it is stale.
   await rm(paths.resume, { recursive: true, force: true })
   await mkdir(paths.resume, { recursive: true, mode: 0o700 })
-  return { ...paths, launcher: await launcher(paths.hook) }
+  return { ...paths, launcher: await shortName(paths.hook) }
 }
 
-// cmd's `for` gives a file's short name, as Windows keeps one on most volumes; a path
+// cmd's `for` gives a path's short name, as Windows keeps one on most volumes; a path
 // that still needs quoting stays as it is.
-const launcher = async (hook: string): Promise<string> => {
-  if (process.platform !== "win32" || /^[\w.:\\-]+$/.test(hook)) return hook
+const shortName = async (path: string): Promise<string> => {
+  if (process.platform !== "win32" || /^[\w.:\\-]+$/.test(path)) return path
   try {
     // Verbatim, as Node would escape the inner quotes in a way cmd does not read.
     const { stdout } = await promisify(execFile)(
       process.env.COMSPEC || "cmd.exe",
-      ["/d", "/s", "/c", `"for %A in ("${hook}") do @echo %~sA"`],
+      ["/d", "/s", "/c", `"for %A in ("${path}") do @echo %~sA"`],
       { windowsHide: true, windowsVerbatimArguments: true },
     )
     const short = stdout.trim()
-    return /^[\w.:\\~-]+$/.test(short) ? short : hook
+    return /^[\w.:\\~-]+$/.test(short) ? short : path
   } catch {
-    return hook
+    return path
   }
 }
