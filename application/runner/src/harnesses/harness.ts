@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto"
 import { isAbsolute } from "node:path"
 
-import { agentSessionId, type AgentCoverage, type AgentName } from "@novadeck/protocol"
+import {
+  agentSessionId,
+  type AgentCoverage,
+  type AgentName,
+  type TranscriptItem,
+} from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
 import type { HarnessEvent } from "./events.js"
@@ -62,6 +67,20 @@ export type Harness = {
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
   /** The words that continue its session by id, which a shell runs as they are. */
   readonly resume?: (session: string) => readonly string[]
+  /** Where its actors' transcripts are, and what each of their records says. */
+  readonly transcripts?: {
+    /**
+     * The transcript of a session's root, or of one of its subagents by its own id, given
+     * the root's; undefined when it cannot be found.
+     */
+    readonly locate: (
+      root: string,
+      sessionId: string,
+      subagent: string | null,
+    ) => Promise<string | undefined>
+    /** The items one line of it records, oldest first; none for a line of anything else. */
+    readonly items: (line: string) => readonly TranscriptEntry[]
+  }
   /** How much of each feature NovaDeck tells of it, from the sources its adapter reads. */
   readonly coverage: AgentCoverage
   /** The normalized facts in one of its hooks' reports; none for one it ignores. */
@@ -105,6 +124,9 @@ export const sessionStart = (source: string | undefined): Continuity =>
       : "native-switch"
 
 /** A session bound to a terminal, as a harness's `watch` follows it. */
+/** An item of a transcript, before the runner numbers it. */
+export type TranscriptEntry = Omit<TranscriptItem, "index">
+
 export type Run = {
   readonly sessionId: string
   readonly instance: string | null

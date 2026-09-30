@@ -456,6 +456,25 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   agent and ends when the terminal is closed; an unknown one is `TERMINAL_NOT_FOUND`.
   The client's `agents.detail(terminalId)` resubscribes across reconnections and ends
   once the terminal is gone.
+- `agents.transcript({ terminalId, actor })` streams an actor's conversation, by the ref
+  `agents.detail` names it by, as its harness recorded it: batches of up to 256 items
+  from the start of the record, then each one appended, and `reset` when the record was
+  rewritten (the items follow again from the start). An item is the person's or the
+  agent's text, a tool call with its input as text, or a tool's result, numbered from
+  the record's start, with when it was written; `call` pairs a result with its call by a
+  runner-issued ref. Text past 16 KiB is cut short and marked `truncated`, and reasoning
+  never appears. It reads Claude Code's session transcript and its per-subagent ones,
+  and Codex's rollouts (a subagent's found on its parent's day or up to a week later),
+  without the context either harness writes in the person's place, their developer or
+  meta records, or the messages Codex's agents send each other; Antigravity's is not
+  read. The runner reads no further ahead than it has sent, but a remote client's own
+  pace is not tracked: a large record on a slow link fills the socket's buffer like any
+  other output.
+  An actor the terminal's session does not have, or without a transcript NovaDeck reads,
+  is `NOT_FOUND`; the stream ends when the terminal's agent leaves that session. The
+  client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
+  yielding `reset` before the items follow again, and ends without one when the actor
+  is gone.
 - `settings.get()` and `settings.set({ transcripts?, welcomed? })` read and change
   whether transcripts are kept (unless turned off; turning them off forgets every saved
   transcript) and whether the person has seen the first-run choice of agents.

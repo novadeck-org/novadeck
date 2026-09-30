@@ -17,7 +17,8 @@ const it = base.extend<{ file: Fixture }>({
     })
     const path = join(directory, "transcript.jsonl")
     const lines: string[] = []
-    const follow = () => void followLines(path, controller.signal, (line) => lines.push(line), 20)
+    const follow = () =>
+      void followLines(path, controller.signal, (line) => lines.push(line), { intervalMs: 20 })
     await use({ path, lines, follow })
   },
 })
@@ -59,5 +60,29 @@ describe("following a file's lines", () => {
     await settle()
     appendFileSync(file.path, bytes.subarray(1))
     await expect.poll(() => file.lines).toEqual(["żółw"])
+  })
+
+  it("waits for a slow reader before reading more", async ({ file }) => {
+    writeFileSync(file.path, "a\n")
+    const lines: string[] = []
+    const controller = new AbortController()
+    let reads = 0
+    let release: (() => void) | undefined
+    void followLines(file.path, controller.signal, (line) => lines.push(line), {
+      intervalMs: 20,
+      fromStart: true,
+      pace: () => {
+        reads += 1
+        return reads === 1 ? Promise.resolve() : new Promise((resolve) => (release = resolve))
+      },
+    })
+    await expect.poll(() => lines).toEqual(["a"])
+    appendFileSync(file.path, "b\n")
+    await settle()
+    expect(lines).toEqual(["a"])
+    release?.()
+    await expect.poll(() => lines).toEqual(["a", "b"])
+    controller.abort()
+    release?.()
   })
 })

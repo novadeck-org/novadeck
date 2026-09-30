@@ -12,6 +12,7 @@ import type {
   TerminalChange,
   TerminalEvent,
   TerminalSummary,
+  TranscriptChange,
 } from "@novadeck/protocol"
 import { SerializeAddon } from "@xterm/addon-serialize"
 import type { SerializeAddon as Serializer } from "@xterm/addon-serialize"
@@ -27,7 +28,7 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
-import { agentDetail } from "../harnesses/detail.js"
+import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
 import type { HarnessEvent, SessionObserved } from "../harnesses/events.js"
 import { harnesses } from "../harnesses/registry.js"
@@ -47,6 +48,7 @@ import type { AgentReport, SavedTerminal, TerminalRecords } from "./records.js"
 import { snapshot } from "./snapshot.js"
 import { Subscription } from "./subscription.js"
 import { replay, transcriptOf } from "./transcript.js"
+import { transcriptChanges } from "./transcripts.js"
 import { Watcher } from "./watcher.js"
 
 const { Terminal } = headless
@@ -137,6 +139,10 @@ type Record = {
   telemetry: Telemetry | null
   /** Stops following the bound session's own sources, as its transcript. */
   watching: AbortController | null
+  /** The bound session's transcript, where its hooks named one. */
+  transcript: string | null
+  /** Ends the `agents.transcript` streams reading the bound session's transcripts. */
+  transcriptReaders: Set<AbortController>
   /** When the shell last showed its prompt, in epoch milliseconds. */
   promptedAt: number | null
   /** Unsaved changes: output, directory, or prompts. */
@@ -407,6 +413,8 @@ export class Terminals {
         activity: null,
         telemetry: null,
         watching: null,
+        transcript: null,
+        transcriptReaders: new Set(),
         promptedAt: saved?.promptedAt ?? null,
         changed: false,
         savedAt: 0,
@@ -536,6 +544,7 @@ export class Terminals {
           activity: null,
           telemetry: null,
           watching: null,
+          transcript: null,
           // Skipping a sequence number sends any earlier cursor to a fresh snapshot.
           sequence: record.sequence + 1,
           history: [],
@@ -844,6 +853,39 @@ export class Terminals {
       readers.delete(reader)
       if (readers.size === 0 && this.details.get(terminalId) === readers)
         this.details.delete(terminalId)
+    }
+  }
+
+  /**
+   * An actor's conversation, as its harness recorded it: every item so far, then each
+   * later one, until the terminal's agent leaves the session it belongs to or `signal`
+   * aborts. An actor the bound session does not have, or whose harness keeps no
+   * transcript NovaDeck reads, is NOT_FOUND.
+   */
+  async *transcript(
+    terminalId: string,
+    actor: string,
+    signal?: AbortSignal,
+  ): AsyncGenerator<TranscriptChange> {
+    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    const record = this.record(terminalId)
+    const { binding, transcript: root } = record
+    const source = binding && harnesses[binding.agent].transcripts
+    const native = binding && actorOf(binding, record.activity, actor)
+    if (!binding || !source || !root || native === undefined) throw new DomainError("NOT_FOUND")
+    const path = await source.locate(root, binding.sessionId, native)
+    if (!path || record.binding !== binding) throw new DomainError("NOT_FOUND")
+    const reader = new AbortController()
+    record.transcriptReaders.add(reader)
+    const abort = () => reader.abort()
+    signal?.addEventListener("abort", abort, { once: true })
+    if (signal?.aborted) reader.abort()
+    try {
+      yield* transcriptChanges(path, source.items, reader.signal)
+    } finally {
+      signal?.removeEventListener("abort", abort)
+      reader.abort()
+      record.transcriptReaders.delete(reader)
     }
   }
 
@@ -1300,6 +1342,7 @@ export class Terminals {
    */
   private follow(record: Record, event: SessionObserved): void {
     this.unwatch(record)
+    record.transcript = event.transcript ?? null
     const { binding } = record
     const watch = binding && harnesses[binding.agent].watch
     if (!binding || !watch || event.transcript === undefined) return
@@ -1332,6 +1375,9 @@ export class Terminals {
   private unwatch(record: Record): void {
     record.watching?.abort()
     record.watching = null
+    record.transcript = null
+    for (const reader of record.transcriptReaders) reader.abort()
+    record.transcriptReaders.clear()
   }
 
   /**

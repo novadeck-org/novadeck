@@ -6,6 +6,7 @@ import { json, marketplace, plugin, type Harness, type Install } from "../harnes
 import { decode } from "./decode.js"
 import { rolloutEvents } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
+import { transcripts } from "./transcripts.js"
 
 const id = "novadeck@novadeck"
 
@@ -76,13 +77,14 @@ export const codex = {
       ? [{ path: "codex.cmd", content: cmdShim }]
       : [{ path: "codex", content: posixShim, mode: 0o700 }],
   resume: (session) => ["codex", "resume", session],
+  transcripts,
   // Its hooks and rollout; see docs/harness-coverage.md.
   coverage: {
     session: "partial",
     activity: "partial",
     attention: "partial",
     actors: "partial",
-    transcripts: "unsupported",
+    transcripts: "partial",
     planning: "partial",
     usage: "unsupported",
     limits: "complete",

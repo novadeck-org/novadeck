@@ -427,6 +427,11 @@ describe("runner client agent detail", () => {
         coverage: null,
       },
     })
+    // No agent runs there, so no actor has a transcript.
+    await expect(client.agents.transcript(terminal.id, "x".repeat(16)).next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    })
     const ending = details.next()
     await client.terminals.close(terminal.id)
     await expect(ending).resolves.toEqual({ done: true, value: undefined })

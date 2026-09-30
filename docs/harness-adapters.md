@@ -948,7 +948,11 @@ an action by typing guessed keys into a terminal.
       question and its choices, a plan's file), and per-feature coverage from
       each harness's table. Refs are runner-issued digests; the summary's
       subagents use them too. Clients consume it later; see
-      [the backend API](backend-api.md).
+      [the backend API](backend-api.md). `agents.transcript` then streams an
+      actor's conversation from its harness's own records, through each
+      adapter's `transcripts` (where an actor's record is, and the items one of
+      its lines holds): Claude Code's session and per-subagent JSONL, Codex's
+      rollouts. Antigravity's transcript is still unread.
 5. **Operate.** Add caller/operation, messaging, artifact and presentation
    services, with MCP and UI exercising the same operations, including the
    spawn-Codex and present-plan walkthroughs in the companion design.

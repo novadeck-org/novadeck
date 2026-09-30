@@ -6,6 +6,7 @@ import { json, marketplace, plugin, type Harness, type Install } from "../harnes
 import { decode } from "./decode.js"
 import { posixShim } from "./shim.js"
 import { transcriptEvents } from "./transcript.js"
+import { transcripts } from "./transcripts.js"
 
 const id = "novadeck@novadeck"
 
@@ -98,13 +99,14 @@ export const claude = {
   shims: (platform) =>
     platform === "win32" ? [] : [{ path: "claude", content: posixShim, mode: 0o700 }],
   resume: (session) => ["claude", "--resume", session],
+  transcripts,
   // Its hooks, transcript and status line; see docs/harness-coverage.md.
   coverage: {
     session: "partial",
     activity: "partial",
     attention: "partial",
     actors: "partial",
-    transcripts: "unsupported",
+    transcripts: "partial",
     planning: "partial",
     usage: "unsupported",
     limits: "partial",

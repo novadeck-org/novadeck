@@ -84,3 +84,21 @@ export const agentDetail = (
     coverage: harnesses[binding.agent].coverage,
   }
 }
+
+/**
+ * The native id of the actor a ref names in the bound session: null for its root, a
+ * subagent's own id for one running, asking or ended; undefined for any other ref.
+ */
+export const actorOf = (
+  binding: Binding,
+  activity: Activity | null,
+  actor: string,
+): string | null | undefined => {
+  if (actor === rootRef(binding)) return null
+  const known = [
+    ...(activity?.subagents ?? []).map(({ id }) => id),
+    ...(activity?.pending ?? []).flatMap(({ actor: id }) => (id === null ? [] : [id])),
+    ...(activity?.ended ?? []).map(({ id }) => id),
+  ]
+  return known.find((id) => subagentRef(id) === actor)
+}

@@ -147,6 +147,27 @@ export const agentDetail = z.strictObject({
   coverage: agentCoverage.nullable(),
 })
 
+// `agents.transcript` changes: items of an actor's conversation as its harness recorded
+// it, oldest first, numbered from the start of the record; or `reset`, when the record
+// was rewritten and its items follow again from the start. An item is the person's or
+// the agent's text, a tool call, with its input as text, or a tool's result; `call`
+// pairs a result with its call. Text past 16 KiB is cut short and marked `truncated`.
+// Private reasoning is never included.
+export const transcriptItem = z.strictObject({
+  index: z.number().int().nonnegative(),
+  at: z.number().nullable(),
+  role: z.enum(["user", "assistant", "tool"]),
+  kind: z.enum(["text", "tool-call", "tool-result"]),
+  text: z.string().max(16_384),
+  truncated: z.boolean(),
+  tool: z.string().max(256).nullable(),
+  call: agentRef.nullable(),
+})
+export const transcriptChange = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("items"), items: z.array(transcriptItem).min(1).max(256) }),
+  z.strictObject({ type: z.literal("reset") }),
+])
+
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
@@ -236,5 +257,7 @@ export type AgentActivity = z.infer<typeof agentActivity>
 export type AgentTelemetry = z.infer<typeof agentTelemetry>
 export type AgentCoverage = z.infer<typeof agentCoverage>
 export type AgentDetail = z.infer<typeof agentDetail>
+export type TranscriptItem = z.infer<typeof transcriptItem>
+export type TranscriptChange = z.infer<typeof transcriptChange>
 export type AgentIntegration = z.infer<typeof agentIntegration>
 export type RunnerSettings = z.infer<typeof runnerSettings>

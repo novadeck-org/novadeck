@@ -4,6 +4,8 @@ import { z } from "zod"
 import {
   agentDetail,
   agentIntegration,
+  agentRef,
+  transcriptChange,
   agentName,
   clientState,
   columns,
@@ -136,6 +138,13 @@ export const contract = {
     // another on each change. It follows the terminal from agent to agent, and ends when
     // the terminal is closed. An unknown terminal is TERMINAL_NOT_FOUND.
     detail: procedure.input(z.strictObject({ terminalId: id })).output(eventIterator(agentDetail)),
+    // An actor's conversation, as its harness recorded it: every item so far, then each
+    // later one, while the terminal's agent runs the session the actor belongs to. An
+    // actor it does not have, or one whose harness keeps no transcript NovaDeck reads, is
+    // NOT_FOUND; the stream ends when the terminal's agent moves to another session.
+    transcript: procedure
+      .input(z.strictObject({ terminalId: id, actor: agentRef }))
+      .output(eventIterator(transcriptChange)),
     // Installs or removes the plugin through the agent's own commands.
     set: procedure
       .input(z.strictObject({ agent: agentName, connected: z.boolean() }))

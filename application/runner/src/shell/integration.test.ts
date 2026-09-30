@@ -185,6 +185,10 @@ const reporter = (
   return bin
 }
 
+// A line of a Claude Code transcript: the person's message.
+const userLine = (text: string) =>
+  `${JSON.stringify({ type: "user", timestamp: "2026-09-30T08:00:00Z", message: { content: text } })}\n`
+
 // A stand-in agent that prints how it was started, and what it sees, then waits.
 const fakeAgent = (home: string, agent: AgentName): string => {
   const bin = join(home, "bin")
@@ -709,6 +713,47 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await expect(manager.detail(terminal.id).next()).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",
     })
+  })
+
+  it("streams an agent's transcript until the agent leaves its session", async ({ shell }) => {
+    const transcript = join(shell.home, "s1.jsonl")
+    writeFileSync(transcript, userLine("first"))
+    const bin = reporter(shell.home, [
+      {
+        agent: "claude",
+        sessionId: "s1",
+        seq: 1,
+        source: "startup",
+        fields: { transcript_path: transcript },
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await shell.until(manager, terminal.id, "reports sent")
+    const details = manager.detail(terminal.id)
+    let root: string | undefined
+    while (!root) {
+      // eslint-disable-next-line no-await-in-loop -- Reads snapshots until the agent binds.
+      const { value } = await details.next()
+      root = value?.actors[0]?.ref
+    }
+    await details.return(undefined)
+    await expect(manager.transcript(terminal.id, "x".repeat(16)).next()).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    })
+    const texts: string[] = []
+    const reading = (async () => {
+      for await (const change of manager.transcript(terminal.id, root))
+        if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
+    })()
+    await expect.poll(() => texts).toEqual(["first"])
+    appendFileSync(transcript, userLine("second"))
+    await expect.poll(() => texts, { timeout: 5_000 }).toEqual(["first", "second"])
+    manager.forgetAgent("claude")
+    await reading
   })
 
   it("keeps an agent session's own markers out of its shells", async ({ shell }) => {

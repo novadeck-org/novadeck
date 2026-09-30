@@ -11,6 +11,7 @@ import {
   type TerminalChange,
   type TerminalEvent,
   type TerminalSummary,
+  type TranscriptChange,
   type WorkspaceSession,
 } from "./schemas.js"
 import { createWireClient, type Channel } from "./wire.js"
@@ -164,6 +165,17 @@ export type Runner = {
      * when the runner closes, or on `return()`.
      */
     detail(terminalId: string): AsyncIterableIterator<AgentDetail, undefined>
+    /**
+     * Follows an actor's conversation, by the ref `detail` names it by: every item its
+     * harness recorded, then each later one. After a reconnection the items follow again
+     * from the start, after a `reset`. Iteration ends once the terminal's agent has left
+     * the actor's session, the actor or its transcript is not found, the runner closes,
+     * or on `return()`.
+     */
+    transcript(
+      terminalId: string,
+      actor: string,
+    ): AsyncIterableIterator<TranscriptChange, undefined>
     /**
      * Installs or removes NovaDeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
@@ -592,13 +604,14 @@ class Attachment implements AttachedTerminal {
 }
 
 /**
- * `agents.detail()`: one subscription per connection, renewed after each reconnection or
- * when the runner ends it, until the terminal is no longer found.
+ * `agents.detail()` and `agents.transcript()`: one subscription per connection, renewed
+ * after each reconnection or when the runner ends it, until what it follows is no longer
+ * found. Each new subscription starts over; `fresh`, where given, says so first.
  */
-class DetailWatch implements AsyncIterableIterator<AgentDetail, undefined> {
+class Resubscription<T> implements AsyncIterableIterator<T, undefined> {
   private stream:
     | {
-        readonly details: AsyncIterator<AgentDetail>
+        readonly items: AsyncIterator<T>
         readonly link: Link
         readonly cancel: AbortController
       }
@@ -612,9 +625,16 @@ class DetailWatch implements AsyncIterableIterator<AgentDetail, undefined> {
     this.stop = () => resolve(undefined)
   })
 
+  /** Whether the next item is the start of a new subscription, after the first. */
+  private started = false
+  /** The first item of a new subscription, held back behind `fresh`. */
+  private held: T | undefined
+  private subscribed = false
+
   constructor(
     private readonly connection: Connection,
-    private readonly terminalId: string,
+    private readonly open: (wire: WireClient, signal: AbortSignal) => Promise<AsyncIterator<T>>,
+    private readonly fresh?: T,
   ) {}
 
   [Symbol.asyncIterator](): this {
@@ -622,7 +642,7 @@ class DetailWatch implements AsyncIterableIterator<AgentDetail, undefined> {
   }
 
   /** Never throws: failures resubscribe, and iteration ends once the terminal is gone. */
-  async next(): Promise<IteratorResult<AgentDetail, undefined>> {
+  async next(): Promise<IteratorResult<T, undefined>> {
     while (!this.ended) {
       const stream = this.stream
       if (!stream) {
@@ -630,12 +650,25 @@ class DetailWatch implements AsyncIterableIterator<AgentDetail, undefined> {
         if (!(await this.subscribe())) break
         continue
       }
+      if (this.held !== undefined) {
+        const value = this.held
+        this.held = undefined
+        return { value, done: false }
+      }
       try {
         // eslint-disable-next-line no-await-in-loop -- Snapshots are delivered in order.
-        const result = await Promise.race([stream.details.next(), this.stopped])
+        const result = await Promise.race([stream.items.next(), this.stopped])
         if (this.ended || !result) break
         if (!result.done) {
           this.refusals = 0
+          // A new subscription says it starts over only once it has something to follow,
+          // so one that finds nothing does not wipe what came before.
+          if (this.started && this.fresh !== undefined) {
+            this.started = false
+            this.held = result.value
+            return { value: this.fresh, done: false }
+          }
+          this.started = false
           return { value: result.value, done: false }
         }
         // The terminal closed, or the runner is shutting down: a new subscription tells.
@@ -649,7 +682,7 @@ class DetailWatch implements AsyncIterableIterator<AgentDetail, undefined> {
     return done
   }
 
-  return(): Promise<IteratorResult<AgentDetail, undefined>> {
+  return(): Promise<IteratorResult<T, undefined>> {
     this.end()
     return Promise.resolve(done)
   }
@@ -666,12 +699,14 @@ class DetailWatch implements AsyncIterableIterator<AgentDetail, undefined> {
     }
     const cancel = new AbortController()
     try {
-      const details = await link.wire.agents.detail(
-        { terminalId: this.terminalId },
-        { signal: cancel.signal },
-      )
+      const items = await this.open(link.wire, cancel.signal)
       if (this.ended) cancel.abort()
-      else this.stream = { details, link, cancel }
+      else {
+        this.stream = { items, link, cancel }
+        // The first subscription needs no word that it starts over.
+        this.started = this.subscribed
+        this.subscribed = true
+      }
     } catch (error) {
       cancel.abort()
       await this.recover(failure(error, link), link)
@@ -680,11 +715,11 @@ class DetailWatch implements AsyncIterableIterator<AgentDetail, undefined> {
   }
 
   /**
-   * A terminal no longer found ends iteration. A lost connection is followed to the next
+   * What it follows no longer found ends iteration. A lost connection is followed to the next
    * one; any other failure is retried after a growing delay.
    */
   private async recover(cause: unknown, link: Link): Promise<void> {
-    if (hasCode(cause, "TERMINAL_NOT_FOUND")) {
+    if (hasCode(cause, "TERMINAL_NOT_FOUND", "NOT_FOUND")) {
       this.end()
       return
     }
@@ -882,7 +917,16 @@ export const connectRunner = async (
     },
     agents: {
       list: () => call((wire) => wire.agents.list()),
-      detail: (terminalId) => new DetailWatch(connection, terminalId),
+      detail: (terminalId) =>
+        new Resubscription(connection, (wire, signal) =>
+          wire.agents.detail({ terminalId }, { signal }),
+        ),
+      transcript: (terminalId, actor) =>
+        new Resubscription<TranscriptChange>(
+          connection,
+          (wire, signal) => wire.agents.transcript({ terminalId, actor }, { signal }),
+          { type: "reset" },
+        ),
       set: (agent, connected) => call((wire) => wire.agents.set({ agent, connected })),
     },
     settings: {
