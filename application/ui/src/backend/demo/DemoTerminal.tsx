@@ -3,7 +3,7 @@ import { GitBranch } from "lucide-react"
 import { useCallback, useEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
 
 import type { TerminalMetadata } from "../../model/types"
-import type { TerminalSurfaceProps } from "../port"
+import type { TerminalKey, TerminalSurfaceProps } from "../port"
 import type { DemoEngine, DemoTerminalSnapshot } from "./engine"
 import { demoAgent, demoAgents } from "./samples"
 import { TerminalOutput } from "./TerminalOutput"
@@ -126,7 +126,7 @@ const DemoTerminalSurface = ({
 // `introOf` gives a terminal its own opening output, when it has one.
 export const createDemoTerminal = (
   engine: DemoEngine,
-  introOf?: (terminal: TerminalMetadata) => ReactNode,
+  introOf?: (terminal: TerminalMetadata, key: TerminalKey) => ReactNode,
 ) => {
   const DemoTerminal = ({
     terminalKey,
@@ -152,7 +152,7 @@ export const createDemoTerminal = (
         onDraftChange={(draft) => engine.setDraft(key, draft)}
         onScrollChange={(offset) => engine.setScrollOffset(key, offset)}
         onCommand={(command) => engine.run(key, command)}
-        intro={introOf?.(props.terminal)}
+        intro={introOf?.(props.terminal, key)}
       />
     )
     return <>{renderWindow(content)}</>

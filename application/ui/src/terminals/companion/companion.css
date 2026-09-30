@@ -900,6 +900,14 @@
 }
 
 /* Mocked artifact viewers. */
+/* While an artifact loads, or when it couldn't. */
+.artifact-status {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
 .artifact-viewer {
   flex: 1;
   min-height: 0;

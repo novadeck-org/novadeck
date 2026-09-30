@@ -1,4 +1,4 @@
-import { FileText, Image } from "lucide-react"
+import { FileStack, FileText, Image } from "lucide-react"
 
 import { ContextMenu, type ContextMenuItem } from "../../ui-toolkit/ContextMenu"
 import { HoverCard } from "../../ui-toolkit/HoverCard"
@@ -6,15 +6,20 @@ import { ArtifactThumb, kindIcons } from "./ArtifactViewer"
 import { dismiss, pickFromGroup, planTab, slotsOf, type Shown } from "./pane"
 import { Peek, type Indicator, type PeekEntry } from "./Peek"
 import { headingsOf, titleOf } from "./plan-text"
-import { closePlan, openTab, type CompanionHandle, type PlanState } from "./state"
-
-const indicatorOf = (plan: PlanState, tab: string, fresh: boolean, open: boolean): Indicator =>
-  fresh ? "new" : open && plan.tab === tab ? "open" : "seen"
+import {
+  closePane,
+  openTab,
+  shownTab,
+  unread,
+  useArtifactContent,
+  type CompanionHandle,
+  type PlanDoc,
+} from "./state"
 
 // The plan in miniature: its title over its sections.
-const PlanThumb = ({ plan, title }: { plan: PlanState; title: string }): React.JSX.Element => (
+const PlanThumb = ({ plan }: { plan: PlanDoc }): React.JSX.Element => (
   <span className="peek-plan">
-    <b>{title}</b>
+    <b>{titleOf(plan.path, plan.text)}</b>
     {headingsOf(plan.text)
       .slice(0, 4)
       .map((heading) => (
@@ -22,6 +27,15 @@ const PlanThumb = ({ plan, title }: { plan: PlanState; title: string }): React.J
       ))}
   </span>
 )
+
+// An artifact in miniature, once it loads.
+const ArtifactPreview = ({
+  companion,
+  artifact,
+}: {
+  companion: CompanionHandle
+  artifact: Shown
+}): React.JSX.Element | null => <ArtifactThumb load={useArtifactContent(companion, artifact)} />
 
 // A taskbar slot: its icon, the peek above it, and its menu, which is also the
 // keyboard's way to everything the peek offers.
@@ -46,9 +60,9 @@ const slot = (
   />
 )
 
-// The pane's taskbar along the terminal's bottom: the plan, then what else its agent
-// showed, an icon each, images grouped. Hover peeks, click opens or hides, right-click
-// dismisses. Nothing opens on its own.
+// The pane's taskbar along the terminal's bottom: its plans, the agent's own first, then
+// what else the agent showed, an icon each, images grouped. Hover peeks, click opens or
+// hides, the menu opens or dismisses. Nothing opens on its own.
 export const Taskbar = ({
   companion,
   trigger,
@@ -58,47 +72,47 @@ export const Taskbar = ({
   trigger: React.RefObject<HTMLButtonElement | null>
   open: boolean
 }): React.JSX.Element => {
-  const { state: plan, plan: file } = companion
-  const unread = plan.seen < plan.revision
-  const showing = (tab: string): boolean => open && plan.tab === tab
+  const { pane } = companion
+  const current = shownTab(pane)
+  const showing = (tab: string): boolean => open && current === tab
+  const state = (tab: string, fresh: boolean): Indicator =>
+    fresh ? "new" : showing(tab) ? "open" : "seen"
   // Clicking what the pane is showing hides it, as a taskbar minimizes the active window.
   const activate = (tab: string): void =>
-    companion.update((state) => (showing(tab) ? closePlan(state) : openTab(state, tab)))
-  const menu = (tab: string, dismissable: boolean): ContextMenuItem[] => [
-    {
-      value: "open",
-      label: "Open",
-      onSelect: () => companion.update((state) => openTab(state, tab)),
-    },
-    ...(dismissable
-      ? [
-          {
-            value: "dismiss",
-            label: "Dismiss",
-            onSelect: () => companion.update((state) => dismiss(state, tab)),
-          },
-        ]
-      : []),
-  ]
-  const title = titleOf(file.path, plan.text)
+    companion.update((next) => (showing(tab) ? closePane(next) : openTab(next, tab)))
+  const opening = (tab: string, label = "Open"): ContextMenuItem => ({
+    value: `open-${tab}`,
+    label,
+    onSelect: () => companion.update((next) => openTab(next, tab)),
+  })
+  const dismissing = (id: string, label = "Dismiss"): ContextMenuItem => ({
+    value: `dismiss-${id}`,
+    label,
+    onSelect: () => companion.update((next) => dismiss(next, id)),
+  })
   const peekOf = (artifact: Shown): PeekEntry => {
     const Icon = kindIcons[artifact.kind]
     return {
       id: artifact.id,
       name: artifact.name,
       icon: <Icon size={13} strokeWidth={1.5} />,
-      preview: <ArtifactThumb artifact={artifact} />,
-      state: indicatorOf(plan, artifact.id, artifact.fresh, open),
-      onOpen: () => companion.update((state) => openTab(state, artifact.id)),
-      onDismiss: () => companion.update((state) => dismiss(state, artifact.id)),
+      preview: <ArtifactPreview companion={companion} artifact={artifact} />,
+      state: state(artifact.id, artifact.fresh),
+      onOpen: () => companion.update((next) => openTab(next, artifact.id)),
+      onDismiss: () => companion.update((next) => dismiss(next, artifact.id)),
     }
   }
+  const agent = pane.plans[0]?.agent ?? "The agent"
+  const slots = slotsOf(pane.artifacts)
+  // Focus comes back to the first icon when the pane hides: the agent's own plan, or
+  // the first thing it showed when it has no plan.
+  const firstSlot = slots[0]
   return (
     <div
       className="plan-taskbar nodrag nopan"
       data-workspace-companion
       role="group"
-      aria-label={`What ${file.agent} showed you`}
+      aria-label={`What ${agent} showed you`}
       // Opening leaves focus here, so Escape hides the pane from here too.
       onKeyDown={(event) => {
         // Keys from its menus and peeks bubble here through React's portals; theirs is
@@ -106,48 +120,57 @@ export const Taskbar = ({
         if (event.key !== "Escape" || !open) return
         if (!event.currentTarget.contains(event.target as Node)) return
         event.stopPropagation()
-        companion.update(closePlan)
+        companion.update(closePane)
       }}
     >
-      {slot(
-        "plan",
-        "Plan",
-        menu(planTab, false),
-        <button
-          ref={trigger}
-          className="plan-tb-item"
-          data-state={indicatorOf(plan, planTab, unread, open)}
-          aria-label={`Plan: ${title}${unread ? ", new" : ""}`}
-          aria-pressed={showing(planTab)}
-          onClick={() => activate(planTab)}
-        >
-          <FileText size={20} strokeWidth={1.5} />
-        </button>,
-        <Peek
-          entries={[
-            {
-              id: planTab,
-              // Named by its file, like everything else; the preview carries the title.
-              name: file.path.split("/").at(-1)!,
-              icon: <FileText size={13} strokeWidth={1.5} />,
-              preview: <PlanThumb plan={plan} title={title} />,
-              state: indicatorOf(plan, planTab, unread, open),
-              onOpen: () => companion.update((state) => openTab(state, planTab)),
-            },
-          ]}
-        />,
-      )}
-      {slotsOf(plan.artifacts).map((entry) => {
+      {pane.plans.map((plan, index) => {
+        const tab = planTab(plan.ref)
+        const title = titleOf(plan.path, plan.text)
+        const fresh = unread(plan)
+        const Icon = plan.role === "root" ? FileText : FileStack
+        const kind = plan.role === "root" ? "Plan" : "Subagent plan"
+        return slot(
+          tab,
+          kind,
+          [opening(tab)],
+          <button
+            // Focus comes back to the agent's own plan when the pane hides.
+            ref={index === 0 ? trigger : undefined}
+            className="plan-tb-item"
+            data-state={state(tab, fresh)}
+            aria-label={`${kind}: ${title}${fresh ? ", new" : ""}`}
+            aria-pressed={showing(tab)}
+            onClick={() => activate(tab)}
+          >
+            <Icon size={20} strokeWidth={1.5} />
+          </button>,
+          <Peek
+            entries={[
+              {
+                id: tab,
+                // Named by its file, like everything else; the preview carries the title.
+                name: plan.path.split("/").at(-1)!,
+                icon: <Icon size={13} strokeWidth={1.5} />,
+                preview: <PlanThumb plan={plan} />,
+                state: state(tab, fresh),
+                onOpen: () => companion.update((next) => openTab(next, tab)),
+              },
+            ]}
+          />,
+        )
+      })}
+      {slots.map((entry) => {
         if (entry.kind === "one") {
           const { artifact } = entry
           const Icon = kindIcons[artifact.kind]
           return slot(
             artifact.id,
             artifact.name,
-            menu(artifact.id, true),
+            [opening(artifact.id), dismissing(artifact.id)],
             <button
+              ref={pane.plans.length || entry !== firstSlot ? undefined : trigger}
               className="plan-tb-item"
-              data-state={indicatorOf(plan, artifact.id, artifact.fresh, open)}
+              data-state={state(artifact.id, artifact.fresh)}
               aria-label={`${artifact.name}${artifact.fresh ? ", new" : ""}`}
               aria-pressed={showing(artifact.id)}
               onClick={() => activate(artifact.id)}
@@ -159,28 +182,21 @@ export const Taskbar = ({
         }
         const images = entry.artifacts
         const fresh = images.some((shown) => shown.fresh)
-        const current = images.find((shown) => showing(shown.id))
+        const openImage = images.find((shown) => showing(shown.id))
         return slot(
           "images",
           "Images",
           images.flatMap((image) => [
-            {
-              value: `open-${image.id}`,
-              label: `Open ${image.name}`,
-              onSelect: () => companion.update((state) => openTab(state, image.id)),
-            },
-            {
-              value: `dismiss-${image.id}`,
-              label: `Dismiss ${image.name}`,
-              onSelect: () => companion.update((state) => dismiss(state, image.id)),
-            },
+            opening(image.id, `Open ${image.name}`),
+            dismissing(image.id, `Dismiss ${image.name}`),
           ]),
           <button
+            ref={pane.plans.length || entry !== firstSlot ? undefined : trigger}
             className="plan-tb-item"
-            data-state={fresh ? "new" : current ? "open" : "seen"}
+            data-state={fresh ? "new" : openImage ? "open" : "seen"}
             aria-label={`${images.length} images${fresh ? ", new" : ""}`}
-            aria-pressed={Boolean(current)}
-            onClick={() => activate(pickFromGroup(plan, images).id)}
+            aria-pressed={Boolean(openImage)}
+            onClick={() => activate(pickFromGroup(pane, images).id)}
           >
             <Image size={20} strokeWidth={1.5} />
             <b className="plan-tb-count" aria-hidden="true">

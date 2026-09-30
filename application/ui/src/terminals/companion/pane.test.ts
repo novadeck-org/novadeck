@@ -1,4 +1,4 @@
-import type { Artifact } from "../../model/companion"
+import type { ArtifactRef } from "../../model/companion"
 import { context, describe, expect, it } from "../../test"
 import {
   dismiss,
@@ -12,33 +12,18 @@ import {
   type Companion,
 } from "./pane"
 
-const image = (id: string): Artifact => ({
+const ref = (id: string, kind: ArtifactRef["kind"], name = `${id}.png`): ArtifactRef => ({
   id,
-  kind: "image",
-  name: `${id}.png`,
+  kind,
+  name,
   detail: "",
-  src: "data:,",
+  version: 1,
 })
-const home: Artifact = {
-  id: "home",
-  kind: "file",
-  name: "Home.tsx",
-  detail: "",
-  path: "src/pages/Home.tsx",
-  firstLine: 1,
-  lines: [],
-  from: 1,
-  to: 1,
-}
-const preview: Artifact = {
-  id: "preview",
-  kind: "page",
-  name: "localhost:5173",
-  detail: "",
-  url: "http://localhost:5173/",
-  snapshot: "data:,",
-}
-const companion: Companion = { open: false, tab: planTab, artifacts: [] }
+const image = (id: string): ArtifactRef => ref(id, "image")
+const home = ref("home", "file", "Home.tsx")
+const preview = ref("preview", "page", "localhost:5173")
+const root = planTab("root")
+const companion: Companion = { open: false, tab: root, home: root, artifacts: [] }
 
 describe("companion pane", () => {
   context("when the agent shows something", () => {
@@ -46,12 +31,12 @@ describe("companion pane", () => {
 
     it("waits, marked new, without opening", () => {
       expect(shown.open).toBe(false)
-      expect(shown.tab).toBe(planTab)
+      expect(shown.tab).toBe(root)
       expect(freshCount(shown)).toBe(1)
     })
 
-    it("shows each thing once", () => {
-      expect(show(shown, home, false)).toBe(shown)
+    it("lists each thing once", () => {
+      expect(show(shown, home, false).artifacts).toHaveLength(1)
     })
 
     it("opens to what's new when no tab is chosen", () => {
@@ -80,7 +65,7 @@ describe("companion pane", () => {
     it("leaves the pane, which falls back to the plan if it was showing it", () => {
       const dismissed = dismiss(show(companion, home, true), home.id)
       expect(dismissed.artifacts).toEqual([])
-      expect(dismissed.tab).toBe(planTab)
+      expect(dismissed.tab).toBe(root)
     })
   })
 
@@ -103,7 +88,17 @@ describe("companion pane", () => {
       expect(pickFromGroup(two, two.artifacts).id).toBe("b")
       const read = selectTab(selectTab(two, "b"), "a")
       expect(pickFromGroup(read, read.artifacts).id).toBe("a")
-      expect(pickFromGroup({ ...read, tab: planTab }, read.artifacts).id).toBe("b")
+      expect(pickFromGroup({ ...read, tab: root }, read.artifacts).id).toBe("b")
+    })
+  })
+
+  context("when the agent shows something again", () => {
+    it("takes its new version in place, new again", () => {
+      const seen = selectTab(show(companion, home, false), home.id)
+      const again = show(seen, { ...home, version: 2, detail: "lines 1–5" }, false)
+      expect(again.artifacts).toMatchObject([
+        { id: "home", version: 2, detail: "lines 1–5", fresh: true },
+      ])
     })
   })
 })

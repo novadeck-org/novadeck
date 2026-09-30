@@ -52,6 +52,15 @@ export const lineChanges = (before: string, after: string): ChangeSet => {
 
 const textOf = (value: string): Text => Text.of(value.split("\n"))
 
+// How far apart two texts are: how much of each the line changes between them touch.
+export const distance = (before: string, after: string): number => {
+  let apart = 0
+  lineChanges(before, after).iterChanges((fromA, toA, fromB, toB) => {
+    apart += toA - fromA + (toB - fromB)
+  })
+  return apart
+}
+
 // A last line without its line break merges as if it had one, so a line either side adds
 // after it doesn't join it.
 const breaks = (text: string): boolean => text.endsWith("\n")

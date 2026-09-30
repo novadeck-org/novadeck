@@ -319,14 +319,15 @@ asking it to open it. Files show without highlighting, and a page shows as a
 snapshot until the pane hosts a browser.
 
 The pane reads everything from the backend's optional `companions` capability
-(`model/companion.ts`): each agent terminal's plan and what it has shown, events as
-the agent revises its plan or shows something, and a way to save the user's edits
-back to the plan file. Only the content-preview demo implements it, with sample
-agents in `backend/demo/showcase/`: their plans as Markdown files, their artifacts,
-transcripts and replies, and a simulation of their timing and of the skill's
-effect. The runner doesn't implement it yet, so its terminals show no taskbar;
-connecting it means reporting the same from the agents' files. The editor and its
-merge code load when a plan first opens.
+(`model/companion.ts`): each terminal's plans and what its agent has shown, as terminals
+and plans come and go; content loaded on demand; and a save that writes the user's
+edits and notes into the plan file unless it changed since, in which case the pane
+merges and saves again. Edits save once typing pauses and when focus leaves the plan.
+Only the content-preview demo implements it, with sample agents in
+`backend/demo/showcase/` that revise their plans over the file as the user left it and
+remove the notes they apply. The runner doesn't implement it yet, so its terminals show
+no taskbar; `docs/agent-workspace.md` ("Companion pane") says how it would. The editor
+and its merge code load when a plan first opens.
 Normal development and packaged builds keep their runner behavior.
 
 ### Debug panel

@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 
 import { createStore } from "../../model/store"
 import type { TerminalMetadata } from "../../model/types"
-import type { AgentConnection, Backend, CreateBackend } from "../port"
+import type { AgentConnection, Backend, CreateBackend, TerminalKey } from "../port"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { createMockTerminal, demoSeed } from "./samples"
@@ -21,7 +21,7 @@ const sampleAgents: readonly AgentConnection[] = [
 export const demoBackend = (
   engine: DemoEngine,
   welcome = false,
-  introOf?: (terminal: TerminalMetadata) => ReactNode,
+  introOf?: (terminal: TerminalMetadata, key: TerminalKey) => ReactNode,
 ): Backend => {
   const transcripts = createStore(true)
   const agents = createStore(sampleAgents)

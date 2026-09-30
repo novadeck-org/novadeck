@@ -1,10 +1,11 @@
+import { companionKeyId } from "../../model/companion"
 import { gridColumns } from "../../model/layout/grid-placement"
 import { createTerminalState } from "../../model/state"
 import type { CanvasLayout, GridBreakpoint, GridLayouts, TerminalMetadata } from "../../model/types"
-import type { CreateBackend } from "../port"
+import type { CreateBackend, TerminalKey } from "../port"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoBackend } from "./index"
-import { authAgent, studioAgent } from "./showcase/agents"
+import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { createShowcase } from "./showcase/simulation"
 
 // A UI-only workspace. The previews never start processes or request a runner.
@@ -66,21 +67,35 @@ export const createContentDemo: CreateBackend = () => {
       ]
     }),
   )
-  // The sample agents run in the first two terminals: they open with their own
-  // transcripts, answer what they're told, and report their plans and what they show.
-  const agents = { "01": studioAgent, "03": authAgent }
+  // The sample agents run in the first two terminals of the showcase's own session:
+  // they open with their own transcripts, answer what they're told, and report their
+  // plans and what they show.
+  const session = { projectId: "studio", workspaceSessionId: "initial" }
+  const agents = [
+    { key: { ...session, terminalId: "01" }, sample: studioAgent },
+    { key: { ...session, terminalId: "03" }, sample: authAgent },
+  ]
   const showcase = createShowcase(agents)
-  const agentOf = (terminal: TerminalMetadata) => agents[terminal.id as keyof typeof agents]
-  const base = createDemoEngine((command, terminal) => agentOf(terminal)?.reply(command.trim()))
+  const agentAt = (key: TerminalKey): SampleAgent | undefined =>
+    agents.find((agent) => companionKeyId(agent.key) === companionKeyId(key))?.sample
+  const base = createDemoEngine((command, _terminal, key) => agentAt(key)?.reply(command.trim()))
   const engine: DemoEngine = {
     ...base,
     run: (key, command) => {
       base.run(key, command)
-      if (command.trim()) showcase.told(key.terminalId, command)
+      if (command.trim()) showcase.told(key, command)
     },
   }
+  const backend = demoBackend(engine, false, (_terminal, key) => agentAt(key)?.transcript)
   return {
-    ...demoBackend(engine, false, (terminal) => agentOf(terminal)?.transcript),
+    ...backend,
+    // A closed terminal's agent is gone.
+    commit: (workspace, actions) => {
+      backend.commit(workspace, actions)
+      for (const action of actions)
+        if (action.type === "terminal/close")
+          showcase.closed({ ...action.target, terminalId: action.terminalId })
+    },
     companions: showcase,
     seed: {
       projects: [

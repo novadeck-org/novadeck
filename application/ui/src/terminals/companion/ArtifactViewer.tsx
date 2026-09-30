@@ -1,13 +1,13 @@
 import { ArrowLeft, FileCode2, Globe, Image, RotateCw } from "lucide-react"
 import { useState } from "react"
 
-import type {
-  Artifact,
-  ArtifactKind,
-  FileArtifact,
-  ImageArtifact,
-  PageArtifact,
-} from "../../model/companion"
+import type { ArtifactContent, ArtifactKind } from "../../model/companion"
+import type { Shown } from "./pane"
+import type { ArtifactLoad } from "./state"
+
+type ImageContent = Extract<ArtifactContent, { kind: "image" }>
+type FileContent = Extract<ArtifactContent, { kind: "file" }>
+type PageContent = Extract<ArtifactContent, { kind: "page" }>
 
 export const kindIcons: Record<ArtifactKind, typeof Image> = {
   image: Image,
@@ -18,7 +18,13 @@ export const kindIcons: Record<ArtifactKind, typeof Image> = {
 // Viewers for what an agent shows beside its terminal. Files show without highlighting,
 // and a page shows as its snapshot until the pane hosts a browser.
 
-const ImageViewer = ({ artifact }: { artifact: ImageArtifact }): React.JSX.Element => {
+const ImageViewer = ({
+  artifact,
+  content,
+}: {
+  artifact: Shown
+  content: ImageContent
+}): React.JSX.Element => {
   const [actual, setActual] = useState(false)
   return (
     <>
@@ -36,17 +42,17 @@ const ImageViewer = ({ artifact }: { artifact: ImageArtifact }): React.JSX.Eleme
         </div>
       </div>
       <div className="artifact-image" data-actual={actual}>
-        <img src={artifact.src} alt={artifact.name} />
+        <img src={content.src} alt={artifact.name} />
       </div>
     </>
   )
 }
 
 // The lines the agent pointed at, from the first one on.
-const pointedLines = (artifact: FileArtifact): readonly string[] =>
-  artifact.lines.slice(artifact.from - artifact.firstLine, artifact.to - artifact.firstLine + 1)
+const pointedLines = (file: FileContent): readonly string[] =>
+  file.lines.slice(file.from - file.firstLine, file.to - file.firstLine + 1)
 
-const FileViewer = ({ artifact }: { artifact: FileArtifact }): React.JSX.Element => (
+const FileViewer = ({ content: artifact }: { content: FileContent }): React.JSX.Element => (
   <>
     <div className="artifact-meta">
       <code>{artifact.path}</code>
@@ -68,7 +74,7 @@ const FileViewer = ({ artifact }: { artifact: FileArtifact }): React.JSX.Element
   </>
 )
 
-const PageViewer = ({ artifact }: { artifact: PageArtifact }): React.JSX.Element => (
+const PageViewer = ({ content: artifact }: { content: PageContent }): React.JSX.Element => (
   <div className="artifact-browser">
     <div className="artifact-browser-bar">
       <button aria-label="Back">
@@ -84,12 +90,14 @@ const PageViewer = ({ artifact }: { artifact: PageArtifact }): React.JSX.Element
 )
 
 // A small picture of an artifact, for a peek: the image itself, the lines the agent
-// pointed at, or the page in a browser frame.
-export const ArtifactThumb = ({ artifact }: { artifact: Artifact }): React.JSX.Element =>
-  artifact.kind === "image" ? (
-    <img src={artifact.src} alt="" />
-  ) : artifact.kind === "file" ? (
-    <code className="peek-code">{pointedLines(artifact).join("\n")}</code>
+// pointed at, or the page in a browser frame. Blank until it loads.
+export const ArtifactThumb = ({ load }: { load: ArtifactLoad }): React.JSX.Element | null => {
+  if (load.status !== "ready") return null
+  const { content } = load
+  return content.kind === "image" ? (
+    <img src={content.src} alt="" />
+  ) : content.kind === "file" ? (
+    <code className="peek-code">{pointedLines(content).join("\n")}</code>
   ) : (
     <span className="peek-page">
       <span className="peek-page-bar">
@@ -97,18 +105,29 @@ export const ArtifactThumb = ({ artifact }: { artifact: Artifact }): React.JSX.E
         <i />
         <i />
       </span>
-      <img src={artifact.snapshot} alt="" />
+      <img src={content.snapshot} alt="" />
     </span>
   )
+}
 
-export const ArtifactViewer = ({ artifact }: { artifact: Artifact }): React.JSX.Element => (
-  <div className="artifact-viewer">
-    {artifact.kind === "image" ? (
-      <ImageViewer artifact={artifact} />
-    ) : artifact.kind === "file" ? (
-      <FileViewer artifact={artifact} />
+export const ArtifactViewer = ({
+  artifact,
+  load,
+}: {
+  artifact: Shown
+  load: ArtifactLoad
+}): React.JSX.Element => (
+  <div className="artifact-viewer" aria-busy={load.status === "loading"}>
+    {load.status === "loading" ? (
+      <div className="artifact-status" />
+    ) : load.status === "failed" ? (
+      <div className="artifact-status">Couldn't load {artifact.name}.</div>
+    ) : load.content.kind === "image" ? (
+      <ImageViewer artifact={artifact} content={load.content} />
+    ) : load.content.kind === "file" ? (
+      <FileViewer content={load.content} />
     ) : (
-      <PageViewer artifact={artifact} />
+      <PageViewer content={load.content} />
     )}
   </div>
 )

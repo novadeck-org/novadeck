@@ -34,7 +34,7 @@ const empty: DemoTerminalSnapshot = {
 // Drafts, transcript and scroll offsets for the demo's simulated terminals. `reply`
 // answers a terminal's command instead of the sample shell, when it has an answer.
 export const createDemoEngine = (
-  reply?: (command: string, terminal: TerminalMetadata) => string | undefined,
+  reply?: (command: string, terminal: TerminalMetadata, key: TerminalKey) => string | undefined,
 ): DemoEngine => {
   const listeners = new Map<string, Set<() => void>>()
   const publish = (key: TerminalKey): void =>
@@ -90,7 +90,7 @@ export const createDemoEngine = (
                 {
                   id: crypto.randomUUID(),
                   command,
-                  reply: reply?.(command, terminal) ?? mockReply(command, terminal),
+                  reply: reply?.(command, terminal, key) ?? mockReply(command, terminal),
                 },
               ],
             },

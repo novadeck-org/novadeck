@@ -3,7 +3,7 @@ import { EditorState, Text } from "@codemirror/state"
 import { context, describe, expect, it } from "../../../test"
 import planV1 from "./fixtures/plan-v1.md?raw"
 import planV2 from "./fixtures/plan-v2.md?raw"
-import { lineChanges, merge, resolveNotes } from "./sync"
+import { distance, lineChanges, merge, resolveNotes } from "./sync"
 
 const v1 = planV1
 const v2 = planV2
@@ -84,5 +84,10 @@ describe("plan editor sync", () => {
       expect(merge("a\nb", "a\nb", "a\nb\n").text).toBe("a\nb\n")
       expect(merge("a\nb\n", "a\nb", "a\nc\n").text).toBe("a\nc")
     })
+  })
+
+  it("measures how far apart two texts are by the lines that differ", () => {
+    expect(distance("a\nb\n", "a\nb\n")).toBe(0)
+    expect(distance("a\nb\n", "a\nB\n")).toBeLessThan(distance("a\nb\n", "A\nB\n"))
   })
 })

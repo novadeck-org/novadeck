@@ -1,19 +1,23 @@
 import type { ReactNode } from "react"
 
-import type { AgentPlan, Artifact } from "../../../model/companion"
-import { studioArtifacts } from "./artifacts"
+import type { PlanSnapshot } from "../../../model/companion"
+import { studioArtifacts, type SampleArtifact } from "./artifacts"
 import authV1 from "./plans/auth-v1.md?raw"
-import authV2 from "./plans/auth-v2.md?raw"
 import studioV1 from "./plans/studio-v1.md?raw"
-import studioV2 from "./plans/studio-v2.md?raw"
+import type { PlanEdit } from "./revise"
 
-// A sample agent in a showcase terminal: the plan it wrote and its later revisions, what
+// A sample agent in a showcase terminal: the plan it wrote and how it revises it, what
 // it shows, how its terminal opens, and what it says back.
 export type SampleAgent = {
-  readonly plan: Omit<AgentPlan, "text">
-  // Each revision's Markdown, oldest first. Feedback moves it to the next one.
-  readonly revisions: readonly string[]
-  readonly artifacts: { readonly shown: readonly Artifact[]; readonly next: readonly Artifact[] }
+  readonly plan: Pick<PlanSnapshot, "path" | "agent" | "skill">
+  // The plan as the agent first wrote it.
+  readonly text: string
+  // Each later revision, as edits to the file as it then stands. Feedback moves it on.
+  readonly revisions: readonly (readonly PlanEdit[])[]
+  readonly artifacts: {
+    readonly shown: readonly SampleArtifact[]
+    readonly next: readonly SampleArtifact[]
+  }
   readonly transcript: ReactNode
   readonly reply: (input: string) => string
 }
@@ -21,7 +25,24 @@ export type SampleAgent = {
 // Codex with a structured plan and NovaDeck's skill: it re-reads the plan on its own.
 export const studioAgent: SampleAgent = {
   plan: { path: "plans/studio.md", agent: "Codex", skill: true },
-  revisions: [studioV1, studioV2],
+  text: studioV1,
+  revisions: [
+    [
+      {
+        line: "Let the work lead. Pair generous space with expressive serif headlines, quiet navigation, and a warm ivory background.",
+        with: "Let the work lead. Pair generous space with a confident grotesk for headlines, quiet navigation, and a warm ivory background.",
+      },
+      {
+        line: "2. [ ] **Build the home page** in `pages/Home.tsx`: introduction, three selected projects, a short contact section.",
+        with: "2. [ ] **Build the home page** in `pages/Home.tsx`: introduction, one featured project at full width, then a short contact section.",
+      },
+      {
+        after:
+          "4. [ ] **Refine the smaller layouts.** Stack the project grid on mobile and keep reading widths comfortable.",
+        insert: "5. [ ] **Add a Journal page** in `pages/Journal.tsx` for short studio notes.",
+      },
+    ],
+  ],
   artifacts: studioArtifacts,
   transcript: (
     <>
@@ -56,7 +77,15 @@ export const studioAgent: SampleAgent = {
 // Claude Code with a prose plan and no skill: notes wait until it's asked to re-read.
 export const authAgent: SampleAgent = {
   plan: { path: "~/.claude/plans/refactor-auth.md", agent: "Claude Code", skill: false },
-  revisions: [authV1, authV2],
+  text: authV1,
+  revisions: [
+    [
+      {
+        line: "One open question: admin routes currently accept tokens for up to 24 hours. Should they follow the same rule, or keep a shorter window?",
+        with: "Admin routes will keep a shorter window: tokens older than one hour are rejected there even when the refresh would succeed elsewhere.",
+      },
+    ],
+  ],
   artifacts: { shown: [], next: [] },
   transcript: (
     <>

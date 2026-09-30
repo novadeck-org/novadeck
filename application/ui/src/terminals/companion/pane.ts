@@ -1,30 +1,42 @@
-import type { Artifact } from "../../model/companion"
+import type { ArtifactRef } from "../../model/companion"
 
-// What a terminal's companion pane holds besides the plan: what its agent showed, in the
-// order it came, and which of it is open.
+// What a terminal's companion pane holds besides its plans: what the agent showed, in
+// the order it came, and which tab is open.
 
 // An artifact as the pane holds it: new until the user looks at it.
-export type Shown = Artifact & { readonly fresh: boolean; readonly at: string }
+export type Shown = ArtifactRef & { readonly fresh: boolean; readonly at: string }
 
-// The pane's first tab is always the plan.
-export const planTab = "plan"
+// A plan's tab, by its ref, apart from the artifacts' tabs.
+export const planTab = (ref: string): string => `plan:${ref}`
+
+export const planRefOf = (tab: string): string | null =>
+  tab.startsWith("plan:") ? tab.slice("plan:".length) : null
 
 export type Companion = {
   readonly open: boolean
   readonly tab: string
+  // Where the pane goes when what it showed goes: the terminal's main plan.
+  readonly home: string
   readonly artifacts: readonly Shown[]
 }
 
-// The agent put something in front of the user. It waits in the taskbar unless the user
-// asked for it, and then it opens.
-export const show = <C extends Companion>(companion: C, artifact: Artifact, asked: boolean): C =>
-  companion.artifacts.some((shown) => shown.id === artifact.id)
-    ? companion
-    : {
-        ...companion,
-        artifacts: [...companion.artifacts, { ...artifact, fresh: !asked, at: "just now" }],
-        ...(asked ? { tab: artifact.id, open: true } : {}),
-      }
+// The agent put something in front of the user, or showed it again with new content.
+// It waits in the taskbar unless the user asked for it, and then it opens.
+export const show = <C extends Companion>(
+  companion: C,
+  artifact: ArtifactRef,
+  asked: boolean,
+): C => {
+  const shown: Shown = { ...artifact, fresh: !asked, at: "just now" }
+  const known = companion.artifacts.some((existing) => existing.id === artifact.id)
+  return {
+    ...companion,
+    artifacts: known
+      ? companion.artifacts.map((existing) => (existing.id === artifact.id ? shown : existing))
+      : [...companion.artifacts, shown],
+    ...(asked ? { tab: artifact.id, open: true } : {}),
+  }
+}
 
 // Looking at an artifact makes it old news.
 export const selectTab = <C extends Companion>(companion: C, tab: string): C => ({
@@ -45,7 +57,7 @@ export const openCompanion = <C extends Companion>(companion: C): C => {
 // The user is done with it: it leaves the pane, and the pane falls back to the plan.
 export const dismiss = <C extends Companion>(companion: C, id: string): C => ({
   ...companion,
-  tab: companion.tab === id ? planTab : companion.tab,
+  tab: companion.tab === id ? companion.home : companion.tab,
   artifacts: companion.artifacts.filter((shown) => shown.id !== id),
 })
 

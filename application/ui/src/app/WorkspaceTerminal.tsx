@@ -109,10 +109,10 @@ export const WorkspaceTerminal = ({
   // One shell element whatever runs, so only the body around the content changes.
   const renderWindow = (content: ReactNode): ReactNode => (
     <WindowShell {...frame}>
-      {backend.companions?.terminals[terminal.id] ? (
+      {backend.companions ? (
         <TerminalCompanion
           companions={backend.companions}
-          terminalId={terminal.id}
+          companionKey={terminalKey}
           view={view}
           onReveal={onReveal}
           minimized={minimize?.minimized}

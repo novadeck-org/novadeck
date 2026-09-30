@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
-import type { Companions } from "../../model/companion"
+import type { CompanionKey, Companions } from "../../model/companion"
 import type { ViewMode } from "../../model/types"
 import type { TerminalLayoutControls } from "../WindowShell"
 import { CompanionPane } from "./CompanionPane"
@@ -88,10 +88,11 @@ const AttachedPlan = ({
 }
 
 // A terminal's companion: its taskbar, and the pane it opens in the terminal's own
-// window or beside its canvas node.
+// window or beside its canvas node. It wraps every terminal of a backend that reports
+// companions, so the terminal keeps its content when its agent first shows something.
 export const TerminalCompanion = ({
   companions,
-  terminalId,
+  companionKey,
   view,
   onReveal,
   children,
@@ -99,17 +100,17 @@ export const TerminalCompanion = ({
   clipContent,
 }: {
   companions: Companions
-  terminalId: string
+  companionKey: CompanionKey
   view: ViewMode
   onReveal?: TerminalLayoutControls["onReveal"]
   children: ReactNode
   minimized?: boolean | undefined
   clipContent?: boolean | undefined
 }): React.JSX.Element => {
-  const companion = useCompanion(companions, terminalId)
+  const companion = useCompanion(companions, companionKey)
   const trigger = useRef<HTMLButtonElement>(null)
   const presentation = presentationOf(view)
-  const open = companion.state.open && !minimized
+  const open = companion.present && companion.pane.open && !minimized
   const wasOpen = useRef(open)
   // Opening leaves focus on the taskbar. Hiding the pane from inside it (Escape) would
   // drop focus with the pane, so it goes back to the taskbar.
@@ -133,7 +134,8 @@ export const TerminalCompanion = ({
       ) : (
         children
       )}
-      <Taskbar companion={companion} trigger={trigger} open={open} />
+      {/* A terminal gains its taskbar once its agent has a plan or shows something. */}
+      {companion.present && <Taskbar companion={companion} trigger={trigger} open={open} />}
       {open && presentation === "attached" && (
         <AttachedPlan companion={companion} onReveal={onReveal} />
       )}
