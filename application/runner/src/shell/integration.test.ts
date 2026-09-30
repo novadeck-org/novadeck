@@ -586,9 +586,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         },
       })}\n`,
     )
-    await expect
-      .poll(activity, { timeout: 10_000 })
-      .toEqual({ state: "idle", attention: { pending: 0, kind: null }, subagents: [] })
+    await expect.poll(activity, { timeout: 10_000 }).toEqual({
+      state: "idle",
+      attention: { pending: 0, kind: null },
+      subagents: [],
+      planning: false,
+    })
   })
 
   it("shows a Codex session's context and rate limits from its rollout", async ({ shell }) => {
@@ -658,7 +661,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, terminal.id, "reports sent")
     await expect
       .poll(() => manager.list(terminal.sessionId)[0]?.activity, { timeout: 10_000 })
-      .toEqual({ state: "idle", attention: { pending: 0, kind: null }, subagents: [] })
+      .toEqual({
+        state: "idle",
+        attention: { pending: 0, kind: null },
+        subagents: [],
+        planning: false,
+      })
     expect(manager.reportedSession(terminal.id, "claude")).toBe("s2")
   })
 

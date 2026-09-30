@@ -4,11 +4,16 @@ export type PreferencesValue = { fontSize: number; enabledViews: ViewMode[] }
 export type Project = { id: string; name: string; directory: string }
 
 // What the agent running in a terminal says it is doing: working on a turn or waiting
-// for the next prompt, how many of its requests wait on the person, by the kind of the
-// oldest: permission for a tool, or a question, and the subagents it runs, oldest first.
+// for the next prompt, whether it plans rather than acts, how many of its requests wait
+// on the person, by the kind of the oldest: permission for a tool, a question, or a plan
+// to review, and the subagents it runs, oldest first.
 export type AgentStatus = {
   readonly working: boolean
-  readonly attention?: { readonly kind: "permission" | "question"; readonly count: number }
+  readonly planning?: true
+  readonly attention?: {
+    readonly kind: "permission" | "question" | "plan"
+    readonly count: number
+  }
   readonly subagents?: readonly { readonly id: string; readonly type: string | null }[]
   readonly usage?: AgentUsage
 }

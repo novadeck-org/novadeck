@@ -1,11 +1,42 @@
 import type { DemoAgent } from "./samples"
 
+// Claude Code in plan mode: it read the code and waits for the person to review its plan.
+const ClaudePlan = (): React.JSX.Element => (
+  <>
+    <p className="agent-request mb-4 border-l-2 border-line bg-soft px-3 py-2">
+      ❯ Plan a compact order summary for the checkout page.
+    </p>
+    <p>I’ll read the checkout layout before proposing changes.</p>
+    <div className="agent-tool mt-4">
+      <p>
+        ● <strong>Read</strong> src/checkout/Checkout.tsx
+      </p>
+      <p className="agent-tool-result pl-3 text-muted">└ Read 128 lines</p>
+    </div>
+    <div className="agent-plan mt-5 border border-line px-3 py-2">
+      <p>
+        <strong>Ready to code?</strong>
+      </p>
+      <ol className="mt-2 list-decimal pl-5">
+        <li>Add OrderSummary beside the checkout form, reusing OrderItems and OrderTotal.</li>
+        <li>Stack it below the form on small screens.</li>
+        <li>Cover empty carts and quantity changes in the checkout tests.</li>
+      </ol>
+      <p className="mt-3 text-muted text-[0.85em]">❯ 1. Yes, and auto-accept edits</p>
+      <p className="text-muted text-[0.85em]">&nbsp; 2. No, keep planning</p>
+    </div>
+    <p className="agent-completion mt-4 text-muted text-[0.85em]">⏸ plan mode on</p>
+  </>
+)
+
 export const AgentOutput = ({
   agent,
   directory,
+  planning = false,
 }: {
   agent: DemoAgent
   directory: string
+  planning?: boolean
 }): React.JSX.Element => (
   <div
     className={`agent-transcript max-w-180 [overflow-wrap:anywhere] leading-[1.65] agent-${agent}`}
@@ -16,7 +47,9 @@ export const AgentOutput = ({
       <strong>{agent === "claude" ? "✳ Claude Code" : ">_ Codex"}</strong>
       <span className="text-muted">{directory}</span>
     </div>
-    {agent === "claude" ? (
+    {agent === "claude" && planning ? (
+      <ClaudePlan />
+    ) : agent === "claude" ? (
       <>
         <p className="agent-request mb-4 border-l-2 border-line bg-soft px-3 py-2">
           ❯ Add a compact order summary to the checkout page.

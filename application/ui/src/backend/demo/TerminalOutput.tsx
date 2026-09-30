@@ -11,7 +11,14 @@ export const TerminalOutput = ({
 }): React.JSX.Element => {
   const { directory } = terminal
   const agent = demoAgent(terminal)
-  if (agent) return <AgentOutput agent={agent} directory={directory} />
+  if (agent)
+    return (
+      <AgentOutput
+        agent={agent}
+        directory={directory}
+        planning={terminal.state === "running" && terminal.agent?.planning === true}
+      />
+    )
   const output = sampleOutput(terminal)
   if (output === "shell")
     return (

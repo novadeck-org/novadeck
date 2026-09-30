@@ -57,8 +57,10 @@ export const agentActivity = z.strictObject({
   state: z.enum(["working", "idle", "unknown"]),
   attention: z.strictObject({
     pending: z.number().int().nonnegative(),
-    kind: z.enum(["permission", "question"]).nullable(),
+    kind: z.enum(["permission", "question", "plan"]).nullable(),
   }),
+  // Whether it plans rather than acts, as its hooks last said.
+  planning: z.boolean(),
   // Its subagents running now, oldest first, each with its kind in the harness's words.
   subagents: z
     .array(

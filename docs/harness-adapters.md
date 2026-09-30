@@ -930,7 +930,18 @@ an action by typing guessed keys into a terminal.
       starts one again), the pending confirmation, the
       context window's share in use, and each named quota window. Windows keeps
       the person's status line until the command is proven there.
-   5. Planning signals.
+   5. Planning signals. The turn, tool and stop hooks of Claude Code's and
+      Codex's root agent name its `permission_mode`; the latest to start says
+      whether the agent plans, as `TerminalSummary.activity.planning`, since no
+      hook fires on the mode change itself and Claude Code's `SessionStart`
+      names none: a session started in plan mode shows it from its first prompt. A focused window's header says "planning". Claude
+      Code's `ExitPlanMode` review is its own attention kind, `plan`, so the
+      terminal says a plan waits for review rather than for permission; a
+      revised plan replaces the one waiting, its `PostToolUse` settles it
+      loosely (the person may edit the plan), and a rejection settles with the
+      next turn, as a denial does. Antigravity's status line names `cycle_mode` (`plan`,
+      `accept-edits`) only while the mode is not the default, and reruns when
+      it changes. Plan content and presentation belong to step 5.
 5. **Operate.** Add caller/operation, messaging, artifact and presentation
    services, with MCP and UI exercising the same operations, including the
    spawn-Codex and present-plan walkthroughs in the companion design.

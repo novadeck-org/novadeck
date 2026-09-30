@@ -32,6 +32,21 @@ describe("An agent waiting on the person", () => {
   })
 })
 
+describe("An agent that plans", () => {
+  it("says so beside a focused window's name, and that its plan waits for review", async () => {
+    // The demo's Claude Code planned, and waits for the person to review the plan.
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    const tab = page.getByRole("button", { name: "Select Checkout implementation" })
+    await expect.element(tab).toHaveAttribute("aria-description", "Plan ready for review")
+    await tab.click()
+    const window = page.getByRole("region", { name: "Checkout implementation terminal" })
+    await expect.element(window).toHaveAttribute("aria-description", "Plan ready for review")
+    await expect.element(window.getByText("planning", { exact: true })).toBeVisible()
+  })
+})
+
 describe("An agent's subagents", () => {
   it("count beside a focused window's name, their kinds on hover", async () => {
     // The demo's Codex runs two explorers.

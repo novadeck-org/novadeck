@@ -53,6 +53,11 @@ export const terminalPhase = (terminal: TerminalMetadata): TerminalPhase => {
 export const attentionText = (terminal: TerminalMetadata): string | undefined => {
   const attention = terminal.state === "running" ? terminal.agent?.attention : undefined
   if (!attention) return undefined
-  const what = attention.kind === "question" ? "Asks a question" : "Needs permission"
+  const what =
+    attention.kind === "question"
+      ? "Asks a question"
+      : attention.kind === "plan"
+        ? "Plan ready for review"
+        : "Needs permission"
   return attention.count > 1 ? `${what} · ${attention.count} waiting` : what
 }

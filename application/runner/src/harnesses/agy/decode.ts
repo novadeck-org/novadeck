@@ -50,7 +50,7 @@ const confirmation = {
 
 /**
  * Antigravity's status line: whether the agent works or waits on the person's
- * confirmation, how full its context window is, and its named quota windows, each with
+ * confirmation, whether it plans, how full its context window is, and its named quota windows, each with
  * the fraction left and when it resets. It names the person's account too, which nothing
  * here reads. Before a conversation starts it names none.
  */
@@ -66,6 +66,8 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
       evidence: "conversation-observed",
       ...(cwd !== undefined && { cwd }),
     },
+    // Its mode, which it names only while not the default, and reruns on when it changes.
+    { type: "mode-observed", ...base, planning: payload.cycle_mode === "plan" },
   ]
   // Idle ends the turn however it ended, an Esc or a denial included. Working without a
   // confirmation starts it again, settling any it waited on: a snapshot's hook may start

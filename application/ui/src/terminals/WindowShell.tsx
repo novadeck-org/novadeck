@@ -104,6 +104,7 @@ export const WindowShell = ({
   useRenderAt(nextReset(terminal))
   const usage = usageBadge(terminal)
   const subagents = subagentsBadge(terminal)
+  const planning = terminal.state === "running" && terminal.agent?.planning === true
   const headerDoubleAction = onFlyTo
   return (
     <section
@@ -231,11 +232,19 @@ export const WindowShell = ({
               )}
             </>
           </div>
-          {(usage || subagents) && !compact && (
-            // The agent's subagents, context and busiest rate limit, in full on hover. Only
-            // a focused window has room beside its name; a compact one leaves them to its
-            // tab's tooltip.
+          {(planning || usage || subagents) && !compact && (
+            // Whether the agent plans, its subagents, context and busiest rate limit, in
+            // full on hover. Only a focused window has room beside its name; a compact one
+            // leaves them to its tab's tooltip.
             <span className="ml-auto flex min-w-0 items-center gap-2 overflow-hidden font-mono text-[10px] text-muted">
+              {planning && (
+                <span
+                  className="terminal-planning shrink-0"
+                  title="Planning, not changing anything yet"
+                >
+                  planning
+                </span>
+              )}
               {subagents && (
                 <span className="terminal-subagents shrink-0" title={subagentsDetail(terminal)}>
                   {subagents}

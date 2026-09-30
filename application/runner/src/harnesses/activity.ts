@@ -8,7 +8,7 @@ type Request = {
   readonly requestId: string
   readonly actor: string | null
   readonly toolName: string
-  readonly kind: "permission" | "question"
+  readonly kind: "permission" | "question" | "plan"
 }
 
 /** A subagent running under the bound agent, since its start hook started. */
@@ -29,6 +29,7 @@ const maxText = 256
  * Subagents outlive turns, as a background one does, so no turn fences them; `ended`
  * says when each stopped, and `interrupted` spans the latest interrupted turn, whose
  * subagents stopped with it, so a start that arrives late is not taken for a new run.
+ * `planning` is what the latest hook to name the agent's mode said, at `planningAt`.
  */
 export type Activity = {
   readonly state: "working" | "idle"
@@ -36,6 +37,8 @@ export type Activity = {
   readonly subagents: readonly Subagent[]
   readonly ended: readonly { readonly id: string; readonly at: number }[]
   readonly interrupted: { readonly from: number; readonly to: number } | null
+  readonly planning: boolean
+  readonly planningAt: number
   readonly turnAt: number
 }
 
@@ -46,6 +49,8 @@ export const started = (at: number): Activity => ({
   subagents: [],
   ended: [],
   interrupted: null,
+  planning: false,
+  planningAt: at,
   turnAt: at,
 })
 
@@ -93,6 +98,9 @@ export const apply = (
 ): Activity | undefined => {
   if (!bound(binding, event)) return undefined
   switch (event.type) {
+    case "mode-observed":
+      if (event.startedAt < activity.planningAt) return undefined
+      return { ...activity, planning: event.planning, planningAt: event.startedAt }
     case "subagent-started": {
       const { subagents, ended, interrupted } = activity
       const { actor: id, startedAt } = event
@@ -130,6 +138,7 @@ export const apply = (
       if (event.outcome !== "interrupted") return { ...activity, ...turn }
       const stopped = activity.subagents.filter(({ startedAt }) => startedAt >= activity.turnAt)
       return {
+        ...activity,
         ...turn,
         subagents: activity.subagents.filter((subagent) => !stopped.includes(subagent)),
         ended: end(
@@ -150,10 +159,15 @@ export const apply = (
     case "attention-requested": {
       if (activity.pending.some(({ requestId }) => requestId === event.requestId)) return undefined
       const { requestId, actor, toolName, kind } = event
+      // An actor shows one plan for review at a time: a revised one replaces it.
+      const kept =
+        kind === "plan"
+          ? activity.pending.filter((each) => each.kind !== "plan" || each.actor !== actor)
+          : activity.pending
       return {
         ...activity,
         state: "working",
-        pending: [...activity.pending, { requestId, actor, toolName, kind }],
+        pending: [...kept, { requestId, actor, toolName, kind }],
       }
     }
     case "attention-resolved": {
@@ -165,8 +179,9 @@ export const apply = (
 }
 
 /** The activity as clients see it. */
-export const summary = ({ state, pending, subagents }: Activity): AgentActivity => ({
+export const summary = ({ state, pending, subagents, planning }: Activity): AgentActivity => ({
   state,
+  planning,
   attention: { pending: pending.length, kind: pending[0]?.kind ?? null },
   subagents: subagents.map(({ id, type }) => ({ id, type })),
 })

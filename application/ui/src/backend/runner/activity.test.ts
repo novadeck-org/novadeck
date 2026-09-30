@@ -57,7 +57,12 @@ describe("terminal activity", () => {
       )
 
     it("runs, working or idle as the agent says", () => {
-      const idle = { state: "idle" as const, attention: { pending: 0, kind: null }, subagents: [] }
+      const idle = {
+        state: "idle" as const,
+        attention: { pending: 0, kind: null },
+        subagents: [],
+        planning: false,
+      }
       expect(claude(idle).status).toEqual({ state: "running", agent: { working: false } })
       expect(claude({ ...idle, state: "unknown" }).status).toEqual({
         state: "running",
@@ -70,6 +75,7 @@ describe("terminal activity", () => {
         state: "working" as const,
         attention: { pending: 2, kind: "question" as const },
         subagents: [],
+        planning: false,
       }
       expect(claude(asking).status).toEqual({
         state: "running",
@@ -77,15 +83,39 @@ describe("terminal activity", () => {
       })
     })
 
+    it("carries whether it plans", () => {
+      expect(
+        claude({
+          state: "working",
+          attention: { pending: 1, kind: "plan" },
+          subagents: [],
+          planning: true,
+        }).status,
+      ).toEqual({
+        state: "running",
+        agent: { working: true, planning: true, attention: { kind: "plan", count: 1 } },
+      })
+    })
+
     it("carries the subagents it runs", () => {
       const subagents = [{ id: "a1", type: "explorer" }]
       expect(
-        claude({ state: "working", attention: { pending: 0, kind: null }, subagents }).status,
+        claude({
+          state: "working",
+          attention: { pending: 0, kind: null },
+          subagents,
+          planning: false,
+        }).status,
       ).toEqual({ state: "running", agent: { working: true, subagents } })
     })
 
     it("carries the tokens and quotas its records name", () => {
-      const idle = { state: "idle" as const, attention: { pending: 0, kind: null }, subagents: [] }
+      const idle = {
+        state: "idle" as const,
+        attention: { pending: 0, kind: null },
+        subagents: [],
+        planning: false,
+      }
       const telemetry = {
         context: { occupied: 1_000, capacity: 200_000 },
         limits: [{ minutes: 300, used: 0.4, resetsAt: null }],

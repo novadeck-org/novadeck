@@ -124,7 +124,19 @@ export const projectTerminals = (project: Project, agents = false): TerminalMeta
   terminals.map((terminal) => ({
     ...terminal,
     directory: terminal.directory.replace(/^~\/projects\/[^/]+/, project.directory),
-    ...(agents && terminal.id === "01" ? { command: "claude", process: "claude" } : {}),
+    // Claude Code planned, and waits for the person to review the plan.
+    ...(agents && terminal.id === "01"
+      ? {
+          command: "claude",
+          process: "claude",
+          state: "running" as const,
+          agent: {
+            working: true,
+            planning: true as const,
+            attention: { kind: "plan" as const, count: 1 },
+          },
+        }
+      : {}),
     // Codex waits for the person to allow a command while two of its subagents explore,
     // as an agent's hooks report it.
     ...(agents && terminal.id === "04"

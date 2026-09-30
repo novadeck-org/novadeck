@@ -53,7 +53,12 @@ const replay = (agent: AgentName, name: string) => {
   return { states, last: activity && summary(activity) }
 }
 
-const idle = { state: "idle", attention: { pending: 0, kind: null }, subagents: [] }
+const idle = {
+  state: "idle",
+  attention: { pending: 0, kind: null },
+  subagents: [],
+  planning: false,
+}
 
 describe("activity from captured hooks", () => {
   it("waits on the person while Claude Code asks, and works again once allowed", () => {
@@ -62,6 +67,7 @@ describe("activity from captured hooks", () => {
       state: "working",
       attention: { pending: 1, kind: "permission" },
       subagents: [],
+      planning: false,
     })
     expect(last).toEqual(idle)
   })
@@ -72,6 +78,7 @@ describe("activity from captured hooks", () => {
       state: "working",
       attention: { pending: 1, kind: "question" },
       subagents: [],
+      planning: false,
     })
     expect(last).toEqual(idle)
   })
@@ -81,6 +88,7 @@ describe("activity from captured hooks", () => {
       state: "working",
       attention: { pending: 1, kind: "permission" },
       subagents: [],
+      planning: false,
     })
   })
 
@@ -90,6 +98,7 @@ describe("activity from captured hooks", () => {
       state: "working",
       attention: { pending: 1, kind: "permission" },
       subagents: [],
+      planning: false,
     })
     expect(last).toEqual(idle)
   })
@@ -100,13 +109,20 @@ describe("activity from captured hooks", () => {
       state: "working",
       attention: { pending: 1, kind: "permission" },
       subagents: [],
+      planning: false,
     })
     expect(states).toContainEqual({
       state: "working",
       attention: { pending: 0, kind: null },
       subagents: [],
+      planning: false,
     })
     expect(last).toEqual(idle)
+  })
+
+  it("plans in Claude Code's plan mode, and waits on the person to review the plan", () => {
+    const { last } = replay("claude", "plan")
+    expect(last).toMatchObject({ planning: true, attention: { pending: 1, kind: "plan" } })
   })
 
   it("works through Antigravity's model calls and idles at Stop", () => {
@@ -115,6 +131,7 @@ describe("activity from captured hooks", () => {
       state: "working",
       attention: { pending: 0, kind: null },
       subagents: [],
+      planning: false,
     })
     expect(states).toContainEqual(idle)
   })
@@ -269,6 +286,31 @@ describe("applying activity", () => {
     expect(apply(twice, binding, subagent("subagent-started", "late", 20))).toBeUndefined()
   })
 
+  it("keeps one plan per actor waiting, and settles it though edited in review", () => {
+    const plan = (requestId: string, startedAt: number) =>
+      fact({
+        type: "attention-requested",
+        requestId,
+        actor: null,
+        toolName: "ExitPlanMode",
+        kind: "plan",
+        startedAt,
+      })
+    const revised = apply(apply(started(0), binding, plan("p1", 5))!, binding, plan("p2", 6))!
+    expect(summary(revised).attention).toEqual({ pending: 1, kind: "plan" })
+    const approved = apply(revised, binding, result("p3", null, "ExitPlanMode", true))!
+    expect(summary(approved).attention).toEqual({ pending: 0, kind: null })
+  })
+
+  it("plans as the latest hook to name the mode said, whatever order they arrive in", () => {
+    const mode = (planning: boolean, startedAt: number) =>
+      fact({ type: "mode-observed", planning, startedAt })
+    const planning = apply(started(0), binding, mode(true, 10))!
+    expect(summary(planning).planning).toBe(true)
+    expect(apply(planning, binding, mode(false, 9))).toBeUndefined()
+    expect(summary(apply(planning, binding, mode(false, 11))!).planning).toBe(false)
+  })
+
   it("carries no id or kind longer than the protocol takes", () => {
     const long = "x".repeat(300)
     expect(apply(started(0), binding, subagent("subagent-started", long))).toBeUndefined()
@@ -297,6 +339,19 @@ const interrupt = (payload: Report["payload"]): Report => ({
   instance: null,
   env: { cursor: false },
   payload,
+})
+
+describe("an agent's mode", () => {
+  it("comes from the root agent's hooks, not a subagent's", () => {
+    const hook = (payload: Report["payload"]) =>
+      harnesses.codex.decode({ ...interrupt(payload), event: "UserPromptSubmit" })
+    expect(hook({ session_id: "s", permission_mode: "plan" })).toContainEqual(
+      expect.objectContaining({ type: "mode-observed", planning: true }),
+    )
+    expect(
+      hook({ session_id: "s", agent_id: "a", permission_mode: "plan" }).map(({ type }) => type),
+    ).not.toContain("mode-observed")
+  })
 })
 
 describe("a Codex subagent's interrupt", () => {

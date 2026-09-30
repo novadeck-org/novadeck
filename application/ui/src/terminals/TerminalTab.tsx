@@ -59,6 +59,7 @@ export const TerminalTab = ({
   const usage = usageDetail(terminal)
   const subagents = subagentsBadge(terminal)
   const subagentKinds = subagents ? `${subagents}: ${subagentsDetail(terminal)}` : undefined
+  const planning = terminal.state === "running" && terminal.agent?.planning ? "Planning" : undefined
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,
@@ -92,7 +93,7 @@ export const TerminalTab = ({
         }
         selected={selected}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
-        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}${subagentKinds ? `\n${subagentKinds}` : ""}${usage ? `\n${usage}` : ""}`}
+        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}${planning ? `\n${planning}` : ""}${subagentKinds ? `\n${subagentKinds}` : ""}${usage ? `\n${usage}` : ""}`}
         {...(note ? { description: note } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}

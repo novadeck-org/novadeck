@@ -135,3 +135,30 @@ export const callId = (actor: string | null, toolName: string, input: unknown): 
 /** A payload's string field, or undefined. */
 export const text = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined
+
+/**
+ * The facts of a hook, and whether the agent plans: the root agent's turn, tool and stop
+ * hooks name its permission mode, `plan` while it plans. None fires when the mode
+ * changes, and Claude Code's SessionStart names none, so a session started or cleared in
+ * plan mode shows it from its first prompt.
+ */
+export const withMode = (
+  facts: readonly HarnessEvent[],
+  payload: Report["payload"],
+): readonly HarnessEvent[] => {
+  const mode = text(payload.permission_mode)
+  const [first] = facts
+  if (!mode || !first || text(payload.agent_id)) return facts
+  const { agent, instance, startedAt } = first
+  return [
+    ...facts,
+    {
+      type: "mode-observed",
+      agent,
+      sessionId: first.sessionId,
+      instance,
+      startedAt,
+      planning: mode === "plan",
+    },
+  ]
+}

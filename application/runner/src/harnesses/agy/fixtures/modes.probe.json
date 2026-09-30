@@ -1,0 +1,11 @@
+{
+  "harness": "agy",
+  "version": "1.2.13",
+  "source": "captured",
+  "how": "the status line's cycle_mode as agy started interactively with each --mode, before any conversation; every other field left out",
+  "cycleMode": {
+    "plan": "plan",
+    "accept-edits": "accept-edits",
+    "default": null
+  }
+}

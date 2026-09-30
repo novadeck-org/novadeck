@@ -30,10 +30,11 @@ export type TerminalActivity = {
 
 // What an agent's hooks and records say it does, for its terminal's status.
 const agentStatus = (
-  { state, attention, subagents }: AgentActivity,
+  { state, attention, subagents, planning }: AgentActivity,
   telemetry: AgentTelemetry | null,
 ): AgentStatus => ({
   working: state !== "idle",
+  ...(planning ? { planning: true as const } : {}),
   ...(attention.pending > 0 && attention.kind
     ? { attention: { kind: attention.kind, count: attention.pending } }
     : {}),

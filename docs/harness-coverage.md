@@ -29,7 +29,7 @@ Evidence:
 | attention   | partial: `PermissionRequest`, also for questions; no id; a denial fires nothing (probed)             | partial: `PermissionRequest` without id; approval `PostToolUse`, denial `Interrupt` (probed)       | partial: `PreToolUse` then `PostToolUse` by `stepIdx`; a denial fires nothing (probed) |
 | actors      | partial: `SubagentStart`/`SubagentStop` and `agent_id` on tool hooks (probed)                        | partial: `SubagentStart`/`SubagentStop` and `agent_id` on tool hooks (probed)                      | unsupported by hooks; parent id only in `conversation_summaries.db`                    |
 | transcripts | partial: session JSONL plus a file per subagent; undocumented records                                | partial: rollout JSONL; items appear only when completed (probed)                                  | partial: `transcriptPath` JSONL, rewritten on compaction; format undocumented          |
-| planning    | partial: `permission_mode: plan`; draft written to `~/.claude/plans`; `ExitPlanMode` review (probed) | partial, documented: `permission_mode: plan`; `update_plan` tool                                   | partial: status line `execution_mode`; `artifactDirectoryPath` on hooks                |
+| planning    | partial: `permission_mode: plan`; draft written to `~/.claude/plans`; `ExitPlanMode` review (probed) | partial, documented: `permission_mode: plan`; `update_plan` tool                                   | partial: status line `cycle_mode` (probed); `artifactDirectoryPath` on hooks           |
 | usage       | partial: per-message usage in the transcript; cost only as a status line estimate                    | complete for tokens: `token_count` and `token_usage_record` (probed); no cost                      | partial: status line token totals and cost estimate                                    |
 | limits      | partial: status line `rate_limits` only                                                              | complete: `rate_limits` windows with reset instants in `token_count` (probed)                      | partial: status line `quota` per model                                                 |
 | context     | partial: status line `context_window`; `PreCompact`/`PostCompact`                                    | partial: `model_context_window` plus last response usage (probed); compaction hooks                | partial: status line `context_window`; compaction has no signal                        |
@@ -200,7 +200,7 @@ Other facts:
 
 **Transcripts.** Every hook names the transcript, a JSONL file. It is rewritten on compaction, so following it must handle truncation. Its record format is undocumented.
 
-**Planning.** Plan mode exists (`--mode plan`, `/plan`), and the status line reports `execution_mode`. Plans, task lists and walkthroughs are artifacts under `artifactDirectoryPath`. No signal marks a plan's approval.
+**Planning.** Plan mode exists (`--mode plan`, `/plan`), and the status line reports `cycle_mode`: `plan` or `accept-edits`, absent in the default mode (probed with `--mode`). Plans, task lists and walkthroughs are artifacts under `artifactDirectoryPath`. No signal marks a plan's approval.
 
 **Usage, limits, context.** The status line only. Its JSON on stdin has:
 
