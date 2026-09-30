@@ -424,10 +424,15 @@ describe("runner client agent detail", () => {
         telemetry: null,
         actors: [],
         requests: [],
+        plans: [],
         coverage: null,
       },
     })
-    // No agent runs there, so no actor has a transcript.
+    // No agent runs there, so no actor has a transcript or a plan.
+    await expect(client.agents.plan(terminal.id, "x".repeat(16)).next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    })
     await expect(client.agents.transcript(terminal.id, "x".repeat(16)).next()).resolves.toEqual({
       done: true,
       value: undefined,

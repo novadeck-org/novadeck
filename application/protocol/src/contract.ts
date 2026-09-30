@@ -5,6 +5,7 @@ import {
   agentDetail,
   agentIntegration,
   agentRef,
+  planContent,
   transcriptChange,
   agentName,
   clientState,
@@ -145,6 +146,12 @@ export const contract = {
     transcript: procedure
       .input(z.strictObject({ terminalId: id, actor: agentRef }))
       .output(eventIterator(transcriptChange)),
+    // A plan `detail` lists, by its ref: its text as it stands, then again on each change,
+    // while the terminal's agent keeps it as its actor's latest. A plan it does not list is
+    // NOT_FOUND; the stream ends once another plan replaces it or the agent leaves.
+    plan: procedure
+      .input(z.strictObject({ terminalId: id, plan: agentRef }))
+      .output(eventIterator(planContent)),
     // Installs or removes the plugin through the agent's own commands.
     set: procedure
       .input(z.strictObject({ agent: agentName, connected: z.boolean() }))

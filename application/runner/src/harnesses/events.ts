@@ -24,8 +24,8 @@ export type SessionObserved = {
 
 /**
  * What the agent in a session did, as its own hooks report it: a turn started or ended,
- * a request started or stopped waiting on the person, a subagent started or stopped, or
- * the agent was seen planning or not. A request has no id of its own
+ * a request started or stopped waiting on the person, a subagent started or stopped, the
+ * agent was seen planning or not, or an actor wrote or presented a plan. A request has no id of its own
  * in any harness, so `requestId` is derived from the tool call it asks about and the
  * actor that asks: the root agent, or a subagent by its id. A result marked `loose`
  * resolves the actor's oldest request of that tool when its call changed on the way, as
@@ -65,6 +65,7 @@ export type ActivityEvent = {
     }
   | { readonly type: "subagent-stopped"; readonly actor: string }
   | { readonly type: "mode-observed"; readonly planning: boolean }
+  | { readonly type: "plan-observed"; readonly actor: string | null; readonly plan: PlanSource }
 )
 
 /**
@@ -80,6 +81,11 @@ export type TelemetryObserved = {
   readonly context?: AgentTelemetry["context"]
   readonly limits?: AgentTelemetry["limits"]
 }
+
+/** Where a plan is: a file the harness wrote it to, or its text when it named no file. */
+export type PlanSource =
+  | { readonly kind: "file"; readonly path: string }
+  | { readonly kind: "text"; readonly text: string; readonly truncated: boolean }
 
 /** A normalized fact a harness reported. */
 export type HarnessEvent = SessionObserved | ActivityEvent | TelemetryObserved

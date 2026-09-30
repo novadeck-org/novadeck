@@ -3,6 +3,7 @@ import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
 import { constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 
 import type {
   AgentDetail,
@@ -12,6 +13,7 @@ import type {
   TerminalChange,
   TerminalEvent,
   TerminalSummary,
+  PlanContent,
   TranscriptChange,
 } from "@novadeck/protocol"
 import { SerializeAddon } from "@xterm/addon-serialize"
@@ -28,7 +30,7 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
-import { actorOf, agentDetail } from "../harnesses/detail.js"
+import { actorOf, agentDetail, planOf } from "../harnesses/detail.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
 import type { HarnessEvent, SessionObserved } from "../harnesses/events.js"
 import { harnesses } from "../harnesses/registry.js"
@@ -44,6 +46,7 @@ import {
   type Foreground,
 } from "./foreground.js"
 import { Latest } from "./latest.js"
+import { planContent, planStamp } from "./plans.js"
 import type { AgentReport, SavedTerminal, TerminalRecords } from "./records.js"
 import { snapshot } from "./snapshot.js"
 import { Subscription } from "./subscription.js"
@@ -88,6 +91,8 @@ export type TerminalOptions = {
   saveMs?: number
   /** The longest transcript kept per terminal, in characters. */
   transcriptChars?: number
+  /** How often a followed plan's file is looked at for changes, in milliseconds. */
+  planPollMs?: number
 }
 
 type Create = {
@@ -141,8 +146,8 @@ type Record = {
   watching: AbortController | null
   /** The bound session's transcript, where its hooks named one. */
   transcript: string | null
-  /** Ends the `agents.transcript` streams reading the bound session's transcripts. */
-  transcriptReaders: Set<AbortController>
+  /** Ends the `agents.transcript` and `agents.plan` streams reading the bound session's. */
+  sourceReaders: Set<AbortController>
   /** When the shell last showed its prompt, in epoch milliseconds. */
   promptedAt: number | null
   /** Unsaved changes: output, directory, or prompts. */
@@ -319,6 +324,7 @@ export class Terminals {
       connected: options.connected ?? (() => Promise.resolve(true)),
       saveMs: positive(options.saveMs, 5000),
       transcriptChars: positive(options.transcriptChars, 256 * 1024),
+      planPollMs: positive(options.planPollMs, 500),
     }
     // Child programs do not need the runner's network capability, nor the identity of a
     // NovaDeck terminal the runner itself was started from.
@@ -414,7 +420,7 @@ export class Terminals {
         telemetry: null,
         watching: null,
         transcript: null,
-        transcriptReaders: new Set(),
+        sourceReaders: new Set(),
         promptedAt: saved?.promptedAt ?? null,
         changed: false,
         savedAt: 0,
@@ -876,7 +882,7 @@ export class Terminals {
     const path = await source.locate(root, binding.sessionId, native)
     if (!path || record.binding !== binding) throw new DomainError("NOT_FOUND")
     const reader = new AbortController()
-    record.transcriptReaders.add(reader)
+    record.sourceReaders.add(reader)
     const abort = () => reader.abort()
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) reader.abort()
@@ -885,7 +891,51 @@ export class Terminals {
     } finally {
       signal?.removeEventListener("abort", abort)
       reader.abort()
-      record.transcriptReaders.delete(reader)
+      record.sourceReaders.delete(reader)
+    }
+  }
+
+  /**
+   * A plan the bound session keeps as an actor's latest: its text as it stands, then
+   * again on each change, until another plan replaces it, the terminal's agent leaves
+   * the session, or `signal` aborts. A plan it does not keep is NOT_FOUND.
+   */
+  async *plan(terminalId: string, plan: string, signal?: AbortSignal): AsyncGenerator<PlanContent> {
+    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    const record = this.record(terminalId)
+    const { binding } = record
+    if (!binding || !planOf(binding, record.activity, plan)) throw new DomainError("NOT_FOUND")
+    const reader = new AbortController()
+    record.sourceReaders.add(reader)
+    const abort = () => reader.abort()
+    signal?.addEventListener("abort", abort, { once: true })
+    if (signal?.aborted) reader.abort()
+    try {
+      let stamp: string | undefined
+      let sent = ""
+      while (!reader.signal.aborted && record.binding === binding) {
+        const current = planOf(binding, record.activity, plan)
+        if (!current) return
+        // eslint-disable-next-line no-await-in-loop -- Each look follows the one before.
+        const now = await planStamp(current.source)
+        if (now !== undefined && now !== stamp) {
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          const content = await planContent(plan, current.source)
+          // A read that failed is tried again on the next look.
+          if (content) stamp = now
+          const key = JSON.stringify(content)
+          if (content && key !== sent && !reader.signal.aborted) {
+            sent = key
+            yield content
+          }
+        }
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await sleep(this.options.planPollMs, undefined, { signal: reader.signal }).catch(() => {})
+      }
+    } finally {
+      signal?.removeEventListener("abort", abort)
+      reader.abort()
+      record.sourceReaders.delete(reader)
     }
   }
 
@@ -1376,8 +1426,8 @@ export class Terminals {
     record.watching?.abort()
     record.watching = null
     record.transcript = null
-    for (const reader of record.transcriptReaders) reader.abort()
-    record.transcriptReaders.clear()
+    for (const reader of record.sourceReaders) reader.abort()
+    record.sourceReaders.clear()
   }
 
   /**

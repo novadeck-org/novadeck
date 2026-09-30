@@ -758,6 +758,58 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await reading
   })
 
+  it("streams a plan the agent drafts, as it changes, until the agent leaves", async ({
+    shell,
+  }) => {
+    const plans = join(shell.home, ".claude", "plans")
+    mkdirSync(plans, { recursive: true })
+    const path = join(plans, "brave-fox.md")
+    writeFileSync(path, "# Plan\n")
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "s1", seq: 1, source: "startup" },
+      {
+        agent: "claude",
+        sessionId: "s1",
+        seq: 2,
+        source: "",
+        event: "PostToolUse",
+        fields: {
+          tool_name: "Write",
+          permission_mode: "plan",
+          tool_input: { file_path: path, content: "# Plan\n" },
+        },
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      planPollMs: 20,
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await shell.until(manager, terminal.id, "reports sent")
+    const details = manager.detail(terminal.id)
+    let plan: AgentDetail["plans"][number] | undefined
+    while (!plan) {
+      // eslint-disable-next-line no-await-in-loop -- Reads snapshots until the plan shows.
+      const { value } = await details.next()
+      plan = value?.plans[0]
+    }
+    await details.return(undefined)
+    expect(plan).toMatchObject({ source: "file", name: "brave-fox.md" })
+    const texts: string[] = []
+    const reading = (async () => {
+      for await (const content of manager.plan(terminal.id, plan.ref)) texts.push(content.text)
+    })()
+    await expect.poll(() => texts).toEqual(["# Plan\n"])
+    writeFileSync(path, "# Plan\n\n1. More\n")
+    await expect.poll(() => texts).toEqual(["# Plan\n", "# Plan\n\n1. More\n"])
+    manager.forgetAgent("claude")
+    await reading
+    await expect(manager.plan(terminal.id, plan.ref).next()).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    })
+  })
+
   it("keeps an agent session's own markers out of its shells", async ({ shell }) => {
     // As when NovaDeck itself was started from inside Claude Code.
     const manager = shell.manager({

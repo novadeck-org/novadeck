@@ -1,7 +1,7 @@
 import type { AgentActivity } from "@novadeck/protocol"
 
 import type { Binding } from "./bindings.js"
-import type { ActivityEvent } from "./events.js"
+import type { ActivityEvent, PlanSource } from "./events.js"
 import { ref } from "./harness.js"
 
 /** The reference clients know a subagent by. */
@@ -18,6 +18,12 @@ type Request = {
   /** When its hook started: asked again later, the same call is another request. */
   readonly askedAt: number
 }
+
+/** An actor's latest plan, as the hook that named it started. */
+type Plan = { readonly actor: string | null; readonly source: PlanSource; readonly at: number }
+
+// One plan per actor, and no more actors than an agent runs.
+const maxPlans = 33
 
 /** A subagent running under the bound agent, since its start hook started. */
 type Subagent = { readonly id: string; readonly type: string | null; readonly startedAt: number }
@@ -47,6 +53,8 @@ export type Activity = {
   readonly interrupted: { readonly from: number; readonly to: number } | null
   readonly planning: boolean
   readonly planningAt: number
+  /** Each actor's latest plan, in the order the actors first planned. */
+  readonly plans: readonly Plan[]
   readonly turnAt: number
 }
 
@@ -59,6 +67,7 @@ export const started = (at: number): Activity => ({
   interrupted: null,
   planning: false,
   planningAt: at,
+  plans: [],
   turnAt: at,
 })
 
@@ -106,6 +115,30 @@ export const apply = (
 ): Activity | undefined => {
   if (!bound(binding, event)) return undefined
   switch (event.type) {
+    case "plan-observed": {
+      const { actor, plan: source, startedAt: at } = event
+      const index = activity.plans.findIndex((plan) => plan.actor === actor)
+      const next = { actor, source, at }
+      // An actor's plan keeps its place.
+      if (index >= 0)
+        return activity.plans[index]!.at > at
+          ? undefined
+          : { ...activity, plans: activity.plans.toSpliced(index, 1, next) }
+      // Full, the oldest subagent's plan makes room.
+      const evicted =
+        activity.plans.length < maxPlans
+          ? -1
+          : activity.plans.reduce(
+              (oldest, plan, position, plans) =>
+                plan.actor !== null && (oldest < 0 || plan.at < plans[oldest]!.at)
+                  ? position
+                  : oldest,
+              -1,
+            )
+      if (activity.plans.length >= maxPlans && evicted < 0) return undefined
+      const kept = evicted < 0 ? activity.plans : activity.plans.toSpliced(evicted, 1)
+      return { ...activity, plans: [...kept, next] }
+    }
     case "mode-observed":
       if (event.startedAt < activity.planningAt) return undefined
       return { ...activity, planning: event.planning, planningAt: event.startedAt }

@@ -11,6 +11,7 @@ import {
   type TerminalChange,
   type TerminalEvent,
   type TerminalSummary,
+  type PlanContent,
   type TranscriptChange,
   type WorkspaceSession,
 } from "./schemas.js"
@@ -176,6 +177,12 @@ export type Runner = {
       terminalId: string,
       actor: string,
     ): AsyncIterableIterator<TranscriptChange, undefined>
+    /**
+     * Follows a plan `detail` lists, by its ref: its text as it stands, then again on each
+     * change, across reconnections. Iteration ends once another plan replaces it, the
+     * terminal's agent leaves its session, the runner closes, or on `return()`.
+     */
+    plan(terminalId: string, plan: string): AsyncIterableIterator<PlanContent, undefined>
     /**
      * Installs or removes NovaDeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
@@ -926,6 +933,10 @@ export const connectRunner = async (
           connection,
           (wire, signal) => wire.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
+        ),
+      plan: (terminalId, plan) =>
+        new Resubscription(connection, (wire, signal) =>
+          wire.agents.plan({ terminalId, plan }, { signal }),
         ),
       set: (agent, connected) => call((wire) => wire.agents.set({ agent, connected })),
     },

@@ -114,8 +114,10 @@ export const agentCoverage = z.strictObject({
 
 // `agents.detail` snapshots: the agent a terminal runs, its root and subagents (root
 // first; a subagent's parent is null where the harness does not say), each request
-// waiting on the person with what it asks about and the answers it offers, and how much
-// of each feature this harness tells. Without an agent bound, only `terminalId`.
+// waiting on the person with what it asks about and the answers it offers, each actor's
+// latest plan (a file the harness keeps it in, with the file's name, or text it
+// presented), and how much of each feature this harness tells. Without an agent bound,
+// only `terminalId`.
 export const agentDetail = z.strictObject({
   terminalId: id,
   agent: agentName.nullable(),
@@ -144,7 +146,26 @@ export const agentDetail = z.strictObject({
       }),
     )
     .max(32),
+  plans: z
+    .array(
+      z.strictObject({
+        ref: agentRef,
+        actor: agentRef,
+        source: z.enum(["file", "text"]),
+        name: z.string().max(256).nullable(),
+      }),
+    )
+    .max(33),
   coverage: agentCoverage.nullable(),
+})
+
+// `agents.plan` snapshots: a plan's text as it stands, cut short past 256 KiB and marked
+// `truncated`, and when it last changed, in epoch milliseconds where known.
+export const planContent = z.strictObject({
+  ref: agentRef,
+  text: z.string().max(256 * 1024),
+  truncated: z.boolean(),
+  changedAt: z.number().nullable(),
 })
 
 // `agents.transcript` changes: items of an actor's conversation as its harness recorded
@@ -257,6 +278,7 @@ export type AgentActivity = z.infer<typeof agentActivity>
 export type AgentTelemetry = z.infer<typeof agentTelemetry>
 export type AgentCoverage = z.infer<typeof agentCoverage>
 export type AgentDetail = z.infer<typeof agentDetail>
+export type PlanContent = z.infer<typeof planContent>
 export type TranscriptItem = z.infer<typeof transcriptItem>
 export type TranscriptChange = z.infer<typeof transcriptChange>
 export type AgentIntegration = z.infer<typeof agentIntegration>

@@ -475,6 +475,18 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
+- `agents.detail` snapshots also list each actor's latest plan (`plans`: its ref, the
+  actor's ref, whether it is a file or presented text, and the file's name). Claude Code's
+  plans are the Markdown files plan mode writes in a `plans` folder, and what
+  `ExitPlanMode` presents: the file Claude Code names, wherever its plans folder is set,
+  or the plan's text, each presentation its own plan. Codex's and Antigravity's are not
+  read yet.
+  `agents.plan({ terminalId, plan })` streams one: its text as it stands (cut short past
+  256 KiB, marked `truncated`) with when its file last changed, then again on each
+  change. Only a plain Markdown file that one of those names is ever read. A plan no longer an
+  actor's latest is `NOT_FOUND`; the stream ends once another replaces it or the agent
+  leaves its session. The client's `agents.plan(terminalId, plan)` follows it across
+  reconnections.
 - `settings.get()` and `settings.set({ transcripts?, welcomed? })` read and change
   whether transcripts are kept (unless turned off; turning them off forgets every saved
   transcript) and whether the person has seen the first-run choice of agents.

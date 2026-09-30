@@ -1,3 +1,5 @@
+import { basename, dirname, extname } from "node:path"
+
 import type { Report } from "../../shell/reports.js"
 import type { HarnessEvent } from "../events.js"
 import { absolute, callId, sessionId, sessionStart, subjectOf, text, withMode } from "../harness.js"
@@ -76,6 +78,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
                 ? "plan"
                 : "permission",
         },
+        ...presented(base, actor, tool, payload.tool_input),
       ]
     case "PostToolUse":
     case "PostToolUseFailure":
@@ -91,6 +94,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           loose: tool === "AskUserQuestion" || tool === "ExitPlanMode",
           outcome: "allowed",
         },
+        ...drafted(base, actor, tool, payload),
       ]
     case "StatusLine":
       return statusLine(base, payload)
@@ -151,3 +155,64 @@ const statusLine = (
     },
   ]
 }
+
+// Tools that write a file, and what their input names it by.
+const writers = new Set(["Write", "Edit", "MultiEdit"])
+
+/** A Markdown file named by an absolute path. */
+const markdown = (value: unknown): string | undefined => {
+  const path = absolute(value)
+  return path && extname(path) === ".md" ? path : undefined
+}
+
+/**
+ * A file plan mode drafts a plan in: Markdown in a `plans` folder, as Claude Code keeps
+ * them (`~/.claude/plans`, or the config folder's). A plans folder set elsewhere shows
+ * when the plan is presented, which names its file whatever the folder.
+ */
+export const planFile = (value: unknown): string | undefined => {
+  const path = markdown(value)
+  return path && basename(dirname(path)) === "plans" ? path : undefined
+}
+
+// A plan drafted in plan mode: the file its writer wrote.
+const drafted = (
+  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  actor: string | null,
+  tool: string,
+  payload: Report["payload"],
+): HarnessEvent[] => {
+  if (!writers.has(tool) || payload.permission_mode !== "plan") return []
+  const path = planFile((payload.tool_input as { file_path?: unknown } | undefined)?.file_path)
+  return path ? [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }] : []
+}
+
+// A plan presented for review: its file, or its text when it names none.
+const presented = (
+  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  actor: string | null,
+  tool: string,
+  input: unknown,
+): HarnessEvent[] => {
+  if (tool !== "ExitPlanMode") return []
+  const { plan, planFilePath } = (input ?? {}) as { plan?: unknown; planFilePath?: unknown }
+  // Claude Code names the file itself, replacing whatever the model passed.
+  const path = markdown(planFilePath)
+  if (path) return [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }]
+  if (typeof plan !== "string" || !plan) return []
+  // Cut short, a character is left whole.
+  let end = Math.min(plan.length, maxPlan)
+  const last = plan.charCodeAt(end - 1)
+  if (end < plan.length && last >= 0xd800 && last <= 0xdbff) end -= 1
+  return [
+    {
+      type: "plan-observed",
+      ...base,
+      actor,
+      plan: { kind: "text", text: plan.slice(0, end), truncated: end < plan.length },
+    },
+  ]
+}
+
+// The longest plan text kept, as the protocol takes it.
+export const maxPlan = 256 * 1024
