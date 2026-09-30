@@ -2,6 +2,7 @@ import { useSortable } from "@dnd-kit/react/sortable"
 import { Check, Eye, EyeOff, Pencil, X } from "lucide-react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
+import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { nextReset, usageDetail } from "../model/agent-usage"
 import { attentionText, endingText, terminalEnding, terminalPhase } from "../model/terminal-ending"
 import type { TerminalMetadata } from "../model/types"
@@ -56,6 +57,8 @@ export const TerminalTab = ({
   const note = ended ?? waiting
   useRenderAt(nextReset(terminal))
   const usage = usageDetail(terminal)
+  const subagents = subagentsBadge(terminal)
+  const subagentKinds = subagents ? `${subagents}: ${subagentsDetail(terminal)}` : undefined
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,
@@ -89,7 +92,7 @@ export const TerminalTab = ({
         }
         selected={selected}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
-        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}${usage ? `\n${usage}` : ""}`}
+        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}${subagentKinds ? `\n${subagentKinds}` : ""}${usage ? `\n${usage}` : ""}`}
         {...(note ? { description: note } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}

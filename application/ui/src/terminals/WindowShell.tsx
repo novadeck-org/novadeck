@@ -12,6 +12,7 @@ import {
 import { useRef, type ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
+import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { nextReset, usageBadge, usageDetail } from "../model/agent-usage"
 import { attentionText, terminalPhase } from "../model/terminal-ending"
 import type { TerminalMetadata, WindowedView } from "../model/types"
@@ -102,6 +103,7 @@ export const WindowShell = ({
   const renaming = Boolean(rename)
   useRenderAt(nextReset(terminal))
   const usage = usageBadge(terminal)
+  const subagents = subagentsBadge(terminal)
   const headerDoubleAction = onFlyTo
   return (
     <section
@@ -229,14 +231,21 @@ export const WindowShell = ({
               )}
             </>
           </div>
-          {usage && !compact && (
-            // The agent's context and busiest rate limit, in full on hover. Only a focused
-            // window has room beside its name; a compact one leaves it to the tab.
-            <span
-              className="terminal-usage ml-auto min-w-0 truncate font-mono text-[10px] text-muted"
-              title={usageDetail(terminal)}
-            >
-              {usage}
+          {(usage || subagents) && !compact && (
+            // The agent's subagents, context and busiest rate limit, in full on hover. Only
+            // a focused window has room beside its name; a compact one leaves them to its
+            // tab's tooltip.
+            <span className="ml-auto flex min-w-0 items-center gap-2 overflow-hidden font-mono text-[10px] text-muted">
+              {subagents && (
+                <span className="terminal-subagents shrink-0" title={subagentsDetail(terminal)}>
+                  {subagents}
+                </span>
+              )}
+              {usage && (
+                <span className="terminal-usage min-w-0 truncate" title={usageDetail(terminal)}>
+                  {usage}
+                </span>
+              )}
             </span>
           )}
           <span className="terminal-actions flex shrink-0 items-center gap-1">

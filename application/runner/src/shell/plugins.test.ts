@@ -133,6 +133,8 @@ describe("agent plugins", () => {
       "UserPromptSubmit",
       "Stop",
       "StopFailure",
+      "SubagentStart",
+      "SubagentStop",
       "PermissionRequest",
       "PostToolUse",
       "PostToolUseFailure",
@@ -150,6 +152,8 @@ describe("agent plugins", () => {
       "UserPromptSubmit",
       "Stop",
       "Interrupt",
+      "SubagentStart",
+      "SubagentStop",
       "PermissionRequest",
       "PostToolUse",
     ])

@@ -32,6 +32,20 @@ describe("An agent waiting on the person", () => {
   })
 })
 
+describe("An agent's subagents", () => {
+  it("count beside a focused window's name, their kinds on hover", async () => {
+    // The demo's Codex runs two explorers.
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    await page.getByRole("button", { name: "Select Checkout review" }).click()
+    const window = page.getByRole("region", { name: "Checkout review terminal" })
+    await expect.element(window.getByText("2 subagents")).toHaveAttribute("title", "2 explorer")
+    await chooseView("Grid")
+    await expect.element(window.getByText("2 subagents")).not.toBeInTheDocument()
+  })
+})
+
 describe("An agent's usage", () => {
   it("shows beside a focused window's name, and leaves compact windows their name", async () => {
     // The demo's Codex reports its context and a five-hour window.

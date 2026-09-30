@@ -243,8 +243,8 @@ It also carries the account's `email`, which must not leave the adapter.
 
 ## Still to probe
 
-- Claude Code: plan mode entered with Shift+Tab mid-session, a failed turn (`StopFailure`), and subagent interruption.
-- Codex: a failed turn, `request_user_input`, plan mode, and subagents under `--no-daemon`.
+- Claude Code: plan mode entered with Shift+Tab mid-session, a failed turn (`StopFailure`), subagent interruption, and the `agent_type` internal agents report.
+- Codex: a failed turn, `request_user_input`, plan mode, subagents under `--no-daemon`, whether a subagent's denial fires `Interrupt` with its `agent_id`, and whether internal threads fire `SubagentStart`.
 - Antigravity: `ask_question`, plan mode artifacts, subagent hooks, the status line after an Esc, and the transcript and artifact formats.
 - The status line bridge in a live NovaDeck terminal, for Claude Code and Antigravity.
 - macOS and Windows: the hook's process ancestry, and every probe above.

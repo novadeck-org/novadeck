@@ -125,7 +125,8 @@ export const projectTerminals = (project: Project, agents = false): TerminalMeta
     ...terminal,
     directory: terminal.directory.replace(/^~\/projects\/[^/]+/, project.directory),
     ...(agents && terminal.id === "01" ? { command: "claude", process: "claude" } : {}),
-    // Codex waits for the person to allow a command, as an agent's hooks report it.
+    // Codex waits for the person to allow a command while two of its subagents explore,
+    // as an agent's hooks report it.
     ...(agents && terminal.id === "04"
       ? {
           command: "codex",
@@ -134,6 +135,10 @@ export const projectTerminals = (project: Project, agents = false): TerminalMeta
           agent: {
             working: true,
             attention: { kind: "permission" as const, count: 1 },
+            subagents: [
+              { id: "demo-explorer-1", type: "explorer" },
+              { id: "demo-explorer-2", type: "explorer" },
+            ],
             usage: {
               context: { occupied: 30_000, capacity: 200_000 },
               limits: [{ minutes: 300, used: 0.4, resetsAt: null }],

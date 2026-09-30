@@ -124,6 +124,7 @@ describe("Antigravity's status line, as captured", () => {
     ).toEqual({
       state: "working",
       attention: { pending: 1, kind: "permission" },
+      subagents: [],
     })
     expect(
       run([
@@ -134,6 +135,7 @@ describe("Antigravity's status line, as captured", () => {
     ).toEqual({
       state: "idle",
       attention: { pending: 0, kind: null },
+      subagents: [],
     })
     // An idle snapshot whose hook started late does not outlast the turn.
     expect(

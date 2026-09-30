@@ -59,6 +59,15 @@ export const agentActivity = z.strictObject({
     pending: z.number().int().nonnegative(),
     kind: z.enum(["permission", "question"]).nullable(),
   }),
+  // Its subagents running now, oldest first, each with its kind in the harness's words.
+  subagents: z
+    .array(
+      z.strictObject({
+        id: z.string().min(1).max(256),
+        type: z.string().max(256).nullable(),
+      }),
+    )
+    .max(32),
 })
 
 // What an agent's own records say of its tokens and quotas: how many tokens its context

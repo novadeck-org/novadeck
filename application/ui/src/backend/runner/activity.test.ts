@@ -57,7 +57,7 @@ describe("terminal activity", () => {
       )
 
     it("runs, working or idle as the agent says", () => {
-      const idle = { state: "idle" as const, attention: { pending: 0, kind: null } }
+      const idle = { state: "idle" as const, attention: { pending: 0, kind: null }, subagents: [] }
       expect(claude(idle).status).toEqual({ state: "running", agent: { working: false } })
       expect(claude({ ...idle, state: "unknown" }).status).toEqual({
         state: "running",
@@ -69,6 +69,7 @@ describe("terminal activity", () => {
       const asking = {
         state: "working" as const,
         attention: { pending: 2, kind: "question" as const },
+        subagents: [],
       }
       expect(claude(asking).status).toEqual({
         state: "running",
@@ -76,8 +77,15 @@ describe("terminal activity", () => {
       })
     })
 
+    it("carries the subagents it runs", () => {
+      const subagents = [{ id: "a1", type: "explorer" }]
+      expect(
+        claude({ state: "working", attention: { pending: 0, kind: null }, subagents }).status,
+      ).toEqual({ state: "running", agent: { working: true, subagents } })
+    })
+
     it("carries the tokens and quotas its records name", () => {
-      const idle = { state: "idle" as const, attention: { pending: 0, kind: null } }
+      const idle = { state: "idle" as const, attention: { pending: 0, kind: null }, subagents: [] }
       const telemetry = {
         context: { occupied: 1_000, capacity: 200_000 },
         limits: [{ minutes: 300, used: 0.4, resetsAt: null }],

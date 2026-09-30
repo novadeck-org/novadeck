@@ -42,6 +42,19 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
       return actor ? [] : [{ type: "turn-ended", ...base, outcome: "completed" }]
     case "StopFailure":
       return actor ? [] : [{ type: "turn-ended", ...base, outcome: "failed" }]
+    case "SubagentStart":
+      return actor
+        ? [
+            {
+              type: "subagent-started",
+              ...base,
+              actor,
+              actorType: text(payload.agent_type) ?? null,
+            },
+          ]
+        : []
+    case "SubagentStop":
+      return actor ? [{ type: "subagent-stopped", ...base, actor }] : []
     case "PermissionRequest":
       return [
         {

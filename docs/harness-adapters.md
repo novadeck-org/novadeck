@@ -899,7 +899,16 @@ an action by typing guessed keys into a terminal.
       (`harnesses/follow.ts`) and a harness `watch` the manager runs for each
       binding: Claude Code's watch follows the session transcript, whose
       interruption record ends the turn and settles its requests after an Esc
-      or a denial.
+      or a denial. Claude Code's and Codex's `SubagentStart` and
+      `SubagentStop` hooks then give each binding's running subagents, by
+      their `agent_id` and `agent_type`, in `TerminalSummary.activity`; a
+      focused window's header counts them and names their kinds on hover.
+      Subagents outlive turns, as a background one does, so no turn fences
+      them. An interrupted turn ends the subagents it started, since an
+      interrupted subagent reports no stop, and a background one from an
+      earlier turn runs on; a start that arrives after its stop, or within an
+      interrupted turn, is not taken for a new subagent.
+      Antigravity's hooks report no subagents. Subagent transcripts follow.
    4. Telemetry, then the status line bridge. It starts from the sources
       already followed: Codex's rollout gives the context against the model's
       window and its rate-limit windows, and Claude Code's transcript gives the

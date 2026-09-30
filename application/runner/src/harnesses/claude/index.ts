@@ -17,6 +17,8 @@ const events = [
   "UserPromptSubmit",
   "Stop",
   "StopFailure",
+  "SubagentStart",
+  "SubagentStop",
   "PermissionRequest",
   "PostToolUse",
   "PostToolUseFailure",
