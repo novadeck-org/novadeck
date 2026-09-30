@@ -16,8 +16,10 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import type { AgentDetail, AgentName, TerminalChange, TerminalSummary } from "@novadeck/protocol"
+import { vi } from "vitest"
 
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
+import type { TerminalRecords } from "../terminals/records.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import { installShellFiles } from "./install.js"
@@ -970,6 +972,37 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const saved = shell.store.terminal(id)!
     expect(saved.transcript).toContain("important")
     expect(saved.transcript).not.toContain("wiped")
+  })
+
+  it("saves a screen again after a save of it failed", async ({ shell }) => {
+    const id = randomUUID()
+    // The store refuses once, as a busy or full disk would.
+    let refuse = false
+    const records: TerminalRecords = {
+      terminal: (terminalId) => shell.store.terminal(terminalId),
+      saveTerminal: (terminal) => {
+        if (refuse && terminal.transcript !== undefined) {
+          refuse = false
+          throw new Error("disk full")
+        }
+        shell.store.saveTerminal(terminal)
+      },
+      removeTerminal: (terminalId) => shell.store.removeTerminal(terminalId),
+      clearTranscripts: () => shell.store.clearTranscripts(),
+      forgetAgent: (agent) => shell.store.forgetAgent(agent),
+    }
+    const manager = shell.manager({ records })
+    await create(manager, shell, { id })
+    manager.write({ terminalId: id, data: "echo kept\r" }, "owner")
+    await shell.until(manager, id, /kept\r?\n/)
+    refuse = true
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    manager.persist()
+    expect(error).toHaveBeenCalledOnce()
+    error.mockRestore()
+    expect(shell.store.terminal(id)?.transcript ?? "").not.toContain("kept")
+    manager.persist()
+    expect(shell.store.terminal(id)?.transcript).toContain("kept")
   })
 
   it("forgets every transcript once transcripts are turned off", async ({ shell }) => {

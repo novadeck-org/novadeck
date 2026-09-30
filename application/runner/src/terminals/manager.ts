@@ -1421,11 +1421,10 @@ export class Terminals {
    * saved once the runner is stopping.
    */
   private save(record: Record, transcript: boolean): void {
-    if (transcript) {
-      record.changed = false
-      record.savedAt = performance.now()
-    }
-    this.persisting(() =>
+    // A failed save leaves the screen marked changed, so a later one tries again, once
+    // `saveMs` has passed.
+    if (transcript) record.savedAt = performance.now()
+    const saved = this.persisting(() =>
       this.options.records?.saveTerminal({
         id: record.summary.id,
         sessionId: record.summary.sessionId,
@@ -1439,15 +1438,22 @@ export class Terminals {
         }),
       }),
     )
+    if (transcript && saved) record.changed = false
   }
 
-  /** Runs a write to the records, unless the runner is stopping; a failure is logged. */
-  private persisting(work: () => void): void {
-    if (this.stopping || !this.options.records) return
+  /**
+   * Runs a write to the records, unless the runner is stopping; a failure is logged.
+   * True once it is written, or when there are no records to write to.
+   */
+  private persisting(work: () => void): boolean {
+    if (!this.options.records) return true
+    if (this.stopping) return false
     try {
       work()
+      return true
     } catch (error) {
       console.error("NovaDeck could not save a terminal:", error)
+      return false
     }
   }
 
