@@ -2,12 +2,14 @@ import { useSortable } from "@dnd-kit/react/sortable"
 import { Check, Eye, EyeOff, Pencil, X } from "lucide-react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
+import { nextReset, usageDetail } from "../model/agent-usage"
 import { attentionText, endingText, terminalEnding, terminalPhase } from "../model/terminal-ending"
 import type { TerminalMetadata } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { terminalProfile } from "./processes/profiles"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
+import { useRenderAt } from "./use-render-at"
 
 const actionClasses =
   "terminal-tab-action flex size-6 shrink-0 items-center justify-center rounded-control p-1.5 text-muted hover:bg-soft hover:text-ink [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100 focus-visible:outline-offset-[-2px] focus-visible:[&>svg]:opacity-100"
@@ -52,6 +54,8 @@ export const TerminalTab = ({
   // assistive technology.
   const waiting = attentionText(terminal)
   const note = ended ?? waiting
+  useRenderAt(nextReset(terminal))
+  const usage = usageDetail(terminal)
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,
@@ -85,7 +89,7 @@ export const TerminalTab = ({
         }
         selected={selected}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
-        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}`}
+        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}${usage ? `\n${usage}` : ""}`}
         {...(note ? { description: note } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}

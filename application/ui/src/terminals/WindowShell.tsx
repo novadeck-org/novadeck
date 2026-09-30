@@ -12,10 +12,12 @@ import {
 import { useRef, type ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
+import { nextReset, usageBadge, usageDetail } from "../model/agent-usage"
 import { attentionText, terminalPhase } from "../model/terminal-ending"
 import type { TerminalMetadata, WindowedView } from "../model/types"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
+import { useRenderAt } from "./use-render-at"
 
 export type MinimizeControls = {
   minimized: boolean
@@ -98,6 +100,8 @@ export const WindowShell = ({
   const headerTap = useRef<{ x: number; y: number; time: number; rename: boolean } | null>(null)
   const ignoreDoubleClickUntil = useRef(0)
   const renaming = Boolean(rename)
+  useRenderAt(nextReset(terminal))
+  const usage = usageBadge(terminal)
   const headerDoubleAction = onFlyTo
   return (
     <section
@@ -225,6 +229,16 @@ export const WindowShell = ({
               )}
             </>
           </div>
+          {usage && !compact && (
+            // The agent's context and busiest rate limit, in full on hover. Only a focused
+            // window has room beside its name; a compact one leaves it to the tab.
+            <span
+              className="terminal-usage ml-auto min-w-0 truncate font-mono text-[10px] text-muted"
+              title={usageDetail(terminal)}
+            >
+              {usage}
+            </span>
+          )}
           <span className="terminal-actions flex shrink-0 items-center gap-1">
             {minimize && (
               <Tooltip content={minimize.minimized ? "Restore" : "Minimize"}>

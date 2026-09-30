@@ -2,7 +2,7 @@
   "harness": "claude",
   "version": "2.1.285",
   "source": "captured",
-  "how": "conversation records of the interactive interrupt and deny probes transcripts; text other than the interruption markers replaced",
+  "how": "conversation records of the interactive interrupt and deny probes transcripts, with their token usage; text other than the interruption markers replaced",
   "scenarios": {
     "interrupt": [
       {
@@ -24,7 +24,13 @@
             {
               "type": "thinking"
             }
-          ]
+          ],
+          "usage": {
+            "input_tokens": 10,
+            "cache_creation_input_tokens": 7247,
+            "cache_read_input_tokens": 29076,
+            "output_tokens": 128
+          }
         }
       },
       {
@@ -37,7 +43,13 @@
             {
               "type": "tool_use"
             }
-          ]
+          ],
+          "usage": {
+            "input_tokens": 10,
+            "cache_creation_input_tokens": 7247,
+            "cache_read_input_tokens": 29076,
+            "output_tokens": 128
+          }
         }
       },
       {
@@ -90,7 +102,13 @@
             {
               "type": "thinking"
             }
-          ]
+          ],
+          "usage": {
+            "input_tokens": 10,
+            "cache_creation_input_tokens": 7249,
+            "cache_read_input_tokens": 29076,
+            "output_tokens": 225
+          }
         }
       },
       {
@@ -103,7 +121,13 @@
             {
               "type": "tool_use"
             }
-          ]
+          ],
+          "usage": {
+            "input_tokens": 10,
+            "cache_creation_input_tokens": 7249,
+            "cache_read_input_tokens": 29076,
+            "output_tokens": 225
+          }
         }
       },
       {

@@ -45,6 +45,7 @@ const replay = (agent: AgentName, name: string) => {
         }
         continue
       }
+      if (fact.type === "telemetry-observed") continue
       const next = binding && activity && apply(activity, binding, fact)
       if (next) states.push(summary((activity = next)))
     }

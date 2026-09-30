@@ -26,7 +26,10 @@ export type Activity = {
 export const started = (at: number): Activity => ({ state: "idle", pending: [], turnAt: at })
 
 /** Whether an event belongs to the bound session, from its own process where known. */
-const bound = (binding: Binding, event: ActivityEvent): boolean =>
+export const bound = (
+  binding: Binding,
+  event: Pick<ActivityEvent, "agent" | "sessionId" | "instance">,
+): boolean =>
   binding.agent === event.agent &&
   binding.sessionId === event.sessionId &&
   (binding.instance === null || event.instance === null || binding.instance === event.instance)

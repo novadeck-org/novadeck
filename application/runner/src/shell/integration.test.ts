@@ -591,6 +591,49 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       .toEqual({ state: "idle", attention: { pending: 0, kind: null } })
   })
 
+  it("shows a Codex session's context and rate limits from its rollout", async ({ shell }) => {
+    const rollout = join(shell.home, "rollout.jsonl")
+    writeFileSync(rollout, "")
+    const bin = reporter(shell.home, [
+      {
+        agent: "codex",
+        sessionId: "s",
+        seq: 1,
+        source: "startup",
+        fields: { transcript_path: rollout },
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await expect
+      .poll(() => manager.list(terminal.sessionId)[0]?.agent, { timeout: 10_000 })
+      .toBe("codex")
+    appendFileSync(
+      rollout,
+      `${JSON.stringify({
+        timestamp: new Date(Date.now() + 1_000).toISOString(),
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: { last_token_usage: { total_tokens: 30_000 }, model_context_window: 200_000 },
+          rate_limits: {
+            primary: { used_percent: 40, window_minutes: 300, resets_at: 1_800_000_000 },
+            secondary: null,
+          },
+        },
+      })}\n`,
+    )
+    await expect
+      .poll(() => manager.list(terminal.sessionId)[0]?.telemetry, { timeout: 10_000 })
+      .toEqual({
+        context: { occupied: 30_000, capacity: 200_000 },
+        limits: [{ minutes: 300, used: 0.4, resetsAt: 1_800_000_000_000 }],
+      })
+  })
+
   it("starts a switched session's activity afresh", async ({ shell }) => {
     const call = { tool_name: "Bash", tool_input: { command: "touch x" } }
     const bin = reporter(shell.home, [

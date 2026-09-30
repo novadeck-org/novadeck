@@ -897,7 +897,12 @@ an action by typing guessed keys into a terminal.
       binding: Claude Code's watch follows the session transcript, whose
       interruption record ends the turn and settles its requests after an Esc
       or a denial.
-   4. The status line bridge and telemetry.
+   4. Telemetry, then the status line bridge. It starts from the sources
+      already followed: Codex's rollout gives the context against the model's
+      window and its rate-limit windows, and Claude Code's transcript gives the
+      context held. `TerminalSummary.telemetry` carries them, and each window's
+      header shows the context and busiest limit. The status line bridge adds
+      Claude Code's limits and context capacity, and Antigravity's telemetry.
    5. Planning signals.
 5. **Operate.** Add caller/operation, messaging, artifact and presentation
    services, with MCP and UI exercising the same operations, including the

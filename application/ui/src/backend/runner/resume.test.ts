@@ -18,6 +18,7 @@ const exited = (terminalId: string): TerminalSummary => ({
   process: null,
   agent: null,
   activity: null,
+  telemetry: null,
 })
 
 describe("resuming a restored terminal", () => {

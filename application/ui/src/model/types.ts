@@ -9,6 +9,19 @@ export type Project = { id: string; name: string; directory: string }
 export type AgentStatus = {
   readonly working: boolean
   readonly attention?: { readonly kind: "permission" | "question"; readonly count: number }
+  readonly usage?: AgentUsage
+}
+
+// What an agent's own records say of its tokens and quotas: how many tokens its context
+// holds, of how many where known, and each rate-limit window's used fraction with when it
+// resets, in epoch milliseconds.
+export type AgentUsage = {
+  readonly context: { readonly occupied: number; readonly capacity: number | null } | null
+  readonly limits: readonly {
+    readonly minutes: number | null
+    readonly used: number
+    readonly resetsAt: number | null
+  }[]
 }
 
 // What a terminal's process is doing. Exit and failure details replace each other.

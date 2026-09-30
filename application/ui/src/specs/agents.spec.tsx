@@ -2,7 +2,7 @@ import { describe as context, describe, expect, it } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { expectFocusWithin, preferencesDialog } from "./support/keyboard"
-import { expectStaysAbsent, openWorkspace } from "./support/workspace"
+import { chooseView, expectStaysAbsent, openWorkspace } from "./support/workspace"
 
 const agentSwitch = (scope: Locator, name: "Claude Code" | "Codex" | "Antigravity"): Locator =>
   scope.getByRole("switch", { name })
@@ -29,6 +29,21 @@ describe("An agent waiting on the person", () => {
     await expect
       .element(page.getByRole("region", { name: "Checkout review terminal" }))
       .toHaveAttribute("aria-description", "Needs permission")
+  })
+})
+
+describe("An agent's usage", () => {
+  it("shows beside a focused window's name, and leaves compact windows their name", async () => {
+    // The demo's Codex reports its context and a five-hour window.
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    await page.getByRole("button", { name: "Select Checkout review" }).click()
+    const window = page.getByRole("region", { name: "Checkout review terminal" })
+    await expect.element(window.getByText("ctx 15% · 5h 40%")).toBeVisible()
+    await chooseView("Grid")
+    await expect.element(window.getByText("ctx 15% · 5h 40%")).not.toBeInTheDocument()
+    await expect.element(window.getByRole("heading", { name: "Checkout review" })).toBeVisible()
   })
 })
 

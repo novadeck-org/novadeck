@@ -1,4 +1,4 @@
-import type { AgentName } from "@novadeck/protocol"
+import type { AgentName, AgentTelemetry } from "@novadeck/protocol"
 
 import type { Continuity } from "./harness.js"
 
@@ -55,5 +55,19 @@ export type ActivityEvent = {
     }
 )
 
+/**
+ * What a session's own records said of its tokens and quotas, each part only when they
+ * named it: how full its context is, and its rate-limit windows.
+ */
+export type TelemetryObserved = {
+  readonly type: "telemetry-observed"
+  readonly agent: AgentName
+  readonly sessionId: string
+  readonly instance: string | null
+  readonly startedAt: number
+  readonly context?: AgentTelemetry["context"]
+  readonly limits?: AgentTelemetry["limits"]
+}
+
 /** A normalized fact a harness reported. */
-export type HarnessEvent = SessionObserved | ActivityEvent
+export type HarnessEvent = SessionObserved | ActivityEvent | TelemetryObserved

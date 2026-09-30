@@ -61,6 +61,28 @@ export const agentActivity = z.strictObject({
   }),
 })
 
+// What an agent's own records say of its tokens and quotas: how many tokens its context
+// holds, of how many where known, and how much of each rate-limit window it has used, as
+// a fraction, with the instant the window resets in epoch milliseconds where known. Every
+// harness reports limits this way; none reports the limit itself.
+export const agentTelemetry = z.strictObject({
+  context: z
+    .strictObject({
+      occupied: z.number().int().nonnegative(),
+      capacity: z.number().int().positive().nullable(),
+    })
+    .nullable(),
+  limits: z
+    .array(
+      z.strictObject({
+        minutes: z.number().int().positive().nullable(),
+        used: z.number().min(0).max(1),
+        resetsAt: z.number().nullable(),
+      }),
+    )
+    .max(8),
+})
+
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
@@ -82,6 +104,8 @@ export const terminalSummary = z.strictObject({
   agent: agentName.nullable(),
   // What that agent is doing; null without one.
   activity: agentActivity.nullable(),
+  // Its tokens and quotas, once its records named any; null otherwise.
+  telemetry: agentTelemetry.nullable(),
 })
 
 // `terminals.watch` events: every terminal's summary, then each later change.
@@ -145,5 +169,6 @@ export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
 export type AgentName = z.infer<typeof agentName>
 export type AgentActivity = z.infer<typeof agentActivity>
+export type AgentTelemetry = z.infer<typeof agentTelemetry>
 export type AgentIntegration = z.infer<typeof agentIntegration>
 export type RunnerSettings = z.infer<typeof runnerSettings>

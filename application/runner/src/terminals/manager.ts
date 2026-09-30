@@ -27,8 +27,9 @@ import {
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
-import type { SessionObserved } from "../harnesses/events.js"
+import type { HarnessEvent, SessionObserved } from "../harnesses/events.js"
 import { harnesses } from "../harnesses/registry.js"
+import { observeTelemetry, telemetrySummary, type Telemetry } from "../harnesses/telemetry.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch, type ShellLaunch } from "../shell/integration.js"
 import { osc7Directory, osc9Directory } from "../shell/osc.js"
@@ -129,6 +130,8 @@ type Record = {
   binding: Binding | null
   /** What the bound agent is doing, as its hooks said; null without a binding. */
   activity: Activity | null
+  /** The bound agent's tokens and quotas, as its records said; null until they did. */
+  telemetry: Telemetry | null
   /** Stops following the bound session's own sources, as its transcript. */
   watching: AbortController | null
   /** When the shell last showed its prompt, in epoch milliseconds. */
@@ -373,6 +376,7 @@ export class Terminals {
           run: 1,
           agent: null,
           activity: null,
+          telemetry: null,
         },
         ...started,
         sequence: 0,
@@ -395,6 +399,7 @@ export class Terminals {
         agents: saved?.agents ?? {},
         binding: null,
         activity: null,
+        telemetry: null,
         watching: null,
         promptedAt: saved?.promptedAt ?? null,
         changed: false,
@@ -518,10 +523,12 @@ export class Terminals {
             run: record.summary.run + 1,
             agent: null,
             activity: null,
+            telemetry: null,
           } satisfies TerminalSummary,
           foreground: undefined,
           binding: null,
           activity: null,
+          telemetry: null,
           watching: null,
           // Skipping a sequence number sends any earlier cursor to a fresh snapshot.
           sequence: record.sequence + 1,
@@ -641,8 +648,9 @@ export class Terminals {
       if (record.binding?.agent === agent) {
         record.binding = null
         record.activity = null
+        record.telemetry = null
         this.unwatch(record)
-        record.summary = { ...record.summary, agent: null, activity: null }
+        record.summary = { ...record.summary, agent: null, activity: null, telemetry: null }
         this.announce(record)
       }
     }
@@ -1138,9 +1146,10 @@ export class Terminals {
     const moved = cwd !== record.summary.cwd
     record.binding = null
     record.activity = null
+    record.telemetry = null
     this.unwatch(record)
     if (moved || record.summary.agent !== null) {
-      record.summary = { ...record.summary, cwd, agent: null, activity: null }
+      record.summary = { ...record.summary, cwd, agent: null, activity: null, telemetry: null }
       this.announce(record)
     }
     if (moved) this.save(record, false)
@@ -1180,9 +1189,10 @@ export class Terminals {
     if (record.binding?.instance && !alive(record.binding.instance)) {
       record.binding = null
       record.activity = null
+      record.telemetry = null
       this.unwatch(record)
       if (record.summary.agent !== null) {
-        record.summary = { ...record.summary, agent: null, activity: null }
+        record.summary = { ...record.summary, agent: null, activity: null, telemetry: null }
         this.announce(record)
       }
     }
@@ -1196,9 +1206,7 @@ export class Terminals {
     const cwd = record.summary.cwd
     for (const event of events) {
       if (event.type !== "session-observed") {
-        const next =
-          record.binding && record.activity && apply(record.activity, record.binding, event)
-        if (next) record.activity = next
+        this.applyFact(record, event)
         continue
       }
       const next = observe(
@@ -1219,6 +1227,7 @@ export class Terminals {
         before.sessionId === next.binding.sessionId
       if (!same) {
         record.activity = next.binding ? fresh(event.startedAt) : null
+        record.telemetry = null
         this.follow(record, event)
       }
       record.summary = { ...record.summary, cwd: next.cwd }
@@ -1245,11 +1254,21 @@ export class Terminals {
     }
     void watch(run, controller.signal, (fact) => {
       if (record.watching !== controller || fact.type === "session-observed") return
-      const next = record.binding && record.activity && apply(record.activity, record.binding, fact)
-      if (!next) return
-      record.activity = next
-      this.publishAgent(record, false)
+      if (this.applyFact(record, fact)) this.publishAgent(record, false)
     }).catch((error: unknown) => console.error("NovaDeck stopped following an agent:", error))
+  }
+
+  /** Applies what the bound session's hooks or records said; true when it changed. */
+  private applyFact(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): boolean {
+    if (!record.binding) return false
+    if (fact.type === "telemetry-observed") {
+      const next = observeTelemetry(record.telemetry, record.binding, fact)
+      if (next) record.telemetry = next
+      return next !== undefined
+    }
+    const next = record.activity && apply(record.activity, record.binding, fact)
+    if (next) record.activity = next
+    return Boolean(next)
   }
 
   private unwatch(record: Record): void {
@@ -1264,14 +1283,16 @@ export class Terminals {
   private publishAgent(record: Record, moved: boolean): void {
     const agent = record.binding?.agent ?? null
     const activity = record.binding && record.activity ? activitySummary(record.activity) : null
+    const telemetry = record.binding && record.telemetry ? telemetrySummary(record.telemetry) : null
     const { summary } = record
     if (
       !moved &&
       summary.agent === agent &&
-      JSON.stringify(summary.activity) === JSON.stringify(activity)
+      JSON.stringify(summary.activity) === JSON.stringify(activity) &&
+      JSON.stringify(summary.telemetry) === JSON.stringify(telemetry)
     )
       return
-    record.summary = { ...summary, agent, activity }
+    record.summary = { ...summary, agent, activity, telemetry }
     this.announce(record)
   }
 
@@ -1338,8 +1359,16 @@ export class Terminals {
     void this.enqueue(record, () => {
       record.binding = null
       record.activity = null
+      record.telemetry = null
       this.unwatch(record)
-      record.summary = { ...record.summary, exit, process: null, agent: null, activity: null }
+      record.summary = {
+        ...record.summary,
+        exit,
+        process: null,
+        agent: null,
+        activity: null,
+        telemetry: null,
+      }
       this.cancelResume(record)
       this.save(record, true)
       this.exits += 1

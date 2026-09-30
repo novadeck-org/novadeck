@@ -131,7 +131,14 @@ export const projectTerminals = (project: Project, agents = false): TerminalMeta
           command: "codex",
           process: "codex",
           state: "running" as const,
-          agent: { working: true, attention: { kind: "permission" as const, count: 1 } },
+          agent: {
+            working: true,
+            attention: { kind: "permission" as const, count: 1 },
+            usage: {
+              context: { occupied: 30_000, capacity: 200_000 },
+              limits: [{ minutes: 300, used: 0.4, resetsAt: null }],
+            },
+          },
         }
       : {}),
   }))

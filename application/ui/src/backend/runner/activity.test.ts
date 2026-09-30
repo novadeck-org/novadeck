@@ -14,6 +14,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   process: { name: "zsh", argv: null },
   agent: null,
   activity: null,
+  telemetry: null,
   ...change,
 })
 const named = (name: string, argv: string[] | null = null) => summary({ process: { name, argv } })
@@ -73,6 +74,23 @@ describe("terminal activity", () => {
         state: "running",
         agent: { working: true, attention: { kind: "question", count: 2 } },
       })
+    })
+
+    it("carries the tokens and quotas its records name", () => {
+      const idle = { state: "idle" as const, attention: { pending: 0, kind: null } }
+      const telemetry = {
+        context: { occupied: 1_000, capacity: 200_000 },
+        limits: [{ minutes: 300, used: 0.4, resetsAt: null }],
+      }
+      const status = terminalActivity(
+        summary({
+          process: { name: "codex", argv: null },
+          agent: "codex",
+          activity: idle,
+          telemetry,
+        }),
+      ).status
+      expect(status).toEqual({ state: "running", agent: { working: false, usage: telemetry } })
     })
 
     it("runs as before for an agent whose hooks said nothing", () => {

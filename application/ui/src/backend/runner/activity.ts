@@ -1,4 +1,9 @@
-import type { AgentActivity, TerminalExit, TerminalSummary } from "@novadeck/protocol"
+import type {
+  AgentActivity,
+  AgentTelemetry,
+  TerminalExit,
+  TerminalSummary,
+} from "@novadeck/protocol"
 
 import { isShellProcess, runningProgram } from "../../model/process"
 import type { AgentStatus, TerminalStatus } from "../../model/types"
@@ -23,11 +28,17 @@ export type TerminalActivity = {
   readonly process?: string
 }
 
-// What an agent's hooks say it does, for its terminal's status.
-const agentStatus = ({ state, attention }: AgentActivity): AgentStatus => ({
+// What an agent's hooks and records say it does, for its terminal's status.
+const agentStatus = (
+  { state, attention }: AgentActivity,
+  telemetry: AgentTelemetry | null,
+): AgentStatus => ({
   working: state !== "idle",
   ...(attention.pending > 0 && attention.kind
     ? { attention: { kind: attention.kind, count: attention.pending } }
+    : {}),
+  ...(telemetry && (telemetry.context || telemetry.limits.length > 0)
+    ? { usage: { context: telemetry.context, limits: telemetry.limits } }
     : {}),
 })
 
@@ -39,7 +50,8 @@ export const terminalActivity = (summary: TerminalSummary): TerminalActivity => 
   if (summary.exit) return { status: exitStatus(summary.exit) }
   const program = runningProgram(summary.process, summary.agent)
   if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }
-  const agent = summary.agent && summary.activity ? agentStatus(summary.activity) : undefined
+  const agent =
+    summary.agent && summary.activity ? agentStatus(summary.activity, summary.telemetry) : undefined
   return { status: { state: "running", ...(agent ? { agent } : {}) }, process: program }
 }
 

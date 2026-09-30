@@ -17,6 +17,7 @@ const summary: TerminalSummary = {
   process: null,
   agent: null,
   activity: null,
+  telemetry: null,
   run: 1,
 }
 

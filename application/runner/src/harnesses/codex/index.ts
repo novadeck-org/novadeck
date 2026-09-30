@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { followLines } from "../follow.js"
 import { json, marketplace, plugin, type Harness, type Install } from "../harness.js"
 import { decode } from "./decode.js"
+import { rolloutEvents } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
 
 const id = "novadeck@novadeck"
@@ -73,4 +75,9 @@ export const codex = {
       : [{ path: "codex", content: posixShim, mode: 0o700 }],
   resume: (session) => ["codex", "resume", session],
   decode,
+  // The rollout records the session's tokens and the account's rate-limit windows.
+  watch: (run, signal, emit) =>
+    followLines(run.transcript, signal, (line) => {
+      for (const event of rolloutEvents(line, run)) emit(event)
+    }),
 } satisfies Harness
