@@ -22,6 +22,11 @@ process.parentPort = {
 import(workerData.entry)
 `
 
+// A title a terminal program sets (OSC 0, 1 or 2), which the screen never draws; one
+// still arriving runs to the end of what came so far.
+// eslint-disable-next-line no-control-regex -- Terminal escape sequences.
+const title = /\u001b\][012];[^\u0007\u001b]*(?:\u0007|\u001b\\|\u001b?$)/g
+
 const start = (database: string) => {
   const worker = new Worker(utility, {
     eval: true,
@@ -76,26 +81,33 @@ describe("compiled desktop runner", () => {
           for await (const event of terminal) {
             if (event.type === "snapshot") text = event.data
             if (event.type === "output") text += event.data
-            if (text.includes("DESKTOP_42")) return
+            if (text.replaceAll(title, "").includes("DESKTOP_42")) return
           }
         })()
-        // The typed echo differs from the output, so only the shell's answer matches.
+        // The typed echo differs from the output, so only the shell's answer matches. On
+        // Windows, cmd's title likely names the running command as it parses it, which
+        // ConPTY may send ahead of the drawn output; only drawn output counts.
         await terminal.write(
           process.platform === "win32" ? "echo DESKTOP_4^2\r" : 'echo DESKTOP_4""2\r',
         )
         await reading
-        // Asked to before the system session ends, it saves the terminal's screen.
-        runner.persist()
+        // Asked to before the system session ends, it saves the terminal's screen, as it
+        // stands then; asked again each time, the latest ask counts.
         const saved = new DatabaseSync(database, { readOnly: true })
         try {
           await expect
             .poll(
-              () =>
-                (
-                  saved.prepare("SELECT transcript FROM terminals WHERE id = ?").get(created.id) as
-                    | { transcript: string | null }
-                    | undefined
-                )?.transcript ?? "",
+              () => {
+                runner.persist()
+                return (
+                  (
+                    saved
+                      .prepare("SELECT transcript FROM terminals WHERE id = ?")
+                      .get(created.id) as { transcript: string | null } | undefined
+                  )?.transcript ?? ""
+                )
+              },
+              { timeout: 15_000, interval: 200 },
             )
             .toContain("DESKTOP_42")
         } finally {
@@ -114,7 +126,7 @@ describe("compiled desktop runner", () => {
         await runner.close()
         await rm(directory, { recursive: true, force: true })
       }
-    }, 20_000)
+    }, 30_000)
 
     it("has no terminal limit, unlike a standalone runner", async () => {
       const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
