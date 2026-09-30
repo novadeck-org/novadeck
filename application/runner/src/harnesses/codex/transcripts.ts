@@ -40,8 +40,8 @@ const dayFolders = (folder: string): string[] => {
 /**
  * Codex's transcripts are its rollouts: the session's, and one per subagent, named for
  * its thread and kept under the day it started, its parent's or a later one. Each response item holds the person's or the
- * agent's text, a tool call or its output; reasoning stays out, as do developer
- * messages and the context Codex adds as the person's.
+ * agent's text, another agent's message to it, a tool call or its output; reasoning
+ * stays out, as do developer messages and the context Codex adds as the person's.
  */
 export const transcripts: NonNullable<Harness["transcripts"]> = {
   locate: async (root, _sessionId, subagent) => {
@@ -82,6 +82,12 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
         const { output } = payload
         const text = Array.isArray(output) ? joined(output, ["input_text"]) : textOf(output)
         return [entry("tool", "tool-result", text, { at: time, call: payload.call_id })]
+      }
+      // Another agent's message to this one: a subagent's rollout holds its parent's, the
+      // root's its subagents', each named by its path (`/root/<name>`).
+      case "agent_message": {
+        const text = joined(payload.content, ["input_text"])
+        return text ? [entry("agent", "text", text, { at: time, author: payload.author })] : []
       }
       default:
         return []

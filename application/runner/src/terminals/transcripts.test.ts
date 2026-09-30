@@ -10,7 +10,16 @@ import { transcriptChanges } from "./transcripts.js"
 
 // A line is one item: its text.
 const items = (line: string): TranscriptEntry[] => [
-  { at: null, role: "user", kind: "text", text: line, truncated: false, tool: null, call: null },
+  {
+    at: null,
+    role: "user",
+    kind: "text",
+    text: line,
+    truncated: false,
+    tool: null,
+    call: null,
+    author: null,
+  },
 ]
 
 type Fixture = { path: string; read: () => { changes: TranscriptChange[]; stop: () => void } }

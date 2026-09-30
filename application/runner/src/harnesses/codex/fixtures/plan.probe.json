@@ -1,0 +1,70 @@
+{
+  "harness": "codex",
+  "version": "0.159.2",
+  "source": "captured",
+  "how": "the codex TUI in a scratch CODEX_HOME, /plan then a one-line request; its rollout's records for the mode and the plan, and each hook's permission_mode. update_plan was offered to the model in neither Plan Mode nor default mode (a default-mode request to call it found no such tool).",
+  "records": [
+    {
+      "timestamp": "2026-09-30T08:23:19.931Z",
+      "type": "event_msg",
+      "payload": {
+        "type": "task_started",
+        "turn_id": "01a0f169-3871-7380-b690-d7c5483e49b6",
+        "collaboration_mode_kind": "plan"
+      }
+    },
+    {
+      "timestamp": "2026-09-30T08:23:20.257Z",
+      "type": "turn_context",
+      "payload": {
+        "collaboration_mode": {
+          "mode": "plan",
+          "settings": {
+            "developer_instructions": "<text>"
+          }
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-30T08:23:24.773Z",
+      "type": "event_msg",
+      "payload": {
+        "type": "item_completed",
+        "turn_id": "01a0f169-3871-7380-b690-d7c5483e49b6",
+        "item": {
+          "type": "Plan",
+          "id": "<id>",
+          "text": "# Add a greeting README\n\nCreate `README.md` in the current folder containing exactly `Hello!\\n`.\n\nVerify the file exists and its contents match. No tests or other changes are needed.\n"
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-30T08:23:24.776Z",
+      "type": "response_item",
+      "payload": {
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "<proposed_plan>\n# Add a greeting README\n\nCreate `README.md` in the current folder containing exactly `Hello!\\n`.\n\nVerify the file exists and its contents match. No tests or other changes are needed.\n</proposed_plan>"
+          }
+        ]
+      }
+    }
+  ],
+  "hooks": [
+    {
+      "event": "SessionStart",
+      "permission_mode": "default"
+    },
+    {
+      "event": "UserPromptSubmit",
+      "permission_mode": "default"
+    },
+    {
+      "event": "Stop",
+      "permission_mode": "default"
+    }
+  ]
+}

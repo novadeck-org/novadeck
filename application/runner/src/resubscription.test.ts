@@ -19,6 +19,7 @@ const item = (text: string): TranscriptChange => ({
       truncated: false,
       tool: null,
       call: null,
+      author: null,
     },
   ],
 })

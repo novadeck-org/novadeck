@@ -92,3 +92,21 @@ describe("Codex's transcripts", () => {
     }
   })
 })
+
+describe("Codex's messages between agents", () => {
+  it("are another agent's message to this one, named by its path", () => {
+    expect(
+      items([
+        item({
+          type: "agent_message",
+          author: "/root",
+          recipient: "/root/review",
+          content: [
+            { type: "input_text", text: "Check the diff." },
+            { type: "encrypted_content", encrypted_content: "x" },
+          ],
+        }),
+      ]),
+    ).toMatchObject([{ role: "agent", kind: "text", text: "Check the diff.", author: "/root" }])
+  })
+})

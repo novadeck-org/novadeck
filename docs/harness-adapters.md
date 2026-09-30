@@ -952,12 +952,14 @@ an action by typing guessed keys into a terminal.
       actor's conversation from its harness's own records, through each
       adapter's `transcripts` (where an actor's record is, and the items one of
       its lines holds): Claude Code's session and per-subagent JSONL, Codex's
-      rollouts. Antigravity's transcript is still unread. Detail then lists
-      each actor's latest plan, and `agents.plan` streams its text: Claude
-      Code's plan-mode file (a Write or Edit to Markdown in a `plans` folder)
-      or what `ExitPlanMode` presents. Codex's `update_plan` never appeared in
-      the rollouts probed and its plan mode is unprobed; Antigravity's plan
-      artifacts too; neither is read yet.
+      rollouts with the messages other agents sent, Antigravity's step log.
+      Detail then lists each actor's latest plan, and `agents.plan` streams its
+      text: Claude Code's plan-mode file (a Write or Edit to Markdown in a
+      `plans` folder) or what `ExitPlanMode` presents; the Plan item Codex's
+      Plan Mode proposes, read from its rollout, which also says each turn's
+      mode (its hooks say `default` even then); the artifact Antigravity
+      writes asking for review, which a PostToolUse hook names. Codex offers
+      no `update_plan` tool any more.
 5. **Operate.** Add caller/operation, messaging, artifact and presentation
    services, with MCP and UI exercising the same operations, including the
    spawn-Codex and present-plan walkthroughs in the companion design.

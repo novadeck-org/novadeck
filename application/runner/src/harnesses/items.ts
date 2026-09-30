@@ -41,7 +41,12 @@ export const entry = (
   role: TranscriptItem["role"],
   kind: TranscriptItem["kind"],
   text: string,
-  fields: { readonly at: number | null; readonly tool?: unknown; readonly call?: unknown },
+  fields: {
+    readonly at: number | null
+    readonly tool?: unknown
+    readonly call?: unknown
+    readonly author?: unknown
+  },
 ): TranscriptEntry => ({
   at: fields.at,
   role,
@@ -50,4 +55,6 @@ export const entry = (
   truncated: text.length > maxText,
   tool: typeof fields.tool === "string" ? fields.tool.slice(0, maxTool) : null,
   call: typeof fields.call === "string" && fields.call ? ref("call", fields.call) : null,
+  author:
+    typeof fields.author === "string" && fields.author ? fields.author.slice(0, maxTool) : null,
 })

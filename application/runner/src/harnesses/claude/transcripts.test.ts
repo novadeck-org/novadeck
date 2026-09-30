@@ -26,6 +26,7 @@ describe("Claude Code's transcript, as captured", () => {
       truncated: false,
       tool: null,
       call: null,
+      author: null,
     })
   })
 })

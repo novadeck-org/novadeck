@@ -232,3 +232,14 @@ export const subjectOf = (
  */
 export const ref = (...parts: readonly string[]): string =>
   createHash("sha256").update(parts.join("\0")).digest("base64url").slice(0, 16)
+
+/** The longest plan text kept, as the protocol takes it. */
+export const maxPlan = 256 * 1024
+
+/** A plan's text cut short to what the protocol takes, a character left whole. */
+export const bounded = (value: string): { readonly text: string; readonly truncated: boolean } => {
+  let end = Math.min(value.length, maxPlan)
+  const last = value.charCodeAt(end - 1)
+  if (end < value.length && last >= 0xd800 && last <= 0xdbff) end -= 1
+  return { text: value.slice(0, end), truncated: end < value.length }
+}

@@ -1,6 +1,6 @@
 import type { Report } from "../../shell/reports.js"
 import type { HarnessEvent } from "../events.js"
-import { absolute, callId, sessionId, sessionStart, subjectOf, text, withMode } from "../harness.js"
+import { absolute, callId, sessionId, sessionStart, subjectOf, text } from "../harness.js"
 
 /**
  * Codex's hooks, as normalized facts.
@@ -12,10 +12,9 @@ import { absolute, callId, sessionId, sessionStart, subjectOf, text, withMode } 
  * subagent; the call's PostToolUse from that actor means it was allowed. Codex describes
  * a shell call in the request but not in its result, so a call is known by its command.
  */
-export const decode = (report: Report): readonly HarnessEvent[] =>
-  withMode(decodeHook(report), report.payload)
-
-const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly HarnessEvent[] => {
+// Its hooks name `permission_mode` as `default` even in Plan Mode: its rollout says
+// whether it plans.
+export const decode = ({ event, seq, instance, env, payload }: Report): readonly HarnessEvent[] => {
   const id = sessionId(payload.session_id)
   if (!id || (env.codexThread !== undefined && env.codexThread !== id)) return []
   const base = { agent: "codex", sessionId: id, instance, startedAt: seq } as const

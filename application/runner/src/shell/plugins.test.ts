@@ -158,7 +158,11 @@ describe("agent plugins", () => {
       "PostToolUse",
     ])
     expect(read(agy, "plugin.json")).toEqual({ name: "novadeck" })
-    expect(Object.keys(read(agy, "hooks.json").novadeck)).toEqual(["PreInvocation", "Stop"])
+    expect(Object.keys(read(agy, "hooks.json").novadeck)).toEqual([
+      "PreInvocation",
+      "Stop",
+      "PostToolUse",
+    ])
   })
 })
 

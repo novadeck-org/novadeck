@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { json, plugin, type Harness, type Install } from "../harness.js"
 import { decode } from "./decode.js"
 import { statusLineSettings } from "./settings.js"
+import { transcripts } from "./transcripts.js"
 
 // Antigravity keeps its own state beside other Google tools in ~/.gemini.
 const gemini = (home: string) => join(home, ".gemini")
@@ -34,7 +35,8 @@ export const agy = {
   disconnect: [{ argv: ["agy", "plugin", "uninstall", "novadeck"], optional: true }],
   hook,
   // Antigravity runs PreInvocation hooks before each model call, the first time with the
-  // conversation's first message, and Stop once the turn ends.
+  // conversation's first message, Stop once the turn ends, and PostToolUse after each
+  // tool, which names the artifacts it writes, as a plan.
   files: (platform) => [
     { path: "plugin.json", content: json({ name: plugin.name }) },
     {
@@ -43,6 +45,13 @@ export const agy = {
         novadeck: {
           PreInvocation: [{ type: "command", command: hook(platform, "PreInvocation") }],
           Stop: [{ type: "command", command: hook(platform, "Stop") }],
+          // Tool events take matcher groups: only the tool that writes artifacts.
+          PostToolUse: [
+            {
+              matcher: "write_to_file",
+              hooks: [{ type: "command", command: hook(platform, "PostToolUse") }],
+            },
+          ],
         },
       }),
     },
@@ -51,13 +60,14 @@ export const agy = {
   // the person, and its context and quotas.
   settings: statusLineSettings(cli),
   resume: (session) => ["agy", "--conversation", session],
+  transcripts,
   // Its hooks and status line, which name no subagents; see docs/harness-coverage.md.
   coverage: {
     session: "partial",
     activity: "partial",
     attention: "partial",
     actors: "unsupported",
-    transcripts: "unsupported",
+    transcripts: "partial",
     planning: "partial",
     usage: "unsupported",
     limits: "partial",

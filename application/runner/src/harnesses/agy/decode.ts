@@ -1,3 +1,5 @@
+import { extname, isAbsolute, relative } from "node:path"
+
 import type { Report } from "../../shell/reports.js"
 import type { HarnessEvent } from "../events.js"
 import { absolute, sessionId, text } from "../harness.js"
@@ -8,6 +10,8 @@ import { absolute, sessionId, text } from "../harness.js"
  * PreInvocation starts a model call, so the agent works; Stop ends the turn, as failed
  * when it names an error. Its confirmations fire no hook, and an Esc fires nothing: its
  * status line, which NovaDeck's settings hand to the hook as StatusLine, tells both.
+ * Every hook names the conversation's transcript. A plan is an artifact it writes asking
+ * for the person's review, which its PostToolUse names.
  */
 export const decode = ({ event, seq, instance, payload }: Report): readonly HarnessEvent[] => {
   if (event === "StatusLine") return statusLine({ seq, instance, payload })
@@ -15,12 +19,14 @@ export const decode = ({ event, seq, instance, payload }: Report): readonly Harn
   if (!id) return []
   const workspaces = Array.isArray(payload.workspacePaths) ? payload.workspacePaths : []
   const cwd = absolute(workspaces[0])
+  const transcript = absolute(payload.transcriptPath)
   const base = { agent: "agy", sessionId: id, instance, startedAt: seq } as const
   const observed: HarnessEvent = {
     type: "session-observed",
     ...base,
     evidence: "conversation-observed",
     ...(cwd !== undefined && { cwd }),
+    ...(transcript !== undefined && { transcript }),
   }
   switch (event) {
     case "PreInvocation":
@@ -30,9 +36,32 @@ export const decode = ({ event, seq, instance, payload }: Report): readonly Harn
         observed,
         { type: "turn-ended", ...base, outcome: text(payload.error) ? "failed" : "completed" },
       ]
+    case "PostToolUse":
+      return [observed, ...artifact(base, payload)]
     default:
       return [observed]
   }
+}
+
+// A plan: Markdown the agent writes, in the conversation's own folder, as an artifact
+// asking for the person's review; one it failed to write is none.
+const artifact = (
+  base: { agent: "agy"; sessionId: string; instance: string | null; startedAt: number },
+  payload: Report["payload"],
+): HarnessEvent[] => {
+  const { name, args } = (payload.toolCall ?? {}) as {
+    name?: unknown
+    args?: Record<string, unknown>
+  }
+  const metadata = args?.ArtifactMetadata as { RequestFeedback?: unknown } | undefined
+  if (name !== "write_to_file" || metadata?.RequestFeedback !== true || text(payload.error))
+    return []
+  const path = absolute(args?.TargetFile)
+  const folder = absolute(payload.artifactDirectoryPath)
+  if (!path || !folder || extname(path) !== ".md") return []
+  const inside = relative(folder, path)
+  if (!inside || inside.startsWith("..") || isAbsolute(inside)) return []
+  return [{ type: "plan-observed", ...base, actor: null, plan: { kind: "file", path } }]
 }
 
 const count = (value: unknown): number | undefined =>

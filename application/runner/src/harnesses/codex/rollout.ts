@@ -1,7 +1,8 @@
 import type { AgentTelemetry } from "@novadeck/protocol"
 
-import type { TelemetryObserved } from "../events.js"
-import type { Run } from "../harness.js"
+import type { HarnessEvent } from "../events.js"
+import { followLines } from "../follow.js"
+import { bounded, type Harness, type Run } from "../harness.js"
 
 type Limit = AgentTelemetry["limits"][number]
 
@@ -29,15 +30,16 @@ const limit = (window: unknown): Limit | undefined => {
 }
 
 /**
- * What one line of Codex's rollout says of the session's tokens and quotas: its
- * `token_count` events carry the latest response's usage with the model's context window,
- * and the account's rate-limit windows.
+ * What one line of Codex's rollout says that its hooks do not: its `token_count` events
+ * carry the latest response's usage with the model's context window, and the account's
+ * rate-limit windows; each turn's `task_started` names its collaboration mode, `plan` in
+ * Plan Mode, whose hooks still say `default`; and a Plan item is the plan it proposes.
  */
 export const rolloutEvents = (
   line: string,
   { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
-): readonly TelemetryObserved[] => {
-  if (!line.includes('"token_count"')) return []
+): readonly HarnessEvent[] => {
+  if (!/"(token_count|task_started|item_completed)"/.test(line)) return []
   let record: unknown
   try {
     record = JSON.parse(line)
@@ -47,9 +49,40 @@ export const rolloutEvents = (
   if (typeof record !== "object" || record === null) return []
   const { type, timestamp, payload } = record as Record<string, unknown>
   if (type !== "event_msg" || typeof timestamp !== "string") return []
-  const { type: kind, info, rate_limits: limits } = (payload ?? {}) as Record<string, unknown>
+  const fields = (payload ?? {}) as Record<string, unknown>
   const startedAt = Date.parse(timestamp)
-  if (kind !== "token_count" || !Number.isFinite(startedAt)) return []
+  if (!Number.isFinite(startedAt)) return []
+  const base = { agent: "codex", sessionId, instance, startedAt } as const
+  switch (fields.type) {
+    case "token_count":
+      return [telemetry(base, fields)]
+    case "task_started":
+      return typeof fields.collaboration_mode_kind === "string"
+        ? [{ type: "mode-observed", ...base, planning: fields.collaboration_mode_kind === "plan" }]
+        : []
+    case "item_completed": {
+      const { type: kind, text } = (fields.item ?? {}) as { type?: unknown; text?: unknown }
+      if (kind !== "Plan" || typeof text !== "string" || !text) return []
+      const { text: plan, truncated } = bounded(text)
+      return [
+        {
+          type: "plan-observed",
+          ...base,
+          actor: null,
+          plan: { kind: "text", text: plan, truncated },
+        },
+      ]
+    }
+    default:
+      return []
+  }
+}
+
+// A token count's usage and rate-limit windows.
+const telemetry = (
+  base: { agent: "codex"; sessionId: string; instance: string | null; startedAt: number },
+  { info, rate_limits: limits }: Record<string, unknown>,
+): HarnessEvent => {
   const usage = (info as { last_token_usage?: { total_tokens?: unknown } } | null)?.last_token_usage
   const occupied = number(usage?.total_tokens)
   const capacity = number((info as { model_context_window?: unknown } | null)?.model_context_window)
@@ -57,20 +90,51 @@ export const rolloutEvents = (
   const known = [limit(windows.primary), limit(windows.secondary)].filter(
     (each): each is Limit => each !== undefined,
   )
-  return [
-    {
-      type: "telemetry-observed",
-      agent: "codex",
-      sessionId,
-      instance,
-      startedAt,
-      ...(occupied !== undefined && {
-        context: {
-          occupied: Math.max(0, Math.round(occupied)),
-          capacity: capacity !== undefined && capacity >= 1 ? Math.round(capacity) : null,
-        },
-      }),
-      ...(limits !== undefined && limits !== null && { limits: known }),
+  return {
+    type: "telemetry-observed",
+    ...base,
+    ...(occupied !== undefined && {
+      context: {
+        occupied: Math.max(0, Math.round(occupied)),
+        capacity: capacity !== undefined && capacity >= 1 ? Math.round(capacity) : null,
+      },
+    }),
+    ...(limits !== undefined && limits !== null && { limits: known }),
+  }
+}
+
+/**
+ * Follows a bound session's rollout. Codex writes a turn's mode before the hook that
+ * binds the session starts, so what the rollout already holds counts too: its latest
+ * mode, as of now, and its latest plan and token count, as of when they were written;
+ * then each record appended.
+ */
+export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) => {
+  // The latest of each kind the backlog held, until it has all been read.
+  let backlog: Map<string, HarnessEvent> | undefined = new Map()
+  return followLines(
+    run.transcript,
+    signal,
+    (line) => {
+      for (const event of rolloutEvents(line, run))
+        if (backlog) backlog.set(event.type, event)
+        else emit(event)
     },
-  ]
+    {
+      fromStart: true,
+      onIdle: () => {
+        if (!backlog) return
+        // The mode holds until the next turn says otherwise, so it holds now, when the
+        // binding that would otherwise predate it began; the rest keep their age.
+        const now = Date.now()
+        for (const event of backlog.values())
+          emit(
+            event.type === "mode-observed"
+              ? { ...event, startedAt: Math.max(event.startedAt, now) }
+              : event,
+          )
+        backlog = undefined
+      },
+    },
+  )
 }

@@ -2,7 +2,16 @@ import { basename, dirname, extname } from "node:path"
 
 import type { Report } from "../../shell/reports.js"
 import type { HarnessEvent } from "../events.js"
-import { absolute, callId, sessionId, sessionStart, subjectOf, text, withMode } from "../harness.js"
+import {
+  absolute,
+  bounded,
+  callId,
+  sessionId,
+  sessionStart,
+  subjectOf,
+  text,
+  withMode,
+} from "../harness.js"
 
 /**
  * Claude Code's hooks, as normalized facts.
@@ -200,19 +209,7 @@ const presented = (
   const path = markdown(planFilePath)
   if (path) return [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }]
   if (typeof plan !== "string" || !plan) return []
-  // Cut short, a character is left whole.
-  let end = Math.min(plan.length, maxPlan)
-  const last = plan.charCodeAt(end - 1)
-  if (end < plan.length && last >= 0xd800 && last <= 0xdbff) end -= 1
-  return [
-    {
-      type: "plan-observed",
-      ...base,
-      actor,
-      plan: { kind: "text", text: plan.slice(0, end), truncated: end < plan.length },
-    },
-  ]
+  return [{ type: "plan-observed", ...base, actor, plan: { kind: "text", ...bounded(plan) } }]
 }
 
-// The longest plan text kept, as the protocol takes it.
-export const maxPlan = 256 * 1024
+export { maxPlan } from "../harness.js"

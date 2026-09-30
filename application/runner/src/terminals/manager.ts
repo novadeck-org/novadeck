@@ -1359,6 +1359,16 @@ export class Terminals {
         this.applyFact(record, event)
         continue
       }
+      // The bound session's transcript, from a later report when the one that bound it
+      // named none, as Antigravity's status line does.
+      const { binding: bound } = record
+      if (
+        event.transcript !== undefined &&
+        record.transcript === null &&
+        bound?.agent === event.agent &&
+        bound.sessionId === event.sessionId
+      )
+        record.transcript = event.transcript
       const next = observe(
         { sessions: record.agents, binding: record.binding, cwd: record.summary.cwd },
         event,

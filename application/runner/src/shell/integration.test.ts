@@ -758,6 +758,57 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await reading
   })
 
+  it("takes a transcript from a later report when the status line bound the session", async ({
+    shell,
+  }) => {
+    const transcript = join(shell.home, "transcript_full.jsonl")
+    writeFileSync(
+      transcript,
+      `${JSON.stringify({ step_index: 0, source: "USER_EXPLICIT", type: "USER_INPUT", content: "<USER_REQUEST>\nhi\n</USER_REQUEST>" })}\n`,
+    )
+    const bin = reporter(shell.home, [
+      // Antigravity's status line names the conversation, but not its transcript.
+      {
+        agent: "agy",
+        sessionId: "c1",
+        seq: 1,
+        source: "",
+        event: "StatusLine",
+        fields: { conversation_id: "c1", agent_state: "idle" },
+      },
+      {
+        agent: "agy",
+        sessionId: "c1",
+        seq: 2,
+        source: "",
+        event: "PreInvocation",
+        fields: { transcriptPath: transcript },
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await shell.until(manager, terminal.id, "reports sent")
+    const details = manager.detail(terminal.id)
+    let root: string | undefined
+    while (!root) {
+      // eslint-disable-next-line no-await-in-loop -- Reads snapshots until the agent binds.
+      const { value } = await details.next()
+      root = value?.actors[0]?.ref
+    }
+    await details.return(undefined)
+    const texts: string[] = []
+    const reading = (async () => {
+      for await (const change of manager.transcript(terminal.id, root))
+        if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
+    })()
+    await expect.poll(() => texts).toEqual(["hi"])
+    manager.forgetAgent("agy")
+    await reading
+  })
+
   it("streams a plan the agent drafts, as it changes, until the agent leaves", async ({
     shell,
   }) => {

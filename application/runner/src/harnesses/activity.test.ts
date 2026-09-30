@@ -344,13 +344,21 @@ const interrupt = (payload: Report["payload"]): Report => ({
 describe("an agent's mode", () => {
   it("comes from the root agent's hooks, not a subagent's", () => {
     const hook = (payload: Report["payload"]) =>
-      harnesses.codex.decode({ ...interrupt(payload), event: "UserPromptSubmit" })
+      harnesses.claude.decode({ ...interrupt(payload), agent: "claude", event: "UserPromptSubmit" })
     expect(hook({ session_id: "s", permission_mode: "plan" })).toContainEqual(
       expect.objectContaining({ type: "mode-observed", planning: true }),
     )
     expect(
       hook({ session_id: "s", agent_id: "a", permission_mode: "plan" }).map(({ type }) => type),
     ).not.toContain("mode-observed")
+  })
+
+  it("comes from Codex's rollout, as its hooks say default even in Plan Mode", () => {
+    const hook = harnesses.codex.decode({
+      ...interrupt({ session_id: "s", permission_mode: "default" }),
+      event: "UserPromptSubmit",
+    })
+    expect(hook.map(({ type }) => type)).not.toContain("mode-observed")
   })
 })
 

@@ -458,7 +458,9 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   once the terminal is gone.
 - `agents.transcript({ terminalId, actor })` streams an actor's conversation, by the ref
   `agents.detail` names it by, as its harness recorded it: batches of up to 256 items
-  from the start of the record, then each one appended, and `reset` when the record was
+  from the start of the record in the order the harness wrote them (Antigravity may
+  write a tool's result before its call; `call` pairs them), then each one appended,
+  and `reset` when the record was
   rewritten (the items follow again from the start). An item is the person's or the
   agent's text, a tool call with its input as text, or a tool's result, numbered from
   the record's start, with when it was written; `call` pairs a result with its call by a
@@ -466,8 +468,11 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   never appears. It reads Claude Code's session transcript and its per-subagent ones,
   and Codex's rollouts (a subagent's found on its parent's day or up to a week later),
   without the context either harness writes in the person's place, their developer or
-  meta records, or the messages Codex's agents send each other; Antigravity's is not
-  read. The runner reads no further ahead than it has sent, but a remote client's own
+  meta records, and Antigravity's (the step log its hooks name: the person's request
+  without the context wrapped around it, the agent's words, each tool call and its
+  result, never its reasoning or system steps). A Codex agent's transcript also holds
+  the messages other agents sent it, as role `agent` with `author` naming the sender's
+  path (`/root`, `/root/<name>`). The runner reads no further ahead than it has sent, but a remote client's own
   pace is not tracked: a large record on a slow link fills the socket's buffer like any
   other output.
   An actor the terminal's session does not have, or without a transcript NovaDeck reads,
@@ -479,11 +484,12 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   actor's ref, whether it is a file or presented text, and the file's name). Claude Code's
   plans are the Markdown files plan mode writes in a `plans` folder, and what
   `ExitPlanMode` presents: the file Claude Code names, wherever its plans folder is set,
-  or the plan's text, each presentation its own plan. Codex's and Antigravity's are not
-  read yet.
+  or the plan's text, each presentation its own plan. Codex's is the plan its Plan Mode
+  proposes, as text, each proposal its own plan. Antigravity's is the Markdown artifact
+  it writes asking for the person's review (`implementation_plan.md`).
   `agents.plan({ terminalId, plan })` streams one: its text as it stands (cut short past
   256 KiB, marked `truncated`) with when its file last changed, then again on each
-  change. Only a plain Markdown file that one of those names is ever read. A plan no longer an
+  change. Only a plain Markdown file one of those names as a plan is ever read. A plan no longer an
   actor's latest is `NOT_FOUND`; the stream ends once another replaces it or the agent
   leaves its session. The client's `agents.plan(terminalId, plan)` follows it across
   reconnections.

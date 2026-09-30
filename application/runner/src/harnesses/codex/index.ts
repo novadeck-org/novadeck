@@ -1,10 +1,9 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { followLines } from "../follow.js"
 import { json, marketplace, plugin, type Harness, type Install } from "../harness.js"
 import { decode } from "./decode.js"
-import { rolloutEvents } from "./rollout.js"
+import { followRollout } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
 import { transcripts } from "./transcripts.js"
 
@@ -91,9 +90,7 @@ export const codex = {
     context: "partial",
   },
   decode,
-  // The rollout records the session's tokens and the account's rate-limit windows.
-  watch: (run, signal, emit) =>
-    followLines(run.transcript, signal, (line) => {
-      for (const event of rolloutEvents(line, run)) emit(event)
-    }),
+  // The rollout records the session's tokens and the account's rate-limit windows, each
+  // turn's mode and the plans it proposes.
+  watch: followRollout,
 } satisfies Harness
