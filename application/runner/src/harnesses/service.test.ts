@@ -164,8 +164,15 @@ describe("agents NovaDeck can connect", () => {
     ])
     expect(fixture.calls()).toContainEqual(["codex", "plugin", "add", "novadeck@novadeck"])
     expect(fixture.calls()).toContainEqual(["agy", "plugin", "install", fixture.paths.plugins.agy])
+    // Antigravity's status line, which only its settings name, runs NovaDeck's hook too.
+    const settings = join(fixture.home, ".gemini", "antigravity-cli", "settings.json")
+    const statusLine = () =>
+      (JSON.parse(readFileSync(settings, "utf8")) as { statusLine?: { command: string } })
+        .statusLine
+    if (!windows) expect(statusLine()?.command).toContain('"$NOVADECK_HOOK" agy StatusLine')
     await agents.set("agy", false)
     expect((await agents.list())[2]).toMatchObject({ connected: false })
+    if (!windows) expect(statusLine()).toBeUndefined()
   })
 
   it.skipIf(windows)(

@@ -50,6 +50,14 @@ export type Harness = {
   readonly hook: (platform: NodeJS.Platform, event: string) => string
   /** Its plugin's manifests and hook registrations, relative to its plugin directory. */
   readonly files: (platform: NodeJS.Platform) => readonly File[]
+  /**
+   * Changes its own settings once connected, and puts them back before disconnecting, for
+   * what it offers no way to set per launch, as Antigravity's status line.
+   */
+  readonly settings?: {
+    readonly apply: (install: Install) => Promise<void>
+    readonly revert: (install: Install) => Promise<void>
+  }
   /** Programs NovaDeck's shells put first on PATH while it is connected. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
   /** The words that continue its session by id, which a shell runs as they are. */

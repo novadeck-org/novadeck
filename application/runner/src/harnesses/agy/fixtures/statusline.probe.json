@@ -1,0 +1,146 @@
+{
+  "harness": "agy",
+  "version": "1.2.13",
+  "source": "captured",
+  "how": "the JSON Antigravity gave a status line command in an interactive session: a prompt to run a command, its confirmation denied with 4; conversation ids, paths replaced, email and other fields left out",
+  "payloads": [
+    {
+      "agent_state": "authenticating",
+      "context_window": {
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "context_window_size": 0,
+        "used_percentage": 0,
+        "remaining_percentage": 0,
+        "current_usage": null
+      },
+      "conversation_id": "",
+      "session_id": "",
+      "cwd": "/home/user/project"
+    },
+    {
+      "agent_state": "initializing",
+      "context_window": {
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "context_window_size": 1048576,
+        "used_percentage": 0,
+        "remaining_percentage": 100,
+        "current_usage": null
+      },
+      "conversation_id": "",
+      "session_id": "",
+      "cwd": "/home/user/project"
+    },
+    {
+      "agent_state": "idle",
+      "context_window": {
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "context_window_size": 1048576,
+        "used_percentage": 0,
+        "remaining_percentage": 100,
+        "current_usage": null
+      },
+      "quota": {
+        "3p-weekly": {
+          "remaining_fraction": 1,
+          "reset_time": "2026-10-07T00:35:50Z",
+          "reset_in_seconds": 604796
+        },
+        "gemini-weekly": {
+          "remaining_fraction": 0.8638056,
+          "reset_time": "2026-10-06T21:00:32Z",
+          "reset_in_seconds": 591878
+        }
+      },
+      "conversation_id": "",
+      "session_id": "",
+      "cwd": "/home/user/project"
+    },
+    {
+      "agent_state": "working",
+      "context_window": {
+        "total_input_tokens": 0,
+        "total_output_tokens": 0,
+        "context_window_size": 1048576,
+        "used_percentage": 0,
+        "remaining_percentage": 100,
+        "current_usage": null
+      },
+      "quota": {
+        "3p-weekly": {
+          "remaining_fraction": 1,
+          "reset_time": "2026-10-07T00:35:50Z",
+          "reset_in_seconds": 604792
+        },
+        "gemini-weekly": {
+          "remaining_fraction": 0.8638056,
+          "reset_time": "2026-10-06T21:00:32Z",
+          "reset_in_seconds": 591874
+        }
+      },
+      "conversation_id": "50000000-0000-4000-8000-000000000001",
+      "session_id": "50000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project"
+    },
+    {
+      "agent_state": "tool_use",
+      "tool_confirmation_pending": true,
+      "context_window": {
+        "total_input_tokens": 18671,
+        "total_output_tokens": 366,
+        "context_window_size": 1048576,
+        "used_percentage": 1.8155097961425781,
+        "remaining_percentage": 98.18449020385742,
+        "current_usage": null
+      },
+      "quota": {
+        "3p-weekly": {
+          "remaining_fraction": 1,
+          "reset_time": "2026-10-07T00:35:50Z",
+          "reset_in_seconds": 604789
+        },
+        "gemini-weekly": {
+          "remaining_fraction": 0.8638056,
+          "reset_time": "2026-10-06T21:00:32Z",
+          "reset_in_seconds": 591871
+        }
+      },
+      "conversation_id": "50000000-0000-4000-8000-000000000001",
+      "session_id": "50000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project"
+    },
+    {
+      "agent_state": "idle",
+      "context_window": {
+        "total_input_tokens": 25504,
+        "total_output_tokens": 366,
+        "context_window_size": 1048576,
+        "used_percentage": 2.4322509765625,
+        "remaining_percentage": 97.5677490234375,
+        "current_usage": {
+          "input_tokens": 18671,
+          "output_tokens": 366,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      },
+      "quota": {
+        "3p-weekly": {
+          "remaining_fraction": 1,
+          "reset_time": "2026-10-07T00:35:50Z",
+          "reset_in_seconds": 604786
+        },
+        "gemini-weekly": {
+          "remaining_fraction": 0.8638056,
+          "reset_time": "2026-10-06T21:00:32Z",
+          "reset_in_seconds": 591868
+        }
+      },
+      "conversation_id": "50000000-0000-4000-8000-000000000001",
+      "session_id": "50000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project"
+    }
+  ]
+}

@@ -506,10 +506,11 @@ response target.
 
 No harness gives a permission request its own id. Claude Code and Codex fire
 `PermissionRequest` right after the `PreToolUse` of the same call, whose
-`tool_use_id` becomes the `requestId`. For Antigravity, the status line's
-`tool_confirmation_pending` names no step, so the preceding `PreToolUse`'s
-`stepIdx` becomes the `requestId`. A matching tool result resolves the request
-as `allowed`.
+`tool_use_id` becomes the `requestId`. Antigravity shows one confirmation at a
+time, and its status line's `tool_confirmation_pending` names no step, so its
+request is the fixed `confirmation`, resolved when a later snapshot shows the
+agent working without it. A matching tool result resolves the request as
+`allowed`.
 
 Denials differ by harness:
 
@@ -539,7 +540,7 @@ a hook inherits every ancestor harness's variables.
 
 Interruption reaches NovaDeck differently per harness: Codex fires `Interrupt`,
 Claude Code's transcript records the interruption, and Antigravity reports it
-only through its status line's `agent_state` (documented, not yet probed). Without such a source, a turn
+only through its status line's `agent_state` returning to `idle`. Without such a source, a turn
 stays `working` until its next event, and activity coverage is `partial`.
 
 Keep a durable resume reference separate from an ephemeral live binding. A
@@ -670,8 +671,10 @@ across harnesses, so it installs a bridge command that forwards each snapshot
 to NovaDeck and then runs the person's own status line command, whose output it
 passes through. For Claude Code, NovaDeck's shells pass `--settings` at launch,
 the way the Codex shim adds its flag, so the bridge applies only to NovaDeck's
-terminals. The snapshot can carry the account's email; the bridge forwards only
-the fields a feature needs.
+terminals. Antigravity takes a status line only from its user settings, so
+connecting it writes NovaDeck's there and disconnecting restores the person's
+own; outside NovaDeck's shells the bridge only runs the person's command. The
+snapshot can carry the account's email, which no decoder reads.
 
 Codex's plugin hooks run only once the person trusts them in `/hooks`, and no
 hook reports that they are untrusted. A connected Codex whose hooks are
@@ -908,7 +911,16 @@ an action by typing guessed keys into a terminal.
       hook as the status line. The hook forwards the snapshot, then runs the
       person's own status line command from their settings and prints its
       output. Each shim now checks `NOVADECK_SHIMS`, so one harness's shim
-      never applies while only another is connected.
+      never applies while only another is connected. For Antigravity, a
+      harness's optional `settings` step edits its user settings after a
+      verified connect and before a disconnect: its status line becomes a
+      command that hands the snapshot to NovaDeck's hook inside NovaDeck's
+      shells, then runs the person's own, which the command itself names, so
+      disconnecting puts it back from the settings alone. Its snapshots give
+      the agent's state (idle ends a turn after an Esc or a denial, working
+      starts one again), the pending confirmation, the
+      context window's share in use, and each named quota window. Windows keeps
+      the person's status line until the command is proven there.
    5. Planning signals.
 5. **Operate.** Add caller/operation, messaging, artifact and presentation
    services, with MCP and UI exercising the same operations, including the

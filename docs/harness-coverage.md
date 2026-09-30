@@ -227,7 +227,7 @@ It also carries the account's `email`, which must not leave the adapter.
 4. **Interruption is harness-specific.**
    - Codex fires `Interrupt`.
    - Claude Code fires nothing; its transcript records the interruption and the turn's end.
-   - Antigravity fires nothing, and its transcript drops the cancelled steps. Its status line's `agent_state` returning to `idle` is the remaining signal (documented; the status line is not yet probed).
+   - Antigravity fires nothing, and its transcript drops the cancelled steps. Its status line's `agent_state` returning to `idle` is the remaining signal; a probe saw it after a denied confirmation.
 
    Without such a source, a turn stays `working` until the next event, and coverage says so.
 
@@ -245,6 +245,6 @@ It also carries the account's `email`, which must not leave the adapter.
 
 - Claude Code: plan mode entered with Shift+Tab mid-session, a failed turn (`StopFailure`), and subagent interruption.
 - Codex: a failed turn, `request_user_input`, plan mode, and subagents under `--no-daemon`.
-- Antigravity: `ask_question`, plan mode artifacts, subagent hooks, the status line payload in a NovaDeck terminal, and the transcript and artifact formats.
-- The status line bridge for Claude Code and Antigravity, once built.
+- Antigravity: `ask_question`, plan mode artifacts, subagent hooks, the status line after an Esc, and the transcript and artifact formats.
+- The status line bridge in a live NovaDeck terminal, for Claude Code and Antigravity.
 - macOS and Windows: the hook's process ancestry, and every probe above.

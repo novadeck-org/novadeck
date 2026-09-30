@@ -200,6 +200,18 @@ export const createHarnesses = (
         const where = install(agent)
         if (!(await exists(harness.home(where))))
           throw new DomainError("AGENT_SETUP_FAILED", `${agent} is not installed here.`)
+        const settle = async (step: "apply" | "revert") => {
+          try {
+            await harness.settings?.[step](where)
+          } catch (error) {
+            throw new DomainError(
+              "AGENT_SETUP_FAILED",
+              error instanceof Error ? error.message : String(error),
+            )
+          }
+        }
+        // Its own settings go back before its plugin does, so nothing names a missing hook.
+        if (!connected) await settle("revert")
         for (const command of connected ? harness.connect(where) : harness.disconnect) {
           try {
             const [program = "", ...args] = command.argv
@@ -221,6 +233,7 @@ export const createHarnesses = (
             "AGENT_SETUP_FAILED",
             `${agent} did not ${connected ? "install" : "remove"} NovaDeck's plugin.`,
           )
+        if (connected) await settle("apply")
         return after
       })
       queue = change.then(
