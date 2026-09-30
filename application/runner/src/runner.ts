@@ -64,6 +64,7 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
     shims: () => agents.shims(),
     connected: (agent) => agents.connected(agent),
     transcripts: store.settings().transcripts,
+    projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     ...options.terminals,
   })
   const clients = new Map<string, Connection>()

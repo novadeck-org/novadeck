@@ -1,4 +1,10 @@
-import type { AgentDetail, AgentName, PlanContent } from "@novadeck/protocol"
+import type {
+  AgentDetail,
+  AgentName,
+  AgentShown,
+  ArtifactContent,
+  PlanContent,
+} from "@novadeck/protocol"
 
 import {
   companionKeyId,
@@ -10,12 +16,14 @@ import {
 } from "../../model/companion"
 
 // The runner's companions: the plans its agents keep, as `agents.detail` lists them and
-// `agents.plan` streams them. Read-only for now: the runner can't write a plan yet, and
-// shows nothing on an agent's behalf until NovaDeck's MCP server exists.
+// `agents.plan` streams them, and what they showed through NovaDeck's MCP server, as
+// `agents.shown` lists it. Plans are read-only for now: the runner can't write one yet.
 
 export type PlanStreams = {
   readonly detail: (terminalId: string) => AsyncIterableIterator<AgentDetail, undefined>
   readonly plan: (terminalId: string, plan: string) => AsyncIterableIterator<PlanContent, undefined>
+  readonly shown: (terminalId: string) => AsyncIterableIterator<AgentShown, undefined>
+  readonly artifact: (terminalId: string, artifact: string) => Promise<ArtifactContent>
 }
 
 export type RunnerCompanions = Companions & {
@@ -47,9 +55,12 @@ export const revisionOf = (text: string): string => {
 type Followed = {
   readonly key: CompanionKey
   readonly detail: AsyncIterableIterator<AgentDetail, undefined>
-  // Each plan it lists, while it lists it: its stream, and its latest text once known.
+  // What its agents showed: the stream, and the version of each thing last reported.
+  readonly shown: AsyncIterableIterator<AgentShown, undefined> | undefined
+  readonly versions: Map<string, number>
   // What the latest detail says of each plan it lists: its role, name and agent.
   readonly described: Map<string, Omit<PlanSnapshot, "text" | "revision">>
+  // Each plan it lists, while it lists it: its stream, and its latest text once known.
   readonly plans: Map<
     string,
     { readonly stream: AsyncIterableIterator<PlanContent, undefined>; snapshot?: PlanSnapshot }
@@ -101,6 +112,38 @@ export const createRunnerCompanions = (streams: PlanStreams): RunnerCompanions =
     })()
   }
 
+  // Everything the terminal's agents showed, reported as it's shown: something new, or
+  // something shown again with new content. Nothing is withdrawn: the user dismisses.
+  const followShown = (
+    terminal: Followed,
+    stream: AsyncIterableIterator<AgentShown, undefined>,
+  ): void => {
+    void (async () => {
+      try {
+        // What the first snapshot lists was shown before this follow, as before a
+        // reload: it's listed as already seen, and opens nothing.
+        let first = true
+        for await (const snapshot of stream) {
+          if (followed.get(companionKeyId(terminal.key)) !== terminal) return
+          for (const { asked, ...artifact } of snapshot.shown) {
+            if ((terminal.versions.get(artifact.id) ?? 0) >= artifact.version) continue
+            terminal.versions.set(artifact.id, artifact.version)
+            emit({
+              type: "artifact/shown",
+              key: terminal.key,
+              artifact,
+              asked,
+              ...(first && { seen: true }),
+            })
+          }
+          first = false
+        }
+      } catch {
+        // The runner closed or lost the terminal; its detail's end starts it over.
+      }
+    })()
+  }
+
   const follow = (key: CompanionKey): void => {
     const id = companionKeyId(key)
     if (followed.has(id)) return
@@ -111,8 +154,23 @@ export const createRunnerCompanions = (streams: PlanStreams): RunnerCompanions =
       // Plans are extra: a runner that can't follow them leaves the terminal as it is.
       return
     }
-    const terminal: Followed = { key, detail: details, described: new Map(), plans: new Map() }
+    // What its agents show is extra too; a runner without it shows nothing.
+    let shown: AsyncIterableIterator<AgentShown, undefined> | undefined
+    try {
+      shown = streams.shown(key.terminalId)
+    } catch {
+      shown = undefined
+    }
+    const terminal: Followed = {
+      key,
+      detail: details,
+      shown,
+      versions: new Map(),
+      described: new Map(),
+      plans: new Map(),
+    }
     followed.set(id, terminal)
+    if (shown) followShown(terminal, shown)
     void (async () => {
       try {
         for await (const detail of terminal.detail) {
@@ -141,6 +199,7 @@ export const createRunnerCompanions = (streams: PlanStreams): RunnerCompanions =
       // a fresh shell hasn't started yet: its plans go, and a later `follow` starts over.
       if (followed.get(id) !== terminal) return
       followed.delete(id)
+      void terminal.shown?.return?.()
       for (const ref of terminal.plans.keys()) dropPlan(terminal, ref)
     })()
   }
@@ -151,6 +210,7 @@ export const createRunnerCompanions = (streams: PlanStreams): RunnerCompanions =
     if (!terminal) return
     followed.delete(id)
     void terminal.detail.return?.()
+    void terminal.shown?.return?.()
     const streamsLeft = [...terminal.plans.values()]
     // Emptied first, so the ending streams report nothing about a closed terminal.
     terminal.plans.clear()
@@ -169,7 +229,7 @@ export const createRunnerCompanions = (streams: PlanStreams): RunnerCompanions =
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    load: (_key, artifactId) => Promise.reject(new Error(`No artifact ${artifactId}`)),
+    load: (key, artifactId) => streams.artifact(key.terminalId, artifactId),
     save: () => Promise.reject(new Error("The runner can't write plans yet")),
     follow,
     unfollow,

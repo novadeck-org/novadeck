@@ -168,6 +168,40 @@ export const planContent = z.strictObject({
   changedAt: z.number().nullable(),
 })
 
+// What an agent showed the user from its terminal through NovaDeck's MCP server, by an
+// id the runner gives it. Showing the same thing again raises `version`. `asked`: the
+// agent said the user asked to see it, so it opens.
+export const artifactId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)
+
+export const shownArtifact = z.strictObject({
+  id: artifactId,
+  kind: z.enum(["image", "file"]),
+  name: z.string().max(256),
+  detail: z.string().max(512),
+  version: z.number().int().min(1),
+  asked: z.boolean(),
+})
+
+// `agents.shown` snapshots: everything the terminal's agents have shown, oldest first.
+export const agentShown = z.strictObject({
+  terminalId: id,
+  shown: z.array(shownArtifact).max(64),
+})
+
+// `agents.artifact`: what was shown, as captured when it was. An image is a data URL; a
+// file is the lines around the ones pointed at, numbered from `firstLine`.
+export const artifactContent = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("image"), src: z.string().max(12 * 1024 * 1024) }),
+  z.strictObject({
+    kind: z.literal("file"),
+    path: z.string().max(4096),
+    firstLine: z.number().int().min(1),
+    lines: z.array(z.string().max(4096)).max(2000),
+    from: z.number().int().min(1),
+    to: z.number().int().min(1),
+  }),
+])
+
 // `agents.transcript` changes: items of an actor's conversation in the order its harness
 // recorded them, numbered from the start of the record (a tool's result may come before
 // its call, which `call` pairs it with); or `reset`, when the record
@@ -282,6 +316,9 @@ export type AgentTelemetry = z.infer<typeof agentTelemetry>
 export type AgentCoverage = z.infer<typeof agentCoverage>
 export type AgentDetail = z.infer<typeof agentDetail>
 export type PlanContent = z.infer<typeof planContent>
+export type ShownArtifact = z.infer<typeof shownArtifact>
+export type AgentShown = z.infer<typeof agentShown>
+export type ArtifactContent = z.infer<typeof artifactContent>
 export type TranscriptItem = z.infer<typeof transcriptItem>
 export type TranscriptChange = z.infer<typeof transcriptChange>
 export type AgentIntegration = z.infer<typeof agentIntegration>

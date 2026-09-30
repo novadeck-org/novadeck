@@ -10,7 +10,9 @@ import { transcripts } from "./transcripts.js"
 
 const id = "novadeck@novadeck"
 
-const home = ({ env, home: user }: Install) => env.CLAUDE_CONFIG_DIR || join(user, ".claude")
+/** Claude Code's configuration folder, which also keeps its plans in `plans`. */
+export const configFolder = ({ env, home: user }: Pick<Install, "env" | "home">): string =>
+  env.CLAUDE_CONFIG_DIR || join(user, ".claude")
 
 // The hooks `decode` reads: the session, its turns, and the requests waiting on the person.
 const events = [
@@ -35,10 +37,12 @@ export const claude = {
   plugin: "claude",
   // Claude Code's local install is an alias in the user's rc file, not on PATH.
   fallback: (user) => join(user, ".claude", "local", "claude"),
-  home,
+  home: configFolder,
   connected: async (install) => {
     try {
-      const settings = JSON.parse(await readFile(join(home(install), "settings.json"), "utf8")) as {
+      const settings = JSON.parse(
+        await readFile(join(configFolder(install), "settings.json"), "utf8"),
+      ) as {
         enabledPlugins?: Record<string, unknown>
       }
       return settings.enabledPlugins?.[id] === true

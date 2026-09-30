@@ -5,7 +5,7 @@ import { join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
 import { hookScript } from "./hook.js"
-import { listenForReports, type Report } from "./reports.js"
+import { listenForReports, unanswered, type Report } from "./reports.js"
 
 type Fixture = {
   endpoint: string
@@ -35,7 +35,10 @@ const it = base.extend<{ fixture: Fixture }>({
     const script = join(directory, "hook.mjs")
     writeFileSync(script, hookScript)
     const reports: Report[] = []
-    const listening = await listenForReports((report) => reports.push(report))
+    const listening = await listenForReports(
+      (report) => reports.push(report),
+      () => Promise.resolve(unanswered),
+    )
     resources.defer(() => listening.close())
     const hook: Fixture["hook"] = (agent, payload, env = {}, event) =>
       new Promise((resolve) => {

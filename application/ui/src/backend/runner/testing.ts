@@ -141,6 +141,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       detail: (terminalId) => runner.agents.detail(terminalId),
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
       plan: (terminalId, plan) => runner.agents.plan(terminalId, plan),
+      shown: (terminalId) => runner.agents.shown(terminalId),
+      artifact: (terminalId, artifact) => runner.agents.artifact(terminalId, artifact),
       set: (agent, connected) =>
         note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
     },

@@ -174,6 +174,17 @@ export const createRouter = (options: {
           throw apiError(error)
         }
       }),
+      shown: authorized.agents.shown.handler(async function* ({ input, context, signal }) {
+        if (context.connection.closed) return
+        try {
+          yield* terminals.shown(input.terminalId, signal)
+        } catch (error) {
+          throw apiError(error)
+        }
+      }),
+      artifact: authorized.agents.artifact.handler(({ input }) =>
+        terminals.artifact(input.terminalId, input.artifact),
+      ),
       set: authorized.agents.set.handler(async ({ input }) => {
         const result = await agents.set(input.agent, input.connected)
         if (!result.connected) terminals.forgetAgent(input.agent)

@@ -279,6 +279,29 @@ describe("companion store", () => {
     expect(saves[0]!.text).toBe(`${crlf}No blog.\r\n`)
   })
 
+  it("keeps only an artifact's latest version loaded", async () => {
+    const shown = backend()
+    const actions = companionActions(shown.companions, key)
+    const artifact = {
+      id: "hero",
+      kind: "image",
+      name: "hero.png",
+      detail: "",
+      version: 1,
+    } as const
+    shown.emit({ type: "artifact/shown", key, artifact, asked: false })
+    const older = actions.current().artifacts[0]!
+    // The backend fails its first load.
+    await actions.load(older).catch(() => {})
+    await actions.load(older)
+    await actions.load(older)
+    expect(shown.loads).toBe(2)
+    shown.emit({ type: "artifact/shown", key, artifact: { ...artifact, version: 2 }, asked: false })
+    await actions.load(actions.current().artifacts[0]!)
+    await actions.load(older)
+    expect(shown.loads).toBe(4)
+  })
+
   it("loads an artifact again after a load failed", async () => {
     const { companions, emit } = backend()
     const actions = companionActions(companions, key)

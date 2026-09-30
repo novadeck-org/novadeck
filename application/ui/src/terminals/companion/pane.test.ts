@@ -101,4 +101,12 @@ describe("companion pane", () => {
       ])
     })
   })
+
+  describe("when it was shown before this session", () => {
+    it("is listed as already seen, and opens nothing even if asked for", () => {
+      const listed = show(companion, home, true, true)
+      expect(listed).toMatchObject({ open: false, artifacts: [{ id: "home", fresh: false }] })
+      expect(listed.tab).toBe(companion.tab)
+    })
+  })
 })

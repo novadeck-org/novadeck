@@ -15,7 +15,13 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import type { AgentDetail, AgentName, TerminalChange, TerminalSummary } from "@novadeck/protocol"
+import type {
+  AgentDetail,
+  AgentName,
+  AgentShown,
+  TerminalChange,
+  TerminalSummary,
+} from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
@@ -184,6 +190,46 @@ const reporter = (
   )
   writeFileSync(join(bin, "report"), `#!/bin/sh\nexec "${process.execPath}" "${script}"\n`)
   chmodSync(join(bin, "report"), 0o755)
+  return bin
+}
+
+// A stand-in for NovaDeck's MCP server: `present <name>` sends the calls in `<name>.json`
+// as a tool call would, one after another, keeps the answers in `<name>.answers.json`,
+// then says so.
+const presenter = (home: string): string => {
+  const bin = join(home, "bin")
+  mkdirSync(bin, { recursive: true })
+  const script = join(bin, "present.cjs")
+  writeFileSync(
+    script,
+    [
+      'const fs = require("node:fs")',
+      'const net = require("node:net")',
+      "const name = process.argv[2]",
+      'const calls = JSON.parse(fs.readFileSync(name + ".json", "utf8"))',
+      "const { NOVADECK_TERMINAL_ID: terminalId, NOVADECK_REPORT_TOKEN: token } = process.env",
+      "const answers = []",
+      "const send = (index) => {",
+      "  if (index === calls.length) {",
+      '    fs.writeFileSync(name + ".answers.json", JSON.stringify(answers))',
+      '    return console.log("answered " + require("node:path").basename(name))',
+      "  }",
+      "  const socket = net.connect(process.env.NOVADECK_REPORT)",
+      '  let text = ""',
+      '  socket.setEncoding("utf8")',
+      '  socket.on("data", (chunk) => (text += chunk))',
+      '  socket.on("close", () => {',
+      "    answers.push(text ? JSON.parse(text) : null)",
+      "    send(index + 1)",
+      "  })",
+      "  const { request, token: given } = calls[index]",
+      '  socket.end(JSON.stringify({ type: "present", terminalId, token: given ?? token, request }) + "\\n")',
+      "}",
+      "send(0)",
+    ].join("\n"),
+  )
+  writeFileSync(join(bin, "present"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`)
+  chmodSync(join(bin, "present"), 0o755)
   return bin
 }
 
@@ -1137,6 +1183,152 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
 })
 
 // macOS's default shell, where it is installed.
+/** Sends the calls from the terminal, as NovaDeck's MCP server would, and reads the answers. */
+const present = async (
+  shell: Fixture,
+  manager: Terminals,
+  terminalId: string,
+  calls: { request: object; token?: string }[],
+): Promise<unknown[]> => {
+  const name = `calls-${randomUUID().slice(0, 8)}`
+  const path = join(shell.home, name)
+  writeFileSync(`${path}.json`, JSON.stringify(calls))
+  manager.write({ terminalId, data: `present ${path}\r` }, "owner")
+  await shell.until(manager, terminalId, `answered ${name}`)
+  return JSON.parse(readFileSync(`${path}.answers.json`, "utf8")) as unknown[]
+}
+
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "what agents show from a bash terminal",
+  () => {
+    it("shows files from the project, where the terminal started, and Claude Code's plans", async ({
+      shell,
+    }) => {
+      const project = join(shell.home, "project")
+      const work = join(shell.home, "work")
+      const plans = join(shell.home, ".claude", "plans")
+      for (const folder of [project, work, plans]) mkdirSync(folder, { recursive: true })
+      writeFileSync(join(project, "a.ts"), "const a = 1\n")
+      writeFileSync(join(work, "w.txt"), "work\n")
+      writeFileSync(join(plans, "p.md"), "# Plan\n")
+      writeFileSync(join(shell.home, "elsewhere.txt"), "elsewhere\n")
+      const bin = presenter(shell.home)
+      const manager = shell.manager({
+        env: {
+          HOME: shell.home,
+          CLAUDE_CONFIG_DIR: join(shell.home, ".claude"),
+          PS1: "$ ",
+          PATH: `${bin}:${process.env.PATH}`,
+        },
+        projectFolder: (sessionId) => (sessionId === shell.sessionId ? project : undefined),
+      })
+      const terminal = await create(manager, shell, { cwd: work })
+      const snapshots: AgentShown[] = []
+      const reading = (async () => {
+        for await (const shown of manager.shown(terminal.id)) snapshots.push(shown)
+      })()
+      const answers = await present(shell, manager, terminal.id, [
+        { request: { path: join(project, "a.ts") } },
+        { request: { path: "w.txt", open: true } },
+        { request: { path: join(plans, "p.md"), title: "The plan" } },
+        { request: { path: join(shell.home, "elsewhere.txt") } },
+        { request: { path: "w.txt" }, token: "0".repeat(48) },
+        { request: { path: "w.txt", lines: { from: 2, to: 1 } } },
+      ])
+      const shown = { ok: true, id: expect.stringMatching(/^[\w-]{16}$/), kind: "file" }
+      expect(answers).toEqual([
+        { ...shown, name: "a.ts" },
+        { ...shown, name: "w.txt" },
+        { ...shown, name: "The plan" },
+        { ok: false, reason: "That file is outside this project." },
+        { ok: false, reason: "NovaDeck couldn't show it." },
+        { ok: false, reason: 'The request\'s "lines" is not valid.' },
+      ])
+      await expect
+        .poll(() => snapshots.at(-1)?.shown)
+        .toEqual([
+          {
+            id: expect.any(String),
+            kind: "file",
+            name: "a.ts",
+            detail: "a.ts · whole file",
+            version: 1,
+            asked: false,
+          },
+          {
+            id: expect.any(String),
+            kind: "file",
+            name: "w.txt",
+            detail: "w.txt · whole file",
+            version: 1,
+            asked: true,
+          },
+          {
+            id: expect.any(String),
+            kind: "file",
+            name: "The plan",
+            detail: `${join(plans, "p.md")} · whole file`,
+            version: 1,
+            asked: false,
+          },
+        ])
+      const [first] = answers as { id: string }[]
+      expect(manager.artifact(terminal.id, first!.id)).toEqual({
+        kind: "file",
+        path: join(project, "a.ts"),
+        firstLine: 1,
+        lines: ["const a = 1"],
+        from: 1,
+        to: 1,
+      })
+      // A path is taken from where the shell is now; showing a file again replaces it.
+      const moved = shell.watch(manager)
+      manager.write({ terminalId: terminal.id, data: "cd ../project\r" }, "owner")
+      await moved((summary) => summary.id === terminal.id && summary.cwd === project)
+      writeFileSync(join(project, "a.ts"), "const a = 2\n")
+      expect(await present(shell, manager, terminal.id, [{ request: { path: "a.ts" } }])).toEqual([
+        { ...shown, id: first!.id, name: "a.ts" },
+      ])
+      await expect
+        .poll(() => snapshots.at(-1)?.shown.map(({ name, version }) => `${name} ${version}`))
+        .toEqual(["w.txt 1", "The plan 1", "a.ts 2"])
+      expect(manager.artifact(terminal.id, first!.id)).toMatchObject({ lines: ["const a = 2"] })
+      await manager.close({ terminalId: terminal.id }, "owner")
+      await reading
+      expect(() => manager.artifact(terminal.id, first!.id)).toThrow(
+        expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
+      )
+    })
+
+    it("keeps what the latest 64 showings showed", async ({ shell }) => {
+      const bin = presenter(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      // A project folder, not the home folder itself, which NovaDeck never shows from.
+      const project = join(shell.home, "many")
+      mkdirSync(project)
+      const terminal = await create(manager, shell, { cwd: project })
+      const names = Array.from({ length: 65 }, (_, index) => `f${index}.txt`)
+      for (const name of names) writeFileSync(join(project, name), `${name}\n`)
+      const answers = (await present(
+        shell,
+        manager,
+        terminal.id,
+        names.map((path) => ({ request: { path } })),
+      )) as { ok: boolean; id: string }[]
+      expect(answers.every((answer) => answer.ok)).toBe(true)
+      const { value } = await manager.shown(terminal.id).next()
+      expect(value?.shown).toHaveLength(64)
+      expect(value?.shown[0]?.name).toBe("f1.txt")
+      expect(() => manager.artifact(terminal.id, answers[0]!.id)).toThrow(
+        expect.objectContaining({ code: "NOT_FOUND" }),
+      )
+      expect(manager.artifact(terminal.id, answers[64]!.id)).toMatchObject({ lines: ["f64.txt"] })
+    })
+  },
+)
+
 const zsh = "/bin/zsh"
 
 describe.skipIf(process.platform === "win32" || !existsSync(zsh))("zsh shell integration", () => {

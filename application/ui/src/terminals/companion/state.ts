@@ -437,7 +437,9 @@ const sessionOf = (companions: Companions): Session => {
     }
     ensure(event.key)
     if (event.type === "artifact/shown") {
-      change(session, event.key, (pane) => markRead(show(pane, event.artifact, event.asked)))
+      change(session, event.key, (pane) =>
+        markRead(show(pane, event.artifact, event.asked, event.seen)),
+      )
       return
     }
     if (event.type === "plan/removed") {
@@ -517,6 +519,9 @@ export const companionActions = (companions: Companions, key: CompanionKey): Com
       const cached = `${id}/${artifact.id}@${artifact.version}`
       const known = session.content.get(cached)
       if (known) return known
+      // Only its latest version is kept: an image shown again and again would pile up.
+      for (const each of session.content.keys())
+        if (each.startsWith(`${id}/${artifact.id}@`)) session.content.delete(each)
       const loading = companions.load(key, artifact.id)
       session.content.set(cached, loading)
       // A load that failed is tried again the next time the artifact is opened.

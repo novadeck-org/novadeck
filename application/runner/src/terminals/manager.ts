@@ -1,13 +1,15 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
-import { constants as system } from "node:os"
+import { homedir, constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type {
   AgentDetail,
   AgentName,
+  AgentShown,
+  ArtifactContent,
   ForegroundProcess,
   TerminalAttached,
   TerminalChange,
@@ -30,6 +32,7 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
+import { configFolder } from "../harnesses/claude/index.js"
 import { actorOf, agentDetail, planOf } from "../harnesses/detail.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
 import type { HarnessEvent, SessionObserved } from "../harnesses/events.js"
@@ -38,7 +41,14 @@ import { observeTelemetry, telemetrySummary, type Telemetry } from "../harnesses
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch, type ShellLaunch } from "../shell/integration.js"
 import { osc7Directory, osc9Directory } from "../shell/osc.js"
-import { listenForReports, type Report, type Reports } from "../shell/reports.js"
+import {
+  listenForReports,
+  unanswered,
+  type Call,
+  type Report,
+  type Reports,
+} from "../shell/reports.js"
+import { capture, readRequest, remember, type Artifact, type PresentAnswer } from "./artifacts.js"
 import {
   sampleForeground,
   shellInForeground,
@@ -93,6 +103,8 @@ export type TerminalOptions = {
   transcriptChars?: number
   /** How often a followed plan's file is looked at for changes, in milliseconds. */
   planPollMs?: number
+  /** The folder of the project a session belongs to, which its terminals' agents may show from. */
+  projectFolder?: (sessionId: string) => string | undefined
 }
 
 type Create = {
@@ -150,6 +162,8 @@ type Record = {
   sourceReaders: Set<AbortController>
   /** When the shell last showed its prompt, in epoch milliseconds. */
   promptedAt: number | null
+  /** What its agents showed the person, oldest first, by id; kept across its shells, never saved. */
+  shown: ReadonlyMap<string, Artifact>
   /** Unsaved changes: output, directory, or prompts. */
   changed: boolean
   /**
@@ -273,17 +287,27 @@ export class Terminals {
   private readonly watchers = new Map<Watcher, string>()
   /** Each terminal's `agents.detail` readers. */
   private readonly details = new Map<string, Set<Latest<AgentDetail>>>()
+  /** Each terminal's `agents.shown` readers. */
+  private readonly showings = new Map<string, Set<Latest<AgentShown>>>()
   private sampler: ReturnType<typeof setInterval> | undefined
   private saver: ReturnType<typeof setInterval> | undefined
   private readonly options: Required<
     Omit<
       TerminalOptions,
-      "env" | "shellArgs" | "shellFiles" | "records" | "shims" | "connected" | "transcripts"
+      | "env"
+      | "shellArgs"
+      | "shellFiles"
+      | "records"
+      | "shims"
+      | "connected"
+      | "transcripts"
+      | "projectFolder"
     >
   > & {
     env: NodeJS.ProcessEnv
     shellArgs: readonly string[] | undefined
     records: TerminalRecords | undefined
+    projectFolder: ((sessionId: string) => string | undefined) | undefined
     shims: () => Promise<readonly AgentName[]>
     connected: (agent: AgentName) => Promise<boolean>
   }
@@ -325,6 +349,7 @@ export class Terminals {
       saveMs: positive(options.saveMs, 5000),
       transcriptChars: positive(options.transcriptChars, 256 * 1024),
       planPollMs: positive(options.planPollMs, 500),
+      projectFolder: options.projectFolder,
     }
     // Child programs do not need the runner's network capability, nor the identity of a
     // NovaDeck terminal the runner itself was started from.
@@ -340,7 +365,10 @@ export class Terminals {
     try {
       const paths = await shellFiles
       if (!paths) return undefined
-      const reports = await listenForReports((report) => this.queueReport(report))
+      const reports = await listenForReports(
+        (report) => this.queueReport(report),
+        (call) => this.present(call),
+      )
       if (!this.stopping) return { paths, reports }
       await reports.close()
     } catch (error) {
@@ -422,6 +450,7 @@ export class Terminals {
         transcript: null,
         sourceReaders: new Set(),
         promptedAt: saved?.promptedAt ?? null,
+        shown: new Map(),
         changed: false,
         savedAt: 0,
         submitted: started.resumes,
@@ -839,10 +868,85 @@ export class Terminals {
   async *detail(terminalId: string, signal?: AbortSignal): AsyncGenerator<AgentDetail> {
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
     const record = this.record(terminalId)
-    const reader = new Latest<AgentDetail>()
-    reader.push(this.detailOf(record))
-    const readers = this.details.get(terminalId) ?? new Set()
-    this.details.set(terminalId, readers.add(reader))
+    yield* this.snapshots(this.details, terminalId, this.detailOf(record), signal)
+  }
+
+  /**
+   * What the terminal's agents showed the person: a snapshot, then another on each
+   * change, until the terminal is gone or `signal` aborts.
+   */
+  async *shown(terminalId: string, signal?: AbortSignal): AsyncGenerator<AgentShown> {
+    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    const record = this.record(terminalId)
+    yield* this.snapshots(this.showings, terminalId, this.shownOf(record), signal)
+  }
+
+  /** One thing the terminal's agents showed, as captured; NOT_FOUND once it is not shown. */
+  artifact(terminalId: string, artifact: string): ArtifactContent {
+    const found = this.record(terminalId).shown.get(artifact)
+    if (!found) throw new DomainError("NOT_FOUND")
+    return found.content
+  }
+
+  /**
+   * Shows the person what an agent asked to, through NovaDeck's MCP server in one of
+   * the terminal's shells: a file inside the terminal's project, where it started, or
+   * Claude Code's plans. A call without the shell's own token learns nothing more.
+   */
+  async present(call: Call): Promise<PresentAnswer> {
+    const record = this.records.get(call.terminalId)
+    if (!record || record.exitQueued || !sameToken(record.token, call.token)) return unanswered
+    const read = readRequest(call.request)
+    if (!read.ok) return read
+    const { request } = read
+    const project = this.projectFolder(record.summary.sessionId)
+    const { env } = this.options
+    const plans = join(configFolder({ env, home: env.HOME ?? homedir() }), "plans")
+    const captured = await capture(request, {
+      cwd: record.summary.cwd,
+      project,
+      home: env.HOME ?? homedir(),
+      folders: [project, record.origin, plans],
+    })
+    if (!captured.ok) return captured
+    // Closed, or the runner stopped, while the file was read.
+    if (this.stopping || this.records.get(call.terminalId) !== record) return unanswered
+    record.shown = remember(record.shown, captured, request.open === true)
+    const shown = this.shownOf(record)
+    for (const reader of this.showings.get(call.terminalId) ?? []) reader.push(shown)
+    return { ok: true, id: captured.id, kind: captured.content.kind, name: captured.name }
+  }
+
+  /** The folder of the session's project; undefined when that cannot be told. */
+  private projectFolder(sessionId: string): string | undefined {
+    try {
+      return this.options.projectFolder?.(sessionId)
+    } catch {
+      return undefined
+    }
+  }
+
+  private shownOf(record: Record): AgentShown {
+    return {
+      terminalId: record.summary.id,
+      shown: [...record.shown.values()].map((artifact) => artifact.shown),
+    }
+  }
+
+  /**
+   * A terminal's snapshots, from `first`, as they are pushed to `streams`' readers,
+   * until they are finished or `signal` aborts.
+   */
+  private async *snapshots<T>(
+    streams: Map<string, Set<Latest<T>>>,
+    terminalId: string,
+    first: T,
+    signal: AbortSignal | undefined,
+  ): AsyncGenerator<T> {
+    const reader = new Latest<T>()
+    reader.push(first)
+    const readers = streams.get(terminalId) ?? new Set()
+    streams.set(terminalId, readers.add(reader))
     const abort = () => reader.finish()
     signal?.addEventListener("abort", abort, { once: true })
     if (signal?.aborted) reader.finish()
@@ -857,8 +961,7 @@ export class Terminals {
       signal?.removeEventListener("abort", abort)
       reader.finish()
       readers.delete(reader)
-      if (readers.size === 0 && this.details.get(terminalId) === readers)
-        this.details.delete(terminalId)
+      if (readers.size === 0 && streams.get(terminalId) === readers) streams.delete(terminalId)
     }
   }
 
@@ -970,7 +1073,8 @@ export class Terminals {
     clearInterval(this.saver)
     this.saver = undefined
     for (const watcher of this.watchers.keys()) watcher.finish()
-    for (const readers of this.details.values()) for (const reader of readers) reader.finish()
+    for (const streams of [this.details, this.showings])
+      for (const readers of streams.values()) for (const reader of readers) reader.finish()
     for (const record of this.records.values()) this.unwatch(record)
     this.shutdownPromise = this.stop()
     return this.shutdownPromise
@@ -1021,10 +1125,12 @@ export class Terminals {
     for (const reader of readers) reader.push(detail)
   }
 
-  /** Ends the terminal's detail streams, as it is closed. */
+  /** Ends the terminal's detail and shown streams, as it is closed. */
   private undetail(id: string): void {
-    for (const reader of this.details.get(id) ?? []) reader.finish()
-    this.details.delete(id)
+    for (const streams of [this.details, this.showings]) {
+      for (const reader of streams.get(id) ?? []) reader.finish()
+      streams.delete(id)
+    }
   }
 
   /** Starts sampling foreground processes, which continues while some terminal runs. */

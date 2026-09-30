@@ -1,4 +1,4 @@
-import type { AgentDetail, PlanContent } from "@novadeck/protocol"
+import type { AgentDetail, AgentShown, ArtifactContent, PlanContent } from "@novadeck/protocol"
 
 import type { CompanionEvent, CompanionKey } from "../../model/companion"
 import { context, describe, expect, it } from "../../test"
@@ -67,10 +67,37 @@ const content = (ref: string, text: string): PlanContent => ({
   changedAt: null,
 })
 
+// Something an agent showed, as `agents.shown` lists it, and as the pane is told of it.
+const image = (version: number, asked = false) => ({
+  id: "hero",
+  kind: "image" as const,
+  name: "hero.png",
+  detail: "212 KB PNG",
+  version,
+  asked,
+})
+const reported = (version: number) => ({
+  id: "hero",
+  kind: "image" as const,
+  name: "hero.png",
+  detail: "212 KB PNG",
+  version,
+})
+
 const running = () => {
   let details = channel<AgentDetail>()
   const plans = new Map<string, ReturnType<typeof channel<PlanContent>>>()
+  let shown = channel<AgentShown>()
+  const fetched: string[] = []
   const companions = createRunnerCompanions({
+    shown: () => {
+      if (shown.ended) shown = channel<AgentShown>()
+      return shown.iterator
+    },
+    artifact: (_terminalId, artifact) => {
+      fetched.push(artifact)
+      return Promise.resolve<ArtifactContent>({ kind: "image", src: "data:," })
+    },
     // A fresh subscription once the last one ended, as following starts over.
     detail: () => {
       if (details.ended) details = channel<AgentDetail>()
@@ -89,6 +116,10 @@ const running = () => {
     get details() {
       return details
     },
+    get shown() {
+      return shown
+    },
+    fetched,
     plans,
     events,
   }
@@ -177,10 +208,9 @@ describe("runner companions", () => {
     expect(companions.snapshot()).toEqual([])
   })
 
-  it("refuse to save or load, having nothing to write or show yet", async () => {
+  it("refuse to save, having no way to write a plan yet", async () => {
     const { companions } = running()
     await expect(companions.save(key, "planAAAAAAAAAAAA", "x", "r")).rejects.toThrow()
-    await expect(companions.load(key, "image")).rejects.toThrow()
   })
 
   context("when the runner loses the terminal", () => {
@@ -246,5 +276,45 @@ describe("runner companions", () => {
     expect(runner.events).toMatchObject([
       { plan: { path: "renamed.md", agent: "Codex", truncated: true } },
     ])
+  })
+
+  context("when an agent shows something", () => {
+    it("reports it once, again when shown with new content, and loads it from the runner", async () => {
+      const runner = running()
+      runner.companions.follow(key)
+      // Nothing was shown before.
+      runner.shown.push({ terminalId: "t1", shown: [] })
+      runner.shown.push({ terminalId: "t1", shown: [image(1, true)] })
+      runner.shown.push({ terminalId: "t1", shown: [image(1, true)] })
+      runner.shown.push({ terminalId: "t1", shown: [image(2)] })
+      await settle()
+      expect(runner.events).toEqual([
+        { type: "artifact/shown", key, artifact: reported(1), asked: true },
+        { type: "artifact/shown", key, artifact: reported(2), asked: false },
+      ])
+      await expect(runner.companions.load(key, "hero")).resolves.toEqual({
+        kind: "image",
+        src: "data:,",
+      })
+      expect(runner.fetched).toEqual(["hero"])
+    })
+
+    it("lists what was shown before it followed, as after a reload, as already seen", async () => {
+      const runner = running()
+      runner.companions.follow(key)
+      runner.shown.push({ terminalId: "t1", shown: [image(1, true)] })
+      await settle()
+      expect(runner.events).toEqual([
+        { type: "artifact/shown", key, artifact: reported(1), asked: true, seen: true },
+      ])
+    })
+
+    it("stops following what's shown when the terminal is unfollowed", async () => {
+      const runner = running()
+      runner.companions.follow(key)
+      await settle()
+      runner.companions.unfollow(key)
+      expect(runner.shown.ended).toBe(true)
+    })
   })
 })

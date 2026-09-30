@@ -21,20 +21,23 @@ export type Companion = {
 }
 
 // The agent put something in front of the user, or showed it again with new content.
-// It waits in the taskbar unless the user asked for it, and then it opens.
+// It waits in the taskbar unless the user asked for it, and then it opens. Something
+// already `seen`, shown before this session, is listed and nothing more.
 export const show = <C extends Companion>(
   companion: C,
   artifact: ArtifactRef,
   asked: boolean,
+  seen = false,
 ): C => {
-  const shown: Shown = { ...artifact, fresh: !asked, at: "just now" }
+  const opens = asked && !seen
+  const shown: Shown = { ...artifact, fresh: !asked && !seen, at: "just now" }
   const known = companion.artifacts.some((existing) => existing.id === artifact.id)
   return {
     ...companion,
     artifacts: known
       ? companion.artifacts.map((existing) => (existing.id === artifact.id ? shown : existing))
       : [...companion.artifacts, shown],
-    ...(asked ? { tab: artifact.id, open: true } : {}),
+    ...(opens ? { tab: artifact.id, open: true } : {}),
   }
 }
 

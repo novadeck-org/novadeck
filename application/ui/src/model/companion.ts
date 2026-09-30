@@ -79,12 +79,14 @@ export type CompanionEvent =
   // The agent no longer keeps the plan.
   | { readonly type: "plan/removed"; readonly key: CompanionKey; readonly ref: string }
   // The agent showed something, or showed it again. `asked`: the user asked for it, so
-  // it opens; an agent says so when it presents something it was asked for.
+  // it opens; an agent says so when it presents something it was asked for. `seen`: it
+  // was shown before this session, as after a reload, so it's listed as already seen.
   | {
       readonly type: "artifact/shown"
       readonly key: CompanionKey
       readonly artifact: ArtifactRef
       readonly asked: boolean
+      readonly seen?: boolean
     }
   // The terminal's agent is gone, and with it what it showed.
   | { readonly type: "companion/closed"; readonly key: CompanionKey }

@@ -688,6 +688,8 @@ export const runnerBackend = (
   const companions = createRunnerCompanions({
     detail: (terminalId) => runner.agents.detail(terminalId),
     plan: (terminalId, plan) => runner.agents.plan(terminalId, plan),
+    shown: (terminalId) => runner.agents.shown(terminalId),
+    artifact: (terminalId, artifact) => runner.agents.artifact(terminalId, artifact),
   })
   let following = false
   // Follows a terminal's plans once the runner has it: its detail answers "not found"

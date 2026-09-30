@@ -447,6 +447,31 @@ describe("runner client agent detail", () => {
   })
 })
 
+describe("runner client shown artifacts", () => {
+  it("follows what a terminal's agents showed, and ends once the terminal is gone", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const { id: sessionId } = await session(client, app.directory)
+    const terminal = await client.terminals.create(shell(sessionId))
+    const shown = client.agents.shown(terminal.id)
+    await expect(shown.next()).resolves.toEqual({
+      done: false,
+      value: { terminalId: terminal.id, shown: [] },
+    })
+    await expect(client.agents.artifact(terminal.id, "nothing")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    })
+    const ending = shown.next()
+    await client.terminals.close(terminal.id)
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+    await expect(client.agents.artifact(terminal.id, "nothing")).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
+  })
+})
+
 describe("runner client agent detail across reconnections", () => {
   it("resubscribes after a reconnection and a half-open link", async ({ resources }) => {
     const app = await deployed(resources)

@@ -12,6 +12,8 @@ import {
   type TerminalEvent,
   type TerminalSummary,
   type PlanContent,
+  type AgentShown,
+  type ArtifactContent,
   type TranscriptChange,
   type WorkspaceSession,
 } from "./schemas.js"
@@ -183,6 +185,14 @@ export type Runner = {
      * terminal's agent leaves its session, the runner closes, or on `return()`.
      */
     plan(terminalId: string, plan: string): AsyncIterableIterator<PlanContent, undefined>
+    /**
+     * Follows what the terminal's agents showed the user through NovaDeck's MCP server:
+     * a snapshot, then another on each change, across reconnections. Iteration ends once
+     * the terminal is gone, the runner closes, or on `return()`.
+     */
+    shown(terminalId: string): AsyncIterableIterator<AgentShown, undefined>
+    /** One thing `shown` lists, as captured; NOT_FOUND once it no longer lists it. */
+    artifact(terminalId: string, artifact: string): Promise<ArtifactContent>
     /**
      * Installs or removes NovaDeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
@@ -938,6 +948,12 @@ export const connectRunner = async (
         new Resubscription(connection, (wire, signal) =>
           wire.agents.plan({ terminalId, plan }, { signal }),
         ),
+      shown: (terminalId) =>
+        new Resubscription(connection, (wire, signal) =>
+          wire.agents.shown({ terminalId }, { signal }),
+        ),
+      artifact: (terminalId, artifact) =>
+        call((wire) => wire.agents.artifact({ terminalId, artifact })),
       set: (agent, connected) => call((wire) => wire.agents.set({ agent, connected })),
     },
     settings: {
