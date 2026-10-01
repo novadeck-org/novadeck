@@ -14,7 +14,9 @@ import {
   transition,
   unbound,
   type Delivery,
+  pendingEnter,
   type DeliveryEvent,
+  type KeyKind,
 } from "./delivery.js"
 import { Leases, type Lease } from "./leases.js"
 import {
@@ -102,6 +104,25 @@ export type MessagingOptions = {
    * watch that follows them would.
    */
   readonly onChange?: (terminalId: string) => void
+}
+
+/** What a doorbell prompt's hook adds when its messages couldn't come now. */
+export const stillWaiting =
+  "NovaDeck: agent messages are still waiting for this session; they will come on a later turn, and this automatic notice can be ignored."
+
+/** What a doorbell prompt's hook adds when nothing waits for it any more. */
+export const nothingWaiting =
+  "NovaDeck: no agent messages are waiting any more; this automatic notice can be ignored."
+
+/** Why a message's text, cleaned, can't be sent; undefined when it can. */
+const refusalOfText = (text: string): string | undefined => {
+  if (!text.trim()) return "The message is empty."
+  if (byteLength(text) > maxMessageBytes)
+    return (
+      `The message is ${byteLength(text)} bytes, over the ${maxMessageBytes} a message may ` +
+      "hold; put longer content in a file the recipient can open, and send its path."
+    )
+  return undefined
 }
 
 /** A lease is given only with this long left before its hook's deadline, in milliseconds. */
@@ -294,7 +315,7 @@ export class Messaging {
     if (stop) {
       const background = stop.background === true
       const lease = time && continues(live.delivery) && this.lease(live, root, "stop", background)
-      this.step(live, { type: "stop", continued: Boolean(lease), background })
+      this.step(live, { type: "stop", continued: Boolean(lease), background, at: this.now() })
       return lease ? { leaseId: lease.id, stdout: profile.stop(lease.text) } : silent
     }
     if (kind !== "prompt") return silent
@@ -311,7 +332,17 @@ export class Messaging {
     if (start.cause === "call") return again ? { leaseId: null, stdout: again } : silent
     const lease = time && this.lease(live, root, "prompt", false)
     if (lease) return { leaseId: lease.id, stdout: profile.prompt(lease.text) }
-    return again ? { leaseId: null, stdout: again } : silent
+    if (again) return { leaseId: null, stdout: again }
+    if (start.cause !== "doorbell") return silent
+    // A doorbell whose messages couldn't be leased now, as too late or while paused, says
+    // they still wait; one with none left, as when they went another way, that none do.
+    const waits = [...this.messages.values()].some(
+      (message) =>
+        message.to.terminalId === terminalId &&
+        undelivered(message) &&
+        this.addressed(message, root),
+    )
+    return { leaseId: null, stdout: profile.prompt(waits ? stillWaiting : nothingWaiting) }
   }
 
   /**
@@ -332,12 +363,74 @@ export class Messaging {
   }
 
   /**
-   * The person's input to the terminal, apart from its automatic replies: a prompt they
-   * `submit`, unless it `answers` a request waiting on them.
+   * The person's keys to the terminal, apart from its automatic replies, while a request
+   * waits on them (`asked`) or not. Delivery alone decides what they did to the box.
    */
-  input(terminalId: string, input: { readonly submits: boolean; readonly answers: boolean }): void {
+  keys(terminalId: string, kinds: readonly KeyKind[], asked: boolean): void {
     const live = this.live.get(terminalId)
-    if (live) this.step(live, { type: "input", ...input })
+    if (!live) return
+    const at = this.now()
+    for (const key of kinds) this.step(live, { type: "key", key, asked, at })
+  }
+
+  /** No request waits on the person any more: what they typed meanwhile counts now. */
+  askedCleared(terminalId: string): void {
+    const live = this.live.get(terminalId)
+    if (live) this.step(live, { type: "asked-cleared" })
+  }
+
+  /**
+   * Whether the doorbell may ring the terminal: Settled, with messages waiting for its
+   * root session. The doorbell waits for the screen to settle, and checks it, before it
+   * rings.
+   */
+  ringable(terminalId: string): boolean {
+    const live = this.live.get(terminalId)
+    if (!live?.root || live.delivery.state !== "settled") return false
+    const root = live.root
+    for (const message of this.messages.values())
+      if (
+        message.state === "queued" &&
+        message.to.terminalId === terminalId &&
+        this.addressed(message, root)
+      )
+        return true
+    return false
+  }
+
+  /** When the terminal last became Settled, if it is. */
+  settledSince(terminalId: string): number | undefined {
+    const delivery = this.live.get(terminalId)?.delivery
+    return delivery?.state === "settled" ? delivery.since : undefined
+  }
+
+  /**
+   * When the person's bare Enter came, if a root turn starting now would be their
+   * submission: within the window, with nothing typed since.
+   */
+  pendingSubmission(terminalId: string): number | undefined {
+    const delivery = this.live.get(terminalId)?.delivery
+    return delivery && pendingEnter(delivery, this.now())
+  }
+
+  /** The doorbell starts ringing the terminal with its nonce; false when it may not now. */
+  ring(terminalId: string, nonce: string): boolean {
+    const live = this.live.get(terminalId)
+    if (!live || !this.ringable(terminalId)) return false
+    this.step(live, { type: "ring", nonce })
+    return live.delivery.state === "ringing"
+  }
+
+  /** The nonce of the ring under way in the terminal, if it is Ringing. */
+  ringing(terminalId: string): string | undefined {
+    const delivery = this.live.get(terminalId)?.delivery
+    return delivery?.state === "ringing" ? delivery.nonce : undefined
+  }
+
+  /** The ring with that nonce failed: the terminal is Unknown, and its messages wait. */
+  ringFailed(terminalId: string, nonce: string): void {
+    const live = this.live.get(terminalId)
+    if (live) this.step(live, { type: "ring-failed", nonce })
   }
 
   /**
@@ -363,12 +456,8 @@ export class Messaging {
     if (!parsed.success)
       return refused("A message needs `to`, a terminal's handle, and its `text`.")
     const text = cleanText(parsed.data.text)
-    if (!text.trim()) return refused("The message is empty.")
-    if (byteLength(text) > maxMessageBytes)
-      return refused(
-        `The message is ${byteLength(text)} bytes, over the ${maxMessageBytes} a message may ` +
-          "hold; put longer content in a file the recipient can open, and send its path.",
-      )
+    const textRefusal = refusalOfText(text)
+    if (textRefusal) return refused(textRefusal)
     const recipient = this.scoped(live).find((peer) => peer.handle === parsed.data.to)
     if (!recipient)
       return refused(
@@ -393,28 +482,91 @@ export class Messaging {
           lastAt: now,
         }
     const message: Message = {
+      ...this.draft(live, text, {
+        terminalId: recipient.terminalId,
+        handle: recipient.handle,
+        agent,
+      }),
       id: this.freshMessageId(),
-      projectId: live.projectId,
       thread: thread.id,
       hop: thread.hops,
-      from: {
-        terminalId,
-        handle: live.handle,
-        agent: live.root?.agent ?? null,
-        sessionId: live.root?.sessionId ?? null,
-      },
       to: {
         terminalId: recipient.terminalId,
         handle: recipient.handle,
         agent,
         sessionId: root?.sessionId ?? null,
       },
-      text,
-      sentAt: now,
       state: waiting({ hop: thread.hops }, thread, this.paused),
+    }
+    const vetted = this.vet(message)
+    if (!vetted.ok) return vetted
+    const { bySender, byPair, byAll, pair } = vetted
+    this.sent.set(terminalId, bySender)
+    this.pairs.set(pair, byPair)
+    this.allSent = byAll
+    this.putThread(thread)
+    this.put(message)
+    return { ...this.answer(message, recipient), ...this.extras(live) }
+  }
+
+  /**
+   * Why `send` would refuse the caller's message to a terminal not yet open, running
+   * `agent`, as its task: every check `send` makes but the recipient's own; undefined
+   * when it would take it.
+   */
+  refusal(terminalId: string, text: string, agent: AgentName): string | undefined {
+    const live = this.live.get(terminalId)
+    if (!live) return "NovaDeck couldn't send the message."
+    const clean = cleanText(text)
+    const textRefusal = refusalOfText(clean)
+    if (textRefusal) return textRefusal
+    // The longest handle a terminal may have, so the size is never underestimated.
+    const vetted = this.vet(
+      this.draft(live, clean, { terminalId: "", handle: "t999999999", agent }),
+    )
+    return vetted.ok ? undefined : vetted.reason
+  }
+
+  /** A message from the caller to a recipient, as it would be sent now, for `vet`. */
+  private draft(
+    live: Live,
+    text: string,
+    to: { readonly terminalId: string; readonly handle: string; readonly agent: AgentName },
+  ): Message {
+    return {
+      id: "m-0000000000",
+      projectId: live.projectId,
+      thread: "t-0000000000",
+      hop: hopsPerRelease,
+      from: {
+        terminalId: live.terminalId,
+        handle: live.handle,
+        agent: live.root?.agent ?? null,
+        sessionId: live.root?.sessionId ?? null,
+      },
+      to: { ...to, sessionId: null },
+      text,
+      sentAt: this.now(),
+      state: "queued",
       deliveredAt: null,
       notified: false,
     }
+  }
+
+  /**
+   * What `send` checks of a message beyond its text, as it would be sent: its size once
+   * delivered, the recipient's undelivered cap, and the rates, with the send times it
+   * would spend. One check for every way a message is sent, so they never drift apart.
+   */
+  private vet(message: Message):
+    | { readonly ok: false; readonly reason: string }
+    | {
+        readonly ok: true
+        readonly pair: string
+        readonly bySender: readonly number[]
+        readonly byPair: readonly number[]
+        readonly byAll: readonly number[]
+      } {
     // Alone in a delivery, it must fit whichever harness it reaches, as it is printed.
     const size = deliveredBytes(message)
     if (size > maxDeliveryBytes)
@@ -424,16 +576,18 @@ export class Messaging {
           "line breaks take more room once escaped. Shorten it, or put it in a file and send " +
           "its path.",
       )
+    const { to, from } = message
     const waitingThere = [...this.messages.values()].filter(
-      (each) => each.to.terminalId === recipient.terminalId && undelivered(each),
+      (each) => each.to.terminalId === to.terminalId && undelivered(each),
     ).length
     if (waitingThere >= maxUndelivered)
       return refused(
-        `${recipient.handle} already has ${maxUndelivered} messages waiting; ` +
+        `${to.handle} already has ${maxUndelivered} messages waiting; ` +
           "wait for it to take them before sending more.",
       )
-    const pair = `${terminalId}\0${recipient.terminalId}`
-    const bySender = allowSend(this.sent.get(terminalId) ?? [], now, rates.sender)
+    const now = message.sentAt
+    const pair = `${from.terminalId}\0${to.terminalId}`
+    const bySender = allowSend(this.sent.get(from.terminalId) ?? [], now, rates.sender)
     const byPair = allowSend(this.pairs.get(pair) ?? [], now, rates.pair)
     const byAll = allowSend(this.allSent, now, rates.all)
     if (!bySender || !byPair)
@@ -445,12 +599,7 @@ export class Messaging {
       return refused(
         "Agents in NovaDeck have sent as many messages as they may this minute; try again shortly.",
       )
-    this.sent.set(terminalId, bySender)
-    this.pairs.set(pair, byPair)
-    this.allSent = byAll
-    this.putThread(thread)
-    this.put(message)
-    return { ...this.answer(message, recipient), ...this.extras(live) }
+    return { ok: true, pair, bySender, byPair, byAll }
   }
 
   /**
@@ -709,7 +858,12 @@ export class Messaging {
     if (!live || lease.kind !== "stop") return
     const { delivery } = live
     if (delivery.epoch === lease.epoch && phaseOf(delivery) === "continuing")
-      this.step(live, { type: "stop", continued: false, background: lease.background })
+      this.step(live, {
+        type: "stop",
+        continued: false,
+        background: lease.background,
+        at: this.now(),
+      })
   }
 
   /** Applies the root's changes to the terminal's messages and delivery, in order. */
@@ -784,15 +938,26 @@ export class Messaging {
     if (!rootedIn(live.root, event)) return
     switch (event.type) {
       case "turn-started":
-        this.step(live, { type: "prompt", by: event.cause === "prompt" ? "person" : event.cause })
+        // Whose turn it is, and what it did to the box, delivery alone decides.
+        this.step(live, {
+          type: "prompt",
+          by: event.cause,
+          ...(event.nonce !== undefined && { nonce: event.nonce }),
+          at: this.now(),
+        })
         return
       case "turn-ended":
         if (event.outcome === "completed")
-          this.step(live, { type: "stop", continued: false, background: event.background === true })
+          this.step(live, {
+            type: "stop",
+            continued: false,
+            background: event.background === true,
+            at: this.now(),
+          })
         else this.step(live, { type: "ended" })
         return
       case "turn-idle":
-        this.step(live, { type: "idle", background: event.background })
+        this.step(live, { type: "idle", background: event.background, at: this.now() })
         return
       default:
         return

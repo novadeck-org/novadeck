@@ -1,5 +1,5 @@
 import { readFile, rename, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 
 import type { Install } from "../harness.js"
 
@@ -114,3 +114,17 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
     await write(file, settings)
   },
 })
+
+/**
+ * Whether Antigravity trusts `cwd`: its settings list it among `trustedWorkspaces`, the
+ * same path once normalized, links left unresolved, so another way to the folder isn't
+ * taken as trusted and the agent starts plain. A folder inside a trusted one isn't taken
+ * as trusted either, which no probe showed. Unreadable settings trust nothing.
+ */
+export const trustsFolder = async (antigravityHome: string, cwd: string): Promise<boolean> => {
+  const settings = await read(settingsFile(antigravityHome)).catch(() => undefined)
+  const listed = settings?.trustedWorkspaces
+  if (!Array.isArray(listed)) return false
+  const here = resolve(cwd)
+  return listed.some((folder) => typeof folder === "string" && resolve(folder) === here)
+}

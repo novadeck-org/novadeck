@@ -377,13 +377,15 @@ export const messageState = z.enum(["queued", "leased", "delivered", "held", "go
 
 // How a terminal's agent can take a message now: no agent session bound (`unbound`), one
 // bound that has had no turn yet (`fresh`), a turn running (`working`), a turn that
-// ended normally with the prompt known empty (`settled`), the person busy at the prompt
-// (`drafting`), or a turn that ended without a normal stop (`unknown`).
+// ended normally with the prompt known empty (`settled`), the doorbell waking it
+// (`ringing`), the person busy at the prompt (`drafting`), or a turn that ended without a
+// normal stop (`unknown`).
 export const deliveryState = z.enum([
   "unbound",
   "fresh",
   "working",
   "settled",
+  "ringing",
   "drafting",
   "unknown",
 ])

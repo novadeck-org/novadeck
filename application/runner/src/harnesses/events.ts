@@ -32,8 +32,8 @@ export type SessionObserved = {
  * a request started or stopped waiting on the person, a subagent started or stopped, the
  * agent was seen planning or not, or an actor wrote or presented a plan. A turn starts
  * with a `prompt` submitted at the root (the person's, as far as anything tells), one
- * the harness started by itself (a background task's result), or a later model `call`
- * of a turn already running. It ends `completed` only when its harness says so (a root
+ * the harness started by itself (a background task's result), a later model `call` of a
+ * turn already running, or NovaDeck's `doorbell`: a prompt that is exactly its line. It ends `completed` only when its harness says so (a root
  * Stop, which may leave work it started running in the `background`); `turn-idle` says
  * the agent shows idle however its turn ended, which without such a Stop was an Esc or a
  * denial. `file-touched` names a file an actor wrote or edited. A request has no id of its own
@@ -50,9 +50,11 @@ export type ActivityEvent = {
 } & (
   | {
       readonly type: "turn-started"
-      readonly cause: "prompt" | "harness" | "call"
-      /** The person's prompt, where the hook names it. */
+      readonly cause: "prompt" | "harness" | "call" | "doorbell"
+      /** The person's prompt, where the hook names it, without any doorbell line in it. */
       readonly prompt?: string
+      /** A doorbell prompt's nonce. */
+      readonly nonce?: string
     }
   | {
       readonly type: "turn-ended"

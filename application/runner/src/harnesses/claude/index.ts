@@ -54,6 +54,9 @@ const messaging: MessagingProfile = {
   reinjectPerCall: false,
   root: "binding",
   silentOnFailure: false,
+  // It holds a command-line prompt behind its trust and startup screens.
+  initialPrompt: (line) => Promise.resolve(["claude", line]),
+  start: ["claude"],
 }
 
 export const claude = {

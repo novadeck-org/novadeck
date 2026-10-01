@@ -63,6 +63,8 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
     // Codex runs through NovaDeck's shim while it is connected; see `posixCodexShim`.
     shims: () => agents.shims(),
     connected: (agent) => agents.connected(agent),
+    // Where each harness lives, which says how it may start with a task.
+    install: (agent) => agents.install(agent),
     transcripts: store.settings().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and the mailbox is kept with it.

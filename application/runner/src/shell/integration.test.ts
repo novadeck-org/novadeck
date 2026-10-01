@@ -135,6 +135,7 @@ const it = base.extend<{ shell: Fixture }>({
         handle: store.terminal(id)?.handle ?? "t1",
         title: store.terminal(id)?.title ?? "Terminal 01",
         titledBy: null,
+        openedBy: null,
         command: null,
         lastProgram: null,
         work: null,
@@ -905,6 +906,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     ])
     const manager = shell.manager({
       env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      // Each report waits, as macOS's slower foreground lookup makes it, so the report that
+      // names the transcript is still queued when the status line has bound the session.
+      connected: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300))
+        return true
+      },
     })
     const terminal = await create(manager, shell)
     manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
@@ -918,9 +925,25 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     }
     await details.return(undefined)
     const texts: string[] = []
+    // The transcript is not found until the later report is handled, so the reader asks again.
     const reading = (async () => {
-      for await (const change of manager.transcript(terminal.id, root))
-        if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
+      for (let tries = 0; ; tries++) {
+        try {
+          // eslint-disable-next-line no-await-in-loop -- Reads the transcript once it is attached.
+          for await (const change of manager.transcript(terminal.id, root))
+            if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
+          return
+        } catch (error) {
+          if (
+            tries === 100 ||
+            texts.length > 0 ||
+            (error as { code?: string }).code !== "NOT_FOUND"
+          )
+            throw error
+        }
+        // eslint-disable-next-line no-await-in-loop -- Waits before asking again.
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      }
     })()
     await expect.poll(() => texts).toEqual(["hi"])
     manager.forgetAgent("agy")
@@ -1629,6 +1652,137 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   },
 )
 
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "agents opening an agent with a task from a bash terminal",
+  () => {
+    it("starts each agent with the doorbell as its prompt, Antigravity only where trusted", async ({
+      shell,
+    }) => {
+      const bin = presenter(shell.home)
+      for (const agent of ["claude", "codex", "agy"] as const) fakeAgent(shell.home, agent)
+      const trusted = join(shell.home, "trusted")
+      mkdirSync(trusted)
+      mkdirSync(join(shell.home, ".gemini", "antigravity-cli"), { recursive: true })
+      writeFileSync(
+        join(shell.home, ".gemini", "antigravity-cli", "settings.json"),
+        JSON.stringify({ trustedWorkspaces: [trusted] }),
+      )
+      const manager = shell.manager({
+        env: {
+          HOME: shell.home,
+          PS1: "$ ",
+          PATH: `${bin}:${join(shell.home, "bin")}:${process.env.PATH}`,
+        },
+        install: (agent) =>
+          Promise.resolve({
+            env: {},
+            home: shell.home,
+            platform: process.platform,
+            plugin: join(shell.plugins, agent),
+          }),
+      })
+      const terminal = await create(manager, shell)
+      const controller = new AbortController()
+      const requests: TerminalRequest[] = []
+      const client = (async () => {
+        for await (const request of manager.requests("client", controller.signal)) {
+          requests.push(request)
+          const id = randomUUID()
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create(
+            {
+              id,
+              sessionId: request.sessionId,
+              cwd: request.cwd,
+              cols: 100,
+              rows: 20,
+              ...(request.command && { command: request.command }),
+            },
+            "client",
+          )
+          manager.answerRequest({ requestId: request.requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        const task = { message: "Review a.ts, please." }
+        const answers = (await present(shell, manager, terminal.id, [
+          open({ agent: "claude", ...task }),
+          open({ agent: "codex", ...task }),
+          open({ agent: "agy", cwd: "trusted", ...task }),
+          open({ agent: "agy", ...task }),
+          open({ agent: "codex" }),
+          open({ agent: "codex", command: "codex", ...task }),
+          // Too large once escaped where delivered: refused before anything starts.
+          open({ agent: "codex", message: "&".repeat(4_000) }),
+        ])) as { ok: boolean; terminalId: string; command?: string; task?: object }[]
+        const line = /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]$/
+        expect(requests.map(({ command }) => command)).toEqual([
+          expect.stringMatching(quoted("claude")),
+          expect.stringMatching(quoted("codex")),
+          expect.stringMatching(quoted("agy -i")),
+          // Antigravity would submit its prompt behind its trust dialog: started plain.
+          "agy",
+        ])
+        expect(answers.slice(0, 4)).toEqual(
+          Array.from({ length: 4 }, () =>
+            expect.objectContaining({
+              ok: true,
+              task: expect.objectContaining({ ok: true, state: "queued" }),
+            }),
+          ),
+        )
+        // Only Antigravity in a folder it doesn't trust started without its task.
+        expect(answers.slice(0, 4).map((answer) => "taskWaits" in answer)).toEqual([
+          false,
+          false,
+          false,
+          true,
+        ])
+        expect(answers.slice(4)).toEqual([
+          { ok: false, reason: "An agent and its message come together." },
+          { ok: false, reason: "A command can't be combined with an agent and its message." },
+          {
+            ok: false,
+            reason: expect.stringMatching(/^Delivered, this message would take \d+ bytes/),
+          },
+        ])
+        // Each started with the line as one argument, which its harness submits.
+        await shell.until(manager, answers[0]!.terminalId, /claude args: \[NovaDeck: [^\n]*\]/)
+        const shown = await shell.until(manager, answers[2]!.terminalId, "agy args: -i [NovaDeck")
+        expect(shown.split("agy args: -i ")[1]?.split(" prompt=")[0]).toMatch(line)
+        // The opener's peers say who opened it, with a task, before its agent starts.
+        const [listed] = (await present(shell, manager, terminal.id, [
+          { type: "agents" as "open", request: {} },
+        ])) as { ok: true; text: string }[]
+        expect(listed!.text).toContain(
+          "- t2: expecting Claude Code, not started yet\n  title: Terminal 02\n  folder: .\n  opened by t1 with a task",
+        )
+        // Who opened it with a task is kept with the terminal, for a runner that restores it.
+        expect(shell.store.terminalIdentity(answers[0]!.terminalId)).toMatchObject({
+          openedBy: "t1",
+        })
+        // The task waits for the first session of that agent there.
+        expect(manager.messages(answers[0]!.terminalId).threads[0]?.messages[0]).toMatchObject({
+          from: "t1",
+          to: "t2",
+          toAgent: "claude",
+          text: "Review a.ts, please.",
+          state: "queued",
+        })
+      } finally {
+        controller.abort()
+        await client
+      }
+    })
+  },
+)
+
+// A command starting an agent with a doorbell line as its prompt.
+const quoted = (start: string) =>
+  new RegExp(
+    `^${start} "\\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\\]"$`,
+  )
+
 // A stand-in agent with NovaDeck's plugin connected: `agent <name> <session> <steps>` runs
 // the real hook for its SessionStart, says it is ready, then runs each step written to its
 // `steps` folder, in order: a hook, as its harness would run it, keeping what the hook
@@ -1982,3 +2136,572 @@ describe.runIf(process.platform === "win32")("Windows shell integration", () => 
       await shell.until(manager, id, "claude args: --resume abc-1")
     })
 })
+
+/**
+ * A stand-in agent with a TUI of its own, run as `tui <agent> <session> <received> <raw>
+ * [mode]`: an input box that takes typing (even while it works, as real TUIs keep
+ * type-ahead) and bracketed pastes, submits on Enter when idle, and fires its hooks as a
+ * harness does. It writes each prompt and what its prompt-time hook printed to
+ * `received`, and every input it got to `raw` (one JSON line each). A signal starts a
+ * turn by itself, as a background task's result does. `menu` opens a menu after its
+ * first turn that swallows pastes; `perm` asks a permission in its second turn, then runs
+ * the tool for a while; `bg` runs it in the background, starting a turn by itself.
+ * `named` is the same TUI under its harness's name, so its hooks find its instance.
+ */
+const standInTui = (home: string): string => {
+  const bin = join(home, "bin")
+  mkdirSync(bin, { recursive: true })
+  const script = join(bin, "tui.cjs")
+  writeFileSync(
+    script,
+    String.raw`
+const { spawn } = require("node:child_process")
+const fs = require("node:fs")
+const [agent, session, received, raw, mode] = process.argv.slice(2)
+fs.writeFileSync(raw + ".pid", String(process.pid))
+const hook = (event, payload, done) => {
+  const child = spawn(process.env.NOVADECK_HOOK, [agent, event], { stdio: ["pipe", "pipe", "inherit"] })
+  let printed = ""
+  child.stdout.on("data", (chunk) => (printed += chunk))
+  child.on("close", () => done(printed))
+  child.stdin.end(JSON.stringify({ hook_event_name: event, session_id: session, cwd: process.cwd(), ...payload }))
+}
+let box = ""
+let last = ""
+let dialog = null
+let busy = true
+let menu = false
+let turns = 0
+const draw = () => process.stdout.write(menu ? "\r\x1b[2K  [menu] pick an item" : "\r\x1b[2K> " + box)
+// Antigravity's hooks name no prompt: it records what was typed in its transcript, as a
+// USER_EXPLICIT USER_INPUT step, and what woke it by itself as a SYSTEM_MESSAGE one.
+const transcript = received + ".transcript.jsonl"
+let steps = 0
+const step = (fields) =>
+  fs.appendFileSync(
+    transcript,
+    JSON.stringify({ ...fields, step_index: steps++, created_at: new Date().toISOString() }) + "\n",
+  )
+const agy = { conversationId: session, transcriptPath: transcript, workspacePaths: [process.cwd()] }
+const started = (prompt, typed, done) => {
+  if (agent !== "agy") return hook("UserPromptSubmit", { prompt }, done)
+  if (typed) step({ source: "USER_EXPLICIT", type: "USER_INPUT", content: "<USER_REQUEST>\n" + prompt + "\n</USER_REQUEST>" })
+  else step({ source: "SYSTEM", type: "SYSTEM_MESSAGE", content: prompt })
+  hook("PreInvocation", { ...agy, invocationNum: 0 }, done)
+}
+const turn = (prompt, typed = true) => {
+  dialog = null
+  busy = true
+  turns += 1
+  const perm = mode === "perm" && turns === 2
+  // With "slowhook", its second turn's hook reports after the doorbell's confirmation lapsed.
+  const slow = mode === "slowhook" && turns === 2
+  // With "slowkick", a turn it starts by itself reports a while after it began, as a
+  // loaded machine's hook does: it is busy, and ignores Enter, before NovaDeck knows.
+  const late = mode === "slowkick" && !typed
+  setTimeout(() => started(prompt, typed, (printed) => {
+    fs.appendFileSync(received, JSON.stringify({ prompt, printed }) + "\n")
+    const finish = () => {
+      process.stdout.write("\r\x1b[2Kworked on it\r\n")
+      hook("Stop", agent === "agy" ? { ...agy, fullyIdle: true } : {}, () => {
+        busy = false
+        menu = mode === "menu"
+        draw()
+      })
+    }
+    if (mode === "perm2" && turns === 2) {
+      // One tool runs, approved, while a second asks: a dialog Enter answers.
+      const a = { command: "npm test" }
+      const b = { command: "npm run lint" }
+      return hook("PermissionRequest", { tool_name: "Bash", tool_input: a }, () => {
+        process.stdout.write("\r\x1b[2Kapproved; running npm test\r\n")
+        setTimeout(() =>
+          hook("PermissionRequest", { tool_name: "Bash", tool_input: b }, () => {
+            dialog = () => {
+              process.stdout.write("\r\x1b[2Klint approved\r\n")
+              hook("PostToolUse", { tool_name: "Bash", tool_input: b, tool_response: {} }, () =>
+                hook("PostToolUse", { tool_name: "Bash", tool_input: a, tool_response: {} }, finish),
+              )
+            }
+            process.stdout.write("\r\x1b[2K[dialog] allow npm run lint? (Enter)\r\n")
+          }),
+        1200)
+      })
+    }
+    if (!perm) return finish()
+    const input = { command: "npm test" }
+    hook("PermissionRequest", { tool_name: "Bash", tool_input: input }, () => {
+      process.stdout.write("\r\x1b[2Kapproved; running npm test\r\n")
+      setTimeout(() => hook("PostToolUse", { tool_name: "Bash", tool_input: input, tool_response: {} }, finish), 1500)
+    })
+  }), slow ? 6_000 : late ? 800 : 0)
+}
+process.on("SIGUSR1", () => turn("background result", false))
+if (mode !== "bg") {
+  process.stdin.setRawMode(true)
+  process.stdin.setEncoding("utf8")
+  // One key at a time, as a terminal may hand over several in one read.
+  const key = (data) => {
+    if (menu) {
+      if (data === "\r") fs.appendFileSync(received, JSON.stringify({ picked: true }) + "\n")
+      return
+    }
+    // With "askfirst", a key answers its dialog, as a hotkey does.
+    if (dialog && mode === "askfirst") {
+      const answer = dialog
+      dialog = null
+      return answer()
+    }
+    if (data.startsWith("\x1b[200~")) box += data.slice(6, -6)
+    else if (data === "\r") {
+      // A dialog takes Enter; a backslash before it makes it a newline in the box.
+      if (dialog) {
+        const answer = dialog
+        dialog = null
+        return answer()
+      }
+      if (box.endsWith("\\")) {
+        box = box.slice(0, -1) + "\n"
+        return draw()
+      }
+      // Busy, or an empty box: Enter submits nothing.
+      if (busy || !box) return
+      const prompt = box
+      last = box
+      box = ""
+      process.stdout.write("\r\n")
+      // With "askfirst", its second prompt asks a permission before its turn starts, and
+      // the person's answer lets it start: the request clears with the turn.
+      if (mode === "askfirst" && turns === 1) {
+        busy = true
+        return hook("PermissionRequest", { tool_name: "Bash", tool_input: { command: "ls" } }, () => {
+          dialog = () => turn(prompt)
+          process.stdout.write("\r\x1b[2K[dialog] allow ls? (1/2)\r\n")
+        })
+      }
+      return turn(prompt)
+    } else if (data === "\x1b\r") box += "\n"
+    else if (data === "\x15") box = ""
+    // Up recalls the last prompt, as a prompt's history does.
+    else if (data === "\x1b[A") box = last
+    else box += data
+    draw()
+  }
+  process.stdin.on("data", (data) => {
+    fs.appendFileSync(raw, JSON.stringify({ data, busy }) + "\n")
+    for (const each of data.match(/\x1b\[200~[\s\S]*?\x1b\[201~|\x1b\r|\x1b\[A|[\s\S]/g) ?? []) key(each)
+  })
+}
+process.stdout.write("\x1b[?2004h" + agent + " tui\r\n\r\n")
+const ready = () => {
+  busy = false
+  process.stdout.write(agent + " ready\r\n")
+  draw()
+  if (mode === "bg") setTimeout(() => turn("self-started", false), 300)
+}
+// Antigravity has no SessionStart hook: its first model call binds it.
+if (agent === "agy") ready()
+else hook("SessionStart", { source: "startup" }, ready)
+`,
+  )
+  writeFileSync(join(bin, "tui"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`)
+  chmodSync(join(bin, "tui"), 0o755)
+  // The same TUI under Codex's name, the program its hooks look for: a script that runs
+  // it as a child, since Node renames its own process.
+  const named = join(home, "named")
+  mkdirSync(named, { recursive: true })
+  writeFileSync(join(named, "codex"), `#!/bin/sh\n"${process.execPath}" "$@"\n`, { mode: 0o755 })
+  writeFileSync(join(bin, "named"), `#!/bin/sh\nexec "${join(named, "codex")}" "${script}" "$@"\n`)
+  chmodSync(join(bin, "named"), 0o755)
+  return bin
+}
+
+/** One JSON object per line of a file the stand-in TUI writes; none before it does. */
+const lines = <T>(file: string): T[] =>
+  existsSync(file)
+    ? readFileSync(file, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as T)
+    : []
+
+/** A sender and an idle stand-in TUI, in a manager whose doorbell rings soon. */
+const ringing = async (shell: Fixture, mode = "", program = "tui", agent: AgentName = "codex") => {
+  const bin = standIn(shell.home)
+  standInTui(shell.home)
+  const manager = shell.manager({
+    env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    doorbell: { calmMs: 200, settleMs: 300 },
+  })
+  const sender = await create(manager, shell)
+  const idle = await create(manager, shell)
+  const { start, step } = driver(shell, manager)
+  await start(sender.id, "claude", "s-claude")
+  const received = join(shell.home, "received.jsonl")
+  const raw = join(shell.home, "raw.jsonl")
+  const type = (data: string) => manager.write({ terminalId: idle.id, data }, "owner")
+  type(
+    `${program} ${agent} s-${agent} '${received}' '${raw}' ${mode}${mode === "bg" ? " &" : ""}\r`,
+  )
+  await shell.until(manager, idle.id, `${agent} ready`)
+  return {
+    manager,
+    idle,
+    type,
+    received: () => lines<{ prompt: string; printed: string; picked?: true }>(received),
+    // What the TUI got, after its first prompt.
+    raw: () => lines<{ data: string; busy: boolean }>(raw).map(({ data }) => data),
+    delivery: () => manager.messages(idle.id).delivery,
+    send: (text: string) =>
+      step(sender.id, { call: "send", request: { to: idle.handle, text } }).then(
+        (answer) => JSON.parse(answer) as { ok: boolean; route?: string },
+      ),
+    // Starts a turn by itself, as a background task's result does.
+    kick: () => process.kill(Number(readFileSync(`${raw}.pid`, "utf8")), "SIGUSR1"),
+    // The person's own first prompt, which settles it.
+    first: async () => {
+      type("hello")
+      await shell.until(manager, idle.id, "> hello")
+      type("\r")
+      await expect.poll(() => manager.messages(idle.id).delivery).toBe("settled")
+    },
+  }
+}
+
+/**
+ * Antigravity's first turn, one it started by itself: NovaDeck reads its transcript there,
+ * so the person's next typed entry is told new by its step, not by its time.
+ */
+const agyStarted = async (tui: Awaited<ReturnType<typeof ringing>>) => {
+  tui.kick()
+  await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
+  await expect.poll(tui.delivery).toBe("settled")
+}
+
+const pastes = (raw: readonly string[]) => raw.filter((data) => data.startsWith("\x1b[200~"))
+const quiet = () => new Promise((resolve) => setTimeout(resolve, 1_500))
+
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "the doorbell in bash terminals",
+  () => {
+    it("wakes an idle agent's TUI: the test paste, Enter, and its hook delivers", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell)
+      await tui.first()
+      expect(tui.received()).toMatchObject([{ prompt: "hello", printed: "" }])
+      expect(await tui.send("Review a.ts")).toMatchObject({ ok: true, route: "ringing it now" })
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      const [, rung] = tui.received()
+      expect(rung!.prompt).toMatch(
+        /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+      )
+      expect(rung!.printed).toContain(">Review a.ts</message>")
+      await expect
+        .poll(() => tui.manager.messages(tui.idle.id).threads[0]?.messages[0]?.state)
+        .toBe("delivered")
+      await expect.poll(tui.delivery).toBe("settled")
+      // Rung once: nothing more is typed.
+      await quiet()
+      expect(tui.received()).toHaveLength(2)
+    })
+
+    it("presses nothing when the paste lands nowhere, as in an open menu", async ({ shell }) => {
+      const tui = await ringing(shell, "menu")
+      tui.type("hello")
+      await shell.until(tui.manager, tui.idle.id, "> hello")
+      tui.type("\r")
+      await shell.until(tui.manager, tui.idle.id, "[menu] pick an item")
+      await expect.poll(tui.delivery).toBe("settled")
+      await tui.send("Review a.ts")
+      // The ring fails: Unknown, the message waits, and no Enter picked the menu's item.
+      await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("unknown")
+      await quiet()
+      expect(tui.received().some(({ picked }) => picked)).toBe(false)
+      expect(tui.manager.messages(tui.idle.id).threads[0]?.messages[0]?.state).toBe("queued")
+    })
+
+    it("never submits what the person typed after their Enter, before its hook", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell)
+      tui.type("hello")
+      await shell.until(tui.manager, tui.idle.id, "> hello")
+      // The person keeps typing at once, before the prompt hook reports.
+      tui.type("\r")
+      tui.type("my half-typed next thought")
+      await expect.poll(tui.delivery).toBe("drafting")
+      await tui.send("Review a.ts")
+      await quiet()
+      expect(pastes(tui.raw())).toEqual([])
+      expect(tui.received().map(({ prompt }) => prompt)).toEqual(["hello"])
+    })
+
+    it("holds what the person types during the ring, and gives it to the TUI after", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell)
+      await tui.first()
+      await tui.send("Review a.ts")
+      await vi.waitFor(
+        async () => expect(await screen(tui.manager, tui.idle.id)).toContain("automatic notice"),
+        { timeout: 10_000, interval: 5 },
+      )
+      tui.type("xyz")
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      await vi.waitFor(() => expect(tui.raw().join("")).toContain("xyz"))
+      const raw = tui.raw().join("")
+      // Their keys come after the doorbell's Enter, never into its line.
+      expect(raw.indexOf("xyz")).toBeGreaterThan(raw.lastIndexOf("\r"))
+      expect(tui.received()[1]!.prompt).toMatch(/^\[NovaDeck: automatic notice/)
+      // What they typed waits in the box.
+      await expect.poll(tui.delivery).toBe("drafting")
+    })
+
+    it("presses nothing when the terminal is resized mid-ring, and takes its line as a draft", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell)
+      await tui.first()
+      await tui.send("Review a.ts")
+      await vi.waitFor(
+        async () => expect(await screen(tui.manager, tui.idle.id)).toContain("automatic notice"),
+        { timeout: 10_000, interval: 5 },
+      )
+      tui.manager.resize({ terminalId: tui.idle.id, cols: 70, rows: 20 }, "owner")
+      await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("unknown")
+      expect(tui.raw().filter((data) => data === "\r")).toHaveLength(1)
+      // A turn that starts by itself and ends: the line is still in the box, so no ring.
+      tui.kick()
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      await expect.poll(tui.delivery).toBe("drafting")
+      await quiet()
+      expect(pastes(tui.raw())).toHaveLength(1)
+    })
+
+    // The turn the TUI starts by itself may reach NovaDeck before the doorbell's Enter, or
+    // after it, as on a loaded machine (macOS CI): either way the doorbell writes one
+    // Enter at most, and its line is never submitted.
+    for (const mode of ["", "slowkick"] as const)
+      it(`abandons a ring a turn cuts short, and never submits its line later${mode ? ", the turn reported late" : ""}`, async ({
+        shell,
+      }) => {
+        const tui = await ringing(shell, mode)
+        await tui.first()
+        const before = tui.raw().length
+        await tui.send("one")
+        await vi.waitFor(
+          async () => expect(await screen(tui.manager, tui.idle.id)).toContain("automatic notice"),
+          { timeout: 10_000, interval: 5 },
+        )
+        tui.kick()
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+        await expect.poll(tui.delivery).toBe("drafting")
+        await tui.send("two")
+        await quiet()
+        expect(tui.received().map(({ prompt }) => prompt)).toEqual(["hello", "background result"])
+        // Since the person's first prompt: one paste, and at most its one Enter.
+        const ring = tui.raw().slice(before)
+        expect(pastes(ring)).toHaveLength(1)
+        expect(ring.join("").split("\r").length - 1).toBeLessThanOrEqual(1)
+        if (mode === "slowkick") expect(ring.join("").split("\r").length - 1).toBe(1)
+      })
+
+    it("takes typing while an approved tool runs as a draft, not an answer", async ({ shell }) => {
+      const tui = await ringing(shell, "perm")
+      await tui.first()
+      tui.type("run the tests")
+      await shell.until(tui.manager, tui.idle.id, "> run the tests")
+      tui.type("\r")
+      await shell.until(tui.manager, tui.idle.id, "running npm test")
+      // While the approved command runs, the person types their next request.
+      tui.type("next: also fix the lint")
+      await vi.waitFor(() => expect(tui.raw().join("")).toContain("next: also fix the lint"))
+      await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("drafting")
+      await tui.send("Review a.ts")
+      await quiet()
+      expect(pastes(tui.raw())).toEqual([])
+    })
+
+    for (const [name, keys] of [
+      ["a paste", "\x1b[200~next: also fix the lint\x1b[201~"],
+      ["Up, recalling the last prompt", "\x1b[A"],
+      ["one hotkey", "y"],
+    ] as const)
+      it(`takes ${name} while a request waits but shows no dialog as a draft`, async ({
+        shell,
+      }) => {
+        const tui = await ringing(shell, "perm")
+        await tui.first()
+        tui.type("run the tests")
+        await shell.until(tui.manager, tui.idle.id, "> run the tests")
+        tui.type("\r")
+        await shell.until(tui.manager, tui.idle.id, "running npm test")
+        // The request still waits while its tool runs; nothing shows a dialog.
+        tui.type(keys)
+        await vi.waitFor(() => expect(tui.raw().join("")).toContain(keys))
+        await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("drafting")
+        await tui.send("Review a.ts")
+        await quiet()
+        expect(pastes(tui.raw()).filter((data) => data.includes("automatic notice"))).toEqual([])
+        expect(tui.received()).toHaveLength(2)
+      })
+
+    it("keeps a draft typed while a tool runs, after Enter approves another request", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "perm2")
+      await tui.first()
+      tui.type("run the tests")
+      await shell.until(tui.manager, tui.idle.id, "> run the tests")
+      tui.type("\r")
+      await shell.until(tui.manager, tui.idle.id, "running npm test")
+      tui.type("next: fix lint")
+      await shell.until(tui.manager, tui.idle.id, "[dialog]")
+      // Enter approves the second request; the draft stays in the box.
+      tui.type("\r")
+      await shell.until(tui.manager, tui.idle.id, "lint approved")
+      await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("drafting")
+      await tui.send("Review a.ts")
+      await quiet()
+      expect(pastes(tui.raw()).filter((data) => data.includes("automatic notice"))).toEqual([])
+    })
+
+    it("keeps a draft whose Enter made a newline while a request waits", async ({ shell }) => {
+      const tui = await ringing(shell, "perm")
+      await tui.first()
+      tui.type("run the tests")
+      await shell.until(tui.manager, tui.idle.id, "> run the tests")
+      tui.type("\r")
+      await shell.until(tui.manager, tui.idle.id, "running npm test")
+      // A backslash, then Enter: a newline in the box, as Claude Code takes it.
+      tui.type("next: fix lint\\")
+      tui.type("\r")
+      await vi.waitFor(() => expect(tui.raw().join("")).toContain("lint\\\r"))
+      await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("drafting")
+      await tui.send("Review a.ts")
+      await quiet()
+      expect(pastes(tui.raw()).filter((data) => data.includes("automatic notice"))).toEqual([])
+    })
+
+    it("applies a draft typed while asked before the prompt that clears the request", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "askfirst")
+      await tui.first()
+      tui.type("run the tests")
+      await shell.until(tui.manager, tui.idle.id, "> run the tests")
+      // The person's Enter, a request before the turn starts, and a hotkey answering it:
+      // the turn's prompt comes within the Enter's window, as the request clears.
+      tui.type("\r")
+      await shell.until(tui.manager, tui.idle.id, "[dialog]")
+      tui.type("1")
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      // Had the prompt come before the clear, the Enter would have counted, the hotkey not.
+      await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("drafting")
+    })
+
+    it("keeps a draft typed before a late hook of a failed ring", async ({ shell }) => {
+      const tui = await ringing(shell, "slowhook")
+      await tui.first()
+      await tui.send("one")
+      // The doorbell's Enter goes in; its hook comes after the 5 s confirmation lapsed.
+      await vi.waitFor(() => expect(tui.raw().join("").split("\r").length).toBeGreaterThan(2), {
+        timeout: 10_000,
+      })
+      await expect.poll(tui.delivery, { timeout: 8_000 }).toBe("unknown")
+      tui.type("my draft")
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("drafting")
+      await tui.send("two")
+      await quiet()
+      expect(tui.received().map(({ prompt }) => prompt)).toHaveLength(2)
+    })
+
+    it("takes Shift+Enter as a newline in the draft, never a submission", async ({ shell }) => {
+      const tui = await ringing(shell)
+      await tui.first()
+      tui.type("first line")
+      tui.type("\x1b\r")
+      tui.type("second line")
+      await vi.waitFor(() => expect(tui.raw().join("")).toContain("second line"))
+      // A turn the TUI starts by itself just after: not the person's submission.
+      tui.kick()
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      await expect.poll(tui.delivery).toBe("drafting")
+      await tui.send("Review a.ts")
+      await quiet()
+      expect(pastes(tui.raw())).toEqual([])
+    })
+
+    it("rings an agent whose process group holds the terminal's foreground", async ({ shell }) => {
+      // Under its harness's name, so its hooks name its instance.
+      const tui = await ringing(shell, "", "named")
+      await tui.first()
+      await tui.send("Review a.ts")
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      expect(tui.received()[1]!.printed).toContain(">Review a.ts</message>")
+    })
+
+    it("takes Antigravity's turn after the person's Enter as theirs once its transcript shows the input", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "", "tui", "agy")
+      await agyStarted(tui)
+      // Its hooks name no prompt: the transcript's new typed entry tells it was theirs.
+      await tui.first()
+      await tui.send("Review a.ts")
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
+      expect(tui.received()[2]!.prompt).toMatch(/^\[NovaDeck: automatic notice/)
+      expect(tui.received()[2]!.printed).toContain(">Review a.ts</message>")
+    })
+
+    it("keeps Antigravity Drafting when a turn after the Enter brought no typed input", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "", "tui", "agy")
+      await agyStarted(tui)
+      await tui.first()
+      tui.type("draft")
+      await shell.until(tui.manager, tui.idle.id, "> draft")
+      await expect.poll(tui.delivery).toBe("drafting")
+      // Cleared, then Enter on the empty box submits nothing; a subagent wakes it at once.
+      tui.type("\x15")
+      tui.type("\r")
+      tui.kick()
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
+      await expect.poll(tui.delivery).toBe("drafting")
+      await tui.send("Review a.ts")
+      await quiet()
+      expect(pastes(tui.raw())).toEqual([])
+    })
+
+    it("keeps Antigravity Drafting when the person typed after their Enter", async ({ shell }) => {
+      const tui = await ringing(shell, "", "tui", "agy")
+      await agyStarted(tui)
+      await tui.first()
+      tui.type("next")
+      await shell.until(tui.manager, tui.idle.id, "> next")
+      tui.type("\r")
+      tui.type("and more")
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
+      await expect.poll(tui.delivery).toBe("drafting")
+      await tui.send("Review a.ts")
+      await quiet()
+      expect(pastes(tui.raw())).toEqual([])
+    })
+
+    it.skipIf(process.platform !== "linux")(
+      "never rings an agent whose process group doesn't hold the terminal's foreground",
+      async ({ shell }) => {
+        // In a session of its own: the terminal's foreground is setsid's, waiting for it.
+        const tui = await ringing(shell, "", "setsid -w named")
+        await tui.first()
+        await tui.send("Review a.ts")
+        await quiet()
+        expect(pastes(tui.raw())).toEqual([])
+        expect(tui.delivery()).toBe("settled")
+      },
+    )
+  },
+)

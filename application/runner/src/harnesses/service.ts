@@ -166,6 +166,8 @@ export const createHarnesses = (
   // One change at a time: an agent's plugin commands edit its configuration.
   let queue = Promise.resolve()
   return {
+    /** Where the agent lives on this machine, once the shell files say where its plugin is. */
+    install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
     /** Whether NovaDeck's plugin is installed into the agent. */
     connected: async (agent: AgentName): Promise<boolean> => {
       const install = await installs()

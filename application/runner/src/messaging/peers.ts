@@ -16,6 +16,8 @@ export type Whereabouts = {
   readonly branch: string | null
   readonly plan: string | null
   readonly work: Work | null
+  /** The handle of the terminal whose agent opened it with a task, if one did. */
+  readonly openedBy: string | null
   readonly place: (path: string) => string
 }
 
@@ -40,6 +42,8 @@ export type Peer = {
   readonly folder: string | null
   readonly branch: string | null
   readonly startedWith: string | null
+  /** Who opened it with a task, told where "started with" is unknown. */
+  readonly openedBy: string | null
   /** Left out when it is the prompt it started with. */
   readonly latest: string | null
   readonly plan: string | null
@@ -95,6 +99,7 @@ export const peerOf = (input: {
     folder: where?.folder ?? null,
     branch: where?.branch ?? null,
     startedWith: work?.first ?? null,
+    openedBy: where?.openedBy ?? null,
     latest: work?.latest !== work?.first ? (work?.latest ?? null) : null,
     plan: agent ? (where?.plan ?? null) : null,
     worksIn: work
@@ -132,7 +137,9 @@ export const renderPeer = (peer: Peer, now: number): readonly string[] =>
     peer.title &&
       `  title: ${peer.title}${peer.titledBy ? ` (set by ${peer.titledBy}, not the user)` : ""}`,
     peer.folder && `  folder: ${peer.folder}${peer.branch ? `, branch ${peer.branch}` : ""}`,
-    peer.startedWith && `  started with: ${peer.startedWith}`,
+    peer.startedWith
+      ? `  started with: ${peer.startedWith}`
+      : peer.openedBy && `  opened by ${peer.openedBy} with a task`,
     peer.latest && `  latest: ${peer.latest}`,
     peer.plan && `  plan: ${peer.plan}`,
     peer.worksIn.length > 0 &&

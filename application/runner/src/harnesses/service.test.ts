@@ -256,6 +256,7 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
         handle: "t1",
         title: "Terminal 01",
         titledBy: null,
+        openedBy: null,
         command: null,
         lastProgram: null,
         work: null,

@@ -199,6 +199,62 @@ describe("NovaDeck's MCP server", () => {
       })
     })
 
+    it("forwards an agent and its task, and says where the task is", async () => {
+      calls.length = 0
+      answer = {
+        ok: true,
+        terminalId: "t",
+        handle: "t3",
+        cwd: "/work",
+        command: 'codex "[NovaDeck: automatic notice, agent messages waiting, k3f9q2]"',
+        task: {
+          ok: true,
+          to: "t3",
+          id: "m-1",
+          state: "queued",
+          route: "when its agent first prompts",
+        },
+      }
+      const [, opened] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "open_terminal", arguments: { agent: "codex", message: "Review a.ts" } },
+        },
+      ])
+      expect(calls).toMatchObject([
+        { type: "open", request: { agent: "codex", message: "Review a.ts" } },
+      ])
+      expect((opened!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
+        /, t3, running codex .* Its task, message m-1, waits for the agent's first session there/,
+      )
+      answer = { ...(answer as object), task: { ok: false, reason: "Too many messages." } }
+      const [, unsent] = await session(terminal(), [
+        initialize,
+        {
+          id: 4,
+          method: "tools/call",
+          params: { name: "open_terminal", arguments: { agent: "codex", message: "Review a.ts" } },
+        },
+      ])
+      expect((unsent!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
+        /Its task wasn't sent: Too many messages\.$/,
+      )
+      answer = { ...(answer as object), task: { ok: true, id: "m-1" }, taskWaits: true }
+      const [, waits] = await session(terminal(), [
+        initialize,
+        {
+          id: 5,
+          method: "tools/call",
+          params: { name: "open_terminal", arguments: { agent: "agy", message: "Review a.ts" } },
+        },
+      ])
+      expect((waits!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
+        /doesn't trust this folder yet, so it started without its task: message m-1 reaches it with the user's first prompt there\./,
+      )
+    })
+
     it("forwards a call to the terminal's runner with its token, and says what happened", async () => {
       calls.length = 0
       answer = { ok: true, id: "abc", kind: "image", name: "hero.png", opened: true }

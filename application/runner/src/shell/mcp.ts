@@ -96,10 +96,12 @@ const openTerminal = {
   name: "open_terminal",
   description:
     "Open a new terminal in NovaDeck beside this one, optionally starting a command or a " +
-    "TUI there, such as another agent (claude, codex) or a dev server. Use it when the " +
-    "user asks for a new terminal, or for something to run in one of its own. Set focus " +
-    "to true only when they asked to see it or go to it; otherwise it opens without " +
-    "taking their attention.",
+    "TUI there, such as a dev server, or another agent with a task: give agent and " +
+    "message instead of command, and the message reaches that agent as its first task, " +
+    "from you, through NovaDeck's messaging. Use it when the user asks for a new " +
+    "terminal, for something to run in one of its own, or for another agent to take on " +
+    "work. Set focus to true only when they asked to see it or go to it; otherwise it " +
+    "opens without taking their attention.",
   inputSchema: {
     type: "object",
     properties: {
@@ -109,6 +111,18 @@ const openTerminal = {
           "A command line to run at the new shell's first prompt, as if the user typed it, " +
           "such as claude or npm run dev: one line. Leave it out for a plain shell.",
         maxLength: 4096,
+      },
+      agent: {
+        type: "string",
+        enum: ["claude", "codex", "agy"],
+        description:
+          "An agent to start there with message as its task: claude (Claude Code), codex " +
+          "(Codex) or agy (Antigravity). Not with command.",
+      },
+      message: {
+        type: "string",
+        description:
+          "The task for that agent, up to 4 KB; it arrives wrapped as a message from you.",
       },
       cwd: {
         type: "string",
@@ -125,14 +139,24 @@ const openTerminal = {
     additionalProperties: false,
   },
   call: "open",
-  request: (args) => picked(args, ["command", "cwd", "title", "focus"]),
+  request: (args) => picked(args, ["command", "agent", "message", "cwd", "title", "focus"]),
   said: (answer) =>
     "Opened a new terminal" +
     (answer.handle ? ", " + answer.handle + "," : "") +
     (answer.command ? " running " + answer.command : "") +
     " in " +
     answer.cwd +
-    ".",
+    "." +
+    (answer.task === undefined
+      ? ""
+      : !answer.task.ok
+        ? " Its task wasn't sent: " + answer.task.reason
+        : (answer.taskWaits
+            ? " The agent there doesn't trust this folder yet, so it started without its " +
+              "task: message " + answer.task.id + " reaches it with the user's first prompt there."
+            : " Its task, message " + answer.task.id + ", waits for the agent's first session " +
+              "there.") +
+          " End your turn rather than wait, as its replies arrive by themselves."),
   failed: "NovaDeck couldn't open the terminal.",
 }
 

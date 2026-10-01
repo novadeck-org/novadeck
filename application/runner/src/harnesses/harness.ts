@@ -104,9 +104,8 @@ export type Harness = {
 /**
  * What a harness knows of agents' messaging (see docs/agent-messaging.md): what its hooks
  * print when they ask NovaDeck, each a whole line of the JSON it reads, and how it
- * behaves, so shared code never asks which harness it is. Step 2 adds its empty-prompt
- * pattern (`emptyPrompt`) and how it starts an agent with a first prompt
- * (`initialPrompt(argv)`) here.
+ * behaves, so shared code never asks which harness it is. Nothing here says how it draws
+ * its screen: the doorbell's checks are the same for every TUI.
  */
 export type MessagingProfile = {
   /** The hook events that ask, and when each fires: as a turn ends, or as a prompt starts it. */
@@ -131,6 +130,34 @@ export type MessagingProfile = {
   readonly queueKey?: string
   /** Whether a failed turn fires nothing, so its turn may only end with its next prompt. */
   readonly silentOnFailure: boolean
+  /**
+   * How it starts with `line` as its first prompt, which it submits only once past its
+   * startup screens; undefined where it may not here, as Antigravity in a folder it
+   * doesn't trust yet, whose trust dialog its prompt doesn't wait for.
+   */
+  readonly initialPrompt: (
+    line: string,
+    place: { readonly install: Install | undefined; readonly cwd: string },
+  ) => Promise<readonly string[] | undefined>
+  /** How it starts without a prompt. */
+  readonly start: readonly string[]
+  /**
+   * Where its hooks name no prompt (as Antigravity's, whose every turn decodes as
+   * harness-started), what one line of its transcript records as typed into its box, if
+   * that is what it records: from it `typed-prompts.ts` tells a root turn's prompt.
+   */
+  readonly typedEntry?: (line: string) => UserEntry | undefined
+}
+
+/**
+ * Something a transcript recorded as typed into the agent's box: its text; when, rounded
+ * down where the transcript is coarser (Antigravity's is to the second); and its place in
+ * the transcript (`id`, growing with each step), where the transcript gives one.
+ */
+export type UserEntry = {
+  readonly text: string
+  readonly at: number | null
+  readonly id: number | null
 }
 
 /**
@@ -224,17 +251,61 @@ export const callId = (actor: string | null, toolName: string, input: unknown): 
 }
 
 /** The line NovaDeck's doorbell types, with its nonce (see docs/agent-messaging.md). */
-export const doorbell = /\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]/
+export const doorbellLine = (nonce: string): string =>
+  `[NovaDeck: automatic notice, agent messages waiting, ${nonce}]`
+
+/** Any doorbell line, wherever it is. */
+export const doorbell = /\[NovaDeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]/g
+
+/** The nonce of a prompt that is exactly a doorbell line, as typed or started with; else undefined. */
+export const doorbellNonce = (prompt: string): string | undefined =>
+  /^\[NovaDeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]$/.exec(
+    prompt.trim(),
+  )?.[1]
 
 /**
- * Whether a prompt is NovaDeck's or a hook's rather than the person's: a Stop hook's
- * reason the harness submits as a prompt (Codex wraps it in `<hook_prompt>`), a delivery
- * of agents' messages, or the doorbell's line.
+ * The person's prompt without any doorbell line left in it, as a line a failed ring left
+ * in the box that they then submitted with their own text.
+ */
+export const withoutDoorbell = (prompt: string): string =>
+  prompt
+    .replace(doorbell, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim()
+
+/**
+ * Whether a prompt is a hook's rather than the person's: a Stop hook's reason the harness
+ * submits as a prompt (Codex wraps it in `<hook_prompt>`), or a delivery of agents'
+ * messages. A doorbell prompt is told apart by `doorbellNonce`.
  */
 export const continuationPrompt = (prompt: string): boolean =>
-  /^\s*<hook_prompt\b/.test(prompt) ||
-  prompt.includes("<novadeck-messages") ||
-  doorbell.test(prompt)
+  /^\s*<hook_prompt\b/.test(prompt) || prompt.includes("<novadeck-messages")
+
+/**
+ * The turn a root prompt starts, from its text: NovaDeck's doorbell, a hook's
+ * continuation (or `harness` by the harness's own reckoning), or a prompt with the
+ * person's text, any doorbell line removed.
+ */
+export const promptStart = (
+  base: {
+    readonly agent: AgentName
+    readonly sessionId: string
+    readonly instance: string | null
+    readonly startedAt: number
+  },
+  prompt: string,
+  harness = false,
+): HarnessEvent => {
+  const nonce = doorbellNonce(prompt)
+  if (nonce) return { type: "turn-started", ...base, cause: "doorbell", nonce }
+  if (harness || continuationPrompt(prompt))
+    return { type: "turn-started", ...base, cause: "harness" }
+  const own = withoutDoorbell(prompt)
+  return { type: "turn-started", ...base, cause: "prompt", ...(own && { prompt: own }) }
+}
+
+/** Quotes a doorbell line for any shell NovaDeck starts: it holds no character they expand. */
+export const quotedLine = (line: string): string => `"${line}"`
 
 /** A payload's string field, or undefined. */
 export const text = (value: unknown): string | undefined =>

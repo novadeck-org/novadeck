@@ -5,7 +5,7 @@ import type { HarnessEvent } from "../events.js"
 import {
   absolute,
   callId,
-  continuationPrompt,
+  promptStart,
   sessionId,
   sessionStart,
   subjectOf,
@@ -53,11 +53,8 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
     case "UserPromptSubmit": {
       // A subagent's prompt is its own work, not the root's turn.
       if (actor) return []
-      const prompt = text(payload.prompt)
       // A Stop hook's reason it submits to continue the turn is no prompt of the person's.
-      if (prompt && continuationPrompt(prompt))
-        return [{ type: "turn-started", ...base, cause: "harness" }]
-      return [{ type: "turn-started", ...base, cause: "prompt", ...(prompt && { prompt }) }]
+      return [promptStart(base, text(payload.prompt) ?? "")]
     }
     case "Stop":
       // A subagent's stop ends its own work, not the turn.

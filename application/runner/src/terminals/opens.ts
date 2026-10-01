@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 
 import {
+  agentName,
   startupCommand,
   terminalTitle,
   type TerminalRequest,
@@ -9,18 +10,34 @@ import {
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
+import type { SendAnswer } from "../messaging/messaging.js"
 
 /**
  * What an agent asks to open, through NovaDeck's MCP server: a new terminal beside its
  * own, in a folder, absolute or from the terminal's directory, starting a command at its
- * first prompt, with a name; and `focus` when the person asked to see it.
+ * first prompt, or an `agent` with a `message` as its task, with a name; and `focus` when
+ * the person asked to see it.
  */
-export const openRequest = z.strictObject({
-  command: startupCommand.optional(),
-  cwd: z.string().min(1).max(4096).optional(),
-  title: terminalTitle.optional(),
-  focus: z.boolean().optional(),
-})
+export const openRequest = z
+  .strictObject({
+    command: startupCommand.optional(),
+    agent: agentName.optional(),
+    message: z
+      .string()
+      .max(64 * 1024)
+      .optional(),
+    cwd: z.string().min(1).max(4096).optional(),
+    title: terminalTitle.optional(),
+    focus: z.boolean().optional(),
+  })
+  .refine((request) => (request.agent === undefined) === (request.message === undefined), {
+    message: "An agent and its message come together.",
+    path: ["agent"],
+  })
+  .refine((request) => request.agent === undefined || request.command === undefined, {
+    message: "A command can't be combined with an agent and its message.",
+    path: ["command"],
+  })
 
 export type OpenRequest = z.infer<typeof openRequest>
 
@@ -38,6 +55,13 @@ export type OpenAnswer =
       readonly handle?: string
       readonly cwd: string
       readonly command?: string
+      /** Where the task sent to an agent it started is, as `send` would answer. */
+      readonly task?: SendAnswer
+      /**
+       * The agent started without its task as its first prompt, as Antigravity in a folder
+       * it doesn't trust yet: the task reaches it with the person's first prompt there.
+       */
+      readonly taskWaits?: true
     }
   | OpenFailure
 
@@ -52,6 +76,7 @@ export const readOpenRequest = (
   const [issue] = parsed.error.issues
   if (issue?.path[0] === "command" && issue.code === "invalid_format")
     return refused("The command must be one line, without control characters.")
+  if (issue?.code === "custom") return refused(issue.message)
   const field = issue?.path.join(".")
   return refused(field ? `The request's "${field}" is not valid.` : "The request is not valid.")
 }

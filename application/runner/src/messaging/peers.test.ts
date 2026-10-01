@@ -38,6 +38,7 @@ const peer = peerOf({
       folders: { "C:\\w\\src\\api": 2, "C:\\w\\tests\\": 1 },
       activeAt: now - 2 * 60 * 60_000,
     },
+    openedBy: null,
     place: (path) => path.replace(/^C:\\w\\/, ""),
   },
   withYou: lastBetween([message()], "A", { terminalId: "B", handle: "t2" }),
@@ -77,6 +78,31 @@ describe("a peer as agents read it", () => {
       withYou: null,
     })
     expect(renderPeer(starting, now)).toEqual(["- t4: expecting Codex, not started yet"])
+    // Opened by another terminal's agent with a task, before its session said anything.
+    const tasked = peerOf({
+      terminalId: "E",
+      handle: "t5",
+      agent: null,
+      expecting: "claude",
+      busy: false,
+      where: {
+        title: "Terminal 05",
+        titledBy: null,
+        folder: ".",
+        branch: null,
+        plan: null,
+        work: null,
+        openedBy: "t1",
+        place: (path) => path,
+      },
+      withYou: null,
+    })
+    expect(renderPeer(tasked, now)).toEqual([
+      "- t5: expecting Claude Code, not started yet",
+      "  title: Terminal 05",
+      "  folder: .",
+      "  opened by t1 with a task",
+    ])
   })
 
   it("tells the latest message between the caller and the peer, either way", () => {

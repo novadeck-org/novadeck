@@ -52,6 +52,9 @@ const messaging: MessagingProfile = {
   root: "binding",
   queueKey: "\t",
   silentOnFailure: true,
+  // It holds a command-line prompt behind its trust and startup screens.
+  initialPrompt: (line) => Promise.resolve(["codex", line]),
+  start: ["codex"],
 }
 
 export const codex = {

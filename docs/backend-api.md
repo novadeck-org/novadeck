@@ -225,7 +225,7 @@ await runner.messages.release(threadId) // a thread held after too many hops
 ```
 
 `messages.list(terminalId)` gives a running or exited terminal's handle, its delivery
-state (`unbound`, `fresh`, `working`, `settled`, `drafting` or `unknown`), whether
+state (`unbound`, `fresh`, `working`, `settled`, `ringing`, `drafting` or `unknown`), whether
 messaging is paused, and its threads, newest first, each with the other terminal's
 handle, its hops so far and the hops it is allowed before the person must release it,
 whether it is held, and its messages, oldest first: id, hop, sender and recipient

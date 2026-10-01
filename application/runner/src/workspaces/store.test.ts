@@ -291,6 +291,22 @@ describe("workspace metadata", () => {
   )
 })
 
+// A kept terminal of session s, by its id and handle.
+const numbered = (id: string, handle: string) => ({
+  id,
+  sessionId: "s",
+  cwd: "/",
+  agents: {},
+  promptedAt: null,
+  handle,
+  title: `Terminal ${handle}`,
+  titledBy: null,
+  openedBy: null,
+  command: null,
+  lastProgram: null,
+  work: null,
+})
+
 describe("saved terminals", () => {
   it("keep what restores a terminal, in the owner-only metadata file", async ({
     directory,
@@ -307,6 +323,7 @@ describe("saved terminals", () => {
       handle: "t3",
       title: "API author",
       titledBy: "t1",
+      openedBy: "t2",
       command: "claude",
       lastProgram: "claude",
       work: {
@@ -332,6 +349,8 @@ describe("saved terminals", () => {
       handle: "t3",
       title: "API author",
       titledBy: "t1",
+      // Who opened it with a task survives a reload, as who titled it does.
+      openedBy: "t2",
     })
     if (process.platform !== "win32") expect(statSync(path).mode & 0o777).toBe(0o600)
     reopened.clearTranscripts()
@@ -352,6 +371,7 @@ describe("saved terminals", () => {
       handle: "t1",
       title: "Terminal 01",
       titledBy: null,
+      openedBy: null,
       command: null,
       lastProgram: null,
       work: null,
@@ -377,6 +397,7 @@ describe("saved terminals", () => {
         handle: `t${index + 1}`,
         title: `Terminal ${index}`,
         titledBy: null,
+        openedBy: null,
         command: null,
         lastProgram: null,
         work: null,
@@ -385,6 +406,21 @@ describe("saved terminals", () => {
     expect(workspace.terminals()).toHaveLength(130)
     expect(workspace.terminals("odd").map(({ id }) => id)).toEqual(ids.filter((_, i) => i % 2))
     expect(workspace.terminals("odd")[0]).not.toHaveProperty("transcript")
+  })
+
+  it("list a session's terminals by number, the order they were asked for, whenever saved", ({
+    store,
+  }) => {
+    const workspace = store()
+    // Asked for in order, their shells started the other way round.
+    for (const [id, handle] of [
+      ["b", "t2"],
+      ["j", "t10"],
+      ["a", "t1"],
+    ] as const)
+      workspace.saveTerminal(numbered(id, handle))
+    expect(workspace.terminals("s").map(({ id }) => id)).toEqual(["a", "b", "j"])
+    expect(workspace.terminals().map(({ id }) => id)).toEqual(["a", "b", "j"])
   })
 
   it("rename a kept terminal, and number each session's terminals without reuse", ({
@@ -405,6 +441,7 @@ describe("saved terminals", () => {
       handle: "t1",
       title: "Terminal 01",
       titledBy: null,
+      openedBy: null,
       command: null,
       lastProgram: null,
       work: null,
@@ -478,6 +515,7 @@ describe("the mailbox", () => {
       handle: "t1",
       title: "Terminal 01",
       titledBy: null,
+      openedBy: null,
       command: null,
       lastProgram: null,
       work: null,

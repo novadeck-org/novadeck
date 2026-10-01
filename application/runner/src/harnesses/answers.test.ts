@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
@@ -6,7 +7,15 @@ import type { AgentName } from "@novadeck/protocol"
 import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
 import type { HarnessEvent } from "./events.js"
-import { continuationPrompt, hookSeconds, type Launchers } from "./harness.js"
+import {
+  continuationPrompt,
+  doorbellLine,
+  doorbellNonce,
+  hookSeconds,
+  promptStart,
+  withoutDoorbell,
+  type Launchers,
+} from "./harness.js"
 import { harnesses } from "./registry.js"
 
 const delivery =
@@ -71,14 +80,83 @@ describe("each harness's messaging profile", () => {
 })
 
 describe("a continuation's prompt", () => {
-  it("is a Stop hook's, a delivery's, or the doorbell's, never the person's", () => {
+  it("is a Stop hook's or a delivery's, never the person's", () => {
     expect(continuationPrompt("<hook_prompt>go on</hook_prompt>")).toBe(true)
     expect(continuationPrompt(`text\n${delivery}`)).toBe(true)
-    expect(continuationPrompt("[NovaDeck: automatic notice, agent messages waiting, k3f9q2]")).toBe(
-      true,
-    )
-    expect(continuationPrompt("[NovaDeck: automatic notice, agent messages waiting]")).toBe(false)
     expect(continuationPrompt("Review the NovaDeck notice")).toBe(false)
+  })
+})
+
+describe("a doorbell prompt", () => {
+  const base = { agent: "codex", sessionId: "s", instance: "1", startedAt: 1 } as const
+  const bell = doorbellLine("k3f9q2")
+
+  it("is a prompt that is exactly the doorbell line, with its nonce", () => {
+    expect(doorbellNonce(bell)).toBe("k3f9q2")
+    expect(doorbellNonce(` ${bell}\n`)).toBe("k3f9q2")
+    expect(doorbellNonce(`fix it ${bell}`)).toBeUndefined()
+    expect(doorbellNonce("[NovaDeck: automatic notice, agent messages waiting]")).toBeUndefined()
+    expect(promptStart(base, bell)).toEqual({
+      type: "turn-started",
+      ...base,
+      cause: "doorbell",
+      nonce: "k3f9q2",
+    })
+  })
+
+  it("keeps a prompt the person's when it only holds a stale line, recorded without it", () => {
+    expect(promptStart(base, `${bell}fix the build`)).toEqual({
+      type: "turn-started",
+      ...base,
+      cause: "prompt",
+      prompt: "fix the build",
+    })
+    expect(withoutDoorbell(`half ${bell} typed`)).toBe("half typed")
+    expect(promptStart(base, "<hook_prompt>go on</hook_prompt>")).toMatchObject({
+      cause: "harness",
+    })
+    expect(promptStart(base, "anything", true)).toMatchObject({ cause: "harness" })
+  })
+
+  it("starts each harness with the doorbell line as its first prompt, Antigravity only where trusted", async ({
+    resources,
+  }) => {
+    const place = { install: undefined, cwd: "/work" }
+    await expect(harnesses.claude.messaging.initialPrompt(bell, place)).resolves.toEqual([
+      "claude",
+      bell,
+    ])
+    await expect(harnesses.codex.messaging.initialPrompt(bell, place)).resolves.toEqual([
+      "codex",
+      bell,
+    ])
+    // Without its settings, Antigravity trusts nothing.
+    await expect(harnesses.agy.messaging.initialPrompt(bell, place)).resolves.toBeUndefined()
+    const home = mkdtempSync(join(tmpdir(), "novadeck-agy-"))
+    resources.defer(() => rmSync(home, { recursive: true, force: true }))
+    const trusted = join(home, "trusted")
+    mkdirSync(trusted)
+    mkdirSync(join(home, ".gemini", "antigravity-cli"), { recursive: true })
+    writeFileSync(
+      join(home, ".gemini", "antigravity-cli", "settings.json"),
+      JSON.stringify({ trustedWorkspaces: [trusted] }),
+    )
+    const install = { env: {}, home, platform: process.platform, plugin: join(home, "plugin") }
+    await expect(
+      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: trusted }),
+    ).resolves.toEqual(["agy", "-i", bell])
+    await expect(
+      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: home }),
+    ).resolves.toBeUndefined()
+    // The same path, written another way, is trusted; a link to it isn't, failing safe.
+    await expect(
+      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: `${trusted}/./` }),
+    ).resolves.toEqual(["agy", "-i", bell])
+    symlinkSync(trusted, join(home, "linked"))
+    await expect(
+      harnesses.agy.messaging.initialPrompt(bell, { install, cwd: join(home, "linked") }),
+    ).resolves.toBeUndefined()
+    expect(harnesses.agy.messaging.start).toEqual(["agy"])
   })
 })
 
@@ -294,5 +372,23 @@ describe("files an agent wrote, as each harness reports them", () => {
         toolCall: { name: "write_to_file", args: { TargetFile: "/w/c.md" } },
       }),
     ).toMatchObject([{ path: "/w/c.md" }])
+  })
+})
+
+describe("Claude Code's and Codex's decoders", () => {
+  const bell = doorbellLine("k3f9q2")
+
+  it("tell a doorbell prompt from the person's, and keep a stale line out of theirs", () => {
+    for (const agent of ["claude", "codex"] as const) {
+      const turn = (prompt: string) =>
+        decode(agent, "UserPromptSubmit", { session_id: "s1", prompt }).find(
+          (event) => event.type === "turn-started",
+        )
+      expect(turn(bell)).toMatchObject({ cause: "doorbell", nonce: "k3f9q2" })
+      expect(turn(`fix the build ${bell}`)).toMatchObject({
+        cause: "prompt",
+        prompt: "fix the build",
+      })
+    }
   })
 })

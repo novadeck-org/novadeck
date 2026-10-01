@@ -18,6 +18,8 @@ export type PeerTerminal = {
   readonly titledBy: string | null
   readonly work: Work | null
   readonly activity: Activity | null
+  /** The handle of the terminal whose agent opened it with a task; null otherwise. */
+  readonly openedBy: string | null
 }
 
 export type PeersOptions = {
@@ -151,6 +153,7 @@ export class TerminalPeers {
           branch,
           plan: title === undefined ? null : shorten(title, 120),
           work: terminal.work,
+          openedBy: terminal.openedBy,
           place: (path) => {
             const shown = place(path)
             return shown.length > 80 ? `…${shown.slice(-79)}` : shown

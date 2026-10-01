@@ -81,6 +81,31 @@ export const terminalForeground = async (shellPid: number): Promise<number | und
   return undefined
 }
 
+/**
+ * The process group a process belongs to; undefined where the platform doesn't tell, as
+ * on Windows, or once it is gone.
+ */
+export const processGroup = async (pid: number): Promise<number | undefined> => {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return undefined
+  try {
+    if (process.platform === "linux") {
+      const stat = parseProcessStat(readFileSync(`/proc/${pid}/stat`, "utf8"))
+      return stat && stat.pgrp > 0 ? stat.pgrp : undefined
+    }
+    if (process.platform === "darwin") {
+      const { stdout } = await promisify(execFile)("ps", ["-o", "pgid=", "-p", String(pid)], {
+        encoding: "utf8",
+        timeout: 2_000,
+      })
+      const group = Number(stdout.trim())
+      return Number.isSafeInteger(group) && group > 0 ? group : undefined
+    }
+  } catch {
+    // Gone, or ps unavailable.
+  }
+  return undefined
+}
+
 /** Whether the shell itself holds its terminal's foreground, as at its prompt. */
 export const shellInForeground = async (shellPid: number): Promise<boolean | undefined> => {
   const group = await terminalForeground(shellPid)
