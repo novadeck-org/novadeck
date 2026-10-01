@@ -169,8 +169,9 @@ export const planContent = z.strictObject({
 })
 
 // What an agent showed the user from its terminal through NovaDeck's MCP server, by an
-// id the runner gives it. Showing the same thing again raises `version`. `asked`: the
-// agent said the user asked to see it, so it opens.
+// id the runner gives it. Showing the same thing again raises `version`. `asked`: it
+// opens, as the agent said the user asked to see it. `held`: a file that may hold
+// secrets, which the UI shows only when the user picks it, never by itself.
 export const artifactId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)
 
 export const shownArtifact = z.strictObject({
@@ -180,6 +181,7 @@ export const shownArtifact = z.strictObject({
   detail: z.string().max(512),
   version: z.number().int().min(1),
   asked: z.boolean(),
+  held: z.boolean().optional(),
 })
 
 // `agents.shown` snapshots: everything the terminal's agents have shown, oldest first.

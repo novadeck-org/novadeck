@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
-import { homedir, constants as system } from "node:os"
+import { constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -32,7 +32,6 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
-import { configFolder } from "../harnesses/claude/index.js"
 import { actorOf, agentDetail, planOf } from "../harnesses/detail.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
 import type { HarnessEvent, SessionObserved } from "../harnesses/events.js"
@@ -103,7 +102,7 @@ export type TerminalOptions = {
   transcriptChars?: number
   /** How often a followed plan's file is looked at for changes, in milliseconds. */
   planPollMs?: number
-  /** The folder of the project a session belongs to, which its terminals' agents may show from. */
+  /** The folder of the project a session belongs to, which names the files its agents show. */
   projectFolder?: (sessionId: string) => string | undefined
 }
 
@@ -890,8 +889,9 @@ export class Terminals {
 
   /**
    * Shows the person what an agent asked to, through NovaDeck's MCP server in one of
-   * the terminal's shells: a file inside the terminal's project, where it started, or
-   * Claude Code's plans. A call without the shell's own token learns nothing more.
+   * the terminal's shells: any file they can read, as a viewer would, or a page. It
+   * opens at once when the agent says they asked, unless it may hold secrets. A call
+   * without the shell's own token learns nothing more.
    */
   async present(call: Call): Promise<PresentAnswer> {
     const record = this.records.get(call.terminalId)
@@ -899,22 +899,25 @@ export class Terminals {
     const read = readRequest(call.request)
     if (!read.ok) return read
     const { request } = read
-    const project = this.projectFolder(record.summary.sessionId)
-    const { env } = this.options
-    const plans = join(configFolder({ env, home: env.HOME ?? homedir() }), "plans")
     const captured = await capture(request, {
       cwd: record.summary.cwd,
-      project,
-      home: env.HOME ?? homedir(),
-      folders: [project, record.origin, plans],
+      project: this.projectFolder(record.summary.sessionId),
     })
     if (!captured.ok) return captured
     // Closed, or the runner stopped, while the file was read.
     if (this.stopping || this.records.get(call.terminalId) !== record) return unanswered
-    record.shown = remember(record.shown, captured, request.open === true)
+    const opened = request.open === true && !captured.held
+    record.shown = remember(record.shown, captured, opened)
     const shown = this.shownOf(record)
     for (const reader of this.showings.get(call.terminalId) ?? []) reader.push(shown)
-    return { ok: true, id: captured.id, kind: captured.content.kind, name: captured.name }
+    return {
+      ok: true,
+      id: captured.id,
+      kind: captured.content.kind,
+      name: captured.name,
+      opened,
+      ...(captured.held && { held: true }),
+    }
   }
 
   /** The folder of the session's project; undefined when that cannot be told. */

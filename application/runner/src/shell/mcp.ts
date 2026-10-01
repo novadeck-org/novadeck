@@ -1,8 +1,8 @@
 /**
  * NovaDeck's MCP server, run by a connected agent's plugin through the launcher on
  * NovaDeck's own runtime, so it needs no dependencies. It speaks MCP over stdio, one
- * JSON message per line, just enough for one tool: `show`, which puts an image or a text
- * file from the project in front of the user, beside the terminal the agent runs in. It
+ * JSON message per line, just enough for one tool: `show`, which puts an image, a text
+ * file or a web page in front of the user, beside the terminal the agent runs in. It
  * forwards the call to that terminal's runner over the endpoint the agent's hooks
  * report to, with the terminal's own token, and returns the runner's answer. Outside
  * NovaDeck's terminals it offers no tools, so agents there aren't pointed at it.
@@ -25,7 +25,7 @@ const inTerminal = Boolean(terminalId && endpoint && token)
 const tool = {
   name: "show",
   description:
-    "Show the user an image or a text file from this project, or a web page, in NovaDeck, " +
+    "Show the user an image or a text file, or a web page, in NovaDeck, " +
     "beside the terminal they're talking to you in. Give either path or url. Use it when they " +
     "ask to see something, or when a screenshot, mockup, diagram, the lines you mean or the " +
     "running app (as a local dev server's address) would help them follow. Set open to true " +
@@ -37,7 +37,7 @@ const tool = {
         type: "string",
         description:
           "The file: an image (PNG, JPEG, GIF, WebP, SVG) or a text file, absolute or relative " +
-          "to the terminal's current directory. It must be inside this project.",
+          "to the terminal's current directory.",
       },
       url: {
         type: "string",
@@ -122,9 +122,13 @@ const call = async (id, params) => {
   const request = requestOf(params.arguments)
   const answer = await present(request)
   const text = answer?.ok
-    ? request.open
+    ? answer.opened
       ? "Showing " + answer.name + " to the user in NovaDeck."
-      : answer.name + " is waiting for the user in NovaDeck, marked new."
+      : answer.held
+        ? answer.name +
+          " may hold secrets, so it doesn't open by itself: it's waiting for the user in " +
+          "NovaDeck, marked new, to open if they choose."
+        : answer.name + " is waiting for the user in NovaDeck, marked new."
     : answer?.reason || "NovaDeck couldn't show it."
   send({ id, result: { content: [{ type: "text", text }], isError: !answer?.ok } })
 }

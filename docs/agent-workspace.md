@@ -309,10 +309,17 @@ from what this document describes:
   There its launcher answers itself (sh, or Windows Script Host's JScript on Windows,
   which agents reach through `cmd.exe`) without starting NovaDeck's runtime, which a packaged NovaDeck
   can unpack into a folder that goes when it quits. In a terminal it forwards the call
-  over the terminal's report endpoint, where the runner checks the token and shows only
-  images and text files inside the terminal's project folder, its starting folder
-  or Claude Code's plans folder, symlinks resolved. The UI reads them through
-  `agents.shown` and fetches each with `agents.artifact`, never by path.
+  over the terminal's report endpoint, where the runner checks the token and shows
+  any image or text file the person can read, as a viewer would: showing a file puts it
+  on their screen and sends it nowhere, and the agent could read it anyway. Limits are
+  technical only: images up to 8 MB, text up to 1 MB (a long file around the lines
+  pointed at), and never a folder, pipe or device. A file that often holds secrets
+  (`.env`, keys, credentials, agents' and tools' logins, shell history) is shown but
+  held: it never opens by itself, even when the agent says the person asked; the pane
+  never falls back to it, its taskbar peek shows no preview, and it goes by its own
+  name, not the agent's title. So none appears unasked while they share their screen.
+  The UI reads them through `agents.shown` and fetches each with `agents.artifact`,
+  never by path.
 - **Pages** are any http(s) address; an address with a user name or password is
   refused. The desktop app loads them live in the pane, in Electron's `<webview>`,
   which lays out with the pane, keeps NovaDeck's menus and cards above it, and lets a

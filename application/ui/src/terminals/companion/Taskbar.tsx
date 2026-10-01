@@ -28,14 +28,28 @@ const PlanThumb = ({ plan }: { plan: PlanDoc }): React.JSX.Element => (
   </span>
 )
 
-// An artifact in miniature, once it loads.
-const ArtifactPreview = ({
+const LoadedPreview = ({
   companion,
   artifact,
 }: {
   companion: CompanionHandle
   artifact: Shown
 }): React.JSX.Element | null => <ArtifactThumb load={useArtifactContent(companion, artifact)} />
+
+// An artifact in miniature, once it loads; a held one is never loaded for a peek, which
+// a passing pointer opens.
+const ArtifactPreview = ({
+  companion,
+  artifact,
+}: {
+  companion: CompanionHandle
+  artifact: Shown
+}): React.JSX.Element | null =>
+  artifact.held ? (
+    <span className="peek-held">May hold secrets. Click to open.</span>
+  ) : (
+    <LoadedPreview companion={companion} artifact={artifact} />
+  )
 
 // A taskbar slot: its icon, the peek above it, and its menu, which is also the
 // keyboard's way to everything the peek offers.

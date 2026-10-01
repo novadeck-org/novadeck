@@ -263,6 +263,15 @@
   border-radius: 50%;
   background: var(--color-line-strong);
 }
+.peek-held {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 8px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--color-muted);
+}
 .peek-page-url {
   padding: 8px 6px;
   overflow: hidden;

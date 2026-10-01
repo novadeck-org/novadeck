@@ -1201,7 +1201,7 @@ const present = async (
 describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "what agents show from a bash terminal",
   () => {
-    it("shows files from the project, where the terminal started, and Claude Code's plans", async ({
+    it("shows any file the person can read, opening it when asked, but never a secret one", async ({
       shell,
     }) => {
       const project = join(shell.home, "project")
@@ -1212,6 +1212,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       writeFileSync(join(work, "w.txt"), "work\n")
       writeFileSync(join(plans, "p.md"), "# Plan\n")
       writeFileSync(join(shell.home, "elsewhere.txt"), "elsewhere\n")
+      writeFileSync(join(work, ".env"), "TOKEN=x\n")
       const bin = presenter(shell.home)
       const manager = shell.manager({
         env: {
@@ -1232,15 +1233,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         { request: { path: "w.txt", open: true } },
         { request: { path: join(plans, "p.md"), title: "The plan" } },
         { request: { path: join(shell.home, "elsewhere.txt") } },
+        { request: { path: ".env", open: true } },
         { request: { path: "w.txt" }, token: "0".repeat(48) },
         { request: { path: "w.txt", lines: { from: 2, to: 1 } } },
       ])
       const shown = { ok: true, id: expect.stringMatching(/^[\w-]{16}$/), kind: "file" }
       expect(answers).toEqual([
-        { ...shown, name: "a.ts" },
-        { ...shown, name: "w.txt" },
-        { ...shown, name: "The plan" },
-        { ok: false, reason: "That file is outside this project." },
+        { ...shown, name: "a.ts", opened: false },
+        { ...shown, name: "w.txt", opened: true },
+        { ...shown, name: "The plan", opened: false },
+        { ...shown, name: "elsewhere.txt", opened: false },
+        // Asked to open, but it may hold secrets: it waits for the person.
+        { ...shown, name: ".env", opened: false, held: true },
         { ok: false, reason: "NovaDeck couldn't show it." },
         { ok: false, reason: 'The request\'s "lines" is not valid.' },
       ])
@@ -1271,6 +1275,23 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             version: 1,
             asked: false,
           },
+          {
+            id: expect.any(String),
+            kind: "file",
+            name: "elsewhere.txt",
+            detail: `${join(shell.home, "elsewhere.txt")} · whole file`,
+            version: 1,
+            asked: false,
+          },
+          {
+            id: expect.any(String),
+            kind: "file",
+            name: ".env",
+            detail: ".env · whole file",
+            version: 1,
+            asked: false,
+            held: true,
+          },
         ])
       const [first] = answers as { id: string }[]
       expect(manager.artifact(terminal.id, first!.id)).toEqual({
@@ -1287,11 +1308,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await moved((summary) => summary.id === terminal.id && summary.cwd === project)
       writeFileSync(join(project, "a.ts"), "const a = 2\n")
       expect(await present(shell, manager, terminal.id, [{ request: { path: "a.ts" } }])).toEqual([
-        { ...shown, id: first!.id, name: "a.ts" },
+        { ...shown, id: first!.id, name: "a.ts", opened: false },
       ])
       await expect
         .poll(() => snapshots.at(-1)?.shown.map(({ name, version }) => `${name} ${version}`))
-        .toEqual(["w.txt 1", "The plan 1", "a.ts 2"])
+        .toEqual(["w.txt 1", "The plan 1", "elsewhere.txt 1", ".env 1", "a.ts 2"])
       expect(manager.artifact(terminal.id, first!.id)).toMatchObject({ lines: ["const a = 2"] })
       await manager.close({ terminalId: terminal.id }, "owner")
       await reading

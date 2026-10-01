@@ -120,7 +120,8 @@ export const currentMarks = (plan: PlanDoc): readonly Mark[] =>
 
 export const unread = (plan: PlanDoc): boolean => plan.seen < plan.writes
 
-// What the pane shows: its tab, while that still exists, or else its home.
+// What the pane shows: its tab, while that still exists, or else its home, or else the
+// first thing shown that may be shown unpicked: never a held one.
 export const shownTab = (pane: PaneState): string => {
   const exists = (tab: string): boolean => {
     const ref = planRefOf(tab)
@@ -128,7 +129,11 @@ export const shownTab = (pane: PaneState): string => {
       ? pane.artifacts.some((shown) => shown.id === tab)
       : pane.plans.some((plan) => plan.ref === ref)
   }
-  return exists(pane.tab) ? pane.tab : exists(pane.home) ? pane.home : (pane.artifacts[0]?.id ?? "")
+  return exists(pane.tab)
+    ? pane.tab
+    : exists(pane.home)
+      ? pane.home
+      : (pane.artifacts.find((shown) => !shown.held)?.id ?? "")
 }
 
 const reading = (pane: PaneState, ref: string): boolean =>

@@ -104,7 +104,7 @@ describe("NovaDeck's MCP server", () => {
   describe("in a NovaDeck terminal", () => {
     let reports: Reports
     const calls: Call[] = []
-    let answer: unknown = { ok: true, id: "abc", kind: "image", name: "hero.png" }
+    let answer: unknown = { ok: true, id: "abc", kind: "image", name: "hero.png", opened: true }
     // How long the runner takes to answer.
     let delay = 0
 
@@ -137,7 +137,7 @@ describe("NovaDeck's MCP server", () => {
 
     it("forwards a call to the terminal's runner with its token, and says what happened", async () => {
       calls.length = 0
-      answer = { ok: true, id: "abc", kind: "image", name: "hero.png" }
+      answer = { ok: true, id: "abc", kind: "image", name: "hero.png", opened: true }
       const [, shown] = await session(terminal(), [
         initialize,
         {
@@ -162,7 +162,7 @@ describe("NovaDeck's MCP server", () => {
 
     it("forwards a page by its url", async () => {
       calls.length = 0
-      answer = { ok: true, id: "def", kind: "page", name: "localhost:5173" }
+      answer = { ok: true, id: "def", kind: "page", name: "localhost:5173", opened: true }
       const [, shown] = await session(terminal(), [
         initialize,
         {
@@ -177,18 +177,47 @@ describe("NovaDeck's MCP server", () => {
       expect(shown?.result).toMatchObject({ isError: false })
     })
 
+    it("says what the runner did, not what was asked: waiting, or held for secrets", async () => {
+      const said = async (runner: unknown) => {
+        answer = runner
+        const [, shown] = await session(terminal(), [
+          initialize,
+          {
+            id: 4,
+            method: "tools/call",
+            params: { name: "show", arguments: { path: ".env", open: true } },
+          },
+        ])
+        return shown?.result
+      }
+      await expect(
+        said({ ok: true, id: "a", kind: "file", name: "notes.md", opened: false }),
+      ).resolves.toEqual({
+        content: [
+          { type: "text", text: "notes.md is waiting for the user in NovaDeck, marked new." },
+        ],
+        isError: false,
+      })
+      await expect(
+        said({ ok: true, id: "b", kind: "file", name: ".env", opened: false, held: true }),
+      ).resolves.toMatchObject({
+        content: [{ type: "text", text: expect.stringContaining(".env may hold secrets") }],
+        isError: false,
+      })
+    })
+
     it("passes on why something can't be shown", async () => {
-      answer = { ok: false, reason: "That file is outside this project." }
+      answer = { ok: false, reason: "That file doesn't exist." }
       const [, refused] = await session(terminal(), [
         initialize,
         {
           id: 4,
           method: "tools/call",
-          params: { name: "show", arguments: { path: "/etc/passwd" } },
+          params: { name: "show", arguments: { path: "gone.txt" } },
         },
       ])
       expect(refused?.result).toEqual({
-        content: [{ type: "text", text: "That file is outside this project." }],
+        content: [{ type: "text", text: "That file doesn't exist." }],
         isError: true,
       })
     })
@@ -207,7 +236,7 @@ describe("NovaDeck's MCP server", () => {
     })
 
     it("still answers a call under way when the agent closes its side", async () => {
-      answer = { ok: true, id: "abc", kind: "image", name: "hero.png" }
+      answer = { ok: true, id: "abc", kind: "image", name: "hero.png", opened: true }
       delay = 300
       try {
         const answers = await session(
@@ -257,7 +286,7 @@ describe("NovaDeck's MCP server", () => {
 
       it("runs the server in a NovaDeck terminal", async () => {
         calls.length = 0
-        answer = { ok: true, id: "abc", kind: "image", name: "hero.png" }
+        answer = { ok: true, id: "abc", kind: "image", name: "hero.png", opened: true }
         const start = await installed()
         const [, tools, shown] = await session(
           inTerminal(),

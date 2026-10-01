@@ -174,7 +174,10 @@ export const CompanionPane = ({
           companion={companion}
           artifact={artifact}
         />
-      ) : null}
+      ) : (
+        // All that's left may hold secrets, which shows only once picked.
+        <div className="artifact-status">Pick what to show from the taskbar.</div>
+      )}
     </section>
   )
 }

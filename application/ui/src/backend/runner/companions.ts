@@ -129,14 +129,15 @@ export const createRunnerCompanions = (
         let first = true
         for await (const snapshot of stream) {
           if (followed.get(companionKeyId(terminal.key)) !== terminal) return
-          for (const { asked, ...artifact } of snapshot.shown) {
-            if ((terminal.versions.get(artifact.id) ?? 0) >= artifact.version) continue
-            terminal.versions.set(artifact.id, artifact.version)
+          for (const { asked, held, ...shown } of snapshot.shown) {
+            if ((terminal.versions.get(shown.id) ?? 0) >= shown.version) continue
+            terminal.versions.set(shown.id, shown.version)
             emit({
               type: "artifact/shown",
               key: terminal.key,
-              artifact,
-              asked,
+              artifact: { ...shown, ...(held && { held: true }) },
+              // A held one never opens by itself, whatever the runner says.
+              asked: asked && !held,
               ...(first && { seen: true }),
             })
           }

@@ -46,12 +46,14 @@ export type ArtifactRef = {
   readonly detail: string
   // Changes when the agent shows it again with new content.
   readonly version: number
+  // A file that may hold secrets: shown only when the user picks it, never by itself.
+  readonly held?: boolean
 }
 
 export type ArtifactContent =
   // An image, by a URL the page can load.
   | { readonly kind: "image"; readonly src: string }
-  // A file from the project, with the lines the agent pointed at. `firstLine` numbers
+  // A text file, with the lines the agent pointed at. `firstLine` numbers
   // the first of `lines`.
   | {
       readonly kind: "file"

@@ -299,6 +299,25 @@ describe("runner companions", () => {
       expect(runner.fetched).toEqual(["hero"])
     })
 
+    it("never opens a held one by itself, whatever the runner says, and says it's held", async () => {
+      const runner = running()
+      runner.companions.follow(key)
+      runner.shown.push({ terminalId: "t1", shown: [] })
+      runner.shown.push({
+        terminalId: "t1",
+        shown: [{ ...image(1, true), held: true }],
+      })
+      await settle()
+      expect(runner.events).toEqual([
+        {
+          type: "artifact/shown",
+          key,
+          artifact: { ...reported(1), held: true },
+          asked: false,
+        },
+      ])
+    })
+
     it("loads a page live only where the host can show it", async () => {
       const page = (livePages?: boolean) =>
         createRunnerCompanions(
