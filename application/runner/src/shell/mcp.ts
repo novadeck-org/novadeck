@@ -159,7 +159,8 @@ const openTerminal = {
         ? " Its task wasn't sent: " + answer.task.reason
         : (answer.taskWaits
             ? " The agent there doesn't trust this folder yet, so it started without its " +
-              "task: message " + answer.task.id + " reaches it with the user's first prompt there."
+              "task: message " + answer.task.id + " reaches it once the user trusts the folder " +
+              "and its prompt shows."
             : " Its task, message " + answer.task.id + ", waits for the agent's first session " +
               "there.") +
           " End your turn rather than wait, as its replies arrive by themselves."),

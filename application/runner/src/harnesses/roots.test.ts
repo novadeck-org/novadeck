@@ -39,11 +39,25 @@ const follow = (
   })
 
 describe("a terminal's root session", () => {
+  it("is ready to be rung only when the report that bound it announced it at its prompt", () => {
+    const bound = binding("claude", "s1")
+    const announced = (sessionId: string): HarnessEvent => ({
+      type: "session-observed",
+      ...fact(binding("claude", sessionId)),
+      evidence: "startup",
+      atPrompt: true,
+    })
+    expect(follow(null, bound, [announced("s1")]).changes).toMatchObject([{ ready: true }])
+    expect(follow(null, bound, [observed(bound)]).changes).toMatchObject([{ ready: false }])
+    // Another session's announcement says nothing of this one.
+    expect(follow(null, bound, [announced("s2")]).changes).toMatchObject([{ ready: false }])
+  })
+
   it("is the bound session where the harness's hooks name only its own", () => {
     const first = follow(null, binding("claude", "s1"))
     expect(first).toEqual({
       root: { agent: "claude", sessionId: "s1", instance: "7", source: "binding" },
-      changes: [{ type: "new", root: first.root, guess: false }],
+      changes: [{ type: "new", root: first.root, guess: false, ready: false }],
     })
     // The same session stays; another, as after /clear, is a new root.
     expect(follow(first.root, binding("claude", "s1")).changes).toEqual([])

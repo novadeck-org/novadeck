@@ -30,6 +30,30 @@ export type SessionObserved = {
    * and Codex's SessionStart with source `compact` do.
    */
   readonly compacted?: boolean
+  /**
+   * Whether the harness announced this new session as its own input prompt came up, past
+   * any trust, onboarding or login screen: Claude Code's SessionStart at a `startup`,
+   * `clear`, `resume` or `fork`, and Antigravity's status line saying idle in it. Only
+   * such a session may be rung before its first turn (see docs/agent-messaging.md,
+   * "States").
+   */
+  readonly atPrompt?: boolean
+}
+
+/**
+ * The harness shows its own empty input prompt, past any trust, update, login, hooks
+ * review or picker screen, before a session it names in full has bound there: Codex's
+ * terminal title saying Ready, Antigravity's status line saying idle with no conversation
+ * yet. Messages wait for the first session of that agent to bind there, and the doorbell
+ * may ring it (see docs/agent-messaging.md, "States"). `sessionPrefix` is the start of the
+ * session's id, where the harness shows only that much of it, as Codex's title does.
+ */
+export type PromptShown = {
+  readonly type: "prompt-shown"
+  readonly agent: AgentName
+  readonly instance: string | null
+  readonly startedAt: number
+  readonly sessionPrefix?: string
 }
 
 /**

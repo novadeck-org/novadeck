@@ -252,7 +252,7 @@ describe("NovaDeck's MCP server", () => {
         },
       ])
       expect((waits!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
-        /doesn't trust this folder yet, so it started without its task: message m-1 reaches it with the user's first prompt there\./,
+        /doesn't trust this folder yet, so it started without its task: message m-1 reaches it once the user trusts the folder and its prompt shows\./,
       )
     })
 

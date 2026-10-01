@@ -182,12 +182,15 @@ when the hook gained its time limit for agent messaging.
 Interactive Codex normally runs its sessions, hooks included, in a shared background
 server that cannot tell which terminal a session belongs to. So while Codex is
 connected, NovaDeck's shells run `codex` through a small shim that adds `--no-daemon`,
-keeping the session in the terminal; `codex agents` and `--remote`, which need that
-server, go unchanged, and Codex started by its full path bypasses the shim and does not
-resume. Sessions started this way do not show in `codex agents`.
+keeping the session in the terminal, and sets its terminal title's items to its state
+and thread, which tells NovaDeck when its prompt is up (NovaDeck shows no terminal's own
+title); `codex agents` and `--remote`, which need that server, go unchanged, and Codex
+started by its full path bypasses the shim and does not resume. Sessions started this
+way do not show in `codex agents`.
 Antigravity runs the hook before each model call, and Codex with your first message,
-so their sessions are known from then on. On Windows, Claude Code runs the hook through
-PowerShell.
+so their sessions are known from then on; before that, Codex's title and Antigravity's
+status line tell NovaDeck that their prompt is up, so other agents' messages can wake
+them. On Windows, Claude Code runs the hook through PowerShell.
 
 Removing NovaDeck does not remove plugins you left connected, as packaged builds have
 no uninstaller: switch agents off first, or remove the `novadeck` plugin with the

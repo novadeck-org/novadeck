@@ -8,7 +8,7 @@ import { describe, expect, it as base } from "../../test.js"
 import { apply as applyActivity, started, summary } from "../activity.js"
 import type { ActivityEvent } from "../events.js"
 import type { Install } from "../harness.js"
-import { decode } from "./decode.js"
+import { decode, shown } from "./decode.js"
 import { statusLineCommand, statusLineSettings } from "./settings.js"
 
 const { payloads } = JSON.parse(
@@ -34,6 +34,29 @@ const telemetry = (payload: Report["payload"]) =>
 describe("Antigravity's status line, as captured", () => {
   it("says nothing before a conversation starts", () => {
     for (const payload of payloads.slice(0, 3)) expect(decode(report(payload))).toEqual([])
+  })
+
+  it("shows its prompt, before any conversation, only once it says idle", () => {
+    const [authenticating, initializing, idle] = payloads
+    expect(shown(report(authenticating!))).toBeUndefined()
+    expect(shown(report(initializing!))).toBeUndefined()
+    expect(shown(report(idle!))).toEqual({
+      type: "prompt-shown",
+      agent: "agy",
+      instance: "7",
+      startedAt: 5,
+    })
+    // Another hook, or a conversation it names, is no such prompt.
+    expect(shown({ ...report(idle!), event: "Stop" })).toBeUndefined()
+    expect(shown(report(payloads[5]!))).toBeUndefined()
+  })
+
+  it("names a conversation at its prompt only while it says idle", () => {
+    const atPrompt = (payload: Report["payload"]) =>
+      decode(report(payload)).find(({ type }) => type === "session-observed")
+    const [, , , working, , idle] = payloads
+    expect(atPrompt(idle!)).toMatchObject({ atPrompt: true, root: true })
+    expect(atPrompt(working!)).not.toHaveProperty("atPrompt")
   })
 
   it("tells a confirmation waiting on the person, and its answer", () => {

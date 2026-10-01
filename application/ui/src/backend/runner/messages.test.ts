@@ -115,6 +115,13 @@ describe("the runner's messages", () => {
     expect(messages.state.getSnapshot().terminals[id]?.agent).toBe(false)
   })
 
+  it("take an agent whose own prompt shows, with no session bound yet, as one there", async () => {
+    const { messages, push } = streams()
+    messages.follow(key)
+    push(listing({ delivery: "ready" }))
+    await vi.waitFor(() => expect(messages.state.getSnapshot().terminals[id]?.agent).toBe(true))
+  })
+
   it("follow each terminal once, and start over after the runner lost it", async () => {
     const { messages, push, api } = streams()
     messages.follow(key)

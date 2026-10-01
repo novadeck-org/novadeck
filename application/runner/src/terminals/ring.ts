@@ -83,7 +83,7 @@ export const checkPaste = (
 
 /** What the gate needs to know of a terminal before it rings. */
 export type GateFacts = {
-  /** Whether messaging says it may ring: Settled, untouched, with messages waiting. */
+  /** Whether messaging says it may ring: Settled or Ready, untouched, with messages waiting. */
   readonly ringable: boolean
   /** How long its screen's text has been unchanged, in milliseconds. */
   readonly calmMs: number

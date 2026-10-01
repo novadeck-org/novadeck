@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
-import { constants as system } from "node:os"
+import { homedir, constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
@@ -37,9 +37,9 @@ import {
 import { observe, type Binding } from "../harnesses/bindings.js"
 import { actorOf, agentDetail, planOf } from "../harnesses/detail.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
-import type { HarnessEvent, SessionObserved } from "../harnesses/events.js"
+import type { HarnessEvent, PromptShown, SessionObserved } from "../harnesses/events.js"
 import { doorbellLine, quotedLine, type Install } from "../harnesses/harness.js"
-import { harnesses } from "../harnesses/registry.js"
+import { agents, harnesses } from "../harnesses/registry.js"
 import { followRoot, rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import { observeTelemetry, telemetrySummary, type Telemetry } from "../harnesses/telemetry.js"
 import { typedPromptStart } from "../harnesses/typed-prompts.js"
@@ -70,7 +70,11 @@ import { expectedAgent, promptIn } from "./commands.js"
 import { readDescribeRequest, type DescribeAnswer } from "./describe.js"
 import { Doorbell, screenText, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
 import {
+  foregroundProcess,
+  foregroundRuns,
+  openFiles,
   processGroup,
+  processSetting,
   sampleForeground,
   shellInForeground,
   terminalForeground,
@@ -173,6 +177,12 @@ export type TerminalOptions = {
    * harness counts as having none when omitted.
    */
   install?: (agent: AgentName) => Promise<Install | undefined>
+  /**
+   * Whether NovaDeck's hooks run for the harness in a folder, where it runs them only
+   * once the person trusts them (`Harness.hooksTrusted`); asked of the harness itself when
+   * omitted, and untrusted where it can't be asked.
+   */
+  hooksTrusted?: (agent: AgentName, cwd: string) => Promise<boolean>
 }
 
 type Create = {
@@ -236,6 +246,8 @@ type Record = {
   sourceReaders: Set<AbortController>
   /** When the shell last showed its prompt, in epoch milliseconds. */
   promptedAt: number | null
+  /** How many titles that may tell a harness's prompt the terminal set, so a stale check is dropped. */
+  titles?: number
   /** What its agents showed the person, oldest first, by id; kept across its shells, never saved. */
   shown: ReadonlyMap<string, Artifact>
   /** What names it: the person's title, an agent's, and its agent's summary of its work. */
@@ -432,6 +444,7 @@ export class Terminals {
       | "projectOf"
       | "doorbell"
       | "install"
+      | "hooksTrusted"
     >
   > & {
     env: NodeJS.ProcessEnv
@@ -442,6 +455,7 @@ export class Terminals {
     shims: () => Promise<readonly AgentName[]>
     connected: (agent: AgentName) => Promise<boolean>
     install: (agent: AgentName) => Promise<Install | undefined>
+    hooksTrusted: ((agent: AgentName, cwd: string) => Promise<boolean>) | undefined
   }
   private readonly integration: Promise<Integration | undefined>
   private transcripts: boolean
@@ -493,6 +507,7 @@ export class Terminals {
       projectOf: options.projectOf,
       openMs: positive(options.openMs, 6_000),
       install: options.install ?? (() => Promise.resolve(undefined)),
+      hooksTrusted: options.hooksTrusted,
     }
     // Child programs do not need the runner's network capability, nor the identity of a
     // NovaDeck terminal the runner itself was started from.
@@ -894,8 +909,13 @@ export class Terminals {
       },
       foreground: async (terminalId) => {
         const record = live(terminalId)
-        const instance = record?.binding?.instance
-        if (!record || !instance) return undefined
+        if (!record) return undefined
+        // A prompt shown before any session bound: its agent must still hold the
+        // terminal, as the shell's prompt may have come back unseen (a nested shell).
+        const shown = record.binding ? undefined : this.messaging.shownAgent(terminalId)
+        if (shown) return foregroundRuns(record.process.pid, shown)
+        const instance = record.binding?.instance
+        if (!instance) return undefined
         const [held, own] = await Promise.all([
           terminalForeground(record.process.pid),
           processGroup(Number(instance)),
@@ -1462,7 +1482,7 @@ export class Terminals {
    * The command that starts `agent` with a task: the doorbell's line, with its `nonce`, as
    * its command-line prompt, which it submits once past its startup screens; plain where
    * it may not take one (Antigravity in a folder it doesn't trust), when the task arrives
-   * with the person's first prompt there.
+   * once the person trusts the folder and its prompt shows, rung as any message is.
    */
   private async taskCommand(
     agent: AgentName,
@@ -2112,6 +2132,8 @@ export class Terminals {
       screen.onData((data) => {
         if (!record.exitQueued) child.write(data)
       }),
+      // A harness may tell by the title it sets that its prompt shows.
+      screen.onTitleChange((title) => this.screenTitled(record, child, title)),
       // The shell integration reports the directory at each prompt: OSC 7 from bash, zsh
       // and fish, OSC 9;9 from PowerShell and cmd. A directory on another machine, as
       // from a shell over SSH, is not this shell's prompt.
@@ -2141,16 +2163,14 @@ export class Terminals {
     this.cancelResume(record)
     record.changed = true
     const moved = cwd !== record.summary.cwd
-    record.binding = null
-    record.activity = null
-    record.telemetry = null
-    this.unwatch(record)
-    this.rebound(record)
-    if (moved || record.summary.agent !== null) {
-      record.summary = { ...record.summary, cwd, agent: null, activity: null, telemetry: null }
+    this.endBinding(record)
+    // An agent whose prompt showed, with no session bound, left with it.
+    this.messaging.unshown(record.summary.id)
+    if (moved) {
+      record.summary = { ...record.summary, cwd }
       this.announce(record)
+      this.save(record, false)
     }
-    if (moved) this.save(record, false)
   }
 
   /**
@@ -2194,10 +2214,13 @@ export class Terminals {
     const record = this.records.get(report.terminalId)
     if (!record || record.exitQueued || !sameToken(record.token, report.token)) return silent
     const events = harnesses[report.agent].decode(report)
-    if (events.length === 0) return silent
+    // Its prompt shows before any session of its binds, as Antigravity's status line says.
+    const shown = harnesses[report.agent].shown?.(report)
+    if (events.length === 0 && !shown) return silent
     const { process: child } = record
     const disconnections = this.disconnections.get(report.agent)
-    const observes = events.some((event) => event.type === "session-observed")
+    const observes =
+      shown !== undefined || events.some((event) => event.type === "session-observed")
     const [foreground, connected] = observes
       ? await Promise.all([shellInForeground(child.pid), this.connected(report.agent)])
       : [undefined, true]
@@ -2207,17 +2230,7 @@ export class Terminals {
     // The bound agent process may have exited without the shell showing a prompt, as in
     // tmux or a nested shell: its binding ended with it, and a later process may bind.
     let changed = false
-    if (record.binding?.instance && !alive(record.binding.instance)) {
-      record.binding = null
-      record.activity = null
-      record.telemetry = null
-      this.unwatch(record)
-      this.rebound(record)
-      if (record.summary.agent !== null) {
-        record.summary = { ...record.summary, agent: null, activity: null, telemetry: null }
-        this.announce(record)
-      }
-    }
+    if (record.binding?.instance && !alive(record.binding.instance)) this.endBinding(record)
     const facts = {
       promptedAt: record.promptedAt,
       shellInForeground: foreground,
@@ -2225,6 +2238,16 @@ export class Terminals {
       connected,
       platform: process.platform,
     }
+    // Its prompt shows, as the agent holding the terminal tells, as for a session it names.
+    if (
+      shown &&
+      foreground !== true &&
+      (process.platform !== "win32" || record.submitted) &&
+      (await this.promptCounts(record, report.agent)) &&
+      record.process === child
+    )
+      this.showPrompt(record, shown)
+    if (events.length === 0) return silent
     const cwd = record.summary.cwd
     // Every fact applies before messaging sees the report: a turn's start clears the
     // requests waiting on the person, and `askedCleared` must reach messaging before that
@@ -2467,6 +2490,177 @@ export class Terminals {
   /** Follows the root after the terminal's binding changed outside its hooks' reports. */
   private rebound(record: Record): void {
     this.trackRoot(record, [], false)
+  }
+
+  /**
+   * The terminal's title changed: a harness that tells by its title that its prompt shows,
+   * as Codex through NovaDeck's shim, may say so. Anything can set a title, so it counts
+   * only while a process of that harness's name runs in the terminal's foreground, in turn
+   * with the terminal's reports.
+   */
+  private screenTitled(record: Record, child: pty.IPty, title: string): void {
+    for (const agent of agents) {
+      const shown = harnesses[agent].title?.(title, Date.now())
+      if (!shown) continue
+      const { binding } = record
+      const prefix = shown.sessionPrefix
+      // Its bound session at its prompt again, as after each turn: nothing to ask.
+      if (binding?.agent === agent && prefix !== undefined && binding.sessionId.startsWith(prefix))
+        continue
+      // As for a report: Windows tells no foreground, so only once a line was entered.
+      if (process.platform === "win32" && !record.submitted) continue
+      // A later title makes this one's answer stale.
+      const seq = (record.titles = (record.titles ?? 0) + 1)
+      // As it came: the session it may replace, and whether a turn ran, as a spawned
+      // agent's thread is made only within one.
+      const replaced = binding?.agent === agent ? binding.sessionId : undefined
+      const delivery = this.messaging.delivery(record.summary.id)
+      const turning = delivery?.state === "working"
+      // A session bound, a binding ended or a root turn started since makes it stale.
+      const epoch = delivery?.epoch
+      // Asked before it joins the terminal's queue, so a slow answer from the harness
+      // never holds the terminal's reports up.
+      void (async () => {
+        const found = await this.harnessIn(record, child, agent)
+        if (!found || !(await this.promptCounts(record, agent, found.where))) return
+        // Another session's id ends the bound one only once the harness says it started
+        // it as a new root; otherwise that session's own hooks tell, at its first prompt.
+        if (binding) {
+          if (replaced === undefined || prefix === undefined || turning) return
+          const started = await harnesses[agent].startedSession?.(
+            found.where,
+            prefix,
+            shown.startedAt,
+            (path) => this.held(found.group, path),
+          )
+          if (started !== true) return
+        }
+        await this.queue(
+          record.summary.id,
+          () => {
+            if (
+              record.titles === seq &&
+              record.process === child &&
+              !record.exitQueued &&
+              this.messaging.delivery(record.summary.id)?.epoch === epoch
+            )
+              this.showPrompt(record, shown, replaced)
+            return Promise.resolve()
+          },
+          undefined,
+        )
+      })().catch((error: unknown) => console.error("NovaDeck could not read a title:", error))
+    }
+  }
+
+  /**
+   * Where the harness runs in the terminal, as its hooks would be asked about there: its
+   * own program and the variables its adapter names, where the platform tells them
+   * (Linux), else the person's login's, else the shells'; and the processes of the
+   * foreground group it runs in (`group`). Null when none of its name holds the
+   * foreground, so nothing of it shows there.
+   */
+  private async harnessIn(
+    record: Record,
+    child: pty.IPty,
+    agent: AgentName,
+  ): Promise<{
+    readonly where: Install & { readonly program?: string }
+    readonly group: readonly number[]
+  } | null> {
+    const found = await foregroundProcess(child.pid, agent)
+    if (found === null || record.process !== child) return null
+    const install = await this.options.install(agent)
+    const own = found ? processSetting(found.pid, harnesses[agent].environment ?? []) : undefined
+    const env = { ...this.options.env, ...install?.env, ...own?.env }
+    // Its own program, unless what holds that name is a script, as a wrapper may be.
+    const program = own?.program && basename(own.program) === agent ? own.program : undefined
+    return {
+      where: {
+        env,
+        home: env.HOME ?? install?.home ?? homedir(),
+        platform: process.platform,
+        plugin: install?.plugin ?? "",
+        ...(program !== undefined && { program }),
+      },
+      group: found?.group ?? [],
+    }
+  }
+
+  /**
+   * Whether one of the processes holds the file open; undefined where the platform
+   * doesn't tell, or none of them could be read.
+   */
+  private async held(pids: readonly number[], path: string): Promise<boolean | undefined> {
+    const real = await realpath(path).catch(() => path)
+    let told = false
+    for (const pid of pids) {
+      // eslint-disable-next-line no-await-in-loop -- A foreground group holds few processes.
+      const files = await openFiles(pid)
+      if (!files) continue
+      told = true
+      if (files.includes(real)) return true
+    }
+    return told ? false : undefined
+  }
+
+  /**
+   * Whether a prompt the harness shows counts: it is connected, and NovaDeck's hooks run
+   * for it there, as `where` (see `harnessIn`) asks it.
+   */
+  private async promptCounts(
+    record: Record,
+    agent: AgentName,
+    where?: Install & { readonly program?: string },
+  ): Promise<boolean> {
+    if (!(await this.connected(agent))) return false
+    const { cwd } = record.summary
+    if (this.options.hooksTrusted) return this.options.hooksTrusted(agent, cwd).catch(() => false)
+    const trusted = harnesses[agent].hooksTrusted
+    if (!trusted) return true
+    return where ? trusted(where, cwd).catch(() => false) : false
+  }
+
+  /**
+   * A connected harness's own empty prompt shows, before a session it names in full binds,
+   * and NovaDeck's hooks run for it there (`promptCounts`; see docs/agent-messaging.md,
+   * "States"): messages wait for the session it starts there, and the doorbell may ring
+   * it. One the shell's prompt came after is stale: the agent left. With a session of
+   * that agent bound, it changes nothing, unless it `replaces` it, as the harness started
+   * a new root session (Codex's /clear), which binds only with its first prompt: the bound
+   * one's binding ends, the state the new prompt gives staying.
+   */
+  private showPrompt(record: Record, shown: PromptShown, replaced?: string): void {
+    const { agent, sessionPrefix } = shown
+    if (shown.startedAt <= (record.promptedAt ?? 0)) return
+    const { binding } = record
+    const id = record.summary.id
+    if (!binding) return this.messaging.shown(id, agent, sessionPrefix ?? null)
+    // Only the session it was shown to replace, still bound: one bound since, as the new
+    // session's own first prompt binds it, stays.
+    if (replaced === undefined || binding.sessionId !== replaced) return
+    if (sessionPrefix !== undefined && binding.sessionId.startsWith(sessionPrefix)) return
+    // Judged as the title came, not after what was asked since.
+    this.messaging.shown(id, agent, sessionPrefix ?? null, true, shown.startedAt)
+    this.endBinding(record, replaced)
+  }
+
+  /**
+   * Ends the terminal's binding, with its activity and the sources that follow it; with
+   * `only`, only while that session is still the one bound. Whether it ended one.
+   */
+  private endBinding(record: Record, only?: string): boolean {
+    if (only !== undefined && record.binding?.sessionId !== only) return false
+    record.binding = null
+    record.activity = null
+    record.telemetry = null
+    this.unwatch(record)
+    this.rebound(record)
+    if (record.summary.agent !== null) {
+      record.summary = { ...record.summary, agent: null, activity: null, telemetry: null }
+      this.announce(record)
+    }
+    return true
   }
 
   /**

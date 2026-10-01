@@ -9,6 +9,7 @@ import type { HookAnswer } from "../shell/reports.js"
 import {
   continues,
   phaseOf,
+  ringableSince,
   route,
   running,
   transition,
@@ -58,6 +59,12 @@ type Live = Scope & {
    * none once a root session has, when only a bound session takes messages.
    */
   expecting: AgentName | null
+  /**
+   * The agent whose own prompt shows there before any session of its has bound, with the
+   * start of the session's id where the harness showed that much: messages wait for the
+   * first session of that agent to bind, or for that session. None once one binds.
+   */
+  shown: { readonly agent: AgentName; readonly prefix: string | null } | null
   /** The prompt that started the current root turn, by its delivery epoch; null before any. */
   prompt: { readonly epoch: number; readonly text: string } | null
 }
@@ -226,6 +233,7 @@ export class Messaging {
       root: null,
       delivery: unbound,
       expecting: null,
+      shown: null,
       prompt: null,
     })
   }
@@ -256,6 +264,45 @@ export class Messaging {
   expect(terminalId: string, agent: AgentName | null): void {
     const live = this.live.get(terminalId)
     if (live) live.expecting = agent
+  }
+
+  /**
+   * The agent's own prompt shows in the terminal before any session of its has bound
+   * there, as Codex's title or Antigravity's status line tells it: it is Ready, and
+   * messages wait for the first session of that agent to bind there, or for the session
+   * whose id starts with `prefix`. With a root session bound it changes nothing, unless it
+   * `replaces` that session (the terminal manager then ends its binding), as Codex's
+   * /clear starts a thread that binds only with its first prompt, judged `at` when it
+   * showed.
+   */
+  shown(
+    terminalId: string,
+    agent: AgentName,
+    prefix: string | null,
+    replaces = false,
+    at = this.now(),
+  ): void {
+    const live = this.live.get(terminalId)
+    if (!live || (live.root && !replaces)) return
+    const learned = live.shown?.agent !== agent || live.shown.prefix !== prefix
+    live.shown = { agent, prefix }
+    this.step(live, { type: "shown", at, replaces })
+    // A prefix it learns later may make other messages its own.
+    if (learned) this.changed(terminalId)
+  }
+
+  /** The agent whose prompt shows there with no session bound, if any. */
+  shownAgent(terminalId: string): AgentName | undefined {
+    const live = this.live.get(terminalId)
+    return live && !live.root ? live.shown?.agent : undefined
+  }
+
+  /** The agent whose prompt showed left before any session bound, as the shell's prompt says. */
+  unshown(terminalId: string): void {
+    const live = this.live.get(terminalId)
+    if (!live?.shown) return
+    live.shown = null
+    if (!live.root && live.delivery.state !== "unbound") this.step(live, { type: "unbound" })
   }
 
   /** Whether messages wait, or went, for that session of the terminal. */
@@ -388,19 +435,19 @@ export class Messaging {
   }
 
   /**
-   * Whether the doorbell may ring the terminal: Settled, with messages waiting for its
-   * root session. The doorbell waits for the screen to settle, and checks it, before it
-   * rings.
+   * Whether the doorbell may ring the terminal: Settled, or Ready (a new session at its
+   * own prompt), with messages waiting for its root session. The doorbell waits for the
+   * screen to settle, and checks it, before it rings.
    */
   ringable(terminalId: string): boolean {
     const live = this.live.get(terminalId)
-    if (!live?.root || live.delivery.state !== "settled") return false
-    const root = live.root
+    if (!live || ringableSince(live.delivery) === undefined) return false
+    const { root } = live
     for (const message of this.messages.values())
       if (
         message.state === "queued" &&
         message.to.terminalId === terminalId &&
-        this.addressed(message, root)
+        (root ? this.addressed(message, root) : this.awaiting(live, message))
       )
         return true
     return false
@@ -437,10 +484,13 @@ export class Messaging {
       .map(({ text }) => text)
   }
 
-  /** When the terminal last became Settled, if it is. */
+  /**
+   * When the terminal last became Settled, its turn ended, or Ready, its session bound; if
+   * it is either.
+   */
   settledSince(terminalId: string): number | undefined {
     const delivery = this.live.get(terminalId)?.delivery
-    return delivery?.state === "settled" ? delivery.since : undefined
+    return delivery && ringableSince(delivery)
   }
 
   /**
@@ -456,7 +506,7 @@ export class Messaging {
   ring(terminalId: string, nonce: string): boolean {
     const live = this.live.get(terminalId)
     if (!live || !this.ringable(terminalId)) return false
-    this.step(live, { type: "ring", nonce })
+    this.step(live, { type: "ring", nonce, opening: !live.root })
     return live.delivery.state === "ringing"
   }
 
@@ -503,7 +553,7 @@ export class Messaging {
         unknownHandle(parsed.data.to, live.handle, this.peers(live, about), this.now()),
       )
     const root = recipient.root
-    const agent = root?.agent ?? recipient.expecting
+    const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
     if (!agent)
       return refused(`${recipient.handle} has no agent running there that NovaDeck can deliver to.`)
     const now = this.now()
@@ -794,6 +844,8 @@ export class Messaging {
       if (message.to.sessionId === null) continue
       const live = this.live.get(message.to.terminalId)
       if (live?.root && this.addressed(message, live.root)) continue
+      // The session the agent showing its prompt there is about to bind.
+      if (live && !live.root && this.awaiting(live, message)) continue
       this.gone(message)
     }
   }
@@ -814,8 +866,8 @@ export class Messaging {
       peerOf({
         terminalId: peer.terminalId,
         handle: peer.handle,
-        agent: peer.root?.agent ?? null,
-        expecting: peer.root ? null : peer.expecting,
+        agent: peer.root?.agent ?? peer.shown?.agent ?? null,
+        expecting: peer.root || peer.shown ? null : peer.expecting,
         busy: peer.delivery.state === "working",
         where: about(peer.terminalId),
         withYou: lastBetween(this.messages.values(), live.terminalId, peer),
@@ -831,12 +883,12 @@ export class Messaging {
       return held ? { ...base, held } : base
     }
     if (message.state !== "queued") return base
-    const agent = recipient.root?.agent
+    const agent = recipient.root?.agent ?? recipient.shown?.agent
     return {
       ...base,
       route: agent
         ? route(recipient.delivery, harnesses[agent].messaging.silentOnFailure)
-        : "when its agent first prompts",
+        : "when its agent starts: rung once NovaDeck sees it at its prompt, else at its first turn",
     }
   }
 
@@ -853,7 +905,7 @@ export class Messaging {
       ...(gone.length > 0 && {
         gone: gone.map((message) => ({ id: message.id, to: message.to.handle })),
       }),
-      ...(live.root === null && { unbound: true as const }),
+      ...(live.root === null && !live.shown && { unbound: true as const }),
     }
   }
 
@@ -935,7 +987,8 @@ export class Messaging {
       if (change.type === "ended") {
         if (!live.root) continue
         live.root = null
-        this.step(live, { type: "unbound" })
+        // A session already shown at its prompt in its place keeps the state it gave.
+        if (!live.shown) this.step(live, { type: "unbound" })
         // Messages for the session that ended are gone; those for the first session the
         // terminal expects wait on, until it closes.
         for (const message of this.messages.values())
@@ -945,7 +998,7 @@ export class Messaging {
             undelivered(message)
           )
             this.gone(message)
-      } else if (change.type === "new") this.rootAt(live, change.root, change.guess)
+      } else if (change.type === "new") this.rootAt(live, change.root, change.guess, change.ready)
       else this.correct(live, change.from, change.root, change.confirmed)
     }
   }
@@ -954,13 +1007,15 @@ export class Messaging {
    * A new root session in the terminal: its messages that were gone wait again, and those
    * waiting for the terminal's first session of that agent are now its own, while another
    * agent's are gone. Unless the root is only a guess, messages for any other session
-   * there are gone, as after a runner restart.
+   * there are gone, as after a runner restart. A session its harness announced at its own
+   * prompt is `ready` to be rung.
    */
-  private rootAt(live: Live, root: Root, guess: boolean): void {
+  private rootAt(live: Live, root: Root, guess: boolean, ready: boolean): void {
     live.root = root
     // Its first session came: from now on, only a bound session takes messages.
     live.expecting = null
-    this.step(live, { type: "bound" })
+    live.shown = null
+    this.step(live, { type: "bound", ready, at: this.now() })
     for (const message of this.messages.values()) {
       if (message.to.terminalId !== live.terminalId) continue
       if (message.to.sessionId === null) {
@@ -990,6 +1045,17 @@ export class Messaging {
         if (message.state === "gone") this.wait(message)
       } else if (confirmed && to.sessionId !== null && undelivered(message)) this.gone(message)
     }
+  }
+
+  /**
+   * Whether a message waits for the session to come where the agent's prompt shows, with
+   * no session bound: the first of that agent, or the one whose id starts as it showed.
+   */
+  private awaiting(live: Live, message: Pick<Message, "to">): boolean {
+    const { shown } = live
+    if (!shown || message.to.agent !== shown.agent) return false
+    const { sessionId } = message.to
+    return sessionId === null || (shown.prefix !== null && sessionId.startsWith(shown.prefix))
   }
 
   private addressed(message: Pick<Message, "to">, root: Root): boolean {

@@ -1,14 +1,16 @@
 import { header } from "../../shell/header.js"
+import { titleSetting } from "./title.js"
 
 // Interactive Codex runs its sessions, and their hooks, in a shared background server
 // that knows nothing of the terminal it was started from. While Codex is connected,
 // NovaDeck's shells run it through this shim, which adds --no-daemon so the session and
 // its hook run in the terminal. `codex agents` and --remote need the server, so they go
-// unchanged, as does anything outside NovaDeck's shells.
+// unchanged, as does anything outside NovaDeck's shells. It also names its terminal
+// title's items, so the title tells NovaDeck once its prompt shows (`title.ts`).
 export const posixShim = `#!/bin/sh
 ${header("#", "shim for codex")}
 # Runs the real codex with --no-daemon, so its hooks can tell NovaDeck which session runs
-# in this terminal.
+# in this terminal, and with a title that tells NovaDeck once its prompt shows.
 novadeck_real=
 novadeck_ifs=$IFS
 IFS=:
@@ -33,12 +35,15 @@ fi
 [ -n "\${NOVADECK_TERMINAL_ID:-}" ] || exec "$novadeck_real" "$@"
 # Only while Codex is connected: NovaDeck's shells name the harnesses whose shims apply.
 case " \${NOVADECK_SHIMS:-} " in *" codex "*) ;; *) exec "$novadeck_real" "$@" ;; esac
+novadeck_daemon=--no-daemon
 for novadeck_arg in "$@"; do
   case $novadeck_arg in
-    agents | --remote | --remote=* | --no-daemon) exec "$novadeck_real" "$@" ;;
+    agents | --remote | --remote=*) exec "$novadeck_real" "$@" ;;
+    # Already without the shared server: only the title is added.
+    --no-daemon) novadeck_daemon= ;;
   esac
 done
-exec "$novadeck_real" --no-daemon "$@"
+exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} -c "${titleSetting}" "$@"
 `
 
 // `where` lists matches in PATH order, including this shim, and on npm installs an
@@ -46,7 +51,7 @@ exec "$novadeck_real" --no-daemon "$@"
 export const cmdShim = `@echo off
 ${header("rem", "shim for codex")}
 rem Runs the real codex with --no-daemon, so its hooks can tell NovaDeck which session
-rem runs in this terminal.
+rem runs in this terminal, and with a title that tells NovaDeck once its prompt shows.
 setlocal
 set "novadeck_real="
 for /f "delims=" %%i in ('where codex 2^>nul') do call :consider "%%~fi"
@@ -60,9 +65,13 @@ echo " %NOVADECK_SHIMS% " | findstr /c:" codex " >nul || goto plain
 for %%a in (%*) do (
   if /i "%%~a"=="agents" goto plain
   if /i "%%~a"=="--remote" goto plain
-  if /i "%%~a"=="--no-daemon" goto plain
+  if /i "%%~a"=="--no-daemon" goto titled
 )
-"%novadeck_real%" --no-daemon %*
+"%novadeck_real%" --no-daemon -c "${titleSetting}" %*
+exit /b %ERRORLEVEL%
+rem Already without the shared server: only the title is added.
+:titled
+"%novadeck_real%" -c "${titleSetting}" %*
 exit /b %ERRORLEVEL%
 :plain
 "%novadeck_real%" %*

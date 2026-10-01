@@ -20,9 +20,12 @@ export const screenText = (screen: Screen): ScreenText => {
 
 /** What the doorbell needs of the terminal manager and messaging, by terminal. */
 export type DoorbellHost = {
-  /** Whether messaging lets it ring: Settled, untouched, with messages waiting. */
+  /**
+   * Whether messaging lets it ring: Settled, or Ready (a new session at its own prompt),
+   * untouched, with messages waiting.
+   */
   readonly ringable: (terminalId: string) => boolean
-  /** When it last became Settled, its turn ended, if it is Settled. */
+  /** When it became Settled, its turn ended, or Ready, its session bound; if it is either. */
   readonly settledSince: (terminalId: string) => number | undefined
   /** Starts the ring with its nonce: the terminal is Ringing; false when it may not now. */
   readonly ring: (terminalId: string, nonce: string) => boolean
@@ -49,8 +52,9 @@ export type DoorbellHost = {
 export type DoorbellOptions = {
   readonly now?: () => number
   /**
-   * How long after a root turn ends no ring starts, so any harness's screen settles first
-   * (Claude Code's clears a row about 5 s after a turn), in milliseconds.
+   * How long after a root turn ends, or a Ready session binds, no ring starts, so any
+   * harness's screen settles first (Claude Code's clears a row about 5 s after a turn), in
+   * milliseconds.
    */
   readonly settleMs?: number
   /** How long a screen must be still before a ring, in milliseconds. */
@@ -131,7 +135,8 @@ export class Doorbell {
 
   private async check(terminalId: string): Promise<void> {
     if (this.closed || this.checking.has(terminalId)) return
-    // Any harness's screen changes for a while after a turn: no ring before it settles.
+    // Any harness's screen changes for a while after a turn, or a start: no ring before it
+    // settles.
     const since = this.host.settledSince(terminalId)
     const settling = since === undefined ? 0 : since + this.settleMs - this.now()
     if (settling > 0) return this.later(terminalId, settling)

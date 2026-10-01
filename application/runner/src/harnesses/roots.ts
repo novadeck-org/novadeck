@@ -22,12 +22,18 @@ export type Root = {
 /**
  * How the root changed, in order: it `ended` (its instance exited), a `new` session
  * became it (bound, or announced by the harness or its status line), which may be only a
- * `guess`; or a guess was `corrected` to another session, or `confirmed` by the status
- * line. Each carries the root after it.
+ * `guess`, and is `ready` when its harness announced it at its own input prompt
+ * (`atPrompt`); or a guess was `corrected` to another session, or `confirmed` by the
+ * status line. Each carries the root after it.
  */
 export type RootChange =
   | { readonly type: "ended" }
-  | { readonly type: "new"; readonly root: Root; readonly guess: boolean }
+  | {
+      readonly type: "new"
+      readonly root: Root
+      readonly guess: boolean
+      readonly ready: boolean
+    }
   | {
       readonly type: "corrected"
       readonly from: string
@@ -78,7 +84,15 @@ export const followRoot = (
   let root = current
   const become = (next: Root) => {
     root = next
-    changes.push({ type: "new", root: next, guess: guessed(next, input.mode) })
+    // Announced at its prompt by this very report, as the session that bound.
+    const ready = events.some(
+      (event) =>
+        event.type === "session-observed" &&
+        event.atPrompt === true &&
+        event.agent === next.agent &&
+        event.sessionId === next.sessionId,
+    )
+    changes.push({ type: "new", root: next, guess: guessed(next, input.mode), ready })
   }
   const correct = (sessionId: string, source: Root["source"]) => {
     const from = root!.sessionId

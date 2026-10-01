@@ -15,7 +15,9 @@ import {
 import { decode } from "./decode.js"
 import { followRollout } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
+import { startedSession, title } from "./title.js"
 import { transcripts } from "./transcripts.js"
+import { hooksTrusted } from "./trust.js"
 
 const id = "novadeck@novadeck"
 
@@ -129,6 +131,11 @@ export const codex = {
     context: "partial",
   },
   decode,
+  title,
+  startedSession,
+  hooksTrusted,
+  // Where it keeps its threads' locks and its configuration, and how it is found.
+  environment: ["PATH", "HOME", "CODEX_HOME"],
   messaging,
   // The rollout records the session's tokens and the account's rate-limit windows, each
   // turn's mode and the plans it proposes.

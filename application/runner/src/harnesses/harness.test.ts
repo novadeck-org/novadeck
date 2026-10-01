@@ -62,8 +62,26 @@ describe("decoding captured hooks", () => {
         instance: "42",
         cwd: start!.payload.cwd,
         transcript: start!.payload.transcript_path,
+        atPrompt: true,
       },
     ])
+  })
+
+  it("takes Claude Code's start, /clear, resume and fork as at its prompt, never a compaction", () => {
+    const [start] = probe("claude").events
+    const at = (source: string) =>
+      harnesses.claude
+        .decode(report("claude", { ...start!, payload: { ...start!.payload, source } }))
+        .some((event) => event.type === "session-observed" && event.atPrompt === true)
+    expect(["startup", "clear", "resume", "fork", "compact"].filter(at)).toEqual([
+      "startup",
+      "clear",
+      "resume",
+      "fork",
+    ])
+    // Codex announces its session only with the first prompt: never at its prompt.
+    expect(decoded("codex")).toHaveLength(1)
+    expect(decoded("codex")[0]).not.toHaveProperty("atPrompt")
   })
 
   it("ignores Claude Code inside Cursor, and a subagent's own session start", () => {

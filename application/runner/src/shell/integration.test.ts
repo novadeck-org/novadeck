@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import {
   appendFileSync,
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -560,7 +561,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const connected = shell.manager({ shims: () => Promise.resolve(["codex" as const]) })
     const on = await create(connected, shell)
     connected.write({ terminalId: on.id, data: "codex resume abc\r" }, "owner")
-    await shell.until(connected, on.id, "codex args: --no-daemon resume abc")
+    await shell.until(
+      connected,
+      on.id,
+      "codex args: --no-daemon -c tui.terminal_title=['status','thread-id'] resume abc",
+    )
 
     const disconnected = shell.manager()
     const off = await create(disconnected, shell)
@@ -1948,7 +1953,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         to: "t2",
         id: expect.stringMatching(/^m-/),
         state: "queued",
-        route: "when its agent first prompts",
+        route: "when its agent's first turn starts",
       })
       // Codex's next prompt carries it, wrapped and attributed, never as the person.
       const prompted = JSON.parse(
@@ -2122,9 +2127,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       prepare(codex.id)
       const { name } = queue(codex.id, { hook: "UserPromptSubmit", payload: { prompt: "go" } })
       await start(codex.id, "codex", "s-codex")
-      // Meanwhile Claude's terminal binds, though Codex's report still waits.
+      // Meanwhile Claude's terminal binds, at its prompt, though Codex's report still waits.
       await start(claude.id, "claude", "s-claude")
-      await expect.poll(() => manager.messages(claude.id).delivery).toBe("fresh")
+      await expect.poll(() => manager.messages(claude.id).delivery).toBe("ready")
       expect(manager.messages(codex.id).delivery).toBe("unbound")
       for (const connect of waiting) connect()
       await shell.until(manager, codex.id, `done ${name}`)
@@ -2721,13 +2726,19 @@ const standInTui = (home: string): string => {
 const { spawn } = require("node:child_process")
 const fs = require("node:fs")
 const [agent, session, received, raw, mode] = process.argv.slice(2)
+// The session it runs, which /clear replaces with a new one.
+let current = session
+// The thread locks it holds open, as Codex does.
+const held = []
 fs.writeFileSync(raw + ".pid", String(process.pid))
+// Claude Code names itself to its hooks, whatever an outer one left in the environment.
+if (agent === "claude") process.env.CLAUDE_PID = String(process.pid)
 const hook = (event, payload, done) => {
   const child = spawn(process.env.NOVADECK_HOOK, [agent, event], { stdio: ["pipe", "pipe", "inherit"] })
   let printed = ""
   child.stdout.on("data", (chunk) => (printed += chunk))
   child.on("close", () => done(printed))
-  child.stdin.end(JSON.stringify({ hook_event_name: event, session_id: session, cwd: process.cwd(), ...payload }))
+  child.stdin.end(JSON.stringify({ hook_event_name: event, session_id: current, cwd: process.cwd(), ...payload }))
 }
 let box = ""
 let last = ""
@@ -2745,12 +2756,23 @@ const step = (fields) =>
     transcript,
     JSON.stringify({ ...fields, step_index: steps++, created_at: new Date().toISOString() }) + "\n",
   )
-const agy = { conversationId: session, transcriptPath: transcript, workspacePaths: [process.cwd()] }
+const agy = { transcriptPath: transcript, workspacePaths: [process.cwd()] }
+// With "shown" or "resumed", Codex announces its session only with its first prompt, as
+// it does; Claude Code at its start.
+const showing = mode === "shown" || mode === "shownbusy" || mode === "resumed"
+let announced = !showing || agent === "claude"
 const started = (prompt, typed, done) => {
+  if (agent !== "agy" && !announced) {
+    announced = true
+    const source = current !== session ? "clear" : mode === "resumed" ? "resume" : "startup"
+    return hook("SessionStart", { source }, () =>
+      hook("UserPromptSubmit", { prompt }, done),
+    )
+  }
   if (agent !== "agy") return hook("UserPromptSubmit", { prompt }, done)
   if (typed) step({ source: "USER_EXPLICIT", type: "USER_INPUT", content: "<USER_REQUEST>\n" + prompt + "\n</USER_REQUEST>" })
   else step({ source: "SYSTEM", type: "SYSTEM_MESSAGE", content: prompt })
-  hook("PreInvocation", { ...agy, invocationNum: 0 }, done)
+  hook("PreInvocation", { ...agy, conversationId: current, invocationNum: 0 }, done)
 }
 const turn = (prompt, typed = true) => {
   dialog = null
@@ -2764,12 +2786,17 @@ const turn = (prompt, typed = true) => {
   const late = mode === "slowkick" && !typed
   setTimeout(() => started(prompt, typed, (printed) => {
     fs.appendFileSync(received, JSON.stringify({ prompt, printed }) + "\n")
+    // With "shownbusy", each turn after its first keeps working.
+    if (mode === "shownbusy" && turns > 1) return
     const finish = () => {
       process.stdout.write("\r\x1b[2Kworked on it\r\n")
-      hook("Stop", agent === "agy" ? { ...agy, fullyIdle: true } : {}, () => {
+      hook("Stop", agent === "agy" ? { ...agy, conversationId: current, fullyIdle: true } : {}, () => {
         busy = false
         menu = mode === "menu"
         draw()
+        // Antigravity's status line, which keeps running, names the conversation idle.
+        if (agent === "agy" && showing)
+          hook("StatusLine", { conversation_id: current, agent_state: "idle" }, () => {})
       })
     }
     if (mode === "perm2" && turns === 2) {
@@ -2800,6 +2827,17 @@ const turn = (prompt, typed = true) => {
   }), slow ? 6_000 : late ? 800 : 0)
 }
 process.on("SIGUSR1", () => turn("background result", false))
+// It exits by itself, as an agent that ends without a key from the person.
+process.on("SIGUSR2", () => process.exit(0))
+// It shows a thread it just started and locked other than its root, as a spawned agent's.
+process.on("SIGURG", () => {
+  const agent = "0a6e0700" + current.slice(8)
+  if (process.env.CODEX_HOME) {
+    fs.mkdirSync(process.env.CODEX_HOME + "/thread-writer-locks", { recursive: true })
+    held.push(fs.openSync(process.env.CODEX_HOME + "/thread-writer-locks/" + agent + ".lock", "w"))
+  }
+  process.stdout.write("\x1b]0;Ready | " + agent.slice(0, 29) + "...\x07")
+})
 if (mode !== "bg") {
   process.stdin.setRawMode(true)
   process.stdin.setEncoding("utf8")
@@ -2817,6 +2855,8 @@ if (mode !== "bg") {
       dialog = null
       return answer()
     }
+    // Ctrl-D quits, as an agent's exit does.
+    if (data === "\x04") process.exit(0)
     if (data.startsWith("\x1b[200~")) box += data.slice(6, -6)
     else if (data === "\r") {
       // A dialog takes Enter; a backslash before it makes it a newline in the box.
@@ -2844,6 +2884,12 @@ if (mode !== "bg") {
           process.stdout.write("\r\x1b[2K[dialog] allow ls? (1/2)\r\n")
         })
       }
+      if (prompt === "/clear") return clear()
+      // A /side conversation, which Codex forks without a writer lock, its title naming it.
+      if (prompt === "/side") {
+        draw()
+        return process.stdout.write("\x1b]0;Ready | 0d1de200" + current.slice(8, 29) + "...\x07")
+      }
       return turn(prompt)
     } else if (data === "\x1b\r") box += "\n"
     else if (data === "\x15") box = ""
@@ -2866,20 +2912,57 @@ const ready = () => {
   draw()
   if (mode === "bg") setTimeout(() => turn("self-started", false), 300)
 }
+// /clear starts a new session at the prompt, which each harness tells its own way.
+const clear = () => {
+  current = "0c1ea200" + current.slice(8)
+  draw()
+  if (agent === "agy") return hook("StatusLine", { conversation_id: current, agent_state: "idle" }, () => {})
+  if (agent === "codex" && showing) {
+    announced = false
+    // Codex writes and holds a lock for each thread it starts, as at /clear.
+    if (process.env.CODEX_HOME) {
+      fs.mkdirSync(process.env.CODEX_HOME + "/thread-writer-locks", { recursive: true })
+      held.push(fs.openSync(process.env.CODEX_HOME + "/thread-writer-locks/" + current + ".lock", "w"))
+    }
+    return process.stdout.write("\x1b]0;Ready | " + current.slice(0, 29) + "...\x07")
+  }
+  hook("SessionStart", { source: "clear" }, () => {})
+}
+// With "shown", its prompt tells NovaDeck it shows, before any session: Codex's title says
+// Ready, Antigravity's status line says idle with no conversation yet.
+if (showing && agent !== "claude") {
+  ready()
+  // A resumed conversation is named at once; a new one only with its first prompt.
+  const conversation = mode === "resumed" ? current : ""
+  if (agent === "agy") hook("StatusLine", { conversation_id: conversation, agent_state: "idle" }, () => {})
+  else process.stdout.write("\x1b]0;Ready | " + session.slice(0, 29) + "...\x07")
+}
+// Claude Code resumed announces the session it resumes at once.
+else if (mode === "resumed") hook("SessionStart", { source: "resume" }, ready)
 // Antigravity has no SessionStart hook: its first model call binds it.
-if (agent === "agy") ready()
+else if (agent === "agy") ready()
 else hook("SessionStart", { source: "startup" }, ready)
 `,
   )
   writeFileSync(join(bin, "tui"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`)
   chmodSync(join(bin, "tui"), 0o755)
-  // The same TUI under Codex's name, the program its hooks look for: a script that runs
-  // it as a child, since Node renames its own process.
+  // The same TUI under Codex's name, the program its hooks look for, and Antigravity's.
   const named = join(home, "named")
   mkdirSync(named, { recursive: true })
-  writeFileSync(join(named, "codex"), `#!/bin/sh\n"${process.execPath}" "$@"\n`, { mode: 0o755 })
-  writeFileSync(join(bin, "named"), `#!/bin/sh\nexec "${join(named, "codex")}" "${script}" "$@"\n`)
-  chmodSync(join(bin, "named"), 0o755)
+  // A real program of the harness's name, as Codex's native one under its npm wrapper and
+  // Antigravity's are, running the TUI as its child: a copy of bash, named so, as a script
+  // shows under its interpreter's name on macOS and Node renames its own process. Its
+  // command doesn't end the line, so bash runs it as a child rather than exec it.
+  for (const agent of ["codex", "agy"]) {
+    copyFileSync(bash, join(named, agent))
+    chmodSync(join(named, agent), 0o755)
+    const launcher = join(bin, agent === "codex" ? "named" : "named-agy")
+    writeFileSync(
+      launcher,
+      `#!/bin/sh\nexec "${join(named, agent)}" -c '"$0" "$@"; exit $?' "${process.execPath}" "${script}" "$@"\n`,
+    )
+    chmodSync(launcher, 0o755)
+  }
   return bin
 }
 
@@ -2893,12 +2976,28 @@ const lines = <T>(file: string): T[] =>
     : []
 
 /** A sender and an idle stand-in TUI, in a manager whose doorbell rings soon. */
-const ringing = async (shell: Fixture, mode = "", program = "tui", agent: AgentName = "codex") => {
+const ringing = async (
+  shell: Fixture,
+  mode = "",
+  program = "tui",
+  agent: AgentName = "codex",
+  session = `s-${agent}`,
+  hooksTrusted: boolean | (() => Promise<boolean>) = true,
+  // A command the idle terminal runs first, as a nested shell.
+  first?: string,
+) => {
   const bin = standIn(shell.home)
   standInTui(shell.home)
   const manager = shell.manager({
-    env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    env: {
+      HOME: shell.home,
+      PS1: "$ ",
+      PATH: `${bin}:${process.env.PATH}`,
+      CODEX_HOME: join(shell.home, ".codex"),
+    },
     doorbell: { calmMs: 200, settleMs: 300 },
+    hooksTrusted:
+      typeof hooksTrusted === "boolean" ? () => Promise.resolve(hooksTrusted) : hooksTrusted,
   })
   const sender = await create(manager, shell)
   const idle = await create(manager, shell)
@@ -2907,8 +3006,9 @@ const ringing = async (shell: Fixture, mode = "", program = "tui", agent: AgentN
   const received = join(shell.home, "received.jsonl")
   const raw = join(shell.home, "raw.jsonl")
   const type = (data: string) => manager.write({ terminalId: idle.id, data }, "owner")
+  if (first) type(`${first}\r`)
   type(
-    `${program} ${agent} s-${agent} '${received}' '${raw}' ${mode}${mode === "bg" ? " &" : ""}\r`,
+    `${program} ${agent} ${session} '${received}' '${raw}' ${mode}${mode === "bg" ? " &" : ""}\r`,
   )
   await shell.until(manager, idle.id, `${agent} ready`)
   return {
@@ -2925,6 +3025,10 @@ const ringing = async (shell: Fixture, mode = "", program = "tui", agent: AgentN
       ),
     // Starts a turn by itself, as a background task's result does.
     kick: () => process.kill(Number(readFileSync(`${raw}.pid`, "utf8")), "SIGUSR1"),
+    // It exits by itself.
+    leave: () => process.kill(Number(readFileSync(`${raw}.pid`, "utf8")), "SIGUSR2"),
+    // It shows another thread it just started, as a spawned agent's.
+    spawn: () => process.kill(Number(readFileSync(`${raw}.pid`, "utf8")), "SIGURG"),
     // The person's own first prompt, which settles it.
     first: async () => {
       type("hello")
@@ -2977,6 +3081,267 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // Rung once: nothing more is typed.
       await quiet()
       expect(tui.received()).toHaveLength(2)
+    })
+
+    it("wakes a Claude Code TUI idle at its prompt since it started, before any turn", async ({
+      shell,
+    }) => {
+      // Its SessionStart at a startup came as its prompt came up: it is Ready.
+      const tui = await ringing(shell, "", "tui", "claude", "s-idle")
+      await expect.poll(tui.delivery).toBe("ready")
+      expect(await tui.send("Review a.ts")).toMatchObject({ ok: true, route: "ringing it now" })
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
+      const [rung] = tui.received()
+      expect(rung!.prompt).toMatch(
+        /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+      )
+      expect(rung!.printed).toContain(">Review a.ts</message>")
+      await expect
+        .poll(() => tui.manager.messages(tui.idle.id).threads[0]?.messages[0]?.state)
+        .toBe("delivered")
+      await expect.poll(tui.delivery).toBe("settled")
+    })
+
+    it("rings no Claude Code TUI the person started typing in", async ({ shell }) => {
+      const tui = await ringing(shell, "", "tui", "claude", "s-idle")
+      tui.type("my first thought")
+      await expect.poll(tui.delivery).toBe("drafting")
+      expect(await tui.send("Review a.ts")).toMatchObject({
+        route: "when the person next submits a prompt there",
+      })
+      await quiet()
+      expect(pastes(tui.raw())).toEqual([])
+      expect(tui.received()).toEqual([])
+    })
+
+    it("wakes a Codex TUI started plain once its title says Ready, before any session binds", async ({
+      shell,
+    }) => {
+      const thread = "01a0f932-a824-7c30-b713-b59ed562f00b"
+      const tui = await ringing(shell, "shown", "named", "codex", thread)
+      await expect.poll(tui.delivery).toBe("ready")
+      expect(await tui.send("Review a.ts")).toMatchObject({ ok: true, route: "ringing it now" })
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
+      const [rung] = tui.received()
+      expect(rung!.prompt).toMatch(
+        /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+      )
+      expect(rung!.printed).toContain(">Review a.ts</message>")
+      await expect
+        .poll(() => tui.manager.messages(tui.idle.id).threads[0]?.messages[0]?.state)
+        .toBe("delivered")
+      await expect.poll(tui.delivery).toBe("settled")
+    })
+
+    it("takes no Codex title as its prompt while NovaDeck's hooks aren't trusted there", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "shown", "named", "codex", "01a0f932-a824", false)
+      await quiet()
+      expect(tui.delivery()).toBe("unbound")
+      expect(await tui.send("Review a.ts")).toMatchObject({ ok: false })
+    })
+
+    it("takes no title as Codex's unless a codex process holds the terminal's foreground", async ({
+      shell,
+    }) => {
+      // The same title, from a program of another name.
+      const tui = await ringing(shell, "shown", "tui", "codex", "01a0f932-a824")
+      await quiet()
+      expect(tui.delivery()).toBe("unbound")
+    })
+
+    it("wakes an Antigravity TUI started plain once its status line says idle", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "shown", "named-agy", "agy")
+      await expect.poll(tui.delivery).toBe("ready")
+      expect(await tui.send("Review a.ts")).toMatchObject({ ok: true, route: "ringing it now" })
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
+      expect(tui.received()[0]!.printed).toContain(">Review a.ts</message>")
+      await expect
+        .poll(() => tui.manager.messages(tui.idle.id).threads[0]?.messages[0]?.state)
+        .toBe("delivered")
+    })
+
+    // Each harness tells of a resumed session its own way: Claude Code's SessionStart,
+    // Codex's title naming the thread, Antigravity's status line naming the conversation.
+    for (const [agent, program] of [
+      ["claude", "tui"],
+      ["codex", "named"],
+      ["agy", "tui"],
+    ] as const)
+      it(`wakes ${agent} resumed at its prompt, as after a runner restart`, async ({ shell }) => {
+        const tui = await ringing(
+          shell,
+          "resumed",
+          program,
+          agent,
+          "01a0f932-a824-7c30-b713-b59ed562f00b",
+        )
+        await expect.poll(tui.delivery).toBe("ready")
+        expect(await tui.send("Review a.ts")).toMatchObject({ ok: true, route: "ringing it now" })
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
+        expect(tui.received()[0]!.printed).toContain(">Review a.ts</message>")
+      })
+
+    // Each harness tells of /clear its own way: Claude Code's SessionStart, Codex's title
+    // naming another thread, Antigravity's status line naming another conversation.
+    for (const [agent, program, mode] of [
+      ["claude", "tui", ""],
+      ["codex", "named", "shown"],
+      ["agy", "tui", "shown"],
+    ] as const)
+      it(`wakes ${agent} at its prompt after /clear, its new session's hook delivering`, async ({
+        shell,
+      }) => {
+        const tui = await ringing(
+          shell,
+          mode,
+          program,
+          agent,
+          "01a0f932-a824-7c30-b713-b59ed562f00b",
+        )
+        await tui.first()
+        tui.type("/clear")
+        await shell.until(tui.manager, tui.idle.id, "> /clear")
+        tui.type("\r")
+        await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("ready")
+        expect(await tui.send("Review a.ts")).toMatchObject({ ok: true, route: "ringing it now" })
+        await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+        expect(tui.received()[1]!.printed).toContain(">Review a.ts</message>")
+        await expect
+          .poll(() => tui.manager.messages(tui.idle.id).threads[0]?.messages[0]?.state)
+          .toBe("delivered")
+      })
+
+    it("keeps a session that bound while a title naming it was still being checked", async ({
+      shell,
+    }) => {
+      let checks = 0
+      let asked!: () => void
+      const checking = new Promise<void>((resolve) => (asked = resolve))
+      let answer!: (trusted: boolean) => void
+      // Its start's title is answered at once; the one after /clear only when the test says.
+      const trust = () => {
+        checks += 1
+        if (checks === 1) return Promise.resolve(true)
+        asked()
+        return new Promise<boolean>((resolve) => (answer = resolve))
+      }
+      const thread = "01a0f932-a824-7c30-b713-b59ed562f00b"
+      const tui = await ringing(shell, "shownbusy", "named", "codex", thread, trust)
+      await tui.first()
+      tui.type("/clear")
+      await shell.until(tui.manager, tui.idle.id, "> /clear")
+      tui.type("\r")
+      await checking
+      // The new thread's own first prompt binds it, and its turn runs, before the title's
+      // check answers.
+      tui.type("next")
+      await shell.until(tui.manager, tui.idle.id, "> next")
+      tui.type("\r")
+      await expect.poll(tui.delivery).toBe("working")
+      answer(true)
+      await quiet()
+      expect(tui.delivery()).toBe("working")
+      expect(tui.manager.get(tui.idle.id).agent).not.toBeNull()
+    })
+
+    it("keeps a Codex binding when its title names a thread started during its turn, as a spawned agent's", async ({
+      shell,
+    }) => {
+      const thread = "01a0f932-a824-7c30-b713-b59ed562f00b"
+      const tui = await ringing(shell, "shownbusy", "named", "codex", thread)
+      await tui.first()
+      tui.type("next")
+      await shell.until(tui.manager, tui.idle.id, "> next")
+      tui.type("\r")
+      await expect.poll(tui.delivery).toBe("working")
+      tui.spawn()
+      await quiet()
+      expect(tui.delivery()).toBe("working")
+      expect(tui.manager.get(tui.idle.id).agent).not.toBeNull()
+    })
+
+    it("drops a prompt shown before the shell's prompt came back, however long its check took", async ({
+      shell,
+    }) => {
+      let asked!: () => void
+      const checking = new Promise<void>((resolve) => (asked = resolve))
+      let answer!: (trusted: boolean) => void
+      const slow = () => {
+        asked()
+        return new Promise<boolean>((resolve) => (answer = resolve))
+      }
+      const tui = await ringing(shell, "shown", "named", "codex", "01a0f932-a824", slow)
+      await checking
+      // Codex quits while its hooks are still being asked about; the shell's prompt returns.
+      tui.type("\x04")
+      await quiet()
+      answer(true)
+      await quiet()
+      expect(tui.delivery()).toBe("unbound")
+      expect(await tui.send("Review a.ts")).toMatchObject({ ok: false })
+    })
+
+    it("rings no prompt shown in a nested shell once its agent has left unseen", async ({
+      shell,
+    }) => {
+      // A nested shell without NovaDeck's integration tells no prompt of its own.
+      const tui = await ringing(
+        shell,
+        "shown",
+        "named",
+        "codex",
+        "01a0f932-a824",
+        true,
+        "PS1='nested$ ' bash --norc --noprofile",
+      )
+      await expect.poll(tui.delivery).toBe("ready")
+      tui.leave()
+      await shell.until(tui.manager, tui.idle.id, /> nested\$/)
+      // Still Ready, as nothing told it the agent left: the ring's foreground check does.
+      expect(tui.delivery()).toBe("ready")
+      expect(await tui.send("Review a.ts")).toMatchObject({ ok: true })
+      await quiet()
+      expect(await screen(tui.manager, tui.idle.id)).not.toContain("automatic notice")
+      expect(tui.delivery()).toBe("ready")
+    })
+
+    it("keeps a Codex binding when its title names a /side conversation, which no new lock confirms", async ({
+      shell,
+    }) => {
+      const tui = await ringing(
+        shell,
+        "shown",
+        "named",
+        "codex",
+        "01a0f932-a824-7c30-b713-b59ed562f00b",
+      )
+      await tui.first()
+      tui.type("/side")
+      await shell.until(tui.manager, tui.idle.id, "> /side")
+      tui.type("\r")
+      await quiet()
+      expect(tui.manager.get(tui.idle.id).agent).not.toBeNull()
+      expect(tui.delivery()).toBe("drafting")
+    })
+
+    it("rings no agent whose start says nothing of its screen, before its first turn", async ({
+      shell,
+    }) => {
+      // Codex announces a session only with its first prompt, so its binding proves nothing.
+      const tui = await ringing(shell)
+      await expect.poll(tui.delivery).toBe("fresh")
+      expect(await tui.send("Review a.ts")).toMatchObject({
+        route: "when its agent's first turn starts",
+      })
+      await quiet()
+      expect(pastes(tui.raw())).toEqual([])
+      // The person's first prompt carries it.
+      await tui.first()
+      expect(tui.received()[0]!.printed).toContain(">Review a.ts</message>")
     })
 
     it("presses nothing when the paste lands nowhere, as in an open menu", async ({ shell }) => {

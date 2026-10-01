@@ -1,7 +1,7 @@
 import { extname, isAbsolute, relative } from "node:path"
 
 import type { Report } from "../../shell/reports.js"
-import type { HarnessEvent } from "../events.js"
+import type { HarnessEvent, PromptShown } from "../events.js"
 import { absolute, sessionId, text } from "../harness.js"
 
 /**
@@ -126,7 +126,10 @@ const confirmation = {
  * Antigravity's status line: whether the agent works or waits on the person's
  * confirmation, whether it plans, how full its context window is, and its named quota windows, each with
  * the fraction left and when it resets. It names the person's account too, which nothing
- * here reads. Before a conversation starts it names none.
+ * here reads. Before a conversation starts it names none. It says idle only once its own
+ * prompt shows: "authenticating" and "initializing" before, behind its login screen and
+ * its folder-trust dialog too (probed 2026-10-01, 1.2.14), so a conversation it names
+ * while idle is one at its prompt.
  */
 const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" | "payload">) => {
   const id = sessionId(payload.conversation_id)
@@ -140,6 +143,7 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
       evidence: "conversation-observed",
       ...(cwd !== undefined && { cwd }),
       root: true,
+      ...(payload.agent_state === "idle" && { atPrompt: true }),
     },
     // Its mode, which it names only while not the default, and reruns on when it changes.
     { type: "mode-observed", ...base, planning: payload.cycle_mode === "plan" },
@@ -202,3 +206,12 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
   })
   return events
 }
+
+/**
+ * Antigravity's prompt showing before any conversation: a plain start's status line says
+ * idle and names none until the first prompt starts one (probed 2026-10-01, 1.2.14).
+ */
+export const shown = ({ event, seq, instance, payload }: Report): PromptShown | undefined =>
+  event === "StatusLine" && payload.agent_state === "idle" && !payload.conversation_id
+    ? { type: "prompt-shown", agent: "agy", instance, startedAt: seq }
+    : undefined

@@ -58,10 +58,13 @@ const it = base.extend<{ shim: Fixture }>({
 })
 
 describe("codex shim", () => {
-  it("runs the real codex without its shared server, passing every argument on", ({ shim }) => {
+  it("runs the real codex without its shared server, its title telling its state, passing every argument on", ({
+    shim,
+  }) => {
     const args = windows ? ["resume", "abc", "two words"] : ["resume", "abc", "a b", "", "$x"]
-    expect(shim.run(args)).toEqual(["--no-daemon", ...args])
-    expect(shim.run([])).toEqual(["--no-daemon"])
+    const ours = ["--no-daemon", "-c", "tui.terminal_title=['status','thread-id']"]
+    expect(shim.run(args)).toEqual([...ours, ...args])
+    expect(shim.run([])).toEqual(ours)
   })
 
   it("leaves alone what needs the shared server, and runs outside NovaDeck's shells", ({
@@ -69,7 +72,12 @@ describe("codex shim", () => {
   }) => {
     expect(shim.run(["agents"])).toEqual(["agents"])
     expect(shim.run(["--remote", "ws://host"])).toEqual(["--remote", "ws://host"])
-    expect(shim.run(["--no-daemon"])).toEqual(["--no-daemon"])
+    // Already without the shared server: only the title is added.
+    expect(shim.run(["--no-daemon"])).toEqual([
+      "-c",
+      "tui.terminal_title=['status','thread-id']",
+      "--no-daemon",
+    ])
     expect(shim.run(["exec", "hi"], { NOVADECK_TERMINAL_ID: "" })).toEqual(["exec", "hi"])
   })
 

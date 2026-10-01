@@ -10,7 +10,7 @@ import {
   type Harness,
   type Install,
 } from "../harness.js"
-import { decode } from "./decode.js"
+import { decode, shown } from "./decode.js"
 import { statusLineSettings, trustsFolder } from "./settings.js"
 import { transcripts, typedEntry } from "./transcripts.js"
 
@@ -112,5 +112,6 @@ export const agy = {
     context: "partial",
   },
   decode,
+  shown,
   messaging,
 } satisfies Harness
