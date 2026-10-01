@@ -119,6 +119,15 @@ export type Companions = {
   ) => Promise<PlanSaved>
 }
 
+// Companions with nothing to show, for a backend whose terminals have only their messages
+// in the pane. Each call gives a new one: the pane keeps its state per companions.
+export const emptyCompanions = (): Companions => ({
+  snapshot: () => [],
+  subscribe: () => () => {},
+  load: () => Promise.reject(new Error("Nothing was shown")),
+  save: () => Promise.reject(new Error("There are no plans")),
+})
+
 // A note as NovaDeck writes it into the plan: an HTML comment, invisible once rendered,
 // marked for the agent's skill to find.
 export const noteOpen = "<!-- novadeck: "

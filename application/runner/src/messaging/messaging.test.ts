@@ -9,7 +9,12 @@ import { followRoot, type Root } from "../harnesses/roots.js"
 import { typedPromptStart } from "../harnesses/typed-prompts.js"
 import { describe, expect, it } from "../test.js"
 import { clock, retentionMs, threadMs } from "./mailbox.js"
-import { Messaging, type MessagingOptions, type SendAnswer } from "./messaging.js"
+import {
+  Messaging,
+  type MessagingChange,
+  type MessagingOptions,
+  type SendAnswer,
+} from "./messaging.js"
 import type { Whereabouts } from "./peers.js"
 import { memoryMailbox, type MailboxRecords } from "./records.js"
 
@@ -62,8 +67,10 @@ const create = (
     now: () => time.now,
     sweepMs: 0,
     restoreMs: 0,
-    onChange: (terminalId) => changed.push(terminalId),
     ...options,
+  })
+  messaging.subscribe((change) => {
+    if (change.kind === "terminal") changed.push(change.terminalId)
   })
   // Each terminal's root, followed as the terminal manager follows it.
   const roots = new Map<string, Root | null>()
@@ -687,6 +694,64 @@ describe("change notices", () => {
     // A call within the turn changes nothing.
     prompt("B", codex, "call")
     expect(changed).toEqual([])
+  })
+
+  it("reach every listener until each stops listening", () => {
+    const { messaging, send } = create()
+    const first: MessagingChange[] = []
+    const second: MessagingChange[] = []
+    const stopFirst = messaging.subscribe((change) => first.push(change))
+    messaging.subscribe((change) => second.push(change))
+    sent(send("A", "t2", "hello"))
+    const told = [
+      { kind: "terminal", terminalId: "B" },
+      { kind: "terminal", terminalId: "A" },
+    ]
+    expect(first).toEqual(told)
+    expect(second).toEqual(told)
+    stopFirst()
+    sent(send("A", "t2", "again"))
+    expect(first).toHaveLength(2)
+    expect(second).toHaveLength(4)
+  })
+
+  it("keep reaching the others when one listener fails", () => {
+    const { messaging, send } = create()
+    const heard: MessagingChange[] = []
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    messaging.subscribe(() => {
+      throw new Error("broken")
+    })
+    messaging.subscribe((change) => heard.push(change))
+    sent(send("A", "t2", "hello"))
+    expect(heard).toHaveLength(2)
+    expect(error).toHaveBeenCalled()
+  })
+
+  it("tell of the pause once each time it changes", () => {
+    const { messaging } = create()
+    const heard: MessagingChange[] = []
+    messaging.subscribe((change) => heard.push(change))
+    messaging.pause(true)
+    messaging.pause(true)
+    messaging.pause(false)
+    expect(heard).toEqual([
+      { kind: "pause", paused: true },
+      { kind: "pause", paused: false },
+    ])
+  })
+
+  it("tell both terminals of a thread released, whose hops allowed changed", () => {
+    const { messaging, send, clock: time, changed } = create()
+    for (let index = 0; index < 4; index++) {
+      time.now += 30_000
+      sent(index % 2 === 0 ? send("A", "t2", `${index}`) : send("B", "t1", `${index}`))
+    }
+    const [thread] = messaging.list("A", "t1").threads
+    changed.length = 0
+    // Nothing is held, but the thread may now go further.
+    messaging.release(thread!.id)
+    expect(changed.toSorted()).toEqual(["A", "B"])
   })
 })
 

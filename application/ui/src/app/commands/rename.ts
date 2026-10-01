@@ -16,6 +16,9 @@ export type RenameCommands = {
   readonly saveRename: (id: string) => void
   readonly cancelRename: (id: string) => void
   readonly finishRename: (rename: RenameSession, save: boolean) => void
+  // Hands a terminal's name back to the backend, calling off any rename of it in
+  // progress; nothing where the backend can't.
+  readonly resetTitle: (id: string) => void
   // The rename in progress in the current session, if any.
   readonly activeRename: () => RenameSession | null
 }
@@ -23,7 +26,8 @@ export type RenameCommands = {
 export const createRenameCommands = ({
   ui,
   workspace,
-}: Pick<CommandContext, "ui" | "workspace">): RenameCommands => {
+  resetTitle,
+}: Pick<CommandContext, "ui" | "workspace" | "resetTitle">): RenameCommands => {
   let request = 0
   const setRename = (change: (rename: RenameSession | null) => RenameSession | null): void =>
     void ui.update((state) => {
@@ -66,5 +70,10 @@ export const createRenameCommands = ({
       ),
     saveRename: (id) => finishIf(id, true),
     cancelRename: (id) => finishIf(id, false),
+    resetTitle: (id) => {
+      if (!resetTitle) return
+      finishIf(id, false)
+      resetTitle({ ...currentTarget(workspace.getSnapshot()), terminalId: id })
+    },
   }
 }

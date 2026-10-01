@@ -42,6 +42,7 @@ export type CommandContext = {
   readonly newTerminal: Backend["newTerminal"]
   readonly pickDirectory?: Backend["pickDirectory"] | undefined
   readonly crashLoop?: Backend["crashLoop"] | undefined
+  readonly resetTitle?: Backend["resetTitle"] | undefined
   readonly canvas: { readonly current: CanvasHandle | null }
   readonly effects: CommandEffects
 }

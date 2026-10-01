@@ -12,6 +12,9 @@ export const planTab = (ref: string): string => `plan:${ref}`
 export const planRefOf = (tab: string): string | null =>
   tab.startsWith("plan:") ? tab.slice("plan:".length) : null
 
+// The terminal's messages with other agents, a tab of their own.
+export const mailTab = "mail:"
+
 export type Companion = {
   readonly open: boolean
   readonly tab: string

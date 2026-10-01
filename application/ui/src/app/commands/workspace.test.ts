@@ -59,6 +59,35 @@ describe("workspace commands", () => {
     })
   })
 
+  context("when the person hands a terminal's name back", () => {
+    it("calls off its rename in progress, unsaved, and asks the backend", () => {
+      const reset: unknown[] = []
+      const app = openCommands({ resetTitle: (key) => reset.push(key) })
+      app.commands.startRename(terminal(app, "01"), "sidebar")
+      app.commands.changeRenameDraft("01", "Half typed")
+      app.commands.resetTitle("01")
+      expect(app.ui.getSnapshot().rename).toBeNull()
+      expect(terminal(app, "01").name).not.toBe("Half typed")
+      expect(reset).toEqual([
+        { projectId: "project", workspaceSessionId: "initial", terminalId: "01" },
+      ])
+    })
+
+    it("leaves another terminal's rename alone", () => {
+      const app = openCommands({ resetTitle: () => {} })
+      app.commands.startRename(terminal(app, "02"), "sidebar")
+      app.commands.resetTitle("01")
+      expect(app.ui.getSnapshot().rename).toMatchObject({ id: "02" })
+    })
+
+    it("does nothing where the backend can't", () => {
+      const app = openCommands()
+      app.commands.startRename(terminal(app, "01"), "sidebar")
+      app.commands.resetTitle("01")
+      expect(app.ui.getSnapshot().rename).toMatchObject({ id: "01" })
+    })
+  })
+
   context("when adding a terminal from the keyboard", () => {
     it("opens the collapsed sidebar and renames the terminal there", () => {
       const app = openCommands()

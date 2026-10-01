@@ -12,6 +12,7 @@ import {
 import { createStore, type MutableStore } from "../../model/store"
 import type { ViewMode } from "../../model/types"
 import {
+  mailTab,
   openCompanion,
   planRefOf,
   planTab,
@@ -121,9 +122,11 @@ export const currentMarks = (plan: PlanDoc): readonly Mark[] =>
 export const unread = (plan: PlanDoc): boolean => plan.seen < plan.writes
 
 // What the pane shows: its tab, while that still exists, or else its home, or else the
-// first thing shown that may be shown unpicked: never a held one.
-export const shownTab = (pane: PaneState): string => {
+// first thing shown that may be shown unpicked: never a held one. The messages tab
+// exists while the terminal has messages to show (`mail`). Nothing, when that's "".
+export const shownTab = (pane: PaneState, mail: boolean): string => {
   const exists = (tab: string): boolean => {
+    if (tab === mailTab) return mail
     const ref = planRefOf(tab)
     return ref === null
       ? pane.artifacts.some((shown) => shown.id === tab)
@@ -136,8 +139,12 @@ export const shownTab = (pane: PaneState): string => {
       : (pane.artifacts.find((shown) => !shown.held)?.id ?? "")
 }
 
+// What the pane shows, as far as plans go: the state can't see the messages, so while
+// their tab is chosen, no plan is being read.
+const readingTab = (pane: PaneState): string => shownTab(pane, pane.tab === mailTab)
+
 const reading = (pane: PaneState, ref: string): boolean =>
-  pane.open && shownTab(pane) === planTab(ref)
+  pane.open && readingTab(pane) === planTab(ref)
 
 const withPlan = (pane: PaneState, ref: string, change: (plan: PlanDoc) => PlanDoc): PaneState => {
   let changed = false
@@ -152,7 +159,7 @@ const withPlan = (pane: PaneState, ref: string, change: (plan: PlanDoc) => PlanD
 
 // Reading a plan's tab counts as reading its latest rewrite.
 const markRead = (pane: PaneState): PaneState => {
-  const ref = pane.open ? planRefOf(shownTab(pane)) : null
+  const ref = pane.open ? planRefOf(readingTab(pane)) : null
   return ref === null
     ? pane
     : withPlan(pane, ref, (plan) =>
@@ -212,9 +219,10 @@ const change = (
     const pane = current[id]
     if (!pane) return current
     const updated = update(pane)
-    // A pane left with nothing to show closes, so nothing reopens it on its own later.
+    // A pane left with nothing to show closes, so nothing reopens it on its own later. The
+    // messages tab still shows.
     const next =
-      updated.open && !updated.plans.length && !updated.artifacts.length
+      updated.open && updated.tab !== mailTab && !updated.plans.length && !updated.artifacts.length
         ? { ...updated, open: false }
         : updated
     if (next === pane) return current
@@ -495,6 +503,10 @@ export const companionActions = (companions: Companions, key: CompanionKey): Com
   return {
     current: () => session.panes.getSnapshot()[id] ?? emptyPane(session, key),
     update: (update) => {
+      // A terminal with nothing shown yet still has its messages to open.
+      session.panes.update((current) =>
+        current[id] ? current : { ...current, [id]: emptyPane(session, key) },
+      )
       change(session, key, update)
     },
     edit: (ref, text, marks) => {

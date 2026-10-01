@@ -127,8 +127,8 @@ describe("companion pane", () => {
         selectTab(show(show(companion, env, false), home, false), "home"),
         "home",
       )
-      expect(shownTab({ ...left, key, plans: [] })).toBe("")
-      expect(shownTab({ ...show(left, preview, false), key, plans: [] })).toBe("preview")
+      expect(shownTab({ ...left, key, plans: [] }, false)).toBe("")
+      expect(shownTab({ ...show(left, preview, false), key, plans: [] }, false)).toBe("preview")
     })
 
     it("isn't what a group of images opens, unless the group holds nothing else", () => {
@@ -142,7 +142,7 @@ describe("companion pane", () => {
 
     it("shows when the user picks it", () => {
       const picked = selectTab(show(companion, env, false), "env")
-      expect(shownTab({ ...picked, key, plans: [] })).toBe("env")
+      expect(shownTab({ ...picked, key, plans: [] }, false)).toBe("env")
     })
   })
 })

@@ -101,12 +101,15 @@ export type MessagingOptions = {
   readonly restoreMs?: number
   /** Whether a terminal exists, running or kept; one running counts when omitted. */
   readonly exists?: (terminalId: string) => boolean
-  /**
-   * Hears of every change to a terminal's messages or delivery state, as a doorbell or a
-   * watch that follows them would.
-   */
-  readonly onChange?: (terminalId: string) => void
 }
+
+/**
+ * A change listeners hear of: a terminal's messages, threads or delivery state changed, or
+ * messaging was paused or resumed, which changes what every terminal's listing says.
+ */
+export type MessagingChange =
+  | { readonly kind: "terminal"; readonly terminalId: string }
+  | { readonly kind: "pause"; readonly paused: boolean }
 
 /** What a doorbell prompt's hook adds when its messages couldn't come now. */
 export const stillWaiting =
@@ -162,7 +165,8 @@ export class Messaging {
   private readonly records: MailboxRecords
   private readonly now: () => number
   private readonly exists: (terminalId: string) => boolean
-  private readonly onChange: (terminalId: string) => void
+  /** Everyone following changes: the doorbell, and each `messages.watch`. */
+  private readonly listeners = new Set<(change: MessagingChange) => void>()
   private readonly live = new Map<string, Live>()
   private readonly messages = new Map<string, Message>()
   private readonly threads = new Map<string, Thread>()
@@ -181,7 +185,6 @@ export class Messaging {
     this.records = options.records ?? memoryMailbox()
     this.now = options.now ?? Date.now
     this.exists = options.exists ?? ((terminalId) => this.live.has(terminalId))
-    this.onChange = options.onChange ?? (() => {})
     this.leases = new Leases(options.leaseMs ?? 5_000, (lease) => this.lapse(lease))
     this.paused = this.read(() => this.records.messagingPaused(), false)
     for (const thread of this.read(() => this.records.threads(), []))
@@ -714,6 +717,16 @@ export class Messaging {
     }
   }
 
+  /**
+   * Hears of every change to a terminal's messages, threads or delivery state, and of the
+   * pause, as the doorbell and each watch of a terminal's messages do, until the returned
+   * function is called.
+   */
+  subscribe(listener: (change: MessagingChange) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
   /** Whether messaging is paused, across the whole runner. */
   isPaused(): boolean {
     return this.paused
@@ -725,9 +738,11 @@ export class Messaging {
    */
   pause(paused: boolean): void {
     this.write(() => this.records.pauseMessaging(paused))
+    const changed = this.paused !== paused
     this.paused = paused
     for (const message of this.messages.values())
       if (message.state === "queued" || message.state === "held") this.wait(message)
+    if (changed) this.emit({ kind: "pause", paused })
   }
 
   /** Releases a thread: its held messages wait to be delivered, and it may have 12 more. */
@@ -735,8 +750,14 @@ export class Messaging {
     const thread = this.threads.get(threadId)
     if (!thread) throw new DomainError("NOT_FOUND")
     this.putThread({ ...thread, allowed: thread.hops + hopsPerRelease })
-    for (const message of this.messages.values())
-      if (message.thread === threadId && message.state === "held") this.wait(message)
+    const terminals = new Set<string>()
+    for (const message of this.messages.values()) {
+      if (message.thread !== threadId) continue
+      terminals.add(message.from.terminalId).add(message.to.terminalId)
+      if (message.state === "held") this.wait(message)
+    }
+    // Its hops allowed changed, whether or not any message waited.
+    for (const terminalId of terminals) this.changed(terminalId)
   }
 
   /**
@@ -1021,7 +1042,7 @@ export class Messaging {
     // A turn that ended, or a new one, leaves the last one's delivery behind.
     if ((running(before) && !running(live.delivery)) || live.delivery.epoch !== before.epoch)
       this.leases.forget(live.terminalId)
-    this.onChange(live.terminalId)
+    this.changed(live.terminalId)
   }
 
   private freshMessageId(): string {
@@ -1039,8 +1060,22 @@ export class Messaging {
   private put(message: Message): void {
     this.messages.set(message.id, message)
     this.write(() => this.records.saveMessage(message))
-    this.onChange(message.to.terminalId)
-    this.onChange(message.from.terminalId)
+    this.changed(message.to.terminalId)
+    this.changed(message.from.terminalId)
+  }
+
+  private changed(terminalId: string): void {
+    this.emit({ kind: "terminal", terminalId })
+  }
+
+  private emit(change: MessagingChange): void {
+    for (const listener of this.listeners)
+      try {
+        listener(change)
+      } catch (error) {
+        // One listener failing never stops messaging, nor the others hearing.
+        console.error("NovaDeck could not follow its messages:", error)
+      }
   }
 
   private putThread(thread: Thread): void {

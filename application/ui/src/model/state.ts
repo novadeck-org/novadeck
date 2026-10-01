@@ -27,6 +27,7 @@ import type {
   TerminalLayout,
   TerminalMetadata,
   TerminalStatus,
+  TitleSource,
   SizePreset,
   ViewMode,
   WindowedView,
@@ -86,6 +87,8 @@ export type WorkspaceAction =
       terminalId: string
       name?: string
       directory?: string
+      handle?: string
+      titleSource?: TitleSource
     }
   | { type: "terminal/close"; target: WorkspaceTarget; terminalId: string }
   | { type: "terminal/reorder"; target: WorkspaceTarget; tabOrder: string[] }
@@ -367,6 +370,8 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
         const roster = updateTerminal(state.roster, action.terminalId, {
           ...(action.name !== undefined && { name: action.name }),
           ...(action.directory !== undefined && { directory: action.directory }),
+          ...(action.handle !== undefined && { handle: action.handle }),
+          ...(action.titleSource !== undefined && { titleSource: action.titleSource }),
         })
         return roster === state.roster ? state : { ...state, roster }
       })

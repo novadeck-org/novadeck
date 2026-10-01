@@ -8,9 +8,9 @@ export class Latest<T> {
   private finished = false
   private wake: (() => void) | undefined
 
-  push(value: T): void {
+  /** `key` is the value as JSON, given where many readers take the same value. */
+  push(value: T, key: string = JSON.stringify(value)): void {
     if (this.finished) return
-    const key = JSON.stringify(value)
     // Back to what the reader has: nothing new to read.
     this.unread = key === this.delivered ? undefined : { value, key }
     if (this.unread) this.notify()

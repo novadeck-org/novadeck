@@ -798,3 +798,57 @@ describe.skipIf(process.platform === "win32")("terminal limits", () => {
     expect(manager.list().map((terminal) => terminal.id)).toEqual([ids[0]])
   })
 })
+
+const createIn = (manager: Terminals) =>
+  manager.create({ id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 }, "owner")
+
+// The message watches the manager still holds for the terminal.
+const readers = (manager: Terminals, terminalId: string) =>
+  (manager as unknown as { mail: Map<string, Set<unknown>> }).mail.get(terminalId)?.size ?? 0
+
+describe.skipIf(process.platform === "win32")("terminal message watches", () => {
+  it("lets go of each reader that stops, by return or by its signal", async ({ terminals }) => {
+    const manager = terminals.manager()
+    const { id } = await createIn(manager)
+    const returned = manager.watchMessages(id)
+    const controller = new AbortController()
+    const aborted = manager.watchMessages(id, controller.signal)
+    await returned.next()
+    await aborted.next()
+    expect(readers(manager, id)).toBe(2)
+    await returned.return(undefined)
+    expect(readers(manager, id)).toBe(1)
+    const ending = aborted.next()
+    controller.abort()
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+    expect(readers(manager, id)).toBe(0)
+  })
+
+  it("ends when the runner lets the terminal go, and never starts for one it doesn't hold", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager({ shellArgs: ["-c", "exit 0"], maxRetained: 1 })
+    const first = await createIn(manager)
+    const watch = manager.watchMessages(first.id)
+    await expect(watch.next()).resolves.toMatchObject({ value: { terminalId: first.id } })
+    // A second exited terminal pushes the first out.
+    await createIn(manager)
+    await expect(watch.next()).resolves.toEqual({ done: true, value: undefined })
+    await expect(manager.watchMessages(first.id).next()).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
+  })
+
+  it("ends as the runner shuts down, and refuses new ones", async ({ terminals }) => {
+    const manager = terminals.manager()
+    const { id } = await createIn(manager)
+    const watch = manager.watchMessages(id)
+    await watch.next()
+    const ending = watch.next()
+    await manager.shutdown()
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+    await expect(manager.watchMessages(id).next()).rejects.toMatchObject({
+      code: "RUNTIME_CLOSING",
+    })
+  })
+})

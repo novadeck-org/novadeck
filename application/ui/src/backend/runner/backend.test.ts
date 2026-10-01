@@ -1,5 +1,6 @@
 import { afterAll, vi } from "vitest"
 
+import { companionKeyId } from "../../model/companion"
 import { workspaceFromSeed } from "../../model/seed"
 import {
   activeProject,
@@ -364,6 +365,66 @@ describe("runner backend", () => {
       app.stop()
     })
 
+    it("says who each terminal's name is from, and its handle", async () => {
+      const app = open()
+      const terminal = app.addTerminal()
+      await app.idle()
+      const updates = () =>
+        app.received.filter(
+          (action) => action.type === "terminal/update" && action.terminalId === terminal.id,
+        )
+      await vi.waitFor(() =>
+        expect(updates()).toContainEqual(
+          expect.objectContaining({
+            handle: expect.stringMatching(/^t\d+$/),
+            titleSource: { kind: "default" },
+          }),
+        ),
+      )
+      app.stop()
+    })
+
+    it("hands a person's name back to the runner, and never sends it again", async () => {
+      const app = open()
+      const terminal = app.addTerminal()
+      await app.idle()
+      const named = () =>
+        app.received.findLast(
+          (action) => action.type === "terminal/update" && action.terminalId === terminal.id,
+        )
+      await vi.waitFor(() => expect(named()).toMatchObject({ name: expect.any(String) }))
+      const automatic = (named() as { name: string }).name
+      app.commit([...app.received])
+      const key = { ...app.target(), terminalId: terminal.id }
+      const listed = async () =>
+        (await runner.client.terminals.list({ sessionId: app.target().workspaceSessionId })).find(
+          (item) => item.id === terminal.id,
+        )
+      app.commit([
+        { type: "terminal/rename", target: app.target(), terminalId: terminal.id, name: "API" },
+      ])
+      await vi.waitFor(async () => expect((await listed())?.title).toBe("API"))
+      app.backend.resetTitle!(key)
+      await vi.waitFor(async () =>
+        expect(await listed()).toMatchObject({
+          title: automatic,
+          titleSource: { kind: "default" },
+        }),
+      )
+      await vi.waitFor(() =>
+        expect(named()).toMatchObject({ name: automatic, titleSource: { kind: "default" } }),
+      )
+      // A rename still on its way when the person resets is called off with it.
+      app.commit([...app.received])
+      app.commit([
+        { type: "terminal/rename", target: app.target(), terminalId: terminal.id, name: "Docs" },
+      ])
+      app.backend.resetTitle!(key)
+      await app.idle()
+      expect((await listed())?.title).toBe(automatic)
+      app.stop()
+    })
+
     it("shows the runner's title again when the runner refuses a rename", async () => {
       const app = open()
       const terminal = app.addTerminal()
@@ -385,7 +446,10 @@ describe("runner backend", () => {
         },
       ])
       await app.idle()
-      await vi.waitFor(() => expect(named()).toMatchObject({ name: given }))
+      // Its name, and who it is from, are the runner's again.
+      await vi.waitFor(() =>
+        expect(named()).toMatchObject({ name: given, titleSource: { kind: "default" } }),
+      )
       app.stop()
     })
 
@@ -449,6 +513,35 @@ describe("runner backend", () => {
           terminalId: id,
         }),
       )
+      app.stop()
+    })
+  })
+
+  context("as agents message each other", () => {
+    it("follows each terminal's messages and the pause, until the terminal closes", async () => {
+      const app = open()
+      const terminal = app.addTerminal()
+      await app.idle()
+      const messages = app.backend.messages!
+      const id = companionKeyId({ ...app.target(), terminalId: terminal.id })
+      await vi.waitFor(() =>
+        expect(messages.state.getSnapshot().terminals[id]).toEqual({
+          handle: expect.stringMatching(/^t\d+$/),
+          // A plain shell: no agent takes messages there.
+          agent: false,
+          threads: [],
+        }),
+      )
+      messages.pause(true)
+      // The switch shows what the runner's listing says, once it says it.
+      await vi.waitFor(() => expect(messages.state.getSnapshot().paused).toBe(true))
+      expect(await runner.client.messages.list(terminal.id)).toMatchObject({ paused: true })
+      await vi.waitFor(() => expect(messages.state.getSnapshot().pending).toBe(false))
+      messages.pause(false)
+      await vi.waitFor(() => expect(messages.state.getSnapshot().paused).toBe(false))
+      expect(await runner.client.messages.list(terminal.id)).toMatchObject({ paused: false })
+      app.commit([{ type: "terminal/close", target: app.target(), terminalId: terminal.id }])
+      expect(messages.state.getSnapshot().terminals[id]).toBeUndefined()
       app.stop()
     })
   })

@@ -51,6 +51,16 @@ export const WorkspaceTerminal = ({
     shallowEqual,
   )
   const { projectId, workspaceSessionId } = useWorkspaceState(currentTarget, sameTarget)
+  // The session's terminals by handle, which name the agents its messages are with.
+  const names = useWorkspaceState(
+    (workspace) =>
+      Object.fromEntries(
+        currentState(workspace).roster.terminals.flatMap((each) =>
+          each.handle ? [[each.handle, each.name]] : [],
+        ),
+      ) as Readonly<Record<string, string>>,
+    shallowEqual,
+  )
   const { fresh, rename, keyboardFocus, enabledViews, fontSize } = useUiState(
     (state) => ({
       fresh: state.created?.context === context && state.created.id === terminalId,
@@ -112,6 +122,8 @@ export const WorkspaceTerminal = ({
       {backend.companions ? (
         <TerminalCompanion
           companions={backend.companions}
+          messages={backend.messages}
+          peerName={(handle) => names[handle]}
           companionKey={terminalKey}
           view={view}
           onReveal={onReveal}

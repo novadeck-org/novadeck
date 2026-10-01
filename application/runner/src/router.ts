@@ -208,6 +208,14 @@ export const createRouter = (options: {
     },
     messages: {
       list: authorized.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),
+      watch: authorized.messages.watch.handler(async function* ({ input, context, signal }) {
+        if (context.connection.closed) return
+        try {
+          yield* terminals.watchMessages(input.terminalId, signal)
+        } catch (error) {
+          throw apiError(error)
+        }
+      }),
       pause: authorized.messages.pause.handler(({ input }) =>
         terminals.pauseMessages(input.paused),
       ),

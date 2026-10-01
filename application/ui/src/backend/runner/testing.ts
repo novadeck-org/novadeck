@@ -151,6 +151,12 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       set: (agent, connected) =>
         note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
     },
+    messages: {
+      list: (terminalId) => runner.messages.list(terminalId),
+      watch: (terminalId) => runner.messages.watch(terminalId),
+      pause: (paused) => note(`pause messages ${paused}`, () => runner.messages.pause(paused)),
+      release: (thread) => note(`release ${thread}`, () => runner.messages.release(thread)),
+    },
     settings: {
       get: () => runner.settings.get(),
       set: (settings) =>

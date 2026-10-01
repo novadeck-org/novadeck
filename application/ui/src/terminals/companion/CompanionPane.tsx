@@ -2,7 +2,9 @@ import { lazy, Suspense, useRef } from "react"
 
 import { notePattern, notesIn } from "../../model/companion"
 import { ArtifactViewer } from "./ArtifactViewer"
-import { planRefOf, type Shown } from "./pane"
+import type { MailHandle } from "./mail"
+import { MessagesView } from "./MessagesView"
+import { mailTab, planRefOf, type Shown } from "./pane"
 import type { PlanEditorHandle } from "./plan-editor/PlanEditor"
 import { headingsOf } from "./plan-text"
 import {
@@ -135,16 +137,21 @@ const PlanTab = ({
 }
 
 // A terminal's companion pane, wherever it is presented: one of its plans, edited where
-// it's read, or one of the other things its agent showed the user.
+// it's read, one of the other things its agent showed the user, or its messages.
 export const CompanionPane = ({
   companion,
+  mail,
+  peerName,
   presentation,
 }: {
   companion: CompanionHandle
+  mail: MailHandle
+  peerName: (handle: string) => string | undefined
   presentation: PlanPresentation
 }): React.JSX.Element => {
   const { pane } = companion
-  const tab = shownTab(pane)
+  const tab = shownTab(pane, mail.present)
+  const messages = tab === mailTab
   const ref = planRefOf(tab)
   const plan = pane.plans.find((candidate) => candidate.ref === ref)
   const artifact = pane.artifacts.find((shown) => shown.id === tab)
@@ -154,7 +161,7 @@ export const CompanionPane = ({
       className="plan-reader"
       data-workspace-companion
       data-presentation={presentation}
-      aria-label={`What ${agent} showed you`}
+      aria-label={messages ? "Messages" : `What ${agent} showed you`}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.stopPropagation()
@@ -166,7 +173,9 @@ export const CompanionPane = ({
         if (plan && !event.currentTarget.contains(event.relatedTarget)) companion.flush(plan.ref)
       }}
     >
-      {plan ? (
+      {messages ? (
+        <MessagesView mail={mail} peerName={peerName} />
+      ) : plan ? (
         <PlanTab key={`${plan.ref}:${plan.writable}`} companion={companion} plan={plan} />
       ) : artifact ? (
         <ArtifactTab

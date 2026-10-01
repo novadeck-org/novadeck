@@ -98,6 +98,23 @@ reduced motion enabled, it scrolls immediately.
 Double-clicking or double-tapping a Focus or Grid terminal header outside its
 name has no effect; use the header action to move between those views.
 
+A terminal tab's tooltip says who its name is from: you, the agent in another terminal
+(`t2`), your first prompt there, or the default. Right-click a tab for **Rename**,
+**Close**, and, for a name you gave, **Reset to automatic**, which hands the name back
+to NovaDeck.
+
+When agents message each other (see [Agent messaging](docs/agent-messaging.md)), a
+terminal's tab counts the messages waiting for its agent: queued, being delivered or
+held, never those delivered. The count turns amber when a thread is held for your
+release, and shows a pause mark while messaging is paused. A terminal with an agent, or
+one that has had messages, gets a **Messages** icon in its taskbar, which opens its
+threads in the companion pane: one per peer, latest first, each message with its
+direction, time, state and the agent's text exactly as written, never formatted. A held
+thread has **Release**, and the pane's header has **Pause all agents' messages**, one
+switch for every project and session. It all updates as messages move. The content preview
+(`pnpm dev:previews`) shows a thread between its two agents; the behaviour specs' demo
+(`?demo=messages`) has every state, a held thread and the pause.
+
 Use the eye on a terminal tab to hide it from Grid and Canvas without closing it.
 Hidden tabs stay in the list with a faded label. While selected, a hidden terminal
 appears at 50% opacity in Grid and Canvas, then disappears when it is no longer active.
@@ -420,6 +437,7 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm surface.     |
 | `model/`                                           | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
 | `model/companion.ts`                               | The contract for agents' plans and artifacts, and the plan note format.                 |
+| `model/messages.ts`                                | The contract for agents' messages: threads, states, the pause, and a tab's count.       |
 | `model/roster.ts`                                  | A session's terminals, their sidebar order, and their status.                           |
 | `model/layout/workspace-layout.ts`                 | Where each terminal sits and how big it is in each view.                                |
 | `terminals/`                                       | Terminal frame, tabs, rename state, and the recent-terminal switcher.                   |

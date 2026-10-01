@@ -14,6 +14,7 @@ export const SidebarItem = ({
   selectLabel,
   tooltip,
   description,
+  badge,
   onSelect,
   actions,
   editor,
@@ -30,6 +31,8 @@ export const SidebarItem = ({
   selectLabel: string
   tooltip: string
   description?: string
+  // Beside the name, as a count of what waits there.
+  badge?: ReactNode
   onSelect: () => void
   actions?: ReactNode
   editor?: ReactNode
@@ -58,7 +61,14 @@ export const SidebarItem = ({
         {icon}
       </span>
       <span className="sidebar-item-copy flex min-w-0 flex-1 flex-col gap-1">
-        <strong className="truncate text-[12px] leading-[18px] font-medium">{name}</strong>
+        {badge ? (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <strong className="truncate text-[12px] leading-[18px] font-medium">{name}</strong>
+            {badge}
+          </span>
+        ) : (
+          <strong className="truncate text-[12px] leading-[18px] font-medium">{name}</strong>
+        )}
         <span className="sidebar-item-detail flex h-6 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10px] leading-[18px] text-muted [.sidebar-item:has(.sidebar-item-actions)_&]:pr-[var(--sidebar-actions-space,52px)]">
           {detail}
         </span>

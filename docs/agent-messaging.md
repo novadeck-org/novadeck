@@ -649,8 +649,8 @@ that Enter would answer. So `open_terminal(agent, message)`:
    for Codex, with a hint that its hooks may need trusting with `/hooks`). A different
    agent binding there makes it `gone`, as does the terminal closing first.
 
-The task is never typed and never the person's prompt. Until the UI shows messages, the
-person sees the task only through the runner API.
+The task is never typed and never the person's prompt. The person sees it in the new
+terminal's Messages view, like any other message.
 
 ## Self-description
 
@@ -757,16 +757,44 @@ call in `Terminals.describe` (`terminals/manager.ts`), the tool in `shell/mcp.ts
 
 ## Runner API and UI
 
-Step one ships the runner API only, for the UI to follow: list a terminal's threads and
-messages with their states, pause and resume, and release a held thread. The UI then
-adds a badge for undelivered messages, a Messages view in the companion pane, and the
-pause switch. The person doesn't send as themselves; they type in the terminal.
+Step one ships the runner API: list a terminal's threads and messages with their states,
+pause and resume, and release a held thread. Step three adds `messages.watch`, which
+streams the same listing as it changes: each change to the terminal's messages, threads
+or delivery state, and the pause, a burst of them within one tick as one listing.
+Messaging tells any number of listeners of each change (`Messaging.subscribe`), the
+doorbell and every watch among them.
+
+The UI follows every terminal's listing with `messages.watch`, through the backend's
+optional `messages` capability (`model/messages.ts`):
+
+- **Badge.** A terminal's sidebar tab counts the messages waiting for its agent, those
+  to it that are `queued`, `leased` or `held`, never delivered or gone, and says so in
+  its description. The count is amber while a thread is held for release, so the person
+  knows one is needed, and shows a pause mark while messaging is paused.
+- **Messages view.** A terminal with an agent bound, or one that has had messages, gets
+  a Messages icon in its companion pane's taskbar, with the same count. The view lists
+  its threads, latest first, each with the peer's title and handle and its messages in
+  order: direction, time (with the date when not today), state, and the agent's text as
+  plain text, never formatted or interpreted. A peer no longer in the session shows its
+  handle alone. A held thread has **Release** (`messages.release`), "Releasing…" until
+  the runner took it and a listing shows the thread go on; a refused release says why on
+  that thread. With no threads it says so.
+- **Pause switch.** The view's header has **Pause all agents' messages**
+  (`messages.pause`), one switch for the whole runner. It shows what the runner's listings
+  say, and a pause or resume the runner accepted, whichever comes first; it takes no
+  clicks while one is on its way, and says why when the runner refuses one.
+  While paused, the view says so and every badge shows it.
+
+The person doesn't send as themselves; they type in the terminal.
 
 Self-description adds to it: every terminal summary says who its title is from
 (`titleSource`), `terminals.resetTitle` hands a title back to NovaDeck, and
-`terminals.create` takes the `requestId` of the agent's request it answers. The UI shows
-the title as before; a "Reset to automatic" action and showing who set a title are for
-later.
+`terminals.create` takes the `requestId` of the agent's request it answers. A tab's
+tooltip says who its title is from: the person, the agent in `t2`, the first prompt, or
+the default. When it is the person's, the tab's menu has **Reset to automatic**
+(`commands.resetTitle`, which calls off any rename of that terminal in progress), which
+calls `terminals.resetTitle`; the UI forgets the person's title too, so it never sends it
+again.
 
 ## Rollout
 
@@ -780,7 +808,12 @@ later.
    person's keys in `terminals/keys.ts`, Antigravity's typed prompts in
    `harnesses/typed-prompts.ts`, and the Ringing state and the untouched rule in
    `messaging/delivery.ts`.
-3. **UI:** badges, the Messages view and the pause switch.
+3. **UI:** badges, the Messages view and the pause switch. Built: `messages.watch` in
+   `application/runner/src/terminals/manager.ts` over `Messaging.subscribe`, the
+   contract in `model/messages.ts` of `application/ui`, the runner's side in
+   `backend/runner/messages.ts`, the badge in `terminals/MailCount.tsx`, the view in
+   `terminals/companion/MessagesView.tsx`, and the title's source and reset on the tab in
+   `terminals/TerminalTab.tsx`.
 4. **Self-description:** `describe(title, summary, asked?)`, the first-prompt title and
    the nudges. Built: the title's layers and `asked`'s rule in
    `application/runner/src/terminals/naming.ts`, the nudges in `terminals/nudges.ts`,

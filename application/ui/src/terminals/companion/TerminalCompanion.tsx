@@ -1,22 +1,32 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 import type { CompanionKey, Companions } from "../../model/companion"
+import type { Messages } from "../../model/messages"
 import type { ViewMode } from "../../model/types"
 import type { TerminalLayoutControls } from "../WindowShell"
 import { CompanionPane } from "./CompanionPane"
-import { presentationOf, useCompanion, type CompanionHandle } from "./state"
+import { useMail, type MailHandle } from "./mail"
+import { presentationOf, shownTab, useCompanion, type CompanionHandle } from "./state"
 import { Taskbar } from "./Taskbar"
 
 import "./companion.css"
 
 const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
 
+// What the pane reads besides its plans and what was shown.
+type MailProps = {
+  mail: MailHandle
+  peerName: (handle: string) => string | undefined
+}
+
 // Terminal left, plan right, inside the terminal's own window. The divider drags.
 const SplitPlan = ({
   companion,
+  mail,
+  peerName,
   view,
   children,
-}: {
+}: MailProps & {
   companion: CompanionHandle
   view: ViewMode
   children: ReactNode
@@ -59,7 +69,7 @@ const SplitPlan = ({
         }}
       />
       <div className="plan-split-reader nodrag nopan nowheel">
-        <CompanionPane companion={companion} presentation="split" />
+        <CompanionPane companion={companion} mail={mail} peerName={peerName} presentation="split" />
       </div>
     </div>
   )
@@ -72,8 +82,10 @@ const attachedExtent = { right: 20 + 720, height: 560 }
 // positioned against the node, outside the window's clipping.
 const AttachedPlan = ({
   companion,
+  mail,
+  peerName,
   onReveal,
-}: {
+}: MailProps & {
   companion: CompanionHandle
   onReveal: TerminalLayoutControls["onReveal"]
 }): React.JSX.Element => {
@@ -82,16 +94,24 @@ const AttachedPlan = ({
   useEffect(() => reveal.current?.(attachedExtent), [])
   return (
     <div className="plan-attached nodrag nopan nowheel">
-      <CompanionPane companion={companion} presentation="attached" />
+      <CompanionPane
+        companion={companion}
+        mail={mail}
+        peerName={peerName}
+        presentation="attached"
+      />
     </div>
   )
 }
 
 // A terminal's companion: its taskbar, and the pane it opens in the terminal's own
 // window or beside its canvas node. It wraps every terminal of a backend that reports
-// companions, so the terminal keeps its content when its agent first shows something.
+// companions or messages, so the terminal keeps its content when its agent first shows
+// something.
 export const TerminalCompanion = ({
   companions,
+  messages,
+  peerName,
   companionKey,
   view,
   onReveal,
@@ -100,6 +120,9 @@ export const TerminalCompanion = ({
   clipContent,
 }: {
   companions: Companions
+  messages?: Messages | undefined
+  // The name of the terminal in this session with that handle, if it has one.
+  peerName: (handle: string) => string | undefined
   companionKey: CompanionKey
   view: ViewMode
   onReveal?: TerminalLayoutControls["onReveal"]
@@ -108,9 +131,12 @@ export const TerminalCompanion = ({
   clipContent?: boolean | undefined
 }): React.JSX.Element => {
   const companion = useCompanion(companions, companionKey)
+  const mail = useMail(messages, companionKey)
   const trigger = useRef<HTMLButtonElement>(null)
   const presentation = presentationOf(view)
-  const open = companion.present && companion.pane.open && !minimized
+  const present = companion.present || mail.present
+  // Open while there's something to show, the messages among it.
+  const open = companion.pane.open && !minimized && shownTab(companion.pane, mail.present) !== ""
   const wasOpen = useRef(open)
   // Opening leaves focus on the taskbar. Hiding the pane from inside it (Escape) would
   // drop focus with the pane, so it goes back to the taskbar.
@@ -128,16 +154,25 @@ export const TerminalCompanion = ({
       inert={minimized}
     >
       {open && presentation === "split" ? (
-        <SplitPlan companion={companion} view={view}>
+        <SplitPlan companion={companion} mail={mail} peerName={peerName} view={view}>
           {children}
         </SplitPlan>
       ) : (
         children
       )}
-      {/* A terminal gains its taskbar once its agent has a plan or shows something. */}
-      {companion.present && <Taskbar companion={companion} trigger={trigger} open={open} />}
+      {/* A terminal gains its taskbar once its agent has a plan, shows something, or can
+          message others. */}
+      {present && (
+        <Taskbar
+          companion={companion}
+          mail={mail}
+          peerName={peerName}
+          trigger={trigger}
+          open={open}
+        />
+      )}
       {open && presentation === "attached" && (
-        <AttachedPlan companion={companion} onReveal={onReveal} />
+        <AttachedPlan companion={companion} mail={mail} peerName={peerName} onReveal={onReveal} />
       )}
     </div>
   )

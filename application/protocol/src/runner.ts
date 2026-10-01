@@ -244,6 +244,12 @@ export type Runner = {
     /** A terminal's threads and messages with their states; `TERMINAL_NOT_FOUND` when unknown. */
     list(terminalId: string): Promise<TerminalMessages>
     /**
+     * Follows a terminal's threads and messages: what `list` says, then again on each
+     * change to them, to its delivery state or to the pause, across reconnections.
+     * Iteration ends once the terminal is gone, the runner closes, or on `return()`.
+     */
+    watch(terminalId: string): AsyncIterableIterator<TerminalMessages, undefined>
+    /**
      * Pauses messaging across the whole runner, every project and session, or resumes it;
      * the runner keeps the switch.
      */
@@ -1017,6 +1023,10 @@ export const connectRunner = async (
     },
     messages: {
       list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),
+      watch: (terminalId) =>
+        new Resubscription(connection, (wire, signal) =>
+          wire.messages.watch({ terminalId }, { signal }),
+        ),
       pause: (paused) => call((wire) => wire.messages.pause({ paused })),
       release: (thread) => call((wire) => wire.messages.release({ thread })),
     },

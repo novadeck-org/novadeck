@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from "react"
 
 import type { Companions } from "../model/companion"
+import type { Messages } from "../model/messages"
 import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
 import type { Store } from "../model/store"
@@ -154,9 +155,19 @@ export type Backend = {
   }
   // Optional. What agents put in front of the user beside their terminals: the plans
   // they write and what they show. A terminal it lists gets a taskbar and companion pane.
-  // Only the content-preview demo implements it so far; a runner would report the same
-  // from the agents' files.
+  // The runner reports them from the agents' files and what they present through
+  // NovaDeck's MCP server; the content-preview demo from its sample agents.
   readonly companions?: Companions
+  // Optional. Messages between the agents in its terminals, and the pause that holds
+  // them. A terminal with an agent bound, or one that has had messages, gets a messages
+  // view in its companion pane, and its tab counts the messages waiting for its agent.
+  // The pane needs `companions`: a backend with messages and nothing else to show passes
+  // `emptyCompanions()`.
+  readonly messages?: Messages
+  // Optional. Hands a terminal's name back to the backend, which names it on its own
+  // again: the name the person gave it goes, and the backend reports the one it takes
+  // with `terminal/update`. Absent where names are only the person's.
+  readonly resetTitle?: (key: TerminalKey) => void
   // Optional. Asks the person for a folder to open as a project; null when cancelled.
   // Absent where the backend cannot offer one.
   readonly pickDirectory?: () => Promise<string | null>

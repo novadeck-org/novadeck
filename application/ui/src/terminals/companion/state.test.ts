@@ -1,16 +1,17 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
-import type {
-  ArtifactContent,
-  CompanionEvent,
-  CompanionKey,
-  Companions,
-  PlanSaved,
-  PlanSnapshot,
+import {
+  emptyCompanions,
+  type ArtifactContent,
+  type CompanionEvent,
+  type CompanionKey,
+  type Companions,
+  type PlanSaved,
+  type PlanSnapshot,
 } from "../../model/companion"
 import { context, describe, expect, it } from "../../test"
-import { planTab } from "./pane"
-import { companionActions, openTab, type CompanionActions } from "./state"
+import { mailTab, planTab } from "./pane"
+import { companionActions, openTab, shownTab, type CompanionActions } from "./state"
 
 const key: CompanionKey = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
 const first = "# Plan\n\nalpha\nbeta\ngamma\n"
@@ -316,5 +317,35 @@ describe("companion store", () => {
     const shown = actions.current().artifacts[0]!
     await expect(actions.load(shown)).rejects.toThrow()
     await expect(actions.load(shown)).resolves.toMatchObject({ kind: "image" })
+  })
+})
+
+describe("a terminal's messages tab", () => {
+  const nothing: Companions = emptyCompanions()
+
+  it("opens on a terminal whose agent has shown nothing", () => {
+    const actions = companionActions(nothing, key)
+    actions.update((pane) => openTab(pane, mailTab))
+    expect(actions.current()).toMatchObject({ open: true, tab: mailTab })
+    expect(shownTab(actions.current(), true)).toBe(mailTab)
+    // Without messages to show, there's nothing.
+    expect(shownTab(actions.current(), false)).toBe("")
+  })
+
+  it("stays open when what else was shown goes", () => {
+    const { companions, emit } = backend()
+    const actions = companionActions(companions, key)
+    actions.update((pane) => openTab(pane, mailTab))
+    emit({ type: "plan/removed", key, ref: "root" })
+    expect(actions.current()).toMatchObject({ open: true, tab: mailTab, plans: [] })
+  })
+
+  it("falls back to the plan, still open, once the messages go", () => {
+    const { companions } = backend()
+    const actions = companionActions(companions, key)
+    actions.update((pane) => openTab(pane, mailTab))
+    expect(shownTab(actions.current(), true)).toBe(mailTab)
+    expect(actions.current().open).toBe(true)
+    expect(shownTab(actions.current(), false)).toBe(planTab("root"))
   })
 })

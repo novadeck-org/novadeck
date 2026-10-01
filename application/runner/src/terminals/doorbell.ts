@@ -3,6 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { Terminal as Screen } from "@xterm/headless"
 
 import { doorbellLine } from "../harnesses/harness.js"
+import { coalesced } from "./coalesce.js"
 import { bracketedPaste, calmMs, checkPaste, freshNonce, gate } from "./ring.js"
 
 /** A terminal's screen as the doorbell reads it: its rows' text, and its paste mode. */
@@ -79,7 +80,11 @@ export class Doorbell {
   private readonly settleMs: number
   /** Each terminal's screen text as last seen, and since when. */
   private readonly still = new Map<string, { readonly text: string; readonly since: number }>()
-  private readonly scheduled = new Set<string>()
+  /** Looks at each terminal changed, once a tick. */
+  private readonly schedule = coalesced(
+    (terminalId) => this.check(terminalId),
+    "NovaDeck's doorbell failed:",
+  )
   private readonly checking = new Set<string>()
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>()
   private closed = false
@@ -98,14 +103,7 @@ export class Doorbell {
 
   /** The terminal's screen or messages changed: it is looked at again, once this tick. */
   changed(terminalId: string): void {
-    if (this.closed || this.scheduled.has(terminalId)) return
-    this.scheduled.add(terminalId)
-    setImmediate(() => {
-      this.scheduled.delete(terminalId)
-      void this.check(terminalId).catch((error: unknown) =>
-        console.error("NovaDeck's doorbell failed:", error),
-      )
-    })
+    if (!this.closed) this.schedule(terminalId)
   }
 
   /** Forgets a terminal that stopped running. */

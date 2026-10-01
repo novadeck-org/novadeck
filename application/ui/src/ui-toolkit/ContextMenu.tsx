@@ -6,6 +6,8 @@ export type ContextMenuItem = {
   value: string
   label: string
   icon?: ReactNode
+  // Runs once the menu has closed and focus has settled, so an item that moves focus,
+  // as into a field, keeps it.
   onSelect: () => void
 }
 
@@ -20,6 +22,8 @@ export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.
   // Where focus was when the menu was asked for. A context trigger often can't take
   // focus, so closing the menu would otherwise leave focus nowhere.
   const opener = useRef<HTMLElement | null>(null)
+  // The item chosen, to run once the menu has closed.
+  const chosen = useRef<(() => void) | undefined>(undefined)
   return (
     <ArkMenu.Root
       positioning={{ strategy: "fixed", overflowPadding: 12 }}
@@ -32,7 +36,13 @@ export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.
             const active = document.activeElement
             if (!active || active === document.body) {
               if (opener.current?.isConnected) opener.current.focus({ preventScroll: true })
-            } else if (frames > 0 && active.closest('[data-scope="menu"]')) restore(frames - 1)
+            } else if (frames > 0 && active.closest('[data-scope="menu"]')) {
+              restore(frames - 1)
+              return
+            }
+            const run = chosen.current
+            chosen.current = undefined
+            run?.()
           })
         }
         restore(3)
@@ -60,7 +70,9 @@ export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.
               <ArkMenu.Item
                 key={item.value}
                 value={item.value}
-                onSelect={item.onSelect}
+                onSelect={() => {
+                  chosen.current = item.onSelect
+                }}
                 className="flex min-h-8 cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 outline-none data-highlighted:bg-shell"
               >
                 {item.icon}

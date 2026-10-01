@@ -1,10 +1,13 @@
 import type { ReactNode } from "react"
 
+import { emptyCompanions } from "../../model/companion"
+import type { WorkspaceSeed } from "../../model/seed"
 import { createStore } from "../../model/store"
-import type { TerminalMetadata, Workspace } from "../../model/types"
-import type { AgentConnection, Backend, CreateBackend, TerminalKey } from "../port"
+import type { TerminalMetadata, TitleSource, Workspace } from "../../model/types"
+import type { AgentConnection, Backend, BackendSink, CreateBackend, TerminalKey } from "../port"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
+import { checkoutMailboxes, createDemoMessages } from "./messages"
 import { createMockTerminal, demoSeed } from "./samples"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
@@ -66,6 +69,70 @@ export const demoBackend = (
   }
 }
 
+// Who named each sample terminal, and the name NovaDeck gives it back on a reset.
+const namings: Readonly<
+  Record<string, { readonly source: TitleSource; readonly automatic: string }>
+> = {
+  "01": { source: { kind: "person" }, automatic: "Checkout flow" },
+  "02": { source: { kind: "person" }, automatic: "Terminal 02" },
+  "03": { source: { kind: "fallback" }, automatic: "Tests" },
+  "04": { source: { kind: "agent", by: "t1" }, automatic: "Checkout review" },
+  "05": { source: { kind: "person" }, automatic: "Terminal 05" },
+  "06": { source: { kind: "person" }, automatic: "Terminal 06" },
+}
+
+// What a reset names a sample terminal: the agent's name for the first, else the
+// session's default.
+const automaticSource = (terminalId: string): TitleSource =>
+  terminalId === "01" ? { kind: "agent", by: "t1" } : { kind: "default" }
+
+// The agents demo with messages between its agents: handles, who named each terminal,
+// threads in every state, one held for release, and the pause switch.
+export const withMessages = (backend: Backend, now: number): Backend => {
+  const seed: WorkspaceSeed = {
+    ...backend.seed,
+    projects: backend.seed.projects.map((project) => ({
+      ...project,
+      sessions: project.sessions.map((session) => ({
+        ...session,
+        terminals: session.terminals.map((terminal) => ({
+          ...terminal,
+          handle: `t${Number(terminal.id)}`,
+          ...(namings[terminal.id] ? { titleSource: namings[terminal.id]!.source } : {}),
+        })),
+      })),
+    })),
+  }
+  const targets = seed.projects.map((project) => ({
+    projectId: project.id,
+    workspaceSessionId: project.sessions[0]!.id,
+  }))
+  let sink: BackendSink | undefined
+  return {
+    ...backend,
+    seed,
+    // Its terminals show nothing in the pane but their messages.
+    companions: emptyCompanions(),
+    messages: createDemoMessages(checkoutMailboxes(now, targets)),
+    resetTitle: ({ projectId, workspaceSessionId, terminalId }) =>
+      sink?.dispatch([
+        {
+          type: "terminal/update",
+          target: { projectId, workspaceSessionId },
+          terminalId,
+          name: namings[terminalId]?.automatic ?? `Terminal ${terminalId}`,
+          titleSource: automaticSource(terminalId),
+        },
+      ]),
+    start: (next) => {
+      sink = next
+      return () => {
+        if (sink === next) sink = undefined
+      }
+    },
+  }
+}
+
 export const createDemoBackend: CreateBackend = () => {
   const demo = new URLSearchParams(window.location.hash.split("?")[1]).get("demo")
   const agents = demo === "agents"
@@ -74,5 +141,7 @@ export const createDemoBackend: CreateBackend = () => {
     engine,
     demo === "welcome" || (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
   )
+  if (demo === "messages")
+    return withMessages({ ...backend, seed: demoSeed(Date.now(), true) }, Date.now())
   return agents ? { ...backend, seed: demoSeed(Date.now(), true) } : backend
 }

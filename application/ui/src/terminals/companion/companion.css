@@ -244,6 +244,13 @@
   content: "## ";
   opacity: 0.5;
 }
+/* The agents its threads are with, by name: no heading marks. */
+.peek-mail {
+  font-size: 9px;
+}
+.peek-mail span::before {
+  content: none;
+}
 .peek-page {
   display: flex;
   flex-direction: column;
@@ -1100,4 +1107,165 @@
 .cm-plan-table-widget[data-readonly] .cm-plan-table-tools,
 .cm-plan-table-widget[data-readonly] .cm-plan-row-note-add {
   display: none;
+}
+
+/* Messages: the terminal's threads with the other agents in its session. */
+.mail-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.mail-pause-label {
+  color: var(--color-ink);
+}
+.mail-paused {
+  margin: 0;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-warning);
+  color: var(--color-warning-fg);
+  font-size: 11px;
+}
+.mail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.mail-empty {
+  padding: 0 24px;
+  text-align: center;
+}
+.mail-thread {
+  padding: 12px 14px 14px;
+  border-bottom: 1px solid var(--color-line);
+}
+.mail-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  font-size: 12px;
+}
+.mail-thread-peer {
+  margin: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-thread-head code {
+  font: 11px var(--font-mono);
+  color: var(--color-muted);
+}
+.mail-thread-count {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.small-button.mail-release {
+  height: 26px;
+  padding: 0 10px;
+}
+.mail-thread-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+.small-button.mail-release[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+.mail-thread-error {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--color-danger-fg);
+}
+.mail-error {
+  margin: 0;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-danger);
+  color: var(--color-danger-fg);
+  font-size: 11px;
+}
+.mail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mail-message {
+  padding: 7px 10px 8px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-paper);
+}
+/* What the terminal's own agent sent sits on the shell's grey, as the sidebar's tabs do. */
+.mail-message[data-direction="sent"] {
+  background: var(--color-shell);
+}
+.mail-message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 10px;
+  color: var(--color-muted);
+}
+.mail-message-direction {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.mail-message-meta time {
+  font-family: var(--font-mono);
+}
+.mail-state {
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: var(--radius-control);
+  background: var(--color-soft);
+  color: var(--color-ink);
+  line-height: 16px;
+}
+.mail-state[data-state="delivered"] {
+  background: transparent;
+  color: var(--color-muted);
+}
+.mail-state[data-state="held"] {
+  background: var(--color-warning);
+  color: var(--color-warning-fg);
+}
+.mail-state[data-state="gone"] {
+  background: transparent;
+  color: var(--color-muted);
+  text-decoration: line-through;
+}
+/* The agent's text, as it wrote it: its line breaks kept, nothing rendered. */
+.mail-text {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+.plan-tb-count[data-mail="held"] {
+  background: var(--color-warning);
+  color: var(--color-warning-fg);
+}
+.plan-tb-count[data-mail="paused"] {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  background: var(--color-paper);
+  color: var(--color-muted);
 }

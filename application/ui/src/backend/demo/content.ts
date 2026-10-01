@@ -6,6 +6,7 @@ import type { CanvasLayout, GridBreakpoint, GridLayouts, TerminalMetadata } from
 import type { CreateBackend, TerminalKey } from "../port"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoBackend } from "./index"
+import { createDemoMessages, studioMailbox } from "./messages"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { createShowcase } from "./showcase/simulation"
 
@@ -15,6 +16,8 @@ export const createContentDemo: CreateBackend = () => {
     {
       id: "01",
       name: "Build Studio",
+      handle: "t1",
+      titleSource: { kind: "person" },
       command: "codex",
       process: "codex",
       state: "running",
@@ -23,6 +26,8 @@ export const createContentDemo: CreateBackend = () => {
     {
       id: "03",
       name: "Refactor auth",
+      handle: "t3",
+      titleSource: { kind: "agent", by: "t1" },
       command: "claude",
       process: "claude",
       state: "running",
@@ -31,6 +36,8 @@ export const createContentDemo: CreateBackend = () => {
     {
       id: "02",
       name: "Dev server",
+      handle: "t2",
+      titleSource: { kind: "fallback" },
       command: "pnpm dev",
       process: "vite",
       state: "running",
@@ -98,6 +105,7 @@ export const createContentDemo: CreateBackend = () => {
           showcase.closed({ ...action.target, terminalId: action.terminalId })
     },
     companions: showcase,
+    messages: createDemoMessages([studioMailbox(Date.now(), session)]),
     seed: {
       projects: [
         {

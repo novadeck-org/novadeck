@@ -29,6 +29,8 @@ export type CommandsOptions = {
   readonly pickDirectory?: () => Promise<string | null>
   // The backend's crash count and restart, when it reports crash loops.
   readonly crashLoop?: Backend["crashLoop"]
+  // The backend's way to hand a name back, when it has one.
+  readonly resetTitle?: Backend["resetTitle"]
 }
 
 // Real stores, navigator, commands and store subscriptions over a fixture workspace, with effects that
@@ -42,6 +44,7 @@ export const openCommands = ({
   canvas,
   pickDirectory,
   crashLoop,
+  resetTitle,
 }: CommandsOptions = {}) => {
   const [pathname = "", query = ""] = url.split("?")
   const resolved = resolveRoute(workspace, { pathname, search: `?${query}` }, preferences, 0)
@@ -124,6 +127,7 @@ export const openCommands = ({
     effects: record,
     pickDirectory,
     crashLoop,
+    resetTitle,
   }
   const commands = createWorkspaceCommands(context)
   // The subscriptions the provider attaches; nothing persists to storage here.

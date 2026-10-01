@@ -28,6 +28,7 @@ import type {
 import { vi } from "vitest"
 
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
+import { Latest } from "../terminals/latest.js"
 import type { TerminalRecords } from "../terminals/records.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
@@ -2020,6 +2021,84 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         await step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "and then this" } }),
       ) as { hookSpecificOutput: { additionalContext: string } }
       expect(queued.hookSpecificOutput.additionalContext).toContain("One more thing.")
+    })
+
+    it("tells a terminal's watchers nothing of messages between two others", async ({ shell }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const claude = await create(manager, shell)
+      const codex = await create(manager, shell)
+      const third = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(claude.id, "claude", "s-claude")
+      await start(codex.id, "codex", "s-codex")
+      await expect.poll(() => manager.messages(codex.id).delivery).toBe("fresh")
+      const watch = manager.watchMessages(third.id)
+      await watch.next()
+      const pushes = vi.spyOn(Latest.prototype, "push")
+      await step(claude.id, { call: "send", request: { to: "t2", text: "Review a.ts." } })
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(pushes).not.toHaveBeenCalled()
+      pushes.mockRestore()
+      // The pause is every terminal's news.
+      manager.pauseMessages(true)
+      await expect(watch.next()).resolves.toMatchObject({ value: { paused: true, threads: [] } })
+      manager.pauseMessages(false)
+      await watch.return(undefined)
+    })
+
+    it("follows a terminal's messages as they change, for each of its watchers", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const claude = await create(manager, shell)
+      const codex = await create(manager, shell)
+      const { start, step } = driver(shell, manager)
+      await start(claude.id, "claude", "s-claude")
+      await start(codex.id, "codex", "s-codex")
+      await expect.poll(() => manager.messages(codex.id).delivery).toBe("fresh")
+      const first = manager.watchMessages(codex.id)
+      const second = manager.watchMessages(codex.id)
+      await expect(first.next()).resolves.toMatchObject({
+        value: { handle: "t2", delivery: "fresh", paused: false, threads: [] },
+      })
+      await expect(second.next()).resolves.toMatchObject({ value: { threads: [] } })
+
+      // A message to it arrives, and both watchers hear; the doorbell still does its part.
+      await step(claude.id, { call: "send", request: { to: "t2", text: "Review a.ts." } })
+      const waiting = {
+        value: {
+          threads: [
+            { peer: "t1", messages: [{ from: "t1", text: "Review a.ts.", state: "queued" }] },
+          ],
+        },
+      }
+      await expect(first.next()).resolves.toMatchObject(waiting)
+      await expect(second.next()).resolves.toMatchObject(waiting)
+
+      // Pausing holds it, and every listing says so.
+      manager.pauseMessages(true)
+      await expect(first.next()).resolves.toMatchObject({
+        value: { paused: true, threads: [{ messages: [{ state: "held", held: "paused" }] }] },
+      })
+      manager.pauseMessages(false)
+      await expect(first.next()).resolves.toMatchObject({
+        value: { paused: false, threads: [{ messages: [{ state: "queued", held: null }] }] },
+      })
+
+      // One watcher stops; the other follows on until the terminal closes.
+      await second.return(undefined)
+      await manager.close({ terminalId: codex.id }, "owner")
+      // It may tell first that its agent went, and the message with it; then it ends.
+      for await (const listing of first) expect(listing.threads[0]?.messages[0]?.state).toBe("gone")
+      await expect(manager.watchMessages(codex.id).next()).rejects.toMatchObject({
+        code: "TERMINAL_NOT_FOUND",
+      })
     })
 
     it("takes each terminal's reports and asks in order, never waiting on another terminal's", async ({

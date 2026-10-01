@@ -4,10 +4,14 @@ import { Check, Eye, EyeOff, Pencil, X } from "lucide-react"
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { nextReset, usageDetail } from "../model/agent-usage"
+import { mailBadgeLabel, type MailBadge } from "../model/messages"
 import { attentionText, endingText, terminalEnding, terminalPhase } from "../model/terminal-ending"
+import { titleSourceText } from "../model/title-source"
 import type { TerminalMetadata } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
+import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
 import { Tooltip } from "../ui-toolkit/Tooltip"
+import { MailCount } from "./MailCount"
 import { terminalProfile } from "./processes/profiles"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { useRenderAt } from "./use-render-at"
@@ -21,6 +25,7 @@ export const TerminalTab = ({
   selected,
   hidden,
   rename,
+  mail = null,
   onVisibilityChange,
   onSelect,
   onBeginRename,
@@ -28,12 +33,15 @@ export const TerminalTab = ({
   onRenameSave,
   onRenameCancel,
   onClose,
+  onResetTitle,
 }: {
   terminal: TerminalMetadata
   index: number
   selected: boolean
   hidden: boolean
   rename: TerminalRename | null
+  // What waits for its agent, when anything does.
+  mail?: MailBadge | null
   onVisibilityChange: (hidden: boolean) => void
   onSelect: () => void
   onBeginRename: () => void
@@ -41,6 +49,8 @@ export const TerminalTab = ({
   onRenameSave: () => void
   onRenameCancel: () => void
   onClose: () => void
+  // Hands the name back to the backend; absent where it can't.
+  onResetTitle?: (() => void) | undefined
 }): React.JSX.Element => {
   const editing = Boolean(rename)
   const Icon = terminalProfile(terminal).icon
@@ -55,6 +65,17 @@ export const TerminalTab = ({
   // assistive technology.
   const waiting = attentionText(terminal)
   const note = ended ?? waiting
+  const named = terminal.titleSource ? titleSourceText(terminal.titleSource) : undefined
+  const messages = mail ? mailBadgeLabel(mail) : undefined
+  const description = [note, messages].filter(Boolean).join(", ")
+  // The tab's own actions, and handing a name the person gave back to NovaDeck.
+  const menu: ContextMenuItem[] = [
+    { value: "rename", label: "Rename", onSelect: onBeginRename },
+    ...(onResetTitle && terminal.titleSource?.kind === "person"
+      ? [{ value: "reset-title", label: "Reset to automatic", onSelect: onResetTitle }]
+      : []),
+    { value: "close", label: "Close", onSelect: onClose },
+  ]
   useRenderAt(nextReset(terminal))
   const usage = usageDetail(terminal)
   const subagents = subagentsBadge(terminal)
@@ -66,7 +87,7 @@ export const TerminalTab = ({
     disabled: editing,
     transition: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
   })
-  return (
+  const tab = (
     <div className="contents">
       <SidebarItem
         ref={ref}
@@ -93,8 +114,9 @@ export const TerminalTab = ({
         }
         selected={selected}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
-        tooltip={`${terminal.name}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}${planning ? `\n${planning}` : ""}${subagentKinds ? `\n${subagentKinds}` : ""}${usage ? `\n${usage}` : ""}`}
-        {...(note ? { description: note } : {})}
+        tooltip={`${terminal.name}${named ? `\n${named}` : ""}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}${messages ? `\n${messages}` : ""}${planning ? `\n${planning}` : ""}${subagentKinds ? `\n${subagentKinds}` : ""}${usage ? `\n${usage}` : ""}`}
+        {...(description ? { description } : {})}
+        {...(mail ? { badge: <MailCount badge={mail} /> } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
         data-terminal-phase={phase}
@@ -107,7 +129,14 @@ export const TerminalTab = ({
         editing={editing}
         editor={
           rename ? (
-            <div className="terminal-tab-rename flex min-w-0 flex-1 items-start gap-2 px-2.5 py-[9px]">
+            <div
+              className="terminal-tab-rename flex min-w-0 flex-1 items-start gap-2 px-2.5 py-[9px] select-text"
+              // A right-click or a touch held here belongs to the field, never the tab's menu.
+              onContextMenu={(event) => event.stopPropagation()}
+              onPointerDown={(event) => {
+                if (event.pointerType !== "mouse") event.stopPropagation()
+              }}
+            >
               <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center text-muted">
                 {icon}
               </span>
@@ -204,4 +233,5 @@ export const TerminalTab = ({
       />
     </div>
   )
+  return <ContextMenu label={`${terminal.name} actions`} items={menu} trigger={tab} />
 }

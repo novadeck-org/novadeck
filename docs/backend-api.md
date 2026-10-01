@@ -230,6 +230,7 @@ const messages = await runner.messages.list(terminalId)
 // { terminalId, handle, delivery, paused, threads: [{ id, peer, hops, allowed, held, messages }] }
 await runner.messages.pause(true) // or false to resume
 await runner.messages.release(threadId) // a thread held after too many hops
+for await (const listing of runner.messages.watch(terminalId)) show(listing) // as it changes
 ```
 
 `messages.list(terminalId)` gives a running or exited terminal's handle, its delivery
@@ -244,7 +245,14 @@ across the whole runner, every project and session, keeping the switch across
 restarts: waiting messages are held, and wait in order again once resumed.
 `messages.release(threadId)` lets a held thread's messages wait to be delivered and
 allows it 12 more hops; an unknown thread is `NOT_FOUND`. Each refuses with
-`RUNTIME_CLOSING` once the runner is stopping.
+`RUNTIME_CLOSING` once the runner is stopping. `messages.watch(terminalId)` streams what
+`list` says, then again on each change to the terminal's threads, messages or delivery
+state, and on each pause or resume, a burst of changes within one tick as one listing;
+a reader that falls behind gets only the newest listing, never one equal to the last it
+read. A watch's listing may come before or after the `pause` or `release` call that
+changed it answers. It ends when the terminal is closed or let
+go; an unknown one is `TERMINAL_NOT_FOUND`. The client's `messages.watch(terminalId)`
+resubscribes across reconnections and ends once the terminal is gone.
 
 Calls made while reconnecting reject with `DISCONNECTED`; input and creation are
 never retried automatically. Each client sends a random client ID in its handshake,

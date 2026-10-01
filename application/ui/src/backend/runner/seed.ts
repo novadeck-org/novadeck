@@ -47,6 +47,8 @@ export const runnerTerminal = (summary: TerminalSummary): TerminalMetadata | und
     name: summary.title,
     directory: summary.cwd,
     command: summary.command ?? "",
+    handle: summary.handle,
+    titleSource: summary.titleSource,
   }
   if (!summary.started) return { ...identity, ...restored(summary), process: "", state: "starting" }
   const { status, process } = terminalActivity(summary)

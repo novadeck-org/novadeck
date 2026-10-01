@@ -63,6 +63,7 @@ const createServices = (
     newTerminal: backend.newTerminal,
     pickDirectory: backend.pickDirectory,
     crashLoop: backend.crashLoop,
+    resetTitle: backend.resetTitle,
     canvas,
     effects: domEffects,
   })

@@ -507,6 +507,39 @@ describe("runner client messages", () => {
   })
 })
 
+describe("runner client message watch", () => {
+  it("follows a terminal's messages and the pause, and ends once the terminal is gone", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const { id: sessionId } = await session(client, app.directory)
+    const terminal = await client.terminals.create(shell(sessionId))
+    const watch = client.messages.watch(terminal.id)
+    await expect(watch.next()).resolves.toEqual({
+      done: false,
+      value: {
+        terminalId: terminal.id,
+        handle: "t1",
+        delivery: "unbound",
+        paused: false,
+        threads: [],
+      },
+    })
+    await client.messages.pause(true)
+    await expect(watch.next()).resolves.toMatchObject({ value: { paused: true } })
+    await client.messages.pause(false)
+    await expect(watch.next()).resolves.toMatchObject({ value: { paused: false } })
+    const ending = watch.next()
+    await client.terminals.close(terminal.id)
+    await expect(ending).resolves.toEqual({ done: true, value: undefined })
+    await expect(client.messages.watch(crypto.randomUUID()).next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    })
+  })
+})
+
 describe("runner client terminal requests", () => {
   it("follows agents' requests until the client closes, and refuses what it can't start", async ({
     resources,

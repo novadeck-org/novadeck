@@ -1,9 +1,11 @@
-import { FileStack, FileText, Image } from "lucide-react"
+import { FileStack, FileText, Image, MessagesSquare, Pause } from "lucide-react"
 
+import { mailBadgeLabel } from "../../model/messages"
 import { ContextMenu, type ContextMenuItem } from "../../ui-toolkit/ContextMenu"
 import { HoverCard } from "../../ui-toolkit/HoverCard"
 import { ArtifactThumb, kindIcons } from "./ArtifactViewer"
-import { dismiss, pickFromGroup, planTab, slotsOf, type Shown } from "./pane"
+import type { MailHandle } from "./mail"
+import { dismiss, mailTab, pickFromGroup, planTab, slotsOf, type Shown } from "./pane"
 import { Peek, type Indicator, type PeekEntry } from "./Peek"
 import { headingsOf, titleOf } from "./plan-text"
 import {
@@ -35,6 +37,27 @@ const LoadedPreview = ({
   companion: CompanionHandle
   artifact: Shown
 }): React.JSX.Element | null => <ArtifactThumb load={useArtifactContent(companion, artifact)} />
+
+// The threads in miniature: the agents they're with, latest first.
+const MailThumb = ({
+  mail,
+  peerName,
+}: {
+  mail: MailHandle
+  peerName: (handle: string) => string | undefined
+}): React.JSX.Element => {
+  const threads = mail.mail?.threads ?? []
+  return (
+    <span className="peek-plan peek-mail">
+      <b>{threads.length ? "Threads" : "No messages yet"}</b>
+      {threads.slice(0, 4).map((thread) => (
+        <span key={thread.id}>
+          {peerName(thread.peer) ?? thread.peer} · {thread.peer}
+        </span>
+      ))}
+    </span>
+  )
+}
 
 // An artifact in miniature, once it loads; a held one is never loaded for a peek, which
 // a passing pointer opens.
@@ -79,15 +102,19 @@ const slot = (
 // hides, the menu opens or dismisses. Nothing opens on its own.
 export const Taskbar = ({
   companion,
+  mail,
+  peerName,
   trigger,
   open,
 }: {
   companion: CompanionHandle
+  mail: MailHandle
+  peerName: (handle: string) => string | undefined
   trigger: React.RefObject<HTMLButtonElement | null>
   open: boolean
 }): React.JSX.Element => {
   const { pane } = companion
-  const current = shownTab(pane)
+  const current = shownTab(pane, mail.present)
   const showing = (tab: string): boolean => open && current === tab
   const state = (tab: string, fresh: boolean): Indicator =>
     fresh ? "new" : showing(tab) ? "open" : "seen"
@@ -220,6 +247,46 @@ export const Taskbar = ({
           <Peek entries={images.map(peekOf)} />,
         )
       })}
+      {mail.present &&
+        slot(
+          mailTab,
+          "Messages",
+          [opening(mailTab)],
+          <button
+            // Focus comes back here when the pane hides, when nothing else is shown.
+            ref={pane.plans.length || slots.length ? undefined : trigger}
+            className="plan-tb-item"
+            data-state={state(mailTab, false)}
+            aria-label={`Messages${mail.badge ? `, ${mailBadgeLabel(mail.badge)}` : mail.paused ? ", messaging paused" : ""}`}
+            aria-pressed={showing(mailTab)}
+            onClick={() => activate(mailTab)}
+          >
+            <MessagesSquare size={20} strokeWidth={1.5} />
+            {mail.badge ? (
+              <b className="plan-tb-count" data-mail={mail.badge.kind} aria-hidden="true">
+                {mail.badge.count}
+              </b>
+            ) : (
+              mail.paused && (
+                <b className="plan-tb-count" data-mail="paused" aria-hidden="true">
+                  <Pause size={8} strokeWidth={2.5} />
+                </b>
+              )
+            )}
+          </button>,
+          <Peek
+            entries={[
+              {
+                id: mailTab,
+                name: "Messages",
+                icon: <MessagesSquare size={13} strokeWidth={1.5} />,
+                preview: <MailThumb mail={mail} peerName={peerName} />,
+                state: state(mailTab, false),
+                onOpen: () => companion.update((next) => openTab(next, mailTab)),
+              },
+            ]}
+          />,
+        )}
     </div>
   )
 }

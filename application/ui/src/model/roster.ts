@@ -1,4 +1,5 @@
 import { isShellProcess } from "./process"
+import { sameTitleSource } from "./title-source"
 import type { TerminalMetadata, TerminalRoster, TerminalStatus } from "./types"
 
 export const createRoster = (terminals: TerminalMetadata[]): TerminalRoster => ({
@@ -28,32 +29,35 @@ export const addTerminal = (
   terminals: [...roster.terminals, terminal],
 })
 
-// What the backend says of a terminal now: its name or directory.
+type TerminalFacts = Pick<TerminalMetadata, "name" | "directory" | "handle" | "titleSource">
+
+// What the backend says of a terminal now: its name or directory, its handle, and who
+// its name is from.
 export const updateTerminal = (
   roster: TerminalRoster,
   terminalId: string,
-  change: Partial<Pick<TerminalMetadata, "name" | "directory">>,
+  change: Partial<TerminalFacts>,
 ): TerminalRoster => {
   const current = roster.terminals.find((terminal) => terminal.id === terminalId)
   if (!current) return roster
-  const changed = Object.entries(change).some(
-    ([key, value]) => value !== undefined && current[key as keyof typeof change] !== value,
-  )
-  if (!changed) return roster
+  const { name, directory, handle, titleSource } = change
+  const facts: Partial<TerminalFacts> = {
+    ...(name !== undefined && name !== current.name && { name }),
+    ...(directory !== undefined && directory !== current.directory && { directory }),
+    ...(handle !== undefined && handle !== current.handle && { handle }),
+    ...(titleSource !== undefined &&
+      !sameTitleSource(titleSource, current.titleSource) && { titleSource }),
+  }
+  if (!Object.keys(facts).length) return roster
   return {
     ...roster,
     terminals: roster.terminals.map((terminal) =>
-      terminal === current
-        ? {
-            ...terminal,
-            ...(change.name !== undefined && { name: change.name }),
-            ...(change.directory !== undefined && { directory: change.directory }),
-          }
-        : terminal,
+      terminal === current ? { ...terminal, ...facts } : terminal,
     ),
   }
 }
 
+// The person names a terminal: the name is theirs.
 export const renameTerminal = (
   roster: TerminalRoster,
   terminalId: string,
@@ -63,7 +67,9 @@ export const renameTerminal = (
     ? {
         ...roster,
         terminals: roster.terminals.map((terminal) =>
-          terminal.id === terminalId ? { ...terminal, name } : terminal,
+          terminal.id === terminalId
+            ? { ...terminal, name, titleSource: { kind: "person" } }
+            : terminal,
         ),
       }
     : roster
