@@ -51,10 +51,16 @@ const requests = () => {
 const open = (app: (request: TerminalRequest, add: (command?: string) => string) => void) => {
   const asked = requests()
   const answers: TerminalRequestAnswer[] = []
+  // What the backend asked the runner to create.
+  const creates: Parameters<RunnerApi["terminals"]["create"]>[0][] = []
   const api: RunnerApi = {
     ...runner.client,
     terminals: {
       ...runner.client.terminals,
+      create: (input) => {
+        creates.push(input)
+        return runner.client.terminals.create(input)
+      },
       requests: () => asked.iterator,
       answerRequest: async (answer) => void answers.push(answer),
     },
@@ -104,7 +110,16 @@ const open = (app: (request: TerminalRequest, add: (command?: string) => string)
     await idle()
     return answers
   }
-  return { asked, answers, answered, received, request, stop, workspace: () => workspace }
+  return {
+    asked,
+    answers,
+    answered,
+    creates,
+    received,
+    request,
+    stop,
+    workspace: () => workspace,
+  }
 }
 
 describe("requests for a terminal through the runner backend", () => {
@@ -115,20 +130,24 @@ describe("requests for a terminal through the runner backend", () => {
         handed.push(request)
         request.answer({ terminalId: add(request.command) })
       })
-      const sent = app.request({ title: "Server", focus: true })
+      const sent = app.request({ focus: true })
       app.asked.push(sent)
       const [answer] = await app.answered(1)
       expect(handed).toEqual([
         {
           from: sent.from,
           directory: folder,
-          title: "Server",
           focus: true,
           answer: expect.any(Function),
         },
       ])
       const terminalId = (answer as { terminalId: string }).terminalId
       expect(answer).toEqual({ requestId: sent.requestId, terminalId })
+      // Created for the request, so the runner names it as the agent asked, never as the person.
+      expect(app.creates).toContainEqual(
+        expect.objectContaining({ id: terminalId, requestId: sent.requestId }),
+      )
+      expect(app.creates.find(({ id }) => id === terminalId)).not.toHaveProperty("title")
       const listed = await runner.client.terminals.list({ sessionId: sent.sessionId })
       expect(listed.find((terminal) => terminal.id === terminalId)?.cwd).toBe(folder)
       app.stop()

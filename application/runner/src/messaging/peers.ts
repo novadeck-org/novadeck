@@ -1,22 +1,23 @@
-import type { AgentName } from "@novadeck/protocol"
+import type { AgentName, TitleSource } from "@novadeck/protocol"
 
-import { busiestFolders, shorten, type Work } from "../terminals/work.js"
+import { busiestFolders, firstFrom, shorten, type Work } from "../terminals/work.js"
 import { agentLabel, clock, holdOf, type Message } from "./mailbox.js"
 
 /**
- * What the terminal manager knows of a terminal beyond messaging: its title and who gave
- * it (another terminal's handle when its agent did, null for the person); its folder,
- * relative to the project when inside it; its git branch; its current plan's title; what
- * its root session worked on; and how others read a folder it wrote in.
+ * What the terminal manager knows of a terminal beyond messaging: its title and who it
+ * is from; the summary its own agent described its work with; its folder, relative to
+ * the project when inside it; its git branch; its current plan's title; what its root
+ * session worked on; and how others read a folder it wrote in.
  */
 export type Whereabouts = {
   readonly title: string | null
-  readonly titledBy: string | null
+  readonly titleSource: TitleSource | null
+  readonly summary: string | null
   readonly folder: string | null
   readonly branch: string | null
   readonly plan: string | null
   readonly work: Work | null
-  /** The handle of the terminal whose agent opened it with a task, if one did. */
+  /** The handle of the terminal whose agent opened it, if one did. */
   readonly openedBy: string | null
   readonly place: (path: string) => string
 }
@@ -26,10 +27,11 @@ export type About = (terminalId: string) => Whereabouts | undefined
 
 /**
  * A terminal another can message, and what tells an agent which it is, all of it
- * NovaDeck's own knowledge, none of it an agent's say: its handle; the agent bound there;
- * its title, and who gave it; its folder and git branch; the person's first and latest
- * prompts there; its plan's title; the folders it writes in most; the latest message
- * between it and the caller; whether its agent is busy, and when it was last active.
+ * NovaDeck's own knowledge, and only what is marked so an agent's say: its handle; the
+ * agent bound there; its title, and who it is from; the summary its agent described its
+ * work with; its folder and git branch; the person's first and latest prompts there; its
+ * plan's title; the folders it writes in most; the latest message between it and the
+ * caller; whether its agent is busy, and when it was last active.
  */
 export type Peer = {
   readonly terminalId: string
@@ -38,12 +40,16 @@ export type Peer = {
   /** The agent it was opened to run, which messages may already be sent to, before it binds. */
   readonly expecting: AgentName | null
   readonly title: string | null
-  readonly titledBy: string | null
+  readonly titleSource: TitleSource | null
+  /** What its own agent said it works on, through `describe`. */
+  readonly summary: string | null
   readonly folder: string | null
   readonly branch: string | null
   readonly startedWith: string | null
-  /** Who opened it with a task, told where "started with" is unknown. */
+  /** Which terminal's agent opened it, told where "started with" is unknown. */
   readonly openedBy: string | null
+  /** The opener whose command "started with" is, not the user's; null when it is the user's. */
+  readonly startedBy: string | null
   /** Left out when it is the prompt it started with. */
   readonly latest: string | null
   readonly plan: string | null
@@ -57,7 +63,11 @@ export type Peer = {
 /** How long a message's excerpt shows, in characters. */
 export const excerptChars = 80
 
-/** The latest message between the caller and a peer, either way, shortened. */
+/**
+ * The latest message between the caller and a peer, either way, shortened: one the caller
+ * sent, or one delivered to it. A message still on its way to the caller (queued, held
+ * or leased) is never shown, so listing peers never gets past a pause or delivery.
+ */
 export const lastBetween = (
   messages: Iterable<Message>,
   self: string,
@@ -68,7 +78,9 @@ export const lastBetween = (
     const { from, to } = message
     const between =
       (from.terminalId === self && to.terminalId === peer.terminalId) ||
-      (from.terminalId === peer.terminalId && to.terminalId === self)
+      (from.terminalId === peer.terminalId &&
+        to.terminalId === self &&
+        message.state === "delivered")
     if (between && (!last || message.sentAt >= last.sentAt)) last = message
   }
   if (!last) return null
@@ -88,6 +100,7 @@ export const peerOf = (input: {
 }): Peer => {
   const { where, agent } = input
   const work = agent ? (where?.work ?? null) : null
+  const openedBy = where?.openedBy ?? null
   const place = where?.place ?? ((path: string) => path)
   return {
     terminalId: input.terminalId,
@@ -95,11 +108,14 @@ export const peerOf = (input: {
     agent,
     expecting: agent ? null : input.expecting,
     title: where?.title ?? null,
-    titledBy: where?.title ? where.titledBy : null,
+    titleSource: where?.title ? where.titleSource : null,
+    summary: where?.summary ?? null,
     folder: where?.folder ?? null,
     branch: where?.branch ?? null,
     startedWith: work?.first ?? null,
     openedBy: where?.openedBy ?? null,
+    // In a terminal an agent opened, a first prompt nobody submitted is its command's.
+    startedBy: firstFrom(work, openedBy) === "opener" ? openedBy : null,
     latest: work?.latest !== work?.first ? (work?.latest ?? null) : null,
     plan: agent ? (where?.plan ?? null) : null,
     worksIn: work
@@ -124,6 +140,16 @@ export const ago = (at: number, now: number): string => {
   return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`
 }
 
+/** Who a peer's title is from, as agents read it after the title; nothing for the person's. */
+const titleNote = (peer: Peer): string => {
+  const source = peer.titleSource
+  if (source?.kind === "agent")
+    return source.by === peer.handle
+      ? " (set by its own agent, not the user)"
+      : ` (set by ${source.by}, not the user)`
+  return source?.kind === "fallback" ? " (from the user's first prompt there)" : ""
+}
+
 /** One peer as agents read it: a short block, each fact left out when unknown. */
 export const renderPeer = (peer: Peer, now: number): readonly string[] =>
   [
@@ -134,12 +160,12 @@ export const renderPeer = (peer: Peer, now: number): readonly string[] =>
           ? `expecting ${agentLabel(peer.expecting)}, not started yet`
           : "no agent NovaDeck can deliver to"
     }`,
-    peer.title &&
-      `  title: ${peer.title}${peer.titledBy ? ` (set by ${peer.titledBy}, not the user)` : ""}`,
+    peer.title && `  title: ${peer.title}${titleNote(peer)}`,
+    peer.summary && `  described by its agent: ${peer.summary.split("\n").join(" / ")}`,
     peer.folder && `  folder: ${peer.folder}${peer.branch ? `, branch ${peer.branch}` : ""}`,
     peer.startedWith
-      ? `  started with: ${peer.startedWith}`
-      : peer.openedBy && `  opened by ${peer.openedBy} with a task`,
+      ? `  started with${peer.startedBy ? ` (${peer.startedBy}'s command)` : ""}: ${peer.startedWith}`
+      : peer.openedBy && `  opened by ${peer.openedBy}`,
     peer.latest && `  latest: ${peer.latest}`,
     peer.plan && `  plan: ${peer.plan}`,
     peer.worksIn.length > 0 &&

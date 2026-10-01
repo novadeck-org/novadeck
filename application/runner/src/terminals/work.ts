@@ -14,6 +14,17 @@ export type Work = {
   /** The session it is of, as `agent:session`. */
   readonly session: string
   readonly first: string | null
+  /**
+   * Whether the person's own submission started the turn of `first` (as delivery tells
+   * it, `byPerson`), so it is theirs; false for one nobody submitted, as an agent's
+   * command-line prompt; undefined until told.
+   */
+  readonly firstByPerson?: boolean
+  /**
+   * Whether it is the first root session of a terminal an agent opened, whose first
+   * prompt may be that agent's command; later sessions are the person's.
+   */
+  readonly opened?: true
   readonly latest: string | null
   /** Edits by folder, by absolute path, the `keptFolders` written in most. */
   readonly folders: { readonly [folder: string]: number }
@@ -25,10 +36,31 @@ export const promptChars = 120
 /** How many folders' edits are kept. */
 export const keptFolders = 20
 
-/** Text on one line, cut to `max` characters with an ellipsis. */
+/**
+ * Whose the root session's first prompt is: the `user`'s; the `opener`'s, in the first
+ * session of a terminal an agent opened, when the person's own submission didn't start it
+ * (or that isn't told yet), as the opener's command-line prompt; null without one.
+ */
+export const firstFrom = (work: Work | null, openedBy: string | null): "user" | "opener" | null => {
+  if (!work?.first) return null
+  if (openedBy === null || work.opened !== true) return "user"
+  return work.firstByPerson === true ? "user" : "opener"
+}
+
+/** The work once told whether the person's own submission started its first prompt; told once. */
+export const judgedFirst = (work: Work, byPerson: boolean): Work =>
+  !work.first || work.firstByPerson !== undefined ? work : { ...work, firstByPerson: byPerson }
+
+/** Text on one line, cut to `max` characters (code points, never half of one) with an ellipsis. */
 export const shorten = (text: string, max: number): string => {
   const line = text.replace(/\s+/g, " ").trim()
-  return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line
+  const characters = [...line]
+  return characters.length > max
+    ? `${characters
+        .slice(0, max - 1)
+        .join("")
+        .trimEnd()}…`
+    : line
 }
 
 const sessionOf = (root: Root): string => `${root.agent}:${root.sessionId}`

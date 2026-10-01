@@ -58,6 +58,8 @@ type Live = Scope & {
    * none once a root session has, when only a bound session takes messages.
    */
   expecting: AgentName | null
+  /** The prompt that started the current root turn, by its delivery epoch; null before any. */
+  prompt: { readonly epoch: number; readonly text: string } | null
 }
 
 /** What `send` answers: where the message is, or why it was refused. */
@@ -166,6 +168,8 @@ export class Messaging {
   private readonly threads = new Map<string, Thread>()
   private readonly leases: Leases
   private paused: boolean
+  /** Every message leased in this runner's lifetime, as one its hook may have printed. */
+  private readonly everLeased = new Set<string>()
   // Send times, for the rates: by sender, by sender and recipient, and all.
   private readonly sent = new Map<string, readonly number[]>()
   private readonly pairs = new Map<string, readonly number[]>()
@@ -219,6 +223,7 @@ export class Messaging {
       root: null,
       delivery: unbound,
       expecting: null,
+      prompt: null,
     })
   }
 
@@ -396,6 +401,37 @@ export class Messaging {
       )
         return true
     return false
+  }
+
+  /**
+   * The text of the person's prompt that started the root turn running in the terminal,
+   * as its hooks or transcript told it; undefined unless that turn is the person's own
+   * submission (never one the doorbell or the harness started).
+   */
+  personPrompt(terminalId: string): string | undefined {
+    const live = this.live.get(terminalId)
+    if (!live) return undefined
+    const { delivery, prompt } = live
+    if (!running(delivery) || !delivery.byPerson || prompt?.epoch !== delivery.epoch)
+      return undefined
+    return prompt.text
+  }
+
+  /**
+   * The texts of the messages that may have reached the terminal's root session: delivered,
+   * or ever leased to its hooks, as a lease that lapsed may still have been printed.
+   */
+  receivedTexts(terminalId: string): readonly string[] {
+    const root = this.live.get(terminalId)?.root
+    if (!root) return []
+    return [...this.messages.values()]
+      .filter(
+        (message) =>
+          message.to.terminalId === terminalId &&
+          (message.state === "delivered" || this.everLeased.has(message.id)) &&
+          this.addressed(message, root),
+      )
+      .map(({ text }) => text)
   }
 
   /** When the terminal last became Settled, if it is. */
@@ -715,7 +751,10 @@ export class Messaging {
         !this.exists(message.to.terminalId) &&
         now - Math.max(message.sentAt, message.deliveredAt ?? 0) >= retentionMs,
     )
-    for (const { id } of old) this.messages.delete(id)
+    for (const { id } of old) {
+      this.messages.delete(id)
+      this.everLeased.delete(id)
+    }
     if (old.length > 0) this.write(() => this.records.removeMessages(old.map(({ id }) => id)))
     const kept = new Set([...this.messages.values()].map(({ thread }) => thread))
     const threads = [...this.threads.keys()].filter((id) => !kept.has(id))
@@ -833,7 +872,10 @@ export class Messaging {
       (taken) => byteLength(encode(wrap(taken))) <= maxDeliveryBytes,
     )
     if (messages.length === 0) return undefined
-    for (const message of messages) this.put({ ...message, state: "leased" })
+    for (const message of messages) {
+      this.everLeased.add(message.id)
+      this.put({ ...message, state: "leased" })
+    }
     return this.leases.grant({
       terminalId: live.terminalId,
       messages: messages.map((message) => message.id),
@@ -937,7 +979,8 @@ export class Messaging {
   private turn(live: Live, event: HarnessEvent): void {
     if (!rootedIn(live.root, event)) return
     switch (event.type) {
-      case "turn-started":
+      case "turn-started": {
+        const { epoch } = live.delivery
         // Whose turn it is, and what it did to the box, delivery alone decides.
         this.step(live, {
           type: "prompt",
@@ -945,7 +988,14 @@ export class Messaging {
           ...(event.nonce !== undefined && { nonce: event.nonce }),
           at: this.now(),
         })
+        // A new root turn: the prompt that started it, if a prompt with text did.
+        if (live.delivery.epoch !== epoch)
+          live.prompt =
+            event.cause === "prompt" && event.prompt !== undefined
+              ? { epoch: live.delivery.epoch, text: event.prompt }
+              : null
         return
+      }
       case "turn-ended":
         if (event.outcome === "completed")
           this.step(live, {

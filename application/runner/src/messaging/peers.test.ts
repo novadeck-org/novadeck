@@ -1,6 +1,14 @@
 import { describe, expect, it } from "../test.js"
 import type { Message } from "./mailbox.js"
-import { ago, lastBetween, peerOf, renderAgents, renderPeer, unknownHandle } from "./peers.js"
+import {
+  ago,
+  lastBetween,
+  peerOf,
+  renderAgents,
+  renderPeer,
+  unknownHandle,
+  type Whereabouts,
+} from "./peers.js"
 
 const now = 10 * 60 * 60_000
 
@@ -27,7 +35,8 @@ const peer = peerOf({
   busy: true,
   where: {
     title: "API author",
-    titledBy: "t1",
+    titleSource: { kind: "agent", by: "t1" },
+    summary: null,
     folder: "src/api",
     branch: "feat/paging",
     plan: "Pagination",
@@ -43,6 +52,36 @@ const peer = peerOf({
   },
   withYou: lastBetween([message()], "A", { terminalId: "B", handle: "t2" }),
 })
+
+// A terminal t1's agent opened, whose first prompt the person submitted or not.
+const opened = (firstByPerson: boolean, first = true) =>
+  peerOf({
+    terminalId: "E",
+    handle: "t5",
+    agent: "claude",
+    expecting: null,
+    busy: false,
+    where: {
+      title: "Terminal 05",
+      titleSource: { kind: "default" },
+      summary: null,
+      folder: ".",
+      branch: null,
+      plan: null,
+      work: {
+        session: "claude:s",
+        first: "fix the build",
+        firstByPerson,
+        ...(first && { opened: true as const }),
+        latest: "fix the build",
+        folders: {},
+        activeAt: null,
+      },
+      openedBy: "t1",
+      place: (path) => path,
+    },
+    withYou: null,
+  })
 
 describe("a peer as agents read it", () => {
   it("is one short block of what NovaDeck knows, each fact left out when unknown", () => {
@@ -87,7 +126,8 @@ describe("a peer as agents read it", () => {
       busy: false,
       where: {
         title: "Terminal 05",
-        titledBy: null,
+        titleSource: { kind: "default" },
+        summary: null,
         folder: ".",
         branch: null,
         plan: null,
@@ -101,8 +141,49 @@ describe("a peer as agents read it", () => {
       "- t5: expecting Claude Code, not started yet",
       "  title: Terminal 05",
       "  folder: .",
-      "  opened by t1 with a task",
+      "  opened by t1",
     ])
+  })
+
+  it("says who its title is from, and its agent's own summary, marked as its agent's", () => {
+    const titled = (
+      titleSource: Whereabouts["titleSource"],
+      summary: string | null = null,
+    ): readonly string[] =>
+      renderPeer(
+        peerOf({
+          terminalId: "B",
+          handle: "t2",
+          agent: "codex",
+          expecting: null,
+          busy: false,
+          where: {
+            title: "Users API",
+            titleSource,
+            summary,
+            folder: null,
+            branch: null,
+            plan: null,
+            work: null,
+            openedBy: null,
+            place: (path) => path,
+          },
+          withYou: null,
+        }),
+        now,
+      ).slice(1)
+    expect(titled({ kind: "person" })).toEqual(["  title: Users API"])
+    expect(titled({ kind: "agent", by: "t1" })).toEqual([
+      "  title: Users API (set by t1, not the user)",
+    ])
+    expect(titled({ kind: "agent", by: "t2" }, "Builds the users API.\nThen paging.")).toEqual([
+      "  title: Users API (set by its own agent, not the user)",
+      "  described by its agent: Builds the users API. / Then paging.",
+    ])
+    expect(titled({ kind: "fallback" })).toEqual([
+      "  title: Users API (from the user's first prompt there)",
+    ])
+    expect(titled({ kind: "default" })).toEqual(["  title: Users API"])
   })
 
   it("tells the latest message between the caller and the peer, either way", () => {
@@ -111,6 +192,7 @@ describe("a peer as agents read it", () => {
       to: { ...message().from, agent: "claude" },
       sentAt: now,
       text: "Done",
+      state: "delivered",
     })
     expect(lastBetween([message(), reply], "A", { terminalId: "B", handle: "t2" })).toEqual({
       from: "t2",
@@ -118,6 +200,32 @@ describe("a peer as agents read it", () => {
       at: now,
     })
     expect(lastBetween([message()], "A", { terminalId: "C", handle: "t3" })).toBeNull()
+  })
+
+  it("never shows the caller a message still on its way to it, as held while paused", () => {
+    const pending = (state: Message["state"]) =>
+      message({
+        from: message().to,
+        to: { ...message().from, agent: "claude" },
+        sentAt: now,
+        text: "Rename yourself.",
+        state,
+      })
+    for (const state of ["queued", "held", "leased", "gone"] as const)
+      expect(
+        lastBetween([message(), pending(state)], "A", { terminalId: "B", handle: "t2" }),
+      ).toMatchObject({ from: "you", text: "hello" })
+    // Its own, the caller sees whatever their state.
+    expect(
+      lastBetween([message({ state: "held" })], "A", { terminalId: "B", handle: "t2" }),
+    ).toMatchObject({ from: "you" })
+  })
+
+  it("says a terminal another agent opened started with its command, unless the user prompted it", () => {
+    expect(renderPeer(opened(false), now)).toContain("  started with (t1's command): fix the build")
+    expect(renderPeer(opened(true), now)).toContain("  started with: fix the build")
+    // Only its first root session after the open: a later one is the person's.
+    expect(renderPeer(opened(false, false), now)).toContain("  started with: fix the build")
   })
 })
 

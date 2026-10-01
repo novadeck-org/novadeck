@@ -64,14 +64,13 @@ export type BackendAction = Extract<
 >
 
 // An agent in terminal `from` asked for a new terminal beside it: in `directory`,
-// running `command` at its first prompt, named `title` where given. `focus` when the
-// person asked to see it. The app answers once: the terminal it added, which the backend
+// running `command` at its first prompt; `focus` when the person asked to see it. The
+// backend names it as the agent asked. The app answers once: the terminal it added, which the backend
 // then starts with the request's command, or why it couldn't, in a sentence for the agent.
 export type TerminalRequest = {
   readonly from: string
   readonly directory: string
   readonly command?: string
-  readonly title?: string
   readonly focus: boolean
   readonly answer: (result: { readonly terminalId: string } | { readonly reason: string }) => void
 }

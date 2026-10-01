@@ -11,6 +11,7 @@ const summary: TerminalSummary = {
   id: "terminal",
   sessionId: "session",
   title: "Terminal 01",
+  titleSource: { kind: "default" },
   handle: "t1",
   started: true,
   command: null,

@@ -132,13 +132,14 @@ describe("NovaDeck's MCP server", () => {
       NOVADECK_REPORT_TOKEN: token,
     })
 
-    it("offers its tools: show, open_terminal, send and agents", async () => {
+    it("offers its tools: show, open_terminal, send, agents and describe", async () => {
       const [, tools] = await session(terminal(), [initialize, list])
       expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
         "show",
         "open_terminal",
         "send",
         "agents",
+        "describe",
       ])
       // Each as MCP lists a tool, without what the server keeps for itself.
       for (const tool of tools?.result?.tools ?? [])
@@ -252,6 +253,43 @@ describe("NovaDeck's MCP server", () => {
       ])
       expect((waits!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
         /doesn't trust this folder yet, so it started without its task: message m-1 reaches it with the user's first prompt there\./,
+      )
+    })
+
+    it("describes only its own terminal, and says when the title stayed", async () => {
+      calls.length = 0
+      const described = async (runner: unknown) => {
+        answer = runner
+        const [, said] = await session(terminal(), [
+          initialize,
+          {
+            id: 3,
+            method: "tools/call",
+            params: {
+              name: "describe",
+              // A target is no argument it takes.
+              arguments: { title: "API", summary: "Builds the users API.", to: "t2" },
+            },
+          },
+        ])
+        return (said!.result as { content: { text: string }[] }).content[0]?.text
+      }
+      await expect(described({ ok: true, title: "API" })).resolves.toBe(
+        'Described this terminal as "API", with your summary.',
+      )
+      expect(calls).toEqual([
+        {
+          type: "describe",
+          terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
+          token,
+          request: { title: "API", summary: "Builds the users API." },
+        },
+      ])
+      await expect(described({ ok: true, title: "Mine", kept: "person" })).resolves.toBe(
+        'The user named this terminal "Mine", so that title stays; your summary is saved.',
+      )
+      await expect(described({ ok: true, title: "Mine", kept: "unasked" })).resolves.toBe(
+        "Not renamed: the user named this terminal. Suggest the title to them. Your summary is saved.",
       )
     })
 
@@ -540,6 +578,7 @@ describe("NovaDeck's MCP server", () => {
           "open_terminal",
           "send",
           "agents",
+          "describe",
         ])
         expect(shown?.result).toMatchObject({ isError: false })
         expect(calls).toHaveLength(1)

@@ -66,7 +66,8 @@ again. A terminal no view shows keeps them while its session is on screen and le
 go a moment after its session leaves the screen or the terminal closes.
 
 The runner owns every terminal: which terminals a session has, their names (the ones
-you give them, or its own "Terminal 01", "Terminal 02", … per session), directories, what
+you give them; else one an agent gave, or your first prompt to its agent, shortened;
+else its own "Terminal 01", "Terminal 02", … per session), directories, what
 they run and the program each last had in its foreground (only its name, never its
 command line, which can hold secrets). The UI shows them, renames through the runner,
 and saves only how it shows them: layouts, sidebar order, the view and the selection,

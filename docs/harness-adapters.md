@@ -425,6 +425,10 @@ Besides the facts shared with the agent model, decoders give
   turn ended abnormally (an Esc or a denial).
 - `file-touched` names a file an actor wrote or edited, from its write and edit tools,
   for the folders a session works in.
+- `session-observed` has `compacted` when the harness says it compacted the session's
+  context: Claude Code's and Codex's `SessionStart` with source `compact`. Antigravity
+  reports no compaction. It nudges the agent to describe its terminal again (see
+  [Self-description](agent-messaging.md#self-description)).
 
 ### Messaging profile
 

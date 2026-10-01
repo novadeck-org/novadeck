@@ -20,6 +20,7 @@ const summary = (
   id: uuid(n),
   sessionId: uuid(session),
   title: `Terminal ${n}`,
+  titleSource: { kind: "default" },
   handle: `t${n}`,
   started: true,
   command: null,

@@ -116,9 +116,12 @@ export const contract = {
             restore: z.boolean().optional(),
             resume: agentName.optional(),
             command: startupCommand.optional(),
-            // Its title; a restored terminal keeps its saved one, and a new one takes the
-            // session's next default, when left out.
+            // Its title, the person's; a restored terminal keeps its saved one, and a new
+            // one takes the session's next default, when left out.
             title: terminalTitle.optional(),
+            // The agent's request this terminal answers (`requests`): it takes the title
+            // that agent asked for, as the agent's.
+            requestId: id.optional(),
           })
           .refine(({ command, restore, resume }) => !command || (!restore && !resume), {
             message: "A terminal either starts a command or restores what it ran, not both.",
@@ -160,6 +163,10 @@ export const contract = {
     rename: procedure
       .input(z.strictObject({ terminalId: id, title: terminalTitle }))
       .output(z.void()),
+    // Hands a terminal's title back to NovaDeck: the title the person gave it goes, and it
+    // takes the one an agent gave it last, the person's first prompt there, or its
+    // default, as `rename` does announcing it. TERMINAL_NOT_FOUND as for `rename`.
+    resetTitle: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
     // Starts a fresh shell in an exited terminal, keeping its id, session and cwd; the
     // caller gains control. A running terminal is a CONFLICT. The earlier shell's screen
     // shows above the new one's, unless `resume` resumes an agent session, as for create.

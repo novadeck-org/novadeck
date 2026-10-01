@@ -241,25 +241,44 @@ export const startupCommand = z
 
 // The title the person gives a terminal: one line, without control characters. The
 // runner owns it, keeps it with the terminal, and every client shows it.
-export const terminalTitle = name.regex(
-  // eslint-disable-next-line no-control-regex -- These are the characters it refuses.
-  /^[^\x00-\x1f\x7f]*$/,
-  "A title must be one line, without control characters.",
-)
+export const terminalTitle = z
+  .string()
+  .trim()
+  .min(1)
+  // In characters, never half of one: an emoji counts once.
+  .refine((title) => [...title].length <= 200, "A title holds at most 200 characters.")
+  .regex(
+    // eslint-disable-next-line no-control-regex -- These are the characters it refuses.
+    /^[^\x00-\x1f\x7f]*$/,
+    "A title must be one line, without control characters.",
+  )
 
 // A terminal's handle: `t` and a number its NovaDeck session gives it as it is created,
 // never twice, from the same count as its default title ("Terminal 03" is `t3`). It
 // stays as the terminal is renamed, and agents address each other by it.
 export const handle = z.string().regex(/^t[1-9][0-9]{0,8}$/)
 
+// Who a terminal's title is from: the person; an agent, by its terminal's handle (the
+// one that opened it with a title, or its own through `describe`); the person's first
+// prompt of its agent's root session (`fallback`); or its session's `default`.
+export const titleSource = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("person") }),
+  z.strictObject({ kind: z.literal("agent"), by: handle }),
+  z.strictObject({ kind: z.literal("fallback") }),
+  z.strictObject({ kind: z.literal("default") }),
+])
+
 // The runner owns every terminal's identity and facts: which terminals a session has, their
 // titles, directories, what they run and ran. Clients keep only how they show them.
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
-  // The title the person gave the terminal, or the runner's default for its session
-  // ("Terminal 01", "Terminal 02", … in the order they were created).
+  // The title the person gave the terminal; else the one an agent gave it last, or the
+  // person's first prompt to its agent, shortened; else the runner's default for its
+  // session ("Terminal 01", "Terminal 02", … in the order they were created).
   title: terminalTitle,
+  // Who the title is from.
+  titleSource,
   // Its handle, which never changes.
   handle,
   // Whether the runner started a shell for it in this lifetime. A terminal it keeps only
@@ -294,16 +313,15 @@ export const terminalSummary = z.strictObject({
 })
 
 // `terminals.requests` items: an agent in terminal `from` asked, through NovaDeck's MCP
-// server, for a new terminal beside it, in `cwd`, starting `command` at its first prompt
-// and named `title` where given. `focus` when the person asked to see it.
+// server, for a new terminal beside it, in `cwd`, starting `command` at its first prompt;
+// `focus` when the person asked to see it. A title the agent asked for is the runner's to
+// give, as the agent's: the client creates the terminal with `requestId`.
 export const terminalRequest = z.strictObject({
   requestId: id,
   from: id,
   sessionId: id,
   cwd: directory,
   command: startupCommand.optional(),
-  // As the terminal will be titled, so a request the runner can't create is refused first.
-  title: terminalTitle.optional(),
   focus: z.boolean(),
 })
 
@@ -435,6 +453,7 @@ export type WorkspaceSession = z.infer<typeof workspaceSession>
 export type TerminalExit = z.infer<typeof terminalExit>
 export type ForegroundProcess = z.infer<typeof foregroundProcess>
 export type TerminalSummary = z.infer<typeof terminalSummary>
+export type TitleSource = z.infer<typeof titleSource>
 export type TerminalChange = z.infer<typeof terminalChange>
 export type TerminalRequest = z.infer<typeof terminalRequest>
 export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>

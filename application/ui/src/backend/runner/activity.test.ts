@@ -7,6 +7,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   id: "00000000-0000-4000-8000-000000000001",
   sessionId: "00000000-0000-4000-8000-000000000002",
   title: "Terminal 01",
+  titleSource: { kind: "default" },
   handle: "t1",
   started: true,
   command: null,

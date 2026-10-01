@@ -1,7 +1,18 @@
 import type { HarnessEvent } from "../harnesses/events.js"
 import type { Root } from "../harnesses/roots.js"
 import { describe, expect, it } from "../test.js"
-import { busiestFolders, keptFolders, promptChars, shorten, tallied, workAfter } from "./work.js"
+import {
+  busiestFolders,
+  firstFrom,
+  freshWork,
+  judgedFirst,
+  keptFolders,
+  promptChars,
+  shorten,
+  tallied,
+  workAfter,
+  type Work,
+} from "./work.js"
 
 const root: Root = { agent: "codex", sessionId: "s1", instance: "2", source: "binding" }
 const fact = { agent: "codex", sessionId: "s1", instance: "2", startedAt: 1 } as const
@@ -99,5 +110,37 @@ describe("what a root session worked on", () => {
   it("shortens text to one line", () => {
     expect(shorten("add\n  pagination   to /users", 120)).toBe("add pagination to /users")
     expect(shorten("x".repeat(130), 120)).toBe(`${"x".repeat(119)}…`)
+  })
+})
+
+// A root session's work with its first prompt.
+const first = (fields: Partial<Work> = {}): Work => ({
+  ...freshWork("claude:s1"),
+  first: "fix the build",
+  latest: "fix the build",
+  ...fields,
+})
+
+describe("whose a root session's first prompt is", () => {
+  it("is the user's in a terminal the person opened, however it came", () => {
+    expect(firstFrom(first({ firstByPerson: false }), null)).toBe("user")
+    expect(firstFrom(first(), null)).toBe("user")
+    expect(firstFrom(freshWork("claude:s1"), null)).toBeNull()
+    expect(firstFrom(null, "t1")).toBeNull()
+  })
+
+  it("is the opener's in an agent-opened terminal's first session, unless the person submitted it", () => {
+    expect(firstFrom(first({ opened: true, firstByPerson: false }), "t1")).toBe("opener")
+    // Not told yet: the opener's, until told otherwise.
+    expect(firstFrom(first({ opened: true }), "t1")).toBe("opener")
+    expect(firstFrom(first({ opened: true, firstByPerson: true }), "t1")).toBe("user")
+    // A later session there is the person's.
+    expect(firstFrom(first({ firstByPerson: false }), "t1")).toBe("user")
+  })
+
+  it("is told once, and only of a first prompt", () => {
+    expect(judgedFirst(first(), true).firstByPerson).toBe(true)
+    expect(judgedFirst(first({ firstByPerson: false }), true).firstByPerson).toBe(false)
+    expect(judgedFirst(freshWork("claude:s1"), true)).toEqual(freshWork("claude:s1"))
   })
 })

@@ -8,11 +8,13 @@ import type { AgentName, Project, RunnerSettings, WorkspaceSession } from "@nova
 import { DomainError } from "../errors.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
 import type { MailboxRecords } from "../messaging/records.js"
+import type { Naming } from "../terminals/naming.js"
 import type {
   ListedTerminal,
   SavedTerminal,
   TerminalIdentity,
   TerminalRecords,
+  TerminalToSave,
 } from "../terminals/records.js"
 import type { Work } from "../terminals/work.js"
 
@@ -58,11 +60,14 @@ const extras = `
     -- The screen and scrollback, serialized; null when not kept.
     transcript TEXT,
     updated_at REAL NOT NULL,
-    -- The title the person gave it, or its session's default.
-    title TEXT NOT NULL,
-    -- The handle of the terminal whose agent titled it; null when the person did.
-    titled_by TEXT,
-    -- The handle of the terminal whose agent opened it with a task; null otherwise.
+    -- The title the person gave it; null when its title is automatic.
+    person_title TEXT,
+    -- The latest title an agent gave it, and that agent's terminal's handle.
+    agent_title TEXT,
+    agent_titled_by TEXT,
+    -- What its own agent said it works on, through describe.
+    summary TEXT,
+    -- The handle of the terminal whose agent opened it; null otherwise.
     opened_by TEXT,
     -- The command it was opened to run at its first prompt.
     command TEXT,
@@ -224,8 +229,10 @@ type TerminalRow = {
   transcript: string | null
   updated_at: number
   handle: string
-  title: string
-  titled_by: string | null
+  person_title: string | null
+  agent_title: string | null
+  agent_titled_by: string | null
+  summary: string | null
   opened_by: string | null
   command: string | null
   last_program: string | null
@@ -241,13 +248,23 @@ const workOf = (text: string | null): Work | null => {
   }
 }
 
+type NamingRow = Pick<TerminalRow, "person_title" | "agent_title" | "agent_titled_by" | "summary">
+
+const namingOf = (row: NamingRow): Naming => ({
+  person: row.person_title,
+  agent:
+    row.agent_title !== null && row.agent_titled_by !== null
+      ? { title: row.agent_title, by: row.agent_titled_by }
+      : null,
+  summary: row.summary,
+})
+
 const listed = (row: Omit<TerminalRow, "transcript">): ListedTerminal => ({
   id: row.id,
   sessionId: row.session_id,
   handle: row.handle,
-  title: row.title,
+  naming: namingOf(row),
   work: workOf(row.work),
-  titledBy: row.titled_by,
   openedBy: row.opened_by,
   command: row.command,
   lastProgram: row.last_program,
@@ -423,8 +440,8 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords {
 
   terminal(terminalId: string): SavedTerminal | undefined {
     const row = this.queries.get`
-      SELECT id, session_id, cwd, agents, prompted_at, transcript, updated_at, handle, title,
-        titled_by, opened_by, command, last_program, work
+      SELECT id, session_id, cwd, agents, prompted_at, transcript, updated_at, handle,
+        person_title, agent_title, agent_titled_by, summary, opened_by, command, last_program, work
       FROM terminals WHERE id = ${terminalId}
     ` as TerminalRow | undefined
     return row && { ...listed(row), transcript: row.transcript }
@@ -434,12 +451,14 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords {
     const rows = (
       sessionId === undefined
         ? this.queries.all`
-          SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle, title,
-            titled_by, opened_by, command, last_program, work
+          SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle,
+            person_title, agent_title, agent_titled_by, summary, opened_by, command,
+            last_program, work
           FROM terminals ORDER BY CAST(substr(handle, 2) AS INTEGER), rowid`
         : this.queries.all`
-          SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle, title,
-            titled_by, opened_by, command, last_program, work
+          SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle,
+            person_title, agent_title, agent_titled_by, summary, opened_by, command,
+            last_program, work
           FROM terminals WHERE session_id = ${sessionId}
           ORDER BY CAST(substr(handle, 2) AS INTEGER), rowid`
     ) as Omit<TerminalRow, "transcript">[]
@@ -455,63 +474,62 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords {
     return row.last
   }
 
-  renameTerminal(terminalId: string, title: string): boolean {
+  renameTerminal(terminalId: string, title: string | null): boolean {
     const result = this.queries
-      .run`UPDATE terminals SET title = ${title}, titled_by = NULL WHERE id = ${terminalId}`
+      .run`UPDATE terminals SET person_title = ${title} WHERE id = ${terminalId}`
     return result.changes > 0
   }
 
   terminalIdentity(terminalId: string): TerminalIdentity | undefined {
     const row = this.queries.get`
-      SELECT handle, title, titled_by AS titledBy, opened_by AS openedBy FROM terminals
-      WHERE id = ${terminalId}
-    ` as TerminalIdentity | undefined
-    return (
-      row && {
-        handle: row.handle,
-        title: row.title,
-        titledBy: row.titledBy,
-        openedBy: row.openedBy,
-      }
-    )
+      SELECT handle, person_title, agent_title, agent_titled_by, summary, opened_by
+      FROM terminals WHERE id = ${terminalId}
+    ` as (NamingRow & Pick<TerminalRow, "handle" | "opened_by">) | undefined
+    return row && { handle: row.handle, naming: namingOf(row), openedBy: row.opened_by }
   }
 
   /** Saves what restores the terminal; `transcript` is left as it is when omitted. */
-  saveTerminal(
-    terminal: Omit<SavedTerminal, "transcript" | "savedAt"> & { transcript?: string | null },
-  ): void {
+  saveTerminal(terminal: TerminalToSave): void {
     const agents = JSON.stringify(terminal.agents)
     // Strictly increasing, so saves in the same millisecond still sort by recency.
     const now = Math.max(Date.now(), this.lastSave + 0.001)
     this.lastSave = now
-    const { handle, title, titledBy, openedBy, command, lastProgram } = terminal
+    const { handle, naming, openedBy, command, lastProgram } = terminal
+    const { person, summary } = naming
+    const agentTitle = naming.agent?.title ?? null
+    const agentBy = naming.agent?.by ?? null
     const work = terminal.work === null ? null : JSON.stringify(terminal.work)
     if (terminal.transcript === undefined)
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, updated_at, handle,
-          title, titled_by, opened_by, command, last_program, work)
+          person_title, agent_title, agent_titled_by, summary, opened_by, command,
+          last_program, work)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
-          ${terminal.promptedAt}, ${now}, ${handle}, ${title}, ${titledBy}, ${openedBy},
-          ${command}, ${lastProgram}, ${work})
+          ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${agentTitle}, ${agentBy},
+          ${summary}, ${openedBy}, ${command}, ${lastProgram}, ${work})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agents = excluded.agents, prompted_at = excluded.prompted_at,
-          updated_at = excluded.updated_at, handle = excluded.handle, title = excluded.title,
-          titled_by = excluded.titled_by, opened_by = excluded.opened_by,
-          command = excluded.command,
+          updated_at = excluded.updated_at, handle = excluded.handle,
+          person_title = excluded.person_title, agent_title = excluded.agent_title,
+          agent_titled_by = excluded.agent_titled_by, summary = excluded.summary,
+          opened_by = excluded.opened_by, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work
       `
     else
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, transcript, updated_at,
-          handle, title, titled_by, opened_by, command, last_program, work)
+          handle, person_title, agent_title, agent_titled_by, summary, opened_by, command,
+          last_program, work)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
-          ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${title},
-          ${titledBy}, ${openedBy}, ${command}, ${lastProgram}, ${work})
+          ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${person},
+          ${agentTitle}, ${agentBy}, ${summary}, ${openedBy}, ${command}, ${lastProgram},
+          ${work})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agents = excluded.agents, prompted_at = excluded.prompted_at,
           transcript = excluded.transcript, updated_at = excluded.updated_at,
-          handle = excluded.handle, title = excluded.title, titled_by = excluded.titled_by,
-          opened_by = excluded.opened_by, command = excluded.command,
+          handle = excluded.handle, person_title = excluded.person_title,
+          agent_title = excluded.agent_title, agent_titled_by = excluded.agent_titled_by,
+          summary = excluded.summary, opened_by = excluded.opened_by, command = excluded.command,
           last_program = excluded.last_program,
           work = excluded.work
       `

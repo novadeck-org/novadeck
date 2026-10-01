@@ -323,19 +323,18 @@ describe("workspace commands", () => {
     it("adds it beside the asking terminal as the + button would, without taking focus", () => {
       const app = openCommands({ url: "/projects/project/sessions/initial/canvas?terminal=01" })
       const urls = app.urls.length
-      const { asked, answers } = asking({ title: "Agent" })
+      const { asked, answers } = asking()
       app.commands.openRequested(asked)
-      // The backend names it as the agent asked.
+      // The backend names it: a title the agent asked for is the runner's to give.
       expect(app.allocated).toEqual([
         {
           target: { projectId: "project", workspaceSessionId: "initial" },
           directory: "/work/app",
-          title: "Agent",
           launch: { command: "claude" },
         },
       ])
       const added = terminal(app, "new-3")
-      expect(added).toMatchObject({ name: "Agent", directory: "/work/app" })
+      expect(added).toMatchObject({ directory: "/work/app" })
       expect(app.state().layout.canvas.geometry["new-3"]).toBeDefined()
       expect(app.state().layout.grid.desktop?.some((item) => item.i === "new-3")).toBe(true)
       // The selection, the URL and any rename stay as they were.

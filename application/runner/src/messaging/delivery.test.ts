@@ -233,6 +233,24 @@ describe("the person's submission", () => {
   })
 })
 
+describe("whose turn it is", () => {
+  it("is the person's only when their own submission started it", () => {
+    expect(working.byPerson).toBe(true)
+    // A prompt nobody's Enter came before, the harness's, or the doorbell's, is not.
+    expect(run(settled, prompted()).byPerson).toBe(false)
+    expect(run(settled, harness).byPerson).toBe(false)
+    expect(run(settled, enter, harness).byPerson).toBe(false)
+    expect(run(settled, { type: "prompt", by: "doorbell", nonce: "k3f9", at }).byPerson).toBe(false)
+    // It stays the person's turn through its later calls and continuations, until another.
+    expect(run(working, call, continued, prompted()).byPerson).toBe(true)
+    expect(run(working, stop, harness).byPerson).toBe(false)
+    // A call while no turn runs resumes one, but nothing says the person started it.
+    expect(run(working, stop, call).byPerson).toBe(false)
+    expect(run(working, ended, call).byPerson).toBe(false)
+    expect(run(working, { type: "bound" }).byPerson).toBe(false)
+  })
+})
+
 describe("keys while a request waits on the person", () => {
   const asked = (kind: KeyKind) => key(kind, at, true)
 

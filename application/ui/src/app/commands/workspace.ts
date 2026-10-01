@@ -308,7 +308,6 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const terminal = newTerminal({
         target,
         directory: request.directory,
-        ...(request.title ? { title: request.title } : {}),
         launch: request.command === undefined ? {} : { command: request.command },
       })
       const add: WorkspaceAction = {

@@ -25,6 +25,11 @@ export type SessionObserved = {
    * its hooks name subagents' conversations alike.
    */
   readonly root?: boolean
+  /**
+   * Whether the harness reports that it compacted the session's context, as Claude Code's
+   * and Codex's SessionStart with source `compact` do.
+   */
+  readonly compacted?: boolean
 }
 
 /**

@@ -61,6 +61,7 @@ export const keptSummary = (
   id: terminalId,
   sessionId,
   title: "Terminal 01",
+  titleSource: { kind: "default" },
   handle: "t1",
   started: false,
   command: null,

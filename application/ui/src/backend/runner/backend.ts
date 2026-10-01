@@ -75,7 +75,13 @@ export type TerminalSize = { readonly cols: number; readonly rows: number }
 
 // Where a terminal an agent asked for starts and what it runs, from `newTerminal` on, and
 // why its creation failed, once it did.
-type Launch = { readonly cwd: string; readonly command?: string; failure?: unknown }
+type Launch = {
+  readonly cwd: string
+  readonly command?: string
+  /** The agent's request it opens for, which names it as that agent asked. */
+  readonly requestId?: string
+  failure?: unknown
+}
 
 // What the agent hears when the terminal it asked for couldn't start.
 const launchFailure = (launch: Launch | undefined): string => {
@@ -324,9 +330,11 @@ export const runnerBackend = (
   const adopted = new Map<string, TerminalSummary>()
   // Names the person gave terminals, until the runner reports them as theirs.
   const renamed = new Map<string, string>()
-  // Titles given to terminals, as an agent's request or the person's rename did, which a
-  // terminal is created with; the runner names the others.
+  // Titles the person gave terminals, which a terminal is created with; the runner names
+  // the others, as one an agent asked for.
   const titles = new Map<string, string>()
+  // The agent's request being opened, while the app adds its terminal.
+  let opening: string | undefined
   // Each terminal's title as the runner last reported it.
   const runnerTitles = new Map<string, string>()
   let sink: BackendSink | undefined
@@ -545,8 +553,8 @@ export const runnerBackend = (
       .find((project) => project.id === key.projectId)
       ?.history.find((session) => session.id === key.workspaceSessionId)
       ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
-  // The title a terminal is created with: the one it was given, as by an agent's request
-  // or the person; the runner names the others.
+  // The title a terminal is created with: the one the person gave it; the runner names
+  // the others.
   const titled = (key: TerminalKey): { title?: string } => {
     const title = titles.get(key.terminalId)
     return title === undefined ? {} : { title }
@@ -560,6 +568,8 @@ export const runnerBackend = (
     runnerTitles.set(terminalId, summary.title)
     const unconfirmed = renamed.get(terminalId)
     if (unconfirmed === summary.title) renamed.delete(terminalId)
+    // The person's title was taken away, as by a reset: it is never given again.
+    if (summary.titleSource.kind !== "person" && !renamed.has(terminalId)) titles.delete(terminalId)
     const name =
       unconfirmed === undefined && current.name !== summary.title ? summary.title : undefined
     const directory = current.directory !== summary.cwd ? summary.cwd : undefined
@@ -628,7 +638,11 @@ export const runnerBackend = (
     const session = sessions.get(workspaceSessionId) ?? created
     const launch = launches.get(terminalId)
     const started = launch
-      ? { cwd: launch.cwd, ...(launch.command !== undefined && { command: launch.command }) }
+      ? {
+          cwd: launch.cwd,
+          ...(launch.command !== undefined && { command: launch.command }),
+          ...(launch.requestId !== undefined && { requestId: launch.requestId }),
+        }
       : {}
     return track(
       session.then(async (ok) => {
@@ -1048,18 +1062,23 @@ export const runnerBackend = (
     const onRequest = (request: TerminalRequest): void => {
       if (!live) return
       let answered = false
-      next.open({
-        from: request.from,
-        directory: request.cwd,
-        ...(request.command !== undefined && { command: request.command }),
-        ...(request.title !== undefined && { title: request.title }),
-        focus: request.focus,
-        answer: (result) => {
-          if (answered) return
-          answered = true
-          void track(answerRequest(request, result))
-        },
-      })
+      // The app adds the terminal as it is asked to, so it is created for this request.
+      opening = request.requestId
+      try {
+        next.open({
+          from: request.from,
+          directory: request.cwd,
+          ...(request.command !== undefined && { command: request.command }),
+          focus: request.focus,
+          answer: (result) => {
+            if (answered) return
+            answered = true
+            void track(answerRequest(request, result))
+          },
+        })
+      } finally {
+        opening = undefined
+      }
     }
     reviveOnScreen()
     boot.begin([...entries.values()].filter(onScreen).map((entry) => entry.key.terminalId))
@@ -1106,6 +1125,7 @@ export const runnerBackend = (
         launches.set(terminal.id, {
           cwd: directory,
           ...(launch.command !== undefined && { command: launch.command }),
+          ...(opening !== undefined && { requestId: opening }),
         })
       return terminal
     },

@@ -133,10 +133,15 @@ export type Runner = {
        */
       readonly command?: string
       /**
-       * Its title; a restored terminal keeps its saved one, and a new one takes the
-       * session's next default, when left out.
+       * Its title, the person's; a restored terminal keeps its saved one, and a new one
+       * takes the session's next default, when left out.
        */
       readonly title?: string
+      /**
+       * The agent's request this terminal answers: it takes the title that agent asked
+       * for, as the agent's.
+       */
+      readonly requestId?: string
     }): Promise<TerminalSummary>
     /**
      * Follows agents' requests for a new terminal, made through NovaDeck's MCP server,
@@ -173,6 +178,12 @@ export type Runner = {
      * `TERMINAL_NOT_FOUND` for a terminal the runner keeps nothing of.
      */
     rename(terminalId: string, title: string): Promise<void>
+    /**
+     * Takes away the title the person gave a terminal, so its title is automatic again:
+     * the one an agent gave it last, the person's first prompt there, or its default.
+     * Rejects as `rename` does.
+     */
+    resetTitle(terminalId: string): Promise<void>
     /**
      * Starts a fresh shell in an exited terminal the runner still holds, keeping its id,
      * session and directory, and gives this client control. Attach again for the new
@@ -969,6 +980,7 @@ export const connectRunner = async (
       watch: () => new TerminalWatch(connection),
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
       rename: (terminalId, title) => call((wire) => wire.terminals.rename({ terminalId, title })),
+      resetTitle: (terminalId) => call((wire) => wire.terminals.resetTitle({ terminalId })),
       restart: (terminalId, { cols, rows, resume }) =>
         call((wire) =>
           wire.terminals.restart({ terminalId, cols, rows, ...(resume ? { resume } : {}) }),

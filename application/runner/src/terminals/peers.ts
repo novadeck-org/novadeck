@@ -1,24 +1,25 @@
-import { basename, isAbsolute, relative } from "node:path"
+import { isAbsolute, relative } from "node:path"
 
-import type { AgentName, TerminalMessages, TerminalSummary } from "@novadeck/protocol"
+import type { TerminalMessages, TerminalSummary } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
-import { agents } from "../harnesses/registry.js"
 import type { AgentsAnswer, Messaging, SendAnswer } from "../messaging/messaging.js"
 import type { Whereabouts } from "../messaging/peers.js"
 import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
 import { gitBranch } from "./branch.js"
+import type { Naming } from "./naming.js"
+import type { Facts } from "./nudges.js"
 import { planTitle } from "./plans.js"
-import { shorten, type Work } from "./work.js"
+import { busiestFolders, shorten, type Work } from "./work.js"
 
 /** What the terminal manager tells of a terminal, for its agent to message others. */
 export type PeerTerminal = {
   readonly summary: TerminalSummary
-  readonly titledBy: string | null
+  readonly naming: Naming
   readonly work: Work | null
   readonly activity: Activity | null
-  /** The handle of the terminal whose agent opened it with a task; null otherwise. */
+  /** The handle of the terminal whose agent opened it; null otherwise. */
   readonly openedBy: string | null
 }
 
@@ -34,20 +35,6 @@ export type PeersOptions = {
   readonly projectFolder: (sessionId: string) => string | undefined
   /** Whether the runner is stopping. */
   readonly stopping: () => boolean
-}
-
-/**
- * The agent a new terminal expects to bind, which messages may be sent to before it has:
- * the one it resumes, or whose program its command runs; null for a plain shell or
- * another program.
- */
-export const expectedAgent = (
-  command: string | undefined,
-  resume: AgentName | undefined,
-): AgentName | null => {
-  if (resume) return resume
-  const program = basename(command?.trim().split(/\s+/)[0] ?? "").replace(/\.(?:exe|cmd)$/i, "")
-  return agents.find((agent) => agent === program) ?? null
 }
 
 /** How long a folder's git branch is trusted once read, in milliseconds. */
@@ -131,12 +118,7 @@ export class TerminalPeers {
     const entries = await Promise.all(
       this.options.running(sessionId).map(async (terminal) => {
         const { cwd } = terminal.summary
-        const plans = terminal.activity?.plans ?? []
-        const plan = plans.find(({ actor }) => actor === null) ?? plans.at(-1)
-        const [branch, title] = await Promise.all([
-          this.branch(cwd),
-          plan ? planTitle(plan.source) : undefined,
-        ])
+        const [branch, plan] = await Promise.all([this.branch(cwd), this.plan(terminal)])
         const place = (path: string): string => {
           for (const base of [project, cwd]) {
             if (base === undefined) continue
@@ -148,10 +130,11 @@ export class TerminalPeers {
         }
         const where: Whereabouts = {
           title: terminal.summary.title,
-          titledBy: terminal.titledBy,
+          titleSource: terminal.summary.titleSource,
+          summary: terminal.naming.summary,
           folder: place(cwd),
           branch,
-          plan: title === undefined ? null : shorten(title, 120),
+          plan,
           work: terminal.work,
           openedBy: terminal.openedBy,
           place: (path) => {
@@ -163,6 +146,47 @@ export class TerminalPeers {
       }),
     )
     return new Map(entries)
+  }
+
+  /**
+   * What other agents' words reached a terminal's agent, as a title it says the person
+   * asked for must not come from: the messages that reached its root session, and the
+   * titles and summaries of the session's other terminals.
+   */
+  seenBy(terminal: PeerTerminal): readonly string[] {
+    const { id, sessionId } = terminal.summary
+    return [
+      ...this.options.messaging.receivedTexts(id),
+      ...this.options
+        .running(sessionId)
+        .flatMap((other) =>
+          other.summary.id === id ? [] : [other.summary.title, other.naming.summary ?? ""],
+        ),
+    ]
+  }
+
+  /**
+   * What tells whether a terminal's work drifted from its description: its root's own
+   * plan's title (never a subagent's), the folder it writes in most, and its git branch.
+   */
+  async facts(terminal: PeerTerminal): Promise<Facts> {
+    const [branch, plan] = await Promise.all([
+      this.branch(terminal.summary.cwd),
+      this.plan(terminal, true),
+    ])
+    const [main] = busiestFolders(terminal.work?.folders ?? {}, 1)
+    return { plan, folder: main?.folder ?? null, branch }
+  }
+
+  /**
+   * The title of the terminal's agent's current plan, the root's or else, unless `own`,
+   * the latest; null without one.
+   */
+  private async plan(terminal: PeerTerminal, own = false): Promise<string | null> {
+    const plans = terminal.activity?.plans ?? []
+    const plan = plans.find(({ actor }) => actor === null) ?? (own ? undefined : plans.at(-1))
+    const title = plan ? await planTitle(plan.source) : undefined
+    return title === undefined ? null : shorten(title, 120)
   }
 
   /** The git branch checked out in a folder, read again once what was read is a few seconds old. */

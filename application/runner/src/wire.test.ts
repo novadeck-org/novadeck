@@ -379,6 +379,33 @@ describe("terminal watch API", () => {
   })
 })
 
+describe("terminal title API", () => {
+  it("renames a terminal as the person's, then hands its title back to NovaDeck", async ({
+    resources,
+  }) => {
+    const app = await fixture(resources)
+    const { client } = await app.connect()
+    const { session } = await app.setup(client)
+    const terminal = await client.terminals.create(shell(session.id))
+    expect(terminal).toMatchObject({ title: "Terminal 01", titleSource: { kind: "default" } })
+    await client.terminals.rename({ terminalId: terminal.id, title: "API" })
+    const titled = async () =>
+      (await client.terminals.list({ sessionId: session.id })).find(({ id }) => id === terminal.id)
+    await expect(titled()).resolves.toMatchObject({
+      title: "API",
+      titleSource: { kind: "person" },
+    })
+    await client.terminals.resetTitle({ terminalId: terminal.id })
+    await expect(titled()).resolves.toMatchObject({
+      title: "Terminal 01",
+      titleSource: { kind: "default" },
+    })
+    await expect(client.terminals.resetTitle({ terminalId: randomUUID() })).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
+  })
+})
+
 describe("PTY lifecycle API", () => {
   it("Ctrl-C interruption and subsequent input", async ({ resources }) => {
     const app = await fixture(resources, {

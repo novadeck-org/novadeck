@@ -112,7 +112,7 @@ flowchart LR
 
 | Part         | Where                                                                                 | Owns                                                                    |
 | ------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show` and `open_terminal`                                     | `send` and `agents`; the terminal's token on every call                 |
+| MCP tools    | `shell/mcp.ts`, beside `show` and `open_terminal`                                     | `send`, `agents` and `describe`; the terminal's token on every call     |
 | Mailbox      | Runner, stored with the workspace (`WorkspaceStore`)                                  | Messages, threads, guards, pause, retention                             |
 | Delivery     | Runner, one state machine per recipient terminal                                      | When and how a recipient notices: leases to hooks and the doorbell      |
 | Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                            | Each harness's output encoding, in its adapter beside its decoder       |
@@ -135,12 +135,13 @@ again in that session: a closed terminal's handle stays unanswered rather than r
 another terminal. Handles exist because a title is text a person, or an agent through
 `open_terminal`'s `title`, can set, and must never reach a prompt.
 
-The terminal's **title** is the runner's too: it keeps it in the terminal's record
-(`terminals.rename`, or its session's default "Terminal 01"), every client shows it from
-there, and `agents()` reads it from the same record. The record also says who gave it:
-the person (renaming, or creating it), or an agent, through `open_terminal`'s `title`,
-by its terminal's handle; `agents()` shows an agent's title as that agent's ("set by
-t2, not the user"), never as the person's. Terminals are kept until closed, with no
+The terminal's **title** is the runner's too: it keeps what names the terminal in its
+record, every client shows the title from there, and `agents()` reads it from the same
+record. The record says who the title is from: the person (renaming, or creating it), an
+agent by its terminal's handle (through `open_terminal`'s `title` or `describe`), the
+person's first prompt, or the session's default "Terminal 01" (see
+[Self-description](#self-description)); `agents()` shows an agent's title as that
+agent's ("set by t2, not the user"), never as the person's. Terminals are kept until closed, with no
 pruning, so a close that never reached the runner brings the terminal back.
 
 **Recipients** are the terminals of the caller's own project and NovaDeck session; the
@@ -205,17 +206,21 @@ terminals.
   NovaDeck's hooks are trusted there (`/hooks`).
 
 - **`agents()`** lists the other terminals in the project and session, each as one
-  short block of what NovaDeck infers itself, never anything an agent claims. The
-  runner renders it, as it renders a refused `send`'s listing, and the MCP server prints
-  the text as it is:
+  short block of what NovaDeck infers itself; the only thing an agent claims there, its
+  own summary, is marked as its agent's. The runner renders it, as it renders a refused
+  `send`'s listing, and the MCP server prints the text as it is:
   1. its handle;
   2. its title, from the runner's terminal record, with "(set by t2, not the user)" when
-     an agent gave it;
+     another terminal's agent gave it, "(set by its own agent, not the user)" when its
+     own did, and "(from the user's first prompt there)" for that; then "described by
+     its agent:" and the summary its agent gave through `describe`, when it did;
   3. its agent (Claude Code, Codex or Antigravity);
   4. its folder, relative to the project when inside it, and git branch (read from
      git's own files, cached, with a short timeout);
   5. "started with": the person's first root prompt in the bound session, about 120
-     characters;
+     characters. In the first root session of a terminal another agent opened, a first
+     prompt that isn't the user's (see [Self-description](#self-description)) is the
+     opener's command's, and says so: "started with (t2's command)";
   6. "latest": the person's most recent root prompt there, left out when it is the
      first. Only the person's prompts count, never a turn the harness started (a task
      notification, a subagent waking Antigravity, which never shows prompt text);
@@ -223,7 +228,9 @@ terminals.
   8. "works in": the three folders it writes in most, from its edit and write tool
      events, with counts (`src/api/ (14), tests/ (3)`);
   9. "with you": the latest message between it and the caller, either way: who sent
-     it, about 80 characters of it, and when;
+     it, about 80 characters of it, and when. Only one the caller sent, or one delivered
+     to it: a message still on its way (queued, held or leased) never shows, so listing
+     peers never gets past a pause or delivery;
   10. busy or idle, and when it was last active.
 
   The prompts and the folder counts (the 20 folders written in most) are facts of the
@@ -250,7 +257,9 @@ poll, since replies arrive by themselves. A text longer than 4 KB is refused by 
 server itself, before it reaches the runner.
 
 `open_terminal` gains `agent` and `message`: open a terminal running that agent with
-`message` as its first task (see [Starting a task](#starting-a-task)).
+`message` as its first task (see [Starting a task](#starting-a-task)). Its `title` is
+the opener's, and `describe` names the caller's own terminal (see
+[Self-description](#self-description)).
 
 ## Delivery
 
@@ -617,8 +626,8 @@ that Enter would answer. So `open_terminal(agent, message)`:
    rather than to a session that doesn't exist yet. The terminal's own report queue puts
    the `SessionStart` ahead of the first prompt's ask, so that ask finds the session
    bound and the message waiting.
-4. Shows the new terminal in `agents()` as "opened by t2 with a task" where its "started
-   with" would be empty, and the message in the opener's `agents()` as not yet
+4. Shows the new terminal in `agents()` as "opened by t2" where its "started with" would
+   be empty, and the message in the opener's `agents()` as not yet
    delivered while no session has bound (a login through the browser can take minutes;
    for Codex, with a hint that its hooks may need trusting with `/hooks`). A different
    agent binding there makes it `gone`, as does the terminal closing first.
@@ -626,35 +635,108 @@ that Enter would answer. So `open_terminal(agent, message)`:
 The task is never typed and never the person's prompt. Until the UI shows messages, the
 person sees the task only through the runner API.
 
-## Self-description (later)
+## Self-description
 
-Decided, not built. An agent names its own terminal and says what it works on, so
-others can pick it in `agents()`.
+An agent names its own terminal and says what it works on, so others can pick it in
+`agents()`. Built: titles in `terminals/naming.ts`, nudges in `terminals/nudges.ts`, the
+call in `Terminals.describe` (`terminals/manager.ts`), the tool in `shell/mcp.ts`.
 
-- **`describe(title, summary)`** describes the caller's own terminal only: it takes no
-  target, and the runner knows the caller from its terminal token. `summary` is one or
-  two lines (about 200 characters) that `agents()` lists; the UI doesn't show it. A
-  title the person gave stays, and only the summary changes; the answer says so.
-- **Before any `describe`**, the terminal's title is the person's first prompt of the
-  root session, shortened. `describe` replaces it, and a new root session starts over.
+- **`describe(title, summary, asked?)`**, listed like the other tools only inside
+  NovaDeck's terminals, describes the caller's own terminal only: it takes no target,
+  and the runner knows the caller from its terminal token. The title is one line, as
+  the person's are, of up to 200 characters (code points, an emoji counting once);
+  `summary` is one or two lines of up to 200 characters, kept with the terminal's record,
+  and `agents()` lists it as "described by its agent"; the UI doesn't show it. Each needs
+  a letter or a digit: only symbols or invisible characters are refused. A refused
+  description (an empty summary, three lines) says why.
+- **Who wins the title.** The record keeps each layer apart (`naming`: the person's
+  title, the newest an agent gave with that agent's terminal's handle, and the summary),
+  and the store persists only these. The terminal manager derives the title from them by
+  precedence: the person's (renaming, or creating it), then the newest an agent gave,
+  `describe` or `open_terminal`'s `title` by its opener, then the person's first prompt of
+  the root session, then the session's default "Terminal 03". Clients see who it is from
+  as the summary's `titleSource` (`person`, `agent` with its handle, `fallback` or
+  `default`). An opener's title never passes through the client as the person's: the
+  request the client gets has no title, and the client creates the terminal with the
+  request's `requestId`, from which the runner takes the opener's title, handle and
+  command: only for the first terminal created for that request, in the request's own
+  session. That is the only way a terminal is known as agent-opened (`openedBy`).
+  Nothing automatic ever replaces the person's title: `describe` still keeps its title as
+  the agent's newest, beneath the person's, and its answer says the user named the
+  terminal. The runner API's `terminals.resetTitle` takes the person's title away, so the
+  title is automatic again: the newest an agent gave first.
+- **`asked`.** When the person's own prompt asks the agent to give the terminal a title,
+  `describe` with `asked: true` makes that title the person's, so later descriptions and
+  nudges never replace it. It is taken only when all of these hold:
+  1. the current root turn was started by the person's own submission (messaging's
+     delivery tells it, `byPerson`: their bare Enter, then the prompt, or a prompt they
+     queued), never one the doorbell or the harness started;
+  2. the title, folded (case, spaces, surrounding quotes and punctuation aside) and
+     holding three letters or digits at least, is in the text of that prompt as whole
+     words, between Unicode word boundaries (`Messaging.personPrompt`, from the same
+     prompt text the hooks or Antigravity's transcript give `promptStart`), read as the
+     call arrives;
+  3. it is in no other text that reached the agent: no message delivered, or ever leased
+     (a lapsed lease may still have been printed), to its root session, and no title or summary of a peer in its project and session. So
+     a person pasting a peer's output, or quoting a peer's suggestion to refuse it, never
+     grants it.
+
+  Otherwise the title is taken as the agent's own, as without `asked`, the summary still
+  changes, and, where the person's title stays, the answer says "Not renamed: the user
+  named this terminal. Suggest the title to them." This doesn't stop a coached agent
+  from picking a whole word or phrase the person typed themselves as the title; that
+  risk is accepted, as all it changes is a title. So are these, each reducing to the
+  same: a peer that re-describes itself after the check, a forked or resumed session
+  counted as new, what other `agents()` lines carry, and a peer's summary refusing a
+  title the person did mean. A subagent or a nested agent holding
+  the terminal's token can still describe the terminal without `asked`, setting the
+  agent's layer and the summary: accepted too, as that layer never outranks the
+  person's. The tool's description says when to set `asked`; the nudges never mention it.
+
+- **The first-prompt title.** Before anything else names it, the terminal's title is the
+  person's first prompt of its root session, shortened to one line of 48 characters: the
+  "started with" of `agents()`, so a doorbell line, a delivery of messages and a task
+  never become one. A new root session (start, `/clear`, restart) starts over: the
+  default, until its own first prompt. The prompt must be the user's, by one rule
+  (`firstFrom` in `terminals/work.ts`, which the title and `agents()` both use): in a
+  terminal the person opened it always is, as it is in every root session but the first
+  of a terminal another agent opened (`openedBy`). In that first session it is the
+  user's only when the person's own submission started its turn (`byPerson`, recorded
+  with it, `judgedFirst`) and its text isn't the prompt in the opener's command, which
+  the runner keeps in memory with the open, whatever Enter came before: one whole
+  argument of the command, split and unquoted as a shell does (the prompt of
+  `claude "…"`, `codex "…"` or `agy -i "…"`), never a part of one. Until told, it counts
+  as the opener's command. Only a session the opener's command started counts: one whose
+  first word, unquoted, is a harness NovaDeck knows (`terminals/commands.ts`); after a
+  command that starts no agent, as `npm test`, the session the person then starts is
+  theirs. The opener can name the terminal through `open_terminal`'s `title`. So a terminal opened with a task still takes its title from
+  the person's first prompt there. The work is tallied from the prompts as attributed,
+  so Antigravity's first typed prompt, read from its transcript, counts too.
 - **Nudges.** The prompt-time hook (`UserPromptSubmit`, Antigravity's `PreInvocation`)
-  adds one line, worded as an automatic NovaDeck notice, only when a trigger fired
-  since the last `describe`; otherwise it adds nothing. Never at Stop, and never in
-  the same answer as messages. The triggers:
-  1. a new root session (start, `/clear`, restart) with nothing described yet;
-  2. a compaction, where the harness reports one (Claude Code's `SessionStart` with
-     `compact`; Codex and Antigravity to probe);
-  3. drift: the plan title, the main folder it works in or its branch changed since
-     the last `describe`;
-  4. as a backstop, about 15 of the person's prompts since the last `describe`.
+  of a root prompt its decoder calls the person's (cause `prompt`; this is looser than
+  `asked`'s `byPerson`, as a nudge needs no proof) adds one line, worded as NovaDeck's automatic notice, only when
+  a trigger fired since the last `describe`; otherwise it adds nothing. Never at Stop,
+  and never in the same answer as messages or another notice: the trigger then waits for
+  the next quiet prompt; nor in an answer that might miss the hook's deadline, which
+  never spends a trigger. The triggers:
+  1. a new root session (start, `/clear`, restart);
+  2. a compaction, where the harness reports one: Claude Code's and Codex's
+     `SessionStart` with source `compact` (decoded as `compacted`). Antigravity reports
+     none (its compaction is internal, see [Harness coverage](harness-coverage.md)), so
+     it has no such trigger;
+  3. drift: the root's own plan's title (never a subagent's), the folder it writes in
+     most or its branch differ from both the facts at the last `describe` and those
+     drift last fired for, so work going back and forth between two folders fires once.
+     A fact not known (no plan, no folder yet, a branch not read in time) is no change.
+     They are read only for a prompt whose answer would otherwise be empty and with time
+     left, so a delivery never waits on them;
+  4. as a backstop, 15 of those prompts since the last `describe`, or since the backstop
+     last fired.
 
-  After the first one, a nudge shows the current description and asks for an update
-  only if it no longer fits. Each trigger nudges once; an ignored nudge waits for the
-  next trigger.
-
-- **Who wins the title:** the person, then whoever set it last among `describe` and
-  `open_terminal`'s opener, then the first-prompt fallback. "Reset to automatic" in the
-  UI hands a person's title back.
+  While nothing is described, a nudge asks for a description; after that it shows the
+  current title and summary and asks for an update only if they no longer fit. Each
+  trigger nudges once; an ignored nudge waits for the next trigger. What is pending
+  lives in the runner's memory: a runner restart is a new root session anyway.
 
 ## Runner API and UI
 
@@ -662,6 +744,12 @@ Step one ships the runner API only, for the UI to follow: list a terminal's thre
 messages with their states, pause and resume, and release a held thread. The UI then
 adds a badge for undelivered messages, a Messages view in the companion pane, and the
 pause switch. The person doesn't send as themselves; they type in the terminal.
+
+Self-description adds to it: every terminal summary says who its title is from
+(`titleSource`), `terminals.resetTitle` hands a title back to NovaDeck, and
+`terminals.create` takes the `requestId` of the agent's request it answers. The UI shows
+the title as before; a "Reset to automatic" action and showing who set a title are for
+later.
 
 ## Rollout
 
@@ -676,8 +764,13 @@ pause switch. The person doesn't send as themselves; they type in the terminal.
    `harnesses/typed-prompts.ts`, and the Ringing state and the untouched rule in
    `messaging/delivery.ts`.
 3. **UI:** badges, the Messages view and the pause switch.
-4. **Self-description:** `describe(title, summary)`, the first-prompt title and the
-   nudges.
+4. **Self-description:** `describe(title, summary, asked?)`, the first-prompt title and
+   the nudges. Built: the title's layers and `asked`'s rule in
+   `application/runner/src/terminals/naming.ts`, the nudges in `terminals/nudges.ts`,
+   `describe` in `terminals/manager.ts` and `shell/mcp.ts`, the person's turn
+   (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/messaging.ts`,
+   and the runner API as `titleSource`, `terminals.resetTitle` and `create`'s
+   `requestId`.
 
 Harness accelerators (Claude Code channels, `codex queue`) stay out unless a later probe
 shows them strictly better, and then only behind a flag, never as the only path.

@@ -74,7 +74,9 @@ describe("requests on their way to the client", () => {
   }
 
   it("go nowhere without a client following them", async () => {
-    await expect(new OpenRequests().ask(request, 1_000)).resolves.toEqual({ type: "nobody" })
+    await expect(new OpenRequests().ask(request, 1_000, { by: "t1" })).resolves.toEqual({
+      type: "nobody",
+    })
   })
 
   it("go to the client that followed last, and wait for its answer", async () => {
@@ -85,9 +87,18 @@ describe("requests on their way to the client", () => {
     // A stream follows from its first read.
     void older.next()
     const first = newer.next()
-    const asked = opens.ask(request, 1_000)
+    const asked = opens.ask(request, 1_000, { by: "t1", title: "Server" })
     const { value } = await first
     expect(value).toEqual({ requestId: expect.any(String), ...request })
+    // Who asked, with the title it asked for, waits for the terminal its client creates:
+    // only that client's, in the request's session, and only the first.
+    expect(opens.opener(value!.requestId, "older", request.sessionId)).toBeUndefined()
+    expect(opens.opener(value!.requestId, "newer", randomUUID())).toBeUndefined()
+    expect(opens.opener(value!.requestId, "newer", request.sessionId)).toEqual({
+      by: "t1",
+      title: "Server",
+    })
+    expect(opens.opener(value!.requestId, "newer", request.sessionId)).toBeUndefined()
     const terminalId = randomUUID()
     // Only the client it went to answers it.
     expect(() => opens.answer({ requestId: value!.requestId, terminalId }, "older")).toThrow(
@@ -109,12 +120,12 @@ describe("requests on their way to the client", () => {
     const opens = new OpenRequests()
     const stream = opens.follow("client")
     const first = stream.next()
-    await expect(opens.ask(request, 10)).resolves.toEqual({ type: "late" })
+    await expect(opens.ask(request, 10, { by: "t1" })).resolves.toEqual({ type: "late" })
     await first
-    const asked = opens.ask(request, 1_000)
+    const asked = opens.ask(request, 1_000, { by: "t1" })
     opens.release("client")
     await expect(asked).resolves.toEqual({ type: "gone" })
     await expect(stream.next()).resolves.toMatchObject({ done: true })
-    await expect(opens.ask(request, 1_000)).resolves.toEqual({ type: "nobody" })
+    await expect(opens.ask(request, 1_000, { by: "t1" })).resolves.toEqual({ type: "nobody" })
   })
 })

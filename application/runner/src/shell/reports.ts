@@ -43,9 +43,10 @@ export type Ack = { readonly terminalId: string; readonly token: string; readonl
 /**
  * What NovaDeck's MCP server forwards: a tool call an agent made in a terminal, which
  * waits for its answer. `present` shows something (see `terminals/artifacts.ts`), `open`
- * opens a new terminal beside it (see `terminals/opens.ts`), and `send` and `agents`
- * message other terminals' agents and describe them (see `messaging/messaging.ts`); the
- * runner reads `request`, and nothing here does.
+ * opens a new terminal beside it (see `terminals/opens.ts`), `send` and `agents`
+ * message other terminals' agents and describe them (see `messaging/messaging.ts`), and
+ * `describe` names the caller's own terminal (see `terminals/naming.ts`); the runner
+ * reads `request`, and nothing here does.
  */
 export type Call = {
   readonly type: CallType
@@ -54,7 +55,7 @@ export type Call = {
   readonly request: { readonly [key: string]: unknown }
 }
 
-const callTypes = ["present", "open", "send", "agents"] as const
+const callTypes = ["present", "open", "send", "agents", "describe"] as const
 export type CallType = (typeof callTypes)[number]
 
 /** The answer to a call that failed, took too long, or could not be read. */
@@ -66,6 +67,7 @@ export const unansweredCalls = {
   open: { ok: false, reason: "NovaDeck couldn't open the terminal." },
   send: { ok: false, reason: "NovaDeck couldn't send the message." },
   agents: { ok: false, reason: "NovaDeck couldn't list the terminals." },
+  describe: { ok: false, reason: "NovaDeck couldn't describe the terminal." },
 } as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
 
 const object = (value: unknown): value is { readonly [key: string]: unknown } =>

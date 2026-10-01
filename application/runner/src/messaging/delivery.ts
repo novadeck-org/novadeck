@@ -61,6 +61,11 @@ type Counts = {
   readonly epoch: number
   /** How many of the current turn's Stops NovaDeck continued with messages. */
   readonly continued: number
+  /**
+   * Whether the person's own submission started the current root turn, as told below;
+   * never a turn the doorbell or the harness started.
+   */
+  readonly byPerson: boolean
   readonly box: Box
 }
 
@@ -132,6 +137,7 @@ export const unbound: Delivery = {
   state: "unbound",
   epoch: 0,
   continued: 0,
+  byPerson: false,
   box: { ...emptyBox, empty: false },
 }
 
@@ -149,7 +155,12 @@ export const running = (delivery: Delivery): boolean => {
 const stoppable = (delivery: Delivery): boolean =>
   delivery.state === "working" || delivery.state === "unknown" || delivery.state === "fresh"
 
-const counts = ({ epoch, continued, box }: Delivery): Counts => ({ epoch, continued, box })
+const counts = ({ epoch, continued, byPerson, box }: Delivery): Counts => ({
+  epoch,
+  continued,
+  byPerson,
+  box,
+})
 
 /** A turn ended normally: Settled with the prompt known empty, else the person drafting. */
 const ended = (delivery: Delivery, at: number): Delivery => {
@@ -178,7 +189,13 @@ const typed = (box: Box): Box => ({
 /** The delivery after an event; the same delivery when it changes nothing. */
 export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery => {
   if (event.type === "bound")
-    return { state: "fresh", epoch: delivery.epoch + 1, continued: 0, box: emptyBox }
+    return {
+      state: "fresh",
+      epoch: delivery.epoch + 1,
+      continued: 0,
+      byPerson: false,
+      box: emptyBox,
+    }
   if (event.type === "unbound") return { ...unbound, epoch: delivery.epoch + 1 }
   if (delivery.state === "unbound") return delivery
   const phase = phaseOf(delivery)
@@ -198,6 +215,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
         return working(delivery, "turn", {
           epoch: delivery.epoch + 1,
           continued: 0,
+          byPerson: false,
           box: { ...box, empty, queuing: false, enteredAt: null },
         })
       }
@@ -227,11 +245,13 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
       // turn, with its count, as Antigravity starts its model calls again from the first.
       if (phase === "continuing") return working(delivery, "turn", { box: after })
       // A call while no turn ran (as a status line saying working after an idle one)
-      // resumes the turn it belongs to, with its counts.
-      if (event.by === "call") return working(delivery, "turn")
+      // resumes the turn it belongs to, with its counts, though nothing says the person
+      // started it.
+      if (event.by === "call") return working(delivery, "turn", { byPerson: false })
       return working(delivery, "turn", {
         epoch: delivery.epoch + 1,
         continued: 0,
+        byPerson: person,
         box: { ...after, queuing: false },
       })
     }

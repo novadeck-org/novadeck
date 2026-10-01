@@ -205,12 +205,20 @@ before the first sample). It is `null` once the terminal exits and on Windows, w
 no foreground process is known. `agent` names the agent (`claude`, `codex` or `agy`) that
 reported a session in the shell since its last prompt, so a client can name the
 program where `process` cannot; it is `null` otherwise. `cwd` is the directory the
-shell last reported at a prompt, or where it started. `title` is the name the person
-gave the terminal with `create` or `terminals.rename({ terminalId, title })`, or the
-runner's default for its session ("Terminal 01", "Terminal 02", …, never given twice);
-`handle` is its handle for agents' messages, `t3`, numbered from the same counter, so
-"Terminal 03" is `t3`; every terminal takes a number, even one created with its own
-title, and keeps its handle across renames. `command` is what it was opened to run, and
+shell last reported at a prompt, or where it started. `title` is, in this order: the
+name the person gave the terminal with `create` or `terminals.rename({ terminalId,
+title })`; the one an agent gave it last (`describe`, or `open_terminal`'s `title`);
+the person's first prompt of its agent's root session, shortened; or the runner's
+default for its session ("Terminal 01", "Terminal 02", …, never given twice).
+`titleSource` says which: `{ kind: "person" }`, `{ kind: "agent", by: "t2" }`,
+`{ kind: "fallback" }` or `{ kind: "default" }`. A terminal the client creates for an
+agent's request (`terminals.requests`) passes that request's `requestId` to
+`terminals.create`, and takes the title the agent asked for as the agent's.
+`terminals.resetTitle({ terminalId })` takes the person's name away, so it is automatic
+again (see [Agent messaging](agent-messaging.md#self-description)). `handle` is its
+handle for agents' messages, `t3`, numbered from the same counter, so "Terminal 03" is
+`t3`; every terminal takes a number, even one created with its own title, and keeps
+its handle across renames. `command` is what it was opened to run, and
 `lastProgram` the program it last had in its foreground, which a fresh shell resumes
 where that is an agent.
 

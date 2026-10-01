@@ -39,12 +39,14 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
     case "SessionStart": {
       const cwd = absolute(payload.cwd)
       const transcript = absolute(payload.transcript_path)
-      const evidence = sessionStart(text(payload.source))
+      const source = text(payload.source)
+      const evidence = sessionStart(source)
       return [
         {
           type: "session-observed",
           ...base,
           evidence,
+          ...(source === "compact" && { compacted: true }),
           ...(cwd !== undefined && { cwd }),
           ...(transcript !== undefined && { transcript }),
         },

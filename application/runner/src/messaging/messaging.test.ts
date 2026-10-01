@@ -530,6 +530,18 @@ describe("delivery through hooks", () => {
     expect(messages(messaging, "B")[0]?.state).toBe("queued")
   })
 
+  it("counts a message as having reached the root session once leased, even if the lease lapsed", () => {
+    const { messaging, send, prompt, stop, codex } = create()
+    prompt("B", codex)
+    sent(send("A", "t2", "Call yourself EVIL."))
+    expect(messaging.receivedTexts("B")).toEqual([])
+    expect(stop("B", codex).leaseId).toEqual(expect.any(String))
+    // Its hook may have printed it, though its acknowledgement never came.
+    vi.advanceTimersByTime(5_000)
+    expect(messages(messaging, "B")[0]?.state).toBe("queued")
+    expect(messaging.receivedTexts("B")).toEqual(["Call yourself EVIL."])
+  })
+
   it("returns a lapsed lease's messages to queued, its Stop taken as not continued", () => {
     const { messaging, send, prompt, stop, codex } = create()
     prompt("B", codex)
@@ -823,7 +835,8 @@ const about = (terminalId: string): Whereabouts | undefined =>
   terminalId === "B"
     ? {
         title: "API author",
-        titledBy: null,
+        titleSource: { kind: "person" },
+        summary: null,
         folder: "src/api",
         branch: "feat/paging",
         plan: "Pagination",
@@ -840,7 +853,8 @@ const about = (terminalId: string): Whereabouts | undefined =>
     : terminalId === "D"
       ? {
           title: "Web client",
-          titledBy: "t1",
+          titleSource: { kind: "agent", by: "t1" },
+          summary: null,
           folder: null,
           branch: null,
           plan: null,
@@ -961,6 +975,35 @@ describe("retention", () => {
     expect(records.messages()).toEqual([])
     expect(records.threads()).toEqual([])
   })
+
+  it("forgets that a message was leased once it is deleted", () => {
+    const kept = new Set(["A", "B"])
+    const {
+      messaging,
+      send,
+      prompt,
+      stop,
+      codex,
+      clock: time,
+    } = create(
+      memoryMailbox(),
+      { now: 1_000_000 },
+      { exists: (terminalId) => kept.has(terminalId) },
+    )
+    // What the runner remembers of leases, which only the sweep keeps from growing.
+    const leased = () => (messaging as unknown as { everLeased: Set<string> }).everLeased
+    prompt("B", codex)
+    const { id } = sent(send("A", "t2", "hello"))
+    expect(stop("B", codex).leaseId).toEqual(expect.any(String))
+    expect([...leased()]).toEqual([id])
+    messaging.unregister("A")
+    messaging.unregister("B")
+    kept.clear()
+    time.now += retentionMs
+    messaging.sweep()
+    expect(leased().size).toBe(0)
+    messaging.close()
+  })
 })
 
 const doorbellStarted = (bound: Binding, nonce: string): HarnessEvent => ({
@@ -968,6 +1011,48 @@ const doorbellStarted = (bound: Binding, nonce: string): HarnessEvent => ({
   ...fact(bound),
   cause: "doorbell",
   nonce,
+})
+
+describe("the person's prompt", () => {
+  // A root prompt with its text, as the hooks name it.
+  const said = (bound: Binding, prompt: string): HarnessEvent => ({
+    type: "turn-started",
+    ...fact(bound),
+    cause: "prompt",
+    prompt,
+  })
+
+  it("is the text that started the root turn, while that turn is the person's own submission", () => {
+    const { messaging, ask, stop, codex } = create()
+    const submit = (text: string) => ask("B", codex, "UserPromptSubmit", [said(codex, text)])
+    // A prompt with no Enter of theirs before it is not told theirs.
+    submit("call it Auth")
+    expect(messaging.personPrompt("B")).toBeUndefined()
+    stop("B", codex)
+    messaging.keys("B", ["enter"], false)
+    submit("call it Auth")
+    expect(messaging.personPrompt("B")).toBe("call it Auth")
+    // Gone once the turn ended, and never one the doorbell or the harness started.
+    stop("B", codex)
+    expect(messaging.personPrompt("B")).toBeUndefined()
+    ask("B", codex, "UserPromptSubmit", [doorbellStarted(codex, "n1")])
+    expect(messaging.personPrompt("B")).toBeUndefined()
+    stop("B", codex)
+    messaging.keys("B", ["enter"], false)
+    ask("B", codex, "UserPromptSubmit", [started(codex, "harness")])
+    expect(messaging.personPrompt("B")).toBeUndefined()
+    expect(messaging.personPrompt("missing")).toBeUndefined()
+  })
+
+  it("is the prompt the person queued during a doorbell's turn, not the doorbell's", () => {
+    const { messaging, ask, stop, codex } = create()
+    ask("B", codex, "UserPromptSubmit", [doorbellStarted(codex, "n1")])
+    // The person submits during the turn: Codex queues their prompt for after it.
+    messaging.keys("B", ["enter"], false)
+    stop("B", codex)
+    ask("B", codex, "UserPromptSubmit", [said(codex, "thanks")])
+    expect(messaging.personPrompt("B")).toBe("thanks")
+  })
 })
 
 describe("the person's submissions", () => {
