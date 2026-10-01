@@ -21,9 +21,12 @@ import {
   rows,
   runnerSettings,
   sequence,
+  startupCommand,
   terminalAttached,
   terminalChange,
   terminalEvent,
+  terminalRequest,
+  terminalRequestAnswer,
   terminalSummary,
   workspaceSession,
 } from "./schemas.js"
@@ -94,19 +97,34 @@ export const contract = {
     // names the agent that ran there: while it is connected, the runner resumes the
     // session it last reported in this terminal, instead of showing the transcript.
     // A session resumes in one terminal only, never beside another terminal running it.
+    // `command` runs once at the new shell's first prompt, as if typed there; a shell
+    // that can't run one, as without NovaDeck's shell integration, is SPAWN_FAILED. A
+    // command goes with neither `restore` nor `resume`.
     create: procedure
       .input(
-        z.strictObject({
-          id,
-          sessionId: id,
-          cwd: directory.optional(),
-          cols: columns,
-          rows,
-          restore: z.boolean().optional(),
-          resume: agentName.optional(),
-        }),
+        z
+          .strictObject({
+            id,
+            sessionId: id,
+            cwd: directory.optional(),
+            cols: columns,
+            rows,
+            restore: z.boolean().optional(),
+            resume: agentName.optional(),
+            command: startupCommand.optional(),
+          })
+          .refine(({ command, restore, resume }) => !command || (!restore && !resume), {
+            message: "A terminal either starts a command or restores what it ran, not both.",
+          }),
       )
       .output(terminalSummary),
+    // Agents' requests for a new terminal, made through NovaDeck's MCP server, for the
+    // client to open where it lays terminals out. The runner sends each to the client
+    // that subscribed last and waits a few seconds for its `answerRequest`.
+    requests: procedure.input(z.void()).output(eventIterator(terminalRequest)),
+    // Answers a request with the terminal the client opened for it, or why it didn't.
+    // One the runner no longer waits for, or sent to another client, is NOT_FOUND.
+    answerRequest: procedure.input(terminalRequestAnswer).output(z.void()),
     // Every terminal across sessions: `changed` for each, `synced`, then later changes
     // (creation, size, foreground process, exit, restart) and `removed` when a record
     // is closed or evicted.

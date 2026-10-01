@@ -68,6 +68,7 @@ const scripted = (listed: TerminalSummary, lastProcess = "") => {
     terminals: {
       list: unused,
       watch: () => changes.iterator,
+      requests: () => channel<never>().iterator,
       // Never answers: a fresh shell stays starting.
       create: () => new Promise(() => {}),
       close: async () => {},
@@ -107,7 +108,10 @@ const scripted = (listed: TerminalSummary, lastProcess = "") => {
     [],
   )
   const received: BackendAction[] = []
-  const stop = created.backend.start!({ dispatch: (actions) => received.push(...actions) })
+  const stop = created.backend.start!({
+    dispatch: (actions) => received.push(...actions),
+    open: () => {},
+  })
   statuses.push({ state: "connected", runnerId: "runner-1" })
   const statusesOf = () =>
     received.flatMap((action) => (action.type === "terminal/status" ? [action.status] : []))
@@ -250,7 +254,10 @@ describe("terminal limits and retries", () => {
     })
     backend.commit(workspace, [])
     const received: BackendAction[] = []
-    const stop = backend.start!({ dispatch: (actions) => received.push(...actions) })
+    const stop = backend.start!({
+      dispatch: (actions) => received.push(...actions),
+      open: () => {},
+    })
     const target = {
       projectId: workspace.activeProjectId,
       workspaceSessionId: activeSession(workspace)!.id,

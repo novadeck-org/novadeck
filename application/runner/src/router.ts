@@ -104,6 +104,17 @@ export const createRouter = (options: {
         const project = store.project(session.projectId)
         return terminals.create({ ...input, cwd: input.cwd ?? project.cwd }, context.connection.id)
       }),
+      requests: authorized.terminals.requests.handler(async function* ({ context, signal }) {
+        if (context.connection.closed) return
+        try {
+          yield* terminals.requests(context.connection.id, signal)
+        } catch (error) {
+          throw apiError(error)
+        }
+      }),
+      answerRequest: authorized.terminals.answerRequest.handler(({ input, context }) =>
+        terminals.answerRequest(input, context.connection.id),
+      ),
       watch: authorized.terminals.watch.handler(async function* ({ context, signal }) {
         // A connection that closed before this stream began has already been released.
         if (context.connection.closed) return

@@ -1,4 +1,10 @@
-import type { AgentIntegration, TerminalExit, TerminalSummary } from "@novadeck/protocol"
+import type {
+  AgentIntegration,
+  TerminalExit,
+  TerminalRequest,
+  TerminalRequestAnswer,
+  TerminalSummary,
+} from "@novadeck/protocol"
 import {
   hasCode,
   RunnerError,
@@ -65,6 +71,19 @@ export type RunnerBackendOptions = {
 }
 
 export type TerminalSize = { readonly cols: number; readonly rows: number }
+
+// Where a terminal an agent asked for starts and what it runs, from `newTerminal` on, and
+// why its creation failed, once it did.
+type Launch = { readonly cwd: string; readonly command?: string; failure?: unknown }
+
+// What the agent hears when the terminal it asked for couldn't start.
+const launchFailure = (launch: Launch | undefined): string => {
+  const { failure } = launch ?? {}
+  const why = failure instanceof Error && failure.message ? ` ${failure.message}` : ""
+  return launch?.command === undefined
+    ? `NovaDeck couldn't open the terminal.${why}`
+    : `NovaDeck couldn't start the command in a new terminal.${why}`
+}
 
 // One terminal the workspace holds, whichever view shows it.
 export type RunnerEntry = {
@@ -298,6 +317,7 @@ export const runnerBackend = (
     seed.projects.flatMap((project) => project.sessions.map((session) => [session.id, created])),
   )
   const entries = new Map<string, RunnerEntry>()
+  const launches = new Map<string, Launch>()
   let sink: BackendSink | undefined
   let runnerId: string | undefined
   // The latest runner status; a simulated outage from the debug panel shows as
@@ -512,6 +532,10 @@ export const runnerBackend = (
   const createTerminal = (entry: RunnerEntry): Promise<boolean> => {
     const { terminalId, workspaceSessionId } = entry.key
     const session = sessions.get(workspaceSessionId) ?? created
+    const launch = launches.get(terminalId)
+    const started = launch
+      ? { cwd: launch.cwd, ...(launch.command !== undefined && { command: launch.command }) }
+      : {}
     return track(
       session.then(async (ok) => {
         if (!ok) throw new Error("The runner could not create this session.")
@@ -523,6 +547,7 @@ export const runnerBackend = (
             return runner.terminals.create({
               id: terminalId,
               sessionId: workspaceSessionId,
+              ...started,
               ...(cwd ? { cwd } : {}),
               cols: 80,
               rows: 24,
@@ -543,10 +568,33 @@ export const runnerBackend = (
         return true
       }),
     ).catch((error: unknown) => {
+      if (launch) launch.failure = error
       if (error instanceof Cancelled) return false
       settle(entry, error instanceof CrashLoop ? crashLoop : (lostStatus(error) ?? failedToCreate))
       return false
     })
+  }
+
+  // Tells the runner how an agent's request went: the terminal the app added, once the
+  // runner started it, or why not. One that couldn't start closes again, as the agent
+  // hears why. A runner that no longer waits for the answer needs none.
+  const answerRequest = async (
+    request: TerminalRequest,
+    result: { readonly terminalId: string } | { readonly reason: string },
+  ): Promise<void> => {
+    const { requestId } = request
+    const reply = (answer: TerminalRequestAnswer) =>
+      runner.terminals.answerRequest(answer).catch(() => {})
+    if ("reason" in result) return reply({ requestId, reason: result.reason })
+    const { terminalId } = result
+    const entry = entries.get(terminalId)
+    const ok = entry ? await entry.ready : false
+    const launch = launches.get(terminalId)
+    launches.delete(terminalId)
+    if (ok) return reply({ requestId, terminalId })
+    if (entry && !entry.closed)
+      dispatch([{ type: "terminal/close", target: target(entry.key), terminalId }])
+    return reply({ requestId, reason: launchFailure(launch) })
   }
 
   // Starts a fresh shell for the terminal, keeping its id: a restart when the runner
@@ -881,6 +929,24 @@ export const runnerBackend = (
     }
     const changes = runner.terminals.watch()
     const statuses = runner.watch()
+    const requests = runner.terminals.requests()
+    // Each request goes to the app, which adds the terminal and answers once.
+    const onRequest = (request: TerminalRequest): void => {
+      if (!live) return
+      let answered = false
+      next.open({
+        from: request.from,
+        directory: request.cwd,
+        ...(request.command !== undefined && { command: request.command }),
+        ...(request.title !== undefined && { title: request.title }),
+        focus: request.focus,
+        answer: (result) => {
+          if (answered) return
+          answered = true
+          void track(answerRequest(request, result))
+        },
+      })
+    }
     reviveOnScreen()
     boot.begin([...entries.values()].filter(onScreen).map((entry) => entry.key.terminalId))
     // What the runner keeps of shells that exited cleanly while the app was away.
@@ -892,6 +958,7 @@ export const runnerBackend = (
       )
     void consume(changes, onChange)
     void consume(statuses, onStatus)
+    void consume(requests, onRequest)
     following = true
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     window.addEventListener("pagehide", flush)
@@ -904,6 +971,7 @@ export const runnerBackend = (
       if (sink === next) sink = undefined
       void changes.return?.()
       void statuses.return?.()
+      void requests.return?.()
       window.removeEventListener("pagehide", flush)
       stopQuit?.()
       stopOutage?.()
@@ -917,7 +985,15 @@ export const runnerBackend = (
 
   const backend: Backend = {
     seed,
-    newTerminal: ({ number, directory }) => startingTerminal(newId(), number, directory),
+    newTerminal: ({ number, directory, launch }) => {
+      const terminal = startingTerminal(newId(), number, directory)
+      if (launch)
+        launches.set(terminal.id, {
+          cwd: directory,
+          ...(launch.command !== undefined && { command: launch.command }),
+        })
+      return terminal
+    },
     commit,
     TerminalSurface: createRunnerTerminal(runtime),
     start,

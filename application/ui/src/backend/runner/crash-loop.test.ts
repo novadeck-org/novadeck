@@ -67,6 +67,7 @@ const crashingRunner = () => {
     terminals: {
       list: unused,
       watch: nothing,
+      requests: nothing,
       create: crash,
       restart: crash,
       close: async () => {},
@@ -110,7 +111,10 @@ const openCrashing = () => {
     [],
   )
   const received: BackendAction[] = []
-  const stop = created.backend.start!({ dispatch: (actions) => received.push(...actions) })
+  const stop = created.backend.start!({
+    dispatch: (actions) => received.push(...actions),
+    open: () => {},
+  })
   const tripped = () =>
     vi.waitFor(
       () =>
@@ -191,7 +195,10 @@ const openInStore = () => {
   const store = createWorkspaceStore(initial, created.backend.commit)
   created.backend.commit(initial, [])
   // What the app's connection does: each report commits to the store.
-  const stop = created.backend.start!({ dispatch: (actions) => void store.transact(actions) })
+  const stop = created.backend.start!({
+    dispatch: (actions) => void store.transact(actions),
+    open: () => {},
+  })
   const statusIn = (sessionId: string) =>
     store.getSnapshot().projects[0]!.history.find((session) => session.id === sessionId)!.state
       .roster.terminals[0]

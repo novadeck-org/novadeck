@@ -1,7 +1,7 @@
 import { connect } from "node:net"
 
 import { describe, expect, it } from "../test.js"
-import { listenForReports, unanswered, type Call, type Report } from "./reports.js"
+import { listenForReports, unanswered, unansweredCalls, type Call, type Report } from "./reports.js"
 
 /** Sends one line, ending its side as a hook does, and resolves to what came back. */
 const send = (endpoint: string, line: string, { end = true } = {}) =>
@@ -78,6 +78,37 @@ describe("the report endpoint", () => {
     if (halfOpen) await expect(send(reports.endpoint, JSON.stringify(call))).resolves.toBe(answer)
     await expect(send(reports.endpoint, JSON.stringify(call), { end: false })).resolves.toBe(answer)
     expect(calls).toEqual(halfOpen ? [call, call] : [call])
+  })
+
+  it("takes a call to open a terminal alike, and its failures in its own words", async ({
+    resources,
+  }) => {
+    const calls: Call[] = []
+    const reports = await listenForReports(
+      () => {},
+      (asked) => {
+        calls.push(asked)
+        return calls.length === 1
+          ? Promise.resolve({ ok: true, terminalId: "u", cwd: "/work" })
+          : new Promise(() => {})
+      },
+      { answerMs: 50 },
+    )
+    resources.defer(() => reports.close())
+    const open = { type: "open", terminalId: "t", token, request: { command: "claude" } }
+    const line = JSON.stringify(open)
+    await expect(send(reports.endpoint, line, { end: false })).resolves.toBe(
+      `${JSON.stringify({ ok: true, terminalId: "u", cwd: "/work" })}\n`,
+    )
+    await expect(send(reports.endpoint, line, { end: false })).resolves.toBe(
+      `${JSON.stringify(unansweredCalls.open)}\n`,
+    )
+    expect(calls).toEqual([open, open])
+    // Unread, a call to open is not one at all.
+    await expect(
+      send(reports.endpoint, JSON.stringify({ ...open, request: "claude" }), { end: false }),
+    ).resolves.toBe(`${JSON.stringify(unanswered)}\n`)
+    expect(calls).toHaveLength(2)
   })
 
   it("answers a call it cannot read as a failure, without asking", async ({ resources }) => {

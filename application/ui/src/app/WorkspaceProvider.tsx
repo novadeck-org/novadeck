@@ -88,7 +88,10 @@ export const WorkspaceProvider = ({
   const [{ services, sync }] = useState(() =>
     createServices(createBackend, location, navigationType),
   )
-  useEffect(() => connectBackend(services.backend, services.workspace), [services])
+  useEffect(
+    () => connectBackend(services.backend, services.workspace, services.commands.openRequested),
+    [services],
+  )
   useEffect(() => persistUi(services.ui, services.workspace), [services])
   useEffect(() => watchPresentation(services.workspace, services.ui), [services])
   useEffect(() => trackRecent(services.workspace, services.ui), [services])

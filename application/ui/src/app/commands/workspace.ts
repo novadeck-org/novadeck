@@ -1,7 +1,22 @@
+import type { TerminalRequest } from "../../backend/port"
 import { addCompactGridTerminal } from "../../model/layout/grid-placement"
 import { activeProject, type WorkspaceAction } from "../../model/state"
-import type { PreferencesValue, Project, ViewMode, WorkspaceTarget } from "../../model/types"
-import { currentContext, currentState, currentTarget, windowedDestination } from "../selectors"
+import type {
+  PreferencesValue,
+  Project,
+  ViewMode,
+  Workspace,
+  WorkspaceProject,
+  WorkspaceSession,
+  WorkspaceTarget,
+} from "../../model/types"
+import {
+  currentContext,
+  currentState,
+  currentTarget,
+  sameTarget,
+  windowedDestination,
+} from "../selectors"
 import type { CommandContext } from "./context"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
 import { createRecentCommands, type RecentCommands } from "./recent"
@@ -36,6 +51,9 @@ export type WorkspaceCommands = ShellCommands &
     readonly chooseRecent: (id: string) => void
     // Returns the new terminal's ID.
     readonly add: (options?: AddTerminalOptions) => string
+    // Adds the terminal an agent asked for beside its own, in that terminal's session,
+    // and answers the request; it comes into view only when the request asks.
+    readonly openRequested: (request: TerminalRequest) => void
     // Closes the terminal, or asks first while a program runs in it.
     readonly close: (terminalId: string) => void
     // Answers the pending close confirmation.
@@ -49,6 +67,18 @@ export type WorkspaceCommands = ShellCommands &
 
 // The terminal created last stays highlighted this long.
 const createdHighlight = 900
+
+// The project and session holding the terminal, wherever it is.
+const holding = (
+  workspace: Workspace,
+  terminalId: string,
+): { project: WorkspaceProject; session: WorkspaceSession } | undefined => {
+  for (const project of workspace.projects)
+    for (const session of project.history)
+      if (session.state.roster.terminals.some((terminal) => terminal.id === terminalId))
+        return { project, session }
+  return undefined
+}
 
 export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands => {
   const { workspace, ui, navigation, newTerminal, pickDirectory, crashLoop, effects } = ctx
@@ -266,6 +296,56 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       if (fromKeyboard) set("sidebarCollapsed", false)
       set("sidebar", false)
       return terminal.id
+    },
+    openRequested: (request) => {
+      const snapshot = workspace.getSnapshot()
+      const found = holding(snapshot, request.from)
+      if (!found)
+        return request.answer({ reason: "The terminal that asked isn't open in NovaDeck." })
+      const { project, session } = found
+      const target = { projectId: project.id, workspaceSessionId: session.id }
+      const { roster, layout } = session.state
+      const created = newTerminal({
+        number: roster.nextNumber,
+        directory: request.directory,
+        launch: request.command === undefined ? {} : { command: request.command },
+      })
+      const terminal = request.title ? { ...created, name: request.title } : created
+      const add: WorkspaceAction = {
+        type: "terminal/add",
+        target,
+        terminal,
+        gridLayouts: addCompactGridTerminal(roster.terminals, layout.grid, terminal),
+        anchor: request.from,
+        select: request.focus,
+      }
+      const here = sameTarget(target, currentTarget(snapshot))
+      if (!request.focus) workspace.transact([add])
+      else {
+        // Into view: in its session, which comes to the front if it was not already.
+        const { enabledViews } = preferences()
+        const now = effects.now()
+        const switching: WorkspaceAction[] = here
+          ? []
+          : [
+              {
+                type: "session/select",
+                projectId: project.id,
+                workspaceSessionId: session.id,
+                now,
+                enabledViews,
+              },
+              ...(project.id === snapshot.activeProjectId
+                ? []
+                : [{ type: "project/select" as const, projectId: project.id, now, enabledViews }]),
+            ]
+        navigateWorkspace([add, ...switching], { panel: "terminals" })
+        pulse()
+        set("sidebar", false)
+      }
+      if (here || request.focus)
+        markCreated({ context: `${project.id}/${session.id}`, id: terminal.id })
+      request.answer({ terminalId: terminal.id })
     },
     close: (terminalId) => {
       const snapshot = workspace.getSnapshot()

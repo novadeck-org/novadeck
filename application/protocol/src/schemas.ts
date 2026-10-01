@@ -255,6 +255,35 @@ export const terminalSummary = z.strictObject({
   telemetry: agentTelemetry.nullable(),
 })
 
+// A command line a new shell runs at its first prompt, as if typed there: one line,
+// without control characters.
+export const startupCommand = z
+  .string()
+  .min(1)
+  .max(4096)
+  // eslint-disable-next-line no-control-regex -- These are the characters it refuses.
+  .regex(/^[^\x00-\x1f\x7f]*$/, "A command must be one line, without control characters.")
+
+// `terminals.requests` items: an agent in terminal `from` asked, through NovaDeck's MCP
+// server, for a new terminal beside it, in `cwd`, starting `command` at its first prompt
+// and named `title` where given. `focus` when the person asked to see it.
+export const terminalRequest = z.strictObject({
+  requestId: id,
+  from: id,
+  sessionId: id,
+  cwd: directory,
+  command: startupCommand.optional(),
+  title: name.optional(),
+  focus: z.boolean(),
+})
+
+// The client's answer to a request: the terminal it opened, or why it didn't, in a
+// sentence the agent can pass on.
+export const terminalRequestAnswer = z.union([
+  z.strictObject({ requestId: id, terminalId: id }),
+  z.strictObject({ requestId: id, reason: z.string().trim().min(1).max(512) }),
+])
+
 // `terminals.watch` events: every terminal's summary, then each later change.
 export const terminalChange = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("changed"), terminal: terminalSummary }),
@@ -312,6 +341,8 @@ export type TerminalExit = z.infer<typeof terminalExit>
 export type ForegroundProcess = z.infer<typeof foregroundProcess>
 export type TerminalSummary = z.infer<typeof terminalSummary>
 export type TerminalChange = z.infer<typeof terminalChange>
+export type TerminalRequest = z.infer<typeof terminalRequest>
+export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>
 export type TerminalAttached = z.infer<typeof terminalAttached>
 export type AgentName = z.infer<typeof agentName>

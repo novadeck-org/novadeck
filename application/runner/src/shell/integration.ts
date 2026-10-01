@@ -5,11 +5,12 @@ import { fishQuote, psQuote } from "./scripts.js"
 
 /**
  * How to start a shell so it loads NovaDeck's integration after the user's own setup;
- * `integrated` when it will report its prompts, and `resumes` when it runs the resume
+ * `integrated` when it will report its prompts, and `resumes` when it runs the startup
  * command. `resumeFile` is where the caller writes that command for the shell to read.
  */
 export type ShellLaunch = {
-  readonly args: readonly string[]
+  /** The shell's arguments, or on Windows its whole command line, which cmd needs as is. */
+  readonly args: readonly string[] | string
   readonly env: NodeJS.ProcessEnv
   readonly integrated: boolean
   readonly resumes: boolean
@@ -23,6 +24,12 @@ const shellName = (shell: string): string =>
     .replace(/\.exe$/i, "")
     .toLowerCase()
 
+// The shells whose integration runs a startup command.
+const startingShells = new Set(["bash", "zsh", "fish", "pwsh", "powershell", "cmd"])
+
+/** Whether NovaDeck's integration for `shell` runs a startup command; see `shellLaunch`. */
+export const startsCommands = (shell: string): boolean => startingShells.has(shellName(shell))
+
 // Windows keeps PATH as "Path"; whichever spelling the environment uses is the one to set.
 const pathKey = (env: NodeJS.ProcessEnv): string =>
   Object.keys(env).find((name) => name.toUpperCase() === "PATH") ?? "PATH"
@@ -35,11 +42,12 @@ const pathKey = (env: NodeJS.ProcessEnv): string =>
  * shells start as they are. Every shell gets the hook's launcher in NOVADECK_HOOK, and
  * with `shims` the connected harnesses whose shims, as Codex's, go first on PATH.
  *
- * A `resume` command, plain words from the harness's `resume`, runs once as the shell starts,
- * as if typed at its first prompt. The integration reads it from the file
- * NOVADECK_RESUME names, which it removes, and unsets the variable first, so nothing
- * the command starts runs it again; removing the file first cancels it. bash, zsh and
- * fish run it at the first prompt, PowerShell after its profile. cmd runs it with /k.
+ * A `startup` command runs once as the shell starts, as if typed at its first prompt:
+ * an agent's resume, plain words from the harness's `resume`, or the command line a new
+ * terminal was opened with. The integration reads it from the file NOVADECK_RESUME
+ * names, which it removes, and unsets the variable first, so nothing the command starts
+ * runs it again; removing the file first cancels it. bash, zsh and fish run it at the
+ * first prompt, PowerShell after its profile. cmd runs the command line with /k.
  */
 export const shellLaunch = (
   shell: string,
@@ -47,10 +55,10 @@ export const shellLaunch = (
   env: NodeJS.ProcessEnv,
   {
     shims = [],
-    resume,
+    startup,
   }: {
     readonly shims?: readonly string[]
-    readonly resume?: { readonly argv: readonly string[]; readonly file: string } | undefined
+    readonly startup?: { readonly command: string; readonly file: string } | undefined
   } = {},
 ): ShellLaunch => {
   const key = pathKey(env)
@@ -68,8 +76,8 @@ export const shellLaunch = (
       NOVADECK_SHIMS: shims.join(" "),
     }),
   }
-  const resuming = resume ? { ...withHook, NOVADECK_RESUME: resume.file } : withHook
-  const fromFile = { resumes: resume !== undefined, resumeFile: resume?.file }
+  const resuming = startup ? { ...withHook, NOVADECK_RESUME: startup.file } : withHook
+  const fromFile = { resumes: startup !== undefined, resumeFile: startup?.file }
   switch (shellName(shell)) {
     case "bash":
       return {
@@ -109,10 +117,12 @@ export const shellLaunch = (
     case "cmd":
       // $e]9;9;$P$e\ is OSC 9;9 with the current directory, ahead of the usual prompt.
       return {
-        args: resume ? ["/k", ...resume.argv] : [],
+        // As a raw command line, so the command reaches cmd as typed: with /s, cmd strips
+        // only the outer quotes and runs the rest unchanged, inner quotes and all.
+        args: startup ? `/s /k "${startup.command}"` : [],
         env: { ...withHook, PROMPT: `$e]9;9;$P$e\\${env.PROMPT || "$P$G"}` },
         integrated: true,
-        resumes: resume !== undefined,
+        resumes: startup !== undefined,
       }
     default:
       return { args: [], env: withHook, integrated: false, resumes: false }

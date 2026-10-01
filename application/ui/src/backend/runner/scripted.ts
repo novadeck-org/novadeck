@@ -96,6 +96,8 @@ export const scripted = ({
     terminals: {
       list: unused,
       watch: () => changes.iterator,
+      // No agent asks for a terminal here.
+      requests: () => channel<never>().iterator,
       // Never answers: a fresh shell stays starting.
       create: note("create", () => new Promise(() => {})),
       close: async () => {},
@@ -141,7 +143,7 @@ export const scripted = ({
     workspaceFromSeed(created.backend.seed, { view: "grid", windowedView: "grid", now: 1 }),
     [],
   )
-  const stop = created.backend.start!({ dispatch: () => {} })
+  const stop = created.backend.start!({ dispatch: () => {}, open: () => {} })
   statuses.push({ state: "connected", runnerId: "runner-1" })
   const of = (call: string) => calls.filter((item) => item.call === call).map((item) => item.input)
   const key = (terminalId: string) => ({ projectId: "p", workspaceSessionId: id(8), terminalId })

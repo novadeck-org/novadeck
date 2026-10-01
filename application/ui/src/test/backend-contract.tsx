@@ -317,6 +317,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
           const sink = (number: number): BackendSink => ({
             dispatch: (actions) =>
               actions.forEach((action) => received.push({ sink: number, action })),
+            open: () => {},
           })
           expect(backend.start).toBeTypeOf("function")
           backend.start!(sink(1))()

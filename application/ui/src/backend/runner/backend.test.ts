@@ -35,7 +35,10 @@ const open = (listing: RunnerListing = runner.listing, options: RunnerBackendOpt
   let workspace = workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 1 })
   backend.commit(workspace, [])
   const received: BackendAction[] = []
-  const stop = backend.start!({ dispatch: (actions) => received.push(...actions) })
+  const stop = backend.start!({
+    dispatch: (actions) => received.push(...actions),
+    open: () => {},
+  })
   const commit = (actions: WorkspaceAction[]): Workspace => {
     workspace = actions.reduce(workspaceReducer, workspace)
     backend.commit(workspace, actions)

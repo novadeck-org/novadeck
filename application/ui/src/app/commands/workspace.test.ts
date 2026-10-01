@@ -1,9 +1,10 @@
 import { afterEach, vi } from "vitest"
 
+import type { TerminalRequest } from "../../backend/port"
 import { createStore } from "../../model/store"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
-import { workspaceFixture } from "../../test/fixtures"
+import { terminalFixture, workspaceFixture } from "../../test/fixtures"
 import { keyState } from "./keys"
 
 const terminal = (app: ReturnType<typeof openCommands>, id: string) =>
@@ -20,6 +21,28 @@ const running = () => {
     state: "running",
     process: "vim",
   }
+  return workspace
+}
+
+// A request from an agent in terminal 02, unless it says otherwise, noting its answers.
+const asking = (request: Partial<TerminalRequest> = {}) => {
+  const answers: unknown[] = []
+  const asked: TerminalRequest = {
+    from: "02",
+    directory: "/work/app",
+    command: "claude",
+    focus: false,
+    answer: (result) => answers.push(result),
+    ...request,
+  }
+  return { asked, answers }
+}
+
+// Two sessions; the one in the background holds terminal 09.
+const twoSessions = () => {
+  const workspace = workspaceFixture({ sessions: ["initial", "other"] })
+  const other = workspace.projects[0]!.history[1]!.state
+  other.roster.terminals.push(terminalFixture(9, "~/project"))
   return workspace
 }
 
@@ -293,6 +316,86 @@ describe("workspace commands", () => {
       expect(app.shell().keyboardFocus).toEqual({ id: "02", view: "grid" })
       expect(app.ui.getSnapshot().recent.switcher).toBeNull()
       expect(app.state().selected).toBe("02")
+    })
+  })
+
+  context("when an agent asks for a terminal", () => {
+    it("adds it beside the asking terminal as the + button would, without taking focus", () => {
+      const app = openCommands({ url: "/projects/project/sessions/initial/canvas?terminal=01" })
+      const urls = app.urls.length
+      const { asked, answers } = asking({ title: "Agent" })
+      app.commands.openRequested(asked)
+      expect(app.allocated).toEqual([
+        { number: 3, directory: "/work/app", launch: { command: "claude" } },
+      ])
+      const added = terminal(app, "new-3")
+      expect(added).toMatchObject({ name: "Agent", directory: "/work/app" })
+      expect(app.state().layout.canvas.geometry["new-3"]).toBeDefined()
+      expect(app.state().layout.grid.desktop?.some((item) => item.i === "new-3")).toBe(true)
+      // The selection, the URL and any rename stay as they were.
+      expect(app.state().selected).toBe("01")
+      expect(app.urls).toHaveLength(urls)
+      expect(app.ui.getSnapshot().rename).toBeNull()
+      expect(answers).toEqual([{ terminalId: "new-3" }])
+    })
+
+    it("places it beside the asking terminal on the canvas, not the selected one", () => {
+      // Terminal 01, selected, at the top; 02, which asks, far below it.
+      const workspace = workspaceFixture()
+      workspace.projects[0]!.history[0]!.state.layout.canvas.geometry = {
+        "01": { position: { x: 0, y: 0 }, width: 600, height: 400 },
+        "02": { position: { x: 0, y: 2000 }, width: 600, height: 400 },
+      }
+      const app = openCommands({
+        workspace,
+        url: "/projects/project/sessions/initial/canvas?terminal=01",
+      })
+      app.commands.openRequested(asking({ from: "02" }).asked)
+      expect(app.state().layout.canvas.geometry["new-3"]?.position.y).toBe(2000)
+    })
+
+    it("starts a plain shell when the agent gave no command", () => {
+      const app = openCommands()
+      const { command: _command, ...plain } = asking().asked
+      app.commands.openRequested(plain)
+      expect(app.allocated.at(-1)).toEqual({ number: 3, directory: "/work/app", launch: {} })
+    })
+
+    it("selects it and brings it into view only when the person asked to see it", () => {
+      const app = openCommands()
+      const { asked, answers } = asking({ focus: true })
+      app.commands.openRequested(asked)
+      expect(app.state().selected).toBe("new-3")
+      expect(app.ui.getSnapshot().location.route.terminal).toBe("new-3")
+      expect(app.ui.getSnapshot().created).toEqual({ context: "project/initial", id: "new-3" })
+      expect(answers).toEqual([{ terminalId: "new-3" }])
+    })
+
+    it("adds it to the asking terminal's own session, coming to the front only when asked", () => {
+      const app = openCommands({ workspace: twoSessions() })
+      const quiet = asking({ from: "09" })
+      app.commands.openRequested(quiet.asked)
+      const other = () => app.workspace.getSnapshot().projects[0]!.history[1]!.state
+      expect(other().roster.terminals.map((each) => each.id)).toContain("new-3")
+      expect(app.state().roster.terminals.map((each) => each.id)).toEqual(["01", "02"])
+      expect(app.ui.getSnapshot().location.route.sessionId).toBe("initial")
+      expect(quiet.answers).toEqual([{ terminalId: "new-3" }])
+      const shown = asking({ from: "09", focus: true })
+      app.commands.openRequested(shown.asked)
+      expect(app.ui.getSnapshot().location.route).toMatchObject({
+        sessionId: "other",
+        terminal: "new-4",
+      })
+      expect(app.state().selected).toBe("new-4")
+    })
+
+    it("answers why not when the asking terminal is in no session", () => {
+      const app = openCommands()
+      const { asked, answers } = asking({ from: "gone" })
+      app.commands.openRequested(asked)
+      expect(app.allocated).toEqual([])
+      expect(app.state().roster.terminals).toHaveLength(2)
+      expect(answers).toEqual([{ reason: "The terminal that asked isn't open in NovaDeck." }])
     })
   })
 

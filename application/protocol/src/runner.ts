@@ -10,6 +10,8 @@ import {
   type TerminalAttached,
   type TerminalChange,
   type TerminalEvent,
+  type TerminalRequest,
+  type TerminalRequestAnswer,
   type TerminalSummary,
   type PlanContent,
   type AgentShown,
@@ -124,7 +126,24 @@ export type Runner = {
        * it last reported in this terminal, and shows no transcript.
        */
       readonly resume?: AgentName
+      /**
+       * Runs once at the shell's first prompt, as if typed there; never with `restore` or
+       * `resume`. A shell that can't run one rejects with `SPAWN_FAILED`.
+       */
+      readonly command?: string
     }): Promise<TerminalSummary>
+    /**
+     * Follows agents' requests for a new terminal, made through NovaDeck's MCP server,
+     * across reconnections. The runner sends each to the client that subscribed last and
+     * waits a few seconds for `answerRequest`; iteration ends when the runner closes or on
+     * `return()`.
+     */
+    requests(): AsyncIterableIterator<TerminalRequest, undefined>
+    /**
+     * Answers a request with the terminal this client opened for it, or why it didn't.
+     * Rejects with `NOT_FOUND` once the runner no longer waits for it.
+     */
+    answerRequest(answer: TerminalRequestAnswer): Promise<void>
     /**
      * Follows every terminal on the runner, across sessions. Each subscription, the
      * first and every one after a reconnection or a retried refusal, yields `reset`,
@@ -621,7 +640,7 @@ class Attachment implements AttachedTerminal {
 }
 
 /**
- * `agents.detail()` and `agents.transcript()`: one subscription per connection, renewed
+ * `agents.detail()`, `agents.transcript()` and the like: one subscription per connection, renewed
  * after each reconnection or when the runner ends it, until what it follows is no longer
  * found. Each new subscription starts over; `fresh`, where given, says so first.
  */
@@ -920,6 +939,11 @@ export const connectRunner = async (
     terminals: {
       list: (input) => call((wire) => wire.terminals.list(input)),
       create: (input) => call((wire) => wire.terminals.create(input)),
+      requests: () =>
+        new Resubscription(connection, (wire, signal) =>
+          wire.terminals.requests(undefined, { signal }),
+        ),
+      answerRequest: (answer) => call((wire) => wire.terminals.answerRequest(answer)),
       watch: () => new TerminalWatch(connection),
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
       restart: (terminalId, { cols, rows, resume }) =>

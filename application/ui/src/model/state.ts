@@ -71,6 +71,10 @@ export type WorkspaceAction =
       terminal: TerminalMetadata
       gridLayouts?: GridLayouts
       canvasGeometry?: CanvasLayout["geometry"][string]
+      // The terminal to place it beside; the selected one by default.
+      anchor?: string
+      // Whether it becomes the session's selection, as it does by default.
+      select?: boolean
     }
   | { type: "terminal/rename"; target: WorkspaceTarget; terminalId: string; name: string }
   | { type: "terminal/close"; target: WorkspaceTarget; terminalId: string }
@@ -327,9 +331,9 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       return updateTarget(workspace, action.target, (state) => {
         const { roster } = state
         if (!action.terminal.id || hasTerminal(roster, action.terminal.id)) return state
+        const beside = action.anchor ?? state.selected
         const anchor =
-          roster.terminals.find((terminal) => terminal.id === state.selected) ??
-          roster.terminals.at(-1)
+          roster.terminals.find((terminal) => terminal.id === beside) ?? roster.terminals.at(-1)
         return {
           ...state,
           roster: addTerminal(roster, action.terminal),
@@ -340,7 +344,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
             gridLayouts: action.gridLayouts,
             canvasGeometry: action.canvasGeometry,
           }),
-          selected: action.terminal.id,
+          selected: action.select === false ? state.selected : action.terminal.id,
         }
       })
     case "terminal/rename":

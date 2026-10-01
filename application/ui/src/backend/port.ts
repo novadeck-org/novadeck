@@ -54,11 +54,27 @@ export type BackendAction = Extract<
   { type: "terminal/status" | "terminal/process" | "terminal/close" }
 >
 
+// An agent in terminal `from` asked for a new terminal beside it: in `directory`,
+// running `command` at its first prompt, named `title` where given. `focus` when the
+// person asked to see it. The app answers once: the terminal it added, which the backend
+// then starts with the request's command, or why it couldn't, in a sentence for the agent.
+export type TerminalRequest = {
+  readonly from: string
+  readonly directory: string
+  readonly command?: string
+  readonly title?: string
+  readonly focus: boolean
+  readonly answer: (result: { readonly terminalId: string } | { readonly reason: string }) => void
+}
+
 export type BackendSink = {
   // Commits the actions as one store transaction, like a UI command. Actions for a
   // project, session or terminal that no longer exists are no-ops, and calls after
   // stop are ignored. Never call it from inside `commit`; the store throws.
   readonly dispatch: (actions: readonly BackendAction[]) => void
+  // Hands the app a request for a new terminal, which it adds where its "+" would. After
+  // stop, the request is refused. Never call it from inside `commit`.
+  readonly open: (request: TerminalRequest) => void
 }
 
 export type Backend = {
@@ -66,7 +82,13 @@ export type Backend = {
   // least one project, each with at least one session; mounting throws otherwise.
   readonly seed: WorkspaceSeed
   // Allocates a terminal synchronously so commands can select and rename it at once.
-  readonly newTerminal: (input: { number: number; directory: string }) => TerminalMetadata
+  // With `launch`, as for a request, its shell starts in `directory` and runs `command`
+  // at its first prompt; otherwise it starts where the backend's new terminals do.
+  readonly newTerminal: (input: {
+    number: number
+    directory: string
+    launch?: { readonly command?: string }
+  }) => TerminalMetadata
   // Called inside every workspace store commit, before listeners, and once with []
   // for the initial workspace. That initial call runs during a render (a useState
   // initializer), possibly on an instance StrictMode then discards, so it must be

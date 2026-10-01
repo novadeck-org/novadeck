@@ -52,6 +52,7 @@ const droppingRunner = () => {
     terminals: {
       list: async () => [],
       watch: nothing,
+      requests: nothing,
       create: async (input: { readonly id: string }) => {
         if (shells.has(input.id)) throw new RunnerError("CONFLICT", "taken")
         shells.add(input.id)
@@ -80,7 +81,7 @@ describe("closing a terminal while its create is unanswered", () => {
     const { backend } = runnerBackend(runner.api, listing, { saveDelay: 10 })
     let workspace = workspaceFromSeed(backend.seed, { view: "grid", windowedView: "grid", now: 1 })
     backend.commit(workspace, [])
-    const stop = backend.start!({ dispatch: () => {} })
+    const stop = backend.start!({ dispatch: () => {}, open: () => {} })
     const commit = (actions: WorkspaceAction[]): void => {
       workspace = actions.reduce(workspaceReducer, workspace)
       backend.commit(workspace, actions)

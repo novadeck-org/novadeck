@@ -29,18 +29,28 @@ export type Report = {
 
 /**
  * What NovaDeck's MCP server forwards: a tool call an agent made in a terminal, which
- * waits for its answer. The runner reads `request` (see `terminals/artifacts.ts`);
- * nothing here does.
+ * waits for its answer. `present` shows something (see `terminals/artifacts.ts`), and
+ * `open` opens a new terminal beside it (see `terminals/opens.ts`); the runner reads
+ * `request`, and nothing here does.
  */
 export type Call = {
-  readonly type: "present"
+  readonly type: CallType
   readonly terminalId: string
   readonly token: string
   readonly request: { readonly [key: string]: unknown }
 }
 
+const callTypes = ["present", "open"] as const
+export type CallType = (typeof callTypes)[number]
+
 /** The answer to a call that failed, took too long, or could not be read. */
 export const unanswered = { ok: false, reason: "NovaDeck couldn't show it." } as const
+
+/** The same, for each type of call. */
+export const unansweredCalls = {
+  present: unanswered,
+  open: { ok: false, reason: "NovaDeck couldn't open the terminal." },
+} as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
 
 const object = (value: unknown): value is { readonly [key: string]: unknown } =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -80,22 +90,28 @@ const parse = (value: { readonly [key: string]: unknown }): Report | undefined =
   }
 }
 
+const callType = (type: unknown): type is CallType => callTypes.some((known) => known === type)
+
 const parseCall = (value: { readonly [key: string]: unknown }): Call | undefined => {
   const { type, request } = value
   const from = sender(value)
-  if (type !== "present" || !from || !object(request)) return undefined
+  if (!callType(type) || !from || !object(request)) return undefined
   return { type, ...from, request }
 }
 
 // A hook sends at most 60,000 characters; a little more allows for the frame. A call's
-// request is a path and a few words, well within it.
+// request is a path or a command and a few words, well within it.
 const maxBytes = 65_536
 
 export type ReportsOptions = {
   readonly platform?: NodeJS.Platform
   /** How long a sender has to send its line, in milliseconds. */
   readonly readMs?: number
-  /** How long a call waits for its answer before it gets `unanswered`, in milliseconds. */
+  /**
+   * How long a call waits for its answer before it gets `unanswered`, in milliseconds:
+   * by default 8 s, as opening a terminal waits for NovaDeck's window, and within the
+   * 10 s NovaDeck's MCP server waits.
+   */
   readonly answerMs?: number
 }
 
@@ -109,7 +125,8 @@ export type Reports = {
  * Listens for agent hook reports and calls. Each connection sends one JSON line: an
  * agent hook's report, handed to `accept` and closed without a reply; or a call, one
  * that names its `type`, which gets one JSON line from `answer` before it is closed.
- * A call that cannot be read, fails, or takes longer than `answerMs` gets `unanswered`.
+ * A call that cannot be read gets `unanswered`; one that fails or takes longer than
+ * `answerMs`, the same for its type.
  * Neither is checked against the terminal's own token here; `accept` and `answer` do.
  */
 export const listenForReports = async (
@@ -117,7 +134,7 @@ export const listenForReports = async (
   answer: (call: Call) => Promise<unknown>,
   options: ReportsOptions = {},
 ): Promise<Reports> => {
-  const { platform = process.platform, readMs = 2_000, answerMs = 5_000 } = options
+  const { platform = process.platform, readMs = 2_000, answerMs = 8_000 } = options
   const directory =
     platform === "win32" ? undefined : await mkdtemp(join(tmpdir(), "novadeck-reports-"))
   const endpoint =
@@ -126,9 +143,10 @@ export const listenForReports = async (
       : join(directory, "reports.sock")
   const reply = async (socket: Socket, call: Call | undefined) => {
     const timeout = new AbortController()
+    const failed = call ? unansweredCalls[call.type] : unanswered
     const result = await Promise.race([
-      call ? answer(call).catch(() => unanswered) : unanswered,
-      sleep(answerMs, unanswered, { signal: timeout.signal }),
+      call ? answer(call).catch(() => failed) : failed,
+      sleep(answerMs, failed, { signal: timeout.signal }),
     ])
     timeout.abort()
     let line: string | undefined
@@ -137,7 +155,7 @@ export const listenForReports = async (
     } catch {
       // Not JSON; answered as a failure below.
     }
-    socket.end(`${line ?? JSON.stringify(unanswered)}\n`)
+    socket.end(`${line ?? JSON.stringify(failed)}\n`)
     // A caller that never closes its side is let go after a while.
     socket.setTimeout(readMs)
   }

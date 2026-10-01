@@ -91,19 +91,25 @@ export const openCommands = ({
     now: () => 1,
   })
   const urls: (string | number)[] = []
+  // What each new terminal was asked for, as the backend received it.
+  const allocated: Parameters<Backend["newTerminal"]>[0][] = []
   bind(((to: string | number) => urls.push(to)) as RouterNavigate)
   const context: CommandContext = {
     workspace: store,
     ui,
     navigation,
-    newTerminal: ({ number, directory }) => ({
-      id: `new-${number}`,
-      name: `Terminal ${String(number).padStart(2, "0")}`,
-      directory,
-      command: "zsh",
-      process: "zsh",
-      state: "idle",
-    }),
+    newTerminal: (input) => {
+      allocated.push(input)
+      const { number, directory } = input
+      return {
+        id: `new-${number}`,
+        name: `Terminal ${String(number).padStart(2, "0")}`,
+        directory,
+        command: "zsh",
+        process: "zsh",
+        state: "idle",
+      }
+    },
     canvas: { current: canvas ?? null },
     effects: record,
     pickDirectory,
@@ -123,6 +129,7 @@ export const openCommands = ({
     // Effects in the order they ran, and the URLs the router was asked for.
     effects,
     urls,
+    allocated,
     screen,
     flush: (): void => queued.splice(0).forEach((run) => run()),
     state: () => activeSession(store.getSnapshot())!.state,

@@ -301,7 +301,7 @@ from what this document describes:
   NovaDeck already installs: `.mcp.json` for Claude Code, `mcpServers` in Codex's
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
   MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
-  Its one tool, `show`, takes a path and optional lines, or a page's `url`, plus a
+  Its first tool, `show`, takes a path and optional lines, or a page's `url`, plus a
   title and `open`, which the agent sets when the user asked to see it (`asked`). The server finds its terminal
   from `NOVADECK_TERMINAL_ID`, `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`. Like
   the hooks, it is installed for every session, but outside NovaDeck's terminals it
@@ -320,6 +320,24 @@ from what this document describes:
   name, not the agent's title. So none appears unasked while they share their screen.
   The UI reads them through `agents.shown` and fetches each with `agents.artifact`,
   never by path.
+- **New terminals** come from the same server's second tool, `open_terminal`, listed
+  only inside NovaDeck's terminals like `show`. It opens a terminal beside the agent's,
+  in `cwd` (absolute, or from the terminal's directory, which is the default), named
+  `title`, and can start `command` at the new shell's first prompt, one line as the
+  person would type it, such as `claude` or `npm run dev`; `focus` brings it into view
+  only when the person asked to see it. The runner checks the token, reads the request
+  strictly, checks the folder, and lets a terminal's agents open five a minute, a
+  terminal opened on request sharing the budget of the one that began the chain, and
+  all agents twenty a minute across the runner, so terminals opening terminals can't
+  multiply. The UI
+  owns layout, so the runner hands the request to the client that subscribed last to
+  `terminals.requests`, which adds the terminal as its "+" would, in the asking
+  terminal's session and beside it, creates it through `terminals.create` with
+  `command`, and replies with `terminals.answerRequest`: the new terminal, or why not.
+  Without a client, or past the deadline, the agent hears so. The command runs once
+  through the same file the shell integration resumes agents from, so it leaves no
+  history entry; a shell without the integration, or with configured arguments, can't
+  run one, and the terminal does not open rather than start a plain shell.
 - **Pages** are any http(s) address; an address with a user name or password is
   refused. The desktop app loads them live in the pane, in Electron's `<webview>`,
   which lays out with the pane, keeps NovaDeck's menus and cards above it, and lets a

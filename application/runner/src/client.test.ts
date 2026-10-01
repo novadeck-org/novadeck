@@ -472,6 +472,35 @@ describe("runner client shown artifacts", () => {
   })
 })
 
+describe("runner client terminal requests", () => {
+  it("follows agents' requests until the client closes, and refuses what it can't start", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const { id: sessionId } = await session(client, app.directory)
+    const requests = client.terminals.requests()
+    const waiting = requests.next()
+    // Nothing waits for an answer nobody was asked for.
+    await expect(
+      client.terminals.answerRequest({ requestId: crypto.randomUUID(), reason: "No." }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" })
+    // These shells start without NovaDeck's integration, so they run no command.
+    await expect(
+      client.terminals.create({ ...shell(sessionId), command: "echo hi" }),
+    ).rejects.toMatchObject({ code: "SPAWN_FAILED" })
+    await expect(
+      client.terminals.create({ ...shell(sessionId), command: "echo hi", restore: true }),
+    ).rejects.toThrow()
+    await expect(
+      client.terminals.create({ ...shell(sessionId), command: "echo hi\necho bye" }),
+    ).rejects.toThrow()
+    await expect(client.terminals.list({ sessionId })).resolves.toEqual([])
+    await client.close()
+    await expect(waiting).resolves.toEqual({ done: true, value: undefined })
+  })
+})
+
 describe("runner client agent detail across reconnections", () => {
   it("resubscribes after a reconnection and a half-open link", async ({ resources }) => {
     const app = await deployed(resources)

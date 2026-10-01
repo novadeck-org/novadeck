@@ -98,12 +98,13 @@ fi
 # The prompt is reported once the agent exits, so NovaDeck knows it ended.
 __novadeck_resume() {
   [ -n "\${NOVADECK_RESUME:-}" ] || return 0
-  local file=$NOVADECK_RESUME resume
+  # Named so the command, which runs in here, sees none of its own as yours.
+  local __novadeck_file=$NOVADECK_RESUME __novadeck_command
   unset NOVADECK_RESUME
-  if [ -f "$file" ]; then
-    resume=$(<"$file")
-    command rm -f -- "$file"
-    eval "$resume"
+  if [ -f "$__novadeck_file" ]; then
+    __novadeck_command=$(<"$__novadeck_file")
+    command rm -f -- "$__novadeck_file"
+    eval "$__novadeck_command"
   fi
   __novadeck_prompt
 }
@@ -171,12 +172,13 @@ add-zsh-hook precmd __novadeck_prompt
 __novadeck_resume() {
   add-zsh-hook -d precmd __novadeck_resume
   [[ -n "$NOVADECK_RESUME" ]] || return 0
-  local file=$NOVADECK_RESUME resume
+  # Named so the command, which runs in here, sees none of its own as yours.
+  local __novadeck_file=$NOVADECK_RESUME __novadeck_command
   unset NOVADECK_RESUME
-  if [[ -f "$file" ]]; then
-    resume=$(<"$file")
-    command rm -f -- "$file"
-    eval "$resume" </dev/tty >/dev/tty 2>/dev/tty
+  if [[ -f "$__novadeck_file" ]]; then
+    __novadeck_command=$(<"$__novadeck_file")
+    command rm -f -- "$__novadeck_file"
+    eval "$__novadeck_command" </dev/tty >/dev/tty 2>/dev/tty
   fi
   __novadeck_prompt
 }
@@ -202,13 +204,14 @@ end
 # agent exits, so NovaDeck knows it ended.
 function __novadeck_resume --on-event fish_prompt
     set -q NOVADECK_RESUME; or return
-    set -l file $NOVADECK_RESUME
+    # Named so the command, which runs in here, sees none of its own as yours.
+    set -l __novadeck_file $NOVADECK_RESUME
     set -e NOVADECK_RESUME
     functions -e __novadeck_resume
-    if test -f $file
-        set -l resume (string collect < $file)
-        command rm -f -- $file
-        eval $resume
+    if test -f $__novadeck_file
+        set -l __novadeck_command (string collect < $__novadeck_file)
+        command rm -f -- $__novadeck_file
+        eval $__novadeck_command
     end
     __novadeck_prompt
 end
@@ -240,7 +243,8 @@ if ($env:NOVADECK_RESUME) {
   if (Test-Path -LiteralPath $__NovaDeckResume) {
     $__NovaDeckCommand = Get-Content -LiteralPath $__NovaDeckResume -Raw
     Remove-Item -LiteralPath $__NovaDeckResume
-    Invoke-Expression $__NovaDeckCommand
+    # Shown as typed at a prompt would show it: the integration around this hides errors.
+    try { Invoke-Expression $__NovaDeckCommand } catch { $Host.UI.WriteErrorLine($_.ToString()) }
   }
   Remove-Variable __NovaDeckResume, __NovaDeckCommand -ErrorAction SilentlyContinue
 }

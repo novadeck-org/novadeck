@@ -130,9 +130,58 @@ describe("NovaDeck's MCP server", () => {
       NOVADECK_REPORT_TOKEN: token,
     })
 
-    it("offers the show tool", async () => {
+    it("offers its tools: show, and open_terminal", async () => {
       const [, tools] = await session(terminal(), [initialize, list])
-      expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual(["show"])
+      expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual(["show", "open_terminal"])
+      // Each as MCP lists a tool, without what the server keeps for itself.
+      for (const tool of tools?.result?.tools ?? [])
+        expect(Object.keys(tool).toSorted()).toEqual(["description", "inputSchema", "name"])
+    })
+
+    it("forwards a request for a new terminal, and says where it opened", async () => {
+      calls.length = 0
+      answer = { ok: true, terminalId: "t", cwd: "/work/app", command: "claude" }
+      const [, opened] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "open_terminal",
+            arguments: { command: "claude", cwd: "app", focus: true, extra: "dropped" },
+          },
+        },
+      ])
+      expect(calls).toEqual([
+        {
+          type: "open",
+          terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
+          token,
+          request: { command: "claude", cwd: "app", focus: true },
+        },
+      ])
+      expect(opened?.result).toEqual({
+        content: [{ type: "text", text: "Opened a new terminal running claude in /work/app." }],
+        isError: false,
+      })
+      answer = { ok: true, terminalId: "t", cwd: "/work" }
+      const [, plain] = await session(terminal(), [
+        initialize,
+        { id: 4, method: "tools/call", params: { name: "open_terminal", arguments: {} } },
+      ])
+      expect(plain?.result).toEqual({
+        content: [{ type: "text", text: "Opened a new terminal in /work." }],
+        isError: false,
+      })
+      answer = { ok: false, reason: "NovaDeck isn't open to show a new terminal." }
+      const [, refused] = await session(terminal(), [
+        initialize,
+        { id: 5, method: "tools/call", params: { name: "open_terminal", arguments: {} } },
+      ])
+      expect(refused?.result).toEqual({
+        content: [{ type: "text", text: "NovaDeck isn't open to show a new terminal." }],
+        isError: true,
+      })
     })
 
     it("forwards a call to the terminal's runner with its token, and says what happened", async () => {
@@ -225,13 +274,15 @@ describe("NovaDeck's MCP server", () => {
     it("offers nothing and calls nothing when one of the terminal's variables is missing", async () => {
       calls.length = 0
       const { NOVADECK_REPORT_TOKEN: _, ...partial } = terminal()
-      const [, tools, call] = await session(partial, [
+      const [, tools, call, open] = await session(partial, [
         initialize,
         list,
         { id: 3, method: "tools/call", params: { name: "show", arguments: { path: "a" } } },
+        { id: 4, method: "tools/call", params: { name: "open_terminal", arguments: {} } },
       ])
       expect(tools?.result?.tools).toEqual([])
       expect(call?.error).toMatchObject({ code: -32602 })
+      expect(open?.error).toMatchObject({ code: -32602 })
       expect(calls).toEqual([])
     })
 
@@ -301,7 +352,7 @@ describe("NovaDeck's MCP server", () => {
           ],
           { start },
         )
-        expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual(["show"])
+        expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual(["show", "open_terminal"])
         expect(shown?.result).toMatchObject({ isError: false })
         expect(calls).toHaveLength(1)
       }, 30_000)
