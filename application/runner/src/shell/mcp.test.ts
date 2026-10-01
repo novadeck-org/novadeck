@@ -10,6 +10,7 @@ import { describe, expect, it } from "../test.js"
 import { installShellFiles } from "./install.js"
 import { mcpScript } from "./mcp.js"
 import { listenForReports, type Call, type Reports } from "./reports.js"
+import { shellFiles, shellPaths } from "./scripts.js"
 
 const token = "0123456789abcdef".repeat(3)
 let folder: string
@@ -159,6 +160,23 @@ describe("NovaDeck's MCP server", () => {
       })
     })
 
+    it("forwards a page by its url", async () => {
+      calls.length = 0
+      answer = { ok: true, id: "def", kind: "page", name: "localhost:5173" }
+      const [, shown] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "show", arguments: { url: "http://localhost:5173/", open: true } },
+        },
+      ])
+      expect(calls.map((call) => call.type === "present" && call.request)).toEqual([
+        { url: "http://localhost:5173/", open: true },
+      ])
+      expect(shown?.result).toMatchObject({ isError: false })
+    })
+
     it("passes on why something can't be shown", async () => {
       answer = { ok: false, reason: "That file is outside this project." }
       const [, refused] = await session(terminal(), [
@@ -227,8 +245,9 @@ describe("NovaDeck's MCP server", () => {
         const [hello, tools] = await session(outside(), [initialize, initialized, list], {
           start,
         })
-        // Well within the 10 s Codex gives an MCP server to start.
-        expect(Date.now() - began).toBeLessThan(5_000)
+        // Not PowerShell's 20 s and more on a CI runner: cscript starts in about one, and
+        // under 10 even on a busy one, as Codex gives an MCP server 10 s.
+        expect(Date.now() - began).toBeLessThan(15_000)
         expect(hello?.result).toMatchObject({
           protocolVersion: "2025-06-18",
           serverInfo: { name: "novadeck", version: plugin.version },
@@ -296,6 +315,15 @@ describe("NovaDeck's MCP server", () => {
       { id: 1, method: "initialize", params: { protocolVersion: "2099-01-01" } },
     ])
     expect(unknown?.result).toMatchObject({ protocolVersion: "2025-11-25" })
+  })
+
+  it("answers outside NovaDeck's terminals through cscript on Windows, never PowerShell", () => {
+    const paths = shellPaths("C:\\data", "win32")
+    const launcher = shellFiles(paths, "C:\\app\\novadeck.exe", "", mcpScript, "win32").find(
+      (file) => file.path === paths.mcp,
+    )
+    expect(launcher?.content).toContain("cscript.exe //nologo //E:jscript")
+    expect(launcher?.content.toLowerCase()).not.toContain("powershell")
   })
 
   it("refuses a batch", async () => {

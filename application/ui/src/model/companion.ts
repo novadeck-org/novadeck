@@ -61,9 +61,15 @@ export type ArtifactContent =
       readonly from: number
       readonly to: number
     }
-  // A page in the preview browser. Until the pane hosts a browser, it shows as a
-  // snapshot image.
-  | { readonly kind: "page"; readonly url: string; readonly snapshot: string }
+  // A web page, by its http(s) address. `live` when the backend's host can load it in the
+  // pane, as the desktop app does; otherwise it shows as a link to open in the browser,
+  // with its `snapshot` image when the backend has one.
+  | {
+      readonly kind: "page"
+      readonly url: string
+      readonly live: boolean
+      readonly snapshot?: string
+    }
 
 // A terminal's companion, as it stands.
 export type CompanionSnapshot = {

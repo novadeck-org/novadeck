@@ -301,8 +301,8 @@ from what this document describes:
   NovaDeck already installs: `.mcp.json` for Claude Code, `mcpServers` in Codex's
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
   MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
-  Its one tool, `show`, takes a path, optional lines, a title and `open`, which the
-  agent sets when the user asked to see it (`asked`). The server finds its terminal
+  Its one tool, `show`, takes a path and optional lines, or a page's `url`, plus a
+  title and `open`, which the agent sets when the user asked to see it (`asked`). The server finds its terminal
   from `NOVADECK_TERMINAL_ID`, `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`. Like
   the hooks, it is installed for every session, but outside NovaDeck's terminals it
   lists no tools, so the agent never sees `show`, and a call anyway does nothing.
@@ -312,8 +312,19 @@ from what this document describes:
   over the terminal's report endpoint, where the runner checks the token and shows only
   images and text files inside the terminal's project folder, its starting folder
   or Claude Code's plans folder, symlinks resolved. The UI reads them through
-  `agents.shown` and fetches each with `agents.artifact`, never by path. Pages, which
-  need a hosted browser view, come later.
+  `agents.shown` and fetches each with `agents.artifact`, never by path.
+- **Pages** are any http(s) address; an address with a user name or password is
+  refused. The desktop app loads them live in the pane, in Electron's `<webview>`,
+  which lays out with the pane, keeps NovaDeck's menus and cards above it, and lets a
+  later highlight mode reach into the page. Whatever the element asks for, the host
+  gives each one no preload or Node, a sandbox, and the `novadeck-pages` session, in
+  memory, where every permission and download is refused and no file loads. Its own
+  links and redirects go only to http(s) addresses. A window it opens goes to the
+  person's browser only right after they clicked or typed in it, one each, so a page
+  can't open tabs on its own; a frame from another site in the page can take that one
+  window, as Electron doesn't say which frame opened it
+  (`application/host/src/main/pages.ts`). Where the host can't, as the web version, a
+  page is a link to open in the browser.
 - **Saving** is a new authorized plan-write operation with the revision check above,
   scoped like `present`: the caller may write only the plan the terminal's agent keeps.
 

@@ -73,6 +73,7 @@ const debugBridge = {
 
 contextBridge.exposeInMainWorld("novadeck", {
   apiUrl: apiUrl.href,
+  livePages: true,
   ...bridge,
   ...(debug && debugBridge),
 } satisfies DesktopHost)

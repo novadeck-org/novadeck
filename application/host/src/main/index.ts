@@ -22,6 +22,7 @@ import {
   runnerPortChannel,
 } from "../bridge.js"
 import { debugEnabled, registerDebugIpc } from "./debug.js"
+import { attachPage, guardPage, lockPagesSession, pagesPartition, webAddress } from "./pages.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { startRunner, type RunnerHost } from "./runner.js"
 
@@ -107,6 +108,8 @@ const createWindow = (origin: string): BrowserWindow => {
       nodeIntegration: false,
       preload: join(currentDirectory, "../preload/index.cjs"),
       sandbox: true,
+      // Live pages in the companion pane; see ./pages.ts.
+      webviewTag: true,
     },
   })
 
@@ -128,8 +131,12 @@ const createWindow = (origin: string): BrowserWindow => {
   window.webContents.on("will-navigate", (event) => event.preventDefault())
 
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://")) void shell.openExternal(url)
+    if (webAddress(url)) void shell.openExternal(url)
     return { action: "deny" }
+  })
+
+  window.webContents.on("will-attach-webview", (event, preferences, params) => {
+    if (!attachPage(preferences, params)) event.preventDefault()
   })
 
   if (app.isPackaged) {
@@ -186,6 +193,10 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, respond) =>
     respond(false),
   )
+  lockPagesSession(session.fromPartition(pagesPartition))
+  app.on("web-contents-created", (_event, contents) => {
+    if (contents.getType() === "webview") guardPage(contents, (url) => shell.openExternal(url))
+  })
 
   void launch().catch((error: unknown) => {
     console.error(error)

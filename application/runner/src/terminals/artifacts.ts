@@ -11,17 +11,28 @@ import { z } from "zod"
  * or from the terminal's directory; for a text file, the lines it points at; a title in
  * place of the file's name; and `open` when the person asked to see it.
  */
-export const presentRequest = z.strictObject({
+// What either request takes: a short name to show, and whether the person asked to see it.
+const shared = { title: z.string().min(1).max(256).optional(), open: z.boolean().optional() }
+
+/** A file to show, by its path, and the lines to point at. */
+export const fileRequest = z.strictObject({
   path: z.string().min(1).max(4096),
   lines: z
     .strictObject({ from: z.int().min(1), to: z.int().min(1) })
     .refine(({ from, to }) => to >= from)
     .optional(),
-  title: z.string().min(1).max(256).optional(),
-  open: z.boolean().optional(),
+  ...shared,
 })
 
-export type PresentRequest = z.infer<typeof presentRequest>
+// What the protocol takes of a page's address.
+const maxUrlChars = 8192
+
+/** A page to show, by its http(s) address. */
+export const pageRequest = z.strictObject({ url: z.string().min(1).max(maxUrlChars), ...shared })
+
+export type FileRequest = z.infer<typeof fileRequest>
+export type PageRequest = z.infer<typeof pageRequest>
+export type PresentRequest = FileRequest | PageRequest
 
 /** Why it was not shown, in a sentence the agent can act on. */
 export type PresentFailure = { readonly ok: false; readonly reason: string }
@@ -107,7 +118,12 @@ const failure = (reason: string): PresentFailure => ({ ok: false, reason })
 export const readRequest = (
   value: unknown,
 ): { readonly ok: true; readonly request: PresentRequest } | PresentFailure => {
-  const parsed = presentRequest.safeParse(value)
+  // A page by its url, otherwise a file; each read strictly, so it names what's wrong.
+  const page = typeof value === "object" && value !== null && "url" in value
+  if (page && "path" in value) return failure("Give a path or a url, not both.")
+  if (typeof value === "object" && value !== null && !page && !("path" in value))
+    return failure("Give a path or a url.")
+  const parsed = (page ? pageRequest : fileRequest).safeParse(value)
   if (parsed.success) return { ok: true, request: parsed.data }
   const [issue] = parsed.error.issues
   const field = issue?.path.join(".")
@@ -139,7 +155,9 @@ const size = (bytes: number): string => {
 export const bytesOf = (content: ArtifactContent): number =>
   content.kind === "image"
     ? content.src.length
-    : content.lines.reduce((total, line) => total + line.length, 0)
+    : content.kind === "page"
+      ? content.url.length
+      : content.lines.reduce((total, line) => total + line.length, 0)
 
 /**
  * The lines of a file of `total` lines captured, from `first` to `last`, and the ones
@@ -149,7 +167,7 @@ export const bytesOf = (content: ArtifactContent): number =>
  */
 export const captureWindow = (
   total: number,
-  lines: PresentRequest["lines"],
+  lines: FileRequest["lines"],
 ): { first: number; last: number; from: number; to: number } | undefined => {
   if (lines && lines.from > total) return undefined
   if (total <= wholeLines)
@@ -166,12 +184,45 @@ export const captureWindow = (
 }
 
 /**
- * Reads what a request points at, when it may be shown: a file inside one of the
- * place's folders once symlinks are resolved, as an image or a text file within their
- * limits.
+ * A page, by its address: any http(s) page, which the desktop app loads in its own
+ * locked-down browser view. An address carrying a user name or password is refused,
+ * as it would show them.
+ */
+const capturePage = (request: PageRequest): Captured | PresentFailure => {
+  let url: URL
+  try {
+    url = new URL(request.url)
+  } catch {
+    return failure("That isn't a valid address.")
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:")
+    return failure("NovaDeck shows only http and https pages.")
+  if (url.username || url.password)
+    return failure("NovaDeck won't show an address with a user name or password in it.")
+  // Encoding can lengthen it past what the protocol carries.
+  if (url.href.length > maxUrlChars) return failure("That address is too long.")
+  return {
+    ok: true,
+    id: idOf(url.href),
+    name: request.title ?? url.host,
+    detail: clip(url.href, 512),
+    content: { kind: "page", url: url.href },
+  }
+}
+
+/**
+ * Reads what a request points at, when it may be shown: a page by its address, or a
+ * file inside one of the place's folders once symlinks are resolved, as an image or a
+ * text file within their limits.
  */
 export const capture = async (
   request: PresentRequest,
+  place: Place,
+): Promise<Captured | PresentFailure> =>
+  "url" in request ? capturePage(request) : captureFile(request, place)
+
+const captureFile = async (
+  request: FileRequest,
   place: Place,
 ): Promise<Captured | PresentFailure> => {
   const given = resolve(place.cwd, request.path)

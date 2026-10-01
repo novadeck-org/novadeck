@@ -175,7 +175,7 @@ export const artifactId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)
 
 export const shownArtifact = z.strictObject({
   id: artifactId,
-  kind: z.enum(["image", "file"]),
+  kind: z.enum(["image", "file", "page"]),
   name: z.string().max(256),
   detail: z.string().max(512),
   version: z.number().int().min(1),
@@ -189,7 +189,8 @@ export const agentShown = z.strictObject({
 })
 
 // `agents.artifact`: what was shown, as captured when it was. An image is a data URL; a
-// file is the lines around the ones pointed at, numbered from `firstLine`.
+// file is the lines around the ones pointed at, numbered from `firstLine`; a page is its
+// http(s) address, which the desktop app loads live.
 export const artifactContent = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("image"), src: z.string().max(12 * 1024 * 1024) }),
   z.strictObject({
@@ -200,6 +201,7 @@ export const artifactContent = z.discriminatedUnion("kind", [
     from: z.number().int().min(1),
     to: z.number().int().min(1),
   }),
+  z.strictObject({ kind: z.literal("page"), url: z.string().max(8192) }),
 ])
 
 // `agents.transcript` changes: items of an actor's conversation in the order its harness

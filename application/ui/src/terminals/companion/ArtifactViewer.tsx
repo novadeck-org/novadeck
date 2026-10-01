@@ -1,9 +1,18 @@
-import { ArrowLeft, FileCode2, Globe, Image, RotateCw } from "lucide-react"
-import { useState } from "react"
+import {
+  ArrowLeft,
+  ArrowRight,
+  ExternalLink,
+  FileCode2,
+  Globe,
+  Image,
+  RotateCw,
+} from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 
 import type { ArtifactContent, ArtifactKind } from "../../model/companion"
 import type { Shown } from "./pane"
 import type { ArtifactLoad } from "./state"
+import { createWebview, type WebviewElement } from "./webview"
 
 type ImageContent = Extract<ArtifactContent, { kind: "image" }>
 type FileContent = Extract<ArtifactContent, { kind: "file" }>
@@ -15,8 +24,11 @@ export const kindIcons: Record<ArtifactKind, typeof Image> = {
   page: Globe,
 }
 
-// Viewers for what an agent shows beside its terminal. Files show without highlighting,
-// and a page shows as its snapshot until the pane hosts a browser.
+// Viewers for what an agent shows beside its terminal. Files show without highlighting.
+// A page loads live where the backend's host allows, in Electron's <webview>, which the
+// desktop app locks down (no Node, its own session, http(s) only; see ./webview.ts);
+// elsewhere it's a link to open in the browser, with a snapshot when the backend has
+// one.
 
 const ImageViewer = ({
   artifact,
@@ -74,20 +86,84 @@ const FileViewer = ({ content: artifact }: { content: FileContent }): React.JSX.
   </>
 )
 
-const PageViewer = ({ content: artifact }: { content: PageContent }): React.JSX.Element => (
-  <div className="artifact-browser">
-    <div className="artifact-browser-bar">
-      <button aria-label="Back">
-        <ArrowLeft size={13} />
-      </button>
-      <button aria-label="Reload">
-        <RotateCw size={13} />
-      </button>
-      <span className="artifact-url">{artifact.url}</span>
-    </div>
-    <img className="artifact-page" src={artifact.snapshot} alt={`${artifact.url} as shown`} />
-  </div>
+// Where the page is, and where it can go.
+type Place = { readonly url: string; readonly back: boolean; readonly forward: boolean }
+
+const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
+  // The desktop app opens a new window's http(s) address in the person's browser.
+  <a className="artifact-open" href={url} target="_blank" rel="noreferrer">
+    <ExternalLink size={13} aria-hidden="true" />
+    Open in browser
+  </a>
 )
+
+const LivePage = ({ url }: { url: string }): React.JSX.Element => {
+  const frame = useRef<HTMLDivElement>(null)
+  const view = useRef<WebviewElement | null>(null)
+  const [place, setPlace] = useState<Place>({ url, back: false, forward: false })
+  useEffect(() => {
+    const element = createWebview(url)
+    view.current = element
+    const update = (): void => {
+      try {
+        setPlace({
+          url: element.getURL(),
+          back: element.canGoBack(),
+          forward: element.canGoForward(),
+        })
+      } catch {
+        // Not attached yet: dom-ready updates it.
+      }
+    }
+    const events = ["dom-ready", "did-navigate", "did-navigate-in-page", "did-stop-loading"]
+    for (const event of events) element.addEventListener(event, update)
+    frame.current?.append(element)
+    return () => {
+      for (const event of events) element.removeEventListener(event, update)
+      element.remove()
+      view.current = null
+    }
+  }, [url])
+  return (
+    <div className="artifact-browser" data-live="">
+      <div className="artifact-browser-bar">
+        <button aria-label="Back" disabled={!place.back} onClick={() => view.current?.goBack()}>
+          <ArrowLeft size={13} />
+        </button>
+        <button
+          aria-label="Forward"
+          disabled={!place.forward}
+          onClick={() => view.current?.goForward()}
+        >
+          <ArrowRight size={13} />
+        </button>
+        <button aria-label="Reload" onClick={() => view.current?.reload()}>
+          <RotateCw size={13} />
+        </button>
+        <span className="artifact-url">{place.url}</span>
+        <OpenInBrowser url={place.url} />
+      </div>
+      <div ref={frame} className="artifact-webview-frame" />
+    </div>
+  )
+}
+
+const PageViewer = ({ content: artifact }: { content: PageContent }): React.JSX.Element =>
+  artifact.live ? (
+    <LivePage url={artifact.url} />
+  ) : (
+    <div className="artifact-browser">
+      <div className="artifact-browser-bar">
+        <span className="artifact-url">{artifact.url}</span>
+        <OpenInBrowser url={artifact.url} />
+      </div>
+      {artifact.snapshot ? (
+        <img className="artifact-page" src={artifact.snapshot} alt={`${artifact.url} as shown`} />
+      ) : (
+        <div className="artifact-status">This page opens in your browser.</div>
+      )}
+    </div>
+  )
 
 // A small picture of an artifact, for a peek: the image itself, the lines the agent
 // pointed at, or the page in a browser frame. Blank until it loads.
@@ -105,7 +181,11 @@ export const ArtifactThumb = ({ load }: { load: ArtifactLoad }): React.JSX.Eleme
         <i />
         <i />
       </span>
-      <img src={content.snapshot} alt="" />
+      {content.snapshot ? (
+        <img src={content.snapshot} alt="" />
+      ) : (
+        <span className="peek-page-url">{content.url}</span>
+      )}
     </span>
   )
 }

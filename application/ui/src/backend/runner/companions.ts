@@ -67,7 +67,11 @@ type Followed = {
   >
 }
 
-export const createRunnerCompanions = (streams: PlanStreams): RunnerCompanions => {
+// `livePages` when the host can load pages in the pane, as the desktop app can.
+export const createRunnerCompanions = (
+  streams: PlanStreams,
+  { livePages = false }: { readonly livePages?: boolean } = {},
+): RunnerCompanions => {
   const listeners = new Set<(event: CompanionEvent) => void>()
   const emit = (event: CompanionEvent): void => listeners.forEach((listener) => listener(event))
   const followed = new Map<string, Followed>()
@@ -229,7 +233,10 @@ export const createRunnerCompanions = (streams: PlanStreams): RunnerCompanions =
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    load: (key, artifactId) => streams.artifact(key.terminalId, artifactId),
+    load: async (key, artifactId) => {
+      const content = await streams.artifact(key.terminalId, artifactId)
+      return content.kind === "page" ? { ...content, live: livePages } : content
+    },
     save: () => Promise.reject(new Error("The runner can't write plans yet")),
     follow,
     unfollow,

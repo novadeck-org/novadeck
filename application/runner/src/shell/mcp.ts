@@ -25,10 +25,11 @@ const inTerminal = Boolean(terminalId && endpoint && token)
 const tool = {
   name: "show",
   description:
-    "Show the user an image or a text file from this project in NovaDeck, beside the terminal " +
-    "they're talking to you in. Use it when they ask to see something, or when a screenshot, " +
-    "mockup, diagram or the lines you mean would help them follow. Set open to true only when " +
-    "they asked to see it; otherwise it waits for them in NovaDeck, marked new.",
+    "Show the user an image or a text file from this project, or a web page, in NovaDeck, " +
+    "beside the terminal they're talking to you in. Give either path or url. Use it when they " +
+    "ask to see something, or when a screenshot, mockup, diagram, the lines you mean or the " +
+    "running app (as a local dev server's address) would help them follow. Set open to true " +
+    "only when they asked to see it; otherwise it waits for them in NovaDeck, marked new.",
   inputSchema: {
     type: "object",
     properties: {
@@ -37,6 +38,12 @@ const tool = {
         description:
           "The file: an image (PNG, JPEG, GIF, WebP, SVG) or a text file, absolute or relative " +
           "to the terminal's current directory. It must be inside this project.",
+      },
+      url: {
+        type: "string",
+        description:
+          "Instead of path: a web page's http or https address, such as http://localhost:5173/, " +
+          "which NovaDeck opens live in its browser view.",
       },
       lines: {
         type: "object",
@@ -54,7 +61,6 @@ const tool = {
         description: "True only when the user asked to see it: it opens at once.",
       },
     },
-    required: ["path"],
     additionalProperties: false,
   },
 }
@@ -100,7 +106,8 @@ const present = (request) =>
 const requestOf = (args) => {
   const input = typeof args === "object" && args !== null ? args : {}
   return {
-    path: input.path,
+    ...(input.path !== undefined && { path: input.path }),
+    ...(input.url !== undefined && { url: input.url }),
     ...(input.lines !== undefined && { lines: input.lines }),
     ...(input.title !== undefined && { title: input.title }),
     ...(input.open !== undefined && { open: input.open }),

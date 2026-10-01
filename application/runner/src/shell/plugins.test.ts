@@ -65,8 +65,12 @@ const runHook = (agent: AgentName, event: string, hook: string | undefined, stdi
       ? ["powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command]]
       : [process.env.COMSPEC ?? "cmd.exe", ["/d", "/s", "/c", command]]
     : ["/bin/sh", ["-c", command]]
-  return spawnSync(program, args, { env, input: stdin, encoding: "utf8", timeout: 15_000 })
+  return spawnSync(program, args, { env, input: stdin, encoding: "utf8", timeout: hookMs })
 }
+
+// PowerShell, which runs Claude Code's hook on Windows, can take most of 15 s to start
+// cold on a busy CI runner; a hook that hangs still fails.
+const hookMs = 45_000
 
 // The event each plugin registers today.
 const events = { claude: "SessionStart", codex: "SessionStart", agy: "PreInvocation" } as const
@@ -96,22 +100,30 @@ describe("agent plugin hook commands", () => {
   })
 
   for (const agent of ["claude", "codex", "agy"] as const) {
-    it(`do nothing outside NovaDeck's shells for ${agent}`, ({ plugins }) => {
-      const result = runHook(agent, events[agent], undefined, "{}")
-      expect(result.status).toBe(0)
-      // Antigravity reads a hook's answer as JSON.
-      expect(result.stdout.trim()).toBe(agent === "agy" ? "{}" : "")
-      expect(plugins.recorded()).toBeUndefined()
-    })
+    it(
+      `do nothing outside NovaDeck's shells for ${agent}`,
+      ({ plugins }) => {
+        const result = runHook(agent, events[agent], undefined, "{}")
+        expect(result.status).toBe(0)
+        // Antigravity reads a hook's answer as JSON.
+        expect(result.stdout.trim()).toBe(agent === "agy" ? "{}" : "")
+        expect(plugins.recorded()).toBeUndefined()
+      },
+      hookMs + 5_000,
+    )
 
-    it(`hand the agent's payload to NovaDeck's hook for ${agent}`, ({ plugins }) => {
-      const payload = JSON.stringify({ session_id: "abc", conversationId: "abc" })
-      expect(runHook(agent, events[agent], plugins.launcher, payload).status).toBe(0)
-      expect(plugins.recorded()).toEqual({
-        args: [agent, events[agent]],
-        stdin: expect.stringContaining(payload),
-      })
-    })
+    it(
+      `hand the agent's payload to NovaDeck's hook for ${agent}`,
+      ({ plugins }) => {
+        const payload = JSON.stringify({ session_id: "abc", conversationId: "abc" })
+        expect(runHook(agent, events[agent], plugins.launcher, payload).status).toBe(0)
+        expect(plugins.recorded()).toEqual({
+          args: [agent, events[agent]],
+          stdin: expect.stringContaining(payload),
+        })
+      },
+      hookMs + 5_000,
+    )
   }
 })
 

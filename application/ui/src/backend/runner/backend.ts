@@ -51,6 +51,8 @@ export type RunnerBackendOptions = {
   // Where the host lets the page finish its saves before its window closes or the app
   // quits; returns the undo.
   readonly beforeQuit?: (save: () => Promise<void>) => () => void
+  // Whether the host can load web pages in the pane, as the desktop app can.
+  readonly livePages?: boolean
   readonly now?: () => number
   // The debug panel's hooks, when this launch offers the panel.
   readonly debug?: RunnerDebug | undefined
@@ -685,12 +687,15 @@ export const runnerBackend = (
   }
 
   // The plans each terminal's agent keeps, followed while the backend runs.
-  const companions = createRunnerCompanions({
-    detail: (terminalId) => runner.agents.detail(terminalId),
-    plan: (terminalId, plan) => runner.agents.plan(terminalId, plan),
-    shown: (terminalId) => runner.agents.shown(terminalId),
-    artifact: (terminalId, artifact) => runner.agents.artifact(terminalId, artifact),
-  })
+  const companions = createRunnerCompanions(
+    {
+      detail: (terminalId) => runner.agents.detail(terminalId),
+      plan: (terminalId, plan) => runner.agents.plan(terminalId, plan),
+      shown: (terminalId) => runner.agents.shown(terminalId),
+      artifact: (terminalId, artifact) => runner.agents.artifact(terminalId, artifact),
+    },
+    { livePages: options.livePages === true },
+  )
   let following = false
   // Follows a terminal's plans once the runner has it: its detail answers "not found"
   // before then. Called whenever a shell is created or started afresh.

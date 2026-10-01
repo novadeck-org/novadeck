@@ -112,6 +112,7 @@ const preview: SampleArtifact = {
   content: {
     kind: "page",
     url: "http://localhost:5173/",
+    live: false,
     snapshot: svg(
       1600,
       900,

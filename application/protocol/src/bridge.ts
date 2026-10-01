@@ -30,4 +30,6 @@ export type DesktopHost = DesktopBridge &
   Partial<DesktopDebugBridge> & {
     /** The host's local HTTP API. */
     readonly apiUrl: string
+    /** Whether the page can show web pages live, in a locked-down `<webview>`. */
+    readonly livePages?: true
   }

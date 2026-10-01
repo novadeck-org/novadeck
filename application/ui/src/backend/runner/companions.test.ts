@@ -299,6 +299,27 @@ describe("runner companions", () => {
       expect(runner.fetched).toEqual(["hero"])
     })
 
+    it("loads a page live only where the host can show it", async () => {
+      const page = (livePages?: boolean) =>
+        createRunnerCompanions(
+          {
+            shown: () => channel<AgentShown>().iterator,
+            detail: () => channel<AgentDetail>().iterator,
+            plan: () => channel<PlanContent>().iterator,
+            artifact: () =>
+              Promise.resolve<ArtifactContent>({ kind: "page", url: "http://localhost:5173/" }),
+          },
+          livePages === undefined ? {} : { livePages },
+        ).load(key, "preview")
+      await expect(page(true)).resolves.toEqual({
+        kind: "page",
+        url: "http://localhost:5173/",
+        live: true,
+      })
+      await expect(page(false)).resolves.toMatchObject({ live: false })
+      await expect(page()).resolves.toMatchObject({ live: false })
+    })
+
     it("lists what was shown before it followed, as after a reload, as already seen", async () => {
       const runner = running()
       runner.companions.follow(key)

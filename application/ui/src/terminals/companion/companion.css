@@ -263,6 +263,14 @@
   border-radius: 50%;
   background: var(--color-line-strong);
 }
+.peek-page-url {
+  padding: 8px 6px;
+  overflow: hidden;
+  font: 10px var(--font-mono);
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .peek-page img {
   display: block;
   width: 100%;
@@ -1028,6 +1036,48 @@
   font: 11px var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.artifact-browser-bar button:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.artifact-open {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--radius-control);
+  font-size: 11px;
+  color: var(--color-muted);
+  text-decoration: none;
+}
+.artifact-open:hover {
+  background: var(--color-soft);
+  color: var(--color-ink);
+}
+/* A live page fills the viewer, and scrolls itself. */
+.artifact-viewer:has(> .artifact-browser[data-live]) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.artifact-browser[data-live] {
+  flex: 1;
+  min-height: 0;
+}
+.artifact-webview-frame {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.artifact-webview {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  background: #fff;
 }
 /* The mocked Studio site, in its own palette. */
 .artifact-page {

@@ -142,6 +142,7 @@ export const connectRunnerBackend = async (
           newId,
           ...(pick ? { pickDirectory: () => pick() } : {}),
           ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
+          livePages: desktopHost()?.livePages === true,
           debug,
           transcripts,
           agents,
