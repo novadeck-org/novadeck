@@ -77,6 +77,7 @@ import {
 } from "./foreground.js"
 import { keysOf } from "./keys.js"
 import { Latest } from "./latest.js"
+import { type MouseEncoding, mouseReporting, watchMouseEncoding } from "./mouse.js"
 import {
   cleanSummary,
   describedAs,
@@ -285,6 +286,8 @@ type Started = {
   process: pty.IPty
   screen: Screen
   serializer: Serializer
+  /** The mouse's encoding a program set on its screen. */
+  mouseEncoding: () => MouseEncoding
   startedAt: number
   token: string
   resumes: boolean
@@ -334,12 +337,6 @@ const inherited = [
   "CODEX_THREAD_ID",
   "ANTIGRAVITY_CONVERSATION_ID",
 ]
-
-// Input the terminal itself sends, not typing: focus reports, cursor-position and device
-// reports, and answers to colour queries.
-const terminalReply =
-  // eslint-disable-next-line no-control-regex -- These replies are control sequences.
-  /^(?:\x1b\[[IO]|\x1b\[\??[\d;]*[Rcn]|\x1b\[>[\d;]*c|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\))+$/
 
 // Why a request for a new terminal went unanswered.
 const unopened = {
@@ -826,22 +823,25 @@ export class Terminals {
   write(input: { terminalId: string; data: string }, ownerId: string): void {
     const record = this.control(input.terminalId, ownerId)
     this.running(record)
-    // Typing before the shell resumes its agent cancels the resume, so the shell gets
-    // what was typed; the terminal's own replies, such as focus reports, are not typing.
-    if (!terminalReply.test(input.data)) {
-      // A cancelled resume leaves its session free for another terminal.
+    // The person's keys, and whether a request waits on them: what they did to the
+    // agent's box, messaging's delivery decides. The terminal's own reports, such as a
+    // focus report or, while the TUI asked for them, the mouse's scroll, are no keys.
+    const queueKey = record.binding ? harnesses[record.binding.agent].messaging.queueKey : undefined
+    const { modes } = record.screen
+    const keys = keysOf(input.data, queueKey, {
+      mouse: mouseReporting(modes.mouseTrackingMode, record.mouseEncoding()),
+      focus: modes.sendFocusMode,
+    })
+    if (keys.length > 0) {
+      // Typing before the shell resumes its agent cancels the resume, so the shell gets
+      // what was typed. A cancelled resume leaves its session free for another terminal.
       const claim = record.resumeClaim
       if (this.cancelResume(record) && claim && this.claims.get(claim) === record.summary.id)
         this.claims.delete(claim)
       if (/[\r\n]/.test(input.data)) record.submitted = true
-      // The person's keys, and whether a request waits on them: what they did to the
-      // agent's box, messaging's delivery decides.
-      const queueKey = record.binding
-        ? harnesses[record.binding.agent].messaging.queueKey
-        : undefined
       this.messaging.keys(
         input.terminalId,
-        keysOf(input.data, queueKey).map(({ kind }) => kind),
+        keys.map(({ kind }) => kind),
         (record.activity?.pending.length ?? 0) > 0,
       )
     }
@@ -1241,6 +1241,7 @@ export class Terminals {
               record.summary,
               record.sequence,
               this.options.snapshotBytes,
+              record.mouseEncoding(),
             ),
           )
         }
@@ -2026,6 +2027,7 @@ export class Terminals {
     const screen = new Terminal({ cols, rows, scrollback: 1000, allowProposedApi: true })
     const serializer = new SerializeAddon()
     screen.loadAddon(serializer)
+    const mouseEncoding = watchMouseEncoding(screen)
     try {
       const args = this.options.shellArgs ?? launched.args
       const child = pty.spawn(shell, typeof args === "string" ? args : [...args], {
@@ -2041,6 +2043,7 @@ export class Terminals {
         process: child,
         screen,
         serializer,
+        mouseEncoding,
         startedAt: performance.now(),
         token,
         resumes: launched.resumes,

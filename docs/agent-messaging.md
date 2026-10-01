@@ -283,9 +283,26 @@ the opener's, and `describe` names the caller's own terminal (see
   `Interrupt`, Claude Code's transcript recording the call as interrupted or denied,
   Antigravity's status line no longer showing a confirmation, or a root prompt the
   person submitted. A turn ending alone resolves nothing.
-- **The person's input** is any input a client sends to the terminal except the
-  terminal's automatic replies (the `terminalReply` filter the manager already uses):
-  keys, pastes and mouse clicks, since a click can open a menu too. While a request
+- **The person's input** is everything a client sends to the terminal except the
+  terminal's own reports (`keysOf` in the runner's `terminals/keys.ts` is the one rule):
+  focus reports, and the mouse's scroll and motion reports, while the TUI has turned
+  that reporting on, as the runner's own screen of the terminal shows; cursor-position
+  and device reports; and OSC answers, such as a colour's. A fullscreen TUI turns mouse
+  reporting on, so those come from merely scrolling or moving over it. A mouse report
+  counts as the terminal's only in the encoding the TUI set: SGR (`ESC [ <`) while it
+  set SGR (1006, or 1016 in pixels), X10 (`ESC [ M` and three bytes) while it set
+  neither, and then only with every byte below 0x80, since the pty re-encodes higher
+  ones as UTF-8 and the TUI may read a leftover byte as typing. While the TUI set
+  urxvt's encoding (1015) and no SGR one, every mouse report is input: xterm.js ignores
+  1015 and reports in X10, which such a TUI may read as typing. A snapshot carries the
+  encoding, as xterm.js's serializer leaves it out, so a client that reloads or attaches
+  anew reports in the TUI's encoding. Keys, pastes and mouse clicks are input, since a
+  click can open a menu too, and so is whatever looks like a mouse or focus report while
+  the TUI hasn't asked for one: it may be Alt+[ and typing. Two known gaps: in an
+  alternate screen without mouse tracking, xterm.js turns the wheel into Up and Down
+  keys, which stay content, erring safe; and a TUI killed with mouse tracking on leaves
+  the runner's screen reporting the mouse, so the next program's wheel reports are left
+  out though it never asked for them. While a request
   (a permission or a question) is pending, whether or not a dialog shows:
   1. its keys are never a submission: they neither count as a prompt the person
      submitted nor as one they queued, so a Stop after them is continued as without

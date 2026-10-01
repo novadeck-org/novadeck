@@ -462,8 +462,6 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const manager = shell.manager()
     await create(manager, shell, { id, restore: true, resume: "claude" })
     await new Promise((resolve) => setTimeout(resolve, 300))
-    // A focus report is the terminal's, not typing.
-    manager.write({ terminalId: id, data: "\x1b[I" }, "owner")
     manager.write({ terminalId: id, data: "echo mine\r" }, "owner")
     await shell.until(manager, id, /mine\r?\n[\s\S]*\$ /)
     await new Promise((resolve) => setTimeout(resolve, 500))
@@ -474,6 +472,25 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     shell.saveSession(other, "claude", "abc-1")
     await create(manager, shell, { id: other, restore: true, resume: "claude" })
     await shell.until(manager, other, "claude args: --resume abc-1")
+  })
+
+  it("keeps the resume through the mouse's scroll while the screen reports the mouse", async ({
+    shell,
+  }) => {
+    // Something run before the resume turns mouse reporting on, as a fullscreen TUI does.
+    writeFileSync(
+      join(shell.home, ".bashrc"),
+      `export PATH="$HOME/bin:$PATH"\nprintf '\\033[?1000h\\033[?1006hmouse on\\n'\nsleep 1\n`,
+    )
+    fakeAgent(shell.home, "claude")
+    const id = randomUUID()
+    shell.saveSession(id, "claude", "abc-1")
+    const manager = shell.manager()
+    await create(manager, shell, { id, restore: true, resume: "claude" })
+    await shell.until(manager, id, "mouse on")
+    // The wheel over it, up and down: the terminal's reports, not typing.
+    manager.write({ terminalId: id, data: "\x1b[<64;10;5M\x1b[<65;10;5M" }, "owner")
+    await shell.until(manager, id, "claude args: --resume abc-1")
   })
 
   it("shows the transcript when a shell without integration cannot resume", async ({ shell }) => {
@@ -2610,8 +2627,10 @@ describe.runIf(process.platform === "win32")("Windows shell integration", () => 
  * `received`, and every input it got to `raw` (one JSON line each). A signal starts a
  * turn by itself, as a background task's result does. `menu` opens a menu after its
  * first turn that swallows pastes; `perm` asks a permission in its second turn, then runs
- * the tool for a while; `bg` runs it in the background, starting a turn by itself.
- * `named` is the same TUI under its harness's name, so its hooks find its instance.
+ * the tool for a while; `bg` runs it in the background, starting a turn by itself;
+ * `mouse` turns on mouse and focus reporting, as a fullscreen TUI does. It skips mouse and
+ * focus reports, as such a TUI does. `named` is the same TUI under its harness's name, so
+ * its hooks find its instance.
  */
 const standInTui = (home: string): string => {
   const bin = join(home, "bin")
@@ -2707,6 +2726,8 @@ if (mode !== "bg") {
   process.stdin.setEncoding("utf8")
   // One key at a time, as a terminal may hand over several in one read.
   const key = (data) => {
+    // A mouse or focus report scrolls or moves; it types nothing.
+    if (/^\x1b\[(?:<|[IO]$)/.test(data)) return
     if (menu) {
       if (data === "\r") fs.appendFileSync(received, JSON.stringify({ picked: true }) + "\n")
       return
@@ -2754,10 +2775,12 @@ if (mode !== "bg") {
   }
   process.stdin.on("data", (data) => {
     fs.appendFileSync(raw, JSON.stringify({ data, busy }) + "\n")
-    for (const each of data.match(/\x1b\[200~[\s\S]*?\x1b\[201~|\x1b\r|\x1b\[A|[\s\S]/g) ?? []) key(each)
+    for (const each of data.match(/\x1b\[200~[\s\S]*?\x1b\[201~|\x1b\[<\d+;\d+;\d+[Mm]|\x1b\[[IO]|\x1b\r|\x1b\[A|[\s\S]/g) ?? []) key(each)
   })
 }
-process.stdout.write("\x1b[?2004h" + agent + " tui\r\n\r\n")
+// Mouse reporting of every motion, in SGR form, and focus reporting.
+const reporting = mode === "mouse" ? "\x1b[?1003h\x1b[?1006h\x1b[?1004h" : ""
+process.stdout.write("\x1b[?2004h" + reporting + agent + " tui\r\n\r\n")
 const ready = () => {
   busy = false
   process.stdout.write(agent + " ready\r\n")
@@ -2828,7 +2851,10 @@ const ringing = async (shell: Fixture, mode = "", program = "tui", agent: AgentN
       type("hello")
       await shell.until(manager, idle.id, "> hello")
       type("\r")
-      await expect.poll(() => manager.messages(idle.id).delivery).toBe("settled")
+      // The turn's hooks may take a while on a loaded machine (macOS CI).
+      await expect
+        .poll(() => manager.messages(idle.id).delivery, { timeout: 10_000 })
+        .toBe("settled")
     },
   }
 }
@@ -3109,6 +3135,39 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await tui.send("Review a.ts")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
       expect(tui.received()[1]!.printed).toContain(">Review a.ts</message>")
+    })
+
+    it("rings an agent whose terminal only reported the mouse's scroll and motion and its focus since the turn", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "mouse", "named")
+      await tui.first()
+      await expect.poll(tui.delivery).toBe("settled")
+      // A fullscreen TUI's scroll and the pointer moving over it, then the focus leaving:
+      // none of them types.
+      tui.type("\x1b[<64;40;10M\x1b[<65;40;10M")
+      tui.type("\x1b[<35;12;7M")
+      tui.type("\x1b[O")
+      await quiet()
+      await expect.poll(tui.delivery).toBe("settled")
+      await tui.send("Review a.ts")
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
+      // The doorbell's line alone: no report reached the box ahead of it.
+      expect(tui.received()[1]!.prompt).toMatch(
+        /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+      )
+      expect(tui.received()[1]!.printed).toContain(">Review a.ts</message>")
+    })
+
+    it("takes what looks like the mouse's scroll as typing while the agent's TUI reports no mouse", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "", "named")
+      await tui.first()
+      await expect.poll(tui.delivery).toBe("settled")
+      // Without mouse reporting, no terminal sends one: it may be Alt+[ and typing.
+      tui.type("\x1b[<64;40;10M")
+      await expect.poll(tui.delivery).toBe("drafting")
     })
 
     it("takes Antigravity's turn after the person's Enter as theirs once its transcript shows the input", async ({
