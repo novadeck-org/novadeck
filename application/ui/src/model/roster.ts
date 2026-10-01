@@ -4,7 +4,6 @@ import type { TerminalMetadata, TerminalRoster, TerminalStatus } from "./types"
 export const createRoster = (terminals: TerminalMetadata[]): TerminalRoster => ({
   terminals,
   order: [],
-  nextNumber: terminals.length + 1,
 })
 
 export const hasTerminal = (roster: TerminalRoster, terminalId: string): boolean =>
@@ -27,8 +26,33 @@ export const addTerminal = (
 ): TerminalRoster => ({
   ...roster,
   terminals: [...roster.terminals, terminal],
-  nextNumber: roster.nextNumber + 1,
 })
+
+// What the backend says of a terminal now: its name or directory.
+export const updateTerminal = (
+  roster: TerminalRoster,
+  terminalId: string,
+  change: Partial<Pick<TerminalMetadata, "name" | "directory">>,
+): TerminalRoster => {
+  const current = roster.terminals.find((terminal) => terminal.id === terminalId)
+  if (!current) return roster
+  const changed = Object.entries(change).some(
+    ([key, value]) => value !== undefined && current[key as keyof typeof change] !== value,
+  )
+  if (!changed) return roster
+  return {
+    ...roster,
+    terminals: roster.terminals.map((terminal) =>
+      terminal === current
+        ? {
+            ...terminal,
+            ...(change.name !== undefined && { name: change.name }),
+            ...(change.directory !== undefined && { directory: change.directory }),
+          }
+        : terminal,
+    ),
+  }
+}
 
 export const renameTerminal = (
   roster: TerminalRoster,

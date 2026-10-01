@@ -9,7 +9,7 @@ import { context, describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { startingTerminal, type RunnerListing } from "./seed"
-import { encodeSession, type SavedTerminal } from "./session-state"
+import { encodeSession } from "./session-state"
 import { startTestRunner } from "./testing"
 
 // Values pushed by the test, read by the adapter as a stream.
@@ -42,6 +42,11 @@ const terminalId = "00000000-0000-4000-8000-000000000001"
 const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   id: terminalId,
   sessionId: "s",
+  title: "Terminal 01",
+  handle: "t1",
+  started: true,
+  command: null,
+  lastProgram: null,
   cwd: "/tmp",
   cols: 80,
   rows: 24,
@@ -56,8 +61,9 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
 
 // A runner the test drives step by step: what its watches report, and when a restart
 // answers. Timing like this cannot be arranged with a real runner.
-// `lastProcess` is what the session saved for the terminal, to restore.
-const scripted = (listed: TerminalSummary, lastProcess = "") => {
+// `lastProgram` is the program the runner last saw there, to restore.
+const scripted = (reported: TerminalSummary, lastProgram = "") => {
+  const listed = lastProgram ? { ...reported, lastProgram } : reported
   const changes = channel<TerminalWatchItem>()
   const statuses = channel<RunnerStatus>()
   const restarts: ((summary: TerminalSummary) => void)[] = []
@@ -80,16 +86,7 @@ const scripted = (listed: TerminalSummary, lastProcess = "") => {
     id: "s",
     name: "S",
     visitedAt: 5,
-    state: createTerminalState(
-      [
-        {
-          ...startingTerminal(terminalId, 1, "/tmp"),
-          ...(lastProcess ? { restoredProcess: lastProcess } : {}),
-        },
-      ],
-      "grid",
-      "grid",
-    ),
+    state: createTerminalState([startingTerminal(terminalId, "/tmp")], "grid", "grid"),
   }
   const listing: RunnerListing = [
     {
@@ -121,20 +118,13 @@ const scripted = (listed: TerminalSummary, lastProcess = "") => {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 20))
 
-// The terminal once the store applied every action the adapter sent: its state, the
-// program waiting to be restored, and what the next save records.
+// The terminal once the store applied every action the adapter sent: its state, and the
+// program waiting to be restored.
 const restoreOf = (app: ReturnType<typeof scripted>) => {
   const seeded = workspaceFromSeed(app.backend.seed, { view: "grid", windowedView: "grid", now: 1 })
   const session = activeSession(app.received.reduce<Workspace>(workspaceReducer, seeded))!
   const terminal = session.state.roster.terminals[0]!
-  const saved = JSON.parse(encodeSession(session, 2)) as {
-    state: { roster: { terminals: SavedTerminal[] } }
-  }
-  return {
-    state: terminal.state,
-    restored: terminal.restoredProcess,
-    saved: saved.state.roster.terminals[0]!.lastProcess,
-  }
+  return { state: terminal.state, restored: terminal.restoredProcess }
 }
 
 describe("a terminal the runner loses", () => {
@@ -146,7 +136,7 @@ describe("a terminal the runner loses", () => {
     app.changes.push({ type: "reset" })
     app.changes.push({ type: "synced" })
     await vi.waitFor(() => expect(app.statusesOf().at(-1)).toEqual({ state: "starting" }))
-    expect(restoreOf(app)).toEqual({ state: "starting", restored: "claude", saved: "claude" })
+    expect(restoreOf(app)).toEqual({ state: "starting", restored: "claude" })
     app.stop()
   })
 })
@@ -155,7 +145,7 @@ describe("a program saved to resume", () => {
   it("is nothing to restore in a shell still live", async () => {
     const app = scripted(summary({ process: { name: "bash", argv: null } }), "claude")
     await flush()
-    expect(restoreOf(app)).toEqual({ state: "idle", restored: undefined, saved: "" })
+    expect(restoreOf(app)).toEqual({ state: "idle", restored: undefined })
     app.stop()
   })
 
@@ -166,13 +156,13 @@ describe("a program saved to resume", () => {
     expect(restoreOf(app).restored).toBe("claude")
     app.restart(app.key)
     await flush()
-    expect(restoreOf(app)).toEqual({ state: "starting", restored: "claude", saved: "claude" })
+    expect(restoreOf(app)).toEqual({ state: "starting", restored: "claude" })
     // The runner answers, and announces the fresh shell at its prompt.
     const fresh = summary({ run: 2, process: { name: "bash", argv: null } })
     app.restarts[0]!(fresh)
     app.changes.push({ type: "changed", terminal: fresh })
     await vi.waitFor(() => expect(restoreOf(app).state).toBe("idle"))
-    expect(restoreOf(app)).toEqual({ state: "idle", restored: undefined, saved: "" })
+    expect(restoreOf(app)).toEqual({ state: "idle", restored: undefined })
     app.stop()
   })
 })
@@ -262,8 +252,8 @@ describe("terminal limits and retries", () => {
       projectId: workspace.activeProjectId,
       workspaceSessionId: activeSession(workspace)!.id,
     }
-    for (const number of [1, 2]) {
-      const terminal = backend.newTerminal({ number, directory: "/tmp" })
+    for (const _ of [1, 2]) {
+      const terminal = backend.newTerminal({ target, directory: "/tmp" })
       const action = { type: "terminal/add", target, terminal } as const
       workspace = workspaceReducer(workspace, action)
       backend.commit(workspace, [action])
@@ -300,7 +290,7 @@ describe("terminal limits and retries", () => {
       projectId: workspace.activeProjectId,
       workspaceSessionId: activeSession(workspace)!.id,
     }
-    const terminal = backend.newTerminal({ number: 3, directory: "/tmp" })
+    const terminal = backend.newTerminal({ target, directory: "/tmp" })
     const add = { type: "terminal/add", target, terminal } as const
     workspace = workspaceReducer(workspace, add)
     backend.commit(workspace, [add])

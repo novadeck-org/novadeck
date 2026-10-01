@@ -45,8 +45,10 @@ describe("Antigravity's status line, as captured", () => {
       startedAt: 5,
       evidence: "conversation-observed",
       cwd: "/home/user/project",
+      // The status line names the root conversation; hooks name subagents' alike.
+      root: true,
     })
-    expect(activity(working!)).toMatchObject([{ type: "turn-started" }])
+    expect(activity(working!)).toMatchObject([{ type: "turn-started", cause: "call" }])
     expect(activity(confirming!)).toEqual([
       {
         type: "attention-requested",
@@ -60,8 +62,11 @@ describe("Antigravity's status line, as captured", () => {
         choices: [],
       },
     ])
-    // Denied: the turn ends, and no hook says so.
-    expect(activity(idle!)).toMatchObject([{ type: "turn-ended", outcome: "completed" }])
+    // Denied: the turn ends, and no hook says so; idle reads the same after a completed
+    // turn, so it is never taken for one.
+    expect(activity(idle!)).toEqual([
+      { type: "turn-idle", ...conversation, startedAt: 5, background: false },
+    ])
   })
 
   it("gives the context window's share in use, and each quota window left", () => {
@@ -126,9 +131,13 @@ describe("Antigravity's status line, as captured", () => {
         reports
           .flatMap(([payload, seq]) => decode(report(payload, seq)))
           .filter((event): event is ActivityEvent =>
-            ["turn-started", "turn-ended", "attention-requested", "attention-resolved"].includes(
-              event.type,
-            ),
+            [
+              "turn-started",
+              "turn-ended",
+              "turn-idle",
+              "attention-requested",
+              "attention-resolved",
+            ].includes(event.type),
           )
           .reduce((state, event) => applyActivity(state, binding, event) ?? state, started(0)),
       )

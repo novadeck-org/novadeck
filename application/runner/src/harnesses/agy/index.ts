@@ -1,7 +1,15 @@
 import { access } from "node:fs/promises"
 import { join } from "node:path"
 
-import { json, mcpServer, plugin, type Harness, type Install } from "../harness.js"
+import {
+  hookSeconds,
+  json,
+  mcpServer,
+  plugin,
+  type MessagingProfile,
+  type Harness,
+  type Install,
+} from "../harness.js"
 import { decode } from "./decode.js"
 import { statusLineSettings } from "./settings.js"
 import { transcripts } from "./transcripts.js"
@@ -17,6 +25,26 @@ const hook = (platform: NodeJS.Platform, event: string): string =>
   platform === "win32"
     ? `if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy ${event}) else (echo {})`
     : `if [ -n "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" agy ${event}; else echo '{}'; fi`
+
+// A Stop continued with a reason gets it as a lasting system step. A message injected at
+// a model call lasts only for that call, so a turn's delivery is injected again on each
+// of its later calls. Every other answer is an empty object.
+const messaging: MessagingProfile = {
+  asks: { Stop: "stop", PreInvocation: "prompt" },
+  silent: (event) => (event === "PreToolUse" ? '{"decision":"ask"}\n' : "{}\n"),
+  stop: (delivery) => `${JSON.stringify({ decision: "continue", reason: delivery })}\n`,
+  prompt: (delivery) => `${JSON.stringify({ injectSteps: [{ ephemeralMessage: delivery }] })}\n`,
+  reinjectPerCall: true,
+  root: "status-line",
+  silentOnFailure: false,
+}
+
+// A handler for one of its events, with the time it may take.
+const handler = (platform: NodeJS.Platform, event: string) => ({
+  type: "command",
+  command: hook(platform, event),
+  timeout: hookSeconds,
+})
 
 export const agy = {
   id: "agy",
@@ -49,15 +77,10 @@ export const agy = {
       path: "hooks.json",
       content: json({
         novadeck: {
-          PreInvocation: [{ type: "command", command: hook(platform, "PreInvocation") }],
-          Stop: [{ type: "command", command: hook(platform, "Stop") }],
+          PreInvocation: [handler(platform, "PreInvocation")],
+          Stop: [handler(platform, "Stop")],
           // Tool events take matcher groups: only the tool that writes artifacts.
-          PostToolUse: [
-            {
-              matcher: "write_to_file",
-              hooks: [{ type: "command", command: hook(platform, "PostToolUse") }],
-            },
-          ],
+          PostToolUse: [{ matcher: "write_to_file", hooks: [handler(platform, "PostToolUse")] }],
         },
       }),
     },
@@ -80,4 +103,5 @@ export const agy = {
     context: "partial",
   },
   decode,
+  messaging,
 } satisfies Harness

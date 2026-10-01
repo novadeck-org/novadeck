@@ -135,6 +135,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note(`answer ${answer.requestId}`, () => runner.terminals.answerRequest(answer)),
       create: (input) => note(`create terminal ${input.id}`, () => runner.terminals.create(input)),
       close: (id) => note(`close ${id}`, () => runner.terminals.close(id)),
+      rename: (id, title) => note(`rename ${id}`, () => runner.terminals.rename(id, title)),
       restart: (id, size) => note(`restart ${id}`, () => runner.terminals.restart(id, size)),
       attach: async (id, options) =>
         attachment(await note(`attach ${id}`, () => runner.terminals.attach(id, options))),

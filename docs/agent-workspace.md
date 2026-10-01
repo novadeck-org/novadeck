@@ -337,6 +337,13 @@ from what this document describes:
   through the same file the shell integration resumes agents from, so it leaves no
   history entry; a shell without the integration, or with configured arguments, can't
   run one, and the terminal does not open rather than start a plain shell.
+- **Messages** between agents come from the same server's `send` and `agents` tools,
+  listed only inside NovaDeck's terminals like the others: an agent messages another
+  terminal of its project and session by its handle, such as `t3`, which `open_terminal` also
+  answers with, and the message reaches that agent through its own hooks. The runner
+  keeps the mailbox with the workspace and lists, pauses and releases it through
+  `messages.list`, `messages.pause` and `messages.release`. See
+  [Agent messaging](agent-messaging.md).
 - **Pages** are any http(s) address; an address with a user name or password is
   refused. The desktop app loads them live in the pane, in Electron's `<webview>`,
   which lays out with the pane, keeps NovaDeck's menus and cards above it, and lets a

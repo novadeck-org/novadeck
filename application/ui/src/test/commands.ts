@@ -93,6 +93,7 @@ export const openCommands = ({
   const urls: (string | number)[] = []
   // What each new terminal was asked for, as the backend received it.
   const allocated: Parameters<Backend["newTerminal"]>[0][] = []
+  const numbers = new Map<string, number>()
   bind(((to: string | number) => urls.push(to)) as RouterNavigate)
   const context: CommandContext = {
     workspace: store,
@@ -100,10 +101,19 @@ export const openCommands = ({
     navigation,
     newTerminal: (input) => {
       allocated.push(input)
-      const { number, directory } = input
+      const { target, directory, title } = input
+      // Standing in for the backend, it numbers each session's terminals itself.
+      const count =
+        store
+          .getSnapshot()
+          .projects.find((project) => project.id === target.projectId)
+          ?.history.find((session) => session.id === target.workspaceSessionId)?.state.roster
+          .terminals.length ?? 0
+      const number = Math.max(numbers.get(target.workspaceSessionId) ?? count, count) + 1
+      numbers.set(target.workspaceSessionId, number)
       return {
         id: `new-${number}`,
-        name: `Terminal ${String(number).padStart(2, "0")}`,
+        name: title ?? `Terminal ${String(number).padStart(2, "0")}`,
         directory,
         command: "zsh",
         process: "zsh",

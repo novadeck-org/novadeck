@@ -1,5 +1,5 @@
 import { addCompactGridTerminal, initialGridLayouts } from "./layout/grid-placement"
-import { placeTerminal } from "./layout/workspace-layout"
+import { placeTerminal, removeFromLayout } from "./layout/workspace-layout"
 import { addTerminal } from "./roster"
 import {
   createTerminalState,
@@ -17,17 +17,28 @@ import type {
   WorkspaceState,
 } from "./types"
 
+// How the UI showed a session's terminals, as it saved it: only its own view state, by
+// terminal id, never the terminals themselves, which their backend reports.
+export type RestoredView = Omit<WorkspaceState, "roster"> & { readonly order: readonly string[] }
+
+// A session's view state, without its terminals.
+export const viewOf = ({ roster, ...view }: WorkspaceState): RestoredView => ({
+  ...view,
+  order: roster.order,
+})
+
 export type SessionSeed = {
   readonly id: string
   readonly name: string
+  // The session's terminals, as the backend reports them, oldest first.
   readonly terminals: readonly TerminalMetadata[]
   readonly canvasLayout?: CanvasLayout
   // When the session was last visited; the seed's time when omitted.
   readonly visitedAt?: number
-  // A state saved earlier. `terminals` replaces its roster's metadata: saved terminals
-  // keep their place, order and layout, and the others are laid out after them as
-  // new terminals would be. `canvasLayout` is ignored.
-  readonly restored?: WorkspaceState
+  // How the session was shown, as saved earlier: terminals it laid out keep their place,
+  // order and layout, and the others are laid out after them as new terminals would be.
+  // What it kept of terminals the backend no longer has goes. `canvasLayout` is ignored.
+  readonly restored?: RestoredView
 }
 // Every project needs at least one session, and a seed needs at least one project:
 // the workspace always has an active project and session to show.
@@ -59,14 +70,41 @@ const appendTerminal = (state: WorkspaceState, terminal: TerminalMetadata): Work
   }),
 })
 
+// Every terminal a saved view kept something of, in any view.
+const laidOutIds = (layout: WorkspaceState["layout"], order: readonly string[]): Set<string> =>
+  new Set([
+    ...order,
+    ...Object.keys(layout.canvas.geometry),
+    ...Object.keys(layout.canvas.minimized),
+    ...Object.values(layout.grid).flatMap((items) => (items ?? []).map((item) => item.i)),
+    ...Object.keys(layout.gridRestoreWidths),
+    ...Object.keys(layout.gridMinimized),
+    ...Object.keys(layout.sizePresets.canvas),
+    ...Object.keys(layout.sizePresets.grid),
+    ...Object.keys(layout.hidden),
+  ])
+
 const restoredState = (
-  restored: WorkspaceState,
+  { order, ...restored }: RestoredView,
   terminals: readonly TerminalMetadata[],
 ): WorkspaceState => {
-  const saved = new Set(restored.roster.terminals.map((terminal) => terminal.id))
-  const kept = terminals.filter((terminal) => saved.has(terminal.id))
-  const base = { ...restored, roster: { ...restored.roster, terminals: kept } }
-  return terminals.filter((terminal) => !saved.has(terminal.id)).reduce(appendTerminal, base)
+  const present = new Set(terminals.map((terminal) => terminal.id))
+  const laidOut = laidOutIds(restored.layout, order)
+  const gone = [...laidOut, ...order].filter((id) => !present.has(id))
+  const layout = gone.reduce(removeFromLayout, restored.layout)
+  const kept = terminals.filter((terminal) => laidOut.has(terminal.id))
+  const sorted = order.filter((id) => present.has(id))
+  // A selected terminal that is gone hands selection on.
+  const selected = present.has(restored.selected)
+    ? restored.selected
+    : ([...sorted, ...terminals.map((terminal) => terminal.id)][0] ?? "")
+  const base: WorkspaceState = {
+    ...restored,
+    layout,
+    selected,
+    roster: { terminals: kept, order: sorted },
+  }
+  return terminals.filter((terminal) => !laidOut.has(terminal.id)).reduce(appendTerminal, base)
 }
 
 export type SeedDefaults = {

@@ -1,0 +1,298 @@
+import { readFileSync } from "node:fs"
+import { join, resolve } from "node:path"
+
+import type { AgentName } from "@novadeck/protocol"
+
+import type { Report } from "../shell/reports.js"
+import { describe, expect, it } from "../test.js"
+import type { HarnessEvent } from "./events.js"
+import { continuationPrompt, hookSeconds, type Launchers } from "./harness.js"
+import { harnesses } from "./registry.js"
+
+const delivery =
+  '<novadeck-messages note="…">\n<message id="m-1">"hi" & bye</message>\n</novadeck-messages>'
+
+// Each answer is one line of JSON the harness reads.
+const line = (text: string): unknown => {
+  expect(text.endsWith("\n")).toBe(true)
+  expect(text.slice(0, -1)).not.toContain("\n")
+  return JSON.parse(text)
+}
+
+describe("each harness's hook answers", () => {
+  it("continue a Claude Code or Codex Stop with a block, and add prompt-time context", () => {
+    for (const agent of ["claude", "codex"] as const) {
+      const answers = harnesses[agent].messaging
+      expect(answers.asks).toEqual({ Stop: "stop", UserPromptSubmit: "prompt" })
+      expect(line(answers.stop(delivery))).toEqual({ decision: "block", reason: delivery })
+      expect(line(answers.prompt(delivery))).toEqual({
+        hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
+      })
+      // With nothing to deliver they print nothing, as without NovaDeck.
+      expect(answers.silent("Stop")).toBe("")
+      expect(answers.silent("UserPromptSubmit")).toBe("")
+    }
+  })
+
+  it("continue an Antigravity Stop, inject at its model calls, and always print JSON", () => {
+    const answers = harnesses.agy.messaging
+    expect(answers.asks).toEqual({ Stop: "stop", PreInvocation: "prompt" })
+    expect(line(answers.stop(delivery))).toEqual({ decision: "continue", reason: delivery })
+    expect(line(answers.prompt(delivery))).toEqual({
+      injectSteps: [{ ephemeralMessage: delivery }],
+    })
+    expect(line(answers.silent("Stop"))).toEqual({})
+    expect(line(answers.silent("PreInvocation"))).toEqual({})
+    // An answer without a decision denies the tool.
+    expect(line(answers.silent("PreToolUse"))).toEqual({ decision: "ask" })
+  })
+})
+
+describe("each harness's messaging profile", () => {
+  it("says how each harness's root, queued prompts and per-call injections behave", () => {
+    expect(harnesses.claude.messaging).toMatchObject({
+      reinjectPerCall: false,
+      root: "binding",
+      silentOnFailure: false,
+    })
+    expect(harnesses.claude.messaging.queueKey).toBeUndefined()
+    expect(harnesses.codex.messaging).toMatchObject({
+      reinjectPerCall: false,
+      root: "binding",
+      queueKey: "\t",
+      silentOnFailure: true,
+    })
+    expect(harnesses.agy.messaging).toMatchObject({
+      reinjectPerCall: true,
+      root: "status-line",
+      silentOnFailure: false,
+    })
+  })
+})
+
+describe("a continuation's prompt", () => {
+  it("is a Stop hook's, a delivery's, or the doorbell's, never the person's", () => {
+    expect(continuationPrompt("<hook_prompt>go on</hook_prompt>")).toBe(true)
+    expect(continuationPrompt(`text\n${delivery}`)).toBe(true)
+    expect(continuationPrompt("[NovaDeck: automatic notice, agent messages waiting, k3f9q2]")).toBe(
+      true,
+    )
+    expect(continuationPrompt("[NovaDeck: automatic notice, agent messages waiting]")).toBe(false)
+    expect(continuationPrompt("Review the NovaDeck notice")).toBe(false)
+  })
+})
+
+const launchers: Launchers = { mcp: "/data/shell/mcp" }
+const file = (agent: AgentName, path: string) =>
+  JSON.parse(
+    harnesses[agent].files("linux", launchers).find((each) => each.path === path)!.content,
+  ) as { hooks?: object; novadeck?: object }
+
+// Every handler a hooks.json registers, however its harness nests them.
+const handlers = (value: unknown): { command: string; timeout?: number }[] => {
+  if (Array.isArray(value)) return value.flatMap(handlers)
+  if (typeof value !== "object" || value === null) return []
+  if ("command" in value) return [value as { command: string; timeout?: number }]
+  return Object.values(value).flatMap(handlers)
+}
+
+describe("each harness's hook registrations", () => {
+  it("set a timeout well above the hook's own limit, as a slower hook is dropped silently", () => {
+    expect(hookSeconds).toBeGreaterThan(5)
+    const registered = [
+      ...handlers(file("claude", join("novadeck", "hooks", "hooks.json")).hooks),
+      ...handlers(file("codex", join("novadeck", "hooks", "hooks.json")).hooks),
+      ...handlers(file("agy", "hooks.json").novadeck),
+    ]
+    expect(registered.length).toBeGreaterThan(15)
+    for (const handler of registered) expect(handler.timeout).toBe(hookSeconds)
+  })
+
+  it("register every event that asks", () => {
+    expect(Object.keys(file("claude", join("novadeck", "hooks", "hooks.json")).hooks!)).toEqual(
+      expect.arrayContaining(Object.keys(harnesses.claude.messaging.asks)),
+    )
+    expect(Object.keys(file("codex", join("novadeck", "hooks", "hooks.json")).hooks!)).toEqual(
+      expect.arrayContaining(Object.keys(harnesses.codex.messaging.asks)),
+    )
+    expect(Object.keys(file("agy", "hooks.json").novadeck!)).toEqual(
+      expect.arrayContaining(Object.keys(harnesses.agy.messaging.asks)),
+    )
+  })
+})
+
+type Scenario = { events: { event: string; payload: Report["payload"] }[] }
+const scenario = (agent: AgentName, name: string): Scenario =>
+  (
+    JSON.parse(
+      readFileSync(join(import.meta.dirname, agent, "fixtures", "interactive.probe.json"), "utf8"),
+    ) as { scenarios: { [name: string]: Scenario } }
+  ).scenarios[name]!
+
+const decode = (agent: AgentName, event: string, payload: Report["payload"]) =>
+  harnesses[agent].decode({
+    terminalId: "t",
+    token: "0".repeat(48),
+    agent,
+    event,
+    seq: 1,
+    instance: "7",
+    env: { cursor: false },
+    payload,
+  })
+
+// The turn facts among what a harness decoded.
+const turns = (events: readonly HarnessEvent[]) =>
+  events.filter(({ type }) => type.startsWith("turn-"))
+
+describe("root turns, as each harness reports them", () => {
+  it("start an Antigravity turn at its first model call, never taken for the person's prompt", () => {
+    const { events } = scenario("agy", "confirm")
+    const calls = events
+      .filter(({ event }) => event === "PreInvocation")
+      .map(({ event, payload }) => turns(decode("agy", event, payload))[0])
+    // A subagent's message wakes it alike, so whether the person prompted can't be told.
+    expect(calls.map((call) => call?.type === "turn-started" && call.cause)).toEqual([
+      "harness",
+      "call",
+      "harness",
+      "harness",
+      "call",
+    ])
+    // Without a number, it may be any call: never taken for the first.
+    expect(turns(decode("agy", "PreInvocation", { conversationId: "c" }))).toMatchObject([
+      { cause: "call" },
+    ])
+  })
+
+  it("end an Antigravity turn at its Stop, saying whether background work still runs", () => {
+    const stops = scenario("agy", "confirm")
+      .events.filter(({ event }) => event === "Stop")
+      .map(({ event, payload }) => turns(decode("agy", event, payload)))
+    expect(stops).toMatchObject([
+      [{ type: "turn-ended", outcome: "completed", background: false }],
+      [{ type: "turn-ended", outcome: "completed", background: true }],
+    ])
+    expect(
+      turns(decode("agy", "Stop", { conversationId: "c", error: "quota", fullyIdle: true })),
+    ).toMatchObject([{ outcome: "failed" }])
+  })
+
+  it("never take Antigravity's idle status line for a completed turn", () => {
+    const idle = decode("agy", "StatusLine", { conversation_id: "c", agent_state: "idle" })
+    expect(turns(idle)).toEqual([
+      {
+        type: "turn-idle",
+        agent: "agy",
+        sessionId: "c",
+        instance: "7",
+        startedAt: 1,
+        background: false,
+      },
+    ])
+    // Its subagents still running keep the turn's work going.
+    const running = (subagents: unknown) =>
+      turns(decode("agy", "StatusLine", { conversation_id: "c", agent_state: "idle", subagents }))
+    expect(running([{ id: "s1" }])).toMatchObject([{ background: true }])
+    expect(running([{ id: "s1", status: "running" }])).toMatchObject([{ background: true }])
+    expect(running([{ id: "s1", status: "completed" }])).toMatchObject([{ background: false }])
+    expect(running([])).toMatchObject([{ background: false }])
+    expect(idle[0]).toMatchObject({ type: "session-observed", root: true })
+    // Its hooks name subagents' conversations alike, so none of theirs is the root's word.
+    expect(decode("agy", "PreInvocation", { conversationId: "c" })[0]).not.toHaveProperty("root")
+  })
+
+  it("tell a Claude Code turn it started by itself, and background tasks still running", () => {
+    const prompt = (text: string) =>
+      turns(decode("claude", "UserPromptSubmit", { session_id: "s", prompt: text }))
+    expect(prompt("Review a.ts")).toMatchObject([
+      { type: "turn-started", cause: "prompt", prompt: "Review a.ts" },
+    ])
+    expect(prompt("<task-notification>\n<task-id>b1</task-id>")).toMatchObject([
+      { cause: "harness" },
+    ])
+    const stop = (tasks: unknown) =>
+      turns(decode("claude", "Stop", { session_id: "s", background_tasks: tasks }))
+    expect(stop([{ id: "b1", status: "running" }])).toMatchObject([{ background: true }])
+    // Only a running one counts.
+    expect(stop([{ id: "b1", status: "completed" }, { id: "b2" }])).toMatchObject([
+      { background: false },
+    ])
+    expect(stop([])).toMatchObject([{ background: false }])
+    expect(stop(undefined)).toMatchObject([{ background: false }])
+  })
+
+  it("never take a Stop hook's continuation for the person's prompt", () => {
+    for (const agent of ["claude", "codex"] as const)
+      for (const prompt of [
+        "<hook_prompt>Stop hook feedback</hook_prompt>",
+        '<novadeck-messages note="…">\n<message id="m-1">hi</message>\n</novadeck-messages>',
+      ])
+        expect(turns(decode(agent, "UserPromptSubmit", { session_id: "s", prompt }))).toEqual([
+          {
+            type: "turn-started",
+            agent,
+            sessionId: "s",
+            instance: "7",
+            startedAt: 1,
+            cause: "harness",
+          },
+        ])
+  })
+
+  it("leave a subagent's prompt out of the root's turns", () => {
+    for (const agent of ["claude", "codex"] as const)
+      expect(
+        turns(decode(agent, "UserPromptSubmit", { session_id: "s", agent_id: "a", prompt: "x" })),
+      ).toEqual([])
+    expect(turns(decode("codex", "UserPromptSubmit", { session_id: "s" }))).toMatchObject([
+      { cause: "prompt" },
+    ])
+  })
+})
+
+describe("files an agent wrote, as each harness reports them", () => {
+  const touched = (agent: AgentName, event: string, payload: Report["payload"]) =>
+    decode(agent, event, payload).filter(({ type }) => type === "file-touched")
+
+  it("come from Claude Code's writers, by their absolute paths", () => {
+    const write = (tool: string, input: object) =>
+      touched("claude", "PostToolUse", { session_id: "s", tool_name: tool, tool_input: input })
+    expect(write("Write", { file_path: "/w/a.ts" })).toMatchObject([
+      { path: "/w/a.ts", actor: null },
+    ])
+    expect(write("Edit", { file_path: "/w/b.ts" })).toMatchObject([{ path: "/w/b.ts" }])
+    expect(write("NotebookEdit", { notebook_path: "/w/n.ipynb" })).toMatchObject([
+      { path: "/w/n.ipynb" },
+    ])
+    expect(write("Read", { file_path: "/w/a.ts" })).toEqual([])
+    expect(write("Write", { file_path: "relative.ts" })).toEqual([])
+  })
+
+  it("come from Codex's patches, from the session's folder", () => {
+    const patch = [
+      "*** Begin Patch",
+      "*** Update File: src/a.ts",
+      "@@",
+      "*** Add File: /abs/b.ts",
+      "*** End Patch",
+    ].join("\n")
+    expect(
+      touched("codex", "PostToolUse", {
+        session_id: "s",
+        cwd: "/w",
+        tool_name: "apply_patch",
+        tool_input: { command: patch },
+      }).map((event) => event.type === "file-touched" && event.path),
+    ).toEqual([resolve("/w", "src/a.ts"), "/abs/b.ts"])
+  })
+
+  it("come from Antigravity's write_to_file", () => {
+    expect(
+      touched("agy", "PostToolUse", {
+        conversationId: "c",
+        toolCall: { name: "write_to_file", args: { TargetFile: "/w/c.md" } },
+      }),
+    ).toMatchObject([{ path: "/w/c.md" }])
+  })
+})

@@ -27,6 +27,10 @@ import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./
 import { startRunner, type RunnerHost } from "./runner.js"
 
 const appId = "dev.mzpk.novadeck"
+// Where the app keeps its data (the workspace database, the shell files, Chromium's own),
+// named alike on every platform. Electron would name it after the product, "novadeck.",
+// whose trailing dot Windows drops from folder names, or keeps under some paths.
+app.setPath("userData", join(app.getPath("appData"), "NovaDeck"))
 // Whether this launch offers the debug panel: always in development, and in a
 // packaged app only with --debug-panel or NOVADECK_DEBUG=1.
 const debugging = debugEnabled({ argv: process.argv, env: process.env, packaged: app.isPackaged })

@@ -304,6 +304,8 @@ type Harness = {
   }
   /** What it observes on this installation, feature by feature. */
   readonly coverage: (found: Found) => FeatureCoverage
+  /** How its hooks take agents' messages (see below). */
+  readonly messaging: MessagingProfile
 }
 
 type Command = { readonly argv: readonly string[]; readonly optional?: boolean }
@@ -398,6 +400,65 @@ otherwise through the nearest ancestor process with the harness's own name
 The hook answers each harness the way it needs. It prints nothing for Claude
 Code and Codex. For Antigravity it prints `{}`, or `{"decision": "ask"}` for
 `PreToolUse`, which Antigravity would otherwise read as a denial.
+
+Besides the facts shared with the agent model, decoders give
+[Agent messaging](agent-messaging.md) what it needs of a turn:
+
+- `turn-started` has a `cause`: `prompt`, submitted at the root (the person's, as far as
+  anything tells, with its text as `prompt` where the hook names it); `harness`, a turn
+  the harness started by itself, as a background task's result (Claude Code's
+  `<task-notification>`), a hook's continuation (Codex's `<hook_prompt>`), a delivery
+  of messages or the doorbell's line, and every Antigravity turn, whose hooks can't
+  tell the person's prompt from a subagent's message; or `call`, a later model call of
+  a turn already running (Antigravity's `PreInvocation` past its first).
+- `turn-ended` with `outcome: "completed"` is a root Stop; `background` says work the
+  turn started still runs and may start another turn by itself (Claude Code's
+  `background_tasks` still running, Antigravity's Stop without `fullyIdle`).
+- `turn-idle` is Antigravity's status line showing idle, however its turn ended, with
+  `background` while a subagent still runs; without a Stop since the turn began, the
+  turn ended abnormally (an Esc or a denial).
+- `file-touched` names a file an actor wrote or edited, from its write and edit tools,
+  for the folders a session works in.
+
+### Messaging profile
+
+Each harness's `messaging` profile is the data and encoders messaging needs, so no
+shared code names a harness:
+
+```ts
+type MessagingProfile = {
+  /** The hook events that ask, and when each fires: as a turn ends, or as a prompt starts it. */
+  readonly asks: { readonly [event: string]: "stop" | "prompt" }
+  /** What a hook prints with nothing to deliver, as it does without NovaDeck. */
+  readonly silent: (event: string) => string
+  /** A Stop's answer that continues the turn with a delivery. */
+  readonly stop: (delivery: string) => string
+  /** A prompt's answer that adds a delivery to what the model sees, apart from the prompt. */
+  readonly prompt: (delivery: string) => string
+  /** Whether a prompt-time delivery lasts one model call, so each later call gets it again. */
+  readonly reinjectPerCall: boolean
+  /** Which session its messages are for: the one bound, or the one its status line names. */
+  readonly root: "binding" | "status-line"
+  /** The key that queues the person's prompt for after the turn, as Codex's Tab. */
+  readonly queueKey?: string
+  /** Whether a failed turn fires nothing, so its turn may only end with its next prompt. */
+  readonly silentOnFailure: boolean
+}
+```
+
+| Harness     | `asks`                     | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` |
+| ----------- | -------------------------- | ----------------- | ------------- | ---------- | ----------------- |
+| Claude Code | `Stop`, `UserPromptSubmit` | no                | `binding`     | none       | no                |
+| Codex       | `Stop`, `UserPromptSubmit` | no                | `binding`     | Tab        | yes               |
+| Antigravity | `Stop`, `PreInvocation`    | yes               | `status-line` | none       | no                |
+
+The terminal manager follows each terminal's root session as its profile's `root`
+says (`harnesses/roots.ts`): the bound session; or, for `status-line`, a guess (the
+session that bound, then that of the first model call after it bound, or of one
+messages wait for) until the status line names the root conversation, which alone
+names another. Messaging reads the root from there. The doorbell's step will add the
+harness's empty-prompt pattern (`emptyPrompt`) and how it starts with a first prompt
+(`initialPrompt(argv)`) to the profile.
 
 ## Where sources merge
 

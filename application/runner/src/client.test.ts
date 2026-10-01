@@ -472,6 +472,41 @@ describe("runner client shown artifacts", () => {
   })
 })
 
+describe("runner client messages", () => {
+  it("lists a terminal's messages, and keeps the pause across runner restarts", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    const { id: sessionId } = await session(client, app.directory)
+    const terminal = await client.terminals.create(shell(sessionId))
+    await expect(client.messages.list(terminal.id)).resolves.toEqual({
+      terminalId: terminal.id,
+      handle: "t1",
+      delivery: "unbound",
+      paused: false,
+      threads: [],
+    })
+    await client.messages.pause(true)
+    await expect(client.messages.list(terminal.id)).resolves.toMatchObject({ paused: true })
+    await expect(client.messages.release("t-unknown")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    })
+    await expect(client.messages.list(crypto.randomUUID())).rejects.toMatchObject({
+      code: "TERMINAL_NOT_FOUND",
+    })
+    await client.terminals.close(terminal.id)
+    // A runner on the same workspace keeps the pause.
+    const later = await deployed(resources, { database: join(app.directory, "workspace.sqlite") })
+    const again = await later.connect()
+    const restored = await again.terminals.create(shell(sessionId))
+    await expect(again.messages.list(restored.id)).resolves.toMatchObject({
+      handle: "t2",
+      paused: true,
+    })
+  })
+})
+
 describe("runner client terminal requests", () => {
   it("follows agents' requests until the client closes, and refuses what it can't start", async ({
     resources,
@@ -688,9 +723,16 @@ describe("runner client terminal watch", () => {
     await status.until("reconnecting")
     current = await start()
     watch.seen.length = 0
-    // The terminal ended with the old runner; the fresh sync omits it.
+    // Its shell ended with the old runner; the fresh sync lists it as kept, with none.
     await watch.synced()
-    expect(watch.seen).toEqual([{ type: "reset" }, { type: "synced" }])
+    expect(watch.seen).toEqual([
+      { type: "reset" },
+      {
+        type: "changed",
+        terminal: expect.objectContaining({ title: "Terminal 01", started: false, run: 0 }),
+      },
+      { type: "synced" },
+    ])
 
     const pending = watch.stream.next()
     await runner.close()

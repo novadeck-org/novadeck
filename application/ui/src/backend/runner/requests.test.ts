@@ -80,7 +80,7 @@ const open = (app: (request: TerminalRequest, add: (command?: string) => string)
     open: (request) =>
       app(request, (command) => {
         const terminal = backend.newTerminal({
-          number: activeSession(workspace)!.state.roster.nextNumber,
+          target: target(),
           directory: request.directory,
           launch: command === undefined ? {} : { command },
         })

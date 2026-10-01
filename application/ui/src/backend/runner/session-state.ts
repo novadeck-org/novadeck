@@ -1,21 +1,11 @@
-import type {
-  TerminalLayout,
-  TerminalMetadata,
-  ViewMode,
-  WorkspaceSession,
-  WorkspaceState,
-} from "../../model/types"
+import type { RestoredView } from "../../model/seed"
+import type { TerminalLayout, ViewMode, WorkspaceSession } from "../../model/types"
 
 // What the runner keeps for a session: opaque to it, and versioned so a state this
-// build cannot read starts the session fresh instead of breaking the load.
+// build cannot read starts the session fresh instead of breaking the load. Only how the
+// UI shows the session's terminals, by id; the terminals themselves, their names,
+// directories and what they ran, are the runner's own records.
 const version = 1
-
-// Live status is never saved. `lastProcess` names the program to resume ("" for none):
-// the one running at the save, or else the one the terminal lost with its shell, which
-// never both exist. Only the name: a command line can hold secrets.
-export type SavedTerminal = Pick<TerminalMetadata, "id" | "name" | "directory"> & {
-  readonly lastProcess: string
-}
 
 export type SavedSession = {
   readonly visitedAt: number
@@ -23,13 +13,7 @@ export type SavedSession = {
   // the old and the new one the same time: 2 for the session open in the workspace,
   // 1 for the one its project opens, 0 otherwise.
   readonly rank: number
-  readonly state: Omit<WorkspaceState, "roster"> & {
-    readonly roster: {
-      readonly terminals: readonly SavedTerminal[]
-      readonly order: readonly string[]
-      readonly nextNumber: number
-    }
-  }
+  readonly state: RestoredView
 }
 
 // Canvas marks a node while a gesture runs; a saved layout never resumes one.
@@ -51,23 +35,7 @@ export const encodeSession = (session: WorkspaceSession, rank: number): string =
   const saved: SavedSession = {
     visitedAt: session.visitedAt,
     rank,
-    state: {
-      roster: {
-        terminals: roster.terminals.map((terminal) => ({
-          id: terminal.id,
-          name: terminal.name,
-          directory: terminal.directory,
-          lastProcess:
-            terminal.state === "running" ? terminal.process : (terminal.restoredProcess ?? ""),
-        })),
-        order: roster.order,
-        nextNumber: roster.nextNumber,
-      },
-      layout: settled(layout),
-      view,
-      windowedView,
-      selected,
-    },
+    state: { order: roster.order, layout: settled(layout), view, windowedView, selected },
   }
   return JSON.stringify({ version, ...saved })
 }
@@ -77,20 +45,6 @@ const isObject = (value: unknown): value is Json =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 const isString = (value: unknown): value is string => typeof value === "string"
 const views: readonly unknown[] = ["focus", "grid", "canvas"] satisfies ViewMode[]
-
-const terminal = (value: unknown): SavedTerminal | undefined =>
-  isObject(value) &&
-  isString(value.id) &&
-  isString(value.name) &&
-  isString(value.directory) &&
-  isString(value.lastProcess)
-    ? {
-        id: value.id,
-        name: value.name,
-        directory: value.directory,
-        lastProcess: value.lastProcess,
-      }
-    : undefined
 
 const layoutKeys = [
   "canvas",
@@ -124,13 +78,11 @@ export const decodeSession = (text: string | null): SavedSession | undefined => 
     return undefined
   if (value.rank !== 0 && value.rank !== 1 && value.rank !== 2) return undefined
   const state = value.state
-  if (!isObject(state) || !isObject(state.roster)) return undefined
-  const { terminals, order, nextNumber } = state.roster
-  if (!Array.isArray(terminals) || !Array.isArray(order) || !order.every(isString)) return undefined
-  if (!Number.isSafeInteger(nextNumber) || (nextNumber as number) < 1) return undefined
-  const saved = terminals.map(terminal)
+  if (!isObject(state)) return undefined
+  const order = state.order
+  if (!Array.isArray(order) || !order.every(isString)) return undefined
   const restored = layout(state.layout)
-  if (saved.some((item) => !item) || !restored) return undefined
+  if (!restored) return undefined
   if (!views.includes(state.view) || !["grid", "canvas"].includes(state.windowedView as string))
     return undefined
   if (!isString(state.selected)) return undefined
@@ -138,10 +90,10 @@ export const decodeSession = (text: string | null): SavedSession | undefined => 
     visitedAt: value.visitedAt,
     rank: value.rank,
     state: {
-      roster: { terminals: saved as SavedTerminal[], order, nextNumber: nextNumber as number },
+      order,
       layout: restored,
       view: state.view as ViewMode,
-      windowedView: state.windowedView as WorkspaceState["windowedView"],
+      windowedView: state.windowedView as RestoredView["windowedView"],
       selected: state.selected,
     },
   }

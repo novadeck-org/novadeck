@@ -40,20 +40,58 @@ export const id = (n: number) => `00000000-0000-4000-8000-00000000000${n}`
 type Saved = { readonly id: string; readonly lastProcess: string }
 type Call = { readonly call: string; readonly input: unknown }
 
-// A saved session holding the terminals, each waiting to restore its program.
+// A saved session laying out the terminals.
 const state = (saved: readonly Saved[], visitedAt: number, name: string) => ({
   id: name,
   name,
   visitedAt,
   state: createTerminalState(
-    saved.map((terminal, index) => ({
-      ...startingTerminal(terminal.id, index + 1, "/tmp"),
-      ...(terminal.lastProcess ? { restoredProcess: terminal.lastProcess } : {}),
-    })),
+    saved.map((terminal) => startingTerminal(terminal.id, "/tmp")),
     "grid",
     "grid",
   ),
 })
+
+// A terminal the runner keeps without a shell, as after it restarted.
+export const keptSummary = (
+  terminalId: string,
+  sessionId: string,
+  change: Partial<TerminalSummary> = {},
+): TerminalSummary => ({
+  id: terminalId,
+  sessionId,
+  title: "Terminal 01",
+  handle: "t1",
+  started: false,
+  command: null,
+  lastProgram: null,
+  cwd: "/tmp",
+  cols: 80,
+  rows: 24,
+  run: 0,
+  exit: null,
+  process: null,
+  agent: null,
+  activity: null,
+  telemetry: null,
+  ...change,
+})
+
+// The runner's terminals of a session: those it lists live, and the rest kept.
+const terminalsOf = (
+  saved: readonly Saved[],
+  listed: readonly TerminalSummary[],
+  sessionId: string,
+): TerminalSummary[] =>
+  saved.map(
+    (terminal, index) =>
+      listed.find((summary) => summary.id === terminal.id) ??
+      keptSummary(terminal.id, sessionId, {
+        title: `Terminal ${String(index + 1).padStart(2, "0")}`,
+        handle: `t${index + 1}`,
+        lastProgram: terminal.lastProcess || null,
+      }),
+  )
 
 // A runner the test scripts: each session's saved terminals, what the runner still
 // lists. Every call that could start a shell is noted.
@@ -101,6 +139,7 @@ export const scripted = ({
       // Never answers: a fresh shell stays starting.
       create: note("create", () => new Promise(() => {})),
       close: async () => {},
+      rename: note("rename", async () => {}),
       restart: note("restart", restart),
       attach: () => new Promise(() => {}),
     },
@@ -116,7 +155,7 @@ export const scripted = ({
             name: "Shown",
             state: encodeSession(state(shown, 5, id(8)), 2),
           },
-          terminals: listed.filter((terminal) => shown.some((saved) => saved.id === terminal.id)),
+          terminals: terminalsOf(shown, listed, id(8)),
         },
         {
           session: {
@@ -125,7 +164,7 @@ export const scripted = ({
             name: "Background",
             state: encodeSession(state(background, 1, id(9)), 0),
           },
-          terminals: [],
+          terminals: terminalsOf(background, [], id(9)),
         },
       ],
     },

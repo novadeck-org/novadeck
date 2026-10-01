@@ -1,6 +1,16 @@
+import { isAbsolute, resolve } from "node:path"
+
 import type { Report } from "../../shell/reports.js"
 import type { HarnessEvent } from "../events.js"
-import { absolute, callId, sessionId, sessionStart, subjectOf, text } from "../harness.js"
+import {
+  absolute,
+  callId,
+  continuationPrompt,
+  sessionId,
+  sessionStart,
+  subjectOf,
+  text,
+} from "../harness.js"
 
 /**
  * Codex's hooks, as normalized facts.
@@ -40,8 +50,15 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
         },
       ]
     }
-    case "UserPromptSubmit":
-      return [{ type: "turn-started", ...base }]
+    case "UserPromptSubmit": {
+      // A subagent's prompt is its own work, not the root's turn.
+      if (actor) return []
+      const prompt = text(payload.prompt)
+      // A Stop hook's reason it submits to continue the turn is no prompt of the person's.
+      if (prompt && continuationPrompt(prompt))
+        return [{ type: "turn-started", ...base, cause: "harness" }]
+      return [{ type: "turn-started", ...base, cause: "prompt", ...(prompt && { prompt }) }]
+    }
     case "Stop":
       // A subagent's stop ends its own work, not the turn.
       return actor ? [] : [{ type: "turn-ended", ...base, outcome: "completed" }]
@@ -84,8 +101,32 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
           loose: false,
           outcome: "allowed",
         },
+        ...patched(input, absolute(payload.cwd)).map((path): HarnessEvent => ({
+          type: "file-touched",
+          ...base,
+          actor,
+          path,
+        })),
       ]
     default:
       return []
   }
+}
+
+// The lines of a patch that name the files it adds, changes or moves to.
+const patchFile = /^\*\*\* (?:Add File|Update File|Move to): (.+)$/gm
+
+/**
+ * The files a tool call's patch wrote, as Codex's apply_patch names them in its input,
+ * from the session's directory; none for any other call.
+ */
+const patched = (input: unknown, cwd: string | undefined): readonly string[] => {
+  if (typeof input !== "object" || input === null) return []
+  const texts = Object.values(input).filter((value): value is string => typeof value === "string")
+  const paths = texts.flatMap((each) =>
+    [...each.matchAll(patchFile)].map(([, path]) => path!.trim()),
+  )
+  return paths.flatMap((path) =>
+    isAbsolute(path) ? [path] : cwd !== undefined ? [resolve(cwd, path)] : [],
+  )
 }

@@ -6,7 +6,15 @@ import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 import type { AgentName, Project, RunnerSettings, WorkspaceSession } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import type { SavedTerminal, TerminalRecords } from "../terminals/records.js"
+import type { Message, Thread } from "../messaging/mailbox.js"
+import type { MailboxRecords } from "../messaging/records.js"
+import type {
+  ListedTerminal,
+  SavedTerminal,
+  TerminalIdentity,
+  TerminalRecords,
+} from "../terminals/records.js"
+import type { Work } from "../terminals/work.js"
 
 /** Settings to change; those left out, or undefined, stay as they are. */
 export type SettingsChange = {
@@ -34,11 +42,13 @@ const schema = `
 // Tables added before the first release are created where missing instead of through
 // a schema version: the app is unreleased, so nothing needs migrating.
 const extras = `
-  -- What restores a terminal after its shell is gone: kept as it changes, so a runner
-  -- that is killed still leaves it behind.
+  -- Every terminal, until it is closed, and what restores it after its shell is gone:
+  -- kept as it changes, so a runner that is killed still leaves it behind.
   CREATE TABLE IF NOT EXISTS terminals (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
+    -- Its handle in its session, t3, from the same count as its default title.
+    handle TEXT NOT NULL,
     -- The shell's last reported directory.
     cwd TEXT NOT NULL,
     -- The latest session each agent reported, as JSON: { "claude": { sessionId, seq } }.
@@ -47,16 +57,61 @@ const extras = `
     prompted_at REAL,
     -- The screen and scrollback, serialized; null when not kept.
     transcript TEXT,
-    updated_at REAL NOT NULL
+    updated_at REAL NOT NULL,
+    -- The title the person gave it, or its session's default.
+    title TEXT NOT NULL,
+    -- The handle of the terminal whose agent titled it; null when the person did.
+    titled_by TEXT,
+    -- The command it was opened to run at its first prompt.
+    command TEXT,
+    -- The program in its foreground when its shell was last seen.
+    last_program TEXT,
+    -- What its root agent session worked on, for agents messaging each other, as JSON.
+    work TEXT
+  ) STRICT;
+  -- The last number given to a session's terminals, for their handles and default titles.
+  CREATE TABLE IF NOT EXISTS terminal_numbers (
+    session_id TEXT PRIMARY KEY,
+    last INTEGER NOT NULL
   ) STRICT;
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   ) STRICT;
+  -- Agent messaging (docs/agent-messaging.md).
+  CREATE TABLE IF NOT EXISTS message_threads (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    -- Its two terminals, in the order its first message went.
+    first_terminal TEXT NOT NULL,
+    second_terminal TEXT NOT NULL,
+    hops INTEGER NOT NULL,
+    -- How many it may deliver before the person releases it again.
+    allowed INTEGER NOT NULL,
+    last_at REAL NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    hop INTEGER NOT NULL,
+    from_terminal TEXT NOT NULL,
+    from_handle TEXT NOT NULL,
+    from_agent TEXT,
+    from_session TEXT,
+    to_terminal TEXT NOT NULL,
+    to_handle TEXT NOT NULL,
+    to_agent TEXT NOT NULL,
+    -- Null while it waits for the first session of its agent to bind there.
+    to_session TEXT,
+    text TEXT NOT NULL,
+    sent_at REAL NOT NULL,
+    state TEXT NOT NULL,
+    delivered_at REAL,
+    -- Whether its sender was told it is gone.
+    notified INTEGER NOT NULL
+  ) STRICT;
 `
-// Records of terminals that are gone, kept for restoring; the oldest beyond this go.
-const keptTerminals = 128
-
 const prepareFile = (path: string): void => {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   try {
@@ -72,8 +127,70 @@ const prepareFile = (path: string): void => {
   }
 }
 
-/** Creates the schema in a new database and refuses one written by a newer runner. */
-const prepareSchema = (database: DatabaseSync): void => {
+type Column = { readonly name: string; readonly type: string; readonly notnull: number }
+
+/** Every table's columns, by table, as `PRAGMA table_info` gives them. */
+const columnsOf = (database: DatabaseSync): Map<string, readonly Column[]> => {
+  const tables = database
+    .prepare("SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name")
+    .all() as { name: string }[]
+  return new Map(
+    tables.map(({ name }) => [
+      name,
+      database
+        .prepare('SELECT name, type, "notnull" FROM pragma_table_info(?)')
+        .all(name) as Column[],
+    ]),
+  )
+}
+
+/** The tables and columns this runner writes, from a database it creates. */
+const expectedColumns = (() => {
+  let expected: Map<string, readonly Column[]> | undefined
+  return () => {
+    if (expected) return expected
+    const reference = new DatabaseSync(":memory:")
+    try {
+      reference.exec(`${schema}${extras}`)
+      expected = columnsOf(reference)
+    } finally {
+      reference.close()
+    }
+    return expected
+  }
+})()
+
+const describeColumn = ({ name, type, notnull }: Column): string =>
+  `${name} ${type}${notnull ? " NOT NULL" : ""}`
+
+/**
+ * How a database's tables differ from those this runner writes, as an earlier build's
+ * would; undefined when they don't. Tables it doesn't know are left alone.
+ */
+const schemaDifference = (database: DatabaseSync): string | undefined => {
+  const actual = columnsOf(database)
+  for (const [table, columns] of expectedColumns()) {
+    const found = actual.get(table)
+    if (!found) return `it has no ${table} table`
+    const want = columns.map(describeColumn).toSorted()
+    const have = found.map(describeColumn).toSorted()
+    const missing = want.filter((column) => !have.includes(column))
+    const extra = have.filter((column) => !want.includes(column))
+    if (missing.length > 0 || extra.length > 0)
+      return `its ${table} table differs (${[
+        ...missing.map((column) => `expects ${column}`),
+        ...extra.map((column) => `has ${column}`),
+      ].join(", ")})`
+  }
+  return undefined
+}
+
+/**
+ * Creates the schema in a new database, and refuses one written by a newer runner, or by
+ * an earlier build whose tables differ: NovaDeck has no migrations before its first
+ * release, so such a database is to be deleted, never changed here.
+ */
+const prepareSchema = (database: DatabaseSync, path: string): void => {
   database.exec("BEGIN IMMEDIATE")
   try {
     const version = database.prepare("PRAGMA user_version").get()?.user_version
@@ -82,6 +199,13 @@ const prepareSchema = (database: DatabaseSync): void => {
     }
     if (version === 0) database.exec(`${schema} PRAGMA user_version = ${schemaVersion};`)
     database.exec(extras)
+    const difference = schemaDifference(database)
+    if (difference)
+      throw new Error(
+        `NovaDeck's workspace database at ${path} was written by an earlier build: ` +
+          `${difference}. NovaDeck has no migrations before its first release, so delete ` +
+          "that file (it holds your projects, sessions and kept terminals) and start again.",
+      )
     database.exec("COMMIT")
   } catch (error) {
     database.exec("ROLLBACK")
@@ -97,7 +221,37 @@ type TerminalRow = {
   prompted_at: number | null
   transcript: string | null
   updated_at: number
+  handle: string
+  title: string
+  titled_by: string | null
+  command: string | null
+  last_program: string | null
+  work: string | null
 }
+
+const workOf = (text: string | null): Work | null => {
+  if (text === null) return null
+  try {
+    return JSON.parse(text) as Work
+  } catch {
+    return null
+  }
+}
+
+const listed = (row: Omit<TerminalRow, "transcript">): ListedTerminal => ({
+  id: row.id,
+  sessionId: row.session_id,
+  handle: row.handle,
+  title: row.title,
+  work: workOf(row.work),
+  titledBy: row.titled_by,
+  command: row.command,
+  lastProgram: row.last_program,
+  cwd: row.cwd,
+  agents: agentsOf(row.agents),
+  promptedAt: row.prompted_at,
+  savedAt: row.updated_at,
+})
 
 const agentsOf = (text: string): SavedTerminal["agents"] => {
   try {
@@ -108,7 +262,61 @@ const agentsOf = (text: string): SavedTerminal["agents"] => {
   }
 }
 
-export class WorkspaceStore implements TerminalRecords {
+type MessageRow = {
+  id: string
+  project_id: string
+  thread_id: string
+  hop: number
+  from_terminal: string
+  from_handle: string
+  from_agent: string | null
+  from_session: string | null
+  to_terminal: string
+  to_handle: string
+  to_agent: string
+  to_session: string | null
+  text: string
+  sent_at: number
+  state: string
+  delivered_at: number | null
+  notified: number
+}
+
+type ThreadRow = {
+  id: string
+  project_id: string
+  first_terminal: string
+  second_terminal: string
+  hops: number
+  allowed: number
+  last_at: number
+}
+
+const messageOf = (row: MessageRow): Message => ({
+  id: row.id,
+  projectId: row.project_id,
+  thread: row.thread_id,
+  hop: row.hop,
+  from: {
+    terminalId: row.from_terminal,
+    handle: row.from_handle,
+    agent: row.from_agent as Message["from"]["agent"],
+    sessionId: row.from_session,
+  },
+  to: {
+    terminalId: row.to_terminal,
+    handle: row.to_handle,
+    agent: row.to_agent as Message["to"]["agent"],
+    sessionId: row.to_session,
+  },
+  text: row.text,
+  sentAt: row.sent_at,
+  state: row.state as Message["state"],
+  deliveredAt: row.delivered_at,
+  notified: row.notified === 1,
+})
+
+export class WorkspaceStore implements TerminalRecords, MailboxRecords {
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
   private lastSave = 0
@@ -120,14 +328,14 @@ export class WorkspaceStore implements TerminalRecords {
       timeout: 5_000,
     })
     try {
-      prepareSchema(this.database)
+      prepareSchema(this.database, path)
     } catch (error) {
       this.database.close()
       throw error
     }
     // Transcripts may hold secrets: what is deleted is overwritten, not left in free pages.
     this.database.exec("PRAGMA secure_delete = ON")
-    this.queries = this.database.createTagStore(16)
+    this.queries = this.database.createTagStore(48)
   }
 
   projects(): Project[] {
@@ -211,19 +419,48 @@ export class WorkspaceStore implements TerminalRecords {
 
   terminal(terminalId: string): SavedTerminal | undefined {
     const row = this.queries.get`
-      SELECT id, session_id, cwd, agents, prompted_at, transcript, updated_at FROM terminals
-      WHERE id = ${terminalId}
+      SELECT id, session_id, cwd, agents, prompted_at, transcript, updated_at, handle, title,
+        titled_by, command, last_program, work
+      FROM terminals WHERE id = ${terminalId}
     ` as TerminalRow | undefined
-    if (!row) return undefined
-    return {
-      id: row.id,
-      sessionId: row.session_id,
-      cwd: row.cwd,
-      agents: agentsOf(row.agents),
-      promptedAt: row.prompted_at,
-      transcript: row.transcript,
-      savedAt: row.updated_at,
-    }
+    return row && { ...listed(row), transcript: row.transcript }
+  }
+
+  terminals(sessionId?: string): ListedTerminal[] {
+    const rows = (
+      sessionId === undefined
+        ? this.queries.all`
+          SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle, title,
+            titled_by, command, last_program, work
+          FROM terminals ORDER BY rowid`
+        : this.queries.all`
+          SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle, title,
+            titled_by, command, last_program, work
+          FROM terminals WHERE session_id = ${sessionId} ORDER BY rowid`
+    ) as Omit<TerminalRow, "transcript">[]
+    return rows.map(listed)
+  }
+
+  nextTerminalNumber(sessionId: string): number {
+    const row = this.queries.get`
+      INSERT INTO terminal_numbers (session_id, last) VALUES (${sessionId}, 1)
+      ON CONFLICT (session_id) DO UPDATE SET last = last + 1
+      RETURNING last
+    ` as { last: number }
+    return row.last
+  }
+
+  renameTerminal(terminalId: string, title: string): boolean {
+    const result = this.queries
+      .run`UPDATE terminals SET title = ${title}, titled_by = NULL WHERE id = ${terminalId}`
+    return result.changes > 0
+  }
+
+  terminalIdentity(terminalId: string): TerminalIdentity | undefined {
+    const row = this.queries.get`
+      SELECT handle, title, titled_by AS titledBy FROM terminals WHERE id = ${terminalId}
+    ` as TerminalIdentity | undefined
+    return row && { handle: row.handle, title: row.title, titledBy: row.titledBy }
   }
 
   /** Saves what restores the terminal; `transcript` is left as it is when omitted. */
@@ -234,29 +471,35 @@ export class WorkspaceStore implements TerminalRecords {
     // Strictly increasing, so saves in the same millisecond still sort by recency.
     const now = Math.max(Date.now(), this.lastSave + 0.001)
     this.lastSave = now
+    const { handle, title, titledBy, command, lastProgram } = terminal
+    const work = terminal.work === null ? null : JSON.stringify(terminal.work)
     if (terminal.transcript === undefined)
       void this.queries.run`
-        INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, updated_at)
+        INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, updated_at, handle,
+          title, titled_by, command, last_program, work)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
-          ${terminal.promptedAt}, ${now})
+          ${terminal.promptedAt}, ${now}, ${handle}, ${title}, ${titledBy}, ${command},
+          ${lastProgram}, ${work})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agents = excluded.agents, prompted_at = excluded.prompted_at,
-          updated_at = excluded.updated_at
+          updated_at = excluded.updated_at, handle = excluded.handle, title = excluded.title,
+          titled_by = excluded.titled_by, command = excluded.command,
+          last_program = excluded.last_program, work = excluded.work
       `
     else
       void this.queries.run`
-        INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, transcript, updated_at)
+        INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, transcript, updated_at,
+          handle, title, titled_by, command, last_program, work)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
-          ${terminal.promptedAt}, ${terminal.transcript}, ${now})
+          ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${title},
+          ${titledBy}, ${command}, ${lastProgram}, ${work})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agents = excluded.agents, prompted_at = excluded.prompted_at,
-          transcript = excluded.transcript, updated_at = excluded.updated_at
+          transcript = excluded.transcript, updated_at = excluded.updated_at,
+          handle = excluded.handle, title = excluded.title, titled_by = excluded.titled_by,
+          command = excluded.command, last_program = excluded.last_program,
+          work = excluded.work
       `
-    void this.queries.run`
-      DELETE FROM terminals WHERE id NOT IN (
-        SELECT id FROM terminals ORDER BY updated_at DESC LIMIT ${keptTerminals}
-      )
-    `
   }
 
   removeTerminal(terminalId: string): void {
@@ -278,6 +521,71 @@ export class WorkspaceStore implements TerminalRecords {
 
   clearTranscripts(): void {
     void this.queries.run`UPDATE terminals SET transcript = NULL`
+  }
+
+  messages(): Message[] {
+    return (this.queries.all`SELECT * FROM messages ORDER BY sent_at` as MessageRow[]).map(
+      messageOf,
+    )
+  }
+
+  saveMessage(message: Message): void {
+    const { from, to } = message
+    void this.queries.run`
+      INSERT INTO messages (id, project_id, thread_id, hop, from_terminal, from_handle, from_agent,
+        from_session, to_terminal, to_handle, to_agent, to_session, text, sent_at, state,
+        delivered_at, notified)
+      VALUES (${message.id}, ${message.projectId}, ${message.thread}, ${message.hop},
+        ${from.terminalId}, ${from.handle}, ${from.agent}, ${from.sessionId}, ${to.terminalId},
+        ${to.handle}, ${to.agent}, ${to.sessionId}, ${message.text}, ${message.sentAt},
+        ${message.state}, ${message.deliveredAt}, ${message.notified ? 1 : 0})
+      ON CONFLICT (id) DO UPDATE SET to_session = excluded.to_session, state = excluded.state,
+        delivered_at = excluded.delivered_at, notified = excluded.notified
+    `
+  }
+
+  removeMessages(ids: readonly string[]): void {
+    for (const id of ids) void this.queries.run`DELETE FROM messages WHERE id = ${id}`
+  }
+
+  threads(): Thread[] {
+    return (this.queries.all`SELECT * FROM message_threads` as ThreadRow[]).map((row) => ({
+      id: row.id,
+      projectId: row.project_id,
+      between: [row.first_terminal, row.second_terminal],
+      hops: row.hops,
+      allowed: row.allowed,
+      lastAt: row.last_at,
+    }))
+  }
+
+  saveThread(thread: Thread): void {
+    const [first, second] = thread.between
+    void this.queries.run`
+      INSERT INTO message_threads (id, project_id, first_terminal, second_terminal, hops, allowed, last_at)
+      VALUES (${thread.id}, ${thread.projectId}, ${first}, ${second}, ${thread.hops},
+        ${thread.allowed}, ${thread.lastAt})
+      ON CONFLICT (id) DO UPDATE SET hops = excluded.hops, allowed = excluded.allowed,
+        last_at = excluded.last_at
+    `
+  }
+
+  removeThreads(ids: readonly string[]): void {
+    for (const id of ids) void this.queries.run`DELETE FROM message_threads WHERE id = ${id}`
+  }
+
+  messagingPaused(): boolean {
+    const row = this.queries.get`SELECT value FROM settings WHERE key = 'messagingPaused'` as
+      | { value: string }
+      | undefined
+    return row?.value === "true"
+  }
+
+  pauseMessaging(paused: boolean): void {
+    void this.queries.run`
+      INSERT INTO settings (key, value) VALUES ('messagingPaused', ${String(paused)})
+      ON CONFLICT (key) DO UPDATE SET value = excluded.value
+    `
   }
 
   settings(): RunnerSettings {

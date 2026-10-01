@@ -121,7 +121,10 @@ describe("built runner CLI", () => {
     expect(again.status).not.toEqual(first)
     await expect(again.projects.list()).resolves.toEqual([project])
     await expect(again.sessions.list({ projectId: project.id })).resolves.toEqual([session])
-    await expect(again.terminals.list({ sessionId: session.id })).resolves.toEqual([])
+    // The terminal is kept until it is closed, with no shell in the new runner.
+    await expect(again.terminals.list({ sessionId: session.id })).resolves.toEqual([
+      expect.objectContaining({ id: created.id, title: "Terminal 01", started: false, run: 0 }),
+    ])
   }, 30_000)
 
   it.skipIf(process.platform === "win32")(

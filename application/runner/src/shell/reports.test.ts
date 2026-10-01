@@ -1,7 +1,25 @@
 import { connect } from "node:net"
 
 import { describe, expect, it } from "../test.js"
-import { listenForReports, unanswered, unansweredCalls, type Call, type Report } from "./reports.js"
+import {
+  listenForReports,
+  unanswered,
+  unansweredCalls,
+  unheard,
+  type Ack,
+  type Call,
+  type Report,
+  type ReportHandlers,
+} from "./reports.js"
+
+/** Handlers that ignore what a test does not look at. */
+const handlers = (given: Partial<ReportHandlers>): ReportHandlers => ({
+  report: () => {},
+  ask: () => Promise.resolve(unheard),
+  ack: () => {},
+  call: () => Promise.resolve(unanswered),
+  ...given,
+})
 
 /** Sends one line, ending its side as a hook does, and resolves to what came back. */
 const send = (endpoint: string, line: string, { end = true } = {}) =>
@@ -35,11 +53,13 @@ describe("the report endpoint", () => {
     const received: Report[] = []
     const calls: Call[] = []
     const reports = await listenForReports(
-      (accepted) => received.push(accepted),
-      (asked) => {
-        calls.push(asked)
-        return Promise.resolve({ ok: true })
-      },
+      handlers({
+        report: (accepted) => received.push(accepted),
+        call: (asked) => {
+          calls.push(asked)
+          return Promise.resolve({ ok: true })
+        },
+      }),
     )
     resources.defer(() => reports.close())
     // A token as long as a runner's, in characters but not in bytes, and others.
@@ -67,11 +87,12 @@ describe("the report endpoint", () => {
   }) => {
     const calls: Call[] = []
     const reports = await listenForReports(
-      () => {},
-      async (asked) => {
-        calls.push(asked)
-        return { ok: true, id: "abc", kind: "file", name: "a.md" }
-      },
+      handlers({
+        call: async (asked) => {
+          calls.push(asked)
+          return { ok: true, id: "abc", kind: "file", name: "a.md" }
+        },
+      }),
     )
     resources.defer(() => reports.close())
     const answer = `${JSON.stringify({ ok: true, id: "abc", kind: "file", name: "a.md" })}\n`
@@ -85,13 +106,14 @@ describe("the report endpoint", () => {
   }) => {
     const calls: Call[] = []
     const reports = await listenForReports(
-      () => {},
-      (asked) => {
-        calls.push(asked)
-        return calls.length === 1
-          ? Promise.resolve({ ok: true, terminalId: "u", cwd: "/work" })
-          : new Promise(() => {})
-      },
+      handlers({
+        call: (asked) => {
+          calls.push(asked)
+          return calls.length === 1
+            ? Promise.resolve({ ok: true, terminalId: "u", cwd: "/work" })
+            : new Promise(() => {})
+        },
+      }),
       { answerMs: 50 },
     )
     resources.defer(() => reports.close())
@@ -114,11 +136,12 @@ describe("the report endpoint", () => {
   it("answers a call it cannot read as a failure, without asking", async ({ resources }) => {
     const calls: Call[] = []
     const reports = await listenForReports(
-      () => {},
-      (asked) => {
-        calls.push(asked)
-        return Promise.resolve({ ok: true })
-      },
+      handlers({
+        call: (asked) => {
+          calls.push(asked)
+          return Promise.resolve({ ok: true })
+        },
+      }),
     )
     resources.defer(() => reports.close())
     const failed = `${JSON.stringify(unanswered)}\n`
@@ -141,11 +164,12 @@ describe("the report endpoint", () => {
   }) => {
     const calls: Call[] = []
     const reports = await listenForReports(
-      () => {},
-      (asked) => {
-        calls.push(asked)
-        return Promise.resolve({ ok: true })
-      },
+      handlers({
+        call: (asked) => {
+          calls.push(asked)
+          return Promise.resolve({ ok: true })
+        },
+      }),
     )
     resources.defer(() => reports.close())
     const long = JSON.stringify({ ...call, request: { path: "a".repeat(70_000) } })
@@ -156,11 +180,12 @@ describe("the report endpoint", () => {
   it("answers a call that fails, or takes too long, as a failure", async ({ resources }) => {
     let calls = 0
     const reports = await listenForReports(
-      () => {},
-      () => {
-        calls += 1
-        return calls === 1 ? Promise.reject(new Error("broken")) : new Promise(() => {})
-      },
+      handlers({
+        call: () => {
+          calls += 1
+          return calls === 1 ? Promise.reject(new Error("broken")) : new Promise(() => {})
+        },
+      }),
       { answerMs: 50 },
     )
     resources.defer(() => reports.close())
@@ -168,5 +193,57 @@ describe("the report endpoint", () => {
     const open = { end: false }
     await expect(send(reports.endpoint, JSON.stringify(call), open)).resolves.toBe(failed)
     await expect(send(reports.endpoint, JSON.stringify(call), open)).resolves.toBe(failed)
+  })
+})
+
+describe("hook asks", () => {
+  it("answers an ask with one line, or as unheard once the hook's deadline passes", async ({
+    resources,
+  }) => {
+    const asked: { report: Report; deadline: number }[] = []
+    const answer = { leaseId: "L".repeat(24), stdout: '{"decision":"block"}\n' }
+    const reports = await listenForReports(
+      handlers({
+        ask: (received, deadline) => {
+          asked.push({ report: received, deadline })
+          return asked.length === 1 ? Promise.resolve(answer) : new Promise(() => {})
+        },
+      }),
+    )
+    resources.defer(() => reports.close())
+    const ask = (deadline: unknown) => JSON.stringify({ ...report, token, deadline })
+    const open = { end: false }
+    const deadline = Date.now() + 2_000
+    await expect(send(reports.endpoint, ask(deadline), open)).resolves.toBe(
+      `${JSON.stringify(answer)}\n`,
+    )
+    // A runner too slow for the hook answers it as unheard, by the hook's own deadline.
+    const started = Date.now()
+    await expect(send(reports.endpoint, ask(Date.now() + 100), open)).resolves.toBe(
+      `${JSON.stringify(unheard)}\n`,
+    )
+    expect(Date.now() - started).toBeLessThan(1_500)
+    // An ask it can't read is unheard at once, without asking.
+    await expect(send(reports.endpoint, ask("soon"), open)).resolves.toBe(
+      `${JSON.stringify(unheard)}\n`,
+    )
+    expect(asked).toEqual([
+      { report: { ...report, token }, deadline },
+      { report: { ...report, token }, deadline: expect.any(Number) },
+    ])
+  })
+
+  it("takes a hook's acknowledgement of its lease, answering none", async ({ resources }) => {
+    const acks: Ack[] = []
+    const reports = await listenForReports(handlers({ ack: (ack) => acks.push(ack) }))
+    resources.defer(() => reports.close())
+    const lease = "abcdefghijklmnopqrstuvwx"
+    await expect(
+      send(reports.endpoint, JSON.stringify({ ack: lease, terminalId: "t", token })),
+    ).resolves.toBe("")
+    // Without a runner's token, or a lease's shape, it is no acknowledgement.
+    await send(reports.endpoint, JSON.stringify({ ack: lease, terminalId: "t", token: "x" }))
+    await send(reports.endpoint, JSON.stringify({ ack: "short", terminalId: "t", token }))
+    expect(acks).toEqual([{ terminalId: "t", token, leaseId: lease }])
   })
 })

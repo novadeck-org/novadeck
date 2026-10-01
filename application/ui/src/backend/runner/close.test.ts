@@ -90,7 +90,7 @@ describe("closing a terminal while its create is unanswered", () => {
       projectId: activeProject(workspace)!.id,
       workspaceSessionId: activeSession(workspace)!.id,
     }
-    const terminal = backend.newTerminal({ number: 1, directory: "/tmp" })
+    const terminal = backend.newTerminal({ target, directory: "/tmp" })
     commit([{ type: "terminal/add", target, terminal }])
     await pause(50)
     commit([{ type: "terminal/close", target, terminalId: terminal.id }])

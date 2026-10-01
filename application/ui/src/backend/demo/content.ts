@@ -1,5 +1,6 @@
 import { companionKeyId } from "../../model/companion"
 import { gridColumns } from "../../model/layout/grid-placement"
+import { viewOf } from "../../model/seed"
 import { createTerminalState } from "../../model/state"
 import type { CanvasLayout, GridBreakpoint, GridLayouts, TerminalMetadata } from "../../model/types"
 import type { CreateBackend, TerminalKey } from "../port"
@@ -108,10 +109,9 @@ export const createContentDemo: CreateBackend = () => {
               id: "initial",
               name: "Content previews",
               terminals,
-              restored: createTerminalState(terminals, "focus", "grid", {
-                canvasLayout,
-                gridLayouts,
-              }),
+              restored: viewOf(
+                createTerminalState(terminals, "focus", "grid", { canvasLayout, gridLayouts }),
+              ),
             },
           ],
         },

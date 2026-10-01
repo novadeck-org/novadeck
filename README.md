@@ -65,9 +65,12 @@ xterm and attachment from `backend/runner/screens.ts` instead of opening and att
 again. A terminal no view shows keeps them while its session is on screen and lets them
 go a moment after its session leaves the screen or the terminal closes.
 
-Saved sessions record one required program name per terminal (`lastProcess`, never
-its command line, which can hold secrets): the program running at the save, or else the
-one the terminal lost with its shell. A terminal has a `restoredProcess` only while it
+The runner owns every terminal: which terminals a session has, their names (the ones
+you give them, or its own "Terminal 01", "Terminal 02", … per session), directories, what
+they run and the program each last had in its foreground (only its name, never its
+command line, which can hold secrets). The UI shows them, renames through the runner,
+and saves only how it shows them: layouts, sidebar order, the view and the selection,
+by terminal id. A terminal has a `restoredProcess` only while it
 has no live shell: a program running when the runner lost the shell, the shell was
 killed, or the app closed becomes it, and it ends once a shell reaches its prompt or
 runs a program. Every replacement shell starts in the runner backend's `freshShell`,
@@ -129,7 +132,11 @@ agent.
   `agy plugin`, from a local marketplace or folder in NovaDeck's data directory);
   turning it off uninstalls it. The plugin holds a single hook that tells the NovaDeck
   terminal it runs in which session it is, and does nothing when the agent runs
-  anywhere else. It adds nothing to the model's context. Without a connected agent
+  anywhere else. It adds nothing to the model's context but the messages other agents in
+  NovaDeck send it, wrapped as theirs (see [Agent messaging](docs/agent-messaging.md)).
+  Agents address each other by terminal handle, `t3` for "Terminal 03", which stays
+  the terminal's when you rename it.
+  Without a connected agent
   there is no resume, even for sessions it reported before: disconnecting forgets them,
   and the terminal comes back as a plain shell with its transcript.
 - **Resuming.** When a terminal lost a connected agent, its fresh shell comes back
@@ -151,8 +158,9 @@ agent.
   printed: they live in `workspace.sqlite`, readable by your account only, with up to
   256 KiB kept per terminal.
 
-Codex may ask you once to review NovaDeck's hook ("Hooks need review") and records the
-answer itself; the hook never changes between NovaDeck versions, so it asks only once.
+Codex may ask you to review NovaDeck's hook ("Hooks need review") and records the
+answer itself; it asks again only when NovaDeck changes how its hook is registered, as
+when the hook gained its time limit for agent messaging.
 Interactive Codex normally runs its sessions, hooks included, in a shared background
 server that cannot tell which terminal a session belongs to. So while Codex is
 connected, NovaDeck's shells run `codex` through a small shim that adds `--no-daemon`,
@@ -265,6 +273,17 @@ and hands the same token to the UI dev server. For UI-only work, use
 `pnpm --filter @novadeck/ui dev` with `VITE_NOVADECK_RUNNER_URL` and
 `VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started.
 
+NovaDeck has no database migrations before its first release. A runner that opens a
+`workspace.sqlite` an earlier build wrote, whose tables differ from its own, refuses to
+start and names the file: delete it (it holds your projects, sessions and kept
+terminals) and start again. A standalone runner keeps it at
+`~/.local/share/novadeck/workspace.sqlite` unless `NOVADECK_DATABASE` is set; the
+desktop app keeps it in its data folder, `NovaDeck` on every platform:
+`~/.config/NovaDeck/workspace.sqlite` on Linux, `~/Library/Application
+Support/NovaDeck/workspace.sqlite` on macOS and `%APPDATA%\NovaDeck\workspace.sqlite` on
+Windows. NovaDeck never deletes or rewrites it
+for you.
+
 ### Plan review design preview
 
 Run `pnpm dev:previews` and open <http://127.0.0.1:5181> for a UI-only study of
@@ -369,8 +388,8 @@ This is a TypeScript monorepo using pnpm workspaces and Turborepo.
 | `application/host`     | Electron host that starts the runner and loads the packaged UI. |
 | `scripts`              | Repository checks and automation.                               |
 
-The UI runs real shells through the runner. Projects and sessions live in the
-runner's SQLite metadata, and each session saves its terminal names, order, and
+The UI runs real shells through the runner. Projects, sessions and their terminals
+live in the runner's SQLite metadata, and each session saves its terminals' order and
 layouts there too; preferences and sidebar settings are stored locally. Unit tests
 and behaviour specs run on the demo adapter's sample data instead.
 

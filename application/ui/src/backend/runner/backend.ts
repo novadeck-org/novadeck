@@ -38,6 +38,7 @@ import {
   cleanlyExited,
   lostTerminals,
   runnerSeed,
+  runnerTerminal,
   startingTerminal,
   terminalRuns,
   type RunnerListing,
@@ -318,6 +319,16 @@ export const runnerBackend = (
   )
   const entries = new Map<string, RunnerEntry>()
   const launches = new Map<string, Launch>()
+  // Terminals the runner reported that this window didn't ask for, as another window's or
+  // an agent's, on their way into the workspace: they exist, so nothing creates them.
+  const adopted = new Map<string, TerminalSummary>()
+  // Names the person gave terminals, until the runner reports them as theirs.
+  const renamed = new Map<string, string>()
+  // Titles given to terminals, as an agent's request or the person's rename did, which a
+  // terminal is created with; the runner names the others.
+  const titles = new Map<string, string>()
+  // Each terminal's title as the runner last reported it.
+  const runnerTitles = new Map<string, string>()
   let sink: BackendSink | undefined
   let runnerId: string | undefined
   // The latest runner status; a simulated outage from the debug panel shows as
@@ -528,6 +539,89 @@ export const runnerBackend = (
     }).catch(() => {})
   }
 
+  // The terminal as the workspace last committed it.
+  const terminalOf = (key: TerminalKey): TerminalMetadata | undefined =>
+    latest?.projects
+      .find((project) => project.id === key.projectId)
+      ?.history.find((session) => session.id === key.workspaceSessionId)
+      ?.state.roster.terminals.find((terminal) => terminal.id === key.terminalId)
+  // The title a terminal is created with: the one it was given, as by an agent's request
+  // or the person; the runner names the others.
+  const titled = (key: TerminalKey): { title?: string } => {
+    const title = titles.get(key.terminalId)
+    return title === undefined ? {} : { title }
+  }
+  // What the runner says of a terminal that the workspace shows otherwise: its title,
+  // unless the person renamed it since and the runner has yet to hear, and its directory.
+  const factActions = (entry: RunnerEntry, summary: TerminalSummary): BackendAction[] => {
+    const current = terminalOf(entry.key)
+    if (!current) return []
+    const { terminalId } = entry.key
+    runnerTitles.set(terminalId, summary.title)
+    const unconfirmed = renamed.get(terminalId)
+    if (unconfirmed === summary.title) renamed.delete(terminalId)
+    const name =
+      unconfirmed === undefined && current.name !== summary.title ? summary.title : undefined
+    const directory = current.directory !== summary.cwd ? summary.cwd : undefined
+    if (name === undefined && directory === undefined) return []
+    return [
+      {
+        type: "terminal/update",
+        target: target(entry.key),
+        terminalId,
+        ...(name !== undefined && { name }),
+        ...(directory !== undefined && { directory }),
+      },
+    ]
+  }
+  // Tells the runner the name the person gave a terminal, whether or not it has a
+  // shell. One the runner doesn't have yet, as while it is created, gets it once it does.
+  // The pending name goes once the runner took it, or refused it; refused for any reason
+  // but not having the terminal, the terminal shows the runner's title again.
+  const renameOnRunner = async (key: TerminalKey, name: string): Promise<void> => {
+    const { terminalId } = key
+    renamed.set(terminalId, name)
+    titles.set(terminalId, name)
+    const rename = () =>
+      untilAnswered(() => runner.terminals.rename(terminalId, name), {
+        cancelled: () => renamed.get(terminalId) !== name,
+      })
+    let refused = false
+    try {
+      await rename()
+    } catch (error) {
+      const entry = entries.get(terminalId)
+      if (!hasCode(error, "TERMINAL_NOT_FOUND")) refused = !(error instanceof Cancelled)
+      else if (entry && (await entry.ready))
+        await rename().catch((again: unknown) => {
+          refused = !hasCode(again, "TERMINAL_NOT_FOUND") && !(again instanceof Cancelled)
+        })
+    }
+    if (renamed.get(terminalId) !== name) return
+    renamed.delete(terminalId)
+    const title = runnerTitles.get(terminalId)
+    if (refused && title !== undefined && title !== name)
+      dispatch([{ type: "terminal/update", target: target(key), terminalId, name: title }])
+  }
+  // A terminal the runner has that this window didn't ask for joins its session, unless
+  // the workspace doesn't hold that session or its shell already ended cleanly.
+  const adopt = (summary: TerminalSummary): void => {
+    const project = latest?.projects.find((each) =>
+      each.history.some((session) => session.id === summary.sessionId),
+    )
+    const terminal = runnerTerminal(summary)
+    if (!project || !terminal || adopted.has(summary.id)) return
+    adopted.set(summary.id, summary)
+    dispatch([
+      {
+        type: "terminal/add",
+        target: { projectId: project.id, workspaceSessionId: summary.sessionId },
+        terminal,
+        select: false,
+      },
+    ])
+  }
+
   // Starts the shell once its session exists; a failure shows on the terminal's tab.
   const createTerminal = (entry: RunnerEntry): Promise<boolean> => {
     const { terminalId, workspaceSessionId } = entry.key
@@ -549,6 +643,7 @@ export const runnerBackend = (
               sessionId: workspaceSessionId,
               ...started,
               ...(cwd ? { cwd } : {}),
+              ...titled(entry.key),
               cols: 80,
               rows: 24,
             })
@@ -565,6 +660,7 @@ export const runnerBackend = (
         entry.run = summary?.run
         entry.confirmed = true
         entry.confirmedIn = round
+        if (summary) dispatch(factActions(entry, summary))
         return true
       }),
     ).catch((error: unknown) => {
@@ -755,14 +851,18 @@ export const runnerBackend = (
   }
 
   const registry = createTerminalRegistry<RunnerEntry>({
-    open: (key, terminal: TerminalMetadata, isNew) => {
-      const lost = !isNew && lostAtStart.has(key.terminalId)
+    open: (key, terminal: TerminalMetadata, added) => {
+      // One the runner reported first already exists there.
+      const reported = adopted.get(key.terminalId)
+      adopted.delete(key.terminalId)
+      const isNew = added && !reported
+      const lost = reported ? !reported.started : !isNew && lostAtStart.has(key.terminalId)
       const entry: RunnerEntry = {
         key,
         ready: Promise.resolve(!lost),
         lost,
         starting: false,
-        run: isNew ? undefined : runs.get(key.terminalId),
+        run: reported ? reported.run : isNew ? undefined : runs.get(key.terminalId),
         floor: 0,
         size: defaultSize,
         ...revival(),
@@ -830,6 +930,10 @@ export const runnerBackend = (
     }
     registry.reconcile(workspace, actions)
     saves.note(workspace)
+    // The person's renames go to the runner, which owns every terminal's title.
+    for (const action of actions)
+      if (action.type === "terminal/rename")
+        void track(renameOnRunner({ ...action.target, terminalId: action.terminalId }, action.name))
     // The first commit renders the page and must start nothing; `start` covers it.
     // Reviving reports to the store, which cannot take a transaction inside its
     // commit, so it runs once the commit is done.
@@ -896,18 +1000,28 @@ export const runnerBackend = (
         return
       }
       if (change.type === "removed") {
-        // Evicted after exiting, or closed by another client: a restart must create it.
+        // Closed, as by another window: it is gone from its session here too.
         const entry = entries.get(change.terminalId)
-        if (entry && !entry.starting) markLost(entry)
+        if (entry && !entry.closed)
+          dispatch([
+            { type: "terminal/close", target: target(entry.key), terminalId: change.terminalId },
+          ])
         return
       }
       if (change.type === "changed") {
-        const entry = entries.get(change.terminal.id)
-        reported.add(change.terminal.id)
-        if (!entry || entry.closed) return
+        const summary = change.terminal
+        const entry = entries.get(summary.id)
+        reported.add(summary.id)
+        if (!entry) return adopt(summary)
+        if (entry.closed) return
         if (!entry.confirmed) entry.confirmedIn = round
         entry.confirmed = true
-        dispatch(activityActions(entry, change.terminal))
+        dispatch([
+          ...factActions(entry, summary),
+          ...(summary.started ? activityActions(entry, summary) : []),
+        ])
+        // Kept without a shell, as once its exited record was let go: it needs a fresh one.
+        if (!summary.started && !entry.starting && !entry.lost) markLost(entry)
         return
       }
       // Terminals confirmed during this round may have been created after the runner
@@ -985,8 +1099,9 @@ export const runnerBackend = (
 
   const backend: Backend = {
     seed,
-    newTerminal: ({ number, directory, launch }) => {
-      const terminal = startingTerminal(newId(), number, directory)
+    newTerminal: ({ directory, launch, title }) => {
+      const terminal = startingTerminal(newId(), directory, title)
+      if (title !== undefined) titles.set(terminal.id, title)
       if (launch)
         launches.set(terminal.id, {
           cwd: directory,

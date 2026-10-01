@@ -43,7 +43,7 @@ describe("workspace commands", () => {
         {
           type: "terminal/add",
           target,
-          terminal: terminalFixture(state(workspace).roster.nextNumber, "~/project"),
+          terminal: terminalFixture(state(workspace).roster.terminals.length + 1, "~/project"),
         },
       ])
     add()
@@ -53,7 +53,6 @@ describe("workspace commands", () => {
       "02",
       "03",
     ])
-    expect(state(store.getSnapshot()).roster.nextNumber).toBe(4)
   })
 
   it("publishes a complete transaction once and ignores obsolete targets", () => {
@@ -92,7 +91,7 @@ describe("workspace commands", () => {
     }
     const terminalState = createTerminalState([terminal], "canvas", "canvas", { canvasLayout })
     expect(terminalState.layout.canvas).toBe(canvasLayout)
-    expect(terminalState.roster).toEqual({ terminals: [terminal], order: [], nextNumber: 2 })
+    expect(terminalState.roster).toEqual({ terminals: [terminal], order: [] })
   })
 
   it("adding a terminal selects it and places it in every layout", () => {
@@ -112,7 +111,7 @@ describe("workspace commands", () => {
     })
     const added = state(store.getSnapshot())
     expect(added.selected).toBe("02")
-    expect(added.roster.nextNumber).toBe(before.roster.nextNumber + 1)
+    expect(added.roster.terminals).toHaveLength(before.roster.terminals.length + 1)
     expect(added.layout.canvas.geometry["02"]!.position).toEqual({ x: 900, y: 500 })
     expect(added.layout.grid.desktop!.map((item) => item.i)).toEqual(["02"])
     expect(added.layout.sizePresets).toEqual({ canvas: { "02": "small" }, grid: { "02": "small" } })
@@ -152,7 +151,7 @@ describe("workspace commands", () => {
     expect(state(closed)).toEqual({
       ...seeded,
       selected: "",
-      roster: { terminals: [], order: [], nextNumber: 2 },
+      roster: { terminals: [], order: [] },
       layout: {
         canvas: { geometry: {}, minimized: {} },
         grid: { desktop: [] },

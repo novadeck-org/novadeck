@@ -2,7 +2,16 @@ import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { followLines } from "../follow.js"
-import { json, marketplace, mcpServer, plugin, type Harness, type Install } from "../harness.js"
+import {
+  hookSeconds,
+  json,
+  marketplace,
+  mcpServer,
+  plugin,
+  type MessagingProfile,
+  type Harness,
+  type Install,
+} from "../harness.js"
 import { decode } from "./decode.js"
 import { posixShim } from "./shim.js"
 import { transcriptEvents } from "./transcript.js"
@@ -31,6 +40,21 @@ const hook = (platform: NodeJS.Platform, event: string): string =>
   platform === "win32"
     ? `if ($env:NOVADECK_HOOK) { & $env:NOVADECK_HOOK claude ${event} }`
     : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude ${event} || true`
+
+// A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
+// a prompt's context is an attachment beside the prompt, never the prompt itself.
+const messaging: MessagingProfile = {
+  asks: { Stop: "stop", UserPromptSubmit: "prompt" },
+  silent: () => "",
+  stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
+  prompt: (delivery) =>
+    `${JSON.stringify({
+      hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
+    })}\n`,
+  reinjectPerCall: false,
+  root: "binding",
+  silentOnFailure: false,
+}
 
 export const claude = {
   id: "claude",
@@ -82,6 +106,7 @@ export const claude = {
                   {
                     type: "command",
                     command: hook(platform, event),
+                    timeout: hookSeconds,
                     ...(platform === "win32" && { shell: "powershell" }),
                   },
                 ],
@@ -123,6 +148,7 @@ export const claude = {
     context: "partial",
   },
   decode,
+  messaging,
   // The transcript records what no hook reports: an interrupted turn.
   watch: (run, signal, emit) =>
     followLines(run.transcript, signal, (line) => {

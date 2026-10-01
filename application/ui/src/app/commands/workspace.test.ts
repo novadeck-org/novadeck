@@ -325,8 +325,14 @@ describe("workspace commands", () => {
       const urls = app.urls.length
       const { asked, answers } = asking({ title: "Agent" })
       app.commands.openRequested(asked)
+      // The backend names it as the agent asked.
       expect(app.allocated).toEqual([
-        { number: 3, directory: "/work/app", launch: { command: "claude" } },
+        {
+          target: { projectId: "project", workspaceSessionId: "initial" },
+          directory: "/work/app",
+          title: "Agent",
+          launch: { command: "claude" },
+        },
       ])
       const added = terminal(app, "new-3")
       expect(added).toMatchObject({ name: "Agent", directory: "/work/app" })
@@ -358,7 +364,11 @@ describe("workspace commands", () => {
       const app = openCommands()
       const { command: _command, ...plain } = asking().asked
       app.commands.openRequested(plain)
-      expect(app.allocated.at(-1)).toEqual({ number: 3, directory: "/work/app", launch: {} })
+      expect(app.allocated.at(-1)).toEqual({
+        target: { projectId: "project", workspaceSessionId: "initial" },
+        directory: "/work/app",
+        launch: {},
+      })
     })
 
     it("selects it and brings it into view only when the person asked to see it", () => {
@@ -376,17 +386,17 @@ describe("workspace commands", () => {
       const quiet = asking({ from: "09" })
       app.commands.openRequested(quiet.asked)
       const other = () => app.workspace.getSnapshot().projects[0]!.history[1]!.state
-      expect(other().roster.terminals.map((each) => each.id)).toContain("new-3")
+      expect(other().roster.terminals.map((each) => each.id)).toContain("new-4")
       expect(app.state().roster.terminals.map((each) => each.id)).toEqual(["01", "02"])
       expect(app.ui.getSnapshot().location.route.sessionId).toBe("initial")
-      expect(quiet.answers).toEqual([{ terminalId: "new-3" }])
+      expect(quiet.answers).toEqual([{ terminalId: "new-4" }])
       const shown = asking({ from: "09", focus: true })
       app.commands.openRequested(shown.asked)
       expect(app.ui.getSnapshot().location.route).toMatchObject({
         sessionId: "other",
-        terminal: "new-4",
+        terminal: "new-5",
       })
-      expect(app.state().selected).toBe("new-4")
+      expect(app.state().selected).toBe("new-5")
     })
 
     it("answers why not when the asking terminal is in no session", () => {

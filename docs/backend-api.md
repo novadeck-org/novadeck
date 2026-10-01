@@ -164,7 +164,9 @@ so it can refer to one before the runner answers. A taken ID rejects with `CONFL
 for terminals that includes exited records the runner still retains. A project
 created without `cwd` opens in the home directory of the user running the runner.
 `sessions.save({ sessionId, state })` replaces a session's `state`, a string the
-runner stores with the session without reading it, such as a UI layout. Sessions
+runner stores with the session without reading it, such as a UI layout. It holds only
+how a client shows the session's terminals, by id: the terminals themselves, their
+titles, directories and what they ran, are the runner's own records. Sessions
 report `null` until the first save. A state holds at most `maxClientStateLength`
 (196,608) characters, and over WebSocket the whole call must also fit in one
 `maxWebSocketMessageBytes` (256 KiB) message; both limits are exported from
@@ -185,10 +187,12 @@ for await (const change of runner.terminals.watch()) {
 
 Each subscription, the first and every one after a reconnection or a retried
 refusal, yields `reset`, then `changed` for each terminal, then `synced`, then
-changes as they happen: creation, size, exit, and the foreground process, sampled
-about once a second. `removed` reports a closed terminal or an evicted exited
-record. A consumer clears its set of reported terminals on `reset` and, at `synced`,
-forgets every terminal outside it, such as one that ended with a restarted runner.
+changes as they happen: creation, title, size, exit, and the foreground process,
+sampled about once a second. Every terminal the runner keeps is reported, including one
+it keeps only as saved, as after it restarted, with `started: false` and no shell until
+a client restores it; an exited record it lets go is reported again that way. `removed`
+reports a closed terminal only. A consumer clears its set of reported terminals on
+`reset` and, at `synced`, forgets every terminal outside it.
 `reset` comes from the client; the runner's own stream starts at the first `changed`.
 The runner keeps at most the latest unread summary per terminal for each watcher, so a
 slow consumer skips intermediate states instead of growing a backlog. A refused
@@ -201,7 +205,38 @@ before the first sample). It is `null` once the terminal exits and on Windows, w
 no foreground process is known. `agent` names the agent (`claude`, `codex` or `agy`) that
 reported a session in the shell since its last prompt, so a client can name the
 program where `process` cannot; it is `null` otherwise. `cwd` is the directory the
-shell last reported at a prompt, or where it started.
+shell last reported at a prompt, or where it started. `title` is the name the person
+gave the terminal with `create` or `terminals.rename({ terminalId, title })`, or the
+runner's default for its session ("Terminal 01", "Terminal 02", …, never given twice);
+`handle` is its handle for agents' messages, `t3`, numbered from the same counter, so
+"Terminal 03" is `t3`; every terminal takes a number, even one created with its own
+title, and keeps its handle across renames. `command` is what it was opened to run, and
+`lastProgram` the program it last had in its foreground, which a fresh shell resumes
+where that is an agent.
+
+Agents in a project's terminals message each other (see
+[Agent messaging](agent-messaging.md)); the runner API lets a client see and steer it:
+
+```ts
+const messages = await runner.messages.list(terminalId)
+// { terminalId, handle, delivery, paused, threads: [{ id, peer, hops, allowed, held, messages }] }
+await runner.messages.pause(true) // or false to resume
+await runner.messages.release(threadId) // a thread held after too many hops
+```
+
+`messages.list(terminalId)` gives a running or exited terminal's handle, its delivery
+state (`unbound`, `fresh`, `working`, `settled`, `drafting` or `unknown`), whether
+messaging is paused, and its threads, newest first, each with the other terminal's
+handle, its hops so far and the hops it is allowed before the person must release it,
+whether it is held, and its messages, oldest first: id, hop, sender and recipient
+handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `held` or
+`gone`), why it is held (`paused` or `release`), and when delivered. A terminal the
+runner doesn't hold is `TERMINAL_NOT_FOUND`. `messages.pause(paused)` pauses messaging
+across the whole runner, every project and session, keeping the switch across
+restarts: waiting messages are held, and wait in order again once resumed.
+`messages.release(threadId)` lets a held thread's messages wait to be delivered and
+allows it 12 more hops; an unknown thread is `NOT_FOUND`. Each refuses with
+`RUNTIME_CLOSING` once the runner is stopping.
 
 Calls made while reconnecting reject with `DISCONNECTED`; input and creation are
 never retried automatically. Each client sends a random client ID in its handshake,
@@ -276,8 +311,9 @@ without it. MessagePort connections omit it. Each `terminals.attach` stream begi
 with an unsequenced `attached` marker confirming the granted mode, followed by
 sequenced terminal events.
 
-`terminals.list({ sessionId })` discovers live and retained exited terminals, and
-`terminals.watch()` streams them all as they change. Each watch belongs to its
+`terminals.list({ sessionId })` lists every terminal of the session, oldest first:
+live, retained exited, and kept only as saved; `terminals.watch()` streams them all as
+they change. Each watch belongs to its
 connection and ends with it. Creation uses the project's directory unless `cwd` is
 supplied. Directories must exist and be absolute. The server chooses the shell;
 clients send terminal input, not executable configuration. `write` accepts control
@@ -335,7 +371,8 @@ not command completion.
   control, and rejects with `CONTROL_IN_USE` otherwise. Once the shell has exited, the
   runner forgets the terminal: `list` omits it, watchers receive `removed`, and later
   calls report `TERMINAL_NOT_FOUND`. Attached viewers still receive `exited` first. A
-  shell that exits on its own keeps its record until eviction.
+  shell that exits on its own keeps its record until eviction, and the terminal itself
+  until it is closed. A terminal kept only as saved closes the same way.
 - `terminals.restart({ terminalId, cols, rows, resume? })`, or
   `runner.terminals.restart(id, { cols, rows, resume })`, starts a fresh shell in a
   retained exited terminal: the same ID and session, in the shell's last reported
@@ -405,11 +442,11 @@ without a source (Antigravity).
 The runner saves, per terminal, in a `terminals` table next to the sessions: its
 session, last directory, latest session per agent, when it last showed a prompt, and
 its transcript (the serialized screen and scrollback, without the alternate screen,
-capped at 256 KiB), keeping the 128 most recently saved. The directory and agent
-sessions are saved as they change, the rest every five seconds when changed, when a
-shell exits, and on `persist()` and `close()`, which save before any shell ends.
-Closing a terminal forgets it, including one from an earlier runner (`terminals.close`
-still rejects with `TERMINAL_NOT_FOUND` then).
+capped at 256 KiB), its title, the command it was opened with and the program it last
+had in its foreground, until it is closed. The directory, agent sessions and title are
+saved as they change, the rest every five seconds when changed, when a shell exits, and
+on `persist()` and `close()`, which save before any shell ends. Closing a terminal
+forgets it, including one from an earlier runner.
 
 - `terminals.create({ …, restore: true, resume? })` continues the saved terminal of
   that ID in the same session: in its last directory when that still exists, with its

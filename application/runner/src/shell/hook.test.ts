@@ -5,13 +5,25 @@ import { join } from "node:path"
 
 import { describe, expect, it as base } from "../test.js"
 import { hookScript } from "./hook.js"
-import { listenForReports, unanswered, type Report } from "./reports.js"
+import {
+  listenForReports,
+  unanswered,
+  unheard,
+  type Ack,
+  type HookAnswer,
+  type Report,
+} from "./reports.js"
 
 type Fixture = {
   endpoint: string
   /** The hook script, as written. */
   script: string
   reports: Report[]
+  /** The deadline each ask came with, by its report's event. */
+  deadlines: { event: string; seq: number; deadline: number }[]
+  /** What the runner answers an ask with; unheard unless a test says otherwise. */
+  answer: { current: HookAnswer }
+  acks: Ack[]
   /** Runs the hook as an agent would for `event`, and resolves with what it printed. */
   run: (agent: string, payload: unknown, env: NodeJS.ProcessEnv, event: string) => Promise<string>
   /** Runs the hook as an agent would for `event`, and resolves once it exits. */
@@ -35,10 +47,19 @@ const it = base.extend<{ fixture: Fixture }>({
     const script = join(directory, "hook.mjs")
     writeFileSync(script, hookScript)
     const reports: Report[] = []
-    const listening = await listenForReports(
-      (report) => reports.push(report),
-      () => Promise.resolve(unanswered),
-    )
+    const deadlines: Fixture["deadlines"] = []
+    const answer = { current: unheard }
+    const acks: Ack[] = []
+    const listening = await listenForReports({
+      report: (report) => reports.push(report),
+      ask: (report, deadline) => {
+        reports.push(report)
+        deadlines.push({ event: report.event, seq: report.seq, deadline })
+        return Promise.resolve(answer.current)
+      },
+      ack: (ack) => acks.push(ack),
+      call: () => Promise.resolve(unanswered),
+    })
     resources.defer(() => listening.close())
     const hook: Fixture["hook"] = (agent, payload, env = {}, event) =>
       new Promise((resolve) => {
@@ -59,8 +80,8 @@ const it = base.extend<{ fixture: Fixture }>({
         child.on("exit", (code) => {
           // Claude Code shows some hooks' output to the model; Antigravity reads it as JSON,
           // and denies a tool whose PreToolUse answer does not say "ask".
-          const answer = event === "PreToolUse" ? '{"decision":"ask"}\n' : "{}\n"
-          resolve(printed === (agent === "agy" ? answer : "") ? code : -1)
+          const quiet = event === "PreToolUse" ? '{"decision":"ask"}\n' : "{}\n"
+          resolve(printed === (agent === "agy" ? quiet : "") ? code : -1)
         })
         child.stdin.end(typeof payload === "string" ? payload : JSON.stringify(payload))
       })
@@ -81,7 +102,16 @@ const it = base.extend<{ fixture: Fixture }>({
         child.on("exit", () => resolve(printed))
         child.stdin.end(JSON.stringify(payload))
       })
-    await use({ endpoint: listening.endpoint, script, reports, hook, run })
+    await use({
+      endpoint: listening.endpoint,
+      script,
+      reports,
+      deadlines,
+      answer,
+      acks,
+      hook,
+      run,
+    })
   },
 })
 
@@ -291,5 +321,75 @@ describe("agent hook", () => {
       NOVADECK_REPORT: join(tmpdir(), "novadeck-missing", "reports.sock"),
     })
     expect(code).toBe(0)
+  })
+})
+
+describe("agent hook asking", () => {
+  const lease = "abcdefghijklmnopqrstuvwx"
+
+  it("asks at a Stop, prints the runner's answer, then acknowledges its lease", async ({
+    fixture,
+  }) => {
+    const stdout = `${JSON.stringify({ decision: "block", reason: "<novadeck-messages/>" })}\n`
+    fixture.answer.current = { leaseId: lease, stdout }
+    const payload = { hook_event_name: "Stop", session_id: session }
+    await expect(fixture.run("claude", payload, {}, "Stop")).resolves.toBe(stdout)
+    await expect.poll(() => fixture.acks).toEqual([{ terminalId, token, leaseId: lease }])
+    // Its deadline leaves time, after the runner's answer, to print it and acknowledge.
+    const [asked] = fixture.deadlines
+    expect(asked?.event).toBe("Stop")
+    expect(asked!.deadline - asked!.seq).toBeGreaterThan(2_000)
+    expect(asked!.deadline - asked!.seq).toBeLessThanOrEqual(4_000)
+    expect(fixture.reports).toMatchObject([{ event: "Stop", payload }])
+  })
+
+  it("asks at each harness's prompt time, printing exactly what the runner says", async ({
+    fixture,
+  }) => {
+    const inject = `${JSON.stringify({ injectSteps: [{ ephemeralMessage: "m" }] })}\n`
+    fixture.answer.current = { leaseId: null, stdout: inject }
+    await expect(
+      fixture.run("agy", { conversationId: session, invocationNum: 0 }, {}, "PreInvocation"),
+    ).resolves.toBe(inject)
+    fixture.answer.current = { leaseId: null, stdout: "" }
+    await expect(
+      fixture.run("codex", { session_id: session, prompt: "hi" }, {}, "UserPromptSubmit"),
+    ).resolves.toBe("")
+    // Nothing leased, nothing to acknowledge.
+    expect(fixture.acks).toEqual([])
+    expect(fixture.deadlines.map(({ event }) => event)).toEqual([
+      "PreInvocation",
+      "UserPromptSubmit",
+    ])
+  })
+
+  it("only reports the hooks that don't ask", async ({ fixture }) => {
+    fixture.answer.current = { leaseId: lease, stdout: "x" }
+    await expect(fixture.run("claude", start(), {}, "SessionStart")).resolves.toBe("")
+    await expect(fixture.run("agy", { conversationId: session }, {}, "PostToolUse")).resolves.toBe(
+      "{}\n",
+    )
+    expect(fixture.deadlines).toEqual([])
+    expect(fixture.reports).toHaveLength(2)
+  })
+
+  it("prints what it would without NovaDeck when the runner doesn't answer", async ({
+    fixture,
+  }) => {
+    // Unheard: the runner failed, or was too slow.
+    await expect(fixture.run("agy", { conversationId: session }, {}, "Stop")).resolves.toBe("{}\n")
+    await expect(
+      fixture.run("claude", { hook_event_name: "Stop", session_id: session }, {}, "Stop"),
+    ).resolves.toBe("")
+    // NovaDeck gone: Antigravity still gets its JSON.
+    await expect(
+      fixture.run(
+        "agy",
+        { conversationId: session },
+        { NOVADECK_REPORT: join(tmpdir(), "novadeck-missing.sock") },
+        "Stop",
+      ),
+    ).resolves.toBe("{}\n")
+    expect(fixture.acks).toEqual([])
   })
 })

@@ -154,6 +154,7 @@ export const createRouter = (options: {
       close: authorized.terminals.close.handler(({ input, context }) =>
         terminals.close(input, context.connection.id),
       ),
+      rename: authorized.terminals.rename.handler(({ input }) => terminals.rename(input)),
     },
     agents: {
       list: authorized.agents.list.handler(() => agents.list()),
@@ -201,6 +202,15 @@ export const createRouter = (options: {
         if (!result.connected) terminals.forgetAgent(input.agent)
         return result
       }),
+    },
+    messages: {
+      list: authorized.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),
+      pause: authorized.messages.pause.handler(({ input }) =>
+        terminals.pauseMessages(input.paused),
+      ),
+      release: authorized.messages.release.handler(({ input }) =>
+        terminals.releaseThread(input.thread),
+      ),
     },
     // The store keeps the settings; the terminals apply the transcript switch.
     settings: {

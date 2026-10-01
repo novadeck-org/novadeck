@@ -1,9 +1,10 @@
 import type { Project, TerminalSummary, WorkspaceSession } from "@novadeck/protocol"
 
+import { isShellProcess } from "../../model/process"
 import type { SessionSeed, WorkspaceSeed } from "../../model/seed"
 import type { TerminalMetadata } from "../../model/types"
 import { restartable, terminalActivity } from "./activity"
-import { decodeSession, type SavedTerminal } from "./session-state"
+import { decodeSession } from "./session-state"
 
 // Everything the runner reported at startup, one entry per project.
 export type RunnerListing = readonly {
@@ -14,115 +15,69 @@ export type RunnerListing = readonly {
   }[]
 }[]
 
-export const terminalName = (number: number): string =>
-  `Terminal ${String(number).padStart(2, "0")}`
-
-// A terminal the UI has just asked for, before the runner reports on it.
+// A terminal the UI has just asked for, before the runner reports on it: named as asked,
+// or with a placeholder until the runner gives it its session's next default title.
 export const startingTerminal = (
   id: string,
-  number: number,
   directory: string,
+  title?: string,
 ): TerminalMetadata => ({
   id,
-  name: terminalName(number),
+  name: title ?? newTerminalName,
   directory,
   command: "",
   process: "",
   state: "starting",
 })
 
-// What a saved terminal keeps as itself; its `lastProcess` only feeds `restoredProcess`.
-const identity = ({ id, name, directory }: SavedTerminal) => ({ id, name, directory })
+// What a new terminal shows until the runner names it.
+export const newTerminalName = "New terminal"
 
-// The program to resume in a terminal whose shell was lost or ended; a live shell has
-// nothing to restore.
-const restored = (saved: SavedTerminal): Pick<TerminalMetadata, "restoredProcess"> =>
-  saved.lastProcess ? { restoredProcess: saved.lastProcess } : {}
+// The program a fresh shell resumes in a terminal whose shell was lost or ended.
+const restored = (summary: TerminalSummary): Pick<TerminalMetadata, "restoredProcess"> =>
+  summary.lastProgram && !isShellProcess(summary.lastProgram)
+    ? { restoredProcess: summary.lastProgram }
+    : {}
 
-// A terminal as the runner reports it, or undefined once its shell exited cleanly,
-// which closes it.
-const liveTerminal = (
-  saved: SavedTerminal,
-  summary: TerminalSummary,
-): TerminalMetadata | undefined => {
+// A terminal as the runner keeps it, or undefined once its shell exited cleanly, which
+// closes it. One the runner has no shell for, as after it restarted, needs a fresh one.
+export const runnerTerminal = (summary: TerminalSummary): TerminalMetadata | undefined => {
+  const identity = {
+    id: summary.id,
+    name: summary.title,
+    directory: summary.cwd,
+    command: summary.command ?? "",
+  }
+  if (!summary.started) return { ...identity, ...restored(summary), process: "", state: "starting" }
   const { status, process } = terminalActivity(summary)
   if (status === "clean") return undefined
   return {
-    ...identity(saved),
-    ...(restartable(status) ? restored(saved) : {}),
-    command: "",
+    ...identity,
+    ...(restartable(status) ? restored(summary) : {}),
     process: process ?? "",
     ...status,
   }
 }
 
-// A saved terminal whose process the runner no longer has, as after a restart or a
-// relaunch. The adapter starts a fresh shell for it in place.
-const lostTerminal = (saved: SavedTerminal): TerminalMetadata => ({
-  ...identity(saved),
-  ...restored(saved),
-  command: "",
-  process: "",
-  state: "starting",
-})
-
 // A session's seed and where it sorts: by last visit, then by how open it was.
 type Ranked = { readonly seed: SessionSeed; readonly order: readonly [number, number] }
 
-// Saved terminals keep their names and places; the runner's other running terminals
-// in the session follow with default names, numbered on from the saved counter.
-// Exited terminals the save does not know were closed here or elsewhere; they stay out.
+// The session's terminals are the runner's, in the order they were created; how the UI
+// showed them, as it saved that, lays them out again.
 const sessionSeed = (session: WorkspaceSession, summaries: readonly TerminalSummary[]): Ranked => {
   const saved = decodeSession(session.state)
-  const live = new Map(summaries.map((summary) => [summary.id, summary]))
-  const known = saved?.state.roster.terminals ?? []
-  const kept = known.flatMap((terminal) => {
-    const summary = live.get(terminal.id)
-    if (!summary) return [lostTerminal(terminal)]
-    const current = liveTerminal(terminal, summary)
-    return current ? [current] : []
+  const terminals = summaries.flatMap((summary) => {
+    const terminal = runnerTerminal(summary)
+    return terminal ? [terminal] : []
   })
-  const first = saved?.state.roster.nextNumber ?? 1
-  const extra = summaries
-    .filter(
-      (summary) => summary.exit === null && !known.some((terminal) => terminal.id === summary.id),
-    )
-    .flatMap((summary, index) => {
-      const current = liveTerminal(
-        {
-          id: summary.id,
-          name: terminalName(first + index),
-          directory: summary.cwd,
-          lastProcess: "",
-        },
-        summary,
-      )
-      return current ? [current] : []
-    })
-  const terminals = [...kept, ...extra]
   // Visit times are epoch milliseconds, so -1 sorts a session never saved last.
   if (!saved) return { seed: { id: session.id, name: session.name, terminals }, order: [-1, 0] }
-  // A selected terminal that closed while the app was away hands selection on.
-  const remaining = new Set(kept.map((terminal) => terminal.id))
-  const selected = remaining.has(saved.state.selected)
-    ? saved.state.selected
-    : ([...saved.state.roster.order, ...kept.map((terminal) => terminal.id)].find((id) =>
-        remaining.has(id),
-      ) ?? "")
   const seed: SessionSeed = {
     id: session.id,
     name: session.name,
     terminals,
     visitedAt: saved.visitedAt,
-    restored: {
-      ...saved.state,
-      selected,
-      roster: {
-        ...saved.state.roster,
-        order: [...saved.state.roster.order],
-        terminals: kept,
-      },
-    },
+    restored: saved.state,
   }
   return { seed, order: [saved.visitedAt, saved.rank] }
 }
@@ -155,15 +110,13 @@ export const terminalRuns = (listing: RunnerListing): ReadonlyMap<string, number
     ),
   )
 
-// Saved terminals the runner does not have: they need a fresh shell.
+// Terminals the runner keeps without a shell, as after it restarted: they need a fresh one.
 export const lostTerminals = (listing: RunnerListing): ReadonlySet<string> =>
   new Set(
     listing.flatMap(({ sessions }) =>
-      sessions.flatMap(({ session, terminals }) => {
-        const live = new Set(terminals.map((terminal) => terminal.id))
-        const known = decodeSession(session.state)?.state.roster.terminals ?? []
-        return known.flatMap((terminal) => (live.has(terminal.id) ? [] : [terminal.id]))
-      }),
+      sessions.flatMap(({ terminals }) =>
+        terminals.flatMap((terminal) => (terminal.started ? [] : [terminal.id])),
+      ),
     ),
   )
 

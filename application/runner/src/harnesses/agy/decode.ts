@@ -7,9 +7,14 @@ import { absolute, sessionId, text } from "../harness.js"
 /**
  * Antigravity's hooks, as normalized facts. Every hook names the conversation it runs in,
  * and nothing says how it began: /clear and /resume switch conversations in one process.
- * PreInvocation starts a model call, so the agent works; Stop ends the turn, as failed
- * when it names an error. Its confirmations fire no hook, and an Esc fires nothing: its
- * status line, which NovaDeck's settings hand to the hook as StatusLine, tells both.
+ * PreInvocation starts a model call, so the agent works: the turn's first (its
+ * `invocationNum` restarts at 0 each turn) as its prompt, any later one as a call of the
+ * turn already running. Stop ends the turn, as failed when it names an error, and says
+ * whether background work, as a subagent, still runs (`fullyIdle`). Only a completed turn
+ * fires Stop: its confirmations fire no hook, and an Esc or a denial fires nothing. Its
+ * status line, which NovaDeck's settings hand to the hook as StatusLine, tells both, but
+ * reads the same idle after them as after a completed turn: so idle there only ends a
+ * turn no Stop ended, and never as completed.
  * Every hook names the conversation's transcript. A plan is an artifact it writes asking
  * for the person's review, which its PostToolUse names.
  */
@@ -30,14 +35,24 @@ export const decode = ({ event, seq, instance, payload }: Report): readonly Harn
   }
   switch (event) {
     case "PreInvocation":
-      return [observed, { type: "turn-started", ...base }]
+      return [
+        observed,
+        // Its first model call starts a turn, whether the person prompted it or a subagent's
+        // message woke the agent: no hook tells which.
+        { type: "turn-started", ...base, cause: payload.invocationNum === 0 ? "harness" : "call" },
+      ]
     case "Stop":
       return [
         observed,
-        { type: "turn-ended", ...base, outcome: text(payload.error) ? "failed" : "completed" },
+        {
+          type: "turn-ended",
+          ...base,
+          outcome: text(payload.error) ? "failed" : "completed",
+          background: payload.fullyIdle === false,
+        },
       ]
     case "PostToolUse":
-      return [observed, ...artifact(base, payload)]
+      return [observed, ...written(base, payload), ...artifact(base, payload)]
     default:
       return [observed]
   }
@@ -63,6 +78,36 @@ const artifact = (
   if (!inside || inside.startsWith("..") || isAbsolute(inside)) return []
   return [{ type: "plan-observed", ...base, actor: null, plan: { kind: "file", path } }]
 }
+
+// A file it wrote, as its write_to_file call names it.
+const written = (
+  base: { agent: "agy"; sessionId: string; instance: string | null; startedAt: number },
+  payload: Report["payload"],
+): HarnessEvent[] => {
+  const { name, args } = (payload.toolCall ?? {}) as {
+    name?: unknown
+    args?: Record<string, unknown>
+  }
+  const path = absolute(args?.TargetFile)
+  if (name !== "write_to_file" || !path || text(payload.error)) return []
+  return [{ type: "file-touched", ...base, actor: null, path }]
+}
+
+// Statuses of a subagent that no longer runs.
+const finished = new Set(["done", "completed", "finished", "idle", "failed", "cancelled", "error"])
+
+/**
+ * Whether the status line lists a subagent still running. It lists them while they run;
+ * one that names its state counts only while that is not a finished one.
+ */
+const subagentsRunning = (subagents: unknown): boolean =>
+  Array.isArray(subagents) &&
+  subagents.some((subagent) => {
+    if (typeof subagent !== "object" || subagent === null) return true
+    const { status, state } = subagent as { status?: unknown; state?: unknown }
+    const named = text(status) ?? text(state)
+    return named === undefined || !finished.has(named.toLowerCase())
+  })
 
 const count = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
@@ -94,15 +139,17 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
       ...base,
       evidence: "conversation-observed",
       ...(cwd !== undefined && { cwd }),
+      root: true,
     },
     // Its mode, which it names only while not the default, and reruns on when it changes.
     { type: "mode-observed", ...base, planning: payload.cycle_mode === "plan" },
   ]
-  // Idle ends the turn however it ended, an Esc or a denial included. Working without a
-  // confirmation starts it again, settling any it waited on: a snapshot's hook may start
-  // after the next turn's, so neither holds for long against a wrong one.
+  // Idle reads the same after a completed turn, an Esc and a denial: it ends a turn its
+  // Stop did not, as abnormally. Working without a confirmation starts it again, settling
+  // any it waited on, as a call of the turn: a snapshot's hook may start after the next
+  // turn's, so neither holds for long against a wrong one.
   if (payload.agent_state === "idle")
-    events.push({ type: "turn-ended", ...base, outcome: "completed" })
+    events.push({ type: "turn-idle", ...base, background: subagentsRunning(payload.subagents) })
   else if (payload.tool_confirmation_pending === true)
     events.push({
       type: "attention-requested",
@@ -113,7 +160,7 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
       choices: [],
     })
   else if (payload.agent_state === "working" || payload.agent_state === "tool_use")
-    events.push({ type: "turn-started", ...base })
+    events.push({ type: "turn-started", ...base, cause: "call" })
   const window = (payload.context_window ?? {}) as Record<string, unknown>
   const capacity = count(window.context_window_size)
   const percent = count(window.used_percentage)

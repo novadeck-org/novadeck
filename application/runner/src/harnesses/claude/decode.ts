@@ -6,6 +6,7 @@ import {
   absolute,
   bounded,
   callId,
+  continuationPrompt,
   sessionId,
   sessionStart,
   subjectOf,
@@ -18,8 +19,10 @@ import {
  *
  * SessionStart names the session running in the terminal, unless it is not the
  * terminal's own: a subagent's (it carries `agent_id`), or Claude Code running inside
- * Cursor. A turn starts with UserPromptSubmit and ends with Stop, or StopFailure on an
- * API error; a subagent's stop ends only its own work. PermissionRequest asks the person
+ * Cursor. A turn starts with UserPromptSubmit, which Claude Code also sends with a task
+ * notification as it starts a turn by itself, and ends with Stop, which lists background
+ * tasks still running, or StopFailure on an API error; a subagent's stop ends only its
+ * own work. PermissionRequest asks the person
  * about a tool call, AskUserQuestion's as a question and ExitPlanMode's as a plan to
  * review, for the root agent or a subagent;
  * the call's PostToolUse or PostToolUseFailure from that actor means it was allowed. An
@@ -53,9 +56,24 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
       ]
     }
     case "UserPromptSubmit":
-      return [{ type: "turn-started", ...base }]
+      // A subagent's prompt is its own work, not the root's turn; a background task's
+      // result starts a turn by itself, as a task notification.
+      if (actor) return []
+      const prompt = text(payload.prompt) ?? ""
+      return notification.test(prompt) || continuationPrompt(prompt)
+        ? [{ type: "turn-started", ...base, cause: "harness" }]
+        : [{ type: "turn-started", ...base, cause: "prompt", ...(prompt && { prompt }) }]
     case "Stop":
-      return actor ? [] : [{ type: "turn-ended", ...base, outcome: "completed" }]
+      return actor
+        ? []
+        : [
+            {
+              type: "turn-ended",
+              ...base,
+              outcome: "completed",
+              background: running(payload.background_tasks),
+            },
+          ]
     case "StopFailure":
       return actor ? [] : [{ type: "turn-ended", ...base, outcome: "failed" }]
     case "SubagentStart":
@@ -104,6 +122,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           outcome: "allowed",
         },
         ...drafted(base, actor, tool, payload),
+        ...touched(base, actor, tool, payload.tool_input),
       ]
     case "StatusLine":
       return statusLine(base, payload)
@@ -111,6 +130,20 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
       return []
   }
 }
+
+// The prompt of a turn Claude Code starts by itself once a background task finishes.
+const notification = /^\s*<task-notification>/
+
+// Whether a Stop lists background tasks still running, which may start a turn by themselves:
+// each names its status, and only a running one counts.
+const running = (tasks: unknown): boolean =>
+  Array.isArray(tasks) &&
+  tasks.some(
+    (task) =>
+      typeof task === "object" &&
+      task !== null &&
+      (task as { status?: unknown }).status === "running",
+  )
 
 const count = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
@@ -182,6 +215,19 @@ const markdown = (value: unknown): string | undefined => {
 export const planFile = (value: unknown): string | undefined => {
   const path = markdown(value)
   return path && basename(dirname(path)) === "plans" ? path : undefined
+}
+
+// A file a writer wrote or edited, by the absolute path its input names.
+const touched = (
+  base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
+  actor: string | null,
+  tool: string,
+  input: unknown,
+): HarnessEvent[] => {
+  if (!writers.has(tool) && tool !== "NotebookEdit") return []
+  const { file_path: file, notebook_path: notebook } = (input ?? {}) as Record<string, unknown>
+  const path = absolute(file) ?? absolute(notebook)
+  return path ? [{ type: "file-touched", ...base, actor, path }] : []
 }
 
 // A plan drafted in plan mode: the file its writer wrote.

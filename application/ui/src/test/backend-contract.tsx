@@ -83,10 +83,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
     const project = activeProject(initial)!
     const session = activeSession(initial)!
     const target: WorkspaceTarget = { projectId: project.id, workspaceSessionId: session.id }
-    const terminal = backend.newTerminal({
-      number: session.state.roster.nextNumber,
-      directory: project.directory,
-    })
+    const terminal = backend.newTerminal({ target, directory: project.directory })
     const workspace = commit(backend, initial, [{ type: "terminal/add", target, terminal }])
     const key: TerminalKey = { ...target, terminalId: terminal.id }
     const close = (): Workspace =>
@@ -164,7 +161,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         const workspace = seeded(backend)
         const session = activeSession(workspace)!
         const terminal = backend.newTerminal({
-          number: session.state.roster.nextNumber,
+          target: { projectId: activeProject(workspace)!.id, workspaceSessionId: session.id },
           directory: activeProject(workspace)!.directory,
         })
         expect(terminal).not.toBeInstanceOf(Promise)
@@ -329,6 +326,7 @@ export const describeBackendContract = (name: string, options: BackendContractOp
           // An adapter may also report what it learns on the way, such as the process running.
           const reports = received.filter(
             ({ action }) =>
+              "terminalId" in action &&
               action.terminalId === terminalId &&
               action.type === "terminal/status" &&
               action.status.state === exited.state,

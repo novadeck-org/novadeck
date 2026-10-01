@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto"
 
 import {
-  name,
   startupCommand,
+  terminalTitle,
   type TerminalRequest,
   type TerminalRequestAnswer,
 } from "@novadeck/protocol"
@@ -18,7 +18,7 @@ import { DomainError } from "../errors.js"
 export const openRequest = z.strictObject({
   command: startupCommand.optional(),
   cwd: z.string().min(1).max(4096).optional(),
-  title: name.optional(),
+  title: terminalTitle.optional(),
   focus: z.boolean().optional(),
 })
 
@@ -27,11 +27,15 @@ export type OpenRequest = z.infer<typeof openRequest>
 /** Why no terminal opened, in a sentence the agent can act on. */
 export type OpenFailure = { readonly ok: false; readonly reason: string }
 
-/** The MCP server's answer: the terminal that opened, where, and what it runs; or why not. */
+/**
+ * The MCP server's answer: the terminal that opened, its handle for messaging it, where,
+ * and what it runs; or why not.
+ */
 export type OpenAnswer =
   | {
       readonly ok: true
       readonly terminalId: string
+      readonly handle?: string
       readonly cwd: string
       readonly command?: string
     }

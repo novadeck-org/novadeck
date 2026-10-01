@@ -39,6 +39,10 @@ export type TerminalStatus =
   | { readonly state: "exited"; readonly exitCode: number | null; readonly signal: string | null }
   | { readonly state: "failed"; readonly message: string }
 
+// A terminal as its backend reports it. The backend owns all of it: which terminals a
+// session has, their names and directories, what they run and ran. The UI shows it and
+// saves none of it; it keeps only how it shows them (`TerminalLayout`, sidebar order,
+// the view), by terminal id.
 export type TerminalMetadata = {
   id: string
   name: string
@@ -90,11 +94,10 @@ export type GridRestoreWidths = Partial<Record<GridBreakpoint, number>>
 
 export type SizePreset = "large" | "small"
 
-// The session's terminals: metadata, sidebar order, and the next default number.
+// The session's terminals, as the backend reports them, and their sidebar order.
 export type TerminalRoster = {
   readonly terminals: TerminalMetadata[]
   readonly order: string[]
-  readonly nextNumber: number
 }
 // Where each terminal sits and how big it is in each view.
 export type TerminalLayout = {

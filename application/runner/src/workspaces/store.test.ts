@@ -15,6 +15,7 @@ import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 import { DomainError } from "../errors.js"
+import type { Message, Thread } from "../messaging/mailbox.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "./store.js"
 
@@ -222,6 +223,59 @@ describe("workspace metadata", () => {
     }
   })
 
+  it("refuses a database an earlier build wrote, naming it and saying to delete it", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    // The terminals table as main's runner writes it, before handles and titles.
+    const old = new DatabaseSync(path)
+    old.exec(`
+      CREATE TABLE terminals (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, cwd TEXT NOT NULL,
+        agents TEXT NOT NULL, prompted_at REAL, transcript TEXT, updated_at REAL NOT NULL) STRICT;
+      INSERT INTO terminals VALUES ('a', 's', '/', '{}', NULL, NULL, 1);
+    `)
+    old.close()
+    let refusal: unknown
+    try {
+      new WorkspaceStore(path).close()
+    } catch (error) {
+      refusal = error
+    }
+    expect(refusal).toBeInstanceOf(Error)
+    const { message } = refusal as Error
+    expect(message).toContain(path)
+    expect(message).toContain("expects handle TEXT NOT NULL")
+    expect(message).toContain("delete that file")
+    // Nothing was changed: the old terminal is there, and nothing was added.
+    const database = new DatabaseSync(path)
+    try {
+      expect(database.prepare("SELECT id FROM terminals").all()).toEqual([{ id: "a" }])
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(0)
+      expect(
+        database.prepare("SELECT name FROM sqlite_schema WHERE name = 'messages'").get(),
+      ).toBeUndefined()
+    } finally {
+      database.close()
+    }
+  })
+
+  it("refuses a messages table whose recipient session can't be null", ({ directory, store }) => {
+    const path = join(directory(), "workspace.sqlite")
+    store(path).close()
+    const database = new DatabaseSync(path)
+    database.exec(`
+      DROP TABLE messages;
+      CREATE TABLE messages (id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+        thread_id TEXT NOT NULL, hop INTEGER NOT NULL, from_terminal TEXT NOT NULL,
+        from_handle TEXT NOT NULL, from_agent TEXT, from_session TEXT,
+        to_terminal TEXT NOT NULL, to_handle TEXT NOT NULL, to_agent TEXT NOT NULL,
+        to_session TEXT NOT NULL, text TEXT NOT NULL, sent_at REAL NOT NULL,
+        state TEXT NOT NULL, delivered_at REAL, notified INTEGER NOT NULL) STRICT;
+    `)
+    database.close()
+    expect(() => new WorkspaceStore(path)).toThrow(/messages table differs .*to_session/)
+  })
+
   it.skipIf(process.platform === "win32")(
     "creates private storage without changing existing parent permissions",
     ({ directory, store }) => {
@@ -250,6 +304,18 @@ describe("saved terminals", () => {
       cwd: "/work",
       agents: { claude: { sessionId: "abc", seq: 2 } },
       promptedAt: 1_000,
+      handle: "t3",
+      title: "API author",
+      titledBy: "t1",
+      command: "claude",
+      lastProgram: "claude",
+      work: {
+        session: "claude:abc",
+        first: "Build the users API",
+        latest: "Now add paging",
+        folders: { "/work/src": 4 },
+        activeAt: 2_000,
+      },
     }
     first.saveTerminal({ ...terminal, transcript: "screen" })
     // Saving without a transcript leaves the saved one as it is.
@@ -262,6 +328,11 @@ describe("saved terminals", () => {
       transcript: "screen",
       savedAt: expect.any(Number),
     })
+    expect(reopened.terminalIdentity(terminal.id)).toEqual({
+      handle: "t3",
+      title: "API author",
+      titledBy: "t1",
+    })
     if (process.platform !== "win32") expect(statSync(path).mode & 0o777).toBe(0o600)
     reopened.clearTranscripts()
     expect(reopened.terminal(terminal.id)?.transcript).toBeNull()
@@ -272,20 +343,78 @@ describe("saved terminals", () => {
   it("overwrite forgotten transcripts, which may hold secrets", ({ directory, store }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    const terminal = { id: randomUUID(), sessionId: "s", cwd: "/", agents: {}, promptedAt: null }
+    const terminal = {
+      id: randomUUID(),
+      sessionId: "s",
+      cwd: "/",
+      agents: {},
+      promptedAt: null,
+      handle: "t1",
+      title: "Terminal 01",
+      titledBy: null,
+      command: null,
+      lastProgram: null,
+      work: null,
+    }
     workspace.saveTerminal({ ...terminal, transcript: "SECRET_TRANSCRIPT_TEXT" })
     workspace.clearTranscripts()
     workspace.close()
     expect(readFileSync(path).includes("SECRET_TRANSCRIPT_TEXT")).toBe(false)
   })
 
-  it("keep the most recently saved terminals only", ({ store }) => {
+  it("keep every terminal until it is closed, listed by session in the order they came", ({
+    store,
+  }) => {
     const workspace = store()
     const ids = Array.from({ length: 130 }, () => randomUUID())
-    for (const id of ids)
-      workspace.saveTerminal({ id, sessionId: "s", cwd: "/", agents: {}, promptedAt: null })
-    expect(workspace.terminal(ids[0]!)).toBeUndefined()
-    expect(workspace.terminal(ids.at(-1)!)).toBeDefined()
+    for (const [index, id] of ids.entries())
+      workspace.saveTerminal({
+        id,
+        sessionId: index % 2 ? "odd" : "even",
+        cwd: "/",
+        agents: {},
+        promptedAt: null,
+        handle: `t${index + 1}`,
+        title: `Terminal ${index}`,
+        titledBy: null,
+        command: null,
+        lastProgram: null,
+        work: null,
+      })
+    expect(workspace.terminal(ids[0]!)).toBeDefined()
+    expect(workspace.terminals()).toHaveLength(130)
+    expect(workspace.terminals("odd").map(({ id }) => id)).toEqual(ids.filter((_, i) => i % 2))
+    expect(workspace.terminals("odd")[0]).not.toHaveProperty("transcript")
+  })
+
+  it("rename a kept terminal, and number each session's terminals without reuse", ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = store(path)
+    expect(first.nextTerminalNumber("s")).toBe(1)
+    expect(first.nextTerminalNumber("s")).toBe(2)
+    expect(first.nextTerminalNumber("t")).toBe(1)
+    first.saveTerminal({
+      id: "a",
+      sessionId: "s",
+      cwd: "/",
+      agents: {},
+      promptedAt: null,
+      handle: "t1",
+      title: "Terminal 01",
+      titledBy: null,
+      command: null,
+      lastProgram: null,
+      work: null,
+    })
+    expect(first.renameTerminal("a", "API author")).toBe(true)
+    expect(first.renameTerminal("missing", "x")).toBe(false)
+    first.close()
+    const reopened = store(path)
+    expect(reopened.terminal("a")?.title).toBe("API author")
+    expect(reopened.nextTerminalNumber("s")).toBe(3)
   })
 
   it("keep transcripts until they are turned off", ({ store }) => {
@@ -294,5 +423,88 @@ describe("saved terminals", () => {
     workspace.saveSettings({ transcripts: false })
     workspace.saveSettings({ welcomed: true })
     expect(workspace.settings()).toEqual({ transcripts: false, welcomed: true })
+  })
+})
+
+const message = (id: string, state: Message["state"]): Message => ({
+  id,
+  projectId: "p",
+  thread: "t-1",
+  hop: 1,
+  from: { terminalId: "a", handle: "t1", agent: null, sessionId: null },
+  to: { terminalId: "b", handle: "t2", agent: "codex", sessionId: "s" },
+  text: "Review a.ts\n\twith care",
+  sentAt: 1.5,
+  state,
+  deliveredAt: null,
+  notified: false,
+})
+
+describe("the mailbox", () => {
+  it("keeps messages, threads and the pause across reopen, until removed", ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const original = store(path)
+    original.saveMessage(message("m-1", "queued"))
+    original.saveMessage(message("m-2", "held"))
+    // One for a terminal's first session, which no agent there has bound yet.
+    const waiting = message("m-3", "queued")
+    original.saveMessage({ ...waiting, to: { ...waiting.to, sessionId: null } })
+    original.saveMessage({
+      ...message("m-1", "delivered"),
+      to: { ...message("m-1", "queued").to, sessionId: "s2" },
+      deliveredAt: 9,
+      notified: true,
+    })
+    const thread: Thread = {
+      id: "t-1",
+      projectId: "p",
+      between: ["a", "b"],
+      hops: 2,
+      allowed: 12,
+      lastAt: 3,
+    }
+    original.saveThread(thread)
+    original.saveThread({ ...thread, allowed: 14 })
+    original.pauseMessaging(true)
+    original.saveTerminal({
+      id: "a",
+      sessionId: "s",
+      cwd: "/",
+      agents: {},
+      promptedAt: null,
+      handle: "t1",
+      title: "Terminal 01",
+      titledBy: null,
+      command: null,
+      lastProgram: null,
+      work: null,
+    })
+    original.close()
+    const reopened = store(path)
+    expect(reopened.messages()).toEqual([
+      {
+        ...message("m-1", "delivered"),
+        to: { ...message("m-1", "queued").to, sessionId: "s2" },
+        deliveredAt: 9,
+        notified: true,
+      },
+      message("m-2", "held"),
+      { ...waiting, to: { ...waiting.to, sessionId: null } },
+    ])
+    expect(reopened.threads()).toEqual([{ ...thread, allowed: 14 }])
+    expect(reopened.messagingPaused()).toBe(true)
+    // The pause is the runner's own, not one of the client's settings.
+    expect(reopened.settings()).toEqual({ transcripts: true, welcomed: false })
+    expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "t1" })
+    expect(reopened.terminalIdentity("b")).toBeUndefined()
+    reopened.removeMessages(["m-1"])
+    reopened.removeThreads(["t-1"])
+    reopened.pauseMessaging(false)
+    expect(reopened.messages().map(({ id }) => id)).toEqual(["m-2", "m-3"])
+    expect(reopened.threads()).toEqual([])
+    expect(reopened.messagingPaused()).toBe(false)
   })
 })

@@ -16,6 +16,7 @@ import {
   reorderTerminals,
   setTerminalProcess,
   setTerminalStatus,
+  updateTerminal,
 } from "./roster"
 import type {
   CanvasLayout,
@@ -76,7 +77,16 @@ export type WorkspaceAction =
       // Whether it becomes the session's selection, as it does by default.
       select?: boolean
     }
+  // The person renames a terminal; its backend makes it so.
   | { type: "terminal/rename"; target: WorkspaceTarget; terminalId: string; name: string }
+  // What the backend says of a terminal now, as its name or directory changed there.
+  | {
+      type: "terminal/update"
+      target: WorkspaceTarget
+      terminalId: string
+      name?: string
+      directory?: string
+    }
   | { type: "terminal/close"; target: WorkspaceTarget; terminalId: string }
   | { type: "terminal/reorder"; target: WorkspaceTarget; tabOrder: string[] }
   | { type: "terminal/status"; target: WorkspaceTarget; terminalId: string; status: TerminalStatus }
@@ -350,6 +360,14 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
     case "terminal/rename":
       return updateTarget(workspace, action.target, (state) => {
         const roster = renameTerminal(state.roster, action.terminalId, action.name)
+        return roster === state.roster ? state : { ...state, roster }
+      })
+    case "terminal/update":
+      return updateTarget(workspace, action.target, (state) => {
+        const roster = updateTerminal(state.roster, action.terminalId, {
+          ...(action.name !== undefined && { name: action.name }),
+          ...(action.directory !== undefined && { directory: action.directory }),
+        })
         return roster === state.roster ? state : { ...state, roster }
       })
     case "terminal/close":

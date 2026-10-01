@@ -1,7 +1,7 @@
 import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
 import { initialGridLayouts } from "./layout/grid-placement"
-import { workspaceFromSeed, WorkspaceSeedError, type WorkspaceSeed } from "./seed"
+import { workspaceFromSeed, WorkspaceSeedError, type WorkspaceSeed, viewOf } from "./seed"
 
 const terminals = [terminalFixture(1, "~/one"), terminalFixture(2, "~/one")]
 const canvasLayout = {
@@ -46,7 +46,7 @@ describe("workspace from a backend seed", () => {
         view: "focus",
         windowedView: "canvas",
         selected: "01",
-        roster: { terminals, order: [], nextNumber: 3 },
+        roster: { terminals, order: [] },
         layout: {
           canvas: canvasLayout,
           grid: initialGridLayouts(terminals, canvasLayout.geometry),
@@ -93,12 +93,12 @@ describe("workspace from a backend seed", () => {
       },
       defaults,
     ).projects[0]!.history[0]!.state
-    const restored = {
+    const restored = viewOf({
       ...saved,
       view: "canvas" as const,
       selected: "02",
-      roster: { ...saved.roster, order: ["02", "01"], nextNumber: 7 },
-    }
+      roster: { ...saved.roster, order: ["02", "01"] },
+    })
     const live = terminals.map((terminal) => ({ ...terminal, state: "running" as const }))
     const extra = { ...terminalFixture(3, "~/one"), id: "extra", name: "Terminal 7" }
     const seed: WorkspaceSeed = {
@@ -142,9 +142,53 @@ describe("workspace from a backend seed", () => {
 
     it("lays out terminals the saved state does not know after the saved ones", () => {
       expect(session.state.roster.terminals.at(-1)).toEqual(extra)
-      expect(session.state.roster.nextNumber).toBe(8)
       expect(session.state.layout.canvas.geometry).toHaveProperty("extra")
       expect(session.state.layout.canvas.geometry["01"]).toEqual(saved.layout.canvas.geometry["01"])
+    })
+  })
+
+  context("with a saved view of terminals the backend no longer has", () => {
+    it("drops what it kept of them, and hands their selection on", () => {
+      const state = workspaceFromSeed(
+        {
+          projects: [
+            {
+              id: "one",
+              name: "one",
+              directory: "~/one",
+              sessions: [{ id: "s", name: "S", terminals }],
+            },
+          ],
+        },
+        defaults,
+      ).projects[0]!.history[0]!.state
+      const view = viewOf({
+        ...state,
+        selected: "02",
+        roster: { ...state.roster, order: ["02", "01"] },
+      })
+      const [kept] = terminals
+      const seeded = workspaceFromSeed(
+        {
+          projects: [
+            {
+              id: "one",
+              name: "one",
+              directory: "~/one",
+              sessions: [{ id: "s", name: "S", terminals: [kept!], restored: view }],
+            },
+          ],
+        },
+        defaults,
+      ).projects[0]!.history[0]!.state
+      expect(seeded.roster).toEqual({ terminals: [kept], order: ["01"] })
+      expect(seeded.selected).toBe("01")
+      expect(seeded.layout.canvas.geometry).not.toHaveProperty("02")
+      expect(
+        Object.values(seeded.layout.grid)
+          .flat()
+          .some((item) => item?.i === "02"),
+      ).toBe(false)
     })
   })
 

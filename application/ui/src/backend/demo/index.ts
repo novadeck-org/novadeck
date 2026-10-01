@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 
 import { createStore } from "../../model/store"
-import type { TerminalMetadata } from "../../model/types"
+import type { TerminalMetadata, Workspace } from "../../model/types"
 import type { AgentConnection, Backend, CreateBackend, TerminalKey } from "../port"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
@@ -26,10 +26,31 @@ export const demoBackend = (
   const transcripts = createStore(true)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
+  // Standing in for the runner, it numbers each session's terminals itself, never
+  // giving a number twice, from the workspace it last saw.
+  const seed = demoSeed(Date.now())
+  const numbers = new Map(
+    seed.projects.flatMap((project) =>
+      project.sessions.map((session) => [session.id, session.terminals.length] as const),
+    ),
+  )
+  let latest: Workspace | undefined
   return {
-    seed: demoSeed(Date.now()),
-    newTerminal: ({ number, directory }) => createMockTerminal(number, directory),
-    commit: engine.reconcile,
+    seed,
+    newTerminal: ({ target, directory, title }) => {
+      const session = latest?.projects
+        .find((project) => project.id === target.projectId)
+        ?.history.find((each) => each.id === target.workspaceSessionId)
+      const count = session?.state.roster.terminals.length ?? 0
+      const number = Math.max(numbers.get(target.workspaceSessionId) ?? count, count) + 1
+      numbers.set(target.workspaceSessionId, number)
+      const terminal = createMockTerminal(number, directory)
+      return title ? { ...terminal, name: title } : terminal
+    },
+    commit: (workspace, actions) => {
+      latest = workspace
+      engine.reconcile(workspace, actions)
+    },
     TerminalSurface: createDemoTerminal(engine, introOf),
     transcripts: { enabled: transcripts, set: (enabled) => transcripts.update(() => enabled) },
     agents: {

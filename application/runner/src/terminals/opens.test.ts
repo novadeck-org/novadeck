@@ -36,6 +36,8 @@ describe("reading a request for a new terminal", () => {
       reason: 'The request\'s "focus" is not valid.',
     })
     expect(readOpenRequest({ title: "   " })).toMatchObject({ ok: false })
+    // As the terminal will be titled: one line, without control characters.
+    expect(readOpenRequest({ title: "API\tserver" })).toMatchObject({ ok: false })
     expect(readOpenRequest({ shell: "zsh" })).toEqual({
       ok: false,
       reason: "The request is not valid.",

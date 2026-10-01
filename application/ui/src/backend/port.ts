@@ -47,11 +47,20 @@ export type TerminalSurfaceProps = {
   readonly onInputFocused: () => void
 }
 
-// Workspace changes a backend reports on its own, such as a process exiting, a program
-// taking over the foreground, or a shell that ended cleanly closing its terminal.
+// Workspace changes a backend reports on its own, as the owner of every terminal: one
+// added elsewhere (another window, an agent), a name or directory changed, a process
+// exiting, a program taking over the foreground, or a terminal closed, as by a shell
+// that ended cleanly.
 export type BackendAction = Extract<
   WorkspaceAction,
-  { type: "terminal/status" | "terminal/process" | "terminal/close" }
+  {
+    type:
+      | "terminal/add"
+      | "terminal/update"
+      | "terminal/status"
+      | "terminal/process"
+      | "terminal/close"
+  }
 >
 
 // An agent in terminal `from` asked for a new terminal beside it: in `directory`,
@@ -81,12 +90,16 @@ export type Backend = {
   // The workspace to start from, available before the app first renders. It needs at
   // least one project, each with at least one session; mounting throws otherwise.
   readonly seed: WorkspaceSeed
-  // Allocates a terminal synchronously so commands can select and rename it at once.
-  // With `launch`, as for a request, its shell starts in `directory` and runs `command`
-  // at its first prompt; otherwise it starts where the backend's new terminals do.
+  // Allocates a terminal synchronously so commands can select and rename it at once. The
+  // backend owns it, and names it: `title` where given, else its own default for the
+  // session, which it may only know once the terminal is created, and then reports with
+  // `terminal/update`. With `launch`, as for a request, its shell starts in `directory`
+  // and runs `command` at its first prompt; otherwise it starts where the backend's new
+  // terminals do.
   readonly newTerminal: (input: {
-    number: number
+    target: WorkspaceTarget
     directory: string
+    title?: string
     launch?: { readonly command?: string }
   }) => TerminalMetadata
   // Called inside every workspace store commit, before listeners, and once with []

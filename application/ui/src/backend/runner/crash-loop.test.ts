@@ -7,6 +7,7 @@ import { createWorkspaceStore } from "../../model/store"
 import { describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
 import { runnerBackend, type RunnerApi } from "./backend"
+import { keptSummary } from "./scripted"
 import { startingTerminal, type RunnerListing } from "./seed"
 import { encodeSession } from "./session-state"
 
@@ -87,7 +88,7 @@ const crashingRunner = () => {
 // A backend on screen over the crashing runner, with one saved terminal to restore.
 const openCrashing = () => {
   const runner = crashingRunner()
-  const terminal = startingTerminal("00000000-0000-4000-8000-000000000001", 1, "/tmp")
+  const terminal = startingTerminal("00000000-0000-4000-8000-000000000001", "/tmp")
   const session = {
     id: "s",
     name: "S",
@@ -100,7 +101,7 @@ const openCrashing = () => {
       sessions: [
         {
           session: { id: "s", projectId: "p", name: "S", state: encodeSession(session, 2) },
-          terminals: [],
+          terminals: [keptSummary(terminal.id, "s")],
         },
       ],
     },
@@ -165,12 +166,12 @@ const saved = (id: string, terminalId: string, visitedAt: number, rank: number) 
         id,
         name: id,
         visitedAt,
-        state: createTerminalState([startingTerminal(terminalId, 1, "/tmp")], "grid", "grid"),
+        state: createTerminalState([startingTerminal(terminalId, "/tmp")], "grid", "grid"),
       },
       rank,
     ),
   },
-  terminals: [],
+  terminals: [keptSummary(terminalId, id)],
 })
 
 // The crashing runner behind a real workspace store, with a second session whose saved
@@ -247,7 +248,7 @@ describe("a crash loop behind the workspace store", () => {
     )
     const workspace = app.store.getSnapshot()
     const target = { projectId: "p", workspaceSessionId: activeSession(workspace)!.id }
-    const terminal = app.backend.newTerminal({ number: 2, directory: "/tmp" })
+    const terminal = app.backend.newTerminal({ target, directory: "/tmp" })
     app.store.dispatch({ type: "terminal/add", target, terminal })
     const before = app.creates()
     await vi.waitFor(

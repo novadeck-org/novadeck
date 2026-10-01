@@ -65,6 +65,9 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
     connected: (agent) => agents.connected(agent),
     transcripts: store.settings().transcripts,
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
+    // Agents message each other within a project, and the mailbox is kept with it.
+    mailbox: store,
+    projectOf: (sessionId) => store.session(sessionId).projectId,
     ...options.terminals,
   })
   const clients = new Map<string, Connection>()

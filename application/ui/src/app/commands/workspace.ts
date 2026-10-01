@@ -276,7 +276,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const { roster, layout } = currentState(snapshot)
       const target = currentTarget(snapshot)
       const { zen, sidebarCollapsed } = ui.getSnapshot().shell
-      const terminal = newTerminal({ number: roster.nextNumber, directory: project.directory })
+      const terminal = newTerminal({ target, directory: project.directory })
       const active = rename.activeRename()
       if (!beginRename && active) rename.finishRename(active, true)
       const origin =
@@ -305,12 +305,12 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const { project, session } = found
       const target = { projectId: project.id, workspaceSessionId: session.id }
       const { roster, layout } = session.state
-      const created = newTerminal({
-        number: roster.nextNumber,
+      const terminal = newTerminal({
+        target,
         directory: request.directory,
+        ...(request.title ? { title: request.title } : {}),
         launch: request.command === undefined ? {} : { command: request.command },
       })
-      const terminal = request.title ? { ...created, name: request.title } : created
       const add: WorkspaceAction = {
         type: "terminal/add",
         target,

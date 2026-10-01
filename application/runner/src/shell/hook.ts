@@ -1,12 +1,23 @@
+import { agents, harnesses } from "../harnesses/registry.js"
+
+// The hook events that ask the runner what to print, by agent.
+const asking = Object.fromEntries(
+  agents.map((agent) => [agent, Object.keys(harnesses[agent].messaging.asks)]),
+)
+
 /**
  * The agent hook, run by the NovaDeck plugin of a connected agent through the launcher
  * on NovaDeck's own runtime, so it needs no bash or python3. It forwards the event its
  * agent reported, a bounded copy of the agent's payload, and which agent process ran it,
  * to the NovaDeck terminal it was started from; the runner decodes it (see
- * `harnesses/<id>/decode.ts`). It prints nothing, since Claude Code shows some hooks'
- * output to the model, except the JSON Antigravity expects: a PreToolUse answer must say
- * "ask" there, or Antigravity denies the tool. It exits at once outside NovaDeck's
- * terminals and gives up within two seconds.
+ * `harnesses/<id>/decode.ts`). A Stop or prompt-time hook asks instead, with its own
+ * deadline: the runner answers one line, `{leaseId, stdout}`, the hook prints `stdout`,
+ * which may deliver agents' messages, and then acknowledges the lease on a second short
+ * connection, since Windows' pipes can't be half-closed (see docs/agent-messaging.md).
+ * Otherwise it prints nothing, since Claude Code shows some hooks' output to the model,
+ * except the JSON Antigravity expects: a PreToolUse answer must say "ask" there, or
+ * Antigravity denies the tool, which it prints on any failure too. It exits at once
+ * outside NovaDeck's terminals and gives up within two seconds, or four as it asks.
  */
 export const hookScript = `// NovaDeck agent hook. Written by NovaDeck into its own data directory, and
 // overwritten on each start. Only agents started from NovaDeck's terminals run it.
@@ -24,12 +35,28 @@ const token = env.NOVADECK_REPORT_TOKEN
 // Claude Code's status line runs through this hook in NovaDeck's shells, which then shows
 // the person's own status line: its output is what this hook prints.
 const statusLine = agent === "claude" && event === "StatusLine"
+// Whether this hook asks the runner what to print, as it may deliver agents' messages.
+const asks = (${JSON.stringify(asking)}[agent] ?? []).includes(event)
+// How long it has before it gives up, in milliseconds.
+const limit = statusLine ? 5000 : asks ? 4000 : 2000
 let output = ""
+// Whether the runner answered the ask, and the lease its answer delivers.
+let answered = false
+let lease
 // The person's own status line, what it has printed so far, and whether its output ended.
 let own
 let printed = ""
 let ownEnded = false
 let finished = false
+const exit = () => process.exit(0)
+// Tells the runner the lease it answered with was printed, on a connection of its own.
+const acknowledge = () => {
+  const socket = connect(endpoint)
+  socket.setTimeout(500, () => socket.destroy())
+  socket.on("error", exit)
+  socket.on("close", exit)
+  socket.end(JSON.stringify({ ack: lease, terminalId, token }) + "\\n")
+}
 const done = () => {
   if (finished) return
   finished = true
@@ -41,17 +68,19 @@ const done = () => {
       process.kill(-own.pid, "SIGTERM")
     } catch {}
   }
+  // The runner's answer is exactly what the agent expects, Antigravity's JSON included.
+  if (answered) return process.stdout.write(output, () => (lease ? acknowledge() : exit()))
   if (agent !== "agy") {
-    if (!output) return process.exit(0)
-    return process.stdout.write(output, () => process.exit(0))
+    if (!output) return exit()
+    return process.stdout.write(output, exit)
   }
   const answer = event === "PreToolUse" ? { decision: "ask" } : {}
-  process.stdout.write(JSON.stringify(answer) + "\\n", () => process.exit(0))
+  process.stdout.write(JSON.stringify(answer) + "\\n", exit)
 }
 if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(agent)) {
   done()
 } else {
-  setTimeout(done, statusLine ? 5000 : 2000).unref()
+  setTimeout(done, limit).unref()
   // Wall-clock time with sub-millisecond precision: a later hook reports a larger one.
   const seq = performance.timeOrigin + performance.now()
 
@@ -186,6 +215,9 @@ if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(a
       // Only what tells nested agents apart; nothing else of the environment leaves.
       env: { cursor: Boolean(env.CURSOR_VERSION), codexThread: env.CODEX_THREAD_ID || undefined },
       payload: prune(payload, 0, 4096),
+      // An ask's deadline, in epoch milliseconds: the runner leases messages only with time
+      // left before it to print them and acknowledge the lease.
+      ...(asks && { deadline: Math.round(seq) + limit - 500 }),
     }
     let line = JSON.stringify(report)
     if (line.length > 60_000) line = JSON.stringify({ ...report, payload: prune(payload, 0, 200) })
@@ -199,7 +231,28 @@ if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(a
     const socket = connect(endpoint)
     socket.on("error", delivered)
     socket.on("close", delivered)
-    socket.end(line + "\\n")
+    if (!asks) return void socket.end(line + "\\n")
+    // An ask keeps its side open for the answer: one line, after which the runner closes.
+    let reply = ""
+    socket.setEncoding("utf8")
+    socket.on("data", (chunk) => {
+      reply += chunk
+      const end = reply.indexOf("\\n")
+      if (end < 0) {
+        if (reply.length > 1_000_000) socket.destroy()
+        return
+      }
+      try {
+        const answer = JSON.parse(reply.slice(0, end))
+        if (typeof answer?.stdout === "string") {
+          output = answer.stdout
+          answered = true
+          if (typeof answer.leaseId === "string") lease = answer.leaseId
+        }
+      } catch {}
+      socket.destroy()
+    })
+    socket.write(line + "\\n")
   })
 }
 `

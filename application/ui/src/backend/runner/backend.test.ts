@@ -12,8 +12,9 @@ import type { Workspace, WorkspaceTarget } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
 import { runnerBackend, type RunnerBackend, type RunnerBackendOptions } from "./backend"
+import { keptSummary } from "./scripted"
 import { runnerSeed, startingTerminal, type RunnerListing } from "./seed"
-import { decodeSession, encodeSession } from "./session-state"
+import { encodeSession } from "./session-state"
 import { startTestRunner, typeInto } from "./testing"
 
 // The runner samples the foreground process about once a second.
@@ -50,7 +51,7 @@ const open = (listing: RunnerListing = runner.listing, options: RunnerBackendOpt
   })
   const addTerminal = () => {
     const terminal = backend.newTerminal({
-      number: activeSession(workspace)!.state.roster.nextNumber,
+      target: target(),
       directory: activeProject(workspace)!.directory,
     })
     commit([{ type: "terminal/add", target: target(), terminal }])
@@ -59,11 +60,38 @@ const open = (listing: RunnerListing = runner.listing, options: RunnerBackendOpt
   return { ...created, received, stop, commit, target, addTerminal, workspace: () => workspace }
 }
 
+// The listing as a runner would give it after a restart, keeping these terminals of the
+// session without shells.
+const keeping = (
+  listing: RunnerListing,
+  sessionId: string,
+  terminals: readonly { readonly id: string }[],
+): RunnerListing =>
+  listing.map((item) => ({
+    ...item,
+    sessions: item.sessions.map((each) =>
+      each.session.id === sessionId
+        ? {
+            ...each,
+            terminals: [
+              ...each.terminals,
+              ...terminals.map((terminal) => keptSummary(terminal.id, sessionId)),
+            ],
+          }
+        : each,
+    ),
+  }))
+
 // Shells that exit sooner than this count as failing to start.
 const settled = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 2_100))
 const statusOf = (app: ReturnType<typeof open>, terminalId: string) =>
   app.received.flatMap((action) =>
-    action.terminalId === terminalId && action.type === "terminal/status" ? [action] : [],
+    "terminalId" in action &&
+    "terminalId" in action &&
+    action.terminalId === terminalId &&
+    action.type === "terminal/status"
+      ? [action]
+      : [],
   )
 
 describe("runner backend", () => {
@@ -231,9 +259,11 @@ describe("runner backend", () => {
         selected: left.state.selected,
       })
       expect(restored.roster.order).toEqual([second.id, first.id])
-      expect(restored.roster.terminals.map(({ id, name }) => ({ id, name }))).toEqual(
-        left.state.roster.terminals.map(({ id, name }) => ({ id, name })),
-      )
+      // The runner kept the name the person gave one, and named the other itself.
+      expect(restored.roster.terminals.map(({ id, name }) => ({ id, name }))).toEqual([
+        { id: first.id, name: "api" },
+        { id: second.id, name: expect.stringMatching(/^Terminal \d\d$/) },
+      ])
       expect(
         reloaded.projects.find((project) => project.id === other.id)!.history.map(({ id }) => id),
       ).toEqual([otherSession.id])
@@ -287,7 +317,11 @@ describe("runner backend", () => {
         sessionId: app.target().workspaceSessionId,
       })
       expect(listed.find((item) => item.id === terminal.id)?.exit).toBeNull()
-      expect(app.received.filter((action) => action.terminalId === terminal.id)).not.toContainEqual(
+      expect(
+        app.received.filter(
+          (action) => "terminalId" in action && action.terminalId === terminal.id,
+        ),
+      ).not.toContainEqual(
         expect.objectContaining({ status: expect.objectContaining({ state: "failed" }) }),
       )
       await runner.drop()
@@ -298,6 +332,124 @@ describe("runner backend", () => {
         sessionId: app.target().workspaceSessionId,
       })
       expect(after.map((item) => item.id)).not.toContain(terminal.id)
+    })
+  })
+
+  context("as the runner owns every terminal", () => {
+    it("names a new terminal once the runner does, and keeps the person's renames there", async () => {
+      const app = open()
+      const terminal = app.addTerminal()
+      // Until the runner names it, it shows a placeholder.
+      expect(terminal.name).toBe("New terminal")
+      await app.idle()
+      const named = () =>
+        app.received.findLast(
+          (action) => action.type === "terminal/update" && action.terminalId === terminal.id,
+        )
+      await vi.waitFor(() =>
+        expect(named()).toMatchObject({ name: expect.stringMatching(/^Terminal \d\d$/) }),
+      )
+      app.commit([...app.received])
+      app.commit([
+        { type: "terminal/rename", target: app.target(), terminalId: terminal.id, name: "API" },
+      ])
+      const title = async () =>
+        (await runner.client.terminals.list({ sessionId: app.target().workspaceSessionId })).find(
+          (item) => item.id === terminal.id,
+        )?.title
+      await vi.waitFor(async () => expect(await title()).toBe("API"))
+      // Another window renames it: the runner tells this one.
+      await runner.client.terminals.rename(terminal.id, "API server")
+      await vi.waitFor(() => expect(named()).toMatchObject({ name: "API server" }))
+      app.stop()
+    })
+
+    it("shows the runner's title again when the runner refuses a rename", async () => {
+      const app = open()
+      const terminal = app.addTerminal()
+      await app.idle()
+      const named = () =>
+        app.received.findLast(
+          (action) => action.type === "terminal/update" && action.terminalId === terminal.id,
+        )
+      await vi.waitFor(() => expect(named()).toMatchObject({ name: expect.any(String) }))
+      const given = (named() as { name: string }).name
+      app.commit([...app.received])
+      // A title the runner won't take, as one with a control character.
+      app.commit([
+        {
+          type: "terminal/rename",
+          target: app.target(),
+          terminalId: terminal.id,
+          name: "bad\u0007name",
+        },
+      ])
+      await app.idle()
+      await vi.waitFor(() => expect(named()).toMatchObject({ name: given }))
+      app.stop()
+    })
+
+    it("creates a terminal with the title it was given, and the others with the runner's", async () => {
+      const app = open()
+      const terminal = app.backend.newTerminal({
+        target: app.target(),
+        directory: activeProject(app.workspace())!.directory,
+        title: "Docs",
+      })
+      app.commit([{ type: "terminal/add", target: app.target(), terminal }])
+      const plain = app.addTerminal()
+      await app.idle()
+      const listed = await runner.client.terminals.list({
+        sessionId: app.target().workspaceSessionId,
+      })
+      expect(listed.find((item) => item.id === terminal.id)).toMatchObject({
+        title: "Docs",
+        handle: expect.stringMatching(/^t\d+$/),
+      })
+      expect(listed.find((item) => item.id === plain.id)?.title).toMatch(/^Terminal \d\d$/)
+      app.stop()
+    })
+
+    it("shows a terminal the runner has that this window didn't ask for, and its closing", async () => {
+      const app = open()
+      await app.idle()
+      const { workspaceSessionId } = app.target()
+      const id = crypto.randomUUID()
+      // As an agent's request answered by another window, or another client.
+      await runner.client.terminals.create({
+        id,
+        sessionId: workspaceSessionId,
+        cols: 80,
+        rows: 24,
+        title: "Opened elsewhere",
+      })
+      await vi.waitFor(() =>
+        expect(app.received).toContainEqual(
+          expect.objectContaining({
+            type: "terminal/add",
+            target: app.target(),
+            select: false,
+            terminal: expect.objectContaining({ id, name: "Opened elsewhere" }),
+          }),
+        ),
+      )
+      // Joining the workspace creates nothing more.
+      app.commit([...app.received])
+      await app.idle()
+      expect(
+        (await runner.client.terminals.list({ sessionId: workspaceSessionId })).filter(
+          (item) => item.id === id,
+        ),
+      ).toHaveLength(1)
+      await runner.client.terminals.close(id)
+      await vi.waitFor(() =>
+        expect(app.received).toContainEqual({
+          type: "terminal/close",
+          target: app.target(),
+          terminalId: id,
+        }),
+      )
+      app.stop()
     })
   })
 
@@ -341,12 +493,12 @@ describe("runner backend", () => {
         )
         app.commit([...app.received])
         await quits[0]!()
-        const saved = (await runner.reload())
+        // The runner keeps the program it last saw; the UI's saved state keeps none.
+        const kept = (await runner.reload())
           .flatMap(({ sessions }) => sessions)
-          .map(({ session }) => decodeSession(session.state))
-          .flatMap((session) => session?.state.roster.terminals ?? [])
+          .flatMap(({ terminals }) => terminals)
           .find((item) => item.id === terminal.id)
-        expect(saved?.lastProcess).toBe("claude")
+        expect(kept?.lastProgram).toBe("claude")
         app.stop()
         expect(quits).toEqual([])
       },
@@ -472,8 +624,8 @@ describe("runner backend", () => {
       const [home] = runner.listing
       const projectId = home!.project.id
       const id = crypto.randomUUID()
-      const terminals = Array.from({ length: 40 }, (_, index) =>
-        startingTerminal(crypto.randomUUID(), index + 1, home!.project.cwd),
+      const terminals = Array.from({ length: 40 }, () =>
+        startingTerminal(crypto.randomUUID(), home!.project.cwd),
       )
       await runner.client.sessions.create({ id, projectId, name: "many" })
       await runner.client.sessions.save({
@@ -488,7 +640,7 @@ describe("runner backend", () => {
           2,
         ),
       })
-      const app = open(await runner.reload())
+      const app = open(keeping(await runner.reload(), id, terminals))
       expect(activeSession(app.workspace())!.id).toBe(id)
       await app.idle()
       const listed = await runner.client.terminals.list({ sessionId: id })
@@ -505,7 +657,7 @@ describe("runner backend", () => {
       const [home] = runner.listing
       const projectId = home!.project.id
       const id = crypto.randomUUID()
-      const done = startingTerminal(crypto.randomUUID(), 1, home!.project.cwd)
+      const done = startingTerminal(crypto.randomUUID(), home!.project.cwd)
       await runner.client.sessions.create({ id, projectId, name: "away" })
       await runner.client.terminals.create({ id: done.id, sessionId: id, cols: 80, rows: 24 })
       await runner.client.sessions.save({
@@ -543,8 +695,8 @@ describe("runner backend", () => {
       const [home] = runner.listing
       const projectId = home!.project.id
       const id = crypto.randomUUID()
-      const terminals = Array.from({ length: 3 }, (_, index) =>
-        startingTerminal(crypto.randomUUID(), index + 1, home!.project.cwd),
+      const terminals = Array.from({ length: 3 }, () =>
+        startingTerminal(crypto.randomUUID(), home!.project.cwd),
       )
       await runner.client.sessions.create({ id, projectId, name: "boot" })
       await runner.client.sessions.save({
@@ -559,7 +711,7 @@ describe("runner backend", () => {
           2,
         ),
       })
-      const app = open(await runner.reload())
+      const app = open(keeping(await runner.reload(), id, terminals))
       expect(activeSession(app.workspace())!.id).toBe(id)
       expect(app.backend.boot?.getSnapshot()).toMatchObject({ total: 3, done: false })
       await vi.waitFor(
@@ -624,7 +776,10 @@ describe("runner backend", () => {
       await runner.client.terminals.close(terminal.id)
       await vi.waitFor(async () => {
         const last = app.received.findLast(
-          (action) => action.terminalId === terminal.id && action.type === "terminal/status",
+          (action) =>
+            "terminalId" in action &&
+            action.terminalId === terminal.id &&
+            action.type === "terminal/status",
         )
         expect(last && "status" in last && last.status.state).toMatch(/exited|failed/)
       }, eventually)
@@ -649,6 +804,11 @@ describe("runner backend", () => {
                 {
                   id: lost,
                   sessionId: session.id,
+                  title: "Terminal 01",
+                  handle: "t1",
+                  started: true,
+                  command: null,
+                  lastProgram: null,
                   cwd: home!.project.cwd,
                   cols: 80,
                   rows: 24,
@@ -682,7 +842,7 @@ describe("runner backend", () => {
             name: id,
             visitedAt,
             state: createTerminalState(
-              [{ ...startingTerminal(terminalId, 1, home!.project.cwd), name: "kept" }],
+              [{ ...startingTerminal(terminalId, home!.project.cwd), name: "kept" }],
               "grid",
               "grid",
             ),
@@ -705,7 +865,19 @@ describe("runner backend", () => {
           })
         }),
       )
-      const app = open(await runner.reload())
+      // The runner kept both, named, without shells, as after it restarted.
+      const reloaded = await runner.reload()
+      const app = open(
+        keeping(keeping(reloaded, shown, [{ id: first }]), later, [{ id: second }]).map((item) => ({
+          ...item,
+          sessions: item.sessions.map((each) => ({
+            ...each,
+            terminals: each.terminals.map((terminal) =>
+              terminal.started ? terminal : { ...terminal, title: "kept" },
+            ),
+          })),
+        })),
+      )
       expect(activeSession(app.workspace())!.id).toBe(shown)
       await vi.waitFor(async () => {
         await app.idle()

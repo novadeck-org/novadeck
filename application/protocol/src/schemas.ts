@@ -230,17 +230,55 @@ export const transcriptChange = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("reset") }),
 ])
 
+// A command line a new shell runs at its first prompt, as if typed there: one line,
+// without control characters.
+export const startupCommand = z
+  .string()
+  .min(1)
+  .max(4096)
+  // eslint-disable-next-line no-control-regex -- These are the characters it refuses.
+  .regex(/^[^\x00-\x1f\x7f]*$/, "A command must be one line, without control characters.")
+
+// The title the person gives a terminal: one line, without control characters. The
+// runner owns it, keeps it with the terminal, and every client shows it.
+export const terminalTitle = name.regex(
+  // eslint-disable-next-line no-control-regex -- These are the characters it refuses.
+  /^[^\x00-\x1f\x7f]*$/,
+  "A title must be one line, without control characters.",
+)
+
+// A terminal's handle: `t` and a number its NovaDeck session gives it as it is created,
+// never twice, from the same count as its default title ("Terminal 03" is `t3`). It
+// stays as the terminal is renamed, and agents address each other by it.
+export const handle = z.string().regex(/^t[1-9][0-9]{0,8}$/)
+
+// The runner owns every terminal's identity and facts: which terminals a session has, their
+// titles, directories, what they run and ran. Clients keep only how they show them.
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
+  // The title the person gave the terminal, or the runner's default for its session
+  // ("Terminal 01", "Terminal 02", … in the order they were created).
+  title: terminalTitle,
+  // Its handle, which never changes.
+  handle,
+  // Whether the runner started a shell for it in this lifetime. A terminal it keeps only
+  // as saved, as after the runner restarted, has none until a client restores it, with
+  // `create` and `restore`.
+  started: z.boolean(),
+  // The command it was opened to run at its first prompt; null for a plain shell.
+  command: startupCommand.nullable(),
+  // The program in its foreground when its shell was last seen, which a fresh shell
+  // resumes where it is an agent the runner knows the session of; null when unknown.
+  lastProgram: z.string().max(256).nullable(),
   // The shell's current directory as its shell integration last reported it, or where
   // it started; a restart starts there.
   cwd: directory,
   cols: columns,
   rows,
-  // Counts the shells this terminal has run: 1 at creation, +1 per restart. A report
-  // about an older run is stale.
-  run: z.number().int().positive(),
+  // Counts the shells this terminal has run: 1 at creation, +1 per restart, 0 while it
+  // has none in this runner's lifetime. A report about an older run is stale.
+  run: z.number().int().nonnegative(),
   // How the shell ended; null while it runs.
   exit: terminalExit.nullable(),
   // The terminal's foreground process, such as the shell or a program it runs. Null
@@ -255,15 +293,6 @@ export const terminalSummary = z.strictObject({
   telemetry: agentTelemetry.nullable(),
 })
 
-// A command line a new shell runs at its first prompt, as if typed there: one line,
-// without control characters.
-export const startupCommand = z
-  .string()
-  .min(1)
-  .max(4096)
-  // eslint-disable-next-line no-control-regex -- These are the characters it refuses.
-  .regex(/^[^\x00-\x1f\x7f]*$/, "A command must be one line, without control characters.")
-
 // `terminals.requests` items: an agent in terminal `from` asked, through NovaDeck's MCP
 // server, for a new terminal beside it, in `cwd`, starting `command` at its first prompt
 // and named `title` where given. `focus` when the person asked to see it.
@@ -273,7 +302,8 @@ export const terminalRequest = z.strictObject({
   sessionId: id,
   cwd: directory,
   command: startupCommand.optional(),
-  title: name.optional(),
+  // As the terminal will be titled, so a request the runner can't create is refused first.
+  title: terminalTitle.optional(),
   focus: z.boolean(),
 })
 
@@ -335,6 +365,69 @@ export const runnerSettings = z.strictObject({
   welcomed: z.boolean(),
 })
 
+export const messageId = z.string().regex(/^m-[a-z0-9]{1,32}$/)
+export const threadId = z.string().regex(/^t-[a-z0-9]{1,32}$/)
+
+// Where a message is on its way: waiting for its recipient's next hook (`queued`), handed
+// to a hook that has yet to confirm it printed it (`leased`), printed to the recipient's
+// harness (`delivered`), held while messaging is paused or its thread awaits the
+// person's release (`held`), or no longer deliverable since its recipient's session
+// ended (`gone`), until that same session runs there again.
+export const messageState = z.enum(["queued", "leased", "delivered", "held", "gone"])
+
+// How a terminal's agent can take a message now: no agent session bound (`unbound`), one
+// bound that has had no turn yet (`fresh`), a turn running (`working`), a turn that
+// ended normally with the prompt known empty (`settled`), the person busy at the prompt
+// (`drafting`), or a turn that ended without a normal stop (`unknown`).
+export const deliveryState = z.enum([
+  "unbound",
+  "fresh",
+  "working",
+  "settled",
+  "drafting",
+  "unknown",
+])
+
+// One message between two terminals' agents, as sent: its text up to 4 KB, its place in
+// its thread, and where it is on its way. `held` says why a held message waits: messaging
+// is paused, or its thread awaits the person's `messages.release`.
+export const agentMessage = z.strictObject({
+  id: messageId,
+  thread: threadId,
+  hop: z.number().int().positive(),
+  from: handle,
+  fromAgent: agentName.nullable(),
+  to: handle,
+  toAgent: agentName,
+  text: z.string().max(4096),
+  sentAt: z.number(),
+  state: messageState,
+  held: z.enum(["paused", "release"]).nullable(),
+  deliveredAt: z.number().nullable(),
+})
+
+// A thread between a terminal and one other: the other's handle, how many messages it
+// has had and may have before the person releases it again, and its messages, oldest
+// first. `held` while some wait for that release.
+export const messageThread = z.strictObject({
+  id: threadId,
+  peer: handle,
+  hops: z.number().int().nonnegative(),
+  allowed: z.number().int().nonnegative(),
+  held: z.boolean(),
+  messages: z.array(agentMessage).max(1000),
+})
+
+// `messages.list`: a terminal's handle, how its agent can take messages now, whether
+// messaging is paused, and every thread it is in, latest first.
+export const terminalMessages = z.strictObject({
+  terminalId: id,
+  handle,
+  delivery: deliveryState,
+  paused: z.boolean(),
+  threads: z.array(messageThread).max(1000),
+})
+
 export type Project = z.infer<typeof project>
 export type WorkspaceSession = z.infer<typeof workspaceSession>
 export type TerminalExit = z.infer<typeof terminalExit>
@@ -358,3 +451,8 @@ export type TranscriptItem = z.infer<typeof transcriptItem>
 export type TranscriptChange = z.infer<typeof transcriptChange>
 export type AgentIntegration = z.infer<typeof agentIntegration>
 export type RunnerSettings = z.infer<typeof runnerSettings>
+export type MessageState = z.infer<typeof messageState>
+export type DeliveryState = z.infer<typeof deliveryState>
+export type AgentMessage = z.infer<typeof agentMessage>
+export type MessageThread = z.infer<typeof messageThread>
+export type TerminalMessages = z.infer<typeof terminalMessages>

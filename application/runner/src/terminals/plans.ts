@@ -1,5 +1,6 @@
 import { constants } from "node:fs"
 import { open, stat } from "node:fs/promises"
+import { basename } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 
 import type { PlanContent } from "@novadeck/protocol"
@@ -46,4 +47,15 @@ export const planContent = async (
   } catch {
     return undefined
   }
+}
+
+/**
+ * A plan's title: its first heading, or its file's name when it has none; undefined while
+ * its file can't be read.
+ */
+export const planTitle = async (source: PlanSource): Promise<string | undefined> => {
+  const content = await planContent("", source)
+  if (!content) return undefined
+  const heading = /^#{1,6}\s+(.+?)\s*#*\s*$/m.exec(content.text)?.[1]
+  return heading ?? (source.kind === "file" ? basename(source.path) : undefined)
 }
