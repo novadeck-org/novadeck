@@ -839,9 +839,9 @@ agent model through `AgentObservation` and never reaches a `Harness` directly.
 Harnesses contribute to it in three ways: `start` for
 spawning a harness terminal, MCP configuration provisioned through the
 harness's supported mechanism (with caller credentials supplied at launch, never
-saved into a global manifest), and, later, native delivery/wakeup as a separate
-`conversation` field. Installed MCP configuration and a live authenticated
-connection are separate readiness facts.
+saved into a global manifest), and, for [Agent messaging](agent-messaging.md), the
+encoding of messages into their Stop and prompt-time hook answers. Installed MCP
+configuration and a live authenticated connection are separate readiness facts.
 
 ## Growing the interface
 
@@ -864,7 +864,10 @@ Mutating commands carry the live binding and native request ID, revalidate
 immediately before dispatch, and use the same control authorization as terminal
 input. Cancellation, unsupported, stale binding and unknown-after-transport-loss
 are distinct results. Never blindly retry after reconnect, and never synthesize
-an action by typing guessed keys into a terminal.
+an action by typing guessed keys into a terminal. Agent messaging's doorbell is the
+one exception, and a narrow one: a fixed line, typed only into an idle agent whose
+prompt is untouched, confirmed by its hook, never retried; see
+[Agent messaging](agent-messaging.md#the-doorbell).
 
 ## Implementation sequence
 

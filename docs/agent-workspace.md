@@ -4,7 +4,8 @@ Design proposal paired with [harness adapters](harness-adapters.md). NovaDeck is
 an agent-aware terminal workspace: agents can observe their work, communicate,
 create other terminals, and deliberately invoke workspace features through a
 local MCP server. The UI and MCP use shared application operations; harness
-adapters provide native integration behavior.
+adapters provide native integration behavior. Messaging between agents has its own
+design, [Agent messaging](agent-messaging.md).
 
 The concrete product scenarios are session resume; truthful activity and attention;
 native subagent trees with live transcripts; usage, quotas/reset times and context;
@@ -83,7 +84,6 @@ The following signatures sketch application services, not the full wire schema:
 ```ts
 type AgentWorkspace = {
   spawn(caller: Caller, input: SpawnRequest): Promise<SpawnOperation>
-  send(caller: Caller, input: MessageRequest): Promise<MessageOperation>
   present(caller: Caller, input: PresentRequest): Promise<PresentationOperation>
   reportPlan(caller: Caller, input: PlanReport): Promise<PlanSnapshot>
   operation(caller: Caller, id: string): Promise<OperationSnapshot>
@@ -140,8 +140,7 @@ different request kinds and cannot resolve one another implicitly.
    An acknowledged opening means rendered, not read or approved. Failure and
    dismissal are separate outcomes. A plan opens editable; see
    [Companion pane](#companion-pane).
-7. The caller can query the operation; relevant completion events can also enter
-   its mailbox. Native wakeup/delivery is a separate adapter capability.
+7. The caller can query the operation.
 
 Markdown content is untrusted display data. Disable script execution and raw
 active HTML; do not fetch embedded remote resources automatically. Relative
@@ -381,16 +380,15 @@ Duplicates on reconnect do not create another modal in that client. Cancellation
 and expiry invalidate claims and any outstanding future response authority.
 
 For a future interactive request, accept at most one terminal response using the
-request revision and active claim, then publish it to the operation/mailbox.
+request revision and active claim, then publish it to the operation.
 An MCP call can wait only within a bounded deadline and otherwise return pending.
-Deadline expiry is not an implicit negative answer. A result in a mailbox does
-not prove the model consumed it.
+Deadline expiry is not an implicit negative answer.
 
 Artifact/request/operation retention is coordinated. Retain the referenced bytes
 while the request can be viewed and for its promised review/result horizon.
 Expiry/deletion produces an explicit expired/unavailable result; it cannot leave
 a seemingly viewable request pointing to deleted content. Do not retain project
-documents or messages indefinitely by default.
+documents indefinitely by default.
 
 ## Walkthrough: Claude starts Codex
 
@@ -408,16 +406,10 @@ receive an initial task depends on the selected supported delivery mechanism;
 it does not follow solely from PTY creation. A startup failure returns the existing
 operation and failed terminal identity rather than spawning another one on retry.
 
-The initial task has one chosen delivery route: supported launch input or a
-correlated queued message. Track that route and acknowledgment to avoid submitting
-the task once as launch input and again through the mailbox. If neither route is
-available, report unavailable delivery and keep its operation state explicit.
-
-Messaging can store and expose messages through MCP without native prompt
-injection. A native conversation capability may additionally submit/steer a
-message or wake an idle recipient. Busy-recipient queueing, delivered-to-harness,
-and acknowledged-by-recipient are distinct. Never simulate supported delivery
-by typing guessed key sequences into the terminal.
+The initial task is a message: the new agent starts with NovaDeck's doorbell as its
+command-line prompt, and its prompt-time hook delivers the task, wrapped as from its
+opener, once; see [Starting a task](agent-messaging.md#starting-a-task), which also
+covers a harness without a command-line prompt.
 
 ## Architecture acceptance scenarios
 
