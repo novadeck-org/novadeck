@@ -50,6 +50,28 @@ const drafting = run(settled, typing)
 const unknown = run(working, ended)
 
 describe("a terminal's delivery state", () => {
+  it("keeps neutral keys from changing readiness, drafts or pending submissions", () => {
+    const ready = transition(unbound, announced)
+    const ringing = transition(ready, { type: "ring", nonce: "k3f9", opening: false })
+    for (const from of [unbound, bound, ready, working, settled, drafting, unknown, ringing]) {
+      expect(transition(from, key("neutral"))).toBe(from)
+      expect(transition(from, key("neutral", at, true))).toBe(from)
+    }
+    // Moving the cursor after Enter does not invalidate its pending submission.
+    expect(run(settled, enter, key("neutral"), prompted()).byPerson).toBe(true)
+    // Navigating during a turn leaves its empty prompt ready for a message after Stop.
+    expect(run(working, key("neutral"), stop).state).toBe("settled")
+  })
+
+  it("is Drafting after Right or Tab, which may take a prompt suggestion into the box", () => {
+    const ready = transition(unbound, announced)
+    expect(transition(ready, key("accept")).state).toBe("drafting")
+    expect(transition(settled, key("accept")).state).toBe("drafting")
+    expect(run(working, key("accept"), stop).state).toBe("drafting")
+    // A request's dialog shows no suggestion.
+    expect(transition(settled, key("accept", at, true))).toBe(settled)
+  })
+
   it("is Fresh once a session binds, with its prompt known empty", () => {
     expect(bound).toMatchObject({
       state: "fresh",
@@ -277,7 +299,14 @@ describe("keys while a request waits on the person", () => {
 
   it("leave the box as it was when only Enter and neutral keys answered", () => {
     expect(
-      run(working, asked("neutral"), asked("enter"), { type: "asked-cleared" }, stop).state,
+      run(
+        working,
+        asked("neutral"),
+        asked("accept"),
+        asked("enter"),
+        { type: "asked-cleared" },
+        stop,
+      ).state,
     ).toBe("settled")
   })
 

@@ -15,16 +15,18 @@ describe("the person's keys", () => {
     // A paste is one key, whatever it holds.
     expect(kinds("\x1b[200~one\rtwo\r\x1b[201~")).toEqual(["content"])
     expect(kinds("\n")).toEqual(["content"])
-    // Codex queues with Tab; elsewhere Tab only moves.
+    // Codex queues with Tab; elsewhere Tab moves, or takes a prompt suggestion.
     expect(kinds("\t", "\t")).toEqual(["queue"])
-    expect(kinds("\t")).toEqual(["neutral"])
+    expect(kinds("\t")).toEqual(["accept"])
   })
 
   it("tell the keys that never change the box from those that may", () => {
-    // Escape, Left, Right, Home and End.
-    expect(kinds("\x1b\x1b[D\x1bOC\x1b[1;5C\x1b[H\x1b[F\x1b[4~")).toEqual(
-      Array.from({ length: 7 }, () => "neutral"),
+    // Escape, Left, Home and End.
+    expect(kinds("\x1b\x1b[D\x1bOD\x1b[H\x1b[F\x1b[4~")).toEqual(
+      Array.from({ length: 6 }, () => "neutral"),
     )
+    // Right and Tab take Claude Code's prompt suggestion into an empty box.
+    expect(kinds("\x1b[C\x1bOC\x1b[1;5C\t")).toEqual(Array.from({ length: 4 }, () => "accept"))
     // Up and Down recall history; Delete and Backspace change it; so does a hotkey.
     expect(kinds("\x1b[A\x1bOB\x1b[3~\x7fy")).toEqual(Array.from({ length: 5 }, () => "content"))
     // Alt with a key types.

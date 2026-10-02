@@ -323,7 +323,9 @@ the opener's, and `describe` names the caller's own terminal (see
      during the first tool waits in the box. Only a confirmed submission clears it: a
      bare Enter followed by a root prompt turn within about 2 s, nothing typed since.
      Content keys are all but bare Enter, Escape, Left, Right, Home, End and Tab: a
-     paste, Up and Down, a key that types (a hotkey too) or Backspace. Down stays
+     paste, Up and Down, a key that types (a hotkey too) or Backspace. Outside a
+     request, Right and Tab are content too: in an empty box they take Claude Code's
+     prompt suggestion as typed text. Down stays
      content: no probe showed that Down in an empty prompt box changes nothing in all
      three harnesses (the probes only pressed it in startup menus);
   3. once the request clears, a draft left by (2) makes the prompt a draft, and the
@@ -356,7 +358,8 @@ the opener's, and `describe` names the caller's own terminal (see
   turn, which it submits as the turn ends, counts too, when the person typed nothing
   after queuing it: the next root prompt after that Stop is theirs.
 - **The prompt is known empty** after one of these, with no input from the person
-  since (apart from answers to a request): the person's submission (not of a stale doorbell
+  since (apart from answers to a request, and Escape, Left, Home and End, which never
+  change the box): the person's submission (not of a stale doorbell
   line: an Enter can leave text behind, as a newline or a suggestion does); a confirmed ring, its doorbell
   prompt carrying the ring's own nonce; or the session binding, when the person typed
   nothing after their last Enter before it. Keys typed as an agent starts were dropped in
@@ -374,7 +377,8 @@ the opener's, and `describe` names the caller's own terminal (see
   the line as its command-line prompt stays as empty as its binding left it: a doorbell
   prompt outside a ring, as that start's or a failed ring's late one, empties nothing
   the person typed. NovaDeck
-  sees every input the person sends, so the box is empty when they sent nothing since.
+  sees every input the person sends, so the box is empty when they sent nothing since
+  that may change it.
   Untouched errs toward Drafting: any doubt (keys after an Enter, a turn nobody can
   attribute, a ring that didn't finish) counts as a draft. That costs a ring until the
   person next submits, never a wrong Enter.
@@ -465,7 +469,7 @@ Transitions:
 | Working                                  | A Stop NovaDeck continued                                                        | Working               |
 | Working                                  | An abnormal end                                                                  | Unknown               |
 | Working, only background work            | It finishes (Antigravity's idle, no subagent running)                            | Settled or Drafting   |
-| Settled, Ready                           | The person's input                                                               | Drafting              |
+| Settled, Ready                           | The person's input, but Escape, Left, Home or End                                | Drafting              |
 | Settled, Ready                           | Messages waiting and the gate passes                                             | Ringing               |
 | Ringing                                  | Confirmed: a doorbell prompt with its nonce                                      | Working               |
 | Ringing                                  | The test paste fails, or no confirmation within 5 s                              | Unknown               |

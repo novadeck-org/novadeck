@@ -8,8 +8,13 @@ export type Key =
   | { readonly kind: "enter" }
   /** A harness's queue key, as Codex's Tab: a submission outside a request. */
   | { readonly kind: "queue" }
-  /** Escape, Left, Right, Home, End or Tab: they move or close, never typing in the box. */
+  /** Escape, Left, Home or End: they move or close, never typing in the box. */
   | { readonly kind: "neutral"; readonly text: string }
+  /**
+   * Right or Tab, which move too, but in an empty box take Claude Code's prompt suggestion
+   * as typed text: inert in a request's dialog, content at the prompt.
+   */
+  | { readonly kind: "accept"; readonly text: string }
   /** Anything else, which may change the box: text typed or pasted, Up, Down, Backspace. */
   | { readonly kind: "content"; readonly text: string }
 
@@ -58,6 +63,9 @@ const reportOf = (match: RegExpExecArray, reporting: Reporting): "none" | "conte
 // Up and Down recall history in a prompt, so they are content.
 // eslint-disable-next-line no-control-regex -- As above.
 const moves = /^\x1b(?:\[[\d;]*[CDFH]|O[CDFH]|\[[1478]~)$/
+// Right, which also takes a prompt suggestion.
+// eslint-disable-next-line no-control-regex -- As above.
+const right = /^\x1b(?:\[[\d;]*C|OC)$/
 
 /**
  * The keys in one write: everything but the terminal's own reports. A bracketed paste is
@@ -88,7 +96,8 @@ export const keysOf = (
     }
     const sequence = csi.exec(rest)?.[0]
     if (sequence) {
-      keys.push({ kind: moves.test(sequence) ? "neutral" : "content", text: sequence })
+      const moved = right.test(sequence) ? "accept" : moves.test(sequence) ? "neutral" : "content"
+      keys.push({ kind: moved, text: sequence })
       at += sequence.length
       continue
     }
@@ -110,7 +119,7 @@ export const keysOf = (
       continue
     }
     if (rest[0] === "\t") {
-      keys.push({ kind: "neutral", text: "\t" })
+      keys.push({ kind: "accept", text: "\t" })
       at += 1
       continue
     }
