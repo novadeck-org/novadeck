@@ -6,6 +6,7 @@ import {
   delivered,
   holds,
   own,
+  prompted,
   replies,
   ring,
   sends,
@@ -43,6 +44,7 @@ for (const setup of setups) {
       const resumed = await run.deck.restore(t1, { resume: setup.agent })
       expect(resumed.handle).toBe("t1")
       await resumed.reached("ready", { timeoutMs: 60_000 })
+      await prompted(resumed, setup)
       const t2 = await start(run, setup)
       const calls = run.model.mark()
       const mark = resumed.mark()

@@ -28,11 +28,17 @@ const key = (kind: KeyKind, time = at, asked = false): DeliveryEvent => ({
   asked,
   at: time,
 })
-const prompted = (time = at + 100): DeliveryEvent => ({ type: "prompt", by: "prompt", at: time })
+// A root turn's start, heard at `time`, its hook started then unless it says when.
+const prompted = (time = at + 100, startedAt = time): DeliveryEvent => ({
+  type: "prompt",
+  by: "prompt",
+  at: time,
+  startedAt,
+})
 // The person's submission: their bare Enter, then a root prompt shortly after.
 const person = [key("enter"), prompted()] as const
-const harness = { type: "prompt", by: "harness", at } as const
-const call = { type: "prompt", by: "call", at } as const
+const harness = { type: "prompt", by: "harness", at, startedAt: at } as const
+const call = { type: "prompt", by: "call", at, startedAt: at } as const
 const stop = { type: "stop", continued: false, background: false, at } as const
 const continued = { type: "stop", continued: true, background: false, at } as const
 const background = { type: "stop", continued: false, background: true, at } as const
@@ -124,10 +130,107 @@ describe("a terminal's delivery state", () => {
   })
 
   it("leaves the person drafting at a Stop once they submitted during the turn", () => {
-    const queued = run(working, enter)
+    const queued = run(working, typing, enter)
     expect(queued).toMatchObject({ state: "working", box: { queuing: true } })
     expect(continues(queued)).toBe(false)
     expect(transition(queued, stop).state).toBe("drafting")
+  })
+
+  it("is Unknown at the person's Escape during a root turn, its box a draft, which a Stop ends", () => {
+    // Escape before Claude Code's first reply cancels the turn, puts the prompt back in its
+    // box, and no hook says so.
+    const escaped = transition(working, key("escape"))
+    expect(escaped).toMatchObject({
+      state: "unknown",
+      box: { empty: false, queuing: false },
+      epoch: working.epoch,
+    })
+    expect(ringableSince(escaped)).toBeUndefined()
+    // An Escape that ended nothing (a menu closed): the turn's Stop, which may still be
+    // continued, leaves a draft, a missed ring at worst.
+    expect(continues(escaped)).toBe(true)
+    expect(transition(escaped, stop).state).toBe("drafting")
+    // Its counts and box stay: a queued prompt, or a draft, still counts.
+    const queued = run(working, typing, enter, key("escape"))
+    expect(queued).toMatchObject({ state: "unknown", box: { queuing: true } })
+    expect(transition(queued, stop).state).toBe("drafting")
+    // Continuing, or answering a request, it ends the turn too.
+    expect(run(working, continued, key("escape")).state).toBe("unknown")
+    expect(transition(working, key("escape", at, true)).state).toBe("unknown")
+  })
+
+  it("starts the person's prompt as Unknown when their Escape came after its hook started", () => {
+    // Enter, then Escape while the hook boots: heard after it, the turn Claude cancelled.
+    const cancelled = run(
+      settled,
+      typing,
+      enter,
+      key("escape", at + 600),
+      prompted(at + 1_500, at + 300),
+    )
+    expect(cancelled).toMatchObject({
+      state: "unknown",
+      epoch: settled.epoch + 1,
+      box: { empty: false },
+    })
+    expect(transition(cancelled, stop).state).toBe("drafting")
+    // An Escape before the hook started, or before the Enter, touched no such turn.
+    expect(
+      run(settled, typing, enter, key("escape", at + 50), prompted(at + 1_500, at + 300)).state,
+    ).toBe("working")
+    expect(
+      run(settled, key("escape", at - 10), typing, enter, prompted(at + 1_500, at + 300)).state,
+    ).toBe("working")
+    // Nor one the harness started.
+    expect(
+      run(settled, typing, enter, key("escape", at + 600), { ...harness, startedAt: at + 300 })
+        .state,
+    ).toBe("working")
+  })
+
+  it("keeps a prompt the person queued after an Escape that only closed a popup", () => {
+    // Escape closed a menu while the person typed; the turn ran on, and Enter queued it.
+    const queued = run(working, typing, key("escape"), enter)
+    expect(queued).toMatchObject({ state: "unknown", box: { queuing: true } })
+    expect(continues(queued)).toBe(false)
+    const after = transition(queued, stop)
+    expect(after).toMatchObject({ state: "drafting", box: { queued: true } })
+    // Its harness then submits the prompt they queued: theirs.
+    expect(run(after, prompted(at + 60_000), stop).state).toBe("settled")
+  })
+
+  it("takes the person's prompt after an Escape that interrupted the turn as theirs", () => {
+    const interrupted = transition(working, key("escape"))
+    const next = run(interrupted, typing, enter, prompted(at + 100, at + 50))
+    expect(next).toMatchObject({ state: "working", byPerson: true, box: { empty: true } })
+    expect(transition(next, stop).state).toBe("settled")
+  })
+
+  it("takes Escape as changing nothing while no root turn runs", () => {
+    const ready = transition(unbound, announced)
+    const ringing = transition(ready, { type: "ring", nonce: "k3f9", opening: false })
+    const waiting = transition(working, background)
+    for (const from of [unbound, bound, ready, settled, drafting, unknown, ringing, waiting])
+      expect(transition(from, key("escape"))).toBe(from)
+  })
+
+  it("takes a bare Enter on an empty box during a turn as neutral, as it queues nothing", () => {
+    // No harness queues or steers an empty prompt mid-turn: it answered something unseen,
+    // as a confirmation Antigravity's status line missed, or did nothing.
+    expect(transition(working, enter)).toBe(working)
+    expect(run(working, enter, stop).state).toBe("settled")
+    const continuing = transition(working, continued)
+    expect(transition(continuing, enter)).toBe(continuing)
+    expect(continues(run(continuing, harness, enter))).toBe(true)
+    // With something typed first, it queues that prompt.
+    expect(run(working, typing, enter)).toMatchObject({ box: { queuing: true } })
+    // Accepted gap: Down (content) on an unseen confirmation, then Enter, leaves a draft.
+    expect(run(working, key("content"), enter, stop).state).toBe("drafting")
+    // At its prompt, Enter keeps its meaning: it may take a suggestion.
+    expect(transition(settled, enter).state).toBe("drafting")
+    expect(transition(transition(unbound, announced), enter).state).toBe("drafting")
+    // Only background work running, it submits a prompt at once.
+    expect(run(working, background, enter).box.enteredAt).toBe(at)
   })
 
   it("keeps working through a Stop NovaDeck continued, counting it, up to its limit", () => {
@@ -176,7 +279,7 @@ describe("a terminal's delivery state", () => {
 
   it("is Unknown after an abnormal end, keeping the turn's counts for a Stop that raced it", () => {
     expect(unknown).toMatchObject({ state: "unknown" })
-    const queued = run(working, continued, call, enter, ended)
+    const queued = run(working, continued, call, typing, enter, ended)
     expect(queued).toMatchObject({ continued: 1, box: { queuing: true } })
     expect(continues(queued)).toBe(false)
     expect(transition(unknown, stop).state).toBe("settled")
@@ -213,6 +316,29 @@ describe("a terminal's delivery state", () => {
     const idled = transition(working, idle)
     expect(transition(idled, { ...shownWorking, startedAt: at })).toEqual(idled)
     expect(transition(idled, { ...shownWorking, startedAt: at - 10 })).toEqual(idled)
+  })
+
+  it("takes an idle status line whose hook started before the turn's latest start as stale", () => {
+    // Drawn before the turn's first model call, or before a later one of the same turn.
+    const begun = transition(bound, { ...harness, startedAt: at + 20 })
+    expect(transition(begun, idle)).toEqual(begun)
+    // The person's turn here started at `at + 100`.
+    const called = transition(working, { ...call, startedAt: at + 120 })
+    expect(transition(called, { ...idle, startedAt: at + 110 })).toEqual(called)
+    expect(called.epoch).toBe(working.epoch)
+    // One whose hook started after it ends the turn.
+    expect(transition(begun, { ...idle, startedAt: at + 30 })).toMatchObject({ state: "unknown" })
+    // A working that resumed the turn keeps the fence at the idle it followed.
+    const resumed = run(
+      working,
+      { ...idle, startedAt: at + 105 },
+      { ...shownWorking, startedAt: at + 110 },
+    )
+    expect(resumed).toMatchObject({ state: "working", phase: "turn" })
+    expect(transition(resumed, { ...idle, startedAt: at + 104 })).toEqual(resumed)
+    expect(transition(resumed, { ...idle, startedAt: at + 106 })).toMatchObject({
+      state: "unknown",
+    })
   })
 
   it("never resumes a turn a Stop ended when the status line says working", () => {
@@ -281,6 +407,44 @@ describe("the person's submission", () => {
     expect(run(drafting, key("queue"), prompted(), stop).state).toBe("settled")
   })
 
+  it("is judged by when the prompt's hook started, not when it was heard", () => {
+    // A loaded machine boots the hook late: started 1.5 s after the Enter, heard at 2.6 s.
+    const late = run(drafting, key("enter"), prompted(at + 2_600, at + 1_500))
+    expect(late).toMatchObject({ byPerson: true, box: { empty: true } })
+    expect(transition(late, stop).state).toBe("settled")
+    // Started past the window, however soon it was heard: not the Enter's.
+    const missed = run(drafting, key("enter"), prompted(at + 2_150, at + 2_100))
+    expect(missed.byPerson).toBe(false)
+    expect(transition(missed, stop).state).toBe("drafting")
+  })
+
+  it("is theirs when they typed only after its hook started, which leaves a draft", () => {
+    // Heard after their next keys, though its hook started before them.
+    const after = run(
+      drafting,
+      key("enter"),
+      key("content", at + 400),
+      prompted(at + 900, at + 300),
+    )
+    expect(after).toMatchObject({ byPerson: true, box: { empty: false } })
+    expect(transition(after, stop).state).toBe("drafting")
+    // Typed before its hook started: what was submitted is unknown.
+    const before = run(
+      drafting,
+      key("enter"),
+      key("content", at + 200),
+      prompted(at + 900, at + 300),
+    )
+    expect(before.byPerson).toBe(false)
+    expect(transition(before, stop).state).toBe("drafting")
+  })
+
+  it("is never a doorbell prompt, whenever its hook started", () => {
+    const doorbell = { type: "prompt", by: "doorbell", nonce: "k3f9" } as const
+    const rung = run(drafting, key("enter"), { ...doorbell, at: at + 900, startedAt: at + 300 })
+    expect(rung.byPerson).toBe(false)
+  })
+
   it("is never a turn the harness started, which leaves the Enter for its own prompt", () => {
     const after = run(drafting, key("enter"), harness)
     expect(after.box).toMatchObject({ empty: false, enteredAt: at })
@@ -304,7 +468,9 @@ describe("whose turn it is", () => {
     expect(run(settled, prompted()).byPerson).toBe(false)
     expect(run(settled, harness).byPerson).toBe(false)
     expect(run(settled, enter, harness).byPerson).toBe(false)
-    expect(run(settled, { type: "prompt", by: "doorbell", nonce: "k3f9", at }).byPerson).toBe(false)
+    expect(
+      run(settled, { type: "prompt", by: "doorbell", nonce: "k3f9", at, startedAt: at }).byPerson,
+    ).toBe(false)
     // It stays the person's turn through its later calls and continuations, until another.
     expect(run(working, call, continued, prompted()).byPerson).toBe(true)
     expect(run(working, stop, harness).byPerson).toBe(false)
@@ -360,7 +526,7 @@ describe("when a message would reach an agent", () => {
 
 describe("a ring", () => {
   const ringing = transition(settled, { type: "ring", nonce: "k3f9", opening: false })
-  const doorbell = { type: "prompt", by: "doorbell", nonce: "k3f9", at } as const
+  const doorbell = { type: "prompt", by: "doorbell", nonce: "k3f9", at, startedAt: at } as const
 
   it("rings only a Settled terminal, its line a draft until its own prompt", () => {
     expect(ringing).toMatchObject({
@@ -446,7 +612,7 @@ describe("a ring", () => {
 
 describe("a new session at its own prompt", () => {
   const ready = transition(unbound, announced)
-  const doorbell = { type: "prompt", by: "doorbell", nonce: "k3f9", at } as const
+  const doorbell = { type: "prompt", by: "doorbell", nonce: "k3f9", at, startedAt: at } as const
 
   it("is Ready once its harness announces it at its input prompt, rung since it bound", () => {
     expect(ready).toMatchObject({ state: "ready", since: at, box: { empty: true } })
@@ -459,6 +625,26 @@ describe("a new session at its own prompt", () => {
   it("is Ready after a /clear the person submitted, in any bound state", () => {
     for (const from of [settled, drafting, unknown])
       expect(run(from, typing, enter, announced)).toMatchObject({ state: "ready", since: at })
+    // After an Escape mid-turn, its box a draft: the /clear and its Enter came after it.
+    expect(run(working, key("escape"), typing, enter, announced).state).toBe("ready")
+  })
+
+  it("takes an Enter in Unknown as the /clear only when the new session binds within the window", () => {
+    // From Unknown the turn may have run on, so the Enter may have queued their line: a new
+    // session binding just after it says it ran the command that replaced the old one.
+    const late = { ...announced, at: at + submitWindowMs + 1 }
+    expect(run(unknown, typing, enter, late).state).toBe("drafting")
+    // Typed again before the session's hook started: their text is in the box.
+    expect(run(unknown, typing, enter, typing, announced).state).toBe("drafting")
+    // During a running turn, the Enter queued a prompt the harness may still hold.
+    expect(run(working, typing, enter, announced).state).toBe("drafting")
+    // A prompt queued by an earlier Enter, then the /clear's own: that prompt may stay.
+    const queuedFirst = run(unknown, typing, enter, typing, key("enter", at + 500))
+    expect(transition(queuedFirst, { ...announced, at: at + 600 }).state).toBe("drafting")
+    // The /clear's Enter alone: Ready.
+    expect(run(unknown, typing, key("enter", at + 500), { ...announced, at: at + 600 }).state).toBe(
+      "ready",
+    )
   })
 
   it("is Drafting when the person typed after their last Enter, as while the agent started", () => {
@@ -555,7 +741,7 @@ const replacing = (time: number) => ({ type: "shown", at: time, replaces: true }
 describe("an agent's prompt shown before any session binds", () => {
   const shown = { type: "shown", at, replaces: false } as const
   const ready = transition(unbound, shown)
-  const doorbell = { type: "prompt", by: "doorbell", nonce: "k3f9", at } as const
+  const doorbell = { type: "prompt", by: "doorbell", nonce: "k3f9", at, startedAt: at } as const
 
   it("is Ready since it showed, as Codex's title or Antigravity's status line tells", () => {
     expect(ready).toMatchObject({ state: "ready", since: at, box: { empty: true } })

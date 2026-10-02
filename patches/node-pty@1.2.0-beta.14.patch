@@ -1,5 +1,5 @@
 diff --git a/lib/windowsPtyAgent.js b/lib/windowsPtyAgent.js
-index 2728b765aa8f03bcfdadf46db0be5f77dcf20a25..01cb24d0472c989dc6718aa4c3a57de1ebecb715 100644
+index 2728b765aa8f03bcfdadf46db0be5f77dcf20a25..27741feb60911dfd0705772a353f5a4761d0691a 100644
 --- a/lib/windowsPtyAgent.js
 +++ b/lib/windowsPtyAgent.js
 @@ -82,6 +82,15 @@ var WindowsPtyAgent = /** @class */ (function () {
@@ -31,3 +31,60 @@ index 2728b765aa8f03bcfdadf46db0be5f77dcf20a25..01cb24d0472c989dc6718aa4c3a57de1
          // Prevent deferred connection from completing after kill
          this._pendingPtyInfo = undefined;
          // Tell the agent to kill the pty, this releases handles to the process
+@@ -214,11 +229,39 @@ var WindowsPtyAgent = /** @class */ (function () {
+     WindowsPtyAgent.prototype._$onProcessExit = function (exitCode) {
+         var _this = this;
+         this._exitCode = exitCode;
++        if (this._exitCodeWaiter) {
++            this._exitCodeWaiter();
++        }
+         if (!this._useConptyDll) {
+             this._flushDataAndCleanUp();
+             this._outSocket.on('data', function () { return _this._flushDataAndCleanUp(); });
+         }
+     };
++    /**
++     * Calls back once the process's exit code is known. With the ConPTY DLL, the console
++     * host exits with its last client and closes the output pipe, so the socket's close
++     * and the exit code reach this thread on separate paths (the conout worker, and the
++     * native thread waiting on the process), in either order; a close that wins would
++     * report an exit without its code. The code normally follows within milliseconds:
++     * the console host closes the pipe only after its client has ended, and kill()
++     * ends the client with TerminateProcess, which reports a code too. Should the code
++     * never come, the exit is reported without it after FLUSH_DATA_INTERVAL (1s), the
++     * wait the non-DLL path already takes before it closes the pipe.
++     */
++    WindowsPtyAgent.prototype.whenExitCode = function (callback) {
++        var _this = this;
++        if (this._exitCode !== undefined || !this._useConptyDll) {
++            callback();
++            return;
++        }
++        var timer = setTimeout(function () { return finish(); }, FLUSH_DATA_INTERVAL);
++        var finish = function () {
++            clearTimeout(timer);
++            _this._exitCodeWaiter = undefined;
++            callback();
++        };
++        this._exitCodeWaiter = finish;
++    };
+     WindowsPtyAgent.prototype._flushDataAndCleanUp = function () {
+         var _this = this;
+         if (this._useConptyDll) {
+diff --git a/lib/windowsTerminal.js b/lib/windowsTerminal.js
+index cd658d0737b2b96e2f41fcd0715a5807caa91307..1a31bd22d47b2286d323521be10a3f27bd8a5bc7 100644
+--- a/lib/windowsTerminal.js
++++ b/lib/windowsTerminal.js
+@@ -105,8 +105,10 @@ var WindowsTerminal = /** @class */ (function (_super) {
+             });
+             // Cleanup after the socket is closed.
+             _this._socket.on('close', function () {
+-                _this.emit('exit', _this._agent.exitCode);
+-                _this._close();
++                _this._agent.whenExitCode(function () {
++                    _this.emit('exit', _this._agent.exitCode);
++                    _this._close();
++                });
+             });
+         });
+         _this._file = file;

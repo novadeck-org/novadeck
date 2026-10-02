@@ -81,8 +81,10 @@ if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(a
   done()
 } else {
   setTimeout(done, limit).unref()
-  // Wall-clock time with sub-millisecond precision: a later hook reports a larger one.
-  const seq = performance.timeOrigin + performance.now()
+  // When this process started, in wall-clock time with sub-millisecond precision, before
+  // Node booted: a loaded machine may take seconds to reach this line. A later hook
+  // reports a larger one.
+  const seq = performance.timeOrigin
 
   // A copy small enough to send: text past a path's length cut short, deep or wide values
   // dropped.

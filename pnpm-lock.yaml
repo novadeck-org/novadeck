@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  node-pty@1.2.0-beta.14: cbac1c470eb7072996733bba7ee2691c189b530df210f3e35857877c2a9f2b4a
+  node-pty@1.2.0-beta.14: c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224
 
 importers:
 
@@ -49,7 +49,7 @@ importers:
     dependencies:
       node-pty:
         specifier: 1.2.0-beta.14
-        version: 1.2.0-beta.14(patch_hash=cbac1c470eb7072996733bba7ee2691c189b530df210f3e35857877c2a9f2b4a)
+        version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
     devDependencies:
       '@novadeck/protocol':
         specifier: workspace:*
@@ -132,7 +132,7 @@ importers:
         version: 4.13.9
       node-pty:
         specifier: 1.2.0-beta.14
-        version: 1.2.0-beta.14(patch_hash=cbac1c470eb7072996733bba7ee2691c189b530df210f3e35857877c2a9f2b4a)
+        version: 1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224)
       ws:
         specifier: 8.21.3
         version: 8.21.3
@@ -8096,7 +8096,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.2.0-beta.14(patch_hash=cbac1c470eb7072996733bba7ee2691c189b530df210f3e35857877c2a9f2b4a):
+  node-pty@1.2.0-beta.14(patch_hash=c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224):
     dependencies:
       node-addon-api: 7.1.1
 

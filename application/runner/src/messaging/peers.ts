@@ -39,6 +39,11 @@ export type Peer = {
   readonly agent: AgentName | null
   /** The agent it was opened to run, which messages may already be sent to, before it binds. */
   readonly expecting: AgentName | null
+  /**
+   * The agent whose prompt shows there with no session bound, but whose hooks NovaDeck
+   * can't run there until the user trusts them (Codex's `/hooks`): nothing can deliver.
+   */
+  readonly untrusted: AgentName | null
   readonly title: string | null
   readonly titleSource: TitleSource | null
   /** What its own agent said it works on, through `describe`. */
@@ -94,6 +99,7 @@ export const peerOf = (input: {
   readonly handle: string
   readonly agent: AgentName | null
   readonly expecting: AgentName | null
+  readonly untrusted?: AgentName | null
   readonly busy: boolean
   readonly where: Whereabouts | undefined
   readonly withYou: Peer["withYou"]
@@ -106,7 +112,8 @@ export const peerOf = (input: {
     terminalId: input.terminalId,
     handle: input.handle,
     agent,
-    expecting: agent ? null : input.expecting,
+    expecting: agent || input.untrusted ? null : input.expecting,
+    untrusted: agent ? null : (input.untrusted ?? null),
     title: where?.title ?? null,
     titleSource: where?.title ? where.titleSource : null,
     summary: where?.summary ?? null,
@@ -156,9 +163,11 @@ export const renderPeer = (peer: Peer, now: number): readonly string[] =>
     `- ${peer.handle}: ${
       peer.agent
         ? `${agentLabel(peer.agent)}, ${peer.state}${peer.activeAt === null ? "" : `, last active ${ago(peer.activeAt, now)}`}`
-        : peer.expecting
-          ? `expecting ${agentLabel(peer.expecting)}, not started yet`
-          : "no agent NovaDeck can deliver to"
+        : peer.untrusted
+          ? `no agent NovaDeck can deliver to: ${untrustedNote(peer.untrusted)}`
+          : peer.expecting
+            ? `expecting ${agentLabel(peer.expecting)}, not started yet`
+            : "no agent NovaDeck can deliver to"
     }`,
     peer.title && `  title: ${peer.title}${titleNote(peer)}`,
     peer.summary && `  described by its agent: ${peer.summary.split("\n").join(" / ")}`,
@@ -192,6 +201,11 @@ const standing = (message: Message, hold: ReturnType<typeof holdOf>): string => 
   if (message.state === "gone") return "won't arrive: the agent session it was for ended"
   return message.state
 }
+
+/** Why nothing can deliver to an agent whose hooks NovaDeck can't run where it runs. */
+export const untrustedNote = (agent: AgentName): string =>
+  `${agentLabel(agent)} runs there, but NovaDeck's hooks aren't trusted for it yet ` +
+  "(the user can trust them with /hooks)"
 
 /** That a terminal's own session never bound, so replies can't reach it. */
 export const unboundNote =

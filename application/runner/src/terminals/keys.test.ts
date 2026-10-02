@@ -21,10 +21,11 @@ describe("the person's keys", () => {
   })
 
   it("tell the keys that never change the box from those that may", () => {
-    // Escape, Left, Home and End.
-    expect(kinds("\x1b\x1b[D\x1bOD\x1b[H\x1b[F\x1b[4~")).toEqual(
-      Array.from({ length: 6 }, () => "neutral"),
-    )
+    // Escape, which may also interrupt the agent's turn; Left, Home and End.
+    expect(kinds("\x1b\x1b[D\x1bOD\x1b[H\x1b[F\x1b[4~")).toEqual([
+      "escape",
+      ...Array.from({ length: 5 }, () => "neutral"),
+    ])
     // Right and Tab take Claude Code's prompt suggestion into an empty box.
     expect(kinds("\x1b[C\x1bOC\x1b[1;5C\t")).toEqual(Array.from({ length: 4 }, () => "accept"))
     // Up and Down recall history; Delete and Backspace change it; so does a hotkey.
@@ -101,7 +102,7 @@ describe("the person's keys", () => {
         "enter",
       ])
       expect(kinds("\x1b[?1;2cx", undefined, reporting)).toEqual(["content"])
-      expect(kinds("\x1b]11;rgb:0/0/0\x07\x1b", undefined, reporting)).toEqual(["neutral"])
+      expect(kinds("\x1b]11;rgb:0/0/0\x07\x1b", undefined, reporting)).toEqual(["escape"])
     }
   })
 })

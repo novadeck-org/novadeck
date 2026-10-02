@@ -349,7 +349,10 @@ const call = async (id, params) => {
     return
   }
   const answer = await ask(tool.call, tool.request(params.arguments))
-  const text = answer?.ok ? tool.said(answer) : answer?.reason || tool.failed
+  // Refused, a terminal whose own session never bound still learns replies can't reach it.
+  const text = answer?.ok
+    ? tool.said(answer)
+    : (answer?.reason || tool.failed) + (answer?.unbound ? "\\n" + ${JSON.stringify(unboundNote)} : "")
   reply({ id, result: { content: [{ type: "text", text }], isError: !answer?.ok } })
 }
 

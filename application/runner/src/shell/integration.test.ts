@@ -2982,7 +2982,7 @@ const ringing = async (
   program = "tui",
   agent: AgentName = "codex",
   session = `s-${agent}`,
-  hooksTrusted: boolean | (() => Promise<boolean>) = true,
+  hooksTrusted: boolean | (() => Promise<boolean | undefined>) = true,
   // A command the idle terminal runs first, as a nested shell.
   first?: string,
 ) => {
@@ -3283,6 +3283,72 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await quiet()
       expect(tui.delivery()).toBe("unbound")
       expect(await tui.send("Review a.ts")).toMatchObject({ ok: false })
+    })
+
+    it("refuses a Codex at its prompt whose hooks its app-server says aren't trusted", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "shown", "named", "codex", "01a0f932-a824", false)
+      await expect
+        .poll(async () => (await tui.send("Review a.ts")) as unknown)
+        .toMatchObject({ ok: false, reason: expect.stringContaining("/hooks") })
+    })
+
+    it("asks about its hooks again once the person's keys pause, as after trusting them in /hooks", async ({
+      shell,
+    }) => {
+      let trusted = false
+      const tui = await ringing(shell, "shown", "named", "codex", "01a0f932-a824", () =>
+        Promise.resolve(trusted),
+      )
+      await expect
+        .poll(async () => (await tui.send("Review a.ts")) as unknown)
+        .toMatchObject({ ok: false, reason: expect.stringContaining("/hooks") })
+      // The person trusts them in Codex's /hooks and closes it, which sets no new title.
+      trusted = true
+      tui.type("\x1b")
+      await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("ready")
+      expect(await tui.send("Review a.ts")).toMatchObject({ ok: true })
+    })
+
+    it("takes a Codex whose trust check couldn't answer as unknown, never untrusted", async ({
+      shell,
+    }) => {
+      let checked!: () => void
+      const checking = new Promise<void>((resolve) => (checked = resolve))
+      const failing = () => {
+        checked()
+        return Promise.resolve(undefined)
+      }
+      const tui = await ringing(shell, "shown", "named", "codex", "01a0f932-a824", failing)
+      await checking
+      await quiet()
+      expect(tui.delivery()).toBe("unbound")
+      const answer = await tui.send("Review a.ts")
+      expect(answer).toMatchObject({ ok: false })
+      expect(JSON.stringify(answer)).not.toContain("/hooks")
+    })
+
+    it("marks no terminal untrusted by an answer that came after its agent left", async ({
+      shell,
+    }) => {
+      let asked!: () => void
+      const checking = new Promise<void>((resolve) => (asked = resolve))
+      let answer!: (trusted: boolean) => void
+      const slow = () => {
+        asked()
+        return new Promise<boolean>((resolve) => (answer = resolve))
+      }
+      const tui = await ringing(shell, "shown", "named", "codex", "01a0f932-a824", slow)
+      await checking
+      // Codex quits while its hooks are still being asked about; the shell's prompt returns.
+      tui.type("\x04")
+      await quiet()
+      answer(false)
+      await quiet()
+      const refused = await tui.send("Review a.ts")
+      expect(refused).toMatchObject({ ok: false })
+      expect(JSON.stringify(refused)).not.toContain("/hooks")
     })
 
     it("rings no prompt shown in a nested shell once its agent has left unseen", async ({

@@ -124,18 +124,23 @@ const stateOf = async (home: string): Promise<string> => {
 /** How long an answer Codex couldn't give is kept before it is asked again, in milliseconds. */
 export const failureMs = 60_000
 
-type Known = { readonly state: string; readonly trusted: boolean; readonly failedAt?: number }
+type Known = {
+  readonly state: string
+  readonly trusted: boolean | undefined
+  readonly failedAt?: number
+}
 const known = new Map<string, Known>()
-const asking = new Map<string, Promise<boolean>>()
+const asking = new Map<string, Promise<boolean | undefined>>()
 
 /**
  * Whether NovaDeck's Codex hooks run in `cwd`: Codex runs a plugin's hooks only once the
  * person trusts them, and no hook says when it doesn't, so its app-server is asked. The
- * answer is kept until Codex's configuration or NovaDeck's hook definitions change; one
- * Codex couldn't give (it couldn't start, or didn't answer within 10 s) counts as
- * untrusted, and is asked again only a minute later. Asks under way are shared.
+ * answer is kept until Codex's configuration or NovaDeck's hook definitions change.
+ * Undefined when Codex couldn't answer (it couldn't start, or didn't answer within 10 s),
+ * which is asked again only a minute later: unknown, never taken for untrusted. Asks
+ * under way are shared.
  */
-export const hooksTrusted = async (where: Asking, cwd: string): Promise<boolean> => {
+export const hooksTrusted = async (where: Asking, cwd: string): Promise<boolean | undefined> => {
   const home = where.env.CODEX_HOME || join(where.home, ".codex")
   const key = `${where.program ?? "codex"}\0${home}\0${cwd}`
   const state = await stateOf(home)
@@ -148,7 +153,7 @@ export const hooksTrusted = async (where: Asking, cwd: string): Promise<boolean>
   const pending = asking.get(key)
   if (pending) return pending
   const ask = listHooks(where, cwd, 10_000).then((result) => {
-    const trusted = result !== undefined && trustedIn(result)
+    const trusted = result === undefined ? undefined : trustedIn(result)
     known.set(key, {
       state,
       trusted,

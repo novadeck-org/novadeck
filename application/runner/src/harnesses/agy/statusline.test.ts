@@ -98,6 +98,8 @@ describe("Antigravity's status line, as captured", () => {
         kind: "permission",
         subject: null,
         choices: [],
+        // Only a turn asks for one: a snapshot showing it after the turn's Stop is stale.
+        midTurn: true,
       },
     ])
     // Denied: the turn ends, and no hook says so; idle reads the same after a completed
@@ -193,6 +195,18 @@ describe("Antigravity's status line, as captured", () => {
       ...quiet,
     })
     expect(run([preInvocation(1), report(confirming!, 2)])).toEqual({
+      state: "working",
+      attention: { pending: 1, kind: "permission" },
+      subagents: [],
+      planning: false,
+    })
+    // Drawn just after the Stop, a snapshot still showing the turn's confirmation asks
+    // nothing: only a turn running, or one a working resumed, waits on one.
+    expect(run([preInvocation(1), stop(2), report(confirming!, 3)])).toEqual({
+      state: "idle",
+      ...quiet,
+    })
+    expect(run([preInvocation(1), report(idle!, 2), report(confirming!, 3)])).toEqual({
       state: "working",
       attention: { pending: 1, kind: "permission" },
       subagents: [],

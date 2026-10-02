@@ -128,6 +128,10 @@ describe("compiled desktop runner", () => {
       }
     }, 30_000)
 
+    // Starting 33 shells is real work: on Windows each is a ConPTY with its own console
+    // host and output worker. Under 1s on Linux and about 2s on macOS, it takes 3-6s on
+    // Windows CI, and took 19s there in a run that slowed every test in this file about
+    // sixfold, which left the 20s it had no room.
     it("has no terminal limit, unlike a standalone runner", async () => {
       const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
       const runner = start(join(directory, "workspace.sqlite"))
@@ -160,7 +164,7 @@ describe("compiled desktop runner", () => {
         await runner.close()
         await rm(directory, { recursive: true, force: true })
       }
-    }, 20_000)
+    }, 60_000)
 
     it("keeps metadata when the host starts a new runner", async () => {
       const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))

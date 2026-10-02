@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process"
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { pathToFileURL } from "node:url"
 
 import { describe, expect, it as base } from "../test.js"
 import { hookScript } from "./hook.js"
@@ -196,6 +197,26 @@ describe("agent hook", () => {
   it("cuts long text short, so a report stays small", async ({ fixture }) => {
     await fixture.hook("claude", start({ prompt: "x".repeat(10_000) }), {}, "UserPromptSubmit")
     expect(String(fixture.reports[0]?.payload.prompt)).toHaveLength(4096)
+  })
+
+  it("reports when its process started, before Node reached its first line", async ({
+    fixture,
+  }) => {
+    // A module Node loads before the hook, busy for a while as a loaded machine's boot is.
+    const directory = dirname(fixture.script)
+    const booted = join(directory, "booted")
+    const slow = join(directory, "slow.mjs")
+    writeFileSync(
+      slow,
+      `import { writeFileSync } from "node:fs"
+const until = Date.now() + 400
+while (Date.now() < until) {}
+writeFileSync(${JSON.stringify(booted)}, String(Date.now()))
+`,
+    )
+    await fixture.hook("claude", start(), { NODE_OPTIONS: `--import=${pathToFileURL(slow)}` })
+    const [report] = fixture.reports
+    expect(report!.seq).toBeLessThan(Number(readFileSync(booted, "utf8")) - 300)
   })
 
   it("orders reports by when each hook started", async ({ fixture }) => {

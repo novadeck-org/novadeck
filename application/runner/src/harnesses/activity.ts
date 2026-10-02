@@ -188,6 +188,11 @@ export const apply = (
       // Idle after the turn's Stop says nothing new; without one, the turn ended abnormally.
       if (activity.state !== "working") return undefined
       return { ...activity, state: "idle", pending: [], turnAt: event.startedAt, idled: true }
+    case "turn-escaped":
+      // The turn may be over, as delivery takes it: idle, its requests settled, until a
+      // later hook moves it on. No working status line resumes it.
+      if (activity.state !== "working") return undefined
+      return { ...activity, state: "idle", pending: [], turnAt: event.startedAt, idled: false }
     case "turn-working":
       // Working after the idle that ended its turn, and newer than it: that idle was stale,
       // and the turn goes on. After a Stop it says nothing new. The turn's fence stays at the
@@ -220,6 +225,9 @@ export const apply = (
     }
     case "attention-requested": {
       if (activity.pending.some(({ requestId }) => requestId === event.requestId)) return undefined
+      // One only a turn asks, shown while none runs, is a stale snapshot of the turn a Stop
+      // ended: a turn running, or one a working resumed, is the only one it can be.
+      if (event.midTurn === true && activity.state !== "working") return undefined
       // Asked by a subagent before it stopped, it waits on the person no longer.
       const stopped = event.actor === null ? undefined : endOf(activity.ended, event.actor)
       if (stopped !== undefined && event.startedAt < stopped) return undefined

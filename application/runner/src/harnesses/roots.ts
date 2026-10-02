@@ -33,6 +33,8 @@ export type RootChange =
       readonly root: Root
       readonly guess: boolean
       readonly ready: boolean
+      /** When the hook of the report that named the session started, where one did. */
+      readonly startedAt?: number
     }
   | {
       readonly type: "corrected"
@@ -85,6 +87,12 @@ export const followRoot = (
   const become = (next: Root) => {
     root = next
     // Announced at its prompt by this very report, as the session that bound.
+    const named = events.find(
+      (event) =>
+        event.type === "session-observed" &&
+        event.agent === next.agent &&
+        event.sessionId === next.sessionId,
+    )
     const ready = events.some(
       (event) =>
         event.type === "session-observed" &&
@@ -92,7 +100,13 @@ export const followRoot = (
         event.agent === next.agent &&
         event.sessionId === next.sessionId,
     )
-    changes.push({ type: "new", root: next, guess: guessed(next, input.mode), ready })
+    changes.push({
+      type: "new",
+      root: next,
+      guess: guessed(next, input.mode),
+      ready,
+      ...(named && { startedAt: named.startedAt }),
+    })
   }
   const correct = (sessionId: string, source: Root["source"]) => {
     const from = root!.sessionId

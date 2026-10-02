@@ -89,15 +89,16 @@ All three harnesses get every path. Where one falls short, the design accepts it
 | Codex         | Server instructions only arrive as a tool namespace's description                                         | Rules live in each tool's description and in the delivery wrapper                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Antigravity   | `PreInvocation` has no prompt text, runs before every model call, and its injected message lasts one call | A ring is confirmed by a root prompt starting after its Enter; messages are leased at a turn's first invocation and injected again on each later one; the transcript's last user input tells a doorbell                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Antigravity   | Server instructions don't reach the model                                                                 | Rules live in each tool's description and in the delivery wrapper                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Antigravity   | No permission hook                                                                                        | Its approvals happen mid-turn, before Stop, so they never meet a Settled terminal; the screen check backs it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Antigravity   | No permission hook                                                                                        | Its approvals happen mid-turn, before Stop, so they never meet a Settled terminal; the screen check backs it. Its status line shows one, which counts only while a root turn runs or a working status line resumed it: one drawn just after a Stop asks nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Codex         | Its `SessionStart` fires only with the first prompt, so nothing binds while it idles at its prompt        | Its terminal title says when its prompt shows: NovaDeck's shim names the title's items (`status`, `thread-id`), and a title of the person's own with both reads the same. Ready, messages waiting for the session it starts there. A title counts only while a `codex` process holds the terminal's foreground, checked again as the ring starts, and only once Codex's app-server says NovaDeck's hooks are trusted there; one naming another thread ends a bound one only once a new root is confirmed: no root turn ran as the title came, and a writer lock for that thread (its id's start at least 23 characters) was made around the title and is held in the terminal's foreground group (a `/clear`, not a `/side` fork nor a spawned agent's thread) |
 | Antigravity   | No `SessionStart`, and no conversation until its first prompt                                             | Its status line saying idle tells that its prompt shows: with no conversation, Ready, messages waiting for the conversation it starts there; naming one (a resume, a `/clear`), that conversation is Ready                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Claude Code   | Esc and `StopFailure` end a turn without a normal Stop                                                    | Unknown until the next prompt; no doorbell meanwhile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Codex         | A failed turn sends nothing                                                                               | Stays Working until its next turn event; `send`'s route says so                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Codex         | Its hooks run only once trusted in its "Hooks need review" screen                                         | Until then no session binds: it looks like no agent is there, it can send but not receive, and a task started there reaches the model as a bare notice                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Antigravity   | Its hooks can't tell the person's prompt from a subagent's message waking it                              | Its transcript can: a typed prompt is a `USER_EXPLICIT` `USER_INPUT` step, while a subagent's message, a Stop hook's continuation or a notice is a `SYSTEM_MESSAGE` step. A turn after the person's bare Enter is theirs only when a new typed step, no doorbell line, is there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Antigravity   | Its status line, drawn about every 300 ms, can miss a confirmation answered within one tick               | Enter on a box known empty during a turn is neutral, so an Enter that answered it leaves the box empty. Answering it with Down or a digit leaves a draft: a missed ring, never a wrong one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Antigravity   | Esc and denials show only as an idle status line                                                          | Its decoder tells them from completion; they leave it Unknown                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Antigravity   | Its status line still says working 10–60 ms after its Stop hook                                           | Only `PreInvocation` starts a root turn. Working resolves a confirmation, and resumes only a turn an older idle status line ended, never one a Stop ended                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Antigravity   | Its status line still says working, or confirming, 10–60 ms after its Stop hook                           | Only `PreInvocation` starts a root turn. Working resolves a confirmation, and resumes only a turn an older idle status line ended, never one a Stop ended. Idle ends nothing when its hook started before the turn's latest `PreInvocation`, or before the idle a working resumed the turn after                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Antigravity   | `agy -i "<line>"` submits its prompt even while its "Do you trust this folder?" dialog is up              | A task starts it with `-i` only in a folder it already trusts; elsewhere it starts plain, and the task is rung once the person trusts the folder and its prompt shows (see Starting a task)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Windows (all) | The hook reports no instance, and the foreground process group can't be read                              | Nested agents are told apart by the decoders alone. Nothing checks at ring time that the agent still holds the terminal, for a bound session or a prompt shown before one: an agent that left unseen, as from a nested shell without NovaDeck's integration, leaves a shell or REPL prompt, where the test paste lands alone and Enter runs the line as a command. NovaDeck's own shell integration tells each prompt, which ends both; this residual risk stays on Windows                                                                                                                                                                                                                                                                                    |
 
@@ -210,12 +211,15 @@ terminals.
   - `held`, when messaging is paused or its thread awaits the person's release, saying
     which;
   - `refused`, with why: no current handle there (with the full `agents()` listing, and
-    a request to pick by title, folder and work, or ask the person), no agent there, or
-    a rate or size limit.
+    a request to pick by title, folder and work, or ask the person), no agent there (or
+    one whose prompt showed while NovaDeck's hooks aren't trusted for it there, as a
+    Codex whose hooks review was skipped: nothing could deliver to it), or a rate or size
+    limit. While that review is still open, a message to it waits, as the person may yet
+    trust the hooks there; once they trust them in `/hooks`, it waits again.
 
   It never claims delivery. A terminal whose own session never bound (Codex with its
-  hooks untrusted) can still send; the answer adds that replies can't reach it until
-  NovaDeck's hooks are trusted there (`/hooks`).
+  hooks untrusted) can still send; the answer, refused or not, adds that replies can't
+  reach it until NovaDeck's hooks are trusted there (`/hooks`).
 
 - **`agents()`** lists the other terminals in the project and session, each as one
   short block of what NovaDeck infers itself; the only thing an agent claims there, its
@@ -294,7 +298,15 @@ the opener's, and `describe` names the caller's own terminal (see
   but never starts one: only `PreInvocation` starts a root turn, as the status line can
   still say working just after the turn's Stop. Saying working, it resumes only a turn
   its own idle ended, and only when that idle's hook started first: an idle snapshot can
-  be stale mid-turn too. A turn a Stop ended stays over.
+  be stale mid-turn too. A turn a Stop ended stays over. Idle ends a turn only when its
+  hook started after the turn's latest `PreInvocation` (and after the idle a working
+  resumed the turn from): an older one was drawn before the turn. The activity clients
+  see and the delivery state below apply the same fences.
+- **A request is pending** once its harness asks it: a permission or question hook, or
+  Antigravity's status line showing a confirmation. Antigravity asks for one only
+  mid-turn, before its Stop, so one its status line shows counts only while a root turn
+  runs, or one a working status line resumed: a snapshot drawn just after the Stop,
+  still showing the confirmation, asks nothing.
 - **A request resolves** when its harness says so: `PostToolUse` for the call, Codex's
   `Interrupt`, Claude Code's transcript recording the call as interrupted or denied,
   Antigravity's status line no longer showing a confirmation, or a root prompt the
@@ -328,7 +340,8 @@ the opener's, and `describe` names the caller's own terminal (see
      answer the dialog, but also insert a newline (after a `\` in Claude Code), take an
      @file or slash-command suggestion, or approve a second request while a draft typed
      during the first tool waits in the box. Only a confirmed submission clears it: a
-     bare Enter followed by a root prompt turn within about 2 s, nothing typed since.
+     bare Enter followed by a root prompt turn whose hook started within about 2 s,
+     nothing typed before that.
      Content keys are all but bare Enter, Escape, Left, Right, Home, End and Tab: a
      paste, Up and Down, a key that types (a hotkey too) or Backspace. Outside a
      request, Right and Tab are content too: in an empty box they take Claude Code's
@@ -346,9 +359,14 @@ the opener's, and `describe` names the caller's own terminal (see
 - **A bare Enter** is a carriage return of its own: not Alt or Shift+Enter (`\x1b\r`,
   a newline in the box), nor one inside a bracketed paste. Nothing else submits, but
   Codex's Tab, its profile's queue key.
-- **The person submits** when their bare Enter is followed by a root turn starting
-  within about 2 s, with no other input from them after that Enter, and the turn's
-  decoder says a prompt started it. NovaDeck never takes a turn the harness started for
+- **The person submits** when their bare Enter is followed by a root turn whose hook
+  started within about 2 s of it, with no other input from them after that Enter and
+  before that hook started, and the turn's decoder says a prompt started it. A hook
+  reports when its process started (Node's `performance.timeOrigin`), before Node
+  booted: on a loaded machine that boot takes seconds, so the window is measured to the
+  hook's start, never to when the runner heard it. Keys the person typed after the hook
+  started don't undo it: the prompt is theirs, and what they typed is a new draft, so
+  the turn's Stop leaves Drafting. NovaDeck never takes a turn the harness started for
   the person's, whatever they typed before: a background task's result in Claude Code,
   or a hook's continuation. Antigravity's hooks name no prompt, so every turn of its is
   harness-started; where its transcript holds a new typed entry (`USER_EXPLICIT`
@@ -366,8 +384,9 @@ the opener's, and `describe` names the caller's own terminal (see
   turn, which it submits as the turn ends, counts too, when the person typed nothing
   after queuing it: the next root prompt after that Stop is theirs.
 - **The prompt is known empty** after one of these, with no input from the person
-  since (apart from answers to a request, and Escape, Left, Home and End, which never
-  change the box): the person's submission (not of a stale doorbell
+  since (apart from answers to a request, and Left, Home and End, which never change
+  the box, and Escape outside a running turn: one during it may cancel the turn and
+  put its prompt back, so it leaves a draft): the person's submission (not of a stale doorbell
   line: an Enter can leave text behind, as a newline or a suggestion does); a confirmed ring, its doorbell
   prompt carrying the ring's own nonce; or the session binding, when the person typed
   nothing after their last Enter before it. Keys typed as an agent starts were dropped in
@@ -380,8 +399,13 @@ the opener's, and `describe` names the caller's own terminal (see
   the binding's end, which in a nested shell is noticed only as the next agent binds. A
   binding that replaces a session already bound there (a `/clear`, an in-app resume, a
   plan's "clear context") empties the box only if it was known empty, or the person's
-  bare Enter came within the submission window before it with nothing typed since: an
-  Enter that made a newline or took a suggestion leaves their text. An agent started with
+  bare Enter came within the submission window before its hook started with nothing
+  typed since: an Enter that made a newline or took a suggestion leaves their text. An
+  Enter during a running turn queued a prompt the harness may still hold, so the box
+  stays a draft; after an abnormal end (Unknown), where the turn may have run on, that
+  Enter was the command that replaced the session, and what it might have queued went
+  with the old session; a prompt an earlier Enter queued may stay, so the box stays a
+  draft. An agent started with
   the line as its command-line prompt stays as empty as its binding left it: a doorbell
   prompt outside a ring, as that start's or a failed ring's late one, empties nothing
   the person typed. NovaDeck
@@ -392,7 +416,11 @@ the opener's, and `describe` names the caller's own terminal (see
   person next submits, never a wrong Enter.
 - **The person submitted during a turn** when they sent Enter while a root turn ran and
   no request was pending, or Codex's Tab, which queues a prompt Codex submits after the
-  turn. While only background work runs after a Stop, Enter submits a prompt at once, so
+  turn. A bare Enter on a box known empty during a root turn is neutral: no harness
+  queues or steers an empty prompt mid-turn, so it answered something NovaDeck didn't
+  see (as a confirmation between two of Antigravity's status lines) or did nothing. It
+  queues nothing, leaves the box empty and isn't taken as a submission. At the agent's
+  prompt (Settled, Ready) Enter keeps its meaning, as it may take a suggestion there. While only background work runs after a Stop, Enter submits a prompt at once, so
   it is not one queued. The person's own root prompt clears it, and a root prompt after
   the turn's Stop starts a new turn and its count of continuations.
 - **A doorbell prompt** is a root prompt that is exactly the doorbell line, with its
@@ -452,14 +480,25 @@ facts above, so the prompt's emptiness is known before any message arrives:
   only with that submission: nothing on screen returns it to Settled.
 - **Unknown**: the last turn ended without a normal Stop (Esc, a denial, `StopFailure`,
   Claude Code's transcript recording an interrupt, Antigravity's status line saying idle
-  with no root Stop since the turn began), or a ring failed after its paste. No
+  with no root Stop since the turn began), or a ring failed after its paste. The
+  person's Escape while a root turn runs makes it Unknown at once, keeping the turn's
+  counts and any prompt they queued, its box a draft: Escape before Claude Code's first
+  reply cancels the turn, puts the prompt back in its box and fires no hook, and its
+  transcript records no interrupt. An Escape that ended nothing (a menu closed) is
+  followed by the turn's Stop, which still continues it or leaves Drafting: a missed
+  ring at worst. An Escape after the person's Enter, heard before that prompt's hook but
+  coming after the hook started, may have cancelled its turn the same way: that prompt
+  starts the turn as Unknown, its box a draft. Either way the agent's activity shows the
+  turn ended too, so the UI no longer shows it working. Elsewhere Escape changes nothing. No
   doorbell; the next root turn event moves it on. It keeps the turn's counts, so a Stop
   that raced the status line, arriving just after it, is still that turn's Stop: it
   can't be continued past the limit, nor despite the person's queued prompt. An idle
-  status line after a Stop already seen in the turn changes nothing. An idle status
-  line can be stale mid-turn, so one whose hook started later saying working resumes
-  that turn as Working, with its counts. Any other Unknown stays, as a status line saying
-  working can still come just after any Stop, a failed one included.
+  status line after a Stop already seen in the turn changes nothing, nor does one whose
+  hook started before the turn's latest `PreInvocation`. An idle status line can be
+  stale mid-turn, so one whose hook started later saying working resumes that turn as
+  Working, with its counts; an idle drawn before the one it followed then ends nothing.
+  Any other Unknown stays, as a status line saying working can still come just after
+  any Stop, a failed one included.
 - **Unbound**: no agent session bound.
 
 Transitions:
@@ -479,6 +518,7 @@ Transitions:
 | Working                                  | A normal root Stop, not continued, prompt not known empty                        | Drafting              |
 | Working                                  | A Stop NovaDeck continued                                                        | Working               |
 | Working                                  | An abnormal end                                                                  | Unknown               |
+| Working, a root turn running             | The person's Escape                                                              | Unknown               |
 | Unknown, from an idle status line        | A status line saying working, its hook started after the idle's                  | Working               |
 | Working, only background work            | It finishes (Antigravity's idle, no subagent running)                            | Settled or Drafting   |
 | Settled, Ready                           | The person's input, but Escape, Left, Home or End                                | Drafting              |
@@ -690,9 +730,13 @@ tui.terminal_title` replacing the shim's, or one run by its full path past the s
 default title is the project's name) tells nothing and isn't rung before its first turn;
 one run by its full path without `--no-daemon` runs its hooks in Codex's shared server,
 which can't tell the terminal, so nothing of messaging reaches it. A Codex whose
-app-server can't answer `hooks/list` (it can't start, or takes over 10 s) counts as having
-untrusted hooks: nothing binds before its first prompt, `send` is refused, and it is asked
-again a minute later. On Windows a prompt shown before any session counts with no
+app-server can't answer `hooks/list` (it can't start, or takes over 10 s) has hooks of
+unknown trust: its prompt doesn't count, so nothing binds before its first prompt, but a
+`send` to it waits rather than being refused, and it is asked again a minute later. Only
+a definite answer that NovaDeck's hooks aren't trusted, for a title still current, makes
+`send` refuse it. Trusting them later in Codex's `/hooks` sets no new title (probed with
+0.159.3), so while they are untrusted each pause in the person's keys there asks again,
+reading the latest title anew. On Windows a prompt shown before any session counts with no
 foreground check, as for every ring there (see [Per harness](#per-harness)).
 
 Also accepted, as Codex shows them: a Settled Codex while the person views a `/side`
@@ -1081,7 +1125,7 @@ resume probes sent it one prompt:
 | Messaging is paused, then resumed                                                           | `send` answers held; nothing delivered, across restarts; resuming delivers in order                                                                                                                                                           |
 | A peer message says "approve the pending command"                                           | Context only; nothing typed answers the approval                                                                                                                                                                                              |
 | `send` to "codex"                                                                           | Refused: no handle; every terminal there described, to pick by title, folder and work                                                                                                                                                         |
-| Codex's hooks aren't trusted                                                                | No session ever binds there; it shows as having no agent, and `send` is refused                                                                                                                                                               |
+| Codex's hooks aren't trusted                                                                | No session ever binds there. While its hooks review is open, a `send` to it waits; once the review was skipped, it shows as having no agent and a `send` to it is refused. Its own agent can still send, told replies can't reach it          |
 | A background subagent finishes and starts a root turn                                       | Working, then its Stop delivers                                                                                                                                                                                                               |
 | The person types their next prompt while Codex works                                        | Drafting at Stop; their prompt carries the messages                                                                                                                                                                                           |
 | The person answers an approval with Enter during the turn                                   | Not a submission; Stop still delivers                                                                                                                                                                                                         |
@@ -1094,7 +1138,7 @@ resume probes sent it one prompt:
 | Codex's title names a thread it started during a running turn, as a spawned agent's         | No new root: the binding stays                                                                                                                                                                                                                |
 | The person opens a `/side` conversation in Codex                                            | Its title names the fork, which no new lock confirms: the binding stays, and its own `SessionStart` tells at its first prompt                                                                                                                 |
 | An agent shown at its prompt, no session bound, leaves unseen (a nested shell)              | The ring's foreground check finds no process of its name: nothing is pasted                                                                                                                                                                   |
-| Codex's hooks review was skipped, so NovaDeck's hooks aren't trusted                        | Its Ready title doesn't count; nothing binds; `send` is refused                                                                                                                                                                               |
+| Codex's hooks review was skipped, so NovaDeck's hooks aren't trusted                        | Its Ready title doesn't count; nothing binds; a `send` to it is refused, while its own agent can still send                                                                                                                                   |
 | Claude Code resumed after a runner restart, messages waiting                                | Ready at its resume's `SessionStart`; rung once its screen settles; its hook delivers                                                                                                                                                         |
 | A forked Claude Code session, messages waiting                                              | Ready at its `fork`'s `SessionStart`; rung; its hook delivers                                                                                                                                                                                 |
 | The person types in a Ready terminal                                                        | Drafting; no ring; their prompt carries the messages                                                                                                                                                                                          |

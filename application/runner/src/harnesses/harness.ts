@@ -105,12 +105,13 @@ export type Harness = {
    * Whether NovaDeck's hooks run for it in `cwd`, where it runs them only once the person
    * trusts them (Codex): a prompt it shows counts only then, as nothing could deliver a
    * message, or confirm a ring, without them. `where` holds the terminal's own program
-   * and environment where the runner can tell them. Trusted when omitted.
+   * and environment where the runner can tell them. Undefined when the harness couldn't
+   * answer; trusted when omitted.
    */
   readonly hooksTrusted?: (
     where: Install & { readonly program?: string },
     cwd: string,
-  ) => Promise<boolean>
+  ) => Promise<boolean | undefined>
   /**
    * Whether the session a title shows, whose id starts with `prefix`, is one it just
    * started as a new root (Codex's /clear), not another it only shows, as a forked side

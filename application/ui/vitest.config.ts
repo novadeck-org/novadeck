@@ -20,6 +20,10 @@ export default mergeConfig(
           test: {
             name: "unit",
             environment: "jsdom",
+            // A file's first render or terminal open in jsdom is CPU-bound cold-start work:
+            // on Windows CI it has taken 1.5-5.8s (WorkspaceOverlays, WorkspaceTerminal,
+            // queries), against a fraction of that on Linux and macOS.
+            testTimeout: 20_000,
             include: ["src/**/*.test.ts"],
             exclude: ["src/specs/**"],
           },

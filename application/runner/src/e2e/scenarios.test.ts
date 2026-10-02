@@ -3,9 +3,10 @@ import type { DeliveryState, MessageState, TerminalMessages } from "@novadeck/pr
 import { doorbellLine } from "../harnesses/harness.js"
 import { wrap, type Message } from "../messaging/mailbox.js"
 import { describe, expect, it } from "../test.js"
+import { claude } from "./agents/claude.js"
 import { createHistory } from "./history.js"
 import type { Call } from "./model/script.js"
-import { deliveries, delivered, holds, ring, through } from "./scenarios.js"
+import { deliveries, delivered, holds, lacking, prompted, ring, through } from "./scenarios.js"
 
 const message = (fields: Partial<Message> = {}): Message => ({
   id: "m-1",
@@ -179,6 +180,55 @@ describe("through", () => {
 
     await expect(through(history, ["settled", "working"], { timeoutMs: 50 })).rejects.toThrow(
       /can't reach/,
+    )
+  })
+})
+
+describe("lacking", () => {
+  const { approval: _approval, background: _background, trust: _trust, ...bare } = claude
+
+  it("says nothing when the setup has every trait the scenario needs", () => {
+    expect(lacking(claude, "approval", "background", "trust.folder")).toBeUndefined()
+  })
+
+  it("names the setup and each trait it lacks with why, as the skipped test says", () => {
+    const absent = { approval: "it asks before nothing", "trust.hooks": "no hooks review" }
+
+    expect(lacking({ ...bare, absent }, "approval", "trust.hooks")).toBe(
+      "Claude Code has no approval: it asks before nothing; no trust.hooks: no hooks review",
+    )
+  })
+
+  it("fails on a trait lacked with no reason, which could hide a gap", () => {
+    expect(() => lacking({ ...claude, trust: {} }, "trust.folder")).toThrow(
+      /lacks the trust.folder trait with no reason/,
+    )
+  })
+})
+
+describe("prompted", () => {
+  // Claude Code's folder question, which names it, as its screen shows it.
+  const question = [
+    " Quick safety check: Is this a project you created or one you trust?",
+    " Claude Code'll be able to read, edit, and execute files here.",
+    " ❯ No, exit",
+    "   Yes, I trust this folder",
+  ].join("\n")
+
+  it("waits past the folder question, though it names the harness, for its prompt", async () => {
+    const screens = [question, "", " Claude Code v2.1.287\n❯ "]
+    const terminal = { handle: "t1", screen: async () => screens.shift() ?? "" }
+
+    await prompted(terminal, claude, 2000)
+
+    expect(screens).toEqual([])
+  })
+
+  it("fails with the screen while a startup question stays", async () => {
+    const terminal = { handle: "t1", screen: async () => question }
+
+    await expect(prompted(terminal, claude, 300)).rejects.toThrow(
+      /Its screen:\n.*\n Claude Code'll/,
     )
   })
 })

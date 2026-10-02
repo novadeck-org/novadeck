@@ -14,7 +14,9 @@
  * continued, until the continuation's first prompt; and `background`, when only work a
  * turn started still runs after its Stop (Claude Code's background tasks, Antigravity's
  * subagents). Only in a turn, or continuing, is the person's Enter a prompt their harness
- * queues; in the background it submits one at once.
+ * queues; in the background it submits one at once. A turn keeps `turnAt`, as the
+ * agent's activity does (`harnesses/activity.ts`), so an idle status line older than it
+ * belongs to a turn already over.
  *
  * Whether the prompt is untouched (`box`) is decided here alone, from the person's keys
  * and the turns that follow them; nothing outside this module reckons it.
@@ -29,9 +31,21 @@ export type Delivery = Counts &
          * (Antigravity's): a working one newer than it resumes the turn.
          */
         readonly idledAt?: number
+        /** When the person's Escape that may have cancelled the turn came, where one did. */
+        readonly escapedAt?: number
       }
     | { readonly state: "settled" | "ready"; readonly since: number }
-    | { readonly state: "working"; readonly phase: "turn" | "continuing" | "background" }
+    | {
+        readonly state: "working"
+        readonly phase: "turn"
+        /**
+         * When the hook of the turn's latest start or model call started, or of the idle
+         * status line a working one resumed it after: an idle whose hook started before
+         * it was drawn before the turn, and ends nothing.
+         */
+        readonly turnAt: number
+      }
+    | { readonly state: "working"; readonly phase: "continuing" | "background" }
     | {
         readonly state: "ringing"
         readonly nonce: string
@@ -54,8 +68,23 @@ export type Box = {
   readonly empty: boolean
   /** Whether the person submitted a prompt during the running turn, which their harness queues. */
   readonly queuing: boolean
-  /** When the person's last bare Enter came, outside a request; null once they typed since. */
+  /** When the person's Enter that set `queuing` came; null when its time is unknown. */
+  readonly queuingSince: number | null
+  /**
+   * When the person's last bare Enter came, outside a request, until a root prompt uses it
+   * up; null once a key whose time is unknown came after it.
+   */
   readonly enteredAt: number | null
+  /**
+   * When the person's first key after that Enter came, if one did: a prompt whose hook
+   * started before it may still be theirs, one that started after it is not.
+   */
+  readonly typedAt: number | null
+  /**
+   * When the person's last Escape came, while their Enter waited for its prompt: one after
+   * the prompt's hook started may have cancelled its turn, as no hook tells.
+   */
+  readonly escapedAt: number | null
   /** Whether the person typed since their last bare Enter. */
   readonly typedSinceEnter: boolean
   /**
@@ -97,11 +126,11 @@ export const submitWindowMs = 2_000
 
 /**
  * A key the person sent, as `terminals/keys.ts` tells it: a bare Enter, a harness's queue
- * key, one that never changes the box (Escape, Left, Home, End), one that may take a
- * prompt suggestion into an empty box, though never in a request's dialog (Right, Tab),
- * or content.
+ * key, one that never changes the box (Left, Home, End), Escape, which never changes it
+ * either but may interrupt the agent's turn, one that may take a prompt suggestion into
+ * an empty box, though never in a request's dialog (Right, Tab), or content.
  */
-export type KeyKind = "enter" | "queue" | "neutral" | "accept" | "content"
+export type KeyKind = "enter" | "queue" | "neutral" | "escape" | "accept" | "content"
 
 /**
  * What changes a terminal's delivery:
@@ -114,7 +143,7 @@ export type KeyKind = "enter" | "queue" | "neutral" | "accept" | "content"
  * - `prompt`: a root turn started, as its decoder says: a `prompt` (the person's only if
  *   their bare Enter came shortly before with nothing typed since, or they queued it),
  *   one the `harness` started, a later model `call` of a running turn, or a `doorbell`
- *   prompt with its nonce;
+ *   prompt with its nonce, its hook started at `startedAt`;
  * - `stop`: a normal root Stop, which NovaDeck `continued` or not, with work the turn
  *   started still running in the `background`;
  * - `ended`: a root turn ended abnormally: an Esc, a denial, a failure;
@@ -136,6 +165,7 @@ export type DeliveryEvent =
       readonly by: "prompt" | "harness" | "call" | "doorbell"
       readonly nonce?: string
       readonly at: number
+      readonly startedAt: number
     }
   | {
       readonly type: "stop"
@@ -160,7 +190,10 @@ export type DeliveryEvent =
 const emptyBox: Box = {
   empty: true,
   queuing: false,
+  queuingSince: null,
   enteredAt: null,
+  typedAt: null,
+  escapedAt: null,
   typedSinceEnter: false,
   queued: false,
   draftWhileAsked: false,
@@ -183,6 +216,13 @@ export const running = (delivery: Delivery): boolean => {
   const phase = phaseOf(delivery)
   return phase === "turn" || phase === "continuing"
 }
+
+/**
+ * Whether a root turn may run: one running, or one an abnormal end may not have ended, as
+ * an Escape that only closed a popup. What the person submits then, their harness may
+ * queue.
+ */
+const mayRun = (delivery: Delivery): boolean => running(delivery) || delivery.state === "unknown"
 
 /** Whether a Stop may end a turn here: one running, or one whose start went unseen. */
 const stoppable = (delivery: Delivery): boolean =>
@@ -216,15 +256,25 @@ const ended = (delivery: Delivery, at: number): Delivery => {
 
 const working = (
   delivery: Delivery,
-  phase: "turn" | "continuing" | "background",
+  phase: "continuing" | "background",
   change: Partial<Counts> = {},
 ): Delivery => ({ ...counts(delivery), ...change, state: "working", phase })
+
+/** A root turn running, as of the hook that started at `turnAt`. */
+const turn = (delivery: Delivery, turnAt: number, change: Partial<Counts> = {}): Delivery => ({
+  ...counts(delivery),
+  ...change,
+  state: "working",
+  phase: "turn",
+  turnAt,
+})
 
 /** The box after the person typed, outside a request: a draft, their Enter not alone. */
 const typed = (box: Box): Box => ({
   ...box,
   empty: false,
   enteredAt: null,
+  typedAt: null,
   typedSinceEnter: true,
   queued: false,
 })
@@ -252,13 +302,19 @@ const arrived = (delivery: Delivery): Counts => {
  * (a /clear, an in-app resume) keeps that box, unless it was known empty or the person's
  * bare Enter just submitted it: an Enter that made a newline or took a suggestion left
  * their text there, and one during a turn queued a prompt the harness may still hold.
+ * After an abnormal end, where the turn may have run on, an Enter just before the new
+ * session is the command that replaced the old one: what it might have queued was the
+ * old session's, now gone, as one Enter can't both queue a prompt and run a /clear.
  */
 const atPrompt = (delivery: Delivery, at: number): Delivery => {
   const next = arrived(delivery)
   const { box } = delivery
-  const kept =
-    delivery.state !== "unbound" &&
-    (box.queuing || box.queued || (!box.empty && pendingEnter(delivery, at) === undefined))
+  const entered = pendingEnter(delivery, at) !== undefined
+  // Only when that Enter is the one that set `queuing`: one before it queued a prompt that
+  // may stay.
+  const queuing =
+    box.queuing && !(delivery.state === "unknown" && entered && box.queuingSince === box.enteredAt)
+  const kept = delivery.state !== "unbound" && (queuing || box.queued || (!box.empty && !entered))
   return next.box.typedSinceEnter || kept
     ? { ...next, box: typed(emptyBox), state: "drafting" }
     : { ...next, state: "ready", since: at }
@@ -267,6 +323,23 @@ const atPrompt = (delivery: Delivery, at: number): Delivery => {
 /** The delivery after an event; the same delivery when it changes nothing. */
 export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery => {
   if (event.type === "key" && event.key === "neutral") return delivery
+  // The person's Escape may interrupt a root turn, which no hook may tell (Claude Code's
+  // before its first reply, which puts the prompt back in its box): Unknown, the box a
+  // draft, keeping the counts and any queued prompt for the Stop that comes if it ended
+  // nothing. With their Enter waiting for its prompt's hook, it is kept for that prompt,
+  // which it may have cancelled; anywhere else it changes nothing.
+  if (event.type === "key" && event.key === "escape") {
+    if (running(delivery))
+      return {
+        ...counts(delivery),
+        box: { ...typed(delivery.box), queuing: delivery.box.queuing },
+        state: "unknown",
+        escapedAt: event.at,
+      }
+    return delivery.box.enteredAt === null || delivery.state === "unbound"
+      ? delivery
+      : { ...delivery, box: { ...delivery.box, escapedAt: event.at } }
+  }
   if (event.type === "bound") {
     // The session a ring's own prompt starts, where it rang a prompt shown before any
     // session bound (Codex's or Antigravity's first prompt binds one): the ring goes on,
@@ -322,55 +395,80 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
         // submitted, which may have left text (a newline, a suggestion) in the box. Any
         // Enter of theirs is spent on it.
         const empty = delivery.state === "ringing" ? !delivery.touched : box.empty
-        return working(delivery, "turn", {
+        return turn(delivery, event.startedAt, {
           epoch: delivery.epoch + 1,
           continued: 0,
           byPerson: false,
-          box: { ...box, empty, queuing: false, enteredAt: null },
+          box: { ...box, empty, queuing: false, enteredAt: null, typedAt: null },
         })
       }
-      // A later model call of the running turn changes nothing, nor ends the wait for the
-      // continuation of a Stop NovaDeck continued: only the continuation's first call
-      // starts it.
-      if (event.by === "call" && (phase === "turn" || phase === "continuing")) return delivery
-      // The person's submission: their bare Enter shortly before, with nothing typed
-      // since, or a prompt they queued during the turn that just ended and typed nothing
-      // after. A turn the harness started is never theirs. Any doubt leaves a draft.
-      // Mid-ring the box holds the doorbell's line too: no prompt empties it but its own.
+      // A later model call of the running turn only moves its fence, as its activity's
+      // does; nor does it end the wait for the continuation of a Stop NovaDeck continued:
+      // only the continuation's first call starts it.
+      if (event.by === "call" && delivery.state === "working" && delivery.phase === "turn")
+        return event.startedAt > delivery.turnAt
+          ? { ...delivery, turnAt: event.startedAt }
+          : delivery
+      if (event.by === "call" && phase === "continuing") return delivery
+      // The person's submission: their bare Enter shortly before its hook started, with
+      // nothing typed before that, or a prompt they queued during the turn that just ended
+      // and typed nothing after. Judged by when the hook started, not when it was heard,
+      // as a loaded machine boots the hook late. A turn the harness started is never
+      // theirs. Any doubt leaves a draft. Mid-ring the box holds the doorbell's line too:
+      // no prompt empties it but its own.
       const person =
         event.by === "prompt" &&
         delivery.state !== "ringing" &&
-        (pendingEnter(delivery, event.at) !== undefined || box.queued)
-      // Only a prompt uses up the person's Enter, or the prompt they queued.
+        (pendingEnter(delivery, event.startedAt) !== undefined || box.queued)
+      // Only a prompt uses up the person's Enter, or the prompt they queued. Keys after
+      // its hook started are a new draft.
       const after: Box =
         event.by === "prompt"
           ? {
               ...box,
               enteredAt: null,
+              typedAt: null,
               queued: false,
-              ...(person && { empty: true, queuing: false, draftWhileAsked: false }),
+              ...(person && {
+                empty: box.typedAt === null,
+                queuing: false,
+                draftWhileAsked: false,
+              }),
             }
           : box
       // A prompt right after a Stop NovaDeck continued is that continuation: the same
       // turn, with its count, as Antigravity starts its model calls again from the first.
-      if (phase === "continuing") return working(delivery, "turn", { box: after })
+      if (phase === "continuing") return turn(delivery, event.startedAt, { box: after })
       // A call while no turn ran (as Antigravity's PreInvocation past the turn's first,
       // after its Stop or an idle status line) resumes the turn it belongs to, with its
       // counts, though nothing says the person started it.
-      if (event.by === "call") return working(delivery, "turn", { byPerson: false })
-      return working(delivery, "turn", {
+      if (event.by === "call") return turn(delivery, event.startedAt, { byPerson: false })
+      const started = turn(delivery, event.startedAt, {
         epoch: delivery.epoch + 1,
         continued: 0,
         byPerson: person,
-        box: { ...after, queuing: false },
+        box: { ...after, queuing: false, escapedAt: null },
       })
+      // The person's Escape after the Enter it answers and after its hook started may have
+      // cancelled the turn before any other hook ran: Unknown, its prompt back in the box.
+      const { enteredAt, escapedAt } = box
+      const cancelled =
+        event.by === "prompt" &&
+        enteredAt !== null &&
+        escapedAt !== null &&
+        enteredAt <= event.startedAt &&
+        enteredAt <= escapedAt &&
+        event.startedAt < escapedAt
+      return cancelled
+        ? { ...counts(started), box: typed(started.box), state: "unknown", escapedAt }
+        : started
     }
     case "stop": {
       if (!stoppable(delivery)) return delivery
       if (event.continued)
         return working(delivery, "continuing", { continued: delivery.continued + 1 })
       // A turn that ends with the person's queued prompt: its harness submits it next.
-      const queued: Box = running(delivery)
+      const queued: Box = mayRun(delivery)
         ? { ...box, queued: box.queuing && !box.typedSinceEnter }
         : box
       // What the turn started still runs, and may start another turn by itself.
@@ -387,20 +485,21 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
     case "idle": {
       // Its background work finished: the turn it ran after is over.
       if (phase === "background") return event.background ? delivery : ended(delivery, event.at)
-      // After the turn's Stop, idle says nothing new; otherwise the turn ended without
-      // one, keeping its counts for a Stop that arrives late, or a working status line
-      // newer than this one, which tells this one was stale.
-      if (phase === "turn")
-        return { ...counts(delivery), state: "unknown", idledAt: event.startedAt }
-      return delivery
+      // After the turn's Stop, idle says nothing new, nor does one drawn before the turn
+      // (its hook started before the turn's); otherwise the turn ended without one,
+      // keeping its counts for a Stop that arrives late, or a working status line newer
+      // than this one, which tells this one was stale.
+      if (delivery.state !== "working" || delivery.phase !== "turn") return delivery
+      if (event.startedAt < delivery.turnAt) return delivery
+      return { ...counts(delivery), state: "unknown", idledAt: event.startedAt }
     }
     case "working":
-      // The turn an older idle status line ended goes on, with its counts. Never one a Stop
-      // ended: the status line can still say working just after it.
+      // The turn an older idle status line ended goes on, with its counts, fenced at that
+      // idle. Never one a Stop ended: the status line can still say working just after it.
       return delivery.state === "unknown" &&
         delivery.idledAt !== undefined &&
         event.startedAt > delivery.idledAt
-        ? working(delivery, "turn")
+        ? turn(delivery, delivery.idledAt)
         : delivery
     case "ring":
       // Its line goes into the box: a draft, until its own prompt confirms it.
@@ -425,6 +524,18 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
         return event.key === "content" && !box.draftWhileAsked
           ? { ...delivery, box: { ...box, draftWhileAsked: true } }
           : delivery
+      // A bare Enter on a box known empty (no draft typed while asked either) while a root
+      // turn runs queues nothing in any harness: it answered something NovaDeck didn't see
+      // (a confirmation between two of Antigravity's status lines), or did nothing. At the
+      // agent's prompt it keeps its meaning, as it may take a suggestion there.
+      if (
+        running(delivery) &&
+        event.key === "enter" &&
+        box.empty &&
+        !box.queuing &&
+        !box.draftWhileAsked
+      )
+        return delivery
       return keyed(delivery, event.key === "enter" || event.key === "queue", event.at)
     }
     case "asked-cleared":
@@ -436,23 +547,31 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
 }
 
 /**
- * When the person's bare Enter came, if a root turn starting `now` would be their
- * submission: within the window, with nothing typed since. The one check of the window.
+ * When the person's bare Enter came, if a root turn whose hook started at `now` would be
+ * their submission: within the window after it, and before any key they typed after it.
+ * The one check of the window.
  */
 export const pendingEnter = (delivery: Delivery, now: number): number | undefined => {
-  const at = delivery.box.enteredAt
+  const { enteredAt: at, typedAt } = delivery.box
   // An Enter after `now`, as one after a title judged as it came, submitted nothing then.
-  return at !== null && at <= now && now - at <= submitWindowMs ? at : undefined
+  if (at === null || at > now || now - at > submitWindowMs) return undefined
+  return typedAt === null || typedAt > now ? at : undefined
 }
 
 /** The delivery after the person's key outside a request: a bare Enter `submits`. */
 const keyed = (delivery: Delivery, submits: boolean, at: number | null): Delivery => {
   const { box } = delivery
   const after: Box = {
-    ...(submits && at !== null ? { ...box, enteredAt: at, typedSinceEnter: false } : typed(box)),
+    ...(submits && at !== null
+      ? { ...box, enteredAt: at, typedAt: null, typedSinceEnter: false }
+      : // A key after the Enter keeps it, timed, for a prompt whose hook started first.
+        at !== null && box.enteredAt !== null
+        ? { ...typed(box), enteredAt: box.enteredAt, typedAt: box.typedAt ?? at }
+        : typed(box)),
     empty: false,
-    // Only while a root turn runs does the harness queue what the person submits.
-    queuing: box.queuing || (running(delivery) && submits),
+    // Only while a root turn runs, or may, does the harness queue what the person submits.
+    queuing: box.queuing || (mayRun(delivery) && submits),
+    queuingSince: box.queuing ? box.queuingSince : mayRun(delivery) && submits ? at : null,
   }
   if (delivery.state === "settled" || delivery.state === "ready")
     return { ...counts(delivery), box: after, state: "drafting" }

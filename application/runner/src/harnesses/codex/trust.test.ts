@@ -153,14 +153,14 @@ describe.skipIf(process.platform === "win32")("asking Codex whether NovaDeck's h
     expect(starts()).toBe(1)
   })
 
-  it("takes a program that can't start as untrusted, asking again only a while later", async () => {
+  it("takes a program that can't start as unknown, never untrusted, asking again only a while later", async () => {
     const missing = { ...where, program: join(folder, "no-codex-here") }
     vi.useFakeTimers({ toFake: ["Date"] })
-    expect(await hooksTrusted(missing, "/work")).toBe(false)
+    expect(await hooksTrusted(missing, "/work")).toBeUndefined()
     answer(trusted)
     expect(await hooksTrusted(where, "/work")).toBe(true)
     // The same program and folder as the failure: kept for a while, then asked again.
-    expect(await hooksTrusted(missing, "/work")).toBe(false)
+    expect(await hooksTrusted(missing, "/work")).toBeUndefined()
     vi.setSystemTime(Date.now() + failureMs + 1)
     writeFileSync(missing.program, readFileSync(where.program!))
     chmodSync(missing.program, 0o755)

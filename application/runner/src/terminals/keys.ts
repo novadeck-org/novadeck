@@ -8,8 +8,10 @@ export type Key =
   | { readonly kind: "enter" }
   /** A harness's queue key, as Codex's Tab: a submission outside a request. */
   | { readonly kind: "queue" }
-  /** Escape, Left, Home or End: they move or close, never typing in the box. */
+  /** Left, Home or End: they move, never typing in the box. */
   | { readonly kind: "neutral"; readonly text: string }
+  /** Escape alone: it closes, never typing in the box, or interrupts the agent's turn. */
+  | { readonly kind: "escape"; readonly text: string }
   /**
    * Right or Tab, which move too, but in an empty box take Claude Code's prompt suggestion
    * as typed text: inert in a request's dialog, content at the prompt.
@@ -104,7 +106,7 @@ export const keysOf = (
     if (rest[0] === "\x1b") {
       // Escape alone; with the next key, Alt (or a TUI's Shift+Enter), which types.
       const length = rest.length > 1 && rest[1] !== "\x1b" ? 2 : 1
-      keys.push({ kind: length === 1 ? "neutral" : "content", text: rest.slice(0, length) })
+      keys.push({ kind: length === 1 ? "escape" : "content", text: rest.slice(0, length) })
       at += length
       continue
     }

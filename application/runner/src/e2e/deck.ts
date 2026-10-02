@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { join } from "node:path"
 
 import type {
+  AgentActivity,
   AgentDetail,
   AgentName,
   TerminalMessages,
@@ -24,7 +25,12 @@ const owner = "e2e"
  * its own.
  */
 const render = async (snapshot: string, cols: number, rows: number): Promise<string> => {
-  const screen = new headless.Terminal({ cols, rows, scrollback: 0, allowProposedApi: true })
+  const screen = new headless.Terminal({
+    cols,
+    rows,
+    scrollback: 0,
+    allowProposedApi: true,
+  })
   try {
     await new Promise<void>((resolve) => screen.write(snapshot, resolve))
     const buffer = screen.buffer.active
@@ -69,6 +75,29 @@ export type DeckTerminal = {
    * protocol's (`\x1b[13u`, `\x1b[13;…u`), is refused: `submit` and `confirm` press it.
    */
   readonly press: (keys: string) => void
+  /**
+   * Presses Escape on its own: sends `keys` (`\x1b` unless given),
+   * and resolves only `escapeWindowMs` later. Escapes go one at a time, each waiting for
+   * the one before, so two `escape()` calls never reach the TUI as one Esc-Esc, even
+   * unawaited. Like `press`, it refuses Enter.
+   */
+  readonly escape: (keys?: string) => Promise<void>
+  /**
+   * The one deliberate Enter besides `submit` and `confirm`: a bare Enter on a box known
+   * empty, mid-turn. It goes only while the turn of the prompt this terminal last
+   * submitted is working, with nothing sent to the terminal since that prompt's Enter;
+   * otherwise it throws, sending nothing.
+   */
+  readonly enterEmpty: () => void
+  /**
+   * Polls `read` until it gives a value, as `poll` does, for something of this terminal;
+   * a failure says what its agent is doing and shows its screen.
+   */
+  readonly poll: <T>(
+    read: () => T | undefined | Promise<T | undefined>,
+    what: string,
+    timeoutMs?: number,
+  ) => Promise<T>
   /** What a client's terminal listing says of it now: its agent and that agent's activity. */
   readonly summary: () => TerminalSummary
   /** Its messages and how its agent can take one now. */
@@ -88,7 +117,7 @@ export type DeckTerminal = {
   /**
    * Waits until its history holds a snapshot from `after` on that is in the state asked
    * for, or passes the test, and returns it; at once if one already does. On timeout it
-   * fails with the delivery states it went through from the mark on.
+   * fails with the delivery states it went through from the mark on, and its screen.
    */
   readonly reached: (what: Reach, options?: ReachOptions) => Promise<Snapshot>
 }
@@ -156,6 +185,62 @@ export type DeckOptions = {
   readonly leftovers?: () => Promise<readonly string[]>
 }
 
+/**
+ * How long `escape` waits after its keys: past the window in which a TUI reads a second
+ * Escape as Esc-Esc rather than two presses. Claude Code 2.1.287's is about 800 ms: two
+ * Escapes 300 or 700 ms apart opened its Rewind picker, 1000 or 1500 ms apart didn't
+ * (probed in the sandbox). That also covers the far shorter wait a TUI gives a lone ESC
+ * byte before taking it as Escape rather than the start of a sequence.
+ */
+export const escapeWindowMs = 1200
+
+// Enter's keys, as `press` and `escape` refuse them: a carriage return or line feed, the
+// keypad's Enter or the kitty keyboard protocol's.
+// eslint-disable-next-line no-control-regex -- Enter's escape sequences start with ESC.
+const enterKeys = /[\r\n]|\x1bOM|\x1b\[13[;u]/
+
+const refuseEnter = (keys: string): void => {
+  if (enterKeys.test(keys))
+    throw new Error("Enter only follows text or a dialog seen: use submit or confirm")
+}
+
+/**
+ * A terminal's `escape`: writes each press's keys (`\x1b` unless given) only once the
+ * press before has waited out `windowMs`, and resolves once its own has, so presses never
+ * come closer than that, awaited or not. Refuses Enter, as `press` does.
+ */
+export const escaper = (write: (keys: string) => void, windowMs = escapeWindowMs) => {
+  let last: Promise<void> = Promise.resolve()
+  return (keys = "\x1b"): Promise<void> => {
+    refuseEnter(keys)
+    const pressed = last.then(async () => {
+      write(keys)
+      await new Promise((resolve) => setTimeout(resolve, windowMs))
+    })
+    last = pressed.catch(() => {})
+    return pressed
+  }
+}
+
+/**
+ * Why `enterEmpty` mustn't press Enter now, or undefined when it may: `prompted` is where
+ * the history stood as the terminal's last prompt was submitted, undefined once anything
+ * else was sent to it since (or before any prompt). It may only while that prompt's turn
+ * has been working ever since it started, and still is.
+ */
+export const emptyEnterRefusal = (
+  prompted: number | undefined,
+  snapshots: readonly Pick<Snapshot, "delivery">[],
+): string | undefined => {
+  if (prompted === undefined)
+    return "A bare Enter goes only on a box known empty: submit a prompt, then send nothing else"
+  const since = snapshots.slice(prompted)
+  const started = since.findIndex((one) => one.delivery === "working")
+  if (started < 0 || since.slice(started).some((one) => one.delivery !== "working"))
+    return "A bare Enter goes only while the turn of the prompt submitted is working"
+  return undefined
+}
+
 /** How many times the text, or a match of the pattern, appears on the screen. */
 export const occurrences = (shown: string, text: string | RegExp): number =>
   typeof text === "string"
@@ -169,6 +254,59 @@ export type Screen = {
   readonly handle: string
   readonly screen: () => Promise<string>
   readonly enter: () => void
+  /** What its agent is doing, as a failure states it. */
+  readonly state?: () => string
+}
+
+/**
+ * A screen as a failure quotes it: its non-blank rows, the last `rows` of them at most,
+ * saying how many came before those.
+ */
+export const excerpt = (shown: string, rows = 30): string => {
+  const lines = shown.split("\n").filter((line) => line.trim() !== "")
+  if (lines.length === 0) return "(blank)"
+  const above = lines.length - rows
+  return [...(above > 0 ? [`(${above} more rows above)`] : []), ...lines.slice(-rows)].join("\n")
+}
+
+/**
+ * An agent's activity as a failed wait states it: its state and the requests waiting on
+ * the person, `working, 1 request waiting (permission)`.
+ */
+export const stated = (activity: AgentActivity | null): string => {
+  if (activity === null) return "no agent"
+  const { pending, kind } = activity.attention
+  const waiting =
+    pending === 0
+      ? "no request waiting"
+      : `${pending} request${pending === 1 ? "" : "s"} waiting${kind === null ? "" : ` (${kind})`}`
+  return `${activity.state}, ${waiting}`
+}
+
+// What a failure says of something it couldn't read.
+const unread = (cause: unknown): string =>
+  `(can't be read: ${cause instanceof Error ? cause.message : String(cause)})`
+
+/**
+ * A failed wait's error, its message followed by what the terminal's agent is doing
+ * (`state`, when given) and its screen as it is now, so a timeout shows what the terminal
+ * was doing instead; a screen that can't be read says why.
+ */
+export const withScreen = async (
+  error: unknown,
+  screen: () => Promise<string>,
+  state?: () => string,
+): Promise<Error> => {
+  const message = error instanceof Error ? error.message : String(error)
+  let doing = ""
+  if (state)
+    try {
+      doing = `. Its agent: ${state()}`
+    } catch (cause) {
+      doing = `. Its agent: ${unread(cause)}`
+    }
+  const shown = await screen().then(excerpt, unread)
+  return new Error(`${message}${doing}. Its screen:\n${shown}`, { cause: error })
 }
 
 /**
@@ -177,7 +315,7 @@ export type Screen = {
  * bring, never what was there before it. Fails after the timeout, with the screen.
  */
 export const enterAfter = async (
-  { handle, screen, enter }: Screen,
+  { handle, screen, enter, state }: Screen,
   shows: string | RegExp,
   trigger: () => Promise<unknown>,
   timeoutMs = 30_000,
@@ -189,7 +327,7 @@ export const enterAfter = async (
     `${handle} to show ${String(shows)} once more`,
     timeoutMs,
   ).catch(async (error: unknown) => {
-    throw new Error(`${(error as Error).message}. Its screen:\n${await screen()}`)
+    throw await withScreen(error, screen, state)
   })
   enter()
 }
@@ -348,6 +486,14 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     const { terminals } = on
     const id = summary.id
     const history = createHistory(summary.handle)
+    // Its screen, read one look at a time: a terminal takes one reader at once, and a
+    // failed wait may look while another wait still polls.
+    let looking: Promise<unknown> = Promise.resolve()
+    const look = (): Promise<string> => {
+      const shown = looking.then(() => screen(on, id))
+      looking = shown.catch(() => {})
+      return shown
+    }
     void (async () => {
       try {
         for await (const listing of terminals.watchMessages(id, on.closing.signal))
@@ -357,24 +503,36 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         history.end(`its messages can't be watched: ${(error as Error).message}`)
       }
     })()
+    const state = () => stated(terminals.get(id).activity)
+    // A failed wait's error, with what its agent is doing and its screen.
+    const explain = (error: unknown) => withScreen(error, look, state)
     // The watch's first listing is the terminal's state as it opened.
     await history.reached(() => true, { timeoutMs: 5000 })
     // Waits until the screen passes `shows`, and returns it.
     const showing = (shows: (shown: string) => boolean, what: string, timeoutMs = 30_000) =>
       poll(
         async () => {
-          const shown = await screen(on, id)
+          const shown = await look()
           return shows(shown) ? shown : undefined
         },
         `${summary.handle} to show ${what}`,
         timeoutMs,
       ).catch(async (error: unknown) => {
-        throw new Error(`${(error as Error).message}. Its screen:\n${await screen(on, id)}`)
+        throw await explain(error)
       })
+    const write = (data: string) => terminals.write({ terminalId: id, data }, owner)
+    // Where its history stood as its last prompt was submitted, while nothing else has
+    // been sent to it since: what `enterEmpty` needs to know the box is empty.
+    let prompted: number | undefined
+    const send = (data: string) => {
+      prompted = undefined
+      write(data)
+    }
     const view: Screen = {
       handle: summary.handle,
-      screen: () => screen(on, id),
-      enter: () => terminals.write({ terminalId: id, data: "\r" }, owner),
+      screen: look,
+      enter: () => send("\r"),
+      state,
     }
     const until = (text: string | RegExp, timeoutMs = 30_000) =>
       showing(
@@ -385,29 +543,45 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     return {
       id,
       handle: summary.handle,
-      screen: () => screen(on, id),
+      screen: look,
       until,
       // The text may be on screen already, as an earlier prompt: only one more of it
       // shows that this one landed.
       submit: async (text) => {
         if (/[\r\n]/.test(text)) throw new Error("A prompt is one line")
-        await enterAfter(view, text, async () =>
-          terminals.write({ terminalId: id, data: text }, owner),
-        )
+        const entered = {
+          ...view,
+          enter: () => {
+            write("\r")
+            prompted = history.mark()
+          },
+        }
+        await enterAfter(entered, text, async () => send(text))
       },
       confirm: (shows, trigger, { timeoutMs } = {}) => enterAfter(view, shows, trigger, timeoutMs),
       press: (keys) => {
-        // eslint-disable-next-line no-control-regex -- Enter's escape sequences start with ESC.
-        if (/[\r\n]|\x1bOM|\x1b\[13[;u]/.test(keys))
-          throw new Error("Enter only follows text or a dialog seen: use submit or confirm")
-        terminals.write({ terminalId: id, data: keys }, owner)
+        refuseEnter(keys)
+        send(keys)
       },
+      escape: escaper(send),
+      enterEmpty: () => {
+        const refusal = emptyEnterRefusal(prompted, history.snapshots())
+        if (refusal) throw new Error(refusal)
+        write("\r")
+      },
+      poll: (read, what, timeoutMs) =>
+        poll(read, `${summary.handle}: ${what}`, timeoutMs).catch(async (error: unknown) => {
+          throw await explain(error)
+        }),
       summary: () => terminals.get(id),
       messages: () => terminals.messages(id),
       detail: () => now((signal) => terminals.detail(id, signal)),
       history: history.snapshots,
       mark: history.mark,
-      reached: history.reached,
+      reached: (what, reach) =>
+        history.reached(what, reach).catch(async (error: unknown) => {
+          throw await explain(error)
+        }),
     }
   }
 

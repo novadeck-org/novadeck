@@ -6,6 +6,7 @@ import { join } from "node:path"
 import { afterAll, beforeAll } from "vitest"
 
 import { plugin } from "../harnesses/harness.js"
+import { unboundNote } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
 import { installShellFiles } from "./install.js"
 import { mcpScript } from "./mcp.js"
@@ -449,6 +450,12 @@ describe("NovaDeck's MCP server", () => {
       const refused = await said({ ok: false, reason: '"codex" is no terminal\'s handle here.' })
       expect(refused).toEqual({
         content: [{ type: "text", text: '"codex" is no terminal\'s handle here.' }],
+        isError: true,
+      })
+      // Refused, from a terminal whose own session never bound: told both.
+      const unbound = await said({ ok: false, reason: "t2 has no agent.", unbound: true })
+      expect(unbound).toEqual({
+        content: [{ type: "text", text: `t2 has no agent.\n${unboundNote}` }],
         isError: true,
       })
     })

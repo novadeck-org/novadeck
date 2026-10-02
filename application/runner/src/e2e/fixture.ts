@@ -2,10 +2,10 @@ import { rmSync } from "node:fs"
 import { join } from "node:path"
 
 import { agentName } from "@novadeck/protocol"
-import { beforeAll } from "vitest"
+import { beforeAll, type TestFunction } from "vitest"
 
 import { it as base } from "../test.js"
-import type { AgentSetup } from "./agents/agent.js"
+import type { AgentSetup, Seed } from "./agents/agent.js"
 import { setups as every } from "./agents/index.js"
 import { createDeck, type Deck } from "./deck.js"
 import { installHarness } from "./install.js"
@@ -53,18 +53,8 @@ export type E2E = {
   readonly deck: Deck
 }
 
-/**
- * A test of real harnesses in NovaDeck's terminals, against the fake model: each setup's
- * pinned harness installed, seeded in a fresh sandbox and connected to NovaDeck. The
- * harnesses are installed once, before the file's tests, so a download counts against
- * the hook timeout rather than a test's. Once the test ends and its deck has closed, with
- * the fake model still listening for whatever a harness sends on its way out, the test
- * fails should any request have carried a real credential, tried a harness's real host or
- * tripped a dialect, should the developer's own harness homes have changed, or should any
- * process have outlived the deck in the sandbox. Unless the run tests every one of the
- * setups' harnesses (`selected`), the tests are skipped and nothing is installed.
- */
-export const e2e = (...setups: AgentSetup[]) => {
+/** The test `e2e` gives, its setups seeded as `seed` says. */
+const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
   const runs = setups.every(selected)
   beforeAll(async () => {
     if (supported && runs) await Promise.all(setups.map((setup) => installHarness(setup.agent)))
@@ -99,7 +89,7 @@ export const e2e = (...setups: AgentSetup[]) => {
         env = {
           ...env,
           // eslint-disable-next-line no-await-in-loop -- Each setup sees what the ones before added.
-          ...(await setup.prepare({ ...sandbox, env }, model, installs[index]!)),
+          ...(await setup.prepare({ ...sandbox, env }, model, installs[index]!, seed)),
         }
       const deck = await createDeck({
         data: join(sandbox.root, "data"),
@@ -120,7 +110,7 @@ export const e2e = (...setups: AgentSetup[]) => {
         await deck.connect(setup.agent)
       for (const setup of setups)
         // eslint-disable-next-line no-await-in-loop -- As above.
-        await setup.connected?.({ ...sandbox, env }, model)
+        await setup.connected?.({ ...sandbox, env }, model, seed)
 
       await use({ model, sandbox: { ...sandbox, env }, deck })
 
@@ -146,3 +136,34 @@ export const e2e = (...setups: AgentSetup[]) => {
   })
   return test.skipIf(!runs)
 }
+
+/**
+ * A test of real harnesses in NovaDeck's terminals, against the fake model: each setup's
+ * pinned harness installed, seeded in a fresh sandbox and connected to NovaDeck. The
+ * harnesses are installed once, before the file's tests, so a download counts against
+ * the hook timeout rather than a test's. Once the test ends and its deck has closed, with
+ * the fake model still listening for whatever a harness sends on its way out, the test
+ * fails should any request have carried a real credential, tried a harness's real host or
+ * tripped a dialect, should the developer's own harness homes have changed, or should any
+ * process have outlived the deck in the sandbox. Unless the run tests every one of the
+ * setups' harnesses (`selected`), the tests are skipped and nothing is installed.
+ *
+ * Each harness starts as its setup seeds it by default, trusted and straight at its
+ * prompt; `e2e.seeded(seed, ...setups)` seeds it otherwise (see `Seed`).
+ */
+export const e2e = Object.assign((...setups: AgentSetup[]) => fixture({}, setups), {
+  /**
+   * The same, with every setup seeded as `seed` says: `prepare` and `connected` take it,
+   * and a setup whose harness has no such step ignores it.
+   */
+  seeded: (seed: Seed, ...setups: AgentSetup[]) => fixture(seed, setups),
+})
+
+/**
+ * The test `e2e` gave, unless `missing` says what the setup lacks for it (`lacking` in
+ * scenarios.ts): then the test is skipped, its name saying why.
+ */
+export const gated =
+  (test: ReturnType<typeof e2e>, missing: string | undefined) =>
+  (name: string, body: TestFunction<{ e2e: E2E }>) =>
+    missing === undefined ? test(name, body) : test.skip(`${name} (skipped: ${missing})`, body)

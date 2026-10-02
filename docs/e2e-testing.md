@@ -211,12 +211,25 @@ network:
   (`/❯ Option/`), not the option's plain text: the rendered screen drops colours, so a
   selection a TUI shows only by highlighting changes no text, and a wrong `shows` only
   times out.
+- **A bare Enter on an empty box, mid-turn.** `t.enterEmpty()` is the one other
+  deliberate Enter. It presses Enter only while the turn of the prompt the terminal
+  last submitted is working, with nothing sent to the terminal since that prompt's
+  Enter, so the box is known empty; otherwise it throws, sending nothing.
+- **Escape on its own.** `await t.escape()` sends Escape (`\x1b`, or the keys given)
+  and resolves only `escapeWindowMs` (1200 ms) later; escapes
+  go one at a time, each waiting out the one before, even unawaited. A TUI reads two
+  Escapes close together as Esc-Esc, a different command (Claude Code's Rewind picker,
+  Codex's backtrack), and a lone ESC byte followed quickly by another key as one Alt
+  sequence. Claude Code 2.1.287's Esc-Esc window is about 800 ms: two Escapes 300 or
+  700 ms apart opened Rewind, 1000 or 1500 ms apart didn't. Like `press`, it refuses
+  Enter. Send Escape through `escape`, not `press`, whenever anything may follow it.
 
 ## Writing a scenario
 
 Messaging scenarios live in `messaging.e2e.ts`, a runner restart's in `restart.e2e.ts`,
-and an agent starting another with a task in `tasks.e2e.ts`, each written once and run
-for every harness in `setups` (`agents/index.ts`):
+an agent starting another with a task in `tasks.e2e.ts`, and the person's controls over
+a running agent and untrusted seeds in `controls.e2e.ts`, each written once and run for
+every harness in `setups` (`agents/index.ts`):
 
 ```ts
 for (const setup of setups) {
@@ -227,7 +240,7 @@ for (const setup of setups) {
       run.model.use(replies("Say the word", "Pelican-7 says hello."))
       const t1 = await start(run, setup)
 
-      await turn(t1, setup, "Say the word", "Pelican-7 says hello.")
+      await turn(t1, "Say the word", "Pelican-7 says hello.")
 
       const call = await run.model.waitFor(
         (one) => !one.side && latest(one).includes("Say the word"),
@@ -240,9 +253,56 @@ for (const setup of setups) {
 
 - **One rule for parity: a scenario never branches on `setup.agent`.** A difference
   between harnesses is either a trait of its setup (`name`, `banner`, `bindsAtReady`,
-  `refused`) or a known gap in `known-gaps.ts`, which picks the documented detour (see
-  [Known gaps](#known-gaps)). A `<harness>.e2e.ts` holds only what is truly that
-  harness's own, such as Codex's logo on its first screen, or a known gap's pin.
+  `refused`, `approval`, `background`, `trust`) or a known gap in
+  `known-gaps.ts`, which picks the documented detour (see [Known gaps](#known-gaps)). A
+  `<harness>.e2e.ts` holds only what is truly that harness's own, such as Codex's logo
+  on its first screen, or a known gap's pin.
+- **Traits a harness may not have** (`approval`, `background`, `trust.folder`,
+  `trust.hooks`) gate the scenarios that need them: `gated(it, lacking(setup, "approval"))`
+  runs the test, or skips it with its name saying which trait the harness lacks and why.
+  Skip on a trait, never on a harness's name. A missing trait means the harness doesn't
+  have the behaviour at all, as Claude Code has no hooks review, and its setup says so in
+  `absent`, with what a probe of the pinned version found, as Codex's `background` does:
+  `absent: { background: "nothing it starts wakes it once its turn has ended (probed
+2026-10-02, 0.159.3)" }`. `lacking` fails on a missing trait with no reason there. A
+  missing trait never stands in for a gap: a behaviour the harness has that NovaDeck
+  doesn't yet support the same way is a gap, recorded in `known-gaps.ts` and raised as a
+  blocker (see [Known gaps](#known-gaps)).
+
+  ```ts
+  gated(it, lacking(setup, "approval"))("asks before a tool runs", async ({ e2e: run }) => {
+    run.model.use(answers("Make the file", (call) => setup.approval!.request(call)))
+    const t1 = await start(run, setup)
+    await t1.confirm(setup.approval!.shows, () => t1.submit("Make the file"))
+  })
+  ```
+
+  - `approval`: `request(call)` is a reply calling a tool the harness asks about first,
+    as seeded; `shows` matches its question with the allowing option selected, for
+    `confirm`; `deny` is the keys that refuse it, pressed without Enter, other than
+    Escape where the harness has such a key, so NovaDeck learns of the refusal from the
+    harness rather than the keystroke; `denied` is what the screen then shows of it.
+  - `interrupted(prompt)`: what the screen shows once Escape interrupted the turn of
+    `prompt` before its reply came, the harness's own account; required, as the Escape
+    scenario runs for every harness.
+  - `background`: `start(call)` is a reply starting work that outlives the turn (a
+    background subagent or task) whose end wakes the agent again; `owns(call)` tells
+    that work's model calls from the agent's own, so a rule can hold them at a `gate()`.
+  - `trust.folder`: `{ shows, select, trusts }`, its folder-trust question as
+    `folderTrusted: false` shows it: text it shows whatever is selected, the keys that
+    select the trusting option (`""` when the question shows it selected), and that
+    option as shown selected, for `confirm`.
+  - `trust.hooks`: `{ shows, skip }`, its hooks-review screen and the keys that leave it
+    without trusting NovaDeck's hooks, as `hooksTrusted: false` shows it.
+
+- **Seeds.** `e2e(setup)` starts each harness trusted and straight at its prompt.
+  `e2e.seeded(seed, ...setups)` seeds every setup of the test otherwise, through
+  `prepare(sandbox, model, installed, seed)` and `connected(sandbox, model, seed)`:
+  `{ folderTrusted: false }` leaves the project folder untrusted, so the harness asks
+  first, and `{ hooksTrusted: false }` leaves NovaDeck's hooks untrusted where the
+  harness has that step (Codex), so they don't run. A seed holds for every terminal of
+  the test, as both are settings of the project; a harness with no such step ignores it.
+  A seeded test goes in its own `describe`, as `e2e.seeded` gives its own `it`.
 - `e2e(...setups)` gives each test a fake model, a sandbox and a deck, with each
   setup's harness installed (once, before its tests), seeded and connected to NovaDeck
   through its own plugin commands. With several setups, as for a scenario across
@@ -259,13 +319,21 @@ for (const setup of setups) {
   such as a title. `model.mark()` and `waitFor(match, { after })` wait only for calls
   made after a point, so a second call of the same kind isn't mistaken for the first.
 - **Helpers** in `scenarios.ts` make most scenarios a few lines: `start` opens a
-  terminal and waits for Ready; `turn` submits a prompt, waits for its reply on screen
+  terminal and waits for Ready and then `prompted`, its `banner` on screen with no
+  startup question (folder trust, hooks review) left. Ready alone doesn't say the
+  prompt reads keys: a harness can report its session before its prompt draws, while
+  the terminal still echoes what's typed, and `submit` would take the echo for the text
+  landing. A scenario submits only on a terminal from `start`, or after `prompted`
+  where it reaches the prompt another way, such as past a trust question or a resume;
+  `turn` submits a prompt, waits for its reply on screen
   and for the turn to run and end; `replies` and `sends` are rules that answer a prompt
   with text or with a `send`; `own` keeps a rule off side calls; `deliveries(call)`
   parses the `<novadeck-messages>` a hook added, plain or HTML-escaped, into
   `{ from, text }`; `ring` matches the doorbell's line; `opens` is a rule that answers a
   prompt by starting an agent with a task (`open_terminal`), and `opened(call, handle)`
-  tells the agent's next look once it did.
+  tells the agent's next look once it did; `answers(text, reply)` answers a prompt with
+  a reply built from the call, such as a trait's, and `result(call)` is the text of the
+  tool result the call looks at, if it looks at one.
 - **NovaDeck's state** is recorded as it changes, not polled: each deck terminal keeps
   the history of its delivery state and its messages' states from the moment it opens.
   `t.mark()` and `t.reached(state or predicate, { after })` wait for a transition after
@@ -274,8 +342,13 @@ for (const setup of setups) {
   after the one before it, in the same snapshot or a later one, as changes the runner
   makes in one go arrive together. On a timeout they fail with every transition since
   the mark (`t2: ready → ringing → unknown`), and `through` also says which steps were
-  met (`met: ringing; waiting for: working`), so a failure says what happened. A test
-  that throws fails its own wait, with its error, and no other.
+  met (`met: ringing; waiting for: working`), so a failure says what happened. Their
+  failures, and those of `until`, `confirm` and `t.poll(read, what)`, end with what its
+  agent is doing (`working, 1 request waiting (permission)`) and the terminal's screen
+  as it is then, its non-blank rows and at most the last 30 (`withScreen` in `deck.ts`),
+  so a wait that times out also shows what the terminal was doing instead. A scenario
+  waits on something of a terminal through `t.poll`, never the bare `poll`. A test that
+  throws fails its own wait, with its error, and no other.
 - **Holding a turn** pins down how something travels. The round trip holds t2's answer
   at a `gate()` until t1's turn has ended Settled, and asserts t1 is then rung, rather
   than reached by its Stop continuation.
@@ -301,6 +374,31 @@ for (const setup of setups) {
   starting its command, created for the request (`requestId`), and answers with it once
   its shell has started. `next()` on what it returns waits for the next terminal it
   opened, in order, as a deck terminal.
+- **The controls' scenarios** (`controls.e2e.ts`), one smoke test per framework piece,
+  asserting what docs/agent-messaging.md says ("What counts", "States"):
+  - _Approval allowed_: the tool's question shows and NovaDeck sees a request waiting;
+    `confirm` allows it; the model reads the tool's result, the turn goes Working then
+    Settled, never Unknown, and no request waits.
+  - _Approval denied_: pressing `deny` refuses it; the turn ends Unknown, never Settled,
+    and the request resolves; the screen shows `denied`, and no call bearing a tool's
+    result reaches the model in the three seconds after.
+  - _Escape_: with the first model call held at a `gate()`, `escape()` interrupts the
+    turn; it ends Unknown, the screen shows `interrupted(prompt)`, and once the held
+    reply is given, three seconds pass without it showing or the turn going Settled;
+    the next prompt's turn settles. Delivery goes Unknown as NovaDeck sees the key, so
+    only the harness's own account shows that it interrupted.
+  - _Empty Enter_: with the turn's model call held, `enterEmpty()` presses Enter on the
+    empty box; the turn works on and ends Settled, no other turn starts, and a message
+    t2 then sends rings t1.
+  - _Background_: the agent starts background work and its turn ends while it runs (its
+    activity idle); delivery stays Working, never Settled, until the work ends and wakes
+    the agent, then Settles.
+  - _Hooks untrusted_: past its hooks review, unskipped, one `send` from t1 to t2 is
+    refused (no agent there, or the hooks named), its answer says replies can't reach
+    t1, no message is stored, and neither terminal ever binds or shows an agent.
+  - _Folder untrusted_: t1 and t2 both ask; trusted in t1, t1 sends t2 a message, which
+    waits queued while t2's question shows, past the doorbell's settle window, t2 never
+    Ready nor rung; trusted there too, t2 goes Ready, is rung, and its hook delivers.
 - Prefer asserting on what the model received and on NovaDeck's state over reading the
   screen; read the screen for what only it shows, such as a reply rendered, or the
   harness's own first screen (`banner`).
@@ -316,16 +414,31 @@ for (const setup of setups) {
    those, run the harness against the fake model and read `model.strays`, which lists
    both requests no dialect took and those a dialect answered 404.
 3. Write its `AgentSetup` in `src/e2e/agents/`:
-   - `prepare(sandbox, model, installed)` seeds its configuration in the sandbox so it
-     starts at its own prompt with no screen in between, for the version actually
+   - `prepare(sandbox, model, installed, seed)` seeds its configuration in the sandbox so
+     it starts at its own prompt with no screen in between, for the version actually
      installed, and returns the environment that points it at the fake model with the
-     fake credential. `connected`, when given, runs once NovaDeck's plugin is connected
-     and before any harness starts, for setup only the plugin's files make possible.
+     fake credential. `connected(sandbox, model, seed)`, when given, runs once NovaDeck's
+     plugin is connected and before any harness starts, for setup only the plugin's files
+     make possible. Both honour the test's `Seed` (`folderTrusted: false`,
+     `hooksTrusted: false`) for each step the harness has, and ignore the rest.
    - Its traits: `name`; `banner`, text on its first screen; `bindsAtReady`, whether
      its session binds before its first prompt; `hosts`, its real API and login hosts,
      which no request may try; and `refused`, hosts it tries that no setting turns off.
    - `watch`: the paths in the developer's home its tripwire checks, searched for the
      sandbox's root, listed by entry name, or stamped by time and size.
+   - The controls' traits (see [Writing a scenario](#writing-a-scenario)): `approval`, a
+     tool call it asks about as seeded, its question and the keys that refuse it;
+     `background`, work that outlives the turn and wakes the agent, and how to tell its
+     model calls; and `trust`, its folder-trust question and hooks review as a seed
+     shows them. Find each by running the harness in the sandbox, never outside it. A
+     scenario needing a trait it lacks skips, saying why from `absent`, so add them all:
+     every harness runs every scenario. A trait goes in `absent` only once a probe shows
+     the harness lacks the behaviour. Escape is `\x1b` for all three; a harness reading
+     another key would bring back an `escape` trait.
+   - Traits the acceptance scenarios will add, with them: `exit`, how the person leaves
+     the harness; `clear`, its clear command, where it differs; and `shell(command)`, a
+     reply calling a shell tool its seed allows, so it runs without asking, unlike
+     `approval`'s.
 4. Add the setup to `setups` in `src/e2e/agents/index.ts`. That one list drives the
    messaging scenarios and the tripwire, so every scenario runs for it and its home is
    watched. A gap it shows goes in `known-gaps.ts`, with the test that pins it.
@@ -337,8 +450,33 @@ for (const setup of setups) {
   Its `.claude.json` there marks onboarding done, picks a theme, records the installed
   version's onboarding and release notes as seen (the version installed, not the pin, so
   a run against `latest` shows no release notes), turns auto-updates off, approves the fake key (by its last 20
-  characters), and trusts the project. `settings.json` allows NovaDeck's MCP tools
-  (`mcp__plugin_novadeck_novadeck`).
+  characters), and trusts the project unless seeded `folderTrusted: false`.
+  `settings.json` allows NovaDeck's MCP tools (`mcp__plugin_novadeck_novadeck`), and
+  sets the manual permission mode with auto mode off (`defaultMode: "default"`,
+  `disableAutoMode: "disable"`): 2.1.287 defaults to auto mode, where a classifier
+  decides what asks, and shows a notice about its billing through a gateway, or with
+  `defaultMode` alone an offer to make auto mode the default, each waiting on Enter.
+- **Its controls' traits**, probed in the sandbox against 2.1.287:
+  - _Approval_: Bash `touch approved.txt`. A read-only command such as `ls` runs without
+    asking. Its dialog, "Do you want to proceed?", shows `❯ 1. Yes` selected, then
+    "2. Yes, and always allow…" and "3. No", with "Esc to cancel". "3" refuses (`deny`),
+    and so does Esc; either interrupts the turn ("Interrupted · What should Claude do
+    instead?", `denied`), which NovaDeck sees through its transcript, so the turn ends
+    Unknown.
+  - _Background_: its `Agent` tool with `run_in_background: true` and a
+    `general-purpose` subagent whose prompt holds a marker; the subagent's calls are
+    those whose first user turn holds it. The root's Stop lists it among its running
+    `background_tasks`, and its end starts a turn by itself, with a task notification.
+  - _Escape_: `\x1b`. Its Esc-Esc window is about 800 ms (see "Escape on its own" above).
+    Escape before any reply came drops the turn with no word of it and puts the prompt
+    back in its box, between the box's rules (`interrupted`).
+  - _Folder trust_: "Is this a project you created or one you trust?" with `❯ No, exit`
+    selected; Down selects `❯ Yes, I trust this folder`. About 130 ms after it first
+    shows, it draws the question again with `❯ No, exit` selected anew, undoing a Down
+    pressed in between, so the scenario presses Enter only once the trusting option has
+    stayed selected for a second. No `SessionStart` fires behind it. Once trusted, it
+    reports its `SessionStart` a moment before its prompt draws, while the terminal
+    still echoes what's typed, which `prompted` waits past. It has no hooks review.
 - **Environment.** `ANTHROPIC_BASE_URL` points at the fake model and
   `ANTHROPIC_API_KEY` holds the fake credential. Also set: `DISABLE_AUTOUPDATER`,
   `DISABLE_UPDATES`, `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING`,

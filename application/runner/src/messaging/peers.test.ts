@@ -117,6 +117,22 @@ describe("a peer as agents read it", () => {
       withYou: null,
     })
     expect(renderPeer(starting, now)).toEqual(["- t4: expecting Codex, not started yet"])
+    // Its agent at its prompt, whose hooks NovaDeck can't run there until the user trusts them.
+    const untrusted = peerOf({
+      terminalId: "F",
+      handle: "t6",
+      agent: null,
+      expecting: "codex",
+      untrusted: "codex",
+      busy: false,
+      where: undefined,
+      withYou: null,
+    })
+    expect(untrusted).toMatchObject({ expecting: null, untrusted: "codex" })
+    expect(renderPeer(untrusted, now)).toEqual([
+      "- t6: no agent NovaDeck can deliver to: Codex runs there, but NovaDeck's hooks " +
+        "aren't trusted for it yet (the user can trust them with /hooks)",
+    ])
     // Opened by another terminal's agent with a task, before its session said anything.
     const tasked = peerOf({
       terminalId: "E",

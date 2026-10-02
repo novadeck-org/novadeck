@@ -16,7 +16,8 @@ import { absolute, sessionId, text } from "../harness.js"
  * reads the same idle after them as after a completed turn: so idle there only ends a
  * turn no Stop ended, and never as completed. It never starts a turn: only PreInvocation
  * starts one. Saying working, it resumes only a turn an older idle of its own ended, never
- * one a Stop ended.
+ * one a Stop ended; showing a confirmation, it asks one only of a turn running, as only a
+ * turn asks for one.
  * Every hook names the conversation's transcript. A plan is an artifact it writes asking
  * for the person's review, which its PostToolUse names.
  */
@@ -154,9 +155,11 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
   // Stop did not, as abnormally. Working never starts a turn, as its hook may run 10 to
   // 60 ms after the turn's Stop and still say working (probed 2026-10-02, 1.2.14): only
   // PreInvocation starts one. It resumes only a turn an older idle snapshot ended, as an
-  // idle one may be stale too, never one a Stop ended. Working without a confirmation
-  // settles one the turn waited on. A snapshot's hook may start after the next turn's, so
-  // none of these holds for long against a wrong one.
+  // idle one may be stale too, never one a Stop ended. A confirmation it shows counts only
+  // while a turn runs (`midTurn`), as Antigravity asks one only mid-turn, before its Stop:
+  // one drawn just after the Stop asks nothing. Working without a confirmation settles one
+  // the turn waited on. A snapshot's hook may start after the next turn's, so none of
+  // these holds for long against a wrong one.
   const working = payload.agent_state === "working" || payload.agent_state === "tool_use"
   if (working) events.push({ type: "turn-working", ...base })
   if (payload.agent_state === "idle")
@@ -169,6 +172,7 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
       kind: "permission",
       subject: null,
       choices: [],
+      midTurn: true,
     })
   else if (working)
     events.push({
