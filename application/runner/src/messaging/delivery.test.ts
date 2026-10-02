@@ -37,8 +37,10 @@ const stop = { type: "stop", continued: false, background: false, at } as const
 const continued = { type: "stop", continued: true, background: false, at } as const
 const background = { type: "stop", continued: false, background: true, at } as const
 const ended = { type: "ended" } as const
-const idle = { type: "idle", background: false, at } as const
-const idleWithWork = { type: "idle", background: true, at } as const
+// Antigravity's status line, its hook started at `at`: idle, or working a little later.
+const idle = { type: "idle", background: false, at, startedAt: at } as const
+const idleWithWork = { type: "idle", background: true, at, startedAt: at } as const
+const shownWorking = { type: "working", startedAt: at + 10 } as const
 const typing = key("content")
 const enter = key("enter")
 
@@ -189,8 +191,8 @@ describe("a terminal's delivery state", () => {
     expect(transition(idled, stop).state).toBe("settled")
   })
 
-  it("keeps a continued Stop's count when the status line says working before its continuation", () => {
-    // As Antigravity's status line, which reports working as the continuation begins.
+  it("keeps a continued Stop's count when a later model call comes before its continuation", () => {
+    // As Antigravity's PreInvocation past a turn's first, arriving late.
     let delivery = working
     for (let index = 0; index < 5; index += 1) {
       delivery = run(delivery, continuous(delivery), call, harness, call)
@@ -199,6 +201,32 @@ describe("a terminal's delivery state", () => {
     expect(continues(delivery)).toBe(false)
     expect(run(working, continued, call)).toMatchObject({ phase: "continuing", continued: 1 })
     expect(run(working, continued, call, harness)).toMatchObject({ phase: "turn", continued: 1 })
+  })
+
+  it("resumes a turn an idle status line ended when a newer one says working", () => {
+    const resumed = run(working, continued, harness, idle, shownWorking)
+    // The idle was stale: the same turn goes on, with its count.
+    expect(resumed).toMatchObject({ state: "working", phase: "turn", continued: 1 })
+    expect(resumed.epoch).toBe(working.epoch)
+    expect(transition(resumed, stop).state).toBe("settled")
+    // One whose hook started before the idle's says nothing new.
+    const idled = transition(working, idle)
+    expect(transition(idled, { ...shownWorking, startedAt: at })).toEqual(idled)
+    expect(transition(idled, { ...shownWorking, startedAt: at - 10 })).toEqual(idled)
+  })
+
+  it("never resumes a turn a Stop ended when the status line says working", () => {
+    // As Antigravity's status line, still saying working just after its Stop.
+    expect(transition(settled, shownWorking)).toEqual(settled)
+    expect(transition(working, shownWorking)).toEqual(working)
+    const waiting = transition(working, background)
+    expect(transition(waiting, shownWorking)).toEqual(waiting)
+    // A failed Stop leaves it Unknown, which working does not resume either.
+    expect(transition(unknown, shownWorking)).toEqual(unknown)
+    const ready = transition(unbound, announced)
+    const ringing = transition(ready, { type: "ring", nonce: "k3f9", opening: false })
+    expect(transition(ready, shownWorking)).toEqual(ready)
+    expect(transition(ringing, shownWorking)).toEqual(ringing)
   })
 
   it("takes an idle status line after the turn's Stop as nothing new", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../test.js"
-import { enterAfter, occurrences } from "./deck.js"
+import { arrivals, enterAfter, occurrences } from "./deck.js"
 
 describe("occurrences", () => {
   it("counts a text each time the screen shows it", () => {
@@ -44,5 +44,37 @@ describe("enterAfter", () => {
       /once more/,
     )
     expect(state.entered).toBe(0)
+  })
+})
+
+describe("arrivals", () => {
+  it("gives each value once, in the order they came, whether taken before or after", async () => {
+    const opened = arrivals<string>("a terminal")
+    opened.push("t2")
+    const later = opened.next()
+    const latest = opened.next()
+    opened.push("t3")
+    opened.push("t4")
+
+    await expect(later).resolves.toBe("t2")
+    await expect(latest).resolves.toBe("t3")
+    await expect(opened.next()).resolves.toBe("t4")
+  })
+
+  it("fails the taker of a failure, and the next taker still gets the value after it", async () => {
+    const opened = arrivals<string>("a terminal")
+    opened.fail(new Error("It couldn't open"))
+    opened.push("t3")
+
+    await expect(opened.next()).rejects.toThrow("It couldn't open")
+    await expect(opened.next()).resolves.toBe("t3")
+  })
+
+  it("times out saying what it waited for, and leaves the value that comes later for the next", async () => {
+    const opened = arrivals<string>("a terminal")
+
+    await expect(opened.next(50)).rejects.toThrow("waiting for a terminal")
+    opened.push("t2")
+    await expect(opened.next(50)).resolves.toBe("t2")
   })
 })

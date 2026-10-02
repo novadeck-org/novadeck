@@ -19,6 +19,8 @@
     "test": "pnpm run test:repository && turbo run test --concurrency=1",
     "test:repository": "vitest run --config vitest.config.ts",
     "test:e2e": "pnpm --filter @novadeck/protocol build && pnpm --filter @novadeck/runner test:e2e",
+    "test:e2e:install": "pnpm --filter @novadeck/protocol build && node scripts/e2e/install/main.ts",
+    "test:e2e:isolated": "pnpm test:e2e:install && node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e",
     "typecheck": "tsc --noEmit -p tsconfig.json && turbo run typecheck",
     "lint": "oxlint --deny-warnings .",
     "format": "oxfmt",

@@ -50,8 +50,8 @@ export type TypedPrompts = {
   readonly seen: number | undefined
   /** When the person's bare Enter came, if a root turn now would be their submission. */
   readonly enteredAt: number | undefined
-  /** Whether a ring waits on the prompt: the transcript is looked at a few times. */
-  readonly waiting: boolean
+  /** The nonce of the ring that waits on the prompt, if one does: the transcript is looked at a few times. */
+  readonly ringing: string | undefined
   /** The nonce of the doorbell line the agent was started with, as a task, if it was. */
   readonly startedWith?: string | undefined
 }
@@ -60,16 +60,23 @@ export type TypedPrompts = {
  * Whether a typed entry is new: its step after the one last seen in that transcript; or,
  * before any was read, its time after the person's Enter (rounded down where the
  * transcript is coarser, so one in the Enter's own second fails safe); or, before any read
- * and with no Enter, the very doorbell line the agent was started with, as a task, never
- * a stale one a resumed session's transcript still ends with.
+ * and with no Enter, the very doorbell line the agent was started with, as a task, or the
+ * one the ring waiting on it typed, as in a terminal the runner restored; never a stale one
+ * a resumed session's transcript still ends with, as each line's nonce is fresh.
  */
 const fresh = (
   entry: UserEntry,
-  { seen, enteredAt, startedWith }: Pick<TypedPrompts, "seen" | "enteredAt" | "startedWith">,
+  {
+    seen,
+    enteredAt,
+    startedWith,
+    ringing,
+  }: Pick<TypedPrompts, "seen" | "enteredAt" | "startedWith" | "ringing">,
 ) => {
   if (seen !== undefined) return entry.id !== null && entry.id > seen
   if (enteredAt !== undefined) return entry.at !== null && entry.at > enteredAt
-  return startedWith !== undefined && doorbellNonce(entry.text) === startedWith
+  const nonce = doorbellNonce(entry.text)
+  return nonce !== undefined && (nonce === startedWith || nonce === ringing)
 }
 
 /**
@@ -82,7 +89,7 @@ const fresh = (
  */
 export const typedPromptStart = async (
   events: readonly HarnessEvent[],
-  { root, typedEntry, transcript, seen, enteredAt, waiting, startedWith }: TypedPrompts,
+  { root, typedEntry, transcript, seen, enteredAt, ringing, startedWith }: TypedPrompts,
   read: typeof lastUserInput = lastUserInput,
 ): Promise<{ readonly events: readonly HarnessEvent[]; readonly seen: number | undefined }> => {
   const index = events.findIndex(
@@ -91,12 +98,12 @@ export const typedPromptStart = async (
   if (index < 0) return { events, seen }
   // Its transcript may record the input just after the hook runs: a few looks, briefly,
   // while a ring or the person's Enter waits on it; one otherwise, to know what is new.
-  const looks = waiting || enteredAt !== undefined ? 2 : 0
+  const looks = ringing !== undefined || enteredAt !== undefined ? 2 : 0
   for (let look = 0; ; look += 1) {
     // eslint-disable-next-line no-await-in-loop -- Each look waits for the last.
     const entry = await read(transcript, typedEntry)
     const known = entry === null ? (seen ?? -1) : (entry?.id ?? seen)
-    const typed = entry ? fresh(entry, { seen, enteredAt, startedWith }) : false
+    const typed = entry ? fresh(entry, { seen, enteredAt, startedWith, ringing }) : false
     if (typed || look === looks) {
       if (!typed || !entry) return { events, seen: known }
       const started = events[index]!

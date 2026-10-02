@@ -17,6 +17,10 @@ model_provider = "novadeck-e2e"
 # Its ChatGPT backend, which it asks for featured plugins on the way to its prompt.
 chatgpt_base_url = ${JSON.stringify(`${url}/backend-api/`)}
 check_for_update_on_startup = false
+# Its login and MCP servers' credentials in files of its home, never the keyring, whatever
+# a later Codex makes the default (MCP's is "auto" in 0.159.3, keyring first).
+cli_auth_credentials_store = "file"
+mcp_oauth_credentials_store = "file"
 
 # Its usage analytics and the metrics it sends to Statsig.
 [analytics]

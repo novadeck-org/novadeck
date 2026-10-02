@@ -493,6 +493,11 @@ export class Messaging {
     return delivery && ringableSince(delivery)
   }
 
+  /** Whether the terminal is Ready: a new session at its own prompt, with no turn yet. */
+  ready(terminalId: string): boolean {
+    return this.live.get(terminalId)?.delivery.state === "ready"
+  }
+
   /**
    * When the person's bare Enter came, if a root turn starting now would be their
    * submission: within the window, with nothing typed since.
@@ -1094,7 +1099,15 @@ export class Messaging {
         else this.step(live, { type: "ended" })
         return
       case "turn-idle":
-        this.step(live, { type: "idle", background: event.background, at: this.now() })
+        this.step(live, {
+          type: "idle",
+          background: event.background,
+          at: this.now(),
+          startedAt: event.startedAt,
+        })
+        return
+      case "turn-working":
+        this.step(live, { type: "working", startedAt: event.startedAt })
         return
       default:
         return

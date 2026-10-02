@@ -14,7 +14,9 @@ import { absolute, sessionId, text } from "../harness.js"
  * fires Stop: its confirmations fire no hook, and an Esc or a denial fires nothing. Its
  * status line, which NovaDeck's settings hand to the hook as StatusLine, tells both, but
  * reads the same idle after them as after a completed turn: so idle there only ends a
- * turn no Stop ended, and never as completed.
+ * turn no Stop ended, and never as completed. It never starts a turn: only PreInvocation
+ * starts one. Saying working, it resumes only a turn an older idle of its own ended, never
+ * one a Stop ended.
  * Every hook names the conversation's transcript. A plan is an artifact it writes asking
  * for the person's review, which its PostToolUse names.
  */
@@ -149,9 +151,14 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
     { type: "mode-observed", ...base, planning: payload.cycle_mode === "plan" },
   ]
   // Idle reads the same after a completed turn, an Esc and a denial: it ends a turn its
-  // Stop did not, as abnormally. Working without a confirmation starts it again, settling
-  // any it waited on, as a call of the turn: a snapshot's hook may start after the next
-  // turn's, so neither holds for long against a wrong one.
+  // Stop did not, as abnormally. Working never starts a turn, as its hook may run 10 to
+  // 60 ms after the turn's Stop and still say working (probed 2026-10-02, 1.2.14): only
+  // PreInvocation starts one. It resumes only a turn an older idle snapshot ended, as an
+  // idle one may be stale too, never one a Stop ended. Working without a confirmation
+  // settles one the turn waited on. A snapshot's hook may start after the next turn's, so
+  // none of these holds for long against a wrong one.
+  const working = payload.agent_state === "working" || payload.agent_state === "tool_use"
+  if (working) events.push({ type: "turn-working", ...base })
   if (payload.agent_state === "idle")
     events.push({ type: "turn-idle", ...base, background: subagentsRunning(payload.subagents) })
   else if (payload.tool_confirmation_pending === true)
@@ -163,8 +170,14 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
       subject: null,
       choices: [],
     })
-  else if (payload.agent_state === "working" || payload.agent_state === "tool_use")
-    events.push({ type: "turn-started", ...base, cause: "call" })
+  else if (working)
+    events.push({
+      type: "attention-resolved",
+      ...base,
+      ...confirmation,
+      loose: false,
+      outcome: "allowed",
+    })
   const window = (payload.context_window ?? {}) as Record<string, unknown>
   const capacity = count(window.context_window_size)
   const percent = count(window.used_percentage)

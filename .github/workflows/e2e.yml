@@ -36,15 +36,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - harness: claude
+          - agents: claude
             name: Claude Code
-          - harness: codex
+          - agents: codex
             name: Codex
-          - harness: agy
+          - agents: agy
             name: Antigravity
+          # Every harness at once, for the scenarios across harnesses alone (`*.mixed.e2e.ts`),
+          # which the jobs above skip; theirs it leaves to them.
+          - agents: claude,codex,agy
+            name: Mixed
+            files: mixed.e2e.ts
     env:
       NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
-      NOVADECK_E2E_AGENTS: ${{ matrix.harness }}
+      NOVADECK_E2E_AGENTS: ${{ matrix.agents }}
       NOVADECK_E2E_HARNESS: ${{ (github.event_name == 'schedule' || inputs.harness == 'latest') && 'latest' || 'pinned' }}
     steps:
       - name: Check Out Repository
@@ -57,61 +62,113 @@ jobs:
           cache: true
           require-lockfile: true
 
-      # The job's harness's own pin, hashed alone, so moving another harness's pin keeps
-      # this one's cache.
-      - name: Hash Pin
-        id: pin
+      # Each harness's own pin, hashed alone, so moving one harness's pin keeps the others'
+      # caches.
+      - name: Hash Pins
+        id: pins
         if: env.NOVADECK_E2E_HARNESS == 'pinned'
-        env:
-          HARNESS: ${{ matrix.harness }}
         run: |
           # Hashed inside node, so a failure fails the step rather than hashing nothing.
-          hash=$(node -e 'const { createHash } = require("node:crypto"); const pins = require("./application/runner/src/e2e/harnesses.json"); process.stdout.write(createHash("sha256").update(JSON.stringify(pins[process.env.HARNESS] ?? null)).digest("hex"))')
-          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          node -e 'const { createHash } = require("node:crypto"); const pins = require("./application/runner/src/e2e/harnesses.json"); for (const harness of ["claude", "codex", "agy"]) console.log(harness + "=" + createHash("sha256").update(JSON.stringify(pins[harness] ?? null)).digest("hex"))' >> "$GITHUB_OUTPUT"
 
-      # Pinned harnesses are cached by their pin and the installer; a run against latest
-      # installs fresh. npm's own cache (home) and unfinished staging stay out.
-      - name: Restore Harnesses
-        id: harnesses
-        if: env.NOVADECK_E2E_HARNESS == 'pinned'
+      # Pinned harnesses are cached each on its own, by its pin and the installer, so the job
+      # of one harness and the mixed job share them; a run against latest installs fresh.
+      # Only the harness's own folders go in, never npm's cache (home) or unfinished staging.
+      - name: Restore Claude Code
+        id: claude
+        if: env.NOVADECK_E2E_HARNESS == 'pinned' && contains(format(',{0},', matrix.agents), ',claude,')
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            ${{ env.NOVADECK_E2E_CACHE }}/*
-            !${{ env.NOVADECK_E2E_CACHE }}/home
+            ${{ env.NOVADECK_E2E_CACHE }}/claude-*
             !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
-          key: e2e-harnesses-${{ runner.os }}-${{ matrix.harness }}-${{ steps.pin.outputs.hash }}-${{ hashFiles('application/runner/src/e2e/install.ts') }}
+          key: e2e-harnesses-${{ runner.os }}-claude-${{ steps.pins.outputs.claude }}-${{ hashFiles('application/runner/src/e2e/install.ts') }}
+
+      - name: Restore Codex
+        id: codex
+        if: env.NOVADECK_E2E_HARNESS == 'pinned' && contains(format(',{0},', matrix.agents), ',codex,')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.NOVADECK_E2E_CACHE }}/codex-*
+            !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
+          key: e2e-harnesses-${{ runner.os }}-codex-${{ steps.pins.outputs.codex }}-${{ hashFiles('application/runner/src/e2e/install.ts') }}
+
+      - name: Restore Antigravity
+        id: agy
+        if: env.NOVADECK_E2E_HARNESS == 'pinned' && contains(format(',{0},', matrix.agents), ',agy,')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.NOVADECK_E2E_CACHE }}/agy-*
+            !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
+          key: e2e-harnesses-${{ runner.os }}-agy-${{ steps.pins.outputs.agy }}-${{ hashFiles('application/runner/src/e2e/install.ts') }}
 
       - name: Build Protocol
         run: pnpm --filter @novadeck/protocol build
 
-      # The whole suite, with the tests of every other harness skipped.
-      - name: Run E2E
-        run: pnpm --filter @novadeck/runner test:e2e
+      # Installed here, with the network; the tests then run without any.
+      - name: Install Harnesses
+        run: node scripts/e2e/install/main.ts
 
-      # Whether the harness's install finished: a folder for it, not a staging one, that
-      # holds its program. A cancelled or failed install leaves none, and saves nothing.
+      # The whole suite, with the tests of every harness left out skipped (the mixed job
+      # runs its own files alone), in a network namespace whose only interface is
+      # loopback: no route out, proxy or not.
+      - name: Run E2E
+        env:
+          FILES: ${{ matrix.files }}
+        run: node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e ${FILES:+"$FILES"}
+
+      # The namespace wrapper's own tests against a real namespace, which only a runner
+      # that allows one can run; once, in one job.
+      - name: Test Network Namespace
+        if: matrix.agents == 'claude'
+        env:
+          NOVADECK_E2E_NETNS_TESTS: "1"
+        run: npx vitest run --config vitest.config.ts scripts/e2e
+
+      # Which of the job's harnesses finished installing: a folder for it, not a staging
+      # one, that holds its program. A cancelled or failed install leaves none, and saves
+      # nothing.
       - name: Check Harnesses
         id: installed
-        if: ${{ !cancelled() && steps.harnesses.outcome == 'success' && steps.harnesses.outputs.cache-hit != 'true' }}
-        env:
-          HARNESS: ${{ matrix.harness }}
+        if: ${{ !cancelled() && env.NOVADECK_E2E_HARNESS == 'pinned' }}
         run: |
-          bin=$(jq -r --arg harness "$HARNESS" '.[$harness].bin' application/runner/src/e2e/harnesses.json)
-          found=false
-          for folder in "$NOVADECK_E2E_CACHE/$HARNESS"-*; do
-            case "$folder" in *.tmp) continue ;; esac
-            if [ -x "$folder/node_modules/.bin/$bin" ] || [ -x "$folder/bin/$bin" ]; then found=true; fi
+          for harness in ${NOVADECK_E2E_AGENTS//,/ }; do
+            bin=$(jq -r --arg harness "$harness" '.[$harness].bin' application/runner/src/e2e/harnesses.json)
+            found=false
+            for folder in "$NOVADECK_E2E_CACHE/$harness"-*; do
+              case "$folder" in *.tmp) continue ;; esac
+              if [ -x "$folder/node_modules/.bin/$bin" ] || [ -x "$folder/bin/$bin" ]; then found=true; fi
+            done
+            echo "$harness=$found" >> "$GITHUB_OUTPUT"
           done
-          echo "found=$found" >> "$GITHUB_OUTPUT"
 
-      # Saved even when the tests fail, so the next run needn't install again.
-      - name: Save Harnesses
-        if: ${{ !cancelled() && steps.installed.outputs.found == 'true' }}
+      # Each saved, should it have missed, even when the tests fail, so the next run needn't
+      # install it again.
+      - name: Save Claude Code
+        if: ${{ !cancelled() && steps.claude.outcome == 'success' && steps.claude.outputs.cache-hit != 'true' && steps.installed.outputs.claude == 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
-            ${{ env.NOVADECK_E2E_CACHE }}/*
-            !${{ env.NOVADECK_E2E_CACHE }}/home
+            ${{ env.NOVADECK_E2E_CACHE }}/claude-*
             !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
-          key: ${{ steps.harnesses.outputs.cache-primary-key }}
+          key: ${{ steps.claude.outputs.cache-primary-key }}
+
+      - name: Save Codex
+        if: ${{ !cancelled() && steps.codex.outcome == 'success' && steps.codex.outputs.cache-hit != 'true' && steps.installed.outputs.codex == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.NOVADECK_E2E_CACHE }}/codex-*
+            !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
+          key: ${{ steps.codex.outputs.cache-primary-key }}
+
+      - name: Save Antigravity
+        if: ${{ !cancelled() && steps.agy.outcome == 'success' && steps.agy.outputs.cache-hit != 'true' && steps.installed.outputs.agy == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.NOVADECK_E2E_CACHE }}/agy-*
+            !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
+          key: ${{ steps.agy.outputs.cache-primary-key }}

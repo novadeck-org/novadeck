@@ -1042,7 +1042,7 @@ nothing else, confirmed by its hook, never retried; see
       shells, then runs the person's own, which the command itself names, so
       disconnecting puts it back from the settings alone. Its snapshots give
       the agent's state (idle ends a turn after an Esc or a denial, working
-      starts one again), the pending confirmation, the
+      only resolves a confirmation), the pending confirmation, the
       context window's share in use, and each named quota window. Windows keeps
       the person's status line until the command is proven there.
    5. Planning signals. The turn, tool and stop hooks of Claude Code's and

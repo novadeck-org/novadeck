@@ -1,11 +1,10 @@
-import type { MessageState } from "@novadeck/protocol"
+import type { AgentName, MessageState } from "@novadeck/protocol"
 
 import { doorbell } from "../harnesses/harness.js"
 import type { AgentSetup } from "./agents/agent.js"
 import type { DeckTerminal } from "./deck.js"
 import type { E2E } from "./fixture.js"
 import { named, wanted, type Reach, type ReachOptions, type Snapshot } from "./history.js"
-import { turnEnds } from "./known-gaps.js"
 import { asked, latest, tool, type Call, type Rule } from "./model/script.js"
 
 /**
@@ -14,25 +13,12 @@ import { asked, latest, tool, type Call, type Rule } from "./model/script.js"
  * call delivered.
  */
 
-/**
- * The screens a harness shows before its prompt when something isn't seeded: trust,
- * hook review, update, sign-in, theme and key screens.
- */
-export const startupScreens =
-  /trust this folder|Do you trust|Hooks need review|Update available|Sign in with|Log ?in with|Select login method|Authentication required|color scheme|Choose the text style|use this API key/i
-
 /** Opens a terminal running the harness and waits until NovaDeck sees it Ready. */
 export const start = async ({ deck }: E2E, setup: AgentSetup): Promise<DeckTerminal> => {
   const terminal = await deck.open(setup.agent)
   await terminal.reached("ready", { timeoutMs: 60_000 })
   return terminal
 }
-
-/** A turn's end, as NovaDeck may see it for the harness (see known-gaps.ts). */
-export const ended = (setup: AgentSetup): Reach =>
-  named(`its turn's end (${turnEnds(setup).join(" or ")})`, (snapshot) =>
-    turnEnds(setup).includes(snapshot.delivery),
-  )
 
 /** A snapshot holding a message from `from` to `to` in `state`. */
 export const holds = (from: string, to: string, state: MessageState): Reach =>
@@ -74,19 +60,18 @@ export const through = async (
 }
 
 /**
- * Submits a prompt the model answers by showing `shows`, and waits until the turn has
- * worked and ended, as NovaDeck saw it.
+ * Submits a prompt the model answers by showing `shows`, and waits until NovaDeck saw the
+ * turn work and end, Settled.
  */
 export const turn = async (
   terminal: DeckTerminal,
-  setup: AgentSetup,
   prompt: string,
   shows: string,
 ): Promise<void> => {
   const mark = terminal.mark()
   await terminal.submit(prompt)
   await terminal.until(shows)
-  await through(terminal, ["working", ended(setup)], { after: mark })
+  await through(terminal, ["working", "settled"], { after: mark })
 }
 
 /** A rule for the agent's own turns, never a call the harness makes for itself, as a title. */
@@ -109,6 +94,24 @@ export const sends = (text: string, to: string, message: string): Rule =>
     if (!send || !asked(call, text)) return undefined
     return { calls: [{ name: send, input: { to, text: message } }] }
   })
+
+/**
+ * Answers the agent's first look at a user turn holding `text` by opening a terminal that
+ * starts `agent` with `message` as its task (`open_terminal`). The calls after the tool
+ * answered go to the next rules.
+ */
+export const opens = (text: string, agent: AgentName, message: string): Rule =>
+  own((call) => {
+    const open = tool(call, "open_terminal")
+    if (!open || !asked(call, text)) return undefined
+    return { calls: [{ name: open, input: { agent, message } }] }
+  })
+
+/** Whether the call is the agent's next look after its `open_terminal` opened `handle`. */
+export const opened = (call: Call, handle: string): boolean => {
+  const last = call.turns.at(-1)
+  return last?.role === "tool" && last.text.includes(`Opened a new terminal, ${handle},`)
+}
 
 /** Whether the call is the agent's next look after its send to `to` went. */
 export const sent = (call: Call, to: string): boolean => {

@@ -105,6 +105,8 @@ export const e2e = (...setups: AgentSetup[]) => {
         data: join(sandbox.root, "data"),
         project: sandbox.project,
         env,
+        // A restart fails on any process the closed runner left in the sandbox.
+        leftovers: () => reap(sandbox),
       })
       let open = true
       const close = async () => {

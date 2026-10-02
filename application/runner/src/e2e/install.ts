@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { createHash, randomBytes } from "node:crypto"
 import { existsSync, readFileSync } from "node:fs"
-import { mkdir, rename, rm, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { delimiter, dirname, join } from "node:path"
 import { promisify } from "node:util"
@@ -105,13 +105,67 @@ const run = (args: readonly string[], cache: string) =>
   })
 
 /**
- * The version to install: the pinned one, or with `NOVADECK_E2E_HARNESS=latest`, as a
- * nightly job checks for drift, the newest npm has.
+ * How long a newest release looked up stands: long enough for a run that installs with
+ * the network and then tests without it, as under `scripts/e2e/isolated`, to test what it
+ * installed; short enough that the next day's run looks again.
  */
-const npmVersion = async (found: z.infer<typeof npmPin>, cache: string): Promise<string> => {
+export const latestMs = 60 * 60 * 1000
+
+/**
+ * The newest release, as `lookup` finds it, remembered in `file` with when it was looked
+ * up: a later call within `latestMs`, as from another process, reads it there instead of
+ * looking again. A record that is missing, old, unreadable or not one, or whose version
+ * isn't safe in a path, is looked up again and replaced.
+ */
+export const latestRelease = async <T extends { readonly version: string }>(
+  file: string,
+  release: z.ZodType<T>,
+  lookup: () => Promise<T>,
+  now = Date.now(),
+): Promise<T> => {
+  const record = z.strictObject({ at: z.number(), release })
+  try {
+    const read = record.parse(JSON.parse(await readFile(file, "utf8")))
+    if (now - read.at >= 0 && now - read.at < latestMs) {
+      safeVersion(read.release.version, file)
+      return read.release
+    }
+  } catch {
+    // None yet, or none to trust: looked up again.
+  }
+  const found = await lookup()
+  // Written beside it, then moved into place, so no reader finds half a record.
+  await mkdir(dirname(file), { recursive: true })
+  const staging = `${file}.${randomBytes(6).toString("hex")}.tmp`
+  await writeFile(staging, JSON.stringify({ at: now, release: found }))
+  await rename(staging, file)
+  return found
+}
+
+// Where the newest release of a harness looked up is remembered: beside its installs,
+// though not among the folders a cache of them keeps.
+const latestFile = (name: HarnessName): string => join(cacheFolder(), `${name}.latest`)
+
+/**
+ * The version to install: the pinned one, or with `NOVADECK_E2E_HARNESS=latest`, as a
+ * nightly job checks for drift, the newest npm has, looked up once for every run within
+ * the hour (`latestRelease`).
+ */
+const npmVersion = async (
+  name: HarnessName,
+  found: z.infer<typeof npmPin>,
+  cache: string,
+): Promise<string> => {
   if (process.env.NOVADECK_E2E_HARNESS !== "latest") return found.version
-  const { stdout } = await run(["view", found.package, "version"], cache)
-  return safeVersion(stdout.trim(), `npm view ${found.package} version`)
+  const release = await latestRelease(
+    latestFile(name),
+    z.strictObject({ version: z.string() }),
+    async () => {
+      const { stdout } = await run(["view", found.package, "version"], cache)
+      return { version: safeVersion(stdout.trim(), `npm view ${found.package} version`) }
+    },
+  )
+  return release.version
 }
 
 /** A harness installed in the cache: the folder holding its program, and its version. */
@@ -165,7 +219,7 @@ const installPackage = async (
   const cache = cacheFolder()
   await mkdir(join(cache, "home"), { recursive: true })
   const { package: spec, bin } = found
-  const wanted = await npmVersion(found, cache)
+  const wanted = await npmVersion(name, found, cache)
   const folder = join(cache, `${name}-${wanted}`)
   const bins = join(folder, "node_modules", ".bin")
   const installed = { bin: bins, version: wanted }
@@ -200,19 +254,25 @@ const installPackage = async (
 
 type Release = { readonly version: string; readonly url: string; readonly sha512: string }
 
+const release = z.strictObject({ version: z.string(), url: z.url(), sha512: z.string() })
+
 /**
  * The release to install: the pinned one, or with `NOVADECK_E2E_HARNESS=latest`, the
- * newest the harness's manifest names, with that manifest's SHA-512.
+ * newest the harness's manifest names, with that manifest's SHA-512, looked up once for
+ * every run within the hour (`latestRelease`).
  */
-const archiveRelease = async (found: z.infer<typeof archivePin>): Promise<Release> => {
+const archiveRelease = async (
+  name: HarnessName,
+  found: z.infer<typeof archivePin>,
+): Promise<Release> => {
   if (process.env.NOVADECK_E2E_HARNESS !== "latest")
     return { version: found.version, url: found.archive, sha512: found.sha512 }
-  const response = await fetch(found.manifest)
-  if (!response.ok) throw new Error(`${found.manifest} answered ${response.status}`)
-  const release = z
-    .looseObject({ version: z.string(), url: z.url(), sha512: z.string() })
-    .parse(await response.json())
-  return { ...release, version: safeVersion(release.version, found.manifest) }
+  return latestRelease(latestFile(name), release, async () => {
+    const response = await fetch(found.manifest)
+    if (!response.ok) throw new Error(`${found.manifest} answered ${response.status}`)
+    const { version, url, sha512 } = release.loose().parse(await response.json())
+    return { version: safeVersion(version, found.manifest), url, sha512 }
+  })
 }
 
 /**
@@ -226,7 +286,7 @@ const installArchive = async (
 ): Promise<Installed> => {
   if (process.platform !== "linux" || process.arch !== "x64")
     throw new Error(`${name}'s end-to-end tests run on Linux x86-64 only`)
-  const wanted = await archiveRelease(found)
+  const wanted = await archiveRelease(name, found)
   const folder = join(cacheFolder(), `${name}-${wanted.version}`)
   const bins = join(folder, "bin")
   const installed = { bin: bins, version: wanted.version }

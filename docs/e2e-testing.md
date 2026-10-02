@@ -40,13 +40,17 @@ against the hook timeout (ten minutes) rather than a test's. A harness left out 
 | `NOVADECK_E2E_AGENTS`         | The harnesses to run, comma-separated (`claude`, `codex`, `agy`); all when unset. `selected(setup)` in `fixture.ts` reads it |
 
 In CI (`.github/workflows/e2e.yml`) each harness runs in a job of its own, which runs
-the whole suite with `NOVADECK_E2E_AGENTS` set to that harness. Its pinned installs are
-restored from a cache keyed by that harness's own entry in `harnesses.json` and by
-`install.ts`, so moving one pin leaves the others' caches alone: the
-entries of `<cache>` without npm's own cache (`<cache>/home`) or unfinished staging
-(`*.tmp`). Unless the run was cancelled, they are saved even when the tests fail, so the
-next run needn't install again, but only once a `<cache>/<harness>-*` folder holding the
-harness's program exists: a failed or cancelled install saves nothing under the key.
+the whole suite with `NOVADECK_E2E_AGENTS` set to that harness, so the scenarios across
+harnesses skip there. A `Mixed` job sets it to `claude,codex,agy` and runs only those,
+the files ending in `.mixed.e2e.ts`, leaving the rest to the jobs of one harness. Each
+harness's pinned installs are cached on their own, keyed by that harness's entry in
+`harnesses.json` and by `install.ts`, so moving one pin leaves the others' caches alone,
+and its own job and the mixed one share them: its `<cache>/<harness>-*` folders, without
+unfinished staging (`*.tmp`), npm's own cache (`<cache>/home`) or anything else there. A
+job restores the cache of each harness it runs. Unless the run was cancelled, one it
+missed is saved even when the tests fail, so the next run needn't install again, but only
+once a `<cache>/<harness>-*` folder holding the harness's program exists: a failed or
+cancelled install saves nothing under the key.
 
 ## What is pinned
 
@@ -90,14 +94,56 @@ network:
   and runs plugin commands with it as it is (`createHarnesses`'s `login: false`), so no
   login shell's startup files, `/etc/profile` included, can put another PATH first.
 - **No keyring.** `DBUS_SESSION_BUS_ADDRESS` points at a socket that doesn't exist, so
-  no harness finds a login in the secret service.
-- **No network, as far as harnesses honour the proxy.** The fake model is also every
-  process's `HTTP(S)_PROXY`, with `NODE_USE_ENV_PROXY=1` so Node's own `fetch` takes it
-  too. It refuses each tunnel and each request for another server and records its host,
-  never its path. Only loopback is exempt. This blocks egress only for programs that
-  honour the proxy: one that connects directly isn't stopped, and is caught only if it
-  reaches a host whose failure shows. Running CI in an OS-level network namespace with no
-  route out is a known follow-up.
+  no harness finds a login in the secret service. The kernel keyring (keyutils) needs no
+  bus, so for each pinned harness it was checked, from its source or its program's
+  strings, which store it reads and by what name:
+  - Claude Code 2.1.287 keeps its login in `.credentials.json` under `CLAUDE_CONFIG_DIR`,
+    and Anthropic profiles under `ANTHROPIC_CONFIG_DIR` or `~/.config/anthropic`. Only
+    on macOS does it use a keyring, the Keychain, through `security`. Both folders are
+    in the sandbox. Its program names `secret-tool` only in its Bash tool's deny rules.
+  - Codex 0.159.3 keeps its login in `$CODEX_HOME/auth.json` by default
+    (`cli_auth_credentials_store = "file"`). Set to `keyring` or `auto`, it uses the
+    `keyring` crate's Linux store, which caches the secret service in the kernel keyring,
+    so the dead bus doesn't keep it out. The entries are named after a hash of the
+    canonical `CODEX_HOME` (`keyring-rs:cli|<hash>@Codex Auth`, `secrets|<hash>@codex`),
+    so a Codex with the sandbox's home looks up names the developer's Codex never wrote.
+    MCP OAuth tokens are named only after the server's address
+    (`Codex MCP Credentials`), but only HTTP MCP servers have them, and the sandbox
+    configures none: NovaDeck's server runs over stdio.
+  - Antigravity 1.2.14 uses `zalando/go-keyring`, which on Linux only talks to the
+    secret service over D-Bus. Its program has no `keyctl` call.
+- **No network.** The fake model is also every process's `HTTP(S)_PROXY`, with
+  `NODE_USE_ENV_PROXY=1` so Node's own `fetch` takes it too. It refuses each tunnel and
+  each request for another server and records its host, never its path. Only loopback
+  is exempt. On its own, that blocks egress only for programs that honour the proxy. In
+  CI the suite also runs in a network namespace whose only interface is loopback
+  (`scripts/e2e/isolated/main.ts`), so a program that connects directly has no route out
+  either, and the proxy still records the hosts the harnesses tried. The harnesses are
+  installed before that, outside the namespace, by `scripts/e2e/install/main.ts`, which
+  installs those `NOVADECK_E2E_AGENTS` names into the cache as the suite would; the
+  suite's own install then finds them done. Every CI job runs this way, the nightly one
+  against `latest` included: with `NOVADECK_E2E_HARNESS=latest` the pre-install records
+  the newest version it resolved in the cache, and the run inside the namespace reads it
+  there instead of looking it up. To run the suite the same way locally:
+
+  ```sh
+  pnpm --filter @novadeck/protocol build
+  NOVADECK_E2E_AGENTS=claude node scripts/e2e/install/main.ts
+  NOVADECK_E2E_AGENTS=claude node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e
+  ```
+
+  `isolated` runs a command in the namespace as the user who ran it, with their
+  environment. Where sudo needs no password, as on GitHub's runners, root makes the
+  namespace (`unshare --net`), brings loopback up and hands the command back to the user
+  with `setpriv`; sudo resets the environment, so it passes through a file only the user
+  can read, deleted before the command starts. Elsewhere an unprivileged user namespace
+  owns it, which Ubuntu 24.04 may forbid
+  (`kernel.apparmor_restrict_unprivileged_userns`). `NOVADECK_E2E_NETNS=sudo` or `user`
+  picks one. CI always takes `sudo`; `user` is for a developer without passwordless
+  sudo, and the opted-in tests below are where it runs, with
+  `NOVADECK_E2E_NETNS=user NOVADECK_E2E_NETNS_TESTS=1`. It refuses to run the command if
+  the namespace has any interface besides loopback.
+
 - **No real credential.** Each harness gets a fake key that the fake model accepts. A
   request carrying any other credential, in a credential header or a `key` query
   parameter, is refused and counted, and its value is never stored; an empty value, or
@@ -145,12 +191,13 @@ network:
   `/proc/<pid>/cwd` points, then, unless that is inside the sandbox, `/proc/<pid>/environ`,
   searched only for `HOME=<sandbox home>` and neither kept nor printed, and last
   `/proc/<pid>/comm` for its name. A harness the deck's hangup reached may take a moment
-  to exit (Claude Code takes about 100 ms), so each gets three seconds to end by itself.
+  to exit (Claude Code takes about 200 to 250 ms), so each gets three seconds to end by itself.
   One still running then is ended with SIGTERM, then SIGKILL two seconds later, each
   signal sent only once the process is checked to be the same one, and fails the test,
-  named by its command. It looks again, up to five times, until it finds no process it
-  hasn't seen. Should the test end early, its teardown does the same, and fails the test
-  for any process it had to end.
+  named by its command and pid, and marked `stopped` should job control have stopped it.
+  It looks again, up to five times, until it finds no process it hasn't seen. Should the
+  test end early, its teardown does the same, and fails the test for any process it had
+  to end.
 - **Enter only on text seen to land.** A deck terminal's `submit` types the text, waits
   until the screen shows it once more than it did before, and only then presses Enter.
   `press` refuses anything holding a carriage return or line feed, the keypad's Enter
@@ -159,12 +206,17 @@ network:
   expected option or dialog, runs `trigger`, the action that brings it up, and presses
   Enter only once the screen shows it once more. Text left from an earlier dialog can't
   let it through, and a dialog drawn before `trigger` returns isn't missed:
-  `await t1.confirm("Allow this tool?", () => t1.submit("Run the tool"))`.
+  `await t1.confirm("Allow this tool?", () => t1.submit("Run the tool"))`. In a menu,
+  `shows` must name what moves with the selection, such as the TUI's cursor marker
+  (`/❯ Option/`), not the option's plain text: the rendered screen drops colours, so a
+  selection a TUI shows only by highlighting changes no text, and a wrong `shows` only
+  times out.
 
 ## Writing a scenario
 
-Messaging scenarios live in `messaging.e2e.ts`, written once and run for every harness
-in `setups` (`agents/index.ts`):
+Messaging scenarios live in `messaging.e2e.ts`, a runner restart's in `restart.e2e.ts`,
+and an agent starting another with a task in `tasks.e2e.ts`, each written once and run
+for every harness in `setups` (`agents/index.ts`):
 
 ```ts
 for (const setup of setups) {
@@ -188,13 +240,16 @@ for (const setup of setups) {
 
 - **One rule for parity: a scenario never branches on `setup.agent`.** A difference
   between harnesses is either a trait of its setup (`name`, `banner`, `bindsAtReady`,
-  `refused`) or a known gap in `known-gaps.ts`, which picks the documented detour
-  (`ringsAtReady`, `ringsAfterTurn`, `turnEnds`). A `<harness>.e2e.ts` holds only what
-  is truly that harness's own, such as a known gap's pin.
+  `refused`) or a known gap in `known-gaps.ts`, which picks the documented detour (see
+  [Known gaps](#known-gaps)). A `<harness>.e2e.ts` holds only what is truly that
+  harness's own, such as Codex's logo on its first screen, or a known gap's pin.
 - `e2e(...setups)` gives each test a fake model, a sandbox and a deck, with each
   setup's harness installed (once, before its tests), seeded and connected to NovaDeck
   through its own plugin commands. With several setups, as for a scenario across
-  harnesses, their dialects share one fake model.
+  harnesses, their dialects share one fake model, and the tests run only when every one
+  of their harnesses is selected. Such scenarios go in files ending in `.mixed.e2e.ts`,
+  which CI's mixed job runs alone; `messaging.mixed.e2e.ts` passes a message round a
+  ring of every harness, each hop's recipient rung for it.
 - **The fake model** answers each call with the first rule that replies; `model.use`
   adds rules ahead of the earlier ones, and with none it answers "OK.". Rules may be
   async: a rule that awaits a `gate()` holds its reply, and so keeps that turn running,
@@ -208,7 +263,9 @@ for (const setup of setups) {
   and for the turn to run and end; `replies` and `sends` are rules that answer a prompt
   with text or with a `send`; `own` keeps a rule off side calls; `deliveries(call)`
   parses the `<novadeck-messages>` a hook added, plain or HTML-escaped, into
-  `{ from, text }`; `ring` matches the doorbell's line.
+  `{ from, text }`; `ring` matches the doorbell's line; `opens` is a rule that answers a
+  prompt by starting an agent with a task (`open_terminal`), and `opened(call, handle)`
+  tells the agent's next look once it did.
 - **NovaDeck's state** is recorded as it changes, not polled: each deck terminal keeps
   the history of its delivery state and its messages' states from the moment it opens.
   `t.mark()` and `t.reached(state or predicate, { after })` wait for a transition after
@@ -220,11 +277,33 @@ for (const setup of setups) {
   met (`met: ringing; waiting for: working`), so a failure says what happened. A test
   that throws fails its own wait, with its error, and no other.
 - **Holding a turn** pins down how something travels. The round trip holds t2's answer
-  at a `gate()` until t1's turn has ended, and asserts t1 is then rung; where a harness's
-  turn end can't be rung yet (a known gap), it holds t1's turn open instead, so the
-  answer comes as its Stop continuation.
+  at a `gate()` until t1's turn has ended Settled, and asserts t1 is then rung, rather
+  than reached by its Stop continuation.
+- **What NovaDeck knows of an agent**, as a client's detail view reads it, is
+  `await t.detail()`: the session bound, its activity, and the requests it waits on the
+  person for. The boot scenario reads there that nothing waits on the person and whether
+  a session bound at Ready; Ready itself says the agent's own prompt shows, past its
+  startup screens.
+- **Restarting the runner.** `deck.restart()` closes the runner as NovaDeck does when it
+  quits, saving every terminal and ending its shells, and wires another, as NovaDeck
+  starts again, on the same database, shell folder and sandbox, with the same fake
+  model. Between the two, `reap.ts` looks for processes the first runner left in the
+  sandbox, and any it finds fails the restart as a leak. The first runner's deck
+  terminals are gone with it, their histories ended; the new runner lists their records
+  as saved (`started: false`) until `deck.restore(t, { resume: agent })` starts one
+  again, as the app does for each terminal it shows: `terminals.create` with its id and
+  `restore`, and `resume` naming the agent that ran there, which the runner resumes in
+  the session that agent last reported in it. `deck.terminals` and `deck.store` are
+  always the current runner's.
+- **Agents' requests for a terminal.** Without a client answering them, an agent's
+  `open_terminal` opens nothing. `deck.answerRequests()` answers them as the app does,
+  from the call on and across restarts: it opens a terminal in the request's folder,
+  starting its command, created for the request (`requestId`), and answers with it once
+  its shell has started. `next()` on what it returns waits for the next terminal it
+  opened, in order, as a deck terminal.
 - Prefer asserting on what the model received and on NovaDeck's state over reading the
-  screen; read the screen for what only it shows, such as a reply rendered.
+  screen; read the screen for what only it shows, such as a reply rendered, or the
+  harness's own first screen (`banner`).
 
 ## Adding a harness
 
@@ -327,26 +406,14 @@ for (const setup of setups) {
 
 ## Known gaps
 
-`known-gaps.ts` names each one, with the harnesses it affects. The messaging scenarios
-ask it which detour to take, so fixing a gap means taking its harness out of the entry.
-Each is also pinned by a test that asserts today's wrong behaviour, so it can't pass
-unnoticed: once fixed, that test fails and says what to assert instead.
+None stands today. A known gap is a difference between harnesses the suite works around
+until NovaDeck closes it, and is raised with the person first (see AGENTS.md, "Harness
+Parity"): never a reason to leave a harness out.
 
-- **A Codex at its first screen can't be rung** (`unrungAtFirstScreen`, read through
-  `ringsAtReady`). Wide and tall enough, Codex draws a logo on its first screen and erases
-  it as soon as anything lands in its input box. The doorbell's test paste then changes
-  rows far from its line, and the ring fails as it should when it can't tell what the
-  paste did. `codex.e2e.ts` pins it ("can't ring a Codex still at its first screen": the
-  recipient goes ringing → Unknown, never Working, its message still queued), and the
-  round trip gives the recipient one turn first. Once the doorbell rings such a Codex,
-  assert it Working with the message delivered there, and take Codex out of the entry.
-- **Antigravity often ends a turn Unknown** (`unknownTurnEnd`, read through `turnEnds`
-  and `ringsAfterTurn`). Its status line still says it is working 10 to 60 ms after its
-  Stop hook, which NovaDeck takes for the turn going on; the idle that follows then
-  leaves the terminal Unknown, never rung, in about two turns in five. The race is
-  pinned deterministically in `src/messaging/messaging.test.ts` ("is left Unknown when
-  its status line says working just after a Stop, then idle"). Meanwhile its turns may
-  end Settled or Unknown, and in the round trip the sender's reply after sending waits at
-  a `gate()` until the answer is queued for it, so the answer comes as its Stop
-  continuation rather than a ring. Once fixed, assert Settled in that unit test and take
-  Antigravity out of the entry.
+`known-gaps.ts` names each one as a `Gap`, with the harnesses it affects, documented
+with its cause, the test that pins it and what to assert once it is fixed. The scenarios
+never ask which harness they run: they ask a function built on `has`, named for the
+behaviour that differs, which picks the detour. Each gap is also pinned by a test that
+asserts today's wrong behaviour, so it can't pass unnoticed: once fixed, that test fails
+and says what to assert instead. Fixing a gap means deleting its entry, its function and
+the detour, and turning its pin into the real assertion; list it here meanwhile.

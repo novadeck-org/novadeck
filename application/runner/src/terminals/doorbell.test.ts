@@ -21,9 +21,15 @@ const terminal = (
     screenMs?: number
     /** When it became Settled, its turn ended, in epoch milliseconds. */
     settledAt?: number
+    /** Whether it is Ready, at its first screen, rather than Settled. */
+    ready?: boolean
+    /** Whether its first screen draws a logo, far from its box, only while the box is empty. */
+    logo?: boolean
   } = {},
 ) => {
-  const rows = ["header", "", "", "", "", "", "> ", "", "footer"]
+  const rows = options.logo
+    ? ["header", "", "  logo", "", "", "", "> Ask anything", "", "footer"]
+    : ["header", "", "", "", "", "", "> ", "", "footer"]
   const written: string[] = []
   let ringable = options.ringable ?? true
   let ringing: string | undefined
@@ -33,6 +39,7 @@ const terminal = (
   const host: DoorbellHost = {
     ringable: () => ringable && ringing === undefined,
     settledSince: () => options.settledAt,
+    ready: () => options.ready ?? false,
     ring: (_, nonce) => {
       if (!ringable) return false
       ringable = false
@@ -70,6 +77,7 @@ const terminal = (
       const pasted = /^\x1b\[200~(.*)\x1b\[201~$/.exec(data)?.[1]
       if (pasted && options.takes !== "nothing") rows[6] = `> ${pasted}`
       if (pasted && options.takes === "elsewhere") rows[0] = "popup closed"
+      if (pasted && options.logo) rows[2] = ""
       return true
     },
   }
@@ -103,6 +111,20 @@ describe("the doorbell", () => {
     expect(failed).toEqual([])
     expect(enters(written)).toBe(1)
     doorbell.close()
+  })
+
+  it("takes a first screen's logo vanishing as the line lands only when the terminal is Ready", async () => {
+    const ready = terminal({ logo: true, ready: true })
+    const rung = new Doorbell(ready.host, fast)
+    rung.changed("t")
+    await vi.waitFor(() => expect(enters(ready.written)).toBe(1))
+    rung.close()
+    const settled = terminal({ logo: true })
+    const refused = new Doorbell(settled.host, fast)
+    refused.changed("t")
+    await vi.waitFor(() => expect(settled.failed).toHaveLength(1))
+    expect(enters(settled.written)).toBe(0)
+    refused.close()
   })
 
   it("abandons a ring whose hold lapsed before its Enter, pressing nothing", async () => {

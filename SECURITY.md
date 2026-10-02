@@ -57,9 +57,12 @@ The runner bounds connections, messages, terminal counts, replay history, and
 per-viewer pending output. Heartbeats release dead connections; a slow viewer is
 detached without killing its terminal. These limits do not constrain shell CPU,
 disk, network, or child-process usage. Apply OS/service limits where needed.
-Closing a terminal or stopping the runner is not a process-tree kill guarantee;
-daemonized or hangup-ignoring descendants may survive. Use service-level process
-isolation and cleanup if that guarantee is required.
+On Linux and macOS, closing a terminal or stopping the runner hangs up the program in
+the terminal's foreground, then the shell, and once the shell has exited resumes that
+program's process group with SIGCONT, so a program the shell's exit left stopped by job
+control can still exit. This is not a process-tree kill guarantee; daemonized or
+hangup-ignoring descendants may survive. Use service-level process isolation and
+cleanup if that guarantee is required.
 Replay stays in memory. Unless turned off in Preferences (`settings.set`), the runner
 keeps each terminal's transcript, its serialized screen and scrollback capped at 256 KiB,
 in the SQLite metadata file so a restored terminal can show it again. Transcripts may

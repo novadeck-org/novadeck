@@ -45,7 +45,7 @@ const line = doorbellLine("k3f9q2")
 const told = (entry: UserEntry | null, given: Partial<TypedPrompts> = {}) =>
   typedPromptStart(
     [started],
-    { root, typedEntry, transcript: "/t.jsonl", seen: 9, enteredAt, waiting: false, ...given },
+    { root, typedEntry, transcript: "/t.jsonl", seen: 9, enteredAt, ringing: undefined, ...given },
     () => Promise.resolve(entry),
   )
 
@@ -89,7 +89,7 @@ describe("a typed prompt where hooks name none", () => {
           transcript: "/t.jsonl",
           seen: 9,
           enteredAt,
-          waiting: false,
+          ringing: undefined,
         },
         () => Promise.resolve(entry("fix it", 12)),
       ),
@@ -127,6 +127,23 @@ describe("a typed prompt where hooks name none", () => {
     await expect(told(null, { seen: undefined })).resolves.toMatchObject({ seen: -1 })
   })
 
+  it("before any read, takes the line of the ring waiting on it, never a stale one", async () => {
+    // A terminal the runner restored has read nothing of its resumed transcript yet.
+    const restored = { seen: undefined, enteredAt: undefined, ringing: "k3f9q2" }
+    await expect(told(entry(line, 7), restored)).resolves.toEqual({
+      events: [{ ...started, cause: "doorbell", nonce: "k3f9q2" }],
+      seen: 7,
+    })
+    // A line another ring left, which the transcript still ends with, or the person's text.
+    await expect(told(entry(doorbellLine("OLD"), 4), restored)).resolves.toEqual({
+      events: [started],
+      seen: 4,
+    })
+    await expect(told(entry("fix it", 4), restored)).resolves.toMatchObject({
+      events: [{ cause: "harness" }],
+    })
+  })
+
   it("reads Antigravity's last typed entry from its transcript, unwrapped", async ({
     resources,
   }) => {
@@ -150,7 +167,7 @@ describe("a typed prompt where hooks name none", () => {
     const small = Array.from({ length: 5 }, (_, index) => input(`p${index}`, index * 2))
     writeFileSync(transcript, `${small.join("\n")}\n`)
     let seen = (await lastUserInput(transcript, typedEntry))!.id!
-    const given = { root, typedEntry, transcript, enteredAt, waiting: false }
+    const given = { root, typedEntry, transcript, enteredAt, ringing: undefined }
     for (let turn = 0; turn < 3; turn += 1) {
       appendFileSync(transcript, `${output(20 + turn * 2)}\n`)
       appendFileSync(transcript, `${input(`person prompt ${turn}`, 21 + turn * 2)}\n`)

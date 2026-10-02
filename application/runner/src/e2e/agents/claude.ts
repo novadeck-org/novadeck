@@ -13,8 +13,8 @@ export const claude: AgentSetup = {
   agent: "claude",
   name: "Claude Code",
   dialect: anthropic,
-  // Its prompt; the scenario checks no startup screen stands before it.
-  banner: "❯",
+  // The name its first screen's header gives, beside its version.
+  banner: "Claude Code",
   bindsAtReady: true,
   refused: [],
   watch: {

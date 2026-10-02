@@ -21,7 +21,15 @@
  */
 export type Delivery = Counts &
   (
-    | { readonly state: "unbound" | "fresh" | "drafting" | "unknown" }
+    | { readonly state: "unbound" | "fresh" | "drafting" }
+    | {
+        readonly state: "unknown"
+        /**
+         * When the hook of the idle status line that ended the turn started, where one did
+         * (Antigravity's): a working one newer than it resumes the turn.
+         */
+        readonly idledAt?: number
+      }
     | { readonly state: "settled" | "ready"; readonly since: number }
     | { readonly state: "working"; readonly phase: "turn" | "continuing" | "background" }
     | {
@@ -111,7 +119,9 @@ export type KeyKind = "enter" | "queue" | "neutral" | "accept" | "content"
  *   started still running in the `background`;
  * - `ended`: a root turn ended abnormally: an Esc, a denial, a failure;
  * - `idle`: the agent shows idle however its turn ended, with work still running in the
- *   `background` or not, as Antigravity's status line does;
+ *   `background` or not, as Antigravity's status line does, its hook started at `startedAt`;
+ * - `working`: the agent shows working, as Antigravity's status line does, which resumes
+ *   only a turn an older idle one ended;
  * - `key`: the person's key, while a request waits on them (`asked`) or not;
  * - `asked-cleared`: no request waits on the person any more;
  * - `ring`: the doorbell starts ringing a Settled terminal, with its nonce;
@@ -134,7 +144,13 @@ export type DeliveryEvent =
       readonly at: number
     }
   | { readonly type: "ended" }
-  | { readonly type: "idle"; readonly background: boolean; readonly at: number }
+  | {
+      readonly type: "idle"
+      readonly background: boolean
+      readonly at: number
+      readonly startedAt: number
+    }
+  | { readonly type: "working"; readonly startedAt: number }
   | { readonly type: "key"; readonly key: KeyKind; readonly asked: boolean; readonly at: number }
   | { readonly type: "asked-cleared" }
   | { readonly type: "ring"; readonly nonce: string; readonly opening: boolean }
@@ -313,9 +329,9 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
           box: { ...box, empty, queuing: false, enteredAt: null },
         })
       }
-      // A later call of the running turn changes nothing, nor ends the wait for the
-      // continuation of a Stop NovaDeck continued: a status line saying working can come
-      // before the continuation's first model call.
+      // A later model call of the running turn changes nothing, nor ends the wait for the
+      // continuation of a Stop NovaDeck continued: only the continuation's first call
+      // starts it.
       if (event.by === "call" && (phase === "turn" || phase === "continuing")) return delivery
       // The person's submission: their bare Enter shortly before, with nothing typed
       // since, or a prompt they queued during the turn that just ended and typed nothing
@@ -338,9 +354,9 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
       // A prompt right after a Stop NovaDeck continued is that continuation: the same
       // turn, with its count, as Antigravity starts its model calls again from the first.
       if (phase === "continuing") return working(delivery, "turn", { box: after })
-      // A call while no turn ran (as a status line saying working after an idle one)
-      // resumes the turn it belongs to, with its counts, though nothing says the person
-      // started it.
+      // A call while no turn ran (as Antigravity's PreInvocation past the turn's first,
+      // after its Stop or an idle status line) resumes the turn it belongs to, with its
+      // counts, though nothing says the person started it.
       if (event.by === "call") return working(delivery, "turn", { byPerson: false })
       return working(delivery, "turn", {
         epoch: delivery.epoch + 1,
@@ -372,10 +388,20 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
       // Its background work finished: the turn it ran after is over.
       if (phase === "background") return event.background ? delivery : ended(delivery, event.at)
       // After the turn's Stop, idle says nothing new; otherwise the turn ended without
-      // one, keeping its counts for a Stop that arrives late.
-      if (phase === "turn") return { ...counts(delivery), state: "unknown" }
+      // one, keeping its counts for a Stop that arrives late, or a working status line
+      // newer than this one, which tells this one was stale.
+      if (phase === "turn")
+        return { ...counts(delivery), state: "unknown", idledAt: event.startedAt }
       return delivery
     }
+    case "working":
+      // The turn an older idle status line ended goes on, with its counts. Never one a Stop
+      // ended: the status line can still say working just after it.
+      return delivery.state === "unknown" &&
+        delivery.idledAt !== undefined &&
+        event.startedAt > delivery.idledAt
+        ? working(delivery, "turn")
+        : delivery
     case "ring":
       // Its line goes into the box: a draft, until its own prompt confirms it.
       return ringableSince(delivery) !== undefined

@@ -3,10 +3,16 @@ import { readdirSync, readFileSync, readlinkSync } from "node:fs"
 import type { Sandbox } from "./sandbox.js"
 
 /**
- * A process as /proc shows it: its command's name, and its start in clock ticks since
- * boot, which with its pid tells it apart from a later process given the same pid.
+ * A process as /proc shows it: its command's name, its start in clock ticks since boot,
+ * which with its pid tells it apart from a later process given the same pid, and whether
+ * it was stopped, as by job control, when last read.
  */
-type Process = { readonly pid: number; readonly comm: string; readonly start: number }
+type Process = {
+  readonly pid: number
+  readonly comm: string
+  readonly start: number
+  readonly stopped: boolean
+}
 
 /**
  * The process with the pid, should it belong to the sandbox. It reads the process's
@@ -33,7 +39,13 @@ const member = (
       !readFileSync(`/proc/${pid}/environ`, "latin1").split("\0").includes(`HOME=${sandbox.home}`)
     )
       return undefined
-    return { pid, start, comm: readFileSync(`/proc/${pid}/comm`, "utf8").trim() }
+    return {
+      pid,
+      start,
+      comm: readFileSync(`/proc/${pid}/comm`, "utf8").trim(),
+      // T is stopped by a signal, t by a tracer.
+      stopped: fields[0] === "T" || fields[0] === "t",
+    }
   } catch {
     // Gone, or another user's, which a sandbox's process never is.
     return undefined
@@ -75,6 +87,10 @@ const ended = async (
     await new Promise((resolve) => setTimeout(resolve, 50))
 }
 
+// How a leftover is reported: `claude (123)`, or `claude (123, stopped)` for one that
+// could never have exited by itself.
+const named = (one: Process): string => `${one.comm} (${one.pid}${one.stopped ? ", stopped" : ""})`
+
 /**
  * Ends the processes still running in the sandbox once its deck has closed: those that
  * started after it was made and whose working folder is inside it, or whose HOME is its
@@ -82,7 +98,8 @@ const ended = async (
  * three seconds to end by itself; one still running then gets SIGTERM, then SIGKILL if it
  * outlives two seconds more. As ending one may leave a child behind, it looks again,
  * up to five times, until it finds none it hasn't seen. Returns those that had to be
- * ended, by their commands' names, as a leak the test reports. Linux only, as it reads
+ * ended, by their commands' names and pids, each marked `stopped` should it have been, as
+ * a leak the test reports. Linux only, as it reads
  * /proc.
  */
 export const reap = async (
@@ -96,12 +113,16 @@ export const reap = async (
     for (const one of found) seen.add(`${one.pid}:${one.start}`)
     // eslint-disable-next-line no-await-in-loop -- Each round waits on the one found.
     await ended(sandbox, found, 3000)
-    const leftover = found.filter((one) => still(sandbox, one))
+    // Each as it is now, so one stopped while it was waited for is named stopped.
+    const leftover = found.flatMap((one) => {
+      const now = member(sandbox, one.pid)
+      return now?.start === one.start ? [now] : []
+    })
     for (const one of leftover) signal(sandbox, one, "SIGTERM")
     // eslint-disable-next-line no-await-in-loop -- As above.
     await ended(sandbox, leftover, 2000)
     for (const one of leftover) signal(sandbox, one, "SIGKILL")
-    leftovers.push(...leftover.map((one) => `${one.comm} (${one.pid})`))
+    leftovers.push(...leftover.map(named))
   }
   return leftovers
 }

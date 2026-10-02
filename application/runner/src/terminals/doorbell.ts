@@ -27,6 +27,8 @@ export type DoorbellHost = {
   readonly ringable: (terminalId: string) => boolean
   /** When it became Settled, its turn ended, or Ready, its session bound; if it is either. */
   readonly settledSince: (terminalId: string) => number | undefined
+  /** Whether it is Ready: a session at its own prompt before its first turn, its box empty. */
+  readonly ready: (terminalId: string) => boolean
   /** Starts the ring with its nonce: the terminal is Ringing; false when it may not now. */
   readonly ring: (terminalId: string, nonce: string) => boolean
   /** The nonce of the ring under way there, if any. */
@@ -179,6 +181,8 @@ export class Doorbell {
   private async ring(terminalId: string): Promise<void> {
     const nonce = freshNonce()
     const line = doorbellLine(nonce)
+    // Only a Ready terminal may lose a block of text as the line lands, as Codex's logo.
+    const vanish = this.host.ready(terminalId)
     if (!this.host.ring(terminalId, nonce)) return
     const hold = this.host.hold(terminalId)
     let pressed = false
@@ -194,7 +198,7 @@ export class Doorbell {
           const after = await this.host.screen(terminalId)
           if (!after) break
           const text = after.rows.join("\n")
-          const accepted = checkPaste(before.rows, after.rows, line).accepted
+          const accepted = checkPaste(before.rows, after.rows, line, { vanish }).accepted
           // Accepted twice running on the same screen, so it isn't caught mid-draw.
           if (accepted && landed === text) {
             pressed =
