@@ -750,6 +750,49 @@ describe("terminal restart", () => {
   )
 })
 
+describe.skipIf(process.platform === "win32")("terminal environment", () => {
+  it("starts shells from the runner's environment unless given another, never with its token", async ({
+    terminals,
+    resources,
+  }) => {
+    vi.stubEnv("NOVADECK_RUNNER_ONLY", "runner")
+    resources.defer(() => {
+      vi.unstubAllEnvs()
+    })
+    const shown = async (manager: Terminals) => {
+      const terminal = await manager.create(
+        { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+        "owner",
+      )
+      const stream = terminals.attach(manager, terminal.id, "owner")
+      await stream.next()
+      manager.write(
+        {
+          terminalId: terminal.id,
+          data: 'printf \'[%s|%s|%s]\\n\' "$NOVADECK_RUNNER_ONLY" "$OWN" "$NOVADECK_TOKEN"\n',
+        },
+        "owner",
+      )
+      const events = await until(manager, stream, "owner", (_event, text) =>
+        /\[\w*\|\w*\|[\w-]*\]\r\n/.test(text),
+      )
+      return events.map((event) => ("data" in event ? event.data : "")).join("")
+    }
+
+    expect(await shown(terminals.manager({ env: { PS1: "", OWN: "own" } }))).toContain(
+      "[runner|own|]",
+    )
+    expect(
+      await shown(
+        terminals.manager({
+          baseEnv: { PATH: process.env.PATH, NOVADECK_TOKEN: "runner-token" },
+          env: { PS1: "", OWN: "own" },
+        }),
+      ),
+    ).toContain("[|own|]")
+  })
+})
+
 describe.skipIf(process.platform === "win32")("terminal limits", () => {
   it("runs any number of terminals but retains only the newest exited records", async ({
     terminals,

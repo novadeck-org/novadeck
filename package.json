@@ -18,6 +18,7 @@
     "package:win": "pnpm --filter @novadeck/host package:win",
     "test": "pnpm run test:repository && turbo run test --concurrency=1",
     "test:repository": "vitest run --config vitest.config.ts",
+    "test:e2e": "pnpm --filter @novadeck/protocol build && pnpm --filter @novadeck/runner test:e2e",
     "typecheck": "tsc --noEmit -p tsconfig.json && turbo run typecheck",
     "lint": "oxlint --deny-warnings .",
     "format": "oxfmt",

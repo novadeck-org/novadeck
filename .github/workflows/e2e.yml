@@ -1,0 +1,117 @@
+name: E2E
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/e2e.yml
+      - application/protocol/**
+      - application/runner/**
+      - package.json
+      - pnpm-lock.yaml
+  schedule:
+    # Nightly, against each harness's latest release, to catch drift before a pin moves.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      harness:
+        description: Harness versions to run against
+        type: choice
+        options: [pinned, latest]
+        default: pinned
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - harness: claude
+            name: Claude Code
+          - harness: codex
+            name: Codex
+          - harness: agy
+            name: Antigravity
+    env:
+      NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
+      NOVADECK_E2E_AGENTS: ${{ matrix.harness }}
+      NOVADECK_E2E_HARNESS: ${{ (github.event_name == 'schedule' || inputs.harness == 'latest') && 'latest' || 'pinned' }}
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set Up Toolchain
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      # The job's harness's own pin, hashed alone, so moving another harness's pin keeps
+      # this one's cache.
+      - name: Hash Pin
+        id: pin
+        if: env.NOVADECK_E2E_HARNESS == 'pinned'
+        env:
+          HARNESS: ${{ matrix.harness }}
+        run: |
+          # Hashed inside node, so a failure fails the step rather than hashing nothing.
+          hash=$(node -e 'const { createHash } = require("node:crypto"); const pins = require("./application/runner/src/e2e/harnesses.json"); process.stdout.write(createHash("sha256").update(JSON.stringify(pins[process.env.HARNESS] ?? null)).digest("hex"))')
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+
+      # Pinned harnesses are cached by their pin and the installer; a run against latest
+      # installs fresh. npm's own cache (home) and unfinished staging stay out.
+      - name: Restore Harnesses
+        id: harnesses
+        if: env.NOVADECK_E2E_HARNESS == 'pinned'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.NOVADECK_E2E_CACHE }}/*
+            !${{ env.NOVADECK_E2E_CACHE }}/home
+            !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
+          key: e2e-harnesses-${{ runner.os }}-${{ matrix.harness }}-${{ steps.pin.outputs.hash }}-${{ hashFiles('application/runner/src/e2e/install.ts') }}
+
+      - name: Build Protocol
+        run: pnpm --filter @novadeck/protocol build
+
+      # The whole suite, with the tests of every other harness skipped.
+      - name: Run E2E
+        run: pnpm --filter @novadeck/runner test:e2e
+
+      # Whether the harness's install finished: a folder for it, not a staging one, that
+      # holds its program. A cancelled or failed install leaves none, and saves nothing.
+      - name: Check Harnesses
+        id: installed
+        if: ${{ !cancelled() && steps.harnesses.outcome == 'success' && steps.harnesses.outputs.cache-hit != 'true' }}
+        env:
+          HARNESS: ${{ matrix.harness }}
+        run: |
+          bin=$(jq -r --arg harness "$HARNESS" '.[$harness].bin' application/runner/src/e2e/harnesses.json)
+          found=false
+          for folder in "$NOVADECK_E2E_CACHE/$HARNESS"-*; do
+            case "$folder" in *.tmp) continue ;; esac
+            if [ -x "$folder/node_modules/.bin/$bin" ] || [ -x "$folder/bin/$bin" ]; then found=true; fi
+          done
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+
+      # Saved even when the tests fail, so the next run needn't install again.
+      - name: Save Harnesses
+        if: ${{ !cancelled() && steps.installed.outputs.found == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.NOVADECK_E2E_CACHE }}/*
+            !${{ env.NOVADECK_E2E_CACHE }}/home
+            !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
+          key: ${{ steps.harnesses.outputs.cache-primary-key }}

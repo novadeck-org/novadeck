@@ -126,7 +126,10 @@ const OUTPUT_CHARS = 4096
 export type TerminalOptions = {
   shell?: string
   shellArgs?: readonly string[]
+  /** Variables shells get on top of `baseEnv`. */
   env?: NodeJS.ProcessEnv
+  /** The environment shells start from: the runner's own when omitted. */
+  baseEnv?: NodeJS.ProcessEnv
   /** Running and retained terminals together; unlimited when omitted. */
   maxTerminals?: number
   /** Exited, unattached records kept for viewing or restart; the oldest go first. */
@@ -433,6 +436,7 @@ export class Terminals {
     Omit<
       TerminalOptions,
       | "env"
+      | "baseEnv"
       | "shellArgs"
       | "shellFiles"
       | "records"
@@ -486,7 +490,7 @@ export class Terminals {
           ? (process.env.COMSPEC ?? "cmd.exe")
           : (process.env.SHELL ?? "/bin/sh")),
       shellArgs: options.shellArgs,
-      env: { ...process.env, ...options.env, TERM: "xterm-256color" },
+      env: { ...(options.baseEnv ?? process.env), ...options.env, TERM: "xterm-256color" },
       maxTerminals:
         options.maxTerminals === undefined
           ? Number.POSITIVE_INFINITY

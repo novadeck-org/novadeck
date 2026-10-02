@@ -44,9 +44,13 @@ export type Runner = {
   close(): Promise<void>
 }
 
-/** Owns shells and workspace metadata, independent of how clients reach it. */
-export const createRunner = (options: RunnerOptions = {}): Runner => {
-  const id = randomUUID()
+/**
+ * The runner's parts, wired together: its metadata store, the shell files it writes once,
+ * the agents that install NovaDeck's plugin, and the terminals, which keep their records
+ * and mailboxes in the store. `createRunner` serves them; the end-to-end deck drives them
+ * in process, so both run the same wiring. Internal: not exported from the package.
+ */
+export const wire = (options: RunnerOptions) => {
   const store = new WorkspaceStore(options.database)
   // Written once, for the shells and for the agents that install NovaDeck's plugin.
   const shellFiles =
@@ -72,6 +76,13 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
     projectOf: (sessionId) => store.session(sessionId).projectId,
     ...options.terminals,
   })
+  return { store, shellFiles, agents, terminals }
+}
+
+/** Owns shells and workspace metadata, independent of how clients reach it. */
+export const createRunner = (options: RunnerOptions = {}): Runner => {
+  const id = randomUUID()
+  const { store, terminals, agents } = wire(options)
   const clients = new Map<string, Connection>()
   let closing: Promise<void> | undefined
   const disconnect = (connection: Connection) => {

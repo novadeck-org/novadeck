@@ -920,6 +920,33 @@ describe("Antigravity's root conversation", () => {
     expect(messaging.delivery("G")?.state).toBe("settled")
   })
 
+  // A known gap, pinned here: against the fake model, about two turns in five, its status
+  // line still says working 10 to 60 ms after the Stop hook, which reads as the turn going
+  // on, and the idle line after it as a turn that ended with no Stop. The terminal is left
+  // Unknown, and the doorbell never rings it (see docs/e2e-testing.md, "Known gaps"). Once
+  // NovaDeck reads that line right, the terminal is Settled and ringable here.
+  it("is left Unknown when its status line says working just after a Stop, then idle", () => {
+    const { messaging, ask, observe, root, clock: time } = agyTerminal()
+    const hook = (event: string, payload: Record<string, unknown>): HarnessEvent[] => [
+      ...harnesses.agy.decode({
+        ...agyReport(root.sessionId, "idle"),
+        event,
+        instance: root.instance,
+        payload: { conversationId: root.sessionId, ...payload },
+      }),
+    ]
+    observe("G", root, agyStatus(root, "idle"), true)
+    ask("G", root, "PreInvocation", hook("PreInvocation", { invocationNum: 0 }))
+    ask("G", root, "Stop", hook("Stop", { fullyIdle: true }))
+    expect(messaging.delivery("G")?.state).toBe("settled")
+    time.now += 40
+    observe("G", root, agyStatus(root, "working"), true)
+    time.now += 500
+    observe("G", root, agyStatus(root, "idle"), true)
+    expect(messaging.delivery("G")?.state).toBe("unknown")
+    expect(messaging.ringable("G")).toBe(false)
+  })
+
   it("stays working at a Stop while a subagent still runs", () => {
     const { messaging, ask, observe, root } = agyTerminal()
     observe("G", root, invocation(root, 0))

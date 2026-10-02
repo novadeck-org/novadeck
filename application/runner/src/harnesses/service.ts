@@ -13,6 +13,12 @@ import { agents, harnesses } from "./registry.js"
 export type HarnessesOptions = {
   readonly env?: NodeJS.ProcessEnv
   readonly home?: string
+  /**
+   * Whether agents' commands get the login shell's PATH and homes over `env`, as the
+   * person's terminal has them. Off, `env` is used as it is, as a test that sets the
+   * exact PATH needs.
+   */
+  readonly login?: boolean
   readonly platform?: NodeJS.Platform
   /** How long one of an agent's plugin commands may take, in milliseconds. */
   readonly timeoutMs?: number
@@ -144,10 +150,12 @@ export const createHarnesses = (
   // and spawning shells never wait for it: until it answers they use the app's own.
   let latest: NodeJS.ProcessEnv | undefined
   const lookUp = () =>
-    loginEnvironment(base, platform).then((found) => {
-      latest = found
-      return found
-    })
+    (options.login === false ? Promise.resolve(base) : loginEnvironment(base, platform)).then(
+      (found) => {
+        latest = found
+        return found
+      },
+    )
   void lookUp()
   const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => ({
     agent: harness.id,

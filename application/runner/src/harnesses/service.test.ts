@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 import { MessageChannel } from "node:worker_threads"
@@ -188,6 +188,27 @@ describe("agents NovaDeck can connect", () => {
       expect(await agents.set("codex", true)).toMatchObject({ available: true, connected: true })
       expect(readFileSync(join(moved, "config.toml"), "utf8")).toContain("novadeck@novadeck")
       expect((await agents.list())[1]).toEqual({ agent: "codex", available: true, connected: true })
+    },
+  )
+
+  it.skipIf(windows)(
+    "keep the environment they are given as it is when told not to read the login shell's",
+    async ({ fixture }) => {
+      installed(fixture.home, "codex")
+      const moved = join(fixture.home, "codex-elsewhere")
+      mkdirSync(moved)
+      const profile = join(fixture.home, "profile.sh")
+      writeFileSync(profile, `export CODEX_HOME="${moved}"\n`)
+      const agents = createHarnesses(() => Promise.resolve(fixture.paths), {
+        home: fixture.home,
+        env: fixture.environment({ ENV: profile }),
+        login: false,
+      })
+      expect(await agents.set("codex", true)).toMatchObject({ available: true, connected: true })
+      expect(readFileSync(join(fixture.home, ".codex", "config.toml"), "utf8")).toContain(
+        "novadeck@novadeck",
+      )
+      expect(existsSync(join(moved, "config.toml"))).toBe(false)
     },
   )
 

@@ -1,0 +1,20 @@
+{
+  "claude": {
+    "package": "@anthropic-ai/claude-code",
+    "version": "2.1.287",
+    "bin": "claude"
+  },
+  "codex": {
+    "package": "@openai/codex",
+    "version": "0.159.3",
+    "bin": "codex"
+  },
+  "agy": {
+    "archive": "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.14-4571742832820224/linux-x64/cli_linux_x64.tar.gz",
+    "sha512": "fd771dfc74ddd07b61c8b0a6fd7a238f53a3a098a51052583a01d97ab84ee60db741ce5f041e87a9da3c1a9aabe95b053113374437df1e231773552781edaf09",
+    "manifest": "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_amd64.json",
+    "version": "1.2.14",
+    "member": "antigravity",
+    "bin": "agy"
+  }
+}
