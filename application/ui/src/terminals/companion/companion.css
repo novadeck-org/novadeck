@@ -22,9 +22,53 @@
   padding: 0 10px;
   border-top: 1px solid var(--color-line);
   background: var(--color-shell);
+  /* Lighting up as a drop target, and back. */
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface);
+}
+/* The bar rises into place when the terminal first has something to show, and fades
+   as it goes. The terminal takes its new height once; only opacity and translate
+   animate. A bar there already, after a view switch or a restore, just appears. */
+.plan-taskbar[data-state="open"] {
+  animation: plan-taskbar-in var(--motion-layout) var(--ease-interface);
+}
+.plan-taskbar[data-state="closed"] {
+  animation: plan-out var(--motion-feedback) var(--ease-interface) forwards;
+  pointer-events: none;
+}
+@keyframes plan-taskbar-in {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-taskbar {
+    animation: none !important;
+    transition: none;
+  }
 }
 .plan-tb-slot {
   display: contents;
+}
+/* The bar's slots, which a drag reorders within. */
+.plan-tb-slots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.plan-tb-slots:empty {
+  display: none;
+}
+/* What the drag moves: a slot in a box of its own. */
+.plan-tb-sortable {
+  display: flex;
+}
+/* A peek stays out of the way of an icon being dragged past. */
+:root:has(.plan-tb-sortable[data-dragging]) .plan-tb-peek,
+:root:has(.plan-tb-grabbed) .plan-tb-peek {
+  visibility: hidden;
 }
 .plan-tb-item {
   position: relative;
@@ -93,6 +137,35 @@
   75% {
     transform: translateY(-2px);
   }
+}
+/* An icon from another terminal's bar is over this one: a drop lands here. */
+.plan-taskbar[data-drop-target] {
+  background: var(--color-soft);
+  box-shadow: inset 0 0 0 1px var(--color-line-strong);
+}
+/* A terminal with nothing to show, hovered while an icon is dragged: an empty bar to drop
+   it on. */
+.plan-taskbar-empty {
+  justify-content: center;
+}
+/* The empty bar pops up under the dragged icon, a touch past its place and back, and
+   fades as the pointer leaves. Opacity and translate only. */
+.plan-taskbar-empty[data-state="open"] {
+  animation: plan-drop-bar-in 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.plan-taskbar-empty[data-state="closed"] {
+  animation: plan-out var(--motion-feedback) var(--ease-interface) forwards;
+  pointer-events: none;
+}
+@keyframes plan-drop-bar-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+.plan-tb-empty-hint {
+  font-size: 11px;
+  color: var(--color-muted);
 }
 .plan-tb-count {
   position: absolute;
@@ -193,7 +266,7 @@
 .plan-peek-open[aria-pressed="true"] .plan-peek-name {
   color: var(--color-ink);
 }
-.plan-peek-dismiss {
+.plan-peek-close {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -208,11 +281,11 @@
   color: var(--color-muted);
   opacity: 0;
 }
-.plan-peek-dismiss:hover {
+.plan-peek-close:hover {
   color: var(--color-ink);
 }
-.plan-peek-card:hover .plan-peek-dismiss,
-.plan-peek-card:focus-within .plan-peek-dismiss {
+.plan-peek-card:hover .plan-peek-close,
+.plan-peek-card:focus-within .plan-peek-close {
   opacity: 1;
 }
 
@@ -298,7 +371,7 @@
 /* Split: the plan shares the terminal's window. */
 .plan-split {
   display: grid;
-  grid-template-columns: var(--plan-terminal) 9px minmax(0, 1fr);
+  grid-template-columns: var(--plan-terminal) 0 minmax(0, 1fr);
   flex: 1;
   min-height: 0;
 }
@@ -307,31 +380,38 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--color-shell);
 }
 .plan-split-terminal .terminal-content {
   padding: 20px;
 }
 .plan-split-reader {
   display: flex;
+  border-left: 1px solid var(--color-line);
   min-width: 0;
   min-height: 0;
 }
+/* The line between them is the pane's own edge, so it comes and goes with the pane.
+   The divider is an invisible strip over that edge, the ::after, for the pointer to
+   grab; it shows a line only while hovered or focused. */
 .plan-divider {
   position: relative;
+  z-index: 1;
   cursor: col-resize;
   touch-action: none;
 }
 .plan-divider::before {
   content: "";
   position: absolute;
-  inset: 0 4px;
-  background: var(--color-line);
+  inset: 0 -1px;
   transition: background var(--motion-feedback) var(--ease-interface);
+}
+.plan-divider::after {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
 }
 .plan-divider:hover::before,
 .plan-divider:focus-visible::before {
-  inset: 0 3px;
   background: var(--color-line-strong);
 }
 @container terminal-plan (max-width: 640px) {
@@ -342,8 +422,12 @@
   .plan-divider {
     display: none;
   }
-  .plan-split-terminal {
-    border-bottom: 1px solid var(--color-line-strong);
+  /* Stacked under the terminal, the pane rises from below as it opens, its top edge
+     the line between them, so the line comes and goes with it. */
+  .plan-split-reader {
+    --plan-enter: 0 16px;
+    border-top: 1px solid var(--color-line-strong);
+    border-left: none;
   }
 }
 
@@ -481,7 +565,6 @@
   background: var(--color-paper);
   box-shadow: var(--shadow-floating);
   cursor: default;
-  animation: plan-attach var(--motion-layout) var(--ease-interface);
 }
 .plan-attached::before {
   content: "";
@@ -491,16 +574,44 @@
   width: 20px;
   border-top: 1px dashed var(--color-line-strong);
 }
+/* The pane opens and closes on opacity and translate only, which the compositor runs
+   without layout: the terminal beside a split takes its new size once, not per frame.
+   It slides from where it sits: the split's from the window's right edge, or from
+   below when stacked under the terminal, and the attached sheet from its node. What
+   was open already, after a view switch or a restore, has no state and appears as it
+   was. */
+.plan-split-reader[data-state="open"] {
+  animation: plan-split-in var(--motion-state) var(--ease-interface);
+}
+.plan-attached[data-state="open"] {
+  animation: plan-attach var(--motion-layout) var(--ease-interface);
+}
+:is(.plan-split-reader, .plan-attached)[data-state="closed"] {
+  animation: plan-out var(--motion-feedback) var(--ease-interface) forwards;
+  pointer-events: none;
+}
+@keyframes plan-split-in {
+  from {
+    opacity: 0;
+    translate: var(--plan-enter, 16px 0);
+  }
+}
 @keyframes plan-attach {
   from {
     opacity: 0;
     translate: -12px 0;
   }
 }
+@keyframes plan-out {
+  to {
+    opacity: 0;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
+  .plan-split-reader,
   .plan-attached {
-    animation: none;
+    animation: none !important;
   }
 }
 .plan-editor .cm-editor {
@@ -619,16 +730,24 @@
 .plan-meta-hint {
   color: var(--color-warning-fg);
 }
+/* Lined up on the text's baseline: the path's monospace and the label beside it differ
+   in height, so centring their boxes leaves the text unaligned. */
 .plan-meta {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   gap: 8px 14px;
   max-width: 700px;
   margin: auto;
   padding: 24px 44px 0;
   font-size: 11px;
   color: var(--color-muted);
+}
+/* The plan header's actions sit at its far end. */
+.plan-meta-actions {
+  display: flex;
+  margin-left: auto;
+  align-self: stretch;
 }
 .plan-editor .cm-content {
   padding: 14px 44px 64px 20px;
@@ -937,10 +1056,16 @@
   min-height: 0;
   overflow: auto;
 }
+/* A markdown document scrolls inside its reader, beside its outline, as a plan does. */
+.artifact-viewer[data-document] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .artifact-meta {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   gap: 6px 12px;
   padding: 8px 14px;
   border-bottom: 1px solid var(--color-line);
@@ -999,6 +1124,7 @@
   padding: 10px 0;
   overflow-x: auto;
   font: 11.5px/1.75 var(--font-mono);
+  user-select: text;
 }
 .artifact-code div {
   display: grid;
@@ -1014,6 +1140,41 @@
 }
 .artifact-code div[data-pointed="true"] {
   background: var(--color-soft);
+}
+/* Tokens, as ./highlight.ts classes them. */
+.artifact-code :is(.tok-keyword, .tok-meta) {
+  color: var(--color-syntax-keyword);
+}
+.artifact-code :is(.tok-string, .tok-string2, .tok-url) {
+  color: var(--color-syntax-string);
+}
+.artifact-code :is(.tok-number, .tok-bool, .tok-atom, .tok-literal) {
+  color: var(--color-syntax-number);
+}
+.artifact-code .tok-propertyName {
+  color: var(--color-syntax-property);
+}
+.artifact-code :is(.tok-typeName, .tok-className, .tok-namespace, .tok-macroName) {
+  color: var(--color-syntax-type);
+}
+.artifact-code .tok-definition {
+  color: var(--color-syntax-definition);
+}
+.artifact-code .tok-comment {
+  color: var(--color-syntax-comment);
+  font-style: italic;
+}
+.artifact-code :is(.tok-heading, .tok-strong) {
+  font-weight: 600;
+}
+.artifact-code .tok-emphasis {
+  font-style: italic;
+}
+.artifact-code .tok-link {
+  text-decoration: underline;
+}
+.artifact-code .tok-invalid {
+  color: var(--color-danger-fg);
 }
 .artifact-browser {
   display: flex;
@@ -1052,6 +1213,38 @@
   font: 11px var(--font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* What an agent showed, in a window of its own: the viewer fills the window. */
+.artifact-window {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--color-paper);
+}
+/* What the place showing an artifact offers for it, at the end of the viewer's header:
+   centred on the header's text, and no taller than its line, so the row keeps its
+   height. */
+.artifact-actions {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: 2px;
+}
+.artifact-actions button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  margin-block: -3px;
+  border-radius: var(--radius-control);
+  color: var(--color-muted);
+}
+.artifact-actions button:hover {
+  background: var(--color-soft);
+  color: var(--color-ink);
 }
 .artifact-browser-bar button:disabled {
   opacity: 0.4;
@@ -1115,6 +1308,12 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+}
+/* The switch centred on its label, the pair on the header's baseline by the label's. */
+.mail-pause {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .mail-pause-label {
   color: var(--color-ink);
@@ -1195,63 +1394,58 @@
 .mail-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 8px 0 0;
+  gap: 12px;
+  margin: 10px 0 0;
   padding: 0;
   list-style: none;
 }
+/* Messages are rows, not cards: the thread holds them. What the terminal's own agent
+   sent carries a rule down its left edge; what it received, none. */
 .mail-message {
-  padding: 7px 10px 8px;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-panel);
-  background: var(--color-paper);
+  padding-left: 10px;
+  border-left: 2px solid transparent;
 }
-/* What the terminal's own agent sent sits on the shell's grey, as the sidebar's tabs do. */
 .mail-message[data-direction="sent"] {
-  background: var(--color-shell);
+  border-left-color: var(--color-line-strong);
 }
 .mail-message-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 10px;
-  font-size: 10px;
+  gap: 4px 8px;
+  font-size: 11px;
   color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
 }
 .mail-message-direction {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  color: var(--color-ink);
-  font-weight: 500;
 }
-.mail-message-meta time {
-  font-family: var(--font-mono);
-}
+/* A state still worth a look, after the time: a dot of its colour and a word. */
 .mail-state {
-  margin-left: auto;
-  padding: 0 5px;
-  border-radius: var(--radius-control);
-  background: var(--color-soft);
-  color: var(--color-ink);
-  line-height: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
-.mail-state[data-state="delivered"] {
-  background: transparent;
-  color: var(--color-muted);
+.mail-state::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
 }
 .mail-state[data-state="held"] {
-  background: var(--color-warning);
   color: var(--color-warning-fg);
 }
 .mail-state[data-state="gone"] {
-  background: transparent;
-  color: var(--color-muted);
   text-decoration: line-through;
+}
+.mail-state[data-state="gone"]::before {
+  display: none;
 }
 /* The agent's text, as it wrote it: its line breaks kept, nothing rendered. */
 .mail-text {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   font-size: 12px;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -1268,4 +1462,73 @@
   border: 1px solid var(--color-line);
   background: var(--color-paper);
   color: var(--color-muted);
+}
+
+/* Another terminal's item, placed on this one's bar: as its own pane shows it, under a
+   line saying whose it is. */
+.placed-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.placed-tab > .plan-reader-body,
+.placed-tab > .artifact-viewer {
+  flex: 1;
+  min-height: 0;
+}
+.placed-from {
+  margin: 0;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-shell);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+/* A card pulled out of a group's peek, as an icon of its own: it shrinks from the card
+   into an icon under the pointer, raised like a dragged icon, and settles back into its
+   group's icon when dropped where nothing takes it. */
+.plan-tb-grabbed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.plan-tb-grabbed > .plan-tb-item {
+  translate: -50% -50%;
+  border-color: var(--color-line);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-floating);
+  animation: plan-tb-grab 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.plan-tb-grabbed[data-settling] {
+  transition: translate 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.plan-tb-grabbed[data-settling] > .plan-tb-item {
+  opacity: 0;
+  scale: 0.8;
+  transition:
+    opacity 180ms ease-in,
+    scale 180ms ease-in;
+}
+@keyframes plan-tb-grab {
+  from {
+    opacity: 0.4;
+    scale: 2.2;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-tb-grabbed > .plan-tb-item {
+    animation: none;
+  }
+}
+
+/* The messages pulled past their window's edge: nothing out there takes them. */
+:root[data-drag-refused],
+:root[data-drag-refused] * {
+  cursor: not-allowed !important;
 }

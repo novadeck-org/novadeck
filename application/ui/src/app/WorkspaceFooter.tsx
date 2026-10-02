@@ -1,6 +1,7 @@
 import { memo, useSyncExternalStore } from "react"
 
 import type { Backend, BackendConnectionState } from "../backend/port"
+import { shellTerminals } from "../model/companion-items"
 import { WorkspaceFooter as Footer, type FooterStatus } from "../shell/WorkspaceFooter"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { currentState, shallowEqual } from "./selectors"
@@ -22,7 +23,8 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
   const { count, running } = useWorkspaceState((workspace) => {
     const { terminals } = currentState(workspace).roster
     return {
-      count: terminals.length,
+      // Windows undocked from a terminal's companion aren't terminals.
+      count: shellTerminals(terminals).length,
       running: terminals.filter((terminal) => terminal.state === "running").length,
     }
   }, shallowEqual)

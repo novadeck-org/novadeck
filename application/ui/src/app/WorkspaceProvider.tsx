@@ -7,6 +7,8 @@ import { workspaceFromSeed } from "../model/seed"
 import { createWorkspaceStore } from "../model/store"
 import { readPreferences } from "../preferences/preferences-storage"
 import { readSidebarCollapsed, readWindowedView } from "../shell/shell-storage"
+import { createPanes } from "../terminals/companion/state"
+import { createDragSession, DragSessionContext } from "../terminals/drag-session"
 import { createNavigator, type NavigatorServices, type RouterBinding } from "./commands/navigator"
 import { createWorkspaceCommands } from "./commands/workspace"
 import { connectBackend } from "./controller/backend-connection"
@@ -56,6 +58,7 @@ const createServices = (
   )
   const { bind, settle, ...navigation } = createNavigator({ workspace, ui, now })
   const canvas = createRef<CanvasHandle>()
+  const panes = backend.companions && createPanes(backend.companions, backend.messages)
   const commands = createWorkspaceCommands({
     workspace,
     ui,
@@ -64,11 +67,21 @@ const createServices = (
     pickDirectory: backend.pickDirectory,
     crashLoop: backend.crashLoop,
     resetTitle: backend.resetTitle,
+    panes,
     canvas,
     effects: domEffects,
   })
   return {
-    services: { backend, workspace, ui, navigation, commands, canvas },
+    services: {
+      backend,
+      workspace,
+      ui,
+      navigation,
+      commands,
+      canvas,
+      panes,
+      drag: createDragSession(),
+    },
     sync: { workspace, ui, now, bind, settle },
   }
 }
@@ -93,6 +106,7 @@ export const WorkspaceProvider = ({
     () => connectBackend(services.backend, services.workspace, services.commands.openRequested),
     [services],
   )
+  useEffect(() => services.panes?.connect(), [services])
   useEffect(() => persistUi(services.ui, services.workspace), [services])
   useEffect(() => watchPresentation(services.workspace, services.ui), [services])
   useEffect(() => trackRecent(services.workspace, services.ui), [services])
@@ -100,5 +114,9 @@ export const WorkspaceProvider = ({
   useEffect(() => watchCrashLoop(services.backend.crashLoop?.crashes, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
   useRouteSync(sync, { location, navigationType, navigate })
-  return <WorkspaceServicesContext value={services}>{children}</WorkspaceServicesContext>
+  return (
+    <WorkspaceServicesContext value={services}>
+      <DragSessionContext value={services.drag}>{children}</DragSessionContext>
+    </WorkspaceServicesContext>
+  )
 }

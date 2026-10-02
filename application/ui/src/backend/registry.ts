@@ -1,3 +1,4 @@
+import { isCompanionWindow } from "../model/companion-items"
 import type { WorkspaceAction } from "../model/state"
 import type { TerminalMetadata, Workspace } from "../model/types"
 import type { TerminalKey } from "./port"
@@ -45,6 +46,10 @@ export const createTerminalRegistry = <Entry>(
     for (const project of workspace.projects)
       for (const session of project.history)
         for (const terminal of session.state.roster.terminals) {
+          // A window undocked from a terminal's companion runs nothing on the backend.
+          // TODO: connect companion windows to the backends, which neither keep nor
+          // restore them yet.
+          if (isCompanionWindow(terminal)) continue
           const key = {
             projectId: project.id,
             workspaceSessionId: session.id,

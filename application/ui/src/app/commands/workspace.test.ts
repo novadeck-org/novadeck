@@ -196,6 +196,26 @@ describe("workspace commands", () => {
     })
   })
 
+  context("when removing a project", () => {
+    it("removes the open one and opens another, routing to it", async () => {
+      const app = openCommands({ pickDirectory: () => Promise.resolve("/work/storefront/") })
+      await app.commands.openFolder()
+      const opened = app.workspace.getSnapshot().activeProjectId
+      app.commands.removeProject(opened)
+      const snapshot = app.workspace.getSnapshot()
+      expect(snapshot.projects.map((each) => each.id)).toEqual(["project"])
+      expect(snapshot.activeProjectId).toBe("project")
+      expect(app.ui.getSnapshot().location.route).toMatchObject({ projectId: "project" })
+    })
+
+    it("keeps the last project", () => {
+      const app = openCommands()
+      const before = app.workspace.getSnapshot()
+      app.commands.removeProject("project")
+      expect(app.workspace.getSnapshot()).toBe(before)
+    })
+  })
+
   context("when closing a terminal a program runs in", () => {
     it("asks first and keeps the terminal until the person answers", () => {
       const app = openCommands({ workspace: running() })

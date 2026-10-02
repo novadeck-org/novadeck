@@ -18,16 +18,41 @@ const running = () => {
   )
   const events: CompanionEvent[] = []
   showcase.subscribe((event) => events.push(event))
+  // What the agents opened as the demo started, apart from what follows.
+  const opened = events.splice(0)
   const plan = (key: CompanionKey) =>
     showcase.snapshot().find((companion) => companion.key.terminalId === key.terminalId)!.plans[0]!
-  return { showcase, events, plan }
+  return { showcase, events, opened, plan }
 }
 
 describe("showcase agents", () => {
   it("start from their first plan and what they had already shown", () => {
     const { showcase, plan } = running()
     expect(plan(studio)).toMatchObject({ ref: "root", role: "root", text: studioAgent.text })
-    expect(showcase.snapshot()[0]!.shown.map((artifact) => artifact.id)).toEqual(["hero", "about"])
+    expect(showcase.snapshot()[0]!.shown.map((artifact) => artifact.id)).toEqual([
+      "hero",
+      "about",
+      "voice",
+    ])
+  })
+
+  it("open what they open as the demo starts, once, for the first to listen", async () => {
+    const { showcase, opened } = running()
+    expect(opened).toEqual([
+      {
+        type: "artifact/shown",
+        key: studio,
+        artifact: expect.objectContaining({ id: "projects", kind: "file" }),
+        asked: true,
+      },
+    ])
+    expect(await showcase.load(studio, "projects")).toMatchObject({
+      kind: "file",
+      path: "src/content/projects.json",
+    })
+    const later: CompanionEvent[] = []
+    showcase.subscribe((event) => later.push(event))
+    expect(later).toEqual([])
   })
 
   it("keep a terminal's agent to its own session", () => {

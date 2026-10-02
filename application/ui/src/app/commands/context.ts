@@ -2,6 +2,7 @@ import type { Backend } from "../../backend/port"
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { WorkspaceStore } from "../../model/store"
 import type { SidebarPanel } from "../../shell/shell-state"
+import type { Panes } from "../../terminals/companion/state"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiStore } from "../ui-store"
 
@@ -43,6 +44,8 @@ export type CommandContext = {
   readonly pickDirectory?: Backend["pickDirectory"] | undefined
   readonly crashLoop?: Backend["crashLoop"] | undefined
   readonly resetTitle?: Backend["resetTitle"] | undefined
+  // Every terminal's companion pane, where the backend has companions.
+  readonly panes?: Panes | undefined
   readonly canvas: { readonly current: CanvasHandle | null }
   readonly effects: CommandEffects
 }

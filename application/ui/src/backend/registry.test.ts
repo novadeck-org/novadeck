@@ -46,6 +46,30 @@ const apply = (workspace: Workspace, actions: WorkspaceAction[]): Workspace =>
   actions.reduce(workspaceReducer, workspace)
 
 describe("terminal registry", () => {
+  context("when a session holds a window undocked from a terminal's companion", () => {
+    it("opens nothing on the backend for it, and closes nothing when it goes", () => {
+      const { registry, opened, closed } = recording()
+      const workspace = fixture()
+      registry.reconcile(workspace, [])
+      const shown = {
+        ...terminalFixture(3, "~/project"),
+        state: "idle" as const,
+        companion: {
+          from: "01",
+          item: { kind: "artifact" as const, id: "hero" },
+        },
+      }
+      const add: WorkspaceAction = { type: "terminal/add", target, terminal: shown }
+      const withWindow = apply(workspace, [add])
+      registry.reconcile(withWindow, [add])
+      expect(opened.map(({ key }) => key.terminalId)).not.toContain("03")
+      expect(registry.get({ ...target, terminalId: "03" })).toBeUndefined()
+      const close: WorkspaceAction = { type: "terminal/close", target, terminalId: "03" }
+      registry.reconcile(apply(withWindow, [close]), [close])
+      expect(closed).toEqual([])
+    })
+  })
+
   context("when it first sees a workspace", () => {
     it("opens one entry per terminal in every session, none of them created", () => {
       const { registry, opened } = recording()

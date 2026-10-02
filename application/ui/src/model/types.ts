@@ -1,3 +1,5 @@
+import type { CompanionWindow, Placement } from "./companion-items"
+
 export type ViewMode = "focus" | "grid" | "canvas"
 export type WindowedView = Exclude<ViewMode, "focus">
 export type PreferencesValue = { fontSize: number; enabledViews: ViewMode[] }
@@ -66,6 +68,8 @@ export type TerminalMetadata = {
   handle?: string
   // Who its name is from, where its backend tells.
   titleSource?: TitleSource
+  // Present on a window showing part of a terminal's companion rather than a shell.
+  companion?: CompanionWindow
 } & TerminalStatus
 
 export type CanvasLayout = {
@@ -127,6 +131,8 @@ export type WorkspaceState = {
   readonly view: ViewMode
   readonly windowedView: WindowedView
   readonly selected: string
+  // Terminals' items shown on other terminals' taskbars, in the order they were placed.
+  readonly placements: readonly Placement[]
 }
 export type WorkspaceSession = {
   id: string

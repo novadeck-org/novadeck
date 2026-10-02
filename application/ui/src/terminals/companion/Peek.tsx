@@ -12,13 +12,14 @@ export type PeekEntry = {
   readonly preview: ReactNode
   readonly state: Indicator
   readonly onOpen: () => void
-  // Absent for what can't be dismissed, such as the plan.
-  readonly onDismiss?: () => void
+  readonly onClose: () => void
+  // Pressing on the card may start pulling it out, as an icon of its own.
+  readonly onGrab?: (event: React.PointerEvent<HTMLElement>) => void
 }
 
 // A peek above a taskbar icon: a card for each thing behind it, one or many. The card
 // says it all without words: its preview, its name, the same mark as the taskbar, and a
-// dismiss button that shows on hover.
+// close button that shows on hover.
 export const Peek = ({ entries }: { entries: readonly PeekEntry[] }): React.JSX.Element => (
   <div
     className="plan-peek"
@@ -34,6 +35,9 @@ export const Peek = ({ entries }: { entries: readonly PeekEntry[] }): React.JSX.
           aria-label={`${entry.name}${entry.state === "new" ? ", new" : ""}`}
           aria-pressed={entry.state === "open"}
           onClick={entry.onOpen}
+          onPointerDown={entry.onGrab}
+          // An image in it would start the browser's own drag instead.
+          onDragStart={entry.onGrab && ((event) => event.preventDefault())}
         >
           <span className="plan-peek-thumb" aria-hidden="true">
             {entry.preview}
@@ -43,15 +47,13 @@ export const Peek = ({ entries }: { entries: readonly PeekEntry[] }): React.JSX.
             <span>{entry.name}</span>
           </span>
         </button>
-        {entry.onDismiss && (
-          <button
-            className="plan-peek-dismiss"
-            aria-label={`Dismiss ${entry.name}`}
-            onClick={entry.onDismiss}
-          >
-            <X size={12} />
-          </button>
-        )}
+        <button
+          className="plan-peek-close"
+          aria-label={`Close ${entry.name}`}
+          onClick={entry.onClose}
+        >
+          <X size={12} />
+        </button>
       </div>
     ))}
   </div>

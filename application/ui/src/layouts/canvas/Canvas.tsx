@@ -6,6 +6,7 @@ import {
   ReactFlowProvider,
   useReactFlow,
   useStore,
+  ViewportPortal,
   useStoreApi,
   type ReactFlowState,
   type XYPosition,
@@ -26,6 +27,7 @@ import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction
 import { canvasPointPosition, viewportCanvasPosition } from "../../model/layout/canvas-placement"
 import { canvasNewTerminalSize, canvasPresetSize } from "../../model/layout/terminal-size"
 import type { TerminalMetadata, CanvasLayout } from "../../model/types"
+import { useDrag, useDragSession } from "../../terminals/drag-session"
 import { ContextMenu } from "../../ui-toolkit/ContextMenu"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
@@ -40,6 +42,11 @@ export type { CanvasHandle } from "./types"
 
 // The chrome that reads `--canvas-chrome-scale` (canvas.css, runner.css).
 const chromeReaders = ".terminal-heading, .terminal-resize-grip, .runner-ending"
+
+// How long a window dropped from a taskbar takes to settle onto the canvas's grid.
+const settleMs = 160
+
+const samePoint = (a: XYPosition, b: XYPosition): boolean => a.x === b.x && a.y === b.y
 
 const TerminalCanvas = ({
   presets,
@@ -70,6 +77,7 @@ const TerminalCanvas = ({
     getViewport,
     getNode,
     setNodes,
+    updateNode,
     screenToFlowPosition,
   } = useReactFlow<TerminalNode>()
   const store = useStoreApi<TerminalNode>()
@@ -143,6 +151,38 @@ const TerminalCanvas = ({
   const pointerCreated = useRef(new Set<string>())
   const pendingCreatedPositions = useRef(new Map<string, XYPosition>())
   const contextPosition = useRef<XYPosition | null>(null)
+  // Something dragged off a terminal's taskbar can be dropped on the empty canvas: a ghost
+  // of its window follows the pointer there, freely, as a dragged window does; dropped,
+  // its window opens where the ghost was and settles onto the canvas's grid. The canvas
+  // offers its space to the drag session, and draws the ghost from what the session says
+  // is under the pointer.
+  const session = useDragSession()
+  useEffect(
+    () =>
+      session.offer((x, y) => {
+        const under = document.elementsFromPoint(x, y)
+        const overPane = under.some((element) => element.classList.contains("react-flow__pane"))
+        const overNode = under.some((element) => element.closest(".react-flow__node"))
+        if (!overPane || overNode) return null
+        // Its window would open with its header under the pointer, at its usual size.
+        const point = screenToFlowPosition({ x, y })
+        const { width } = canvasPresetSize("small")
+        return { canvas: { x: point.x - width / 2, y: point.y - terminalHeaderHeight / 2 } }
+      }),
+    [session, screenToFlowPosition],
+  )
+  const ghost = useDrag((drag) =>
+    drag?.place && "canvas" in drag.place ? drag.place.canvas : null,
+  )
+  const ghostName = useDrag((drag) => drag?.name ?? "")
+  // Where the ghost was last: a window opening at its snapped place opens there first,
+  // then settles, as `settling` says.
+  const lastGhost = useRef<XYPosition | null>(null)
+  // Before the drop that ends the drag can open a window, whatever the timing.
+  useLayoutEffect(() => {
+    if (ghost) lastGhost.current = ghost
+  }, [ghost])
+  const settling = useRef(new Map<string, XYPosition>())
   const stacking = useRef<string[]>([])
   const initializeViewport = useCanvasNavigation({
     navigation,
@@ -356,15 +396,30 @@ const TerminalCanvas = ({
           matchCreatedTerminalRatio,
           { width: saved?.width ?? 600, height: saved?.height ?? 400 },
         )
+        // Dropped from a taskbar where the ghost was, its window opens exactly there, then
+        // settles onto the place it was given.
+        const ghostAt =
+          terminal.companion &&
+          lastGhost.current &&
+          saved?.position &&
+          samePoint(canvasPointPosition(lastGhost.current), saved.position)
+            ? lastGhost.current
+            : null
+        if (ghostAt) {
+          settling.current.set(terminal.id, saved!.position)
+          lastGhost.current = null
+        }
         const requested = pendingCreatedPositions.current.get(terminal.id)
-        const position = requested
-          ? canvasPointPosition(requested)
-          : viewportCanvasPosition(
-              occupied,
-              viewport,
-              { width: viewportWidth, height: viewportHeight },
-              size,
-            )
+        const position = ghostAt
+          ? ghostAt
+          : requested
+            ? canvasPointPosition(requested)
+            : viewportCanvasPosition(
+                occupied,
+                viewport,
+                { width: viewportWidth, height: viewportHeight },
+                size,
+              )
         geometryRef.current[terminal.id] = { ...saved, position, ...size }
         dirtyGeometry.current.add(terminal.id)
         if (requested) {
@@ -375,6 +430,28 @@ const TerminalCanvas = ({
         occupied.push({ position, ...size })
       }
       commitGeometry(created.map((terminal) => terminal.id))
+      // A window dropped from a taskbar glides onto the grid from where its ghost was.
+      for (const terminal of created) {
+        const snapped = settling.current.get(terminal.id)
+        if (!snapped) continue
+        settling.current.delete(terminal.id)
+        requestAnimationFrame(() => {
+          geometryRef.current[terminal.id] = {
+            ...geometryRef.current[terminal.id],
+            position: snapped,
+          }
+          updateNode(terminal.id, (node) => ({
+            ...node,
+            position: snapped,
+            className: "canvas-drop-settle",
+          }))
+          commitGeometry([terminal.id])
+          setTimeout(
+            () => updateNode(terminal.id, (node) => ({ ...node, className: "" })),
+            settleMs,
+          )
+        })
+      }
     }
     for (const id of knownTerminals.current) {
       if (!terminalIds.has(id)) {
@@ -423,6 +500,7 @@ const TerminalCanvas = ({
     selected,
     terminals,
     setNodes,
+    updateNode,
     viewportHeight,
     viewportWidth,
   ])
@@ -541,6 +619,20 @@ const TerminalCanvas = ({
             color="var(--color-muted)"
             bgColor="transparent"
           />
+          {ghost && (
+            <ViewportPortal>
+              <div
+                className="drop-ghost canvas-drop-ghost"
+                aria-hidden="true"
+                style={{
+                  transform: `translate(${ghost.x}px, ${ghost.y}px)`,
+                  ...canvasPresetSize("small"),
+                }}
+              >
+                <span className="drop-ghost-header">{ghostName}</span>
+              </div>
+            </ViewportPortal>
+          )}
         </ReactFlow>
       </TerminalContent.Provider>
     </div>

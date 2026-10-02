@@ -3,8 +3,15 @@ import type { ArtifactContent, ArtifactRef } from "../../../model/companion"
 // An artifact as a sample agent keeps it: how the pane lists it, and what it loads.
 export type SampleArtifact = { readonly ref: ArtifactRef; readonly content: ArtifactContent }
 
+export type SampleArtifacts = {
+  readonly shown: readonly SampleArtifact[]
+  readonly opened?: readonly SampleArtifact[]
+  readonly next: readonly SampleArtifact[]
+}
+
 // What the sample Codex shows beside "Build Studio": drafts of the Studio site, drawn as
-// SVG in its own palette, a file from the project, and the site in the preview browser.
+// SVG in its own palette, files from the project, a markdown document it wrote, and the
+// site in the preview browser.
 
 const ivory = "#f6f1e7"
 const ink = "#2d2a24"
@@ -101,6 +108,108 @@ const home: SampleArtifact = {
   },
 }
 
+const voiceLines = [
+  "# Studio voice",
+  "",
+  "How Studio sounds on the site, in proposals and in captions. Written from the interviews in March; the founders signed off on it.",
+  "",
+  "## In a sentence",
+  "",
+  "Plain, warm and exact: we say what the work is and why it matters, and stop.",
+  "",
+  "## Principles",
+  "",
+  '- **Name the thing.** "A type system for a quarterly journal", not "a holistic brand experience".',
+  "- **Credit the people.** Every project names its collaborators, from the architect to the photographer.",
+  "- **Let the work lead.** Copy sits beside images, never over them; captions are one line.",
+  "- **Slow is a value, not an excuse.** Say how long things took when it helps the reader trust the result.",
+  "",
+  "## Words we use, and don't",
+  "",
+  "| Prefer | Avoid |",
+  "| --- | --- |",
+  "| identity | branding solution |",
+  "| publication | content |",
+  "| place, wayfinding | spatial experience |",
+  "| we made | we delivered |",
+  "",
+  "## Headlines",
+  "",
+  "Short, sentence case, no exclamation marks. The home page leads with *Careful work, made slowly.*; project pages lead with the project's name and one line on what it is.",
+  "",
+  "## Open questions",
+  "",
+  "1. Do we sign case studies with a person's name, or as Studio?",
+  "2. Should the journal keep its own voice, closer to the publisher's?",
+  "",
+  "> Write as you would explain the work to a friend who asked, across a table.",
+]
+
+const voice: SampleArtifact = {
+  ref: {
+    id: "voice",
+    kind: "file",
+    name: "brand-voice.md",
+    detail: "docs/brand-voice.md",
+    version: 1,
+  },
+  content: {
+    kind: "file",
+    path: "docs/brand-voice.md",
+    firstLine: 1,
+    from: 1,
+    to: voiceLines.length,
+    lines: voiceLines,
+  },
+}
+
+const projects: SampleArtifact = {
+  ref: {
+    id: "projects",
+    kind: "file",
+    name: "projects.json",
+    detail: "src/content/projects.json · lines 2–10",
+    version: 1,
+  },
+  content: {
+    kind: "file",
+    path: "src/content/projects.json",
+    firstLine: 1,
+    from: 2,
+    to: 10,
+    lines: [
+      "[",
+      "  {",
+      '    "slug": "harbour-press",',
+      '    "title": "Harbour Press",',
+      '    "year": 2025,',
+      '    "discipline": ["identity", "publication"],',
+      '    "summary": "A new identity, type system and quarterly journal for an independent publisher on the north coast, built around a single condensed serif that carries everything from the masthead to the smallest colophon.",',
+      '    "cover": "/work/harbour-press.jpg",',
+      '    "featured": true',
+      "  },",
+      "  {",
+      '    "slug": "field-notes",',
+      '    "title": "Field Notes",',
+      '    "year": 2024,',
+      '    "discipline": ["publication"],',
+      '    "cover": "/work/field-notes.jpg",',
+      '    "featured": false',
+      "  },",
+      "  {",
+      '    "slug": "the-orchard",',
+      '    "title": "The Orchard",',
+      '    "year": 2023,',
+      '    "discipline": ["place", "wayfinding"],',
+      '    "cover": "/work/the-orchard.jpg",',
+      '    "credits": "Wayfinding with Hollis & Reyes Architects; signage fabricated by Northfield Metalworks; photography by Ana Lindqvist; additional illustration by the studio team over two seasons of site visits.",',
+      '    "featured": false',
+      "  }",
+      "]",
+    ],
+  },
+}
+
 const preview: SampleArtifact = {
   ref: {
     id: "preview",
@@ -129,11 +238,10 @@ const preview: SampleArtifact = {
   },
 }
 
-// Shown before the demo starts, then one at a time as the user types `show` or `open`.
-export const studioArtifacts: {
-  readonly shown: readonly SampleArtifact[]
-  readonly next: readonly SampleArtifact[]
-} = {
-  shown: [hero, about],
+// Shown before the demo starts; opened for the user as the demo starts; then one at a
+// time as the user types `show` or `open`.
+export const studioArtifacts: SampleArtifacts = {
+  shown: [hero, about, voice],
+  opened: [projects],
   next: [home, preview, mobile],
 }

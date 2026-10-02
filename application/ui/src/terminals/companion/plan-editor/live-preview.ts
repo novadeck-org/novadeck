@@ -21,7 +21,7 @@ import {
 } from "@codemirror/view"
 
 import { notePattern } from "../../../model/companion"
-import type { Mark } from "../state"
+import type { Mark } from "../plan-doc"
 import {
   addNote,
   caretInNote,

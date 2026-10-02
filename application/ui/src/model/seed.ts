@@ -18,11 +18,19 @@ import type {
 } from "./types"
 
 // How the UI showed a session's terminals, as it saved it: only its own view state, by
-// terminal id, never the terminals themselves, which their backend reports.
-export type RestoredView = Omit<WorkspaceState, "roster"> & { readonly order: readonly string[] }
+// terminal id, never the terminals themselves, which their backend reports. Placements
+// aren't kept: every terminal's items start on its own taskbar.
+// TODO: keep placements once a backend keeps the companion items they place.
+export type RestoredView = Omit<WorkspaceState, "roster" | "placements"> & {
+  readonly order: readonly string[]
+}
 
 // A session's view state, without its terminals.
-export const viewOf = ({ roster, ...view }: WorkspaceState): RestoredView => ({
+export const viewOf = ({
+  roster,
+  placements: _placements,
+  ...view
+}: WorkspaceState): RestoredView => ({
   ...view,
   order: roster.order,
 })
@@ -103,6 +111,7 @@ const restoredState = (
     layout,
     selected,
     roster: { terminals: kept, order: sorted },
+    placements: [],
   }
   return terminals.filter((terminal) => !laidOut.has(terminal.id)).reduce(appendTerminal, base)
 }

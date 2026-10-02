@@ -1,0 +1,43 @@
+/* A peek rises out of its trigger as it opens and settles back as it closes. Ark keeps
+   the card mounted until the closing animation ends, and sets --transform-origin to the
+   side facing the trigger. */
+.card {
+  transform-origin: var(--transform-origin);
+}
+
+.card[data-state="open"] {
+  animation: hover-card-in var(--motion-state) var(--ease-interface);
+}
+
+.card[data-state="closed"] {
+  animation: hover-card-out var(--motion-feedback) var(--ease-interface) forwards;
+  pointer-events: none;
+}
+
+@keyframes hover-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hover-card-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(2px) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none !important;
+  }
+}

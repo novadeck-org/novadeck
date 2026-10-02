@@ -9,12 +9,13 @@ import { attentionText, endingText, terminalEnding, terminalPhase } from "../mod
 import { titleSourceText } from "../model/title-source"
 import type { TerminalMetadata } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
-import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
+import { ContextMenu } from "../ui-toolkit/ContextMenu"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { MailCount } from "./MailCount"
 import { terminalProfile } from "./processes/profiles"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { useRenderAt } from "./use-render-at"
+import { windowMenu, type DockTarget } from "./window-menu"
 
 const actionClasses =
   "terminal-tab-action flex size-6 shrink-0 items-center justify-center rounded-control p-1.5 text-muted hover:bg-soft hover:text-ink [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100 focus-visible:outline-offset-[-2px] focus-visible:[&>svg]:opacity-100"
@@ -34,6 +35,7 @@ export const TerminalTab = ({
   onRenameCancel,
   onClose,
   onResetTitle,
+  dockIn,
 }: {
   terminal: TerminalMetadata
   index: number
@@ -51,6 +53,8 @@ export const TerminalTab = ({
   onClose: () => void
   // Hands the name back to the backend; absent where it can't.
   onResetTitle?: (() => void) | undefined
+  // Docks a window undocked from a terminal's companion back in that terminal.
+  dockIn?: DockTarget | undefined
 }): React.JSX.Element => {
   const editing = Boolean(rename)
   const Icon = terminalProfile(terminal).icon
@@ -68,14 +72,13 @@ export const TerminalTab = ({
   const named = terminal.titleSource ? titleSourceText(terminal.titleSource) : undefined
   const messages = mail ? mailBadgeLabel(mail) : undefined
   const description = [note, messages].filter(Boolean).join(", ")
-  // The tab's own actions, and handing a name the person gave back to NovaDeck.
-  const menu: ContextMenuItem[] = [
-    { value: "rename", label: "Rename", onSelect: onBeginRename },
-    ...(onResetTitle && terminal.titleSource?.kind === "person"
-      ? [{ value: "reset-title", label: "Reset to automatic", onSelect: onResetTitle }]
-      : []),
-    { value: "close", label: "Close", onSelect: onClose },
-  ]
+  const menu = windowMenu({
+    terminal,
+    onRename: onBeginRename,
+    onResetTitle,
+    dockIn,
+    onClose,
+  })
   useRenderAt(nextReset(terminal))
   const usage = usageDetail(terminal)
   const subagents = subagentsBadge(terminal)

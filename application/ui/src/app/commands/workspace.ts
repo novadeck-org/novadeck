@@ -10,6 +10,7 @@ import type {
   WorkspaceSession,
   WorkspaceTarget,
 } from "../../model/types"
+import { hideShowing, itemKey, placedKey } from "../../terminals/companion/pane"
 import {
   currentContext,
   currentState,
@@ -17,6 +18,7 @@ import {
   sameTarget,
   windowedDestination,
 } from "../selectors"
+import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
 import { createRecentCommands, type RecentCommands } from "./recent"
@@ -29,6 +31,7 @@ export type AddTerminalOptions = { fromKeyboard?: boolean; beginRename?: boolean
 // Workspace operations shared by the pointer UI and keyboard shortcuts. Each reads the
 // latest stores when it runs, so several in one event keep one another's changes.
 export type WorkspaceCommands = ShellCommands &
+  CompanionCommands &
   RenameCommands &
   RecentCommands &
   LayoutCommands & {
@@ -37,6 +40,8 @@ export type WorkspaceCommands = ShellCommands &
     readonly switchProject: (next: Project) => void
     // Asks the backend for a folder and opens it as a new project; no-op without one.
     readonly openFolder: () => Promise<void>
+    // Removes a project and closes its terminals; the last project stays.
+    readonly removeProject: (id: string) => void
     // Selects a terminal and brings it into view, optionally fitting Canvas around it.
     readonly select: (id: string, fit?: boolean) => void
     readonly setSelected: (terminal: string) => void
@@ -124,6 +129,17 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     const { view, selected } = currentState(snapshot)
     const active = rename.activeRename()
     if (active?.id === terminalId) rename.finishRename(active, false)
+    // What leaves other bars with it leaves no pane open to it: a window's item goes back
+    // to its terminal's bar unopened, and a terminal's items placed elsewhere go with it.
+    const { roster, placements } = currentState(snapshot)
+    const hide = (on: string, key: string): void =>
+      ctx.panes
+        ?.of({ ...currentTarget(snapshot), terminalId: on })
+        .update((pane) => hideShowing(pane, key))
+    const window = roster.terminals.find((terminal) => terminal.id === terminalId)?.companion
+    if (window) hide(window.from, itemKey(window.item))
+    for (const { from, item, to } of placements)
+      if (from === terminalId) hide(to, placedKey(from, item))
     navigateWorkspace(
       [{ type: "terminal/close", target: currentTarget(snapshot), terminalId }],
       {},
@@ -149,6 +165,13 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...rename,
     ...recent,
     ...createLayoutCommands(ctx),
+    ...createCompanionCommands(ctx, {
+      select,
+      setSelected,
+      close: closeNow,
+      markCreated,
+      pulse: () => pulse(),
+    }),
     setSelected,
     select,
     switchSession: (id) => {
@@ -206,6 +229,17 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           project,
           activate: true,
           initialSession,
+          enabledViews: preferences().enabledViews,
+        },
+      ])
+    },
+    removeProject: (id) => {
+      if (workspace.getSnapshot().projects.length < 2) return
+      navigateWorkspace([
+        {
+          type: "project/remove",
+          projectId: id,
+          now: effects.now(),
           enabledViews: preferences().enabledViews,
         },
       ])

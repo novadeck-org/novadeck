@@ -1,156 +1,104 @@
-import { FileStack, FileText, Image, MessagesSquare, Pause } from "lucide-react"
+import { DragDropProvider } from "@dnd-kit/react"
+import { useSortable } from "@dnd-kit/react/sortable"
+import { useRef, useState, type ReactNode } from "react"
 
-import { mailBadgeLabel } from "../../model/messages"
-import { ContextMenu, type ContextMenuItem } from "../../ui-toolkit/ContextMenu"
-import { HoverCard } from "../../ui-toolkit/HoverCard"
-import { ArtifactThumb, kindIcons } from "./ArtifactViewer"
-import type { MailHandle } from "./mail"
-import { dismiss, mailTab, pickFromGroup, planTab, slotsOf, type Shown } from "./pane"
-import { Peek, type Indicator, type PeekEntry } from "./Peek"
-import { headingsOf, titleOf } from "./plan-text"
-import {
-  closePane,
-  openTab,
-  shownTab,
-  unread,
-  useArtifactContent,
-  type CompanionHandle,
-  type PlanDoc,
-} from "./state"
+import { Portal } from "../../ui-toolkit/Portal"
+import type { Presence } from "../../ui-toolkit/presence"
+import type { BarDrag } from "../drag-session"
+import type { BarSlot } from "./bar"
+import { TaskbarSlot, type SlotActions } from "./TaskbarSlot"
+import { tether } from "./tether"
+import { useBarDrag, type Dragged } from "./use-bar-drag"
 
-// The plan in miniature: its title over its sections.
-const PlanThumb = ({ plan }: { plan: PlanDoc }): React.JSX.Element => (
-  <span className="peek-plan">
-    <b>{titleOf(plan.path, plan.text)}</b>
-    {headingsOf(plan.text)
-      .slice(0, 4)
-      .map((heading) => (
-        <span key={heading.at}>{heading.text}</span>
-      ))}
-  </span>
-)
+// The messages' drag stays on their terminal's bar.
+const onBar = [tether((operation) => operation.source?.element?.closest("[data-taskbar]") ?? null)]
 
-const LoadedPreview = ({
-  companion,
-  artifact,
+// One slot as the bar's drag reorders it: its own box, a direct child of the bar, so the
+// drag moves the whole slot. Its icon button is the handle, which carries what dnd-kit
+// tells assistive technology, so no second button wraps the first.
+const SortableSlot = ({
+  id,
+  index,
+  tethered,
+  children,
 }: {
-  companion: CompanionHandle
-  artifact: Shown
-}): React.JSX.Element | null => <ArtifactThumb load={useArtifactContent(companion, artifact)} />
-
-// The threads in miniature: the agents they're with, latest first.
-const MailThumb = ({
-  mail,
-  peerName,
-}: {
-  mail: MailHandle
-  peerName: (handle: string) => string | undefined
+  id: string
+  index: number
+  // Held to its terminal's bar, as the messages are.
+  tethered: boolean
+  children: ReactNode
 }): React.JSX.Element => {
-  const threads = mail.mail?.threads ?? []
+  const [element, setElement] = useState<HTMLSpanElement | null>(null)
+  const handle = element?.querySelector<HTMLElement>(".plan-tb-item") ?? undefined
+  const { isDragSource } = useSortable({
+    id,
+    index,
+    element: element ?? undefined,
+    handle,
+    transition: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+    modifiers: tethered ? onBar : [],
+  })
   return (
-    <span className="peek-plan peek-mail">
-      <b>{threads.length ? "Threads" : "No messages yet"}</b>
-      {threads.slice(0, 4).map((thread) => (
-        <span key={thread.id}>
-          {peerName(thread.peer) ?? thread.peer} · {thread.peer}
-        </span>
-      ))}
+    <span
+      className="plan-tb-sortable"
+      ref={setElement}
+      data-slot={id}
+      data-dragging={isDragSource || undefined}
+    >
+      {children}
     </span>
   )
 }
 
-// An artifact in miniature, once it loads; a held one is never loaded for a peek, which
-// a passing pointer opens.
-const ArtifactPreview = ({
-  companion,
-  artifact,
-}: {
-  companion: CompanionHandle
-  artifact: Shown
-}): React.JSX.Element | null =>
-  artifact.held ? (
-    <span className="peek-held">May hold secrets. Click to open.</span>
-  ) : (
-    <LoadedPreview companion={companion} artifact={artifact} />
-  )
-
-// A taskbar slot: its icon, the peek above it, and its menu, which is also the
-// keyboard's way to everything the peek offers.
-const slot = (
-  key: string,
-  label: string,
-  items: ContextMenuItem[],
-  button: React.ReactElement,
-  peek: React.ReactNode,
-): React.JSX.Element => (
-  <ContextMenu
-    key={key}
-    label={`${label} actions`}
-    items={items}
-    trigger={
-      <span className="plan-tb-slot">
-        <HoverCard trigger={button} className="plan-tb-peek">
-          {peek}
-        </HoverCard>
-      </span>
-    }
-  />
-)
-
-// The pane's taskbar along the terminal's bottom: its plans, the agent's own first, then
-// what else the agent showed, an icon each, images grouped. Hover peeks, click opens or
-// hides, the menu opens or dismisses. Nothing opens on its own.
+// A terminal's taskbar along its bottom: an icon for each of its plans, what its agent
+// showed and its messages, and for what other terminals placed here, stacked by kind, in
+// the order they came or the person dragged them into. Hover peeks, click opens or hides
+// the pane, the menu does the rest. Nothing opens on its own.
 export const Taskbar = ({
-  companion,
-  mail,
-  peerName,
+  terminal,
+  agent,
+  slots,
+  actions,
+  land,
   trigger,
   open,
+  onHide,
+  presence,
+  dropTarget,
 }: {
-  companion: CompanionHandle
-  mail: MailHandle
-  peerName: (handle: string) => string | undefined
+  terminal: string
+  // Who showed what's here, as the bar's label names them.
+  agent: string
+  slots: readonly BarSlot[]
+  actions: Omit<SlotActions, "grab">
+  land: (dragged: Dragged, ended: BarDrag) => boolean
   trigger: React.RefObject<HTMLButtonElement | null>
   open: boolean
+  onHide: () => void
+  // How the bar comes and goes with what the terminal has to show.
+  presence: Presence
+  // An icon from another terminal's bar is over this one: a drop lands here.
+  dropTarget: boolean
 }): React.JSX.Element => {
-  const { pane } = companion
-  const current = shownTab(pane, mail.present)
-  const showing = (tab: string): boolean => open && current === tab
-  const state = (tab: string, fresh: boolean): Indicator =>
-    fresh ? "new" : showing(tab) ? "open" : "seen"
-  // Clicking what the pane is showing hides it, as a taskbar minimizes the active window.
-  const activate = (tab: string): void =>
-    companion.update((next) => (showing(tab) ? closePane(next) : openTab(next, tab)))
-  const opening = (tab: string, label = "Open"): ContextMenuItem => ({
-    value: `open-${tab}`,
-    label,
-    onSelect: () => companion.update((next) => openTab(next, tab)),
+  const bar = useRef<HTMLDivElement | null>(null)
+  const { provider, grab, grabbed, grabbedIconRef } = useBarDrag({
+    terminal,
+    slots,
+    bar,
+    move: actions.move,
+    land,
   })
-  const dismissing = (id: string, label = "Dismiss"): ContextMenuItem => ({
-    value: `dismiss-${id}`,
-    label,
-    onSelect: () => companion.update((next) => dismiss(next, id)),
-  })
-  const peekOf = (artifact: Shown): PeekEntry => {
-    const Icon = kindIcons[artifact.kind]
-    return {
-      id: artifact.id,
-      name: artifact.name,
-      icon: <Icon size={13} strokeWidth={1.5} />,
-      preview: <ArtifactPreview companion={companion} artifact={artifact} />,
-      state: state(artifact.id, artifact.fresh),
-      onOpen: () => companion.update((next) => openTab(next, artifact.id)),
-      onDismiss: () => companion.update((next) => dismiss(next, artifact.id)),
-    }
-  }
-  const agent = pane.plans[0]?.agent ?? "The agent"
-  const slots = slotsOf(pane.artifacts)
-  // Focus comes back to the first icon when the pane hides: the agent's own plan, or
-  // the first thing it showed when it has no plan.
-  const firstSlot = slots[0]
+  const Grabbed = grabbed
   return (
     <div
+      {...presence.props}
+      ref={(element) => {
+        bar.current = element
+        presence.props.ref(element)
+      }}
       className="plan-taskbar nodrag nopan"
+      data-taskbar=""
+      data-drop-target={dropTarget || undefined}
       data-workspace-companion
       role="group"
       aria-label={`What ${agent} showed you`}
@@ -161,132 +109,38 @@ export const Taskbar = ({
         if (event.key !== "Escape" || !open) return
         if (!event.currentTarget.contains(event.target as Node)) return
         event.stopPropagation()
-        companion.update(closePane)
+        onHide()
       }}
     >
-      {pane.plans.map((plan, index) => {
-        const tab = planTab(plan.ref)
-        const title = titleOf(plan.path, plan.text)
-        const fresh = unread(plan)
-        const Icon = plan.role === "root" ? FileText : FileStack
-        const kind = plan.role === "root" ? "Plan" : "Subagent plan"
-        return slot(
-          tab,
-          kind,
-          [opening(tab)],
-          <button
-            // Focus comes back to the agent's own plan when the pane hides.
-            ref={index === 0 ? trigger : undefined}
-            className="plan-tb-item"
-            data-state={state(tab, fresh)}
-            aria-label={`${kind}: ${title}${fresh ? ", new" : ""}`}
-            aria-pressed={showing(tab)}
-            onClick={() => activate(tab)}
-          >
-            <Icon size={20} strokeWidth={1.5} />
-          </button>,
-          <Peek
-            entries={[
-              {
-                id: tab,
-                // Named by its file, like everything else; the preview carries the title.
-                name: plan.path.split("/").at(-1)!,
-                icon: <Icon size={13} strokeWidth={1.5} />,
-                preview: <PlanThumb plan={plan} />,
-                state: state(tab, fresh),
-                onOpen: () => companion.update((next) => openTab(next, tab)),
-              },
-            ]}
-          />,
-        )
-      })}
-      {slots.map((entry) => {
-        if (entry.kind === "one") {
-          const { artifact } = entry
-          const Icon = kindIcons[artifact.kind]
-          return slot(
-            artifact.id,
-            artifact.name,
-            [opening(artifact.id), dismissing(artifact.id)],
-            <button
-              ref={pane.plans.length || entry !== firstSlot ? undefined : trigger}
-              className="plan-tb-item"
-              data-state={state(artifact.id, artifact.fresh)}
-              aria-label={`${artifact.name}${artifact.fresh ? ", new" : ""}`}
-              aria-pressed={showing(artifact.id)}
-              onClick={() => activate(artifact.id)}
+      <DragDropProvider {...provider}>
+        <span className="plan-tb-slots">
+          {slots.map((slot, index) => (
+            <SortableSlot
+              key={slot.key}
+              id={slot.key}
+              index={index}
+              tethered={slot.members.some((member) => member.content.kind === "messages")}
             >
-              <Icon size={20} strokeWidth={1.5} />
-            </button>,
-            <Peek entries={[peekOf(artifact)]} />,
-          )
-        }
-        const images = entry.artifacts
-        const fresh = images.some((shown) => shown.fresh)
-        const openImage = images.find((shown) => showing(shown.id))
-        return slot(
-          "images",
-          "Images",
-          images.flatMap((image) => [
-            opening(image.id, `Open ${image.name}`),
-            dismissing(image.id, `Dismiss ${image.name}`),
-          ]),
-          <button
-            ref={pane.plans.length || entry !== firstSlot ? undefined : trigger}
-            className="plan-tb-item"
-            data-state={fresh ? "new" : openImage ? "open" : "seen"}
-            aria-label={`${images.length} images${fresh ? ", new" : ""}`}
-            aria-pressed={Boolean(openImage)}
-            onClick={() => activate(pickFromGroup(pane, images).id)}
-          >
-            <Image size={20} strokeWidth={1.5} />
-            <b className="plan-tb-count" aria-hidden="true">
-              {images.length}
-            </b>
-          </button>,
-          <Peek entries={images.map(peekOf)} />,
-        )
-      })}
-      {mail.present &&
-        slot(
-          mailTab,
-          "Messages",
-          [opening(mailTab)],
-          <button
-            // Focus comes back here when the pane hides, when nothing else is shown.
-            ref={pane.plans.length || slots.length ? undefined : trigger}
-            className="plan-tb-item"
-            data-state={state(mailTab, false)}
-            aria-label={`Messages${mail.badge ? `, ${mailBadgeLabel(mail.badge)}` : mail.paused ? ", messaging paused" : ""}`}
-            aria-pressed={showing(mailTab)}
-            onClick={() => activate(mailTab)}
-          >
-            <MessagesSquare size={20} strokeWidth={1.5} />
-            {mail.badge ? (
-              <b className="plan-tb-count" data-mail={mail.badge.kind} aria-hidden="true">
-                {mail.badge.count}
-              </b>
-            ) : (
-              mail.paused && (
-                <b className="plan-tb-count" data-mail="paused" aria-hidden="true">
-                  <Pause size={8} strokeWidth={2.5} />
-                </b>
-              )
-            )}
-          </button>,
-          <Peek
-            entries={[
-              {
-                id: mailTab,
-                name: "Messages",
-                icon: <MessagesSquare size={13} strokeWidth={1.5} />,
-                preview: <MailThumb mail={mail} peerName={peerName} />,
-                state: state(mailTab, false),
-                onOpen: () => companion.update((next) => openTab(next, mailTab)),
-              },
-            ]}
-          />,
-        )}
+              <TaskbarSlot
+                slot={slot}
+                index={index}
+                count={slots.length}
+                actions={{ ...actions, grab }}
+                buttonRef={index === 0 ? trigger : undefined}
+              />
+            </SortableSlot>
+          ))}
+        </span>
+      </DragDropProvider>
+      {Grabbed && (
+        <Portal>
+          <div ref={grabbedIconRef} className="plan-tb-grabbed" aria-hidden="true">
+            <span className="plan-tb-item" data-state="seen">
+              <Grabbed size={20} strokeWidth={1.5} />
+            </span>
+          </div>
+        </Portal>
+      )}
     </div>
   )
 }

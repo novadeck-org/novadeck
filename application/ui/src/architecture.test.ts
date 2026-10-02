@@ -31,6 +31,11 @@ const rules: Record<string, readonly string[]> = {
     "shell/shell-state.ts",
     "terminals/rename-state.ts",
     "terminals/recent.ts",
+    // The companion panes' store, which commands use by its type and change through its
+    // actions, and the panes' pure transitions.
+    "terminals/companion/state.ts",
+    "terminals/companion/pane.ts",
+    "terminals/companion/plan-text.ts",
     "layouts/canvas/types.ts",
   ],
   "specs/": ["specs/", "app/App.tsx", "styles.css"],
@@ -77,7 +82,7 @@ const vendors: Record<string, readonly string[]> = {
   "@ark-ui": ["ui-toolkit/"],
   "@xyflow/react": ["layouts/canvas/"],
   "@codemirror": ["terminals/companion/plan-editor/"],
-  "@lezer": ["terminals/companion/plan-editor/"],
+  "@lezer": ["terminals/companion/plan-editor/", "terminals/companion/highlight.ts"],
   "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
   "@dnd-kit": ["terminals/"],

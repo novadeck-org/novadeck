@@ -6,6 +6,8 @@ export type ContextMenuItem = {
   value: string
   label: string
   icon?: ReactNode
+  // Shown but not chosen, for an action that can't happen now.
+  disabled?: boolean
   // Runs once the menu has closed and focus has settled, so an item that moves focus,
   // as into a field, keeps it.
   onSelect: () => void
@@ -70,10 +72,11 @@ export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.
               <ArkMenu.Item
                 key={item.value}
                 value={item.value}
+                disabled={item.disabled}
                 onSelect={() => {
                   chosen.current = item.onSelect
                 }}
-                className="flex min-h-8 cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 outline-none data-highlighted:bg-shell"
+                className="flex min-h-8 cursor-pointer items-center gap-2 rounded-control px-2 py-1.5 outline-none data-highlighted:bg-shell data-disabled:cursor-default data-disabled:text-muted data-disabled:opacity-60"
               >
                 {item.icon}
                 <ArkMenu.ItemText>{item.label}</ArkMenu.ItemText>

@@ -44,6 +44,16 @@ export const createContentDemo: CreateBackend = () => {
       directory: "~/projects/studio",
     },
   ]
+  const website: TerminalMetadata = {
+    id: "01",
+    name: "Tests",
+    handle: "t1",
+    titleSource: { kind: "fallback" },
+    command: "pnpm test --watch",
+    process: "node",
+    state: "running",
+    directory: "~/projects/website",
+  }
   const canvasLayout: CanvasLayout = {
     minimized: {},
     geometry: Object.fromEntries(
@@ -120,6 +130,20 @@ export const createContentDemo: CreateBackend = () => {
               restored: viewOf(
                 createTerminalState(terminals, "focus", "grid", { canvasLayout, gridLayouts }),
               ),
+            },
+          ],
+        },
+        // A second project, so the switcher has one to switch to and to remove.
+        {
+          id: "website",
+          name: "website",
+          directory: "~/projects/website",
+          sessions: [
+            {
+              id: "website-initial",
+              name: "Main",
+              terminals: [website],
+              restored: viewOf(createTerminalState([website], "focus", "grid")),
             },
           ],
         },

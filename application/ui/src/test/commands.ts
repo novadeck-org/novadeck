@@ -31,6 +31,8 @@ export type CommandsOptions = {
   readonly crashLoop?: Backend["crashLoop"]
   // The backend's way to hand a name back, when it has one.
   readonly resetTitle?: Backend["resetTitle"]
+  // Every terminal's companion pane, when the backend has companions.
+  readonly panes?: CommandContext["panes"]
 }
 
 // Real stores, navigator, commands and store subscriptions over a fixture workspace, with effects that
@@ -45,6 +47,7 @@ export const openCommands = ({
   pickDirectory,
   crashLoop,
   resetTitle,
+  panes,
 }: CommandsOptions = {}) => {
   const [pathname = "", query = ""] = url.split("?")
   const resolved = resolveRoute(workspace, { pathname, search: `?${query}` }, preferences, 0)
@@ -128,6 +131,7 @@ export const openCommands = ({
     pickDirectory,
     crashLoop,
     resetTitle,
+    panes,
   }
   const commands = createWorkspaceCommands(context)
   // The subscriptions the provider attaches; nothing persists to storage here.

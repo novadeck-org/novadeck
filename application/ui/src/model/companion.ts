@@ -15,6 +15,12 @@ export const companionKeyId = ({
   terminalId,
 }: CompanionKey): string => `${projectId}/${workspaceSessionId}/${terminalId}`
 
+// The terminal a `companionKeyId` names. Its ids hold no slashes.
+export const companionKeyOf = (id: string): CompanionKey => {
+  const [projectId = "", workspaceSessionId = "", terminalId = ""] = id.split("/")
+  return { projectId, workspaceSessionId, terminalId }
+}
+
 // A plan file as it stands. `revision` names this exact text; saving an edit says which
 // revision it was made on.
 export type PlanSnapshot = {

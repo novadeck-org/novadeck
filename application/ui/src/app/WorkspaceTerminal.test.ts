@@ -1,5 +1,6 @@
 import { act, createElement, Fragment, useEffect, type ComponentProps } from "react"
 import { HashRouter } from "react-router"
+import { vi } from "vitest"
 
 import type { CreateBackend, TerminalSurfaceProps } from "../backend/port"
 import { context, describe, expect, it } from "../test"
@@ -13,6 +14,15 @@ import {
 import { currentState } from "./selectors"
 import { WorkspaceProvider } from "./WorkspaceProvider"
 import { WorkspaceTerminal } from "./WorkspaceTerminal"
+
+// jsdom has no layout and no resizes; the taskbar's drag-to-reorder asks for them.
+vi.hoisted(() => {
+  globalThis.ResizeObserver ??= class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+})
 
 const Subject = ({ id }: { id: string }): React.JSX.Element => {
   const terminal = useWorkspaceState((workspace) =>

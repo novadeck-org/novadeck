@@ -1,7 +1,7 @@
 import { ChangeSet, Text } from "@codemirror/state"
 
 import { notePattern } from "../../../model/companion"
-import type { Mark } from "../state"
+import type { Mark } from "../plan-doc"
 
 // Lines with their line breaks, so joining them gives back the exact text.
 const linesOf = (text: string): string[] => text.match(/[^\n]*\n|[^\n]+$/g) ?? []

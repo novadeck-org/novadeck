@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 
 import type { PlanSnapshot } from "../../../model/companion"
-import { studioArtifacts, type SampleArtifact } from "./artifacts"
+import { studioArtifacts, type SampleArtifacts } from "./artifacts"
 import authV1 from "./plans/auth-v1.md?raw"
 import studioV1 from "./plans/studio-v1.md?raw"
 import type { PlanEdit } from "./revise"
@@ -14,10 +14,7 @@ export type SampleAgent = {
   readonly text: string
   // Each later revision, as edits to the file as it then stands. Feedback moves it on.
   readonly revisions: readonly (readonly PlanEdit[])[]
-  readonly artifacts: {
-    readonly shown: readonly SampleArtifact[]
-    readonly next: readonly SampleArtifact[]
-  }
+  readonly artifacts: SampleArtifacts
   readonly transcript: ReactNode
   readonly reply: (input: string) => string
 }

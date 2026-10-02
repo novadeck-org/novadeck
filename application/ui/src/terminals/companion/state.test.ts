@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
+  companionKeyId,
   emptyCompanions,
   type ArtifactContent,
   type CompanionEvent,
@@ -9,9 +10,27 @@ import {
   type PlanSaved,
   type PlanSnapshot,
 } from "../../model/companion"
+import { noMail, type MailState } from "../../model/messages"
+import { createStore } from "../../model/store"
 import { context, describe, expect, it } from "../../test"
-import { mailTab, planTab } from "./pane"
-import { companionActions, openTab, shownTab, type CompanionActions } from "./state"
+import { close, mailTab, openTab, planTab, shownTab, type Pane } from "./pane"
+import { createPanes, type PaneActions } from "./state"
+
+// A terminal's pane in a store following `companions` from now on.
+const companionActions = (companions: Companions, of: CompanionKey = key): PaneActions => {
+  const panes = createPanes(companions)
+  panes.connect()
+  return panes.of(of)
+}
+
+// What the pane shows, with the messages on its bar or not.
+const showing = (pane: Pane, messages: boolean): string =>
+  shownTab(pane, (tab) =>
+    tab === mailTab
+      ? messages
+      : pane.plans.some((plan) => planTab(plan.ref) === tab) ||
+        pane.artifacts.some((shown) => shown.id === tab),
+  )
 
 const key: CompanionKey = { projectId: "p", workspaceSessionId: "s", terminalId: "t" }
 const first = "# Plan\n\nalpha\nbeta\ngamma\n"
@@ -73,7 +92,7 @@ const settle = async () => {
   await vi.advanceTimersByTimeAsync(0)
 }
 
-const plan = (actions: CompanionActions) => actions.current().plans[0]!
+const plan = (actions: PaneActions) => actions.current().plans[0]!
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
@@ -116,6 +135,24 @@ describe("companion store", () => {
       saves[0]!.answer({ saved: true, revision: "2" })
       await settle()
       expect(plan(actions)).toMatchObject({ text: edited, base: edited, writes: 0 })
+    })
+  })
+
+  context("when the user closed the plan", () => {
+    it("brings it back with the agent's next iteration, not with their own save", async () => {
+      const { companions, saves, emit } = backend()
+      const actions = companionActions(companions, key)
+      actions.update((pane) => close(pane, planTab("root")))
+      actions.edit("root", `${first}Mine.\n`, [])
+      await vi.advanceTimersByTimeAsync(400)
+      saves[0]!.answer({ saved: true, revision: "2" })
+      emit({ type: "plan/changed", key, plan: snapshot(`${first}Mine.\n`, "2") })
+      await settle()
+      expect(actions.current().closed).toEqual([planTab("root")])
+      emit({ type: "plan/changed", key, plan: snapshot(`${first}Mine.\nTheirs.\n`, "3") })
+      await settle()
+      expect(actions.current().closed).toEqual([])
+      expect(actions.current().order?.at(-1)).toBe(planTab("root"))
     })
   })
 
@@ -327,9 +364,9 @@ describe("a terminal's messages tab", () => {
     const actions = companionActions(nothing, key)
     actions.update((pane) => openTab(pane, mailTab))
     expect(actions.current()).toMatchObject({ open: true, tab: mailTab })
-    expect(shownTab(actions.current(), true)).toBe(mailTab)
+    expect(showing(actions.current(), true)).toBe(mailTab)
     // Without messages to show, there's nothing.
-    expect(shownTab(actions.current(), false)).toBe("")
+    expect(showing(actions.current(), false)).toBe("")
   })
 
   it("stays open when what else was shown goes", () => {
@@ -344,8 +381,77 @@ describe("a terminal's messages tab", () => {
     const { companions } = backend()
     const actions = companionActions(companions, key)
     actions.update((pane) => openTab(pane, mailTab))
-    expect(shownTab(actions.current(), true)).toBe(mailTab)
+    expect(showing(actions.current(), true)).toBe(mailTab)
     expect(actions.current().open).toBe(true)
-    expect(shownTab(actions.current(), false)).toBe(planTab("root"))
+    expect(showing(actions.current(), false)).toBe(planTab("root"))
+  })
+})
+
+describe("a terminal's messages on its taskbar", () => {
+  const mailOf = (count: number): MailState => ({
+    ...noMail,
+    terminals: {
+      [companionKeyId(key)]: {
+        handle: "t1",
+        agent: true,
+        threads: [
+          {
+            id: "th",
+            peer: "t2",
+            hops: count,
+            allowed: 4,
+            held: false,
+            messages: Array.from({ length: count }, (_, index) => ({
+              id: `m${index}`,
+              hop: index + 1,
+              from: "t2",
+              to: "t1",
+              text: "Ready",
+              sentAt: 0,
+              state: "delivered" as const,
+              held: null,
+              deliveredAt: 0,
+            })),
+          },
+        ],
+      },
+    },
+  })
+  const following = (mail: MailState) => {
+    const state = createStore(mail)
+    const panes = createPanes(emptyCompanions(), { state, pause: () => {}, release: () => {} })
+    panes.connect()
+    return { state, actions: panes.of(key) }
+  }
+
+  it("join the bar's order once the terminal has them", () => {
+    expect(following(mailOf(0)).actions.current().order).toEqual([mailTab])
+  })
+
+  it("join the bar's order with the first message, after an agent with none", () => {
+    const { state, actions } = following({
+      ...noMail,
+      terminals: { [companionKeyId(key)]: { handle: "t1", agent: false, threads: [] } },
+    })
+    expect(actions.current().order).toEqual([])
+    state.update(() => mailOf(1))
+    expect(actions.current().order).toEqual([mailTab])
+  })
+
+  it("stay off the bar while closed, whatever else changes", () => {
+    const { state, actions } = following(mailOf(1))
+    actions.update((pane) => close(pane, mailTab))
+    state.update((mail) => ({ ...mail, paused: true }))
+    expect(actions.current()).toMatchObject({ closed: [mailTab], order: [] })
+  })
+
+  it("come back with the next message once closed, whether the terminal is on screen or not", () => {
+    const { state, actions } = following(mailOf(1))
+    actions.update((pane) => close(pane, mailTab))
+    expect(actions.current().closed).toEqual([mailTab])
+    state.update(() => mailOf(1))
+    expect(actions.current().closed).toEqual([mailTab])
+    state.update(() => mailOf(2))
+    expect(actions.current()).toMatchObject({ closed: [], order: [mailTab] })
   })
 })

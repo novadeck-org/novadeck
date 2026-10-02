@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import type { GridLayouts, TerminalMetadata } from "../../model/types"
-import { expandedGridLayouts, gridColumns, toggleGridWidth, visibleGridLayouts } from "./layout"
+import {
+  dropLayout,
+  dropPlaceholder,
+  expandedGridLayouts,
+  gridColumns,
+  toggleGridWidth,
+  visibleGridLayouts,
+} from "./layout"
 
 const terminals: TerminalMetadata[] = ["one", "two"].map((id) => ({
   id,
@@ -67,5 +74,38 @@ describe("saved Grid arrangements", () => {
     })
     expect(restored.layouts.tablet?.find((item) => item.i === "one")).toMatchObject({ w: 4, h: 22 })
     expect(restored.restoreWidths).toBeNull()
+  })
+})
+
+const cell = (i: string, x: number, y: number) => ({ i, x, y, w: 4, h: 18 })
+
+describe("a window dropped on the Grid", () => {
+  const size = { w: 4, h: 18 }
+
+  it("sits under the pointer in empty space", () => {
+    expect(dropLayout([], 12, { column: 4, row: 0 }, size)?.cell).toEqual({
+      x: 4,
+      y: 0,
+      w: 4,
+      h: 18,
+    })
+  })
+
+  it("stays inside the grid's columns", () => {
+    expect(dropLayout([], 12, { column: 10, row: 0 }, size)?.cell.x).toBe(8)
+    expect(dropLayout([], 12, { column: -3, row: 0 }, size)?.cell.x).toBe(0)
+  })
+
+  it("moves the window it lands on aside, down below it", () => {
+    const dropped = dropLayout([cell("01", 0, 0)], 12, { column: 0, row: 0 }, size)!
+    expect(dropped.cell).toMatchObject({ x: 0, y: 0 })
+    expect(dropped.layout.find((item) => item.i === "01")).toMatchObject({ x: 0, y: 18 })
+    expect(dropped.layout.some((item) => item.i === dropPlaceholder)).toBe(true)
+  })
+
+  it("goes below a window that reaches down to the pointer, never over it", () => {
+    const dropped = dropLayout([cell("01", 0, 0)], 12, { column: 0, row: 10 }, size)!
+    expect(dropped.cell).toMatchObject({ x: 0, y: 18 })
+    expect(dropped.layout.find((item) => item.i === "01")).toMatchObject({ y: 0 })
   })
 })

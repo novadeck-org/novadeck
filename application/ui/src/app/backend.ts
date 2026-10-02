@@ -24,9 +24,15 @@ const runnerSelection = (): BackendSelection => {
   }
 }
 
+// Specs open the content demo, with its agents' plans and artifacts, by adding
+// `?demo=showcase` to the address's hash. The address is read when the workspace
+// mounts, since each spec sets its own.
+const showcaseRequested = (): boolean =>
+  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo") === "showcase"
+
 export const selectBackend: BackendSelection =
   import.meta.env.MODE === "content-preview"
     ? { createBackend: createContentDemo }
     : import.meta.env.MODE === "test"
-      ? { createBackend: createDemoBackend }
+      ? { createBackend: () => (showcaseRequested() ? createContentDemo() : createDemoBackend()) }
       : runnerSelection()

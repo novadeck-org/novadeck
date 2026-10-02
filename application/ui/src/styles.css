@@ -32,6 +32,15 @@
      warning amber that marks what an agent changed, with a mark colour of its hue. */
   --color-note: #fdf2eb;
   --color-note-fg: #a85f3a;
+  /* Syntax colours for the files an agent shows: muted hues that each meet WCAG AA on
+     paper and on soft, where the lines the agent pointed at sit. */
+  --color-syntax-keyword: #8b3a8f;
+  --color-syntax-string: #2f6b3a;
+  --color-syntax-number: #a1460f;
+  --color-syntax-property: #1d5c94;
+  --color-syntax-definition: #4a4fb0;
+  --color-syntax-type: #8a5300;
+  --color-syntax-comment: var(--color-muted);
   --font-sans: "Inter Variable", "Inter", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --radius-control: 2px;
@@ -49,7 +58,8 @@
 }
 
 /* The status colours for a dark theme: deep tints with light text of the same hue;
-   the app is light-only until that theme lands. */
+   and the syntax colours, light enough for a near-black ground. The app is light-only
+   until that theme lands. */
 :root[data-theme="dark"] {
   --color-success: #1f3326;
   --color-success-fg: #b9dcc0;
@@ -59,6 +69,13 @@
   --color-danger-fg: #f1b8b1;
   --color-note: #33261e;
   --color-note-fg: #e0a07c;
+  --color-syntax-keyword: #d7a5e8;
+  --color-syntax-string: #a6d4ac;
+  --color-syntax-number: #efb27f;
+  --color-syntax-property: #8fc3f0;
+  --color-syntax-definition: #adb3f5;
+  --color-syntax-type: #e4c07a;
+  --color-syntax-comment: #9aa0a8;
 }
 
 @layer base {
@@ -711,4 +728,32 @@
     outline: 2px solid transparent;
     outline-offset: -2px;
   }
+}
+
+/* Where a window dragged off a taskbar would open in a view's free space: a ghost of it,
+   a node on the Canvas and a placeholder in the Grid, with a header strip saying what it
+   would show. It takes no pointer, so the view under it still reads as free. */
+.drop-ghost {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1.5px dashed color-mix(in srgb, var(--color-strong) 40%, transparent);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--color-paper) 78%, transparent);
+  box-shadow: var(--shadow-floating);
+  pointer-events: none;
+}
+.drop-ghost-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  height: 48px;
+  padding-inline: 16px;
+  overflow: hidden;
+  border-bottom: 1px dashed color-mix(in srgb, var(--color-strong) 22%, transparent);
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

@@ -50,13 +50,20 @@ const MessageItem = ({
   const Direction = sent ? ArrowUpRight : ArrowDownLeft
   return (
     <li className="mail-message" data-direction={sent ? "sent" : "received"}>
+      {/* The thread names the peer, so the arrow says which way it went; the words stay
+          for screen readers. Delivered is the quiet default: only a message still on its
+          way, held or lost shows its state. */}
       <div className="mail-message-meta">
         <span className="mail-message-direction">
           <Direction size={12} strokeWidth={1.75} aria-hidden />
-          {sent ? `Sent to ${message.to}` : `From ${message.from}`}
+          <span className="sr-only">{sent ? `Sent to ${message.to}` : `From ${message.from}`}</span>
         </span>
         <time dateTime={new Date(message.sentAt).toISOString()}>{clock(message.sentAt)}</time>
-        <span className="mail-state" data-state={message.state} title={stateHint[message.state]}>
+        <span
+          className={`mail-state${message.state === "delivered" ? " sr-only" : ""}`}
+          data-state={message.state}
+          title={stateHint[message.state]}
+        >
           {stateText(message)}
         </span>
       </div>
@@ -157,19 +164,21 @@ export const MessagesView = ({
         <code>Messages</code>
         {mail.mail && <span>{mail.mail.handle}</span>}
         <span className="artifact-meta-push" />
-        <span id={label} className="mail-pause-label">
-          Pause all agents' messages
+        <span className="mail-pause">
+          <span id={label} className="mail-pause-label">
+            Pause all agents' messages
+          </span>
+          <span id={hint} className="sr-only">
+            In every project and session, until you resume.
+          </span>
+          <Switch
+            checked={mail.paused}
+            onChange={mail.pause}
+            labelledBy={label}
+            describedBy={hint}
+            pending={mail.pending}
+          />
         </span>
-        <span id={hint} className="sr-only">
-          In every project and session, until you resume.
-        </span>
-        <Switch
-          checked={mail.paused}
-          onChange={mail.pause}
-          labelledBy={label}
-          describedBy={hint}
-          pending={mail.pending}
-        />
       </div>
       {mail.error && (
         <p className="mail-error" role="alert">

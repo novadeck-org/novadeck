@@ -115,6 +115,9 @@ switch for every project and session. It all updates as messages move. The conte
 (`pnpm dev:previews`) shows a thread between its two agents; the behaviour specs' demo
 (`?demo=messages`) has every state, a held thread and the pause.
 
+Right-click a window's header for the same menu as its sidebar tab: Rename, Reset to
+automatic for a name you gave, Dock in for an undocked window, and Close.
+
 Use the eye on a terminal tab to hide it from Grid and Canvas without closing it.
 Hidden tabs stay in the list with a faded label. While selected, a hidden terminal
 appears at 50% opacity in Grid and Canvas, then disappears when it is no longer active.
@@ -123,6 +126,10 @@ Hidden terminals retain
 their content and layout and remain available in Focus view.
 Showing and hiding use a short fade and scale transition; reduced motion skips it.
 Switching terminal tabs in Focus uses the same transition.
+
+The project switcher in the top bar removes a project from its row's trash icon, after
+you confirm; its terminals close, and the folder on disk stays. The last project stays.
+The backends don't remove projects yet: on the runner it comes back on the next reload.
 
 ## Restoring terminals
 
@@ -343,20 +350,72 @@ header's note is on the whole table and goes after it. When the agent writes a n
 version, its changes merge into yours line by line, the lines it wrote are
 highlighted, and the notes it applied are gone. Without the skill, as in “Refactor
 auth”, notes wait until you ask the agent in its terminal to re-read the plan.
-Escape closes the plan. Plans never create sidebar tabs or separate windows.
+Escape closes the plan. A plan gets a sidebar tab and a window of its own only once you
+undock it (below).
 
-Besides its plan, an agent can show you other things: an image, a file from the
-project, a page in a preview browser. They join the plan in the terminal's
-companion pane, which has no header of its own.
-Each gets an icon in the taskbar, as an OS taskbar has, with several images grouped under one. The
-mark under an icon says whether it's new, showing, or seen; something new hops
-once, and nothing opens on its own unless you asked for it. Hover an icon to peek:
-a card per thing behind it, each a preview, its name and the same mark, with no
-copy. Click an icon or a card to open it, click the icon again (or press Escape) to
-hide the pane, and dismiss from a card's corner button or the icon's right-click. In
+Besides its plan, an agent can show you other things: an image, a file from the project,
+a page in a preview browser. They join the plan in the terminal's companion pane, which
+has no header of its own. Each gets an icon in the taskbar, as an OS taskbar has, with
+several of a kind (images, files, pages, or plans) stacked under one; only Messages
+never stack. A markdown file the agent shows reads as a document, formatted like a plan
+with its outline, but read-only: it's the agent's file, not a plan to edit or note (the
+demo's Codex has shown `docs/brand-voice.md`). The mark under an icon says whether it's
+new, showing, or seen; something new hops once, and nothing opens on its own unless you
+asked for it. Hover an icon to peek: a card per thing behind it, each a preview, its
+name and the same mark, with no copy. Click an icon or a card to open it, click the icon
+again (or press Escape) to hide the pane, and close from a card's corner button or the
+icon's right-click. Anything closes, plans and Messages too: a closed plan comes back
+with the agent's next version of it, Messages with the next message, and something shown
+when it's shown again, last on the bar each time. (The agent can't yet reopen what you
+closed when asked; nothing tells the backend.) Icons line up in the order they came,
+plans and Messages among them; drag any icon to reorder the bar, a group moving as one,
+or use Move left and Move right on its right-click.
+
+Drag any icon onto another terminal's bottom bar to show it there instead (Grid and
+Canvas, where both are on screen); a terminal with nothing to show grows an empty bar
+while an icon is dragged over it. What's placed stays its own terminal's: its peek, menu
+and pane say whose it is, an image or file stacks with the bar's own like any other, and
+a plan's edits still save to that agent. A new version shown by its agent updates it
+where it is. **Send back to** its terminal, on its right-click, or a drag onto that
+terminal's bar, returns it; closing it from anywhere closes it on its own terminal. A
+placement lasts until either terminal closes, and the session keeps it beside its
+terminals (`Placement` in `model/companion-items.ts`), but the backends don't keep it
+yet, so a reload puts everything home. Messages are the exception: a terminal's
+messages are its agent's conversation, so they stay on its bar. Dragged off the bar,
+their icon stretches toward the pointer, giving less the further it's pulled, and
+springs back when let go; nothing out there lights up for it, and the pointer shows it
+can't go. Within the bar it reorders like any icon.
+
+Any card in a peek can be dragged out too, one of a group's on its own: it turns into an
+icon under the pointer, which goes wherever a dragged icon goes, onto another terminal's
+bar or into a view's empty space, while the rest of a group stay grouped. Dropped where
+nothing takes it, or with Escape, it settles back into the icon it came from.
+
+Drop a plan or a single artifact in a view to undock it right there. On Canvas,
+over its empty space, a ghost window joins the canvas under the pointer and follows it
+freely, as a dragged window does; dropped, the window opens where the ghost was and
+settles onto the canvas's grid. On Grid, a placeholder window joins the grid under
+the pointer as soon as the icon is over it, and the grid makes room for it like any
+window: the window it's over moves aside. It goes as the icon leaves the grid; dropped,
+the window takes its place. In
 “Build Studio”, type `show` to have Codex show the next thing, or `open` to play
-asking it to open it. Files show without highlighting, and a page shows as a
-snapshot until the pane hosts a browser.
+asking it to open it; it opens `projects.json` for you as the demo starts. Files are
+syntax-highlighted by their extension (JSON, JavaScript and TypeScript with JSX, CSS,
+HTML, XML, Markdown, YAML, Python, Rust, Go, Java and C/C++), with each language's
+parser loading the first time one of its files opens; any other file shows as plain
+text. A page shows as a snapshot until the pane hosts a browser.
+
+**Undock to its own window**, in a plan's or a viewer's header or an icon's right-click,
+moves a plan or what the agent showed out of the pane into a window of its own beside
+the terminal; a plan stays editable there. It joins the sidebar and every view like a
+terminal: rename, hide, minimize, resize, reorder, Focus and close all work. While it's
+undocked, the terminal's taskbar leaves it out. **Dock in** its terminal, on the
+window's right-click, closes the window and opens it in that terminal's pane again;
+closing the window puts it back on the taskbar without opening it. Nothing runs in it;
+it loads from its terminal, so once that terminal closes nothing new loads, and Dock in
+shows disabled. A window shows what its terminal holds now, so a newer version the agent
+shows updates it there too. The backends neither keep nor restore these windows yet
+(`CompanionWindow` in `model/companion-items.ts`; the terminal registry skips them).
 
 The pane reads everything from the backend's optional `companions` capability
 (`model/companion.ts`): each terminal's plans and what its agent has shown, as terminals
@@ -440,11 +499,13 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm surface.     |
 | `model/`                                           | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
 | `model/companion.ts`                               | The contract for agents' plans and artifacts, and the plan note format.                 |
+| `model/companion-items.ts`                         | Items shown away from their terminal: undocked windows and placements on other bars.    |
 | `model/messages.ts`                                | The contract for agents' messages: threads, states, the pause, and a tab's count.       |
 | `model/roster.ts`                                  | A session's terminals, their sidebar order, and their status.                           |
 | `model/layout/workspace-layout.ts`                 | Where each terminal sits and how big it is in each view.                                |
 | `terminals/`                                       | Terminal frame, tabs, rename state, and the recent-terminal switcher.                   |
-| `terminals/companion/`                             | A terminal's taskbar and companion pane; the plan editor is in `plan-editor/`.          |
+| `terminals/companion/`                             | Taskbar and pane: the panes' store, `pane.ts` and `bar.ts` rules, `plan-editor/`.       |
+| `terminals/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.        |
 | `layouts/canvas/`, `grid/`, `focus/`               | View adapters and colocated library styles.                                             |
 | `layouts/` (top level)                             | Helpers shared by views: view transitions, background gestures, visibility.             |
 | `shell/`                                           | Header, rail, panels, zen dock, sidebar, and shell state transitions.                   |
@@ -466,7 +527,7 @@ backend adapter. `app/commands/` has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on `model/`,
 `interaction/keymap.ts`, `backend/port.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
-of `shell/` and `terminals/`. Vendor
+of `shell/` and `terminals/`, the companion panes' store among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in
@@ -497,18 +558,24 @@ and terminals use UUIDs the UI generates, so links survive a reload. A link to a
 session that no longer exists falls back to that project's available session.
 Unknown routes, missing terminals, and disabled views are replaced with a valid URL.
 
-The page renders from two synchronous stores only. The workspace store in
-`model/store.ts` holds the model: every session's roster, layout, and navigation
-memory, changed through one pure reducer. The UI store in `app/ui-store.ts`
+The page renders from two synchronous stores, and from a third where a backend has
+companions. The workspace store in `model/store.ts` holds the model: every session's
+roster, layout, navigation memory, and the companion items placed on other terminals'
+taskbars, changed through one pure reducer. The UI store in `app/ui-store.ts`
 holds what the model does not own: the current route, preferences, the shell
 state from `shell/shell-state.ts`, the rename in progress, the recent-terminal
 switcher and each session's most-recent order, and the new-terminal highlight.
 It starts over on reload apart from preferences and the collapsed sidebar, which
 store subscriptions persist. Another subscription saves the active session's
-windowed view from the workspace store, and a new App seeds sessions with it. `WorkspaceProvider` creates
-the backend, both stores, the navigator, and the commands once per App, in a
-pure initializer, and shares them through context; it receives the page as
-children, so a URL change re-renders only the provider.
+windowed view from the workspace store, and a new App seeds sessions with it. The
+companion panes' store in `terminals/companion/state.ts` holds each terminal's pane:
+its plans, what its agent showed, what the person has open, closed, and the taskbar's
+order; it follows the backend's companions and messages from an effect. What a taskbar
+shows is derived from it and the workspace in `terminals/companion/bar.ts`, never stored.
+`WorkspaceProvider` creates the backend, the stores, the drag session
+(`terminals/drag-session.ts`), the navigator, and the commands once per App, in a pure
+initializer, and shares them through context; it receives the page as children, so a URL
+change re-renders only the provider.
 
 The URL owns current navigation; the workspace model remembers each session's
 last selection. The navigator in `app/commands/navigator.ts` commits a

@@ -2,8 +2,10 @@ import { verticalCompactor } from "react-grid-layout"
 
 import { gridColumns } from "../../model/layout/grid-placement"
 import { gridPresetWidth } from "../../model/layout/terminal-size"
+import type { GridCell } from "../../model/layout/window-place"
 import type {
   GridBreakpoint,
+  GridItem,
   GridLayouts,
   GridRestoreWidths,
   TerminalMetadata,
@@ -13,7 +15,8 @@ export { gridColumns } from "../../model/layout/grid-placement"
 const expandedHeight = (): number => Math.ceil((400 + 16) / 24)
 
 export const visibleGridLayouts = (
-  terminals: TerminalMetadata[],
+  // The windows it lays out, by id.
+  terminals: readonly Pick<TerminalMetadata, "id">[],
   layouts: GridLayouts,
   minimized: Record<string, boolean>,
   hidden: Record<string, boolean> = {},
@@ -105,6 +108,49 @@ export const expandedGridLayouts = (
       : (previous[breakpoint] ?? [])
   }
   return result
+}
+
+// The placeholder for a window dropped on the grid, in the layout it makes there.
+export const dropPlaceholder = "drop-placeholder"
+
+// The grid as it shows, `visible`, with a window of `size` dropped at a cell under the
+// pointer, `at`: the layout it makes there, the placeholder in it and the windows it
+// moves aside as the grid makes room, and the placeholder's cell. It goes below a window
+// that starts above it and reaches down to it, never over it: pushing that window down
+// would let the placeholder float up into its place. Pinned there, it pushes what's below
+// it further down; then the grid packs everything up.
+export const dropLayout = (
+  visible: readonly GridItem[],
+  columns: number,
+  at: { readonly column: number; readonly row: number },
+  size: { readonly w: number; readonly h: number },
+): { readonly layout: readonly GridItem[]; readonly cell: GridCell } | null => {
+  const { w, h } = size
+  const column = Math.min(Math.max(0, at.column), columns - w)
+  const existing = visible.filter((item) => item.i !== dropPlaceholder)
+  const across = (item: GridItem): boolean => item.x < column + w && column < item.x + item.w
+  let top = Math.max(0, at.row)
+  for (let moved = true; moved;) {
+    moved = false
+    for (const item of existing)
+      if (across(item) && item.y < top && item.y + item.h > top) {
+        top = item.y + item.h
+        moved = true
+      }
+  }
+  const pinned = verticalCompactor.compact(
+    [
+      ...existing.map((item) => ({ ...item })),
+      { i: dropPlaceholder, x: column, y: top, w, h, minW: 4, minH: 10, static: true },
+    ],
+    columns,
+  )
+  const layout: readonly GridItem[] = verticalCompactor.compact(
+    pinned.map(({ static: _pinned, ...item }) => ({ ...item })),
+    columns,
+  )
+  const placed = layout.find((item) => item.i === dropPlaceholder)
+  return placed ? { layout, cell: { x: placed.x, y: placed.y, w: placed.w, h: placed.h } } : null
 }
 
 export type GridWidthToggle = {

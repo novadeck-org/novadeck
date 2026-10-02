@@ -5,8 +5,9 @@ import { EditorView, keymap } from "@codemirror/view"
 import { GFM, parser } from "@lezer/markdown"
 import { useEffect, useLayoutEffect, useRef } from "react"
 
-import type { Mark } from "../state"
+import type { Mark } from "../plan-doc"
 import { currentAgentMarks, livePreview, setMarks } from "./live-preview"
+import { scrollLineToTop } from "./scroll"
 import { lineChanges } from "./sync"
 
 // Markdown with GitHub's tables and task lists, and nothing embedded: plans don't need
@@ -84,8 +85,7 @@ export const PlanEditor = ({
     editor.dispatch({ effects: setMarks.of(latest.current.marks) })
     view.current = editor
     latest.current.onReady({
-      jumpTo: (at) =>
-        editor.dispatch({ effects: EditorView.scrollIntoView(at, { y: "start", yMargin: 24 }) }),
+      jumpTo: (at) => scrollLineToTop(editor, at),
     })
     return () => {
       // Closing the pane leaves no empty note behind: none of the editor's updates follow.

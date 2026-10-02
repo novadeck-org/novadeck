@@ -8,6 +8,7 @@ import type {
   WorkspaceTarget,
 } from "../model/types"
 import type { FocusPreview } from "../shell/shell-state"
+import { itemKey } from "../terminals/companion/pane"
 import type { UiState } from "./ui-store"
 
 // The active session's state; the workspace always has one once seeded.
@@ -84,3 +85,25 @@ export const crashLoopQuestion = (ui: Pick<UiState, "crashLoop" | "crashLoopDism
 // Whether an alert dialog is on screen, which holds every shortcut back.
 export const alertOpen = (ui: UiState, workspace: Workspace): boolean =>
   closeQuestion(ui, workspace) !== undefined || crashLoopQuestion(ui) > 0
+
+// The current session's terminals' names, by id.
+export const terminalNames = (workspace: Workspace): Readonly<Record<string, string>> =>
+  Object.fromEntries(currentState(workspace).roster.terminals.map((each) => [each.id, each.name]))
+
+// The current session's terminals' names, by handle, which name the agents its messages
+// are with.
+export const handleNames = (workspace: Workspace): Readonly<Record<string, string>> =>
+  Object.fromEntries(
+    currentState(workspace).roster.terminals.flatMap((each) =>
+      each.handle ? [[each.handle, each.name]] : [],
+    ),
+  )
+
+// Terminal `from`'s items undocked into windows of their own now, by their keys in its
+// pane.
+export const undockedFrom =
+  (from: string) =>
+  (workspace: Workspace): readonly string[] =>
+    currentState(workspace).roster.terminals.flatMap(({ companion }) =>
+      companion?.from === from ? [itemKey(companion.item)] : [],
+    )

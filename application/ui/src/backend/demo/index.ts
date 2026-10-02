@@ -53,6 +53,8 @@ export const demoBackend = (
     commit: (workspace, actions) => {
       latest = workspace
       engine.reconcile(workspace, actions)
+      // TODO: on "project/remove", forget the project for good. The demo keeps nothing
+      // between reloads, so the engine closing its terminals is all it does for now.
     },
     TerminalSurface: createDemoTerminal(engine, introOf),
     transcripts: { enabled: transcripts, set: (enabled) => transcripts.update(() => enabled) },

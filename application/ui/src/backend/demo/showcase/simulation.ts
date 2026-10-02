@@ -35,6 +35,8 @@ type Running = {
   writes: number
   // How many of `artifacts.next` it has shown.
   shown: number
+  // Whether it has opened `artifacts.opened` for the user.
+  opened: boolean
 }
 
 const write = (agent: Running, text: string): void => {
@@ -56,7 +58,16 @@ export const createShowcase = (
   const running = new Map<string, Running>(
     agents.map(({ key, sample }) => [
       companionKeyId(key),
-      { key, sample, phase: "planning", revised: 0, file: sample.text, writes: 1, shown: 0 },
+      {
+        key,
+        sample,
+        phase: "planning",
+        revised: 0,
+        file: sample.text,
+        writes: 1,
+        shown: 0,
+        opened: false,
+      },
     ]),
   )
   const agentAt = (key: CompanionKey): Running | undefined => running.get(companionKeyId(key))
@@ -92,13 +103,24 @@ export const createShowcase = (
       })),
     subscribe: (listener) => {
       listeners.add(listener)
+      // The first to listen sees each agent open what it opens as the demo starts.
+      for (const agent of running.values()) {
+        if (agent.opened) continue
+        agent.opened = true
+        for (const artifact of agent.sample.artifacts.opened ?? [])
+          later(0, () =>
+            emit({ type: "artifact/shown", key: agent.key, artifact: artifact.ref, asked: true }),
+          )
+      }
       return () => listeners.delete(listener)
     },
     load: (key, artifactId) => {
       const artifacts = agentAt(key)?.sample.artifacts
-      const artifact = [...(artifacts?.shown ?? []), ...(artifacts?.next ?? [])].find(
-        ({ ref }) => ref.id === artifactId,
-      )
+      const artifact = [
+        ...(artifacts?.shown ?? []),
+        ...(artifacts?.opened ?? []),
+        ...(artifacts?.next ?? []),
+      ].find(({ ref }) => ref.id === artifactId)
       return artifact
         ? Promise.resolve(artifact.content)
         : Promise.reject(new Error(`No artifact ${artifactId}`))

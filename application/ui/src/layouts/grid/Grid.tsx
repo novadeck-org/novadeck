@@ -1,6 +1,14 @@
 import "./grid.css"
 import { Plus } from "lucide-react"
-import { useCallback, useLayoutEffect, useRef, useMemo, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react"
 import {
   getBreakpointFromWidth,
   ResponsiveGridLayout,
@@ -8,6 +16,8 @@ import {
   verticalCompactor,
 } from "react-grid-layout"
 
+import { canvasPresetSize, gridPresetWidth } from "../../model/layout/terminal-size"
+import { dropOnGrid, type WindowPlace } from "../../model/layout/window-place"
 import type {
   SizePreset,
   TerminalMetadata,
@@ -15,11 +25,14 @@ import type {
   GridLayouts,
   GridRestoreWidths,
 } from "../../model/types"
+import { useDrag, useDragSession } from "../../terminals/drag-session"
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { ContextMenu } from "../../ui-toolkit/ContextMenu"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import {
+  dropLayout,
+  dropPlaceholder,
   expandedGridLayouts,
   gridColumns,
   toggleGridWidth,
@@ -28,6 +41,11 @@ import {
 } from "./layout"
 
 const breakpoints = { wide: 1586, desktop: 1036, tablet: 636, mobile: 0 }
+// The grid's rows and the space between windows, in pixels: a row is its height and the
+// margin below it.
+const gridRowHeight = 8
+const gridMargin = 16
+const gridRow = gridRowHeight + gridMargin
 
 type Props = {
   presets: Record<string, SizePreset>
@@ -105,11 +123,81 @@ export const Grid = ({
       cancelAnimationFrame(frame)
     }
   }, [mounted, navigation, selected, width, containerRef, resized])
-  const base = useMemo(
+  const current = useMemo(
     () => visibleGridLayouts(terminals, layouts, minimized, removed),
     [terminals, layouts, minimized, removed],
   )
-  const current = base
+  // Something dragged off a terminal's taskbar can be dropped on the grid. While it's over
+  // the grid's free space, a placeholder window sits in the grid under the pointer, and the
+  // grid makes room for it as for a window dragged there; dropped, the window takes its
+  // place. The grid offers its space to the drag session, and shows the placeholder from
+  // what the session says is under the pointer.
+  const session = useDragSession()
+  // The last place offered: the same cell is the same place, so nothing re-renders as the
+  // pointer moves within it.
+  const offered = useRef<{
+    readonly grid: GridLayouts
+    readonly key: string
+    readonly place: WindowPlace
+  } | null>(null)
+  useEffect(
+    () =>
+      session.offer((x, y) => {
+        const container = containerRef.current
+        const stage = container?.closest(".grid-stage")
+        if (!container || !stage || !width) return null
+        if (!document.elementsFromPoint(x, y).some((element) => stage.contains(element)))
+          return null
+        const bounds = container.getBoundingClientRect()
+        const breakpoint = getBreakpointFromWidth(breakpoints, width) as GridBreakpoint
+        const columns = gridColumns[breakpoint]
+        const columnWidth = (width - gridMargin * (columns - 1)) / columns
+        const w = gridPresetWidth(columns, "small")
+        const h = Math.ceil((canvasPresetSize("small").height + gridMargin) / gridRow)
+        // Centred on the pointer across, its header on the pointer's row.
+        const dropped = dropLayout(
+          current[breakpoint] ?? [],
+          columns,
+          {
+            column: Math.round((x - bounds.left) / (columnWidth + gridMargin) - w / 2),
+            row: Math.floor((y - bounds.top) / gridRow),
+          },
+          { w, h },
+        )
+        if (!dropped) return null
+        const { cell } = dropped
+        const key = `${breakpoint}:${cell.x},${cell.y}`
+        if (offered.current?.grid === current && offered.current.key === key)
+          return offered.current.place
+        const others = dropped.layout.filter((item) => item.i !== dropPlaceholder)
+        // Saved as the layout is, with minimized windows at their full height and hidden
+        // ones where they were.
+        const saved =
+          expandedGridLayouts({ [breakpoint]: others }, layouts, terminals, minimized, removed)[
+            breakpoint
+          ] ?? others
+        const place: WindowPlace = { grid: { breakpoint, layout: saved, cell } }
+        offered.current = { grid: current, key, place }
+        return place
+      }),
+    [session, containerRef, current, layouts, terminals, minimized, removed, width],
+  )
+  const dropPlace = useDrag((drag) => (drag?.place && "grid" in drag.place ? drag.place : null))
+  const dropName = useDrag((drag) => drag?.name ?? "")
+  // The grid as it shows now: as it will once the window is dropped, its placeholder where
+  // the window goes, while a drag is over it.
+  const dropPreview = useMemo(
+    () =>
+      dropPlace &&
+      visibleGridLayouts(
+        [...terminals, { id: dropPlaceholder }],
+        dropOnGrid(layouts, dropPlaceholder, dropPlace.grid),
+        minimized,
+        removed,
+      ),
+    [dropPlace, terminals, layouts, minimized, removed],
+  )
+  const showing = dropPreview ?? current
 
   useLayoutEffect(() => {
     if (!resized) return
@@ -197,14 +285,16 @@ export const Grid = ({
               width={width}
               breakpoints={breakpoints}
               cols={gridColumns}
-              layouts={current}
-              rowHeight={8}
-              margin={[16, 16]}
+              layouts={showing}
+              rowHeight={gridRowHeight}
+              margin={[gridMargin, gridMargin]}
               containerPadding={[0, 0]}
               compactor={verticalCompactor}
               dragConfig={{ handle: ".terminal-header", cancel: "button, input", threshold: 5 }}
               resizeConfig={{ handles: ["se"] }}
               onLayoutChange={(_, next) => {
+                // Room made for a placeholder isn't the person's layout until it's dropped.
+                if (dropPreview) return
                 const saved = expandedGridLayouts(next, layouts, terminals, minimized, removed)
                 if (saved !== layouts) onLayoutsChange(saved)
               }}
@@ -237,6 +327,11 @@ export const Grid = ({
                     </div>
                   </div>
                 ))}
+              {dropPreview && (
+                <div key={dropPlaceholder} className="grid-terminal drop-ghost" aria-hidden="true">
+                  <span className="drop-ghost-header">{dropName}</span>
+                </div>
+              )}
             </ResponsiveGridLayout>
           )}
         </div>

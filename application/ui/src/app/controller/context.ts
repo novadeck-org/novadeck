@@ -4,6 +4,8 @@ import type { Backend } from "../../backend/port"
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { WorkspaceStore } from "../../model/store"
 import type { Workspace } from "../../model/types"
+import type { Panes } from "../../terminals/companion/state"
+import type { DragSession } from "../../terminals/drag-session"
 import type { WorkspaceCommands } from "../commands/workspace"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiState, UiStore } from "../ui-store"
@@ -19,6 +21,10 @@ export type WorkspaceServices = {
   readonly commands: WorkspaceCommands
   // The mounted Canvas, for commands that move its camera.
   readonly canvas: RefObject<CanvasHandle | null>
+  // Every terminal's companion pane, where the backend has companions.
+  readonly panes: Panes | undefined
+  // Whatever is being dragged off a terminal's taskbar.
+  readonly drag: DragSession
 }
 
 export const WorkspaceServicesContext = createContext<WorkspaceServices | null>(null)

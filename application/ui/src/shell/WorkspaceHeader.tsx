@@ -38,6 +38,7 @@ export const WorkspaceHeader = ({
   project,
   onProjectSelect,
   onOpenFolder,
+  onProjectRemove,
   onViewChange,
   homeTo,
   onSearch,
@@ -52,6 +53,7 @@ export const WorkspaceHeader = ({
   onProjectSelect: (id: string) => void
   // Absent where no folder can be opened; the switcher then shows it disabled.
   onOpenFolder?: (() => void) | undefined
+  onProjectRemove?: ((id: string) => void) | undefined
   onViewChange: (mode: ViewMode) => void
   homeTo: string
   onSearch: () => void
@@ -81,6 +83,7 @@ export const WorkspaceHeader = ({
           current={project}
           onSelect={onProjectSelect}
           onOpenFolder={onOpenFolder}
+          onRemove={onProjectRemove}
         />
       </div>
       <div

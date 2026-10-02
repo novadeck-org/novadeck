@@ -36,6 +36,9 @@ vi.mock("./deferred-views", async (importOriginal) => {
   const { lazy } = await import("react")
   return {
     ...actual,
+    // The views' chunks have nothing to do with these dialogs, and a preload still loading
+    // when the test ends fails the run after it.
+    preloadViews: () => {},
     TerminalSearch: lazy(() =>
       chunks.arrived
         .then(() => import("../search/TerminalSearch"))
