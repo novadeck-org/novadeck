@@ -1,0 +1,34 @@
+/* The switcher recipe: the terminal switcher, a `.modal` over an `.overlay` whose rows
+   are `.item`s, with a `.modal-header` and a `.modal-footer` of keys. This draws only
+   what it adds to them.
+
+   Parts: `.switcher-header`, `.switcher-count`, `.switcher-process`, `.switcher-go`
+   (the arrow at a row's end, faint until the row is highlighted or under the pointer),
+   `.switcher-footer`.
+
+   Tokens, each optional (its fallback in brackets):
+   --switcher-header-fg (muted): the header's icon and count.
+   --switcher-go-opacity (0.25): a row's arrow at rest. */
+.switcher-header > svg,
+.switcher-count {
+  color: var(--switcher-header-fg, var(--color-muted));
+}
+.switcher-count,
+.switcher-process {
+  font-family: var(--font-mono);
+}
+.switcher-go {
+  opacity: var(--switcher-go-opacity, 0.25);
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.item:is([data-highlighted], :focus-visible) .switcher-go {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .item:hover .switcher-go {
+    opacity: 1;
+  }
+}
+.switcher-footer strong {
+  color: var(--color-ink);
+}

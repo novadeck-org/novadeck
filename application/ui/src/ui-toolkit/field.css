@@ -1,0 +1,54 @@
+/* The field recipe: where a value is typed or picked, such as a select's trigger or a
+   search box. `.field.quiet` is a bare field ruled underneath, as at the top of the
+   search dialog. `.field-input` is the text input inside a field, and
+   `.field-indicator` the chevron or icon at its end.
+
+   Hooks: :hover; data-state="open" on a select's trigger.
+
+   Tokens, each optional (its fallback in brackets):
+   --field-bg (paper), --field-fg (ink), --field-border-color (line),
+   --field-shadow (shadow-control), --field-radius (radius-control): at rest.
+   --field-hover-bg (shell): under the pointer.
+   --field-open-border-color (line-strong): while its list is open.
+   --field-quiet-fg (muted), --field-quiet-border-color (line): a quiet field, and the
+   rule under it.
+   --field-indicator-fg (muted): the indicator. */
+.field {
+  --_bg: var(--field-bg, var(--color-paper));
+  --_fg: var(--field-fg, var(--color-ink));
+  --_border-color: var(--field-border-color, var(--color-line));
+  --_shadow: var(--field-shadow, var(--shadow-control));
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--field-radius, var(--radius-control));
+  background-color: var(--_bg);
+  color: var(--_fg);
+  box-shadow: var(--_shadow);
+}
+@media (hover: hover) {
+  .field:hover {
+    --_bg: var(--field-hover-bg, var(--color-shell));
+  }
+}
+.field[data-state="open"] {
+  --_border-color: var(--field-open-border-color, var(--color-line-strong));
+}
+.field.quiet,
+.field.quiet:hover,
+.field.quiet[data-state="open"] {
+  --_bg: transparent;
+  --_fg: var(--field-quiet-fg, var(--color-muted));
+  --_border-color: var(--field-quiet-border-color, var(--color-line));
+  --_shadow: none;
+  border-width: 0 0 var(--border-width);
+  border-radius: 0;
+}
+.field-input {
+  background-color: transparent;
+  color: var(--field-fg, var(--color-ink));
+}
+.field-input:focus-visible {
+  outline: none;
+}
+.field-indicator {
+  color: var(--field-indicator-fg, var(--color-muted));
+}

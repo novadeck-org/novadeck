@@ -1,0 +1,30 @@
+/* The accessibility layer: it comes after every theme, so no theme can defeat it.
+   Imported into `layer(accessibility)`; see docs/theming.md. */
+
+/* Reduced motion: nothing moves. `!important`, one of the contract's exceptions, so it
+   beats the transitions libraries set inline or inject with `!important`, such as
+   dnd-kit's drag feedback. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Forced colours: the focus ring and selected text use the system's colours, whatever
+   a theme set. */
+@media (forced-colors: active) {
+  :root {
+    --focus-ring-color: Highlight;
+  }
+  :focus-visible {
+    outline-color: Highlight;
+  }
+  ::selection {
+    background: Highlight;
+    color: HighlightText;
+  }
+}

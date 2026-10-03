@@ -1,0 +1,172 @@
+/* Sandstone: warm paper and a terracotta strong colour, flat and rounded. Nothing casts
+   a shadow; what floats is edged instead. The sidebar and its rail stand on a dark
+   espresso ground, set by giving that region foundation tokens of its own, while the
+   header, the workspace and every window stay light. One scheme: light.
+   Imported into `layer(themes)`; see docs/theming.md. */
+
+[data-theme="sandstone"] {
+  color-scheme: light;
+
+  /* Grounds */
+  --color-canvas: #f2ece1;
+  --color-shell: #f6f1e8;
+  --color-paper: #fbf8f2;
+  --color-soft: #efe7da;
+  /* Text: warm brown-greys; muted meets WCAG AA on every ground, soft included. */
+  --color-ink: #3b302a;
+  --color-muted: #716255;
+  /* Lines */
+  --color-line: #e6dccd;
+  --color-line-strong: #cdbda8;
+  /* Emphasis: terracotta, with white on it (WCAG AA). */
+  --color-strong: #b4532a;
+  --color-strong-hover: #9a4421;
+  --color-on-strong: #ffffff;
+  /* Overlays: flat, so the shadow colour is transparent and every shadow a recipe mixes
+     from it vanishes. */
+  --color-scrim: rgb(59 48 42 / 0.22);
+  --color-selection: #f0d6c3;
+  --color-shadow: transparent;
+  /* Tones: warm tints, each with a dark text colour of its hue (every pair meets WCAG
+     AA). Notes are a dusty plum, apart from the terracotta and the warning ochre. */
+  --color-success: #e2ead3;
+  --color-success-fg: #3f5b22;
+  --color-warning: #f4e2b6;
+  --color-warning-fg: #6b4a0c;
+  --color-danger: #f5d7cc;
+  --color-danger-fg: #8e2f1b;
+  --color-note: #efdfe6;
+  --color-note-fg: #76345a;
+  /* Syntax: earthy hues, each WCAG AA on paper and on soft. */
+  --color-syntax-keyword: #9a3557;
+  --color-syntax-string: #4b6a1e;
+  --color-syntax-number: #a3461c;
+  --color-syntax-property: #2c6175;
+  --color-syntax-definition: #6a4596;
+  --color-syntax-type: #835600;
+  --color-syntax-comment: var(--color-muted);
+  /* Terminal: the page's paper and ink, a terracotta cursor, and warm ANSI hues that
+     read on paper (the normal ones at WCAG AA, the bright ones a step lighter). */
+  --terminal-bg: var(--color-paper);
+  --terminal-fg: var(--color-ink);
+  --terminal-cursor: var(--color-strong);
+  --terminal-selection: var(--color-selection);
+  --terminal-ansi-black: #3b302a;
+  --terminal-ansi-red: #b03a28;
+  --terminal-ansi-green: #4e7526;
+  --terminal-ansi-yellow: #8a6000;
+  --terminal-ansi-blue: #2e5c87;
+  --terminal-ansi-magenta: #8c3a6b;
+  --terminal-ansi-cyan: #28706f;
+  --terminal-ansi-white: #8a7d70;
+  --terminal-ansi-black-bright: #716255;
+  --terminal-ansi-red-bright: #bf4a32;
+  --terminal-ansi-green-bright: #507a28;
+  --terminal-ansi-yellow-bright: #94680a;
+  --terminal-ansi-blue-bright: #3b70a0;
+  --terminal-ansi-magenta-bright: #a24b80;
+  --terminal-ansi-cyan-bright: #2d7a79;
+  --terminal-ansi-white-bright: #9d8f80;
+  /* Depth: none. Elevation is drawn with edges (see the component tokens below). */
+  --shadow-control: none;
+  --shadow-panel: none;
+  --shadow-floating: none;
+  --shadow-modal: none;
+
+  /* Shape: rounder. */
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --radius-popover: 12px;
+  /* Type: Inter ships with the app; the mono face prefers fonts installed locally. */
+  --font-mono:
+    "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  /* Texture: a plain warm canvas, no grain or dots. */
+  --canvas-grain-opacity: 0;
+  --canvas-dots-opacity: 0;
+  /* Brand: a flat terracotta tile. */
+  --brand-tile-bg: var(--color-strong);
+  --brand-tile-fg: var(--color-on-strong);
+  --brand-tile-border-color: transparent;
+
+  /* Component tokens that read no other token, so they hold wherever they are read. */
+  --deck-mark-card-near-bg: #e2bfa8;
+  --deck-mark-card-far-bg: #efdccd;
+  --artifact-webview-bg: #ffffff;
+  /* No hatch over an ended terminal: a dashed outline and its output dimmed. */
+  --window-ended-image: none;
+  --window-ended-border-style: dashed;
+  --window-ended-content-opacity: 0.5;
+  /* The selection is an edged tint, not a bar. */
+  --item-selected-indicator-bg: transparent;
+  --window-indicator-bg: transparent;
+  /* The workspace: one flat ground, no glow, grain or dots. */
+  --workspace-image: none;
+  --workspace-dots-image: none;
+  --workspace-spotlight-opacity: 0;
+  --workspace-zen-dots-opacity: 0;
+  --workspace-zen-spotlight-opacity: 0;
+  --workspace-zen-grain-opacity: 0;
+  --workspace-dots-fg: transparent;
+  --welcome-stage-dots-fg: transparent;
+  /* A window's resize grip: a flat corner, not a hatch. */
+  --workspace-grip-image: linear-gradient(currentColor, currentColor);
+  /* The phase line, heavier on a flat page, as heavy as the attention line. */
+  --window-phase-border-width: 2px;
+  /* Pill switches. */
+  --toggle-track-radius: 999px;
+  --toggle-thumb-radius: 999px;
+}
+
+/* The sidebar and its rail, in a window and in the mobile drawer: a dark espresso
+   ground. Each recipe inside reads these foundation tokens, so rows, buttons, badges and
+   labels follow; what portals out of the region (menus, tooltips) stays light. */
+[data-theme="sandstone"] :is(.sidebar, .sidebar-tools, .sidebar-drawer) {
+  color-scheme: dark;
+
+  --color-canvas: #221d1a;
+  --color-shell: #2a2420;
+  --color-paper: #352d28;
+  --color-soft: #40362f;
+  --color-ink: #f2e9df;
+  --color-muted: #bcab9a;
+  --color-line: #463b33;
+  --color-line-strong: #5e5045;
+  /* A lighter terracotta, which reads on espresso, with espresso on it. */
+  --color-strong: #e28d62;
+  --color-strong-hover: #eba07b;
+  --color-on-strong: #2a2420;
+  --color-selection: #5c4335;
+  --color-success: #323b25;
+  --color-success-fg: #cde0ae;
+  --color-warning: #4a3a1c;
+  --color-warning-fg: #f0d391;
+  --color-danger: #4e2c24;
+  --color-danger-fg: #f4bba9;
+  --color-note: #45293a;
+  --color-note-fg: #ebbbd6;
+}
+
+/* Component tokens that read foundation tokens. A token that reads others is resolved
+   where it is declared, so each is declared again on the dark region, where it reads
+   the region's own grounds. */
+[data-theme="sandstone"],
+[data-theme="sandstone"] :is(.sidebar, .sidebar-tools, .sidebar-drawer) {
+  /* Selected: a full-width soft terracotta tint inside a terracotta edge, so it reads
+     as selected by more than its fill. */
+  --item-selected-bg: color-mix(in srgb, var(--color-strong) 18%, var(--color-shell));
+  --item-selected-border-color: var(--color-strong);
+  --item-highlighted-border-color: transparent;
+  --window-selected-header-bg: color-mix(in srgb, var(--color-strong) 9%, var(--color-paper));
+  --window-selected-border-color: var(--color-strong);
+  --window-phase-ended-border-color: var(--color-muted);
+  /* Elevation by edges: what floats or is modal is edged in the strong line. */
+  --floating-border-color: var(--color-line-strong);
+  --modal-border-color: var(--color-line-strong);
+  --zen-dock-border-color: var(--color-line-strong);
+  --runner-notice-border-color: var(--color-line-strong);
+  --icon-button-raised-border-color: var(--color-line-strong);
+  --choice-card-checked-border-color: var(--color-strong);
+  /* The welcome's miniature stage: no glow across it, as the workspace has none. */
+  --workspace-glow-bg: var(--color-canvas);
+  --deck-mark-card-border-color: var(--color-line);
+}

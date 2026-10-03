@@ -38,7 +38,7 @@ export const ZenDock = ({
   }, [open])
   return (
     <div
-      className="zen-dock absolute right-5 bottom-5 z-40 flex flex-row-reverse items-center gap-0.5 rounded-popover border border-line bg-paper/95 p-1 shadow-control backdrop-blur-sm max-[701px]:right-3 max-[701px]:bottom-3"
+      className="zen-dock absolute right-5 bottom-5 z-40 flex flex-row-reverse items-center gap-0.5 p-1 max-[701px]:right-3 max-[701px]:bottom-3"
       ref={dock}
       data-open={open}
       data-workspace-zen-dock
@@ -69,7 +69,7 @@ export const ZenDock = ({
         </button>
       </Tooltip>
       <button
-        className="zen-reveal flex h-8 w-5 shrink-0 items-center justify-center rounded-control text-muted hover:bg-soft hover:text-ink"
+        className="icon-button zen-reveal w-5 p-0"
         aria-label={open ? "Hide Zen controls" : "Show Zen controls"}
         aria-expanded={open}
         aria-controls={controls}
@@ -90,7 +90,7 @@ export const ZenDock = ({
               .map(({ id, label, icon: Icon }) => (
                 <Tooltip key={id} content={label}>
                   <button
-                    className={`icon-button ${view === id ? "bg-soft text-ink" : "text-muted"}`}
+                    className="icon-button"
                     aria-label={`${label} view`}
                     aria-pressed={view === id}
                     onClick={() => onViewChange(id)}
@@ -101,9 +101,9 @@ export const ZenDock = ({
               ))}
           </div>
 
-          <div className="mx-0.5 h-3 w-px bg-line" aria-hidden="true" />
+          <div className="separator mx-0.5 h-3 w-px" aria-hidden="true" />
           <button
-            className="zen-exit flex h-8 items-center gap-1.5 rounded-control px-2 text-[11px] text-muted hover:bg-soft hover:text-ink"
+            className="icon-button zen-exit w-auto gap-1.5 px-2 py-0 text-[11px]"
             onClick={onExit}
           >
             <X size={14} /> Exit Zen

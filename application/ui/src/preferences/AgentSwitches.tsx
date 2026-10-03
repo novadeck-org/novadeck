@@ -38,7 +38,7 @@ export const AgentSwitches = ({
   readonly agents: readonly AgentSwitch[]
   readonly onChange: (agent: AgentSwitch["agent"], connected: boolean) => void
 }): React.JSX.Element => (
-  <ul className={`m-0 list-none p-0 ${settingsCardClasses}`} aria-label="Agents">
+  <ul className={`m-0 p-0 ${settingsCardClasses}`} aria-label="Agents">
     {agents.map((item) => {
       const label = agentLabels[item.agent]
       const note = agentNote(item)
@@ -49,7 +49,8 @@ export const AgentSwitches = ({
             {note && item.error && (
               <span
                 id={`agent-${item.agent}-note`}
-                className="text-[11px] leading-relaxed text-danger-fg"
+                className="settings-note text-[11px] leading-relaxed"
+                data-tone="danger"
                 role="alert"
               >
                 {note}
@@ -59,7 +60,7 @@ export const AgentSwitches = ({
           {/* A short state sits beside the switch, so the row keeps its height. */}
           <div className="flex shrink-0 items-center gap-3">
             {note && !item.error && (
-              <span id={`agent-${item.agent}-note`} className="text-[11px] text-muted">
+              <span id={`agent-${item.agent}-note`} className="settings-note text-[11px]">
                 {note}
               </span>
             )}

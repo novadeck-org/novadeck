@@ -177,12 +177,24 @@ export type Backend = {
   // Optional. Asks the person for a folder to open as a project; null when cancelled.
   // Absent where the backend cannot offer one.
   readonly pickDirectory?: () => Promise<string | null>
+  // Optional. Tells the window around the page how the page looks, so its native parts
+  // match; absent where nothing surrounds the page, as in a browser.
+  readonly showAppearance?: (appearance: WindowAppearance) => void
   // Optional. The debug panel, where this launch offers it: it triggers the states
   // the backend can be in. See README "Debug panel".
   readonly DebugPanel?: ComponentType<DebugPanelProps>
 }
 
 export type AgentId = "claude" | "codex" | "agy"
+
+// How the page looks, for the window around it: the scheme its native parts use
+// (`system` while the page follows the system, so the page keeps seeing the system's
+// own), and the ground, `--color-canvas` as `#rrggbb`, that the window shows before
+// the page paints.
+export type WindowAppearance = {
+  readonly scheme: "system" | "light" | "dark"
+  readonly ground: string
+}
 
 // An agent the backend can connect, as the Preferences switches show it.
 export type AgentConnection = {

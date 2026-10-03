@@ -1,0 +1,18 @@
+/* Tailwind's theme: only the layout scale (spacing, breakpoints, type sizes, line
+   heights and weights) that TSX arranges with; see docs/theming.md. Everything a theme
+   draws is cleared here, so no utility can paint a colour, a corner, a shadow, a face
+   or a motion around the theme: themes set those tokens in `theme/themes/*.css`, and
+   `theme/base.css` holds the optional ones' defaults. */
+@theme {
+  --color-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-shadow-*: initial;
+  --blur-*: initial;
+  --font-*: initial;
+  --tracking-*: initial;
+  --ease-*: initial;
+  --animate-*: initial;
+}

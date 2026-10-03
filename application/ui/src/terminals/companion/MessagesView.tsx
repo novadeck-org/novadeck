@@ -114,7 +114,7 @@ const ThreadItem = ({
         {thread.held && (
           <button
             type="button"
-            className="small-button mail-release"
+            className="button mail-release"
             aria-label={`Release the thread with ${peer}`}
             // Kept focusable while it's on its way, so focus stays until the thread follows.
             aria-disabled={releasing}
@@ -181,12 +181,12 @@ export const MessagesView = ({
         </span>
       </div>
       {mail.error && (
-        <p className="mail-error" role="alert">
+        <p className="mail-error" data-tone="danger" role="alert">
           {mail.error}
         </p>
       )}
       {mail.paused && (
-        <p className="mail-paused" role="status">
+        <p className="mail-paused" data-tone="warning" role="status">
           Messaging is paused. Agents' messages wait, held, until you resume.
         </p>
       )}

@@ -4,7 +4,7 @@ import type { TerminalRequest } from "../../backend/port"
 import { createStore } from "../../model/store"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
-import { terminalFixture, workspaceFixture } from "../../test/fixtures"
+import { appearance, terminalFixture, workspaceFixture } from "../../test/fixtures"
 import { keyState } from "./keys"
 
 const terminal = (app: ReturnType<typeof openCommands>, id: string) =>
@@ -461,7 +461,11 @@ describe("workspace commands", () => {
     it("moves to an enabled view and closes the reveal and drawer", () => {
       const app = openCommands()
       app.ui.update((state) => ({ ...state, shell: { ...state.shell, revealCanvas: true } }))
-      app.commands.updatePreferences({ fontSize: 13, enabledViews: ["focus", "canvas"] })
+      app.commands.updatePreferences({
+        fontSize: 13,
+        enabledViews: ["focus", "canvas"],
+        appearance,
+      })
       expect(app.state().view).not.toBe("grid")
       expect(app.shell().revealCanvas).toBe(false)
       expect(app.effects).toContain("cancel transition")

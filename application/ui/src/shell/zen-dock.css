@@ -1,0 +1,106 @@
+/* Zen keeps the active workspace mounted while removing its surrounding chrome, and
+   offers the zen dock in its place: a small frosted bar of icon buttons in a corner,
+   faint until the pointer or focus reaches it on a device that can hover.
+
+   Hooks: on the dock, data-open="true" while its actions are shown; on a view button,
+   aria-pressed="true" for the current view.
+
+   Tokens, each optional (its fallback in brackets):
+   --zen-dock-bg (paper at 95%), --zen-dock-border-color (line),
+   --zen-dock-shadow (shadow-control), --zen-dock-radius (radius-popover),
+   --zen-dock-blur (8px): the dock.
+   --zen-dock-idle-opacity (0.5): the dock at rest.
+   The current view's button is a pressed icon button (--icon-button-pressed-*). */
+
+/* What Zen hides or changes, at rest. */
+:where(.app-header) {
+  @apply grid;
+}
+:where(.app-footer) {
+  @apply flex;
+}
+:where(.sidebar-tools) {
+  @apply flex;
+}
+:where(.zen-exit, .zen-reveal) {
+  @apply h-8;
+}
+.workspace[data-zen="true"] > .app-header,
+.workspace[data-zen="true"] > .app-footer,
+.workspace[data-zen="true"] .sidebar-tools {
+  display: none;
+}
+.workspace[data-zen="true"] .focus-stage > .terminal-visibility {
+  inset: 0;
+}
+.workspace[data-zen="true"] .terminal-focused {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.workspace[data-zen="true"] .terminal-focused .terminal-content {
+  padding-bottom: 5rem;
+}
+.workspace[data-zen="true"] .grid-stage {
+  padding-bottom: 5rem;
+}
+.zen-dock {
+  view-transition-name: zen-dock;
+  border: var(--border-width) solid var(--zen-dock-border-color, var(--color-line));
+  border-radius: var(--zen-dock-radius, var(--radius-popover));
+  background-color: var(--zen-dock-bg, color-mix(in srgb, var(--color-paper) 95%, transparent));
+  box-shadow: var(--zen-dock-shadow, var(--shadow-control));
+  backdrop-filter: blur(var(--zen-dock-blur, 8px));
+  animation: zen-enter var(--motion-state) var(--ease-interface);
+}
+.zen-dock-reveal {
+  display: grid;
+  grid-template-columns: 0fr;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    grid-template-columns var(--motion-state) var(--ease-interface),
+    opacity var(--motion-feedback) var(--ease-interface),
+    visibility var(--motion-state);
+}
+.zen-dock[data-open="true"] .zen-dock-reveal {
+  grid-template-columns: 1fr;
+  visibility: visible;
+  opacity: 1;
+}
+@keyframes zen-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .zen-dock {
+    opacity: var(--zen-dock-idle-opacity, 0.5);
+    transition: opacity var(--motion-feedback) var(--ease-interface);
+  }
+  .zen-dock[data-open="true"],
+  .zen-dock:hover,
+  .zen-dock:has(:focus-visible) {
+    opacity: 1;
+  }
+  .zen-dock .icon-button {
+    @apply size-7 p-1.5;
+  }
+  .zen-dock .zen-exit,
+  .zen-dock .zen-reveal {
+    @apply h-7;
+  }
+  .workspace[data-zen="true"] .terminal-actions {
+    opacity: 0;
+    transition: opacity var(--motion-feedback) var(--ease-interface);
+  }
+  .workspace[data-zen="true"] .terminal-header:hover .terminal-actions,
+  .workspace[data-zen="true"] .terminal-header:focus-within .terminal-actions {
+    opacity: 1;
+  }
+}

@@ -17,8 +17,7 @@ import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { useRenderAt } from "./use-render-at"
 import { windowMenu, type DockTarget } from "./window-menu"
 
-const actionClasses =
-  "terminal-tab-action flex size-6 shrink-0 items-center justify-center rounded-control p-1.5 text-muted hover:bg-soft hover:text-ink [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100 focus-visible:outline-offset-[-2px] focus-visible:[&>svg]:opacity-100"
+const actionClasses = "terminal-tab-action icon-button small dim"
 
 export const TerminalTab = ({
   terminal: tile,
@@ -110,16 +109,12 @@ export const TerminalTab = ({
             {/* One glyph wide in every phase, so the text beside it never shifts. */}
             <span
               aria-hidden
-              className="terminal-glyph inline-block w-[1ch] shrink-0 text-center font-mono text-ink"
+              className="terminal-glyph inline-block w-[1ch] shrink-0 text-center"
             />
             {phase === "starting" ? (
-              <span className="terminal-tab-starting truncate font-mono italic">starting…</span>
+              <span className="terminal-tab-starting truncate italic">starting…</span>
             ) : (
-              <span
-                className={`terminal-tab-process truncate font-mono ${phase === "running" || phase === "attention" ? "text-ink" : ""}`}
-              >
-                {process}
-              </span>
+              <span className="terminal-tab-process truncate">{process}</span>
             )}
           </>
         }
@@ -136,7 +131,7 @@ export const TerminalTab = ({
           : {})}
         data-terminal-hidden={hidden}
 
-        className={`terminal-tab [--sidebar-actions-space:76px] ${hidden ? "[&_.sidebar-item-select]:opacity-50" : ""} ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
+        className={`terminal-tab [--_sidebar-actions-space:76px] ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}
         editing={editing}
         editor={
           rename ? (
@@ -148,7 +143,7 @@ export const TerminalTab = ({
                 if (event.pointerType !== "mouse") event.stopPropagation()
               }}
             >
-              <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center text-muted">
+              <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center">
                 {icon}
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -161,10 +156,10 @@ export const TerminalTab = ({
                   onChange={onRenameDraft}
                   onSave={onRenameSave}
                   onCancel={onRenameCancel}
-                  className="w-full border-0 bg-transparent p-0 text-[12px] leading-[18px] font-medium text-ink shadow-none outline-none"
+                  className="terminal-rename-input w-full text-[12px] leading-[18px] font-medium"
                 />
-                <span className="sidebar-item-detail flex h-6 min-w-0 items-center overflow-hidden pr-(--sidebar-actions-space) whitespace-nowrap text-[10px] leading-[18px] text-muted">
-                  <span className="terminal-tab-process truncate font-mono">{process}</span>
+                <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center overflow-hidden pr-(--_sidebar-actions-space) whitespace-nowrap text-[10px] leading-[18px]">
+                  <span className="terminal-tab-process truncate">{process}</span>
                 </span>
               </div>
             </div>
@@ -174,7 +169,7 @@ export const TerminalTab = ({
           <div className="terminal-tab-actions flex items-center">
             <Tooltip content={hidden ? "Show" : "Hide"}>
               <button
-                className={`${actionClasses} disabled:pointer-events-none disabled:opacity-50 ${hidden ? "[&>svg]:opacity-100!" : ""}`}
+                className={actionClasses}
                 aria-label={`${hidden ? "Show" : "Hide"} ${terminal.name} in Grid and Canvas`}
                 aria-pressed={hidden}
                 disabled={editing}

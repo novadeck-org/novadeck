@@ -1,0 +1,396 @@
+/* The prose recipe: plans and markdown documents as the plan editor (`.plan-editor`)
+   formats them, its decorations (`.cm-plan-*`) and its tables; a plan's miniature in a
+   peek reads it too. What the editor changes of CodeMirror's own look (its focus
+   outline, scroller font, content and line padding, selection, caret and gutters) is in
+   plan-editor/editor-theme.ts: CodeMirror's styles sit outside every layer, so only an
+   editor theme overrides them. The editor's icon-only actions, the margin's and a row's
+   note buttons, are `.icon-button`s; its checkboxes take the toggle recipe's tokens.
+
+   Hooks: data-changes="true" on the plan's scroller while the agent's changes show;
+   data-readonly on the editor and on a table a plan the backend can't write holds;
+   data-checked="true" on a ticked checkbox; data-heading="1" | "2" | "3" on the margin's
+   note button beside a heading.
+
+   Tokens, each optional (its fallback in brackets):
+   --prose-fg (ink), --prose-font (sans): the text, and the editor's caret.
+   --prose-selection-bg (selection): selected text in the editor.
+   --prose-muted-fg (muted): list marks, formatting marks, and a done task (at 60%).
+   --prose-heading-fg (ink): headings.
+   --prose-code-bg (soft), --prose-code-fg (the text's): inline code.
+   --prose-path-bg (shell), --prose-path-border-color (line): a file path.
+   --prose-codeblock-bg (shell): a fenced block.
+   --prose-quote-fg (muted), --prose-quote-border-color (line-strong): a quote.
+   --prose-changed-bg (warning at 45%), --prose-changed-border-color (warning-fg): what
+   the agent's latest revision wrote, while changes show.
+   --prose-note-bg (note), --prose-note-fg (note-fg), --prose-note-text-fg (ink): a
+   note's bubble, its label, and its text.
+   --prose-table-border-color (line), --prose-table-head-bg (shell): tables.
+   --prose-cell-focus-bg (paper), --prose-cell-focus-ring-color (ink): the cell being
+   edited.
+   --prose-table-tools-bg (paper), --prose-table-tools-border-color (line),
+   --prose-table-tools-shadow (shadow-control): a table's tools.
+   --prose-table-tool-fg (muted), --prose-table-tool-hover-bg (soft),
+   --prose-table-tool-hover-fg (ink), --prose-table-tool-disabled-opacity (0.35): each
+   tool.
+   A checkbox reads --toggle-box-bg, --toggle-box-border-color, --toggle-track-on-bg,
+   --toggle-track-on-border-color and --toggle-mark-fg (see toggle.css). */
+
+.plan-editor .cm-editor {
+  max-width: 700px;
+  margin: auto;
+  background: transparent;
+  color: var(--prose-fg, var(--color-ink));
+  font: 13px/1.75 var(--prose-font, var(--font-sans));
+}
+.cm-plan-h1 {
+  font-size: 26px;
+  font-weight: 550;
+  line-height: 1.3;
+  letter-spacing: -0.8px;
+}
+.cm-plan-h2 {
+  font-size: 15px;
+  font-weight: 550;
+}
+.cm-plan-h3 {
+  font-weight: 550;
+}
+:is(.cm-plan-h1, .cm-plan-h2, .cm-plan-h3) {
+  color: var(--prose-heading-fg, var(--prose-fg, var(--color-ink)));
+}
+.cm-plan-strong {
+  font-weight: 600;
+}
+.cm-plan-em {
+  font-style: italic;
+}
+.cm-plan-code {
+  padding: 1px 4px;
+  border-radius: var(--radius-control);
+  background-color: var(--prose-code-bg, var(--color-soft));
+  color: var(--prose-code-fg, currentColor);
+  font: 11.5px var(--font-mono);
+}
+.cm-plan-path {
+  border: var(--border-width) solid var(--prose-path-border-color, var(--color-line));
+  background-color: var(--prose-path-bg, var(--color-shell));
+  font-size: 11px;
+}
+.cm-plan-listmark {
+  font: 11px var(--font-mono);
+  color: var(--prose-muted-fg, var(--color-muted));
+}
+.cm-plan-quote {
+  border-left: 2px solid var(--prose-quote-border-color, var(--color-line-strong));
+  color: var(--prose-quote-fg, var(--color-muted));
+}
+.cm-plan-codeblock {
+  background-color: var(--prose-codeblock-bg, var(--color-shell));
+  font: 11px/1.9 var(--font-mono);
+}
+.cm-plan-fence {
+  font-size: 0;
+  line-height: 8px;
+}
+.cm-plan-checkbox {
+  --_bg: var(--toggle-box-bg, var(--color-paper));
+  --_border-color: var(--toggle-box-border-color, var(--color-line-strong));
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin: 0 8px -2px 0;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--radius-control);
+  background-color: var(--_bg);
+  color: var(--toggle-mark-fg, var(--color-on-strong));
+  text-indent: 0;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+.cm-plan-checkbox[data-checked="true"] {
+  --_bg: var(--toggle-track-on-bg, var(--color-strong));
+  --_border-color: var(--toggle-track-on-border-color, var(--color-strong));
+}
+.cm-plan-checkbox svg {
+  width: 10px;
+  height: 10px;
+}
+/* A done task recedes; its tick keeps full contrast. */
+.plan-editor .cm-plan-task-done {
+  color: color-mix(in srgb, var(--prose-muted-fg, var(--color-muted)) 60%, transparent);
+}
+.plan-editor .cm-plan-item {
+  text-indent: -22px;
+}
+.plan-editor .cm-plan-item-task {
+  text-indent: -44px;
+}
+
+/* Formatting marks, shown on the line being edited. */
+.cm-plan-syntax {
+  color: var(--prose-muted-fg, var(--color-muted));
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0.7;
+}
+/* A heading's marks hang in its left margin, so its text doesn't move. */
+.plan-editor .cm-plan-h1,
+.plan-editor .cm-plan-h2,
+.plan-editor .cm-plan-h3 {
+  position: relative;
+}
+.cm-plan-hashes {
+  position: absolute;
+  padding-right: 0.3em;
+  transform: translateX(-100%);
+  letter-spacing: 0;
+}
+
+/* The note margin: a button beside every line, shown on hover and on the line being
+   edited. */
+.cm-plan-note-gutter .cm-gutterElement {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 24px;
+  padding-top: 1px;
+}
+.icon-button.cm-plan-add-note {
+  display: flex;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.cm-plan-note-gutter .cm-gutterElement:hover .cm-plan-add-note,
+.cm-focused .cm-activeLineGutter .cm-plan-add-note {
+  opacity: 1;
+}
+/* The margin's note button follows a heading's text down its taller line. */
+.cm-plan-add-note[data-heading="1"] {
+  margin-top: 2px;
+}
+.cm-plan-add-note[data-heading="2"] {
+  margin-top: 17px;
+}
+.cm-plan-add-note[data-heading="3"] {
+  margin-top: 7px;
+}
+/* The marks take the note button's place while the heading is being edited. */
+.cm-focused .cm-activeLineGutter .cm-plan-add-note[data-heading] {
+  visibility: hidden;
+}
+
+/* A note is a warm speech bubble: apricot, apart from NovaDeck's cool greys and from the
+   butter amber that marks the agent's changes, with a tail up at what it's about. */
+.cm-plan-note-label {
+  display: inline-flex;
+  margin-right: 7px;
+  color: var(--prose-note-fg, var(--color-note-fg));
+  vertical-align: -2px;
+}
+/* Notes outrank the plan around them, by space and contrast rather than weight of
+   colour: room above and below, full-contrast text, and an ink rule to find them by. */
+.cm-plan-note-text {
+  color: var(--prose-note-text-fg, var(--color-ink));
+  font-weight: 500;
+}
+.plan-editor .cm-plan-note-line {
+  --_note-indent: 0px;
+  /* Its own stacking context, so the bubble drawn behind the text stays in the line. */
+  position: relative;
+  z-index: 0;
+  /* Sized to its text, which no Markdown element is. */
+  width: fit-content;
+  max-width: 100%;
+  text-indent: 0;
+  line-height: 1.6;
+}
+.plan-editor .cm-plan-note-line::before,
+.plan-editor .cm-plan-note-line::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  background-color: var(--prose-note-bg, var(--color-note));
+  pointer-events: none;
+}
+.plan-editor .cm-plan-note-line::before {
+  inset: 9px 0 3px var(--_note-indent);
+  border-radius: var(--radius-popover);
+}
+/* The tail: a turned square whose top corner points up at the line above. */
+.plan-editor .cm-plan-note-line::after {
+  top: 5px;
+  left: calc(var(--_note-indent) + 14px);
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+}
+/* Under a list item, the rule lines up with the item's text. */
+.plan-editor .cm-plan-item.cm-plan-note-line {
+  --_note-indent: 22px;
+}
+.plan-editor .cm-plan-item-task.cm-plan-note-line {
+  --_note-indent: 44px;
+}
+/* What the agent's latest revision wrote, while changes are shown. */
+[data-changes="true"] .cm-plan-changed {
+  box-shadow: inset 2px 0 0 var(--prose-changed-border-color, var(--color-warning-fg));
+  background-color: var(
+    --prose-changed-bg,
+    color-mix(in srgb, var(--color-warning) 45%, transparent)
+  );
+}
+
+/* Tables: always rendered; each cell edits in place. */
+.cm-plan-table-widget {
+  position: relative;
+  padding: 6px 0 10px;
+}
+.cm-plan-table-widget table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.cm-plan-table-widget th,
+.cm-plan-table-widget td {
+  padding: 0;
+  border: var(--border-width) solid var(--prose-table-border-color, var(--color-line));
+  vertical-align: top;
+  text-align: left;
+}
+.cm-plan-table-widget th {
+  background-color: var(--prose-table-head-bg, var(--color-shell));
+  font-weight: 500;
+}
+.cm-plan-cell {
+  display: block;
+  width: 100%;
+  min-height: calc(1.6em + 14px);
+  padding: 7px 10px;
+  border: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  outline: none;
+  /* Grows with its text, so a long cell wraps like the table's other cells. */
+  field-sizing: content;
+}
+.cm-plan-cell:focus {
+  box-shadow: inset 0 0 0 1.5px
+    var(--prose-cell-focus-ring-color, var(--prose-fg, var(--color-ink)));
+  background-color: var(--prose-cell-focus-bg, var(--color-paper));
+}
+.cm-plan-table-tools {
+  position: absolute;
+  top: -22px;
+  right: 0;
+  display: none;
+  gap: 2px;
+  padding: 2px;
+  border: var(--border-width) solid var(--prose-table-tools-border-color, var(--color-line));
+  border-radius: var(--radius-popover);
+  background-color: var(--prose-table-tools-bg, var(--color-paper));
+  box-shadow: var(--prose-table-tools-shadow, var(--shadow-control));
+}
+.cm-plan-table-widget:focus-within .cm-plan-table-tools {
+  display: flex;
+}
+.cm-plan-table-tool {
+  --_bg: transparent;
+  --_fg: var(--prose-table-tool-fg, var(--color-muted));
+  padding: 1px 7px;
+  border-radius: var(--radius-control);
+  background-color: var(--_bg);
+  color: var(--_fg);
+  font-size: 10px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.cm-plan-table-tool:hover:not(:disabled) {
+  --_bg: var(--prose-table-tool-hover-bg, var(--color-soft));
+  --_fg: var(--prose-table-tool-hover-fg, var(--color-ink));
+}
+.cm-plan-table-tool:disabled {
+  opacity: var(--prose-table-tool-disabled-opacity, 0.35);
+}
+
+/* Row notes: a button beside every row, in the plan's note margin. */
+.cm-plan-table-widget tr > :first-child {
+  position: relative;
+}
+.icon-button.cm-plan-row-note-add {
+  position: absolute;
+  /* Above the editor's gutter column, which covers the margin it sits in. */
+  z-index: 201;
+  top: 7px;
+  left: -41px;
+  display: flex;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  opacity: 0;
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.cm-plan-table-widget tr:hover .cm-plan-row-note-add,
+.cm-plan-table-widget tr:focus-within .cm-plan-row-note-add {
+  opacity: 1;
+}
+.cm-plan-row-note td {
+  padding: 4px 8px 6px;
+  border-top: 0;
+}
+.cm-plan-row-note-bubble {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  max-width: 100%;
+  margin-top: 5px;
+  padding: 4px 12px 4px 10px;
+  border-radius: var(--radius-popover);
+  background-color: var(--prose-note-bg, var(--color-note));
+}
+.cm-plan-row-note-bubble::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 13px;
+  width: 8px;
+  height: 8px;
+  background-color: var(--prose-note-bg, var(--color-note));
+  transform: rotate(45deg);
+}
+.cm-plan-row-note .cm-plan-note-label {
+  flex-shrink: 0;
+  margin: 3px 7px 0 0;
+}
+.cm-plan-row-note-input {
+  display: block;
+  width: auto;
+  min-height: 1.6em;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: var(--prose-note-text-fg, var(--color-ink));
+  font: inherit;
+  line-height: 1.6;
+  outline: none;
+  field-sizing: content;
+  min-width: 4ch;
+}
+
+/* A plan the backend can't write: no note buttons, no table tools. */
+.plan-editor[data-readonly] .cm-plan-note-gutter,
+.cm-plan-table-widget[data-readonly] .cm-plan-table-tools,
+.cm-plan-table-widget[data-readonly] .cm-plan-row-note-add {
+  display: none;
+}

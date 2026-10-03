@@ -38,24 +38,14 @@ export const WorkspaceSwitcher = ({
         trigger={
           <button
             ref={trigger}
-            className="workspace-switcher-trigger inline-flex min-h-9 min-w-0 w-full max-w-full items-center gap-1.5 rounded-control px-2.5 text-[12px] leading-[1.5] font-medium text-ink transition-[background] duration-(--motion-feedback) hover:bg-soft aria-expanded:bg-soft"
+            className="button ghost workspace-switcher-trigger inline-flex min-h-9 min-w-0 w-full max-w-full items-center justify-start gap-1.5 px-[9px] text-[12px] leading-[1.5] font-medium"
             type="button"
             aria-label="Switch workspace"
             title={current.directory}
           >
-            <Folder
-              aria-hidden="true"
-              className="shrink-0 text-muted"
-              size={14}
-              strokeWidth={1.55}
-            />
+            <Folder aria-hidden="true" className="shrink-0" size={14} strokeWidth={1.55} />
             <span className="min-w-0 flex-1 truncate">{current.name}</span>
-            <ChevronDown
-              aria-hidden="true"
-              className="shrink-0 text-muted"
-              size={14}
-              strokeWidth={1.75}
-            />
+            <ChevronDown aria-hidden="true" className="shrink-0" size={14} strokeWidth={1.75} />
           </button>
         }
       >
@@ -68,7 +58,7 @@ export const WorkspaceSwitcher = ({
             return (
               <div key={project.id} className="workspace-switcher-row group relative">
                 <button
-                  className={`workspace-switcher-project flex w-full min-w-0 items-center gap-3 rounded-control border border-transparent px-2.5 py-[9px] text-left text-ink hover:bg-shell focus-visible:bg-shell focus-visible:outline-offset-[-2px] ${removable ? "pr-10" : ""} ${selected ? "selected" : ""}`}
+                  className={`item workspace-switcher-project flex w-full min-w-0 items-center gap-3 px-2.5 py-[9px] text-left ${removable ? "pr-10" : ""} ${selected ? "selected" : ""}`}
                   type="button"
                   aria-current={selected ? "true" : undefined}
                   title={project.directory}
@@ -79,9 +69,7 @@ export const WorkspaceSwitcher = ({
                 >
                   <span className="workspace-switcher-project-copy flex min-w-0 flex-1 flex-col gap-0.75">
                     <strong className="truncate text-[12px] font-medium">{project.name}</strong>
-                    <small className="truncate font-mono text-[10px] text-muted">
-                      {project.directory}
-                    </small>
+                    <small className="item-detail truncate text-[10px]">{project.directory}</small>
                   </span>
                   {selected && (
                     <Check
@@ -94,7 +82,7 @@ export const WorkspaceSwitcher = ({
                 </button>
                 {removable && (
                   <button
-                    className="workspace-switcher-remove absolute top-1/2 right-1.5 grid size-7 -translate-y-1/2 place-items-center rounded-control text-muted opacity-0 transition-opacity duration-(--motion-feedback) group-hover:opacity-100 hover:bg-soft hover:text-ink focus-visible:opacity-100"
+                    className="icon-button workspace-switcher-remove absolute top-1/2 right-1.5 size-7 -translate-y-1/2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                     type="button"
                     aria-label={`Remove ${project.name}`}
                     title="Remove project"
@@ -110,9 +98,9 @@ export const WorkspaceSwitcher = ({
             )
           })}
         </div>
-        <div className="workspace-switcher-footer border-t border-line p-[5px]">
+        <div className="workspace-switcher-footer p-[5px]">
           <button
-            className="workspace-switcher-new flex w-full items-center gap-2.25 rounded-control px-2.5 py-[9px] text-left text-[11px] text-muted disabled:cursor-not-allowed disabled:opacity-50"
+            className="button quiet workspace-switcher-new h-auto w-full justify-start gap-2.25 px-[9px] py-2 text-left text-[11px] disabled:cursor-not-allowed"
             type="button"
             disabled={!onOpenFolder}
             title={onOpenFolder ? undefined : "Unavailable"}

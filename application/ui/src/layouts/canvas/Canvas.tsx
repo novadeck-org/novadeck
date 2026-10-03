@@ -41,7 +41,7 @@ import { useCanvasPersistence } from "./useCanvasPersistence"
 import { useCanvasVisit } from "./useCanvasVisit"
 export type { CanvasHandle } from "./types"
 
-// The chrome that reads `--canvas-chrome-scale` (canvas.css, runner.css).
+// The chrome that reads `--_canvas-chrome-scale` (canvas.css, runner.css).
 const chromeReaders = ".terminal-heading, .terminal-resize-grip, .runner-ending"
 
 // How long a window dropped from a taskbar takes to settle onto the canvas's grid.
@@ -132,15 +132,15 @@ const TerminalCanvas = ({
     if (!element) return
     let zoom = store.getState().transform[2]
     let resting: ReturnType<typeof setTimeout> | undefined
-    element.style.setProperty("--canvas-chrome-scale", String(chromeScaleAt(zoom)))
+    element.style.setProperty("--_canvas-chrome-scale", String(chromeScaleAt(zoom)))
     const unsubscribe = store.subscribe((state) => {
       if (state.transform[2] === zoom) return
       zoom = state.transform[2]
       const scale = String(chromeScaleAt(zoom))
       for (const chrome of element.querySelectorAll<HTMLElement>(chromeReaders))
-        chrome.style.setProperty("--canvas-chrome-scale", scale)
+        chrome.style.setProperty("--_canvas-chrome-scale", scale)
       clearTimeout(resting)
-      resting = setTimeout(() => element.style.setProperty("--canvas-chrome-scale", scale), 150)
+      resting = setTimeout(() => element.style.setProperty("--_canvas-chrome-scale", scale), 150)
     })
     return () => {
       unsubscribe()
@@ -506,11 +506,11 @@ const TerminalCanvas = ({
   const canvas = (
     <div
       data-workspace-viewport
-      className="canvas-viewport relative min-h-0 flex-1 overflow-hidden bg-canvas touch-none workspace-background"
+      className="canvas-viewport relative min-h-0 flex-1 overflow-hidden touch-none workspace-background"
       ref={container}
       style={
         {
-          "--canvas-header-height": `${terminalHeaderHeight}px`,
+          "--_canvas-header-height": `${terminalHeaderHeight}px`,
         } as CSSProperties
       }
       aria-label="Terminal canvas"
@@ -606,7 +606,6 @@ const TerminalCanvas = ({
             className="canvas-grid"
             gap={canvasStep}
             size={1.6}
-            color="var(--color-muted)"
             bgColor="transparent"
           />
           <Background
@@ -614,7 +613,6 @@ const TerminalCanvas = ({
             className="canvas-grid-spotlight"
             gap={canvasStep}
             size={1.6}
-            color="var(--color-muted)"
             bgColor="transparent"
           />
           {ghost && (

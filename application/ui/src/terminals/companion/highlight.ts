@@ -4,7 +4,7 @@ import { classHighlighter, highlightCode } from "@lezer/highlight"
 // Syntax highlighting for the files an agent shows, with CodeMirror's parsers but no
 // editor. The language comes from the file's name, and its parser loads the first time
 // a file of that language is shown. Each token gets `tok-*` classes, which
-// companion.css colours.
+// the syntax recipe (syntax.css) colours.
 
 // A run of text, where it starts in its line, and the classes for its kind of token,
 // none for plain text.

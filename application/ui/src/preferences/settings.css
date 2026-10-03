@@ -1,0 +1,151 @@
+/* The settings recipe: Preferences and the choices the welcome shares with it.
+
+   Parts:
+   `.preferences-heading`: the dialog's title and tabs, a `.modal-header`.
+   `.preferences-panels`: the settings ground the sections sit on; each
+   `.preferences-panel` (a tab's panel) shows its focus inside its edge.
+   A section's title is a `.section-label` (the label recipe).
+   `.settings-description`: the muted text under a title or beside a setting.
+   `.settings-note`: a setting's state beside its control, which reads its tone as text
+   when marked data-tone="danger".
+   `.settings-card`: a `.card` holding settings, one `.settings-row` per setting, each
+   after the first under a hairline. `.settings-fieldset`: a fieldset that draws no box.
+   `.choice-card`: a choice drawn as a card that is checked or not, muted at rest, with
+   an optional `.choice-card-tile` holding its icon, which takes the brand tile once
+   checked. `.choice-card.solid`: a choice at full strength at rest that fills under the
+   pointer and when checked, as the welcome's are; disabled, it is muted.
+
+   Hooks: on a choice card, data-state="checked" | "unchecked", data-disabled, and the
+   focus of the input inside it (:has(:focus-visible)).
+
+   Tokens, each optional (its fallback in brackets):
+   --region-settings-bg (shell): the settings ground.
+   --separator-bg (line): the rows' hairlines.
+   --settings-description-fg (muted).
+   --settings-card-shadow (card-shadow, else shadow-control): a card of settings.
+   --choice-card-bg (paper at 60%), --choice-card-fg (muted),
+   --choice-card-border-color (line), --choice-card-radius (radius-panel): a choice at
+   rest. --choice-card-hover-fg (ink), --choice-card-hover-border-color (line-strong):
+   under the pointer. --choice-card-checked-bg (paper), --choice-card-checked-fg (ink),
+   --choice-card-checked-border-color (line-strong), --choice-card-checked-shadow
+   (shadow-control): checked.
+   --choice-card-solid-bg (paper), --choice-card-solid-fg (ink): a solid choice at rest.
+   --choice-card-solid-hover-bg (shell): under the pointer.
+   --choice-card-solid-checked-bg (shell), --choice-card-solid-checked-shadow
+   (shadow-panel): checked. --choice-card-disabled-fg (muted): disabled.
+   --choice-card-tile-bg (shell), --choice-card-tile-fg (ink),
+   --choice-card-tile-border-color (line): the icon tile at rest. Checked, it takes
+   --brand-tile-bg, --brand-tile-fg and --brand-tile-border-color, like the Deck mark.
+   --choice-card-tile-disabled-opacity (0.7). */
+
+.preferences-panels {
+  background-color: var(--region-settings-bg, var(--color-shell));
+}
+.preferences-panel {
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.preferences-panel:focus-visible {
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.settings-description,
+.settings-note {
+  color: var(--settings-description-fg, var(--color-muted));
+}
+/* A note in a tone reads it as text, without the tone's tint behind it. */
+.settings-note[data-tone] {
+  border-color: transparent;
+  background-color: transparent;
+}
+.settings-note[data-tone="danger"] {
+  color: var(--color-danger-fg);
+}
+
+.card.settings-card {
+  --_shadow: var(--settings-card-shadow, var(--card-shadow, var(--shadow-control)));
+  list-style: none;
+}
+.settings-row {
+  border: 0 solid transparent;
+}
+.settings-row + .settings-row {
+  border-top-width: var(--border-width);
+  border-top-color: var(--separator-bg, var(--color-line));
+}
+.settings-fieldset {
+  border: 0;
+}
+
+.choice-card {
+  --_bg: var(--choice-card-bg, color-mix(in srgb, var(--color-paper) 60%, transparent));
+  --_fg: var(--choice-card-fg, var(--color-muted));
+  --_border-color: var(--choice-card-border-color, var(--color-line));
+  --_shadow: none;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--choice-card-radius, var(--radius-panel));
+  background-color: var(--_bg);
+  color: var(--_fg);
+  box-shadow: var(--_shadow);
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface),
+    color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface);
+}
+.choice-card:hover:not([data-disabled]) {
+  --_fg: var(--choice-card-hover-fg, var(--color-ink));
+  --_border-color: var(--choice-card-hover-border-color, var(--color-line-strong));
+}
+.choice-card[data-state="checked"] {
+  --_bg: var(--choice-card-checked-bg, var(--color-paper));
+  --_fg: var(--choice-card-checked-fg, var(--color-ink));
+  --_border-color: var(--choice-card-checked-border-color, var(--color-line-strong));
+  --_shadow: var(--choice-card-checked-shadow, var(--shadow-control));
+}
+.choice-card.solid {
+  --_bg: var(--choice-card-solid-bg, var(--color-paper));
+  --_fg: var(--choice-card-solid-fg, var(--color-ink));
+}
+.choice-card.solid:hover:not([data-disabled]) {
+  --_bg: var(--choice-card-solid-hover-bg, var(--color-shell));
+}
+.choice-card.solid[data-state="checked"] {
+  --_bg: var(--choice-card-solid-checked-bg, var(--color-shell));
+  --_shadow: var(--choice-card-solid-checked-shadow, var(--shadow-panel));
+}
+.choice-card.solid[data-disabled] {
+  --_fg: var(--choice-card-disabled-fg, var(--color-muted));
+}
+.choice-card:has(:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: var(--focus-ring-offset);
+}
+
+.choice-card-tile {
+  --_highlight: 0 0 transparent;
+  --_drop: 0 0 transparent;
+  border: var(--border-width) solid var(--choice-card-tile-border-color, var(--color-line));
+  border-radius: var(--choice-card-radius, var(--radius-panel));
+  background: var(--choice-card-tile-bg, var(--color-shell));
+  color: var(--choice-card-tile-fg, var(--color-ink));
+  box-shadow: var(--_highlight), var(--_drop);
+  transition:
+    background-color var(--motion-state) var(--ease-interface),
+    border-color var(--motion-state) var(--ease-interface),
+    color var(--motion-state) var(--ease-interface);
+}
+.choice-card[data-state="checked"] .choice-card-tile {
+  --_highlight: inset 0 1px 0
+    color-mix(in srgb, var(--brand-tile-fg, var(--color-on-strong)) 8%, transparent);
+  --_drop: 0 6px 14px -8px color-mix(in srgb, var(--color-shadow) 50%, transparent);
+  border-color: var(--brand-tile-border-color);
+  background: var(
+    --brand-tile-bg,
+    linear-gradient(180deg, var(--color-strong-hover), var(--color-strong))
+  );
+  color: var(--brand-tile-fg, var(--color-on-strong));
+}
+.choice-card[data-disabled] .choice-card-tile {
+  color: var(--color-muted);
+  opacity: var(--choice-card-tile-disabled-opacity, 0.7);
+}

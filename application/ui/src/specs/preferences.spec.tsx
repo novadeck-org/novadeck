@@ -1,6 +1,7 @@
-import { describe as context, describe, expect, it, vi } from "vitest"
+import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
+import { pageScheme, saveFromAnotherWindow, systemScheme } from "./support/appearance"
 import { expectFocusWithin, preferencesDialog } from "./support/keyboard"
 import {
   openWorkspace,
@@ -53,6 +54,18 @@ const outputTextSize = (): number =>
     ).fontSize,
   )
 
+const modeChoice = (name: "System" | "Light" | "Dark"): Locator =>
+  preferencesDialog().getByRole("radiogroup", { name: "Mode" }).getByRole("radio", { name })
+
+/** Chooses a mode the way a person does: on its visible label. */
+const chooseMode = async (name: "System" | "Light" | "Dark"): Promise<void> => {
+  await preferencesDialog()
+    .getByRole("radiogroup", { name: "Mode" })
+    .getByText(name, { exact: true })
+    .click()
+  await expect.element(modeChoice(name)).toBeChecked()
+}
+
 const transcriptsSwitch = (): Locator =>
   preferencesDialog().getByRole("switch", { name: "Transcripts" })
 
@@ -82,8 +95,8 @@ describe("Preferences", () => {
       const general = preferencesDialog().getByRole("tabpanel", { name: "General" })
       await expect
         .element(general.getByRole("combobox", { name: "Theme" }))
-        .toHaveTextContent("Monochrome")
-      await expect.element(general.getByRole("switch", { name: "Dark mode" })).toBeDisabled()
+        .toHaveTextContent("Graphite")
+      await expect.element(modeChoice("System")).toBeChecked()
       await expect
         .element(general.getByRole("combobox", { name: "Text size" }))
         .toHaveTextContent("13px")
@@ -260,6 +273,99 @@ describe("terminal text size preference", () => {
       await expect
         .element(preferencesDialog().getByRole("combobox", { name: "Text size" }))
         .toHaveTextContent("15px")
+    })
+  })
+})
+
+describe("appearance preference", () => {
+  afterEach(() => systemScheme(null))
+
+  context("when Dark is chosen", () => {
+    it("draws the app dark and keeps it after reopening", async () => {
+      await systemScheme("light")
+      await openWorkspace()
+      expect(pageScheme()).toBe("light")
+      await openPreferences()
+
+      await chooseMode("Dark")
+
+      await expect.poll(pageScheme).toBe("dark")
+      await closePreferences()
+      // As a fresh load finds it: nothing on <html> until the app shows what it saved.
+      document.documentElement.removeAttribute("data-theme")
+      document.documentElement.removeAttribute("data-scheme")
+      await reloadWorkspace()
+      expect(document.documentElement.dataset).toMatchObject({ theme: "graphite", scheme: "dark" })
+      await expect.poll(pageScheme).toBe("dark")
+      await openPreferences()
+      await expect.element(modeChoice("Dark")).toBeChecked()
+    })
+  })
+
+  context("when Light is chosen", () => {
+    it("stays light while the system is dark", async () => {
+      await systemScheme("dark")
+      await openWorkspace()
+      await expect.poll(pageScheme).toBe("dark")
+      await openPreferences()
+
+      await chooseMode("Light")
+
+      await expect.poll(pageScheme).toBe("light")
+    })
+  })
+
+  context("when a theme with only a light scheme is chosen", () => {
+    it("disables Mode and keeps the page light while the system is dark", async () => {
+      await systemScheme("dark")
+      await openWorkspace()
+      await expect.poll(pageScheme).toBe("dark")
+      await openPreferences()
+
+      await preferencesDialog().getByRole("combobox", { name: "Theme" }).click()
+      await preferencesDialog().getByRole("option", { name: "Sandstone" }).click()
+
+      await expect
+        .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
+        .toHaveTextContent("Sandstone")
+      await expect.element(modeChoice("Dark")).toBeDisabled()
+      await expect.element(modeChoice("Light")).toBeChecked()
+      await expect
+        .element(preferencesDialog().getByRole("group", { name: "Mode" }))
+        .toHaveAccessibleDescription("Sandstone comes only in light.")
+      await expect.poll(pageScheme).toBe("light")
+    })
+  })
+
+  context("when following the system", () => {
+    it("changes with the system's scheme while the app is open", async () => {
+      await systemScheme("light")
+      await openWorkspace()
+      expect(pageScheme()).toBe("light")
+
+      await systemScheme("dark")
+      await expect.poll(pageScheme).toBe("dark")
+
+      await systemScheme("light")
+      await expect.poll(pageScheme).toBe("light")
+    })
+  })
+
+  context("when another window chooses a mode", () => {
+    it("draws this window in it too and shows the choice", async () => {
+      await systemScheme("light")
+      await openWorkspace()
+      await openPreferences()
+      await expect.element(modeChoice("System")).toBeChecked()
+
+      const saved = JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}")
+      saveFromAnotherWindow("novadeck.preferences", {
+        ...saved,
+        appearance: { theme: "graphite", scheme: "dark" },
+      })
+
+      await expect.poll(pageScheme).toBe("dark")
+      await expect.element(modeChoice("Dark")).toBeChecked()
     })
   })
 })

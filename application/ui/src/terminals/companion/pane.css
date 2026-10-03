@@ -1,0 +1,329 @@
+/* The pane recipe: where a terminal shows its plan, what its agent showed, and its
+   messages. Split (`.plan-split`), it shares the terminal's window across a divider
+   (`.plan-divider`); attached (`.plan-attached`), it hangs off the canvas node; undocked,
+   it fills a window of its own (`.artifact-window`, see artifact.css). In each, the
+   reader (`.plan-reader`) holds the outline (`.plan-spine`) beside the document, under
+   its header (`.plan-meta`), with the toggle for the agent's changes
+   (`.plan-changes-toggle`, toned as a warning); an item placed from another terminal
+   sits under a line saying whose it is (`.placed-from`).
+
+   Hooks: on the split's pane and the attached sheet, data-state="open" | "closed" as
+   they come and go; on the reader's body, data-outline="false" without headings; on an
+   outline entry, data-changed="true" where the agent's changes are; on the changes
+   toggle, aria-pressed="true" while the changes show.
+
+   Tokens, each optional (its fallback in brackets):
+   --pane-bg (paper): the reader, the attached sheet and an undocked window.
+   --pane-border-color (line): the pane's edge beside the terminal.
+   --pane-stacked-border-color (line-strong): its edge above, stacked under the terminal.
+   --pane-divider-hover-bg (line-strong): the divider under the pointer, or focused.
+   --pane-attached-border-color (line-strong), --pane-attached-shadow (shadow-floating),
+   --pane-attached-radius (radius-panel): the attached sheet.
+   --pane-tether-border-color (line-strong): the dashed line to its node.
+   --spine-bg (shell), --spine-border-color (line): the outline.
+   --spine-label-fg (muted): its label.
+   --spine-fg (muted), --spine-hover-bg (soft), --spine-hover-fg (ink): an entry.
+   --spine-count-bg (strong), --spine-count-fg (on-strong): an entry's count of notes.
+   --spine-changed-bg (warning-fg): the dot by a changed entry.
+   --plan-meta-fg (muted): the header's text.
+   --plan-meta-path-fg (ink): the file's path.
+   --plan-meta-hint-fg (warning-fg): what keeps a plan from saving, or reading whole.
+   --plan-changes-action-bg (paper): the changes toggle's Show or Hide.
+   --placed-from-bg (shell), --placed-from-fg (muted), --placed-from-border-color (line):
+   whose a placed item is. */
+
+/* Split: the plan shares the terminal's window. */
+.plan-split {
+  display: grid;
+  grid-template-columns: var(--_plan-terminal) 0 minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.plan-split-terminal {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.plan-split-terminal .terminal-content {
+  padding: 20px;
+}
+.plan-split-reader {
+  display: flex;
+  border-left: var(--border-width) solid var(--pane-border-color, var(--color-line));
+  min-width: 0;
+  min-height: 0;
+}
+/* The line between them is the pane's own edge, so it comes and goes with the pane.
+   The divider is an invisible strip over that edge, the ::after, for the pointer to
+   grab; it shows a line only while hovered or focused. */
+.plan-divider {
+  position: relative;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+}
+.plan-divider::before {
+  content: "";
+  position: absolute;
+  inset: 0 -1px;
+  background-color: transparent;
+  transition: background-color var(--motion-feedback) var(--ease-interface);
+}
+.plan-divider::after {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+}
+.plan-divider:hover::before,
+.plan-divider:focus-visible::before {
+  background-color: var(--pane-divider-hover-bg, var(--color-line-strong));
+}
+@container terminal-plan (max-width: 640px) {
+  .plan-split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 2fr) minmax(0, 3fr);
+  }
+  .plan-divider {
+    display: none;
+  }
+  /* Stacked under the terminal, the pane rises from below as it opens, its top edge
+     the line between them, so the line comes and goes with it. */
+  .plan-split-reader {
+    --_plan-enter: 0 16px;
+    border-top: var(--border-width) solid var(--pane-stacked-border-color, var(--color-line-strong));
+    border-left: none;
+  }
+}
+
+/* Attached: a sheet hanging off the canvas node, in canvas coordinates. */
+.plan-attached {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 20px);
+  display: flex;
+  width: 720px;
+  height: max(100%, 560px);
+  overflow: hidden;
+  border: var(--border-width) solid var(--pane-attached-border-color, var(--color-line-strong));
+  border-radius: var(--pane-attached-radius, var(--radius-panel));
+  background-color: var(--pane-bg, var(--color-paper));
+  box-shadow: var(--pane-attached-shadow, var(--shadow-floating));
+  cursor: default;
+}
+.plan-attached::before {
+  content: "";
+  position: absolute;
+  top: 23px;
+  left: -21px;
+  width: 20px;
+  border-top: var(--border-width) dashed var(--pane-tether-border-color, var(--color-line-strong));
+}
+/* The pane opens and closes on opacity and translate only, which the compositor runs
+   without layout: the terminal beside a split takes its new size once, not per frame.
+   It slides from where it sits: the split's from the window's right edge, or from
+   below when stacked under the terminal, and the attached sheet from its node. What
+   was open already, after a view switch or a restore, has no state and appears as it
+   was. It fades as it goes with taskbar.css's plan-out. */
+.plan-split-reader[data-state="open"] {
+  animation: plan-split-in var(--motion-state) var(--ease-interface);
+}
+.plan-attached[data-state="open"] {
+  animation: plan-attach var(--motion-layout) var(--ease-interface);
+}
+:is(.plan-split-reader, .plan-attached)[data-state="closed"] {
+  animation: plan-out var(--motion-feedback) var(--ease-interface) forwards;
+  pointer-events: none;
+}
+@keyframes plan-split-in {
+  from {
+    opacity: 0;
+    translate: var(--_plan-enter, 16px 0);
+  }
+}
+@keyframes plan-attach {
+  from {
+    opacity: 0;
+    translate: -12px 0;
+  }
+}
+
+/* Reader: the plan, wherever it is presented. */
+.plan-reader {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background-color: var(--pane-bg, var(--color-paper));
+  container: plan-reader / inline-size;
+}
+.plan-reader-body {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.plan-reader-body[data-outline="false"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.plan-document-scroll {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  user-select: text;
+}
+
+/* Outline: the headings the agent wrote, if it wrote any. */
+.plan-spine {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px;
+  border-right: var(--border-width) solid var(--spine-border-color, var(--color-line));
+  background-color: var(--spine-bg, var(--color-shell));
+  overflow: auto;
+}
+.plan-spine-label {
+  margin: 0 8px 8px;
+  font: 9px var(--font-mono);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--spine-label-fg, var(--color-muted));
+}
+.plan-spine-context {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.plan-spine button {
+  --_bg: transparent;
+  --_fg: var(--spine-fg, var(--color-muted));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius-control);
+  background-color: var(--_bg);
+  color: var(--_fg);
+  font-size: 11px;
+  text-align: left;
+}
+.plan-spine button:hover {
+  --_bg: var(--spine-hover-bg, var(--color-soft));
+  --_fg: var(--spine-hover-fg, var(--color-ink));
+}
+.plan-spine em {
+  margin-left: auto;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-control);
+  background-color: var(--spine-count-bg, var(--color-strong));
+  color: var(--spine-count-fg, var(--color-on-strong));
+  font: 9px/16px var(--font-mono);
+  font-style: normal;
+  text-align: center;
+}
+.plan-spine button[data-changed="true"]::after {
+  content: "";
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  margin-left: auto;
+  border-radius: 50%;
+  background-color: var(--spine-changed-bg, var(--color-warning-fg));
+}
+.plan-spine button[data-changed="true"] em {
+  margin-left: 0;
+}
+@container plan-reader (max-width: 820px) {
+  .plan-reader-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .plan-spine {
+    display: none;
+  }
+}
+
+/* Always editable: the meta row, then the file. Lined up on the text's baseline: the
+   path's monospace and the label beside it differ in height, so centring their boxes
+   leaves the text unaligned. */
+.plan-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 14px;
+  max-width: 700px;
+  margin: auto;
+  padding: 24px 44px 0;
+  font-size: 11px;
+  color: var(--plan-meta-fg, var(--color-muted));
+}
+@container plan-reader (max-width: 560px) {
+  .plan-meta {
+    padding: 18px 20px 0 44px;
+  }
+}
+.plan-meta-path {
+  font: 11px var(--font-mono);
+  color: var(--plan-meta-path-fg, var(--color-ink));
+}
+.plan-meta-hint {
+  color: var(--plan-meta-hint-fg, var(--color-warning-fg));
+}
+/* The plan header's actions sit at its far end. */
+.plan-meta-actions {
+  display: flex;
+  margin-left: auto;
+  align-self: stretch;
+}
+/* The tone recipe paints it; shown, the changes take the tint and the toggle lets go of
+   it. */
+.plan-changes-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 9px;
+  border-width: var(--border-width);
+  border-style: solid;
+  border-radius: var(--radius-control);
+  font-size: 11px;
+}
+.plan-changes-toggle[aria-pressed="true"] {
+  background-color: transparent;
+}
+.plan-changes-toggle i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+.plan-changes-toggle span {
+  padding: 0 6px;
+  border-radius: var(--radius-control);
+  background-color: var(--plan-changes-action-bg, var(--color-paper));
+  font-weight: 500;
+}
+
+/* Another terminal's item, placed on this one's bar: as its own pane shows it, under a
+   line saying whose it is. */
+.placed-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.placed-tab > .plan-reader-body,
+.placed-tab > .artifact-viewer {
+  flex: 1;
+  min-height: 0;
+}
+.placed-from {
+  margin: 0;
+  padding: 6px 14px;
+  border-bottom: var(--border-width) solid var(--placed-from-border-color, var(--color-line));
+  background-color: var(--placed-from-bg, var(--color-shell));
+  font-size: 11px;
+  color: var(--placed-from-fg, var(--color-muted));
+}

@@ -165,7 +165,7 @@ class TableWidget extends WidgetType {
     const rowNoteButton = (row: number): HTMLButtonElement => {
       const button = document.createElement("button")
       button.type = "button"
-      button.className = "cm-plan-row-note-add"
+      button.className = "icon-button cm-plan-row-note-add"
       const label = row === 0 ? "Add a note on the table" : "Add a note on this row"
       button.title = label
       button.setAttribute("aria-label", label)

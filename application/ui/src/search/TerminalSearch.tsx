@@ -6,8 +6,6 @@ import type { Tile } from "../model/types"
 import { Dialog } from "../ui-toolkit/Dialog"
 import { SearchCombobox } from "../ui-toolkit/SearchCombobox"
 
-import motion from "../ui-toolkit/ModalMotion.module.css"
-
 // What a result says of where it runs. A window runs nothing, so only its name finds it.
 const detail = (tile: Tile): { readonly command: string; readonly directory: string } =>
   isWindow(tile) ? { command: "window", directory: "" } : tile
@@ -61,9 +59,9 @@ export const TerminalSearch = ({
           null
         )
       }}
-      backdropClassName={`${motion.backdrop} fixed inset-0 z-50 bg-scrim backdrop-blur-[3px]`}
+      backdropClassName="overlay fixed inset-0 z-50"
       positionerClassName="fixed inset-0 z-50 flex items-start justify-center px-5 pt-[16vh]"
-      className={`${motion.dialog} w-full max-w-130 overflow-hidden rounded-popover border border-line-strong bg-paper shadow-modal`}
+      className="modal w-full max-w-130 overflow-hidden"
     >
       <SearchCombobox
         label="Search terminals"
@@ -82,7 +80,7 @@ export const TerminalSearch = ({
           </button>
         }
         empty={
-          <p className="search-empty px-4 py-10 text-center text-xs text-muted">
+          <p className="search-empty px-4 py-10 text-center text-xs">
             No terminals match “{query}”.
           </p>
         }
@@ -94,22 +92,19 @@ export const TerminalSearch = ({
               <TerminalIcon size={15} strokeWidth={1.5} />
               <span className="search-result-copy flex min-w-0 flex-1 flex-col gap-1">
                 <strong className="truncate text-xs font-medium">{terminal.name}</strong>
-                <small className="flex min-w-0 items-center gap-2 font-mono text-[10px] text-muted">
+                <small className="item-detail search-result-meta flex min-w-0 items-center gap-2 text-[10px]">
                   <span className="shrink-0">{detail(terminal).command}</span>
-                  <span className="truncate border-l border-line pl-2">
+                  <span className="search-result-path truncate pl-2">
                     {detail(terminal).directory}
                   </span>
                 </small>
               </span>
-              <ArrowUpRight
-                size={14}
-                className="search-result-action opacity-25 transition-opacity duration-(--motion-feedback) ease-interface group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[highlighted]:opacity-100"
-              />
+              <ArrowUpRight size={14} className="search-result-action" />
             </>
           ),
         }))}
       />
-      <div className="search-footnote flex items-center justify-between border-t border-line bg-shell px-5 py-3 text-[10px] text-muted">
+      <div className="modal-footer search-footnote flex items-center justify-between px-5 py-3 text-[10px]">
         <span>Open in {destination}</span>
         <span className="search-dismiss flex items-center gap-2">
           <kbd>esc</kbd> Close

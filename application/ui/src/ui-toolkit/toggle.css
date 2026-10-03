@@ -1,0 +1,96 @@
+/* The toggle recipe: the switch (`.switch`, with its `.switch-thumb`) and the checkbox
+   (`.checkbox`, holding a `.checkbox-input` and the `.checkbox-mark` drawn over it).
+   On, each takes the strong fill; the checkbox's mark draws itself in as it fills.
+
+   Hooks: on a switch, aria-checked and data-state="checked" | "unchecked", :disabled,
+   and aria-disabled="true" while a change is pending; on a checkbox, the input's
+   :checked, :hover and :disabled.
+
+   Tokens, each optional (its fallback in brackets):
+   --toggle-track-off-bg (soft), --toggle-track-off-border-color (line),
+   --toggle-track-on-bg (strong), --toggle-track-on-border-color (strong),
+   --toggle-track-radius (radius-control): the switch's track.
+   --toggle-thumb-bg (paper), --toggle-thumb-border-color (line-strong),
+   --toggle-thumb-radius (radius-control): its thumb.
+   --toggle-box-bg (paper), --toggle-box-border-color (line-strong),
+   --toggle-box-hover-border-color (muted), --toggle-box-border-width (1.5px),
+   --toggle-box-shadow (a faint inset), --toggle-box-radius (4px): the checkbox off.
+   It takes the track's on tokens when checked.
+   --toggle-mark-fg (on-strong): the check.
+   --toggle-disabled-opacity (0.5), --toggle-pending-opacity (0.6). */
+.switch {
+  --_bg: var(--toggle-track-off-bg, var(--color-soft));
+  --_border-color: var(--toggle-track-off-border-color, var(--color-line));
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--toggle-track-radius, var(--radius-control));
+  background-color: var(--_bg);
+}
+.switch[aria-checked="true"] {
+  --_bg: var(--toggle-track-on-bg, var(--color-strong));
+  --_border-color: var(--toggle-track-on-border-color, var(--color-strong));
+}
+.switch[aria-disabled="true"] {
+  opacity: var(--toggle-pending-opacity, 0.6);
+}
+.switch:disabled {
+  opacity: var(--toggle-disabled-opacity, 0.5);
+}
+.switch-thumb {
+  left: calc(var(--spacing) * 0.5);
+  border: var(--border-width) solid var(--toggle-thumb-border-color, var(--color-line-strong));
+  border-radius: var(--toggle-thumb-radius, var(--radius-control));
+  background-color: var(--toggle-thumb-bg, var(--color-paper));
+  transition: left var(--motion-feedback) var(--ease-interface);
+}
+.switch[aria-checked="true"] .switch-thumb {
+  left: 18px;
+}
+
+.checkbox-input {
+  --_bg: var(--toggle-box-bg, var(--color-paper));
+  --_border-color: var(--toggle-box-border-color, var(--color-line-strong));
+  --_shadow: var(
+    --toggle-box-shadow,
+    inset 0 1px 1px color-mix(in srgb, var(--color-shadow) 5%, transparent)
+  );
+  appearance: none;
+  border: var(--toggle-box-border-width, 1.5px) solid var(--_border-color);
+  border-radius: var(--toggle-box-radius, 4px);
+  background-color: var(--_bg);
+  box-shadow: var(--_shadow);
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface);
+}
+.checkbox-input:checked {
+  --_bg: var(--toggle-track-on-bg, var(--color-strong));
+  --_border-color: var(--toggle-track-on-border-color, var(--color-strong));
+  --_shadow: none;
+}
+/* The pointer shows on the edge even of a checked box. */
+@media (hover: hover) {
+  .checkbox-input:hover {
+    --_border-color: var(--toggle-box-hover-border-color, var(--color-muted));
+  }
+}
+.checkbox-input:disabled {
+  --_border-color: var(--toggle-box-border-color, var(--color-line-strong));
+  opacity: var(--toggle-disabled-opacity, 0.5);
+}
+.checkbox-input:disabled:checked {
+  --_border-color: var(--toggle-track-on-border-color, var(--color-strong));
+}
+.checkbox-input:focus-visible {
+  outline: none;
+}
+.checkbox-mark {
+  color: var(--toggle-mark-fg, var(--color-on-strong));
+}
+.checkbox-mark path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: stroke-dashoffset 220ms var(--ease-interface);
+}
+.checkbox-input:checked ~ .checkbox-mark path {
+  stroke-dashoffset: 0;
+}

@@ -10,7 +10,7 @@ import {
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import { context, describe, expect, it } from "../../test"
 import { openCommands, type CommandsOptions } from "../../test/commands"
-import { workspaceFixture, workspaceWithWindow } from "../../test/fixtures"
+import { appearance, workspaceFixture, workspaceWithWindow } from "../../test/fixtures"
 import { createKeyCommands, keyState, runKey } from "./keys"
 
 type Press = Partial<Omit<KeyInput, "target">> & { target?: Partial<KeyTarget> }
@@ -222,7 +222,7 @@ describe("key commands", () => {
   context("when pressing Left and Right", () => {
     it("steps through the enabled views, wrapping and skipping disabled ones", () => {
       const app = openKeys({
-        preferences: { fontSize: 13, enabledViews: ["focus", "canvas"] },
+        preferences: { fontSize: 13, enabledViews: ["focus", "canvas"], appearance },
         workspace: workspaceFixture({ view: "canvas" }),
         url: "/projects/project/sessions/initial/canvas?terminal=01",
       })
@@ -235,7 +235,9 @@ describe("key commands", () => {
 
   context("when toggling Focus", () => {
     it("lets the key through when the destination view is disabled", () => {
-      const app = openKeys({ preferences: { fontSize: 13, enabledViews: ["grid", "canvas"] } })
+      const app = openKeys({
+        preferences: { fontSize: 13, enabledViews: ["grid", "canvas"], appearance },
+      })
       expect(app.keydown({ key: "f" })).toBe("passed")
       expect(app.keydown({ key: "Enter", ctrlKey: true, shiftKey: true })).toBe("passed")
     })

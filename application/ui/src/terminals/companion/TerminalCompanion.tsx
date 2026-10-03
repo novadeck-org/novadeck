@@ -17,8 +17,6 @@ import type { SlotActions } from "./TaskbarSlot"
 import type { Dragged } from "./use-bar-drag"
 import { usePlans } from "./use-panes"
 
-import "./companion.css"
-
 // What the app does with a terminal's bar and the items on it, as its commands do.
 export type ItemCommands = {
   readonly undock: (itemId: ItemId, place?: WindowPlace) => void
@@ -60,7 +58,7 @@ const SplitPane = ({
     <div
       ref={frame}
       className="plan-split"
-      style={{ "--plan-terminal": `${ratio * 100}%` } as React.CSSProperties}
+      style={{ "--_plan-terminal": `${ratio * 100}%` } as React.CSSProperties}
     >
       <div className="plan-split-terminal">{children}</div>
       <div

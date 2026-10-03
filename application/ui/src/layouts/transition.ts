@@ -52,7 +52,7 @@ const transitionView = (update: () => void, id?: string, direction: 1 | -1 = 1):
     return
   }
 
-  if (!id) document.documentElement.style.setProperty("--workspace-direction", String(direction))
+  if (!id) document.documentElement.style.setProperty("--_workspace-direction", String(direction))
   const version = revision
   const marked: HTMLElement[] = []
   const mark = (element: HTMLElement | null, name: string): void => {
@@ -97,7 +97,7 @@ const transitionView = (update: () => void, id?: string, direction: 1 | -1 = 1):
   void transition.finished
     .finally(() => {
       for (const element of marked) element.style.removeProperty("view-transition-name")
-      if (!id) document.documentElement.style.removeProperty("--workspace-direction")
+      if (!id) document.documentElement.style.removeProperty("--_workspace-direction")
       if (active === transition) active = undefined
     })
     .catch(() => {})

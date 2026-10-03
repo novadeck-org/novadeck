@@ -1,0 +1,160 @@
+/* The mail recipe: a terminal's threads with the other agents in its session
+   (`.mail-view`), under the viewer's header (`.artifact-meta`, see artifact.css) with
+   the pause. A thread (`.mail-thread`) has its head, with a `.button.mail-release` while
+   it's held, and its messages (`.mail-message`) as rows, not cards: what the terminal's
+   own agent sent carries a rule down its left edge. The bars that say messaging is
+   paused (`.mail-paused`) or failed (`.mail-error`) take their tone from `data-tone`.
+
+   Hooks: data-direction="sent" | "received" on a message; data-state="held" | "gone"
+   (and the others a message passes through) on its state; aria-disabled="true" on the
+   release button while a release is on its way.
+
+   Tokens, each optional (its fallback in brackets):
+   --mail-border-color (line): between threads, and under the bars.
+   --mail-fg (ink): a thread's peer and the pause's label.
+   --mail-meta-fg (muted): a thread's handle and count, its note, and a message's time.
+   --mail-sent-border-color (line-strong): the rule by what the agent sent.
+   --mail-held-fg (warning-fg): a message held.
+   --mail-error-fg (danger-fg): a thread's error.
+   The release button reads --button-disabled-opacity (0.6) while it's on its way. */
+.mail-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+/* The switch centred on its label, the pair on the header's baseline by the label's. */
+.mail-pause {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mail-pause-label {
+  color: var(--mail-fg, var(--color-ink));
+}
+/* The tone recipe paints the bars, their rule included. */
+.mail-paused,
+.mail-error {
+  margin: 0;
+  padding: 6px 14px;
+  border-bottom-width: var(--border-width);
+  border-bottom-style: solid;
+  font-size: 11px;
+}
+.mail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.mail-empty {
+  padding: 0 24px;
+  text-align: center;
+}
+.mail-thread {
+  padding: 12px 14px 14px;
+  border-bottom: var(--border-width) solid var(--mail-border-color, var(--color-line));
+}
+.mail-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  font-size: 12px;
+}
+.mail-thread-peer {
+  margin: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mail-fg, var(--color-ink));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-thread-head code {
+  font: 11px var(--font-mono);
+  color: var(--mail-meta-fg, var(--color-muted));
+}
+.mail-thread-count {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--mail-meta-fg, var(--color-muted));
+  white-space: nowrap;
+}
+.button.mail-release {
+  height: 26px;
+  padding: 0 10px;
+}
+.button.mail-release[aria-disabled="true"] {
+  cursor: default;
+  opacity: var(--button-disabled-opacity, 0.6);
+}
+.mail-thread-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--mail-meta-fg, var(--color-muted));
+}
+.mail-thread-error {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--mail-error-fg, var(--color-danger-fg));
+}
+.mail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mail-message {
+  padding-left: 10px;
+  border-left: 2px solid transparent;
+}
+.mail-message[data-direction="sent"] {
+  border-left-color: var(--mail-sent-border-color, var(--color-line-strong));
+}
+.mail-message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 11px;
+  color: var(--mail-meta-fg, var(--color-muted));
+  font-variant-numeric: tabular-nums;
+}
+.mail-message-direction {
+  display: inline-flex;
+  align-items: center;
+}
+/* A state still worth a look, after the time: a dot of its colour and a word. */
+.mail-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mail-state::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+.mail-state[data-state="held"] {
+  color: var(--mail-held-fg, var(--color-warning-fg));
+}
+.mail-state[data-state="gone"] {
+  text-decoration: line-through;
+}
+.mail-state[data-state="gone"]::before {
+  display: none;
+}
+/* The agent's text, as it wrote it: its line breaks kept, nothing rendered. */
+.mail-text {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}

@@ -1,30 +1,128 @@
 @reference "../../styles.css";
 
-/* Demo output styles. The frame marks compact terminals with .terminal-compact. */
-.output-gap {
-  margin-top: 19px;
-}
-.terminal-compact .terminal-meta {
-  @apply mb-3 gap-x-3 text-[9px];
-}
-.terminal-compact .output-gap {
-  margin-top: 13px;
-}
-.terminal-compact .file-list {
-  @apply grid-cols-2 gap-x-4;
-}
-.terminal-compact .command-form {
-  @apply mt-4;
-}
-@media (max-width: 700px) {
-  .file-list,
-  .terminal-compact .file-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 24px;
+/* The demo recipe: the made-up output of the demo backend's terminals and agents. It
+   is fixture UI, drawn like the rest of the app from the foundation tokens.
+
+   Parts, inside `.demo-output`: `.muted` text; `.demo-link`; `.terminal-badge`; the
+   shell's `.terminal-meta`, `.git-log` and `.request-log`; `.test-summary`; an agent's
+   `.agent-banner` (boxed for Codex, `.agent-codex`), `.agent-request`, `.agent-plan`,
+   `.agent-diff` and `.agent-divider`; the `.command-form` with its `.command-location`
+   and `.command-line`.
+
+   Tokens, each optional (its fallback in brackets):
+   --demo-font (mono): the output. --demo-muted-fg (muted): secondary text.
+   --demo-rule-color (line): the rules and boxes beside requests, plans and summaries.
+   --demo-request-bg (soft): a request to an agent.
+   --demo-badge-bg (strong), --demo-badge-fg (on-strong): a PASS badge.
+   --demo-form-bg (shell), --demo-form-border-color (line),
+   --demo-form-focus-border-color (line-strong): the command form, and while typing. */
+
+@layer components {
+  /* Demo output styles. The frame marks compact terminals with .terminal-compact. */
+  /* What compact terminals and narrow screens override. */
+  :where(.demo-output) {
+    @apply p-6 text-[length:var(--terminal-font-size,13px)] leading-[1.75];
   }
-  .terminal-meta,
+  :where(.terminal-meta) {
+    @apply mb-8 gap-x-5 gap-y-0.5 text-[11px];
+  }
+  :where(.file-list) {
+    @apply grid-cols-3 gap-x-10;
+  }
+  :where(.command-form) {
+    @apply mt-6;
+  }
+  .output-gap {
+    margin-top: 19px;
+  }
+  .demo-output {
+    --_muted: var(--demo-muted-fg, var(--color-muted));
+    --_rule: var(--demo-rule-color, var(--color-line));
+    font-family: var(--demo-font, var(--font-mono));
+  }
+  .demo-output .muted,
+  .demo-output .terminal-meta > span:nth-child(odd),
+  .demo-output :is(.git-log, .request-log) span,
+  .command-location,
+  .command-form input::placeholder {
+    color: var(--_muted);
+  }
+  .demo-link {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .terminal-badge {
+    border-radius: var(--radius-control);
+    background-color: var(--demo-badge-bg, var(--color-strong));
+    color: var(--demo-badge-fg, var(--color-on-strong));
+  }
+  .test-summary,
+  .agent-request {
+    border-left: 2px solid var(--_rule);
+  }
+  .agent-request {
+    background-color: var(--demo-request-bg, var(--color-soft));
+  }
+  .agent-plan,
+  .agent-codex .agent-banner {
+    border: var(--border-width) solid var(--_rule);
+  }
+  .agent-plan ol {
+    list-style: decimal;
+  }
+  .agent-diff {
+    border-left: var(--border-width) solid var(--_rule);
+    font-family: inherit;
+  }
+  .agent-divider {
+    border-top: var(--border-width) solid var(--_rule);
+  }
+  .command-form {
+    --_border-color: var(--demo-form-border-color, var(--color-line));
+    border: var(--border-width) solid var(--_border-color);
+    border-radius: var(--radius-control);
+    background-color: var(--demo-form-bg, var(--color-shell));
+    transition: border-color var(--motion-state) var(--ease-interface);
+  }
+  .command-form:focus-within {
+    --_border-color: var(--demo-form-focus-border-color, var(--color-line-strong));
+  }
+  .command-line {
+    border-bottom: var(--border-width) solid transparent;
+    transition: border-color var(--motion-state) var(--ease-interface);
+  }
+  .command-line:focus-within {
+    border-bottom-color: var(--_rule);
+  }
+  .command-line input {
+    background-color: transparent;
+    caret-color: var(--color-ink);
+  }
+  .command-line input:focus-visible {
+    outline: none;
+  }
   .terminal-compact .terminal-meta {
-    font-size: 10px;
-    gap: 3px 10px;
+    @apply mb-3 gap-x-3 text-[9px];
+  }
+  .terminal-compact .output-gap {
+    margin-top: 13px;
+  }
+  .terminal-compact .file-list {
+    @apply grid-cols-2 gap-x-4;
+  }
+  .terminal-compact .command-form {
+    @apply mt-4;
+  }
+  @media (max-width: 700px) {
+    .file-list,
+    .terminal-compact .file-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 24px;
+    }
+    .terminal-meta,
+    .terminal-compact .terminal-meta {
+      font-size: 10px;
+      gap: 3px 10px;
+    }
   }
 }

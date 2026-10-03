@@ -1,0 +1,117 @@
+/* The base layer: defaults for the optional foundation tokens, element defaults, and the
+   rule that stills transitions while the theme changes. Imported into `layer(base)`;
+   see docs/theming.md. */
+
+/* Optional foundation tokens: a theme may set any of these, and these are Graphite's. */
+:root {
+  /* Shape */
+  --radius-control: 2px;
+  --radius-panel: 3px;
+  --radius-popover: 4px;
+  --border-width: 1px;
+  /* Type */
+  --font-sans: "Inter Variable", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  /* Focus */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  /* Motion */
+  --motion-feedback: 120ms;
+  --motion-state: 180ms;
+  --motion-layout: 200ms;
+  --motion-view: 140ms;
+  --ease-interface: cubic-bezier(0.2, 0, 0, 1);
+  /* Texture: the workspace's grain and dot grid, and how far idle terminals fade. */
+  --canvas-grain-opacity: 0.045;
+  --canvas-dots-opacity: 0.16;
+  --terminal-idle-opacity: 0.5;
+  --terminal-hover-opacity: 0.75;
+  /* Brand: the logo tile and the welcome start button. */
+  --brand-tile-border-color: transparent;
+}
+
+/* While the theme changes, nothing fades: the whole page changes at once. `!important`,
+   one of the contract's exceptions, so inline transitions still too. */
+[data-theme-switching] *,
+[data-theme-switching] *::before,
+[data-theme-switching] *::after {
+  transition: none !important;
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+*::-webkit-scrollbar {
+  width: var(--spacing);
+  height: var(--spacing);
+}
+*::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-control);
+  background: var(--color-line);
+}
+body {
+  margin: 0;
+  background-color: var(--color-paper);
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 13px;
+  user-select: none;
+}
+/* Tailwind's own defaults would set code in a face the theme never chose. */
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button,
+a,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+button,
+a,
+input,
+select,
+[tabindex] {
+  outline: none;
+}
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: var(--focus-ring-offset);
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="combobox"]:focus-visible {
+  outline-offset: -1px;
+}
+button {
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface),
+    opacity var(--motion-state) var(--ease-interface);
+}
+input {
+  min-width: 0;
+}
+::selection {
+  background: var(--color-selection);
+  color: var(--color-ink);
+}

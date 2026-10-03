@@ -16,6 +16,16 @@ export type DesktopBridge = {
    * unregisters it.
    */
   beforeQuit(save: () => Promise<void>): () => void
+  /**
+   * Tells the window how the page looks: the scheme for native menus, title bars and the
+   * page's `prefers-color-scheme` (`system` while the page follows the system), and the
+   * ground as `#rrggbb`, which the window shows before the page paints. The host
+   * ignores anything else.
+   */
+  showAppearance(appearance: {
+    readonly scheme: "system" | "light" | "dark"
+    readonly ground: string
+  }): void
 }
 
 /** Present only when the host enables its debug panel for this launch. */

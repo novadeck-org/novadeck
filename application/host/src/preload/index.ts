@@ -8,6 +8,7 @@ import { contextBridge, ipcRenderer } from "electron"
 
 import {
   apiUrlArgumentPrefix,
+  appearanceChannel,
   debugArgument,
   debugKillRunnerChannel,
   directoryPickerChannel,
@@ -43,6 +44,10 @@ const bridge = {
   pickDirectory: async () => {
     const path: unknown = await ipcRenderer.invoke(directoryPickerChannel)
     return typeof path === "string" ? path : null
+  },
+  // Only the two fields cross; the main process checks them.
+  showAppearance: (appearance) => {
+    ipcRenderer.send(appearanceChannel, { scheme: appearance?.scheme, ground: appearance?.ground })
   },
   beforeQuit: (save) => {
     beforeQuit = save

@@ -31,7 +31,7 @@ export const Popover = ({
       <ArkPopover.Positioner className="z-40">
         <ArkPopover.Content
           aria-label={label}
-          className={`z-40 max-h-(--available-height) overflow-y-auto rounded-popover border border-line bg-paper text-ink shadow-floating focus-visible:outline-none ${className ?? ""}`}
+          className={`floating z-40 max-h-(--available-height) overflow-y-auto ${className ?? ""}`}
         >
           {children}
         </ArkPopover.Content>

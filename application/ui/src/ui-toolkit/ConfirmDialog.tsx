@@ -2,8 +2,6 @@ import { useRef, useState, type ReactNode } from "react"
 
 import { Dialog, DialogDescription, DialogTitle } from "./Dialog"
 
-import motion from "./ModalMotion.module.css"
-
 export type ConfirmDialogProps<Subject> = {
   // What the dialog asks about; it is open while this is set, and keeps showing the
   // last one while it animates out.
@@ -60,22 +58,22 @@ export const ConfirmDialog = <Subject,>({
             finalFocusEl: () => (confirmed.current || shown === null ? null : returnFocus(shown)),
           }
         : {})}
-      backdropClassName={`${motion.backdrop} fixed inset-0 z-50 bg-scrim backdrop-blur-[3px]`}
+      backdropClassName="overlay fixed inset-0 z-50"
       positionerClassName="fixed inset-0 z-50 flex items-center justify-center px-5"
-      className={`${motion.dialog} ${widthClassName} flex flex-col gap-2 rounded-popover border border-line-strong bg-paper p-5 text-ink shadow-modal`}
+      className={`modal ${widthClassName} flex flex-col gap-2 p-5`}
     >
-      <DialogTitle className="m-0 text-[14px] font-medium tracking-[-0.2px]">{heading}</DialogTitle>
-      <DialogDescription className="m-0 text-[12px] leading-[1.5] text-muted">
+      <DialogTitle className="modal-title m-0 text-[14px] font-medium">{heading}</DialogTitle>
+      <DialogDescription className="modal-description m-0 text-[12px] leading-[1.5]">
         {shown === null ? null : description(shown)}
       </DialogDescription>
       <div className="mt-3 flex justify-end gap-2">
-        <button ref={cancel} type="button" className="small-button" onClick={onCancel}>
+        <button ref={cancel} type="button" className="button" onClick={onCancel}>
           {cancelLabel}
         </button>
         <button
           ref={confirm}
           type="button"
-          className="small-button primary"
+          className="button primary"
           onClick={() => {
             confirmed.current = true
             onConfirm()

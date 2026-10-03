@@ -1,0 +1,97 @@
+/* The region recipe: the app's chrome. The header (`.app-header`, with the `.brand`
+   link home), the footer (`.app-footer`, its `.footer-running` count, `.footer-status`
+   and `.footer-action`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
+   (`.sidebar`), which on narrow screens opens as a `.sidebar-drawer`. Each region is a
+   ground with an edge toward the workspace.
+
+   The rail's toggles are segments (the segmented recipe). Hooks: on the footer,
+   data-tone="success" | "warning" | "danger" while the backend link is in trouble or
+   has just recovered: the tone recipe then paints the whole bar, and its edges, in that
+   tone.
+
+   Tokens, each optional (its fallback in brackets):
+   --region-header-bg (paper), --region-header-fg (ink),
+   --region-header-border-color (line): the header.
+   --region-footer-bg (paper), --region-footer-fg (muted),
+   --region-footer-border-color (line): the footer at rest.
+   --region-rail-bg (shell), --region-rail-fg (ink), --region-rail-border-color (line):
+   the rail.
+   --region-sidebar-bg (shell), --region-sidebar-fg (ink),
+   --region-sidebar-border-color (line): the sidebar.
+   --region-sidebar-shadow (shadow-panel): the sidebar as a drawer. */
+.app-header {
+  --_bg: var(--region-header-bg, var(--color-paper));
+  --_fg: var(--region-header-fg, var(--color-ink));
+  --_border-color: var(--region-header-border-color, var(--color-line));
+  border-bottom: var(--border-width) solid var(--_border-color);
+  background-color: var(--_bg);
+  color: var(--_fg);
+}
+.brand {
+  color: inherit;
+  letter-spacing: -0.6px;
+  text-decoration: none;
+}
+
+.app-footer {
+  border-top-width: var(--border-width);
+  border-top-style: solid;
+  transition:
+    background-color var(--motion-state) var(--ease-interface),
+    border-color var(--motion-state) var(--ease-interface),
+    color var(--motion-state) var(--ease-interface);
+}
+/* Toned, the tone recipe paints the bar. */
+.app-footer:not([data-tone]) {
+  border-color: var(--region-footer-border-color, var(--color-line));
+  background-color: var(--region-footer-bg, var(--color-paper));
+  color: var(--region-footer-fg, var(--color-muted));
+}
+/* The count's divider: the bar's edge at rest, and toned a faint line of the tone's
+   text colour, as the tone recipe draws the bar's edge. */
+.footer-running {
+  border-inline-start: var(--border-width) solid color-mix(in srgb, currentColor 20%, transparent);
+}
+.app-footer:not([data-tone]) .footer-running {
+  border-inline-start-color: var(--region-footer-border-color, var(--color-line));
+}
+.footer-status,
+.footer-action {
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.footer-action {
+  color: inherit;
+  text-underline-offset: 2px;
+}
+.footer-action:focus-visible {
+  text-decoration: underline;
+}
+@media (hover: hover) {
+  .footer-action:hover {
+    text-decoration: underline;
+  }
+}
+
+.sidebar-tools {
+  --_bg: var(--region-rail-bg, var(--color-shell));
+  --_fg: var(--region-rail-fg, var(--color-ink));
+  --_border-color: var(--region-rail-border-color, var(--color-line));
+  border-right: var(--border-width) solid var(--_border-color);
+  background-color: var(--_bg);
+  color: var(--_fg);
+}
+
+.sidebar {
+  --_bg: var(--region-sidebar-bg, var(--color-shell));
+  --_fg: var(--region-sidebar-fg, var(--color-ink));
+  --_border-color: var(--region-sidebar-border-color, var(--color-line));
+  border-right: var(--border-width) solid var(--_border-color);
+  background-color: var(--_bg);
+  color: var(--_fg);
+}
+.sidebar-drawer {
+  background-color: var(--region-sidebar-bg, var(--color-shell));
+  color: var(--region-sidebar-fg, var(--color-ink));
+  box-shadow: var(--region-sidebar-shadow, var(--shadow-panel));
+}

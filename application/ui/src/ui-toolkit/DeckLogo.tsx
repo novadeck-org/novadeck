@@ -2,10 +2,9 @@ import { useId, type CSSProperties } from "react"
 
 import { cn } from "../class-name"
 
-import styles from "./DeckLogo.module.css"
-
-// The Deck mark: the charcoal ">_" square with two terminal cards fanned behind it, up
-// and to the right. `size` is the whole footprint in pixels, cards included.
+// The Deck mark: the brand tile's ">_" square with two terminal cards fanned behind it,
+// up and to the right (the deck-logo recipe). `size` is the whole footprint in pixels,
+// cards included.
 export const DeckMark = ({
   size = 28,
   animated = false,
@@ -21,35 +20,35 @@ export const DeckMark = ({
   const style = {
     width: size,
     height: size,
-    "--face": `${face}px`,
-    "--k1": `${(size * 7) / 94}px`,
-    "--k2": `${(size * 14) / 94}px`,
-    "--radius": `${Math.max(2, (face * 6) / 80)}px`,
+    "--_face": `${face}px`,
+    "--_k1": `${(size * 7) / 94}px`,
+    "--_k2": `${(size * 14) / 94}px`,
+    "--_radius": `${Math.max(2, (face * 6) / 80)}px`,
   } as CSSProperties
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "relative inline-block flex-none",
-        animated && styles.animated,
-        size >= 64 && styles.large,
+        "deck-mark relative inline-block flex-none",
+        animated && "animated",
+        size >= 64 && "large",
         className,
       )}
       style={style}
     >
-      <span className={cn(styles.card, styles.k2)} />
-      <span className={cn(styles.card, styles.k1)} />
-      <span className={styles.face}>
+      <span className="deck-card far" />
+      <span className="deck-card near" />
+      <span className="deck-face">
         <svg
-          className="relative z-1 size-[64%] overflow-visible fill-none stroke-current stroke-2"
+          className="deck-glyph relative z-1 size-[64%] overflow-visible"
           viewBox="0 0 24 24"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <path className={styles.chevron} pathLength={1} d="m5 16.5 5.5-5.5-5.5-5.5" />
-          <path className={styles.cursor} pathLength={1} d="M12.5 18.5h6.5" />
+          <path className="deck-chevron" pathLength={1} d="m5 16.5 5.5-5.5-5.5-5.5" />
+          <path className="deck-cursor" pathLength={1} d="M12.5 18.5h6.5" />
         </svg>
-        {animated && <i className={styles.scan} />}
+        {animated && <i className="deck-scan" />}
       </span>
     </span>
   )
@@ -67,14 +66,13 @@ export const DeckWordmark = ({
   const letters = [
     ..."nova".split("").map((letter) => ({ letter, className: "font-normal" })),
     ..."deck".split("").map((letter) => ({ letter, className: undefined })),
-    { letter: ".", className: "text-muted" },
+    { letter: ".", className: "deck-word-stop" },
   ]
   return (
     <span
       className={cn(
-        styles.word,
-        "inline-flex items-baseline font-semibold text-ink *:inline-block",
-        animated && styles.animated,
+        "deck-word inline-flex items-baseline font-semibold *:inline-block",
+        animated && "animated",
         className,
       )}
       aria-hidden="true"
@@ -85,7 +83,7 @@ export const DeckWordmark = ({
           // oxlint-disable-next-line react/no-array-index-key
           key={index}
           className={letterClass}
-          style={{ "--i": index } as CSSProperties}
+          style={{ "--_i": index } as CSSProperties}
         >
           {letter}
         </span>

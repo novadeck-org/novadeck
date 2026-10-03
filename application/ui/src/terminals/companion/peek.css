@@ -1,0 +1,194 @@
+/* The peek recipe: the cards above a taskbar icon (`.plan-peek`), one for each thing
+   behind it, each a preview (`.plan-peek-thumb`), an icon and a name
+   (`.plan-peek-name`), the taskbar's own mark, and a close button (`.plan-peek-close`,
+   an `.icon-button.raised`) that shows on hover; and the previews in miniature
+   (`.peek-*`). The peek itself is a `.floating.peek` (see surface.css). A plan's
+   miniature takes the prose tokens.
+
+   Hooks: on a card's button (`.plan-peek-open`), aria-pressed="true" while the pane
+   shows it, and data-state="new" | "open" | "seen" for its mark.
+
+   Tokens, each optional (its fallback in brackets):
+   --peek-card-fg (muted), --peek-card-radius (radius-panel): a card's name at rest, and
+   its corners.
+   --peek-card-hover-bg (soft), --peek-card-hover-fg (ink): under the pointer, and the
+   name of something new.
+   --peek-card-pressed-bg (shell), --peek-card-pressed-border-color (line): what the
+   pane shows.
+   --peek-mark-bg (ink): the mark.
+   --peek-thumb-bg (paper), --peek-thumb-border-color (line),
+   --peek-thumb-radius (radius-control): the preview.
+   --peek-page-bar-bg (paper), --peek-page-bar-border-color (line),
+   --peek-page-dot-bg (line-strong): a page's browser frame in miniature. */
+.plan-peek {
+  display: grid;
+  grid-template-columns: repeat(var(--_peek-columns), 176px);
+  gap: 2px;
+}
+.plan-peek-card {
+  position: relative;
+}
+.plan-peek-open {
+  --_bg: transparent;
+  --_fg: var(--peek-card-fg, var(--color-muted));
+  --_border-color: transparent;
+  position: relative;
+  display: grid;
+  gap: 7px;
+  width: 100%;
+  padding: 6px 6px 10px;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--peek-card-radius, var(--radius-panel));
+  background-color: var(--_bg);
+  text-align: left;
+}
+.plan-peek-open:hover {
+  --_bg: var(--peek-card-hover-bg, var(--color-soft));
+}
+.plan-peek-open:is(:hover, [data-state="new"], [aria-pressed="true"]) {
+  --_fg: var(--peek-card-hover-fg, var(--color-ink));
+}
+.plan-peek-open[aria-pressed="true"] {
+  --_bg: var(--peek-card-pressed-bg, var(--color-shell));
+  --_border-color: var(--peek-card-pressed-border-color, var(--color-line));
+}
+.plan-peek-open::after {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--peek-mark-bg, var(--color-ink));
+  content: "";
+  transform: translateX(-50%);
+}
+.plan-peek-open[data-state="new"]::after {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.plan-peek-open[data-state="open"]::after {
+  width: 22px;
+}
+.plan-peek-thumb {
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border: var(--border-width) solid var(--peek-thumb-border-color, var(--color-line));
+  border-radius: var(--peek-thumb-radius, var(--radius-control));
+  background-color: var(--peek-thumb-bg, var(--color-paper));
+}
+.plan-peek-thumb > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.plan-peek-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 11.5px;
+  color: var(--_fg);
+}
+.plan-peek-name svg {
+  flex-shrink: 0;
+}
+.plan-peek-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan-peek-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  opacity: 0;
+}
+.plan-peek-card:hover .plan-peek-close,
+.plan-peek-card:focus-within .plan-peek-close {
+  opacity: 1;
+}
+
+/* Previews in miniature. */
+.peek-code {
+  display: block;
+  height: 100%;
+  padding: 7px 8px;
+  font: 7.5px/1.55 var(--font-mono);
+  color: var(--prose-fg, var(--color-ink));
+  white-space: pre;
+}
+.peek-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  padding: 9px 10px;
+  font-size: 7.5px;
+  color: var(--prose-muted-fg, var(--color-muted));
+}
+.peek-plan b {
+  margin-bottom: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--prose-heading-fg, var(--color-ink));
+}
+.peek-plan span::before {
+  content: "## ";
+  opacity: 0.5;
+}
+/* The agents its threads are with, by name: no heading marks. */
+.peek-mail {
+  font-size: 9px;
+}
+.peek-mail span::before {
+  content: none;
+}
+.peek-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.peek-page-bar {
+  display: flex;
+  flex-shrink: 0;
+  gap: 3px;
+  padding: 4px 6px;
+  border-bottom: var(--border-width) solid var(--peek-page-bar-border-color, var(--color-line));
+  background-color: var(--peek-page-bar-bg, var(--color-paper));
+}
+.peek-page-bar i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--peek-page-dot-bg, var(--color-line-strong));
+}
+.peek-held {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 8px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--peek-card-fg, var(--color-muted));
+}
+.peek-page-url {
+  padding: 8px 6px;
+  overflow: hidden;
+  font: 10px var(--font-mono);
+  color: var(--peek-card-fg, var(--color-muted));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.peek-page img {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  object-fit: cover;
+  object-position: top;
+}

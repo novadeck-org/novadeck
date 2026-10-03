@@ -2,6 +2,8 @@ import { FitAddon } from "@xterm/addon-fit"
 import { Terminal, type ITheme } from "@xterm/xterm"
 
 import { createStore, type Store } from "../../model/store"
+import { themeChangeEvent } from "../../theme/apply"
+import { tokenColors } from "../../theme/probe"
 import type { TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { followTerminal, type FollowedTerminal, type Screen } from "./follow"
@@ -18,34 +20,50 @@ export const runnerSize = (size: {
   rows: clamp(size.rows, 1, 200),
 })
 
-const token = (style: CSSStyleDeclaration, name: string): string | undefined =>
-  style.getPropertyValue(name).trim() || undefined
-
-// The app's colour tokens, read from the page so a theme change reaches the terminal.
-const themeOf = (element: Element): ITheme => {
-  const style = getComputedStyle(element)
-  const background = token(style, "--color-paper")
-  const foreground = token(style, "--color-ink")
-  const selection = token(style, "--color-selection")
+const ansi = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const
+type AnsiName = (typeof ansi)[number]
+const ansiKey = (name: AnsiName, bright: boolean): keyof ITheme =>
+  bright ? (`bright${name[0]!.toUpperCase()}${name.slice(1)}` as keyof ITheme) : name
+const terminalTokens = [
+  "--terminal-bg",
+  "--terminal-fg",
+  "--terminal-cursor",
+  "--terminal-selection",
+  ...ansi.flatMap((name) => [`--terminal-ansi-${name}`, `--terminal-ansi-${name}-bright`]),
   // The scrollbar matches the app's own: a line-grey thumb that darkens when used.
-  const slider = token(style, "--color-line")
-  const sliderHover = token(style, "--color-line-strong")
-  const sliderActive = token(style, "--color-muted")
-  return {
-    ...(background ? { background } : {}),
-    ...(foreground ? { foreground, cursor: foreground } : {}),
-    ...(background ? { cursorAccent: background } : {}),
-    ...(selection ? { selectionBackground: selection } : {}),
-    ...(slider ? { scrollbarSliderBackground: slider } : {}),
-    ...(sliderHover ? { scrollbarSliderHoverBackground: sliderHover } : {}),
-    ...(sliderActive ? { scrollbarSliderActiveBackground: sliderActive } : {}),
-  }
+  "--color-line",
+  "--color-line-strong",
+  "--color-muted",
+]
+
+// Where a terminal's tokens resolve: where it draws, so a theme that restyles a region
+// reaches it, or the page's body while it has no place yet.
+const scopeOf = (element: Element): Element =>
+  element.isConnected ? element : element.ownerDocument.body
+
+// The theme's terminal tokens as the emulator's colours.
+const themeOf = (element: Element): ITheme => {
+  const colors: Partial<Record<string, string>> = tokenColors(scopeOf(element), terminalTokens)
+  const entries: [keyof ITheme, string | undefined][] = [
+    ["background", colors["--terminal-bg"]],
+    ["foreground", colors["--terminal-fg"]],
+    ["cursor", colors["--terminal-cursor"]],
+    ["cursorAccent", colors["--terminal-bg"]],
+    ["selectionBackground", colors["--terminal-selection"]],
+    ...ansi.flatMap((name): [keyof ITheme, string | undefined][] => [
+      [ansiKey(name, false), colors[`--terminal-ansi-${name}`]],
+      [ansiKey(name, true), colors[`--terminal-ansi-${name}-bright`]],
+    ]),
+    ["scrollbarSliderBackground", colors["--color-line"]],
+    ["scrollbarSliderHoverBackground", colors["--color-line-strong"]],
+    ["scrollbarSliderActiveBackground", colors["--color-muted"]],
+  ]
+  return Object.fromEntries(entries.filter(([, color]) => color !== undefined))
 }
 
+// The theme's monospace font.
 const monospace = (element: Element): string =>
-  token(getComputedStyle(element), "--font-mono") ?? "monospace"
-
-const darkScheme = "(prefers-color-scheme: dark)"
+  getComputedStyle(scopeOf(element)).getPropertyValue("--font-mono").trim() || "monospace"
 
 // How long a terminal's size stays still before it refits after a resize. Each refit
 // forces a layout and may tell the runner, so a zoom or a drag refits once it pauses,
@@ -177,20 +195,32 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     // Some mouse reports arrive as binary; they go to the shell the same way.
     const binary = xterm.onBinary(send)
     let settling: ReturnType<typeof setTimeout> | undefined
+    // A theme sets the colours and the font; a new font changes the cell size, so the
+    // terminal fits again.
+    const retheme = (): void => {
+      xterm.options.theme = themeOf(element)
+      const font = monospace(element)
+      if (xterm.options.fontFamily === font) return
+      xterm.options.fontFamily = font
+      followed.refit()
+    }
+    // A host opened before it had a slot took the page's colours and font; once in one,
+    // it takes its region's.
+    let placed = element.isConnected
     const resizes = new ResizeObserver(() => {
+      if (!placed && element.isConnected) {
+        placed = true
+        retheme()
+      }
       clearTimeout(settling)
       settling = setTimeout(() => followed.refit(), resizeSettleMs)
     })
     resizes.observe(element)
-    const scheme = window.matchMedia?.(darkScheme)
-    const retheme = (): void => {
-      xterm.options.theme = themeOf(element)
-    }
-    scheme?.addEventListener("change", retheme)
+    window.addEventListener(themeChangeEvent, retheme)
     runtime.screen(key, "mounted")
     entry.dispose = () => {
       runtime.screen(key, "gone")
-      scheme?.removeEventListener("change", retheme)
+      window.removeEventListener(themeChangeEvent, retheme)
       clearTimeout(settling)
       resizes.disconnect()
       input.dispose()

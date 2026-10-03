@@ -1,0 +1,35 @@
+/* The overlay recipe: the scrim behind dialogs, which fades in and out with its dialog
+   (Ark's data-state="open" | "closed").
+
+   Tokens, each optional (its fallback in brackets):
+   --overlay-bg (scrim): its colour.
+   --overlay-blur (3px): how far it blurs what lies under it. */
+.overlay {
+  --_bg: var(--overlay-bg, var(--color-scrim));
+  --_blur: var(--overlay-blur, 3px);
+  background-color: var(--_bg);
+  backdrop-filter: blur(var(--_blur));
+}
+.overlay[data-state="open"] {
+  animation: overlay-in var(--motion-feedback) ease-out;
+}
+.overlay[data-state="closed"] {
+  animation: overlay-out var(--motion-feedback) ease-out forwards;
+  pointer-events: none;
+}
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

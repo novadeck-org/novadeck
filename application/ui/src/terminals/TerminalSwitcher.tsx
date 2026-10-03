@@ -5,8 +5,6 @@ import { isWindow } from "../model/roster"
 import type { Tile } from "../model/types"
 import { searchResultClasses } from "../ui-toolkit/SearchCombobox"
 
-import motion from "../ui-toolkit/ModalMotion.module.css"
-
 export const TerminalSwitcher = ({
   terminals,
   selected,
@@ -40,7 +38,7 @@ export const TerminalSwitcher = ({
       <div
         aria-hidden="true"
         data-state="open"
-        className={`${motion.backdrop} absolute inset-0 bg-scrim backdrop-blur-[3px]`}
+        className="overlay absolute inset-0"
         onPointerDown={mode === "click" ? onClose : undefined}
       />
       <section
@@ -48,7 +46,7 @@ export const TerminalSwitcher = ({
         aria-label="Terminal switcher"
         aria-modal={mode === "click"}
         data-state="open"
-        className={`${motion.dialog} pointer-events-auto relative flex max-h-[calc(84dvh-20px)] w-full max-w-130 flex-col overflow-hidden rounded-popover border border-line-strong bg-paper shadow-modal`}
+        className="modal relative flex max-h-[calc(84dvh-20px)] w-full max-w-130 flex-col overflow-hidden"
         onKeyDown={(event) => {
           if (mode !== "click" || event.key !== "Tab" || event.ctrlKey) return
           event.preventDefault()
@@ -56,13 +54,13 @@ export const TerminalSwitcher = ({
           else close.current?.focus()
         }}
       >
-        <header className="flex min-h-17 shrink-0 items-center gap-3 border-b border-line px-5 py-3 text-muted">
-          <Layers size={16} className="shrink-0 text-muted" aria-hidden="true" />
+        <header className="modal-header switcher-header flex min-h-17 shrink-0 items-center gap-3 px-5 py-3">
+          <Layers size={16} className="shrink-0" aria-hidden="true" />
           <div className="min-w-0 flex-1">
-            <h2 className="m-0 text-sm font-medium text-ink">Switch terminal</h2>
-            <p className="m-0 mt-0.5 truncate text-[10px] text-muted">{project}</p>
+            <h2 className="m-0 text-sm font-medium">Switch terminal</h2>
+            <p className="modal-description m-0 mt-0.5 truncate text-[10px]">{project}</p>
           </div>
-          <span className="shrink-0 font-mono text-[10px] text-muted">
+          <span className="switcher-count shrink-0 text-[10px]">
             {terminals.findIndex((terminal) => terminal.id === selected) + 1} / {terminals.length}
           </span>
           <button
@@ -99,20 +97,16 @@ export const TerminalSwitcher = ({
                 <Terminal size={15} strokeWidth={1.5} aria-hidden="true" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <p className="m-0 truncate text-xs font-medium">{terminal.name}</p>
-                  <p className="m-0 truncate font-mono text-[10px] text-muted">
+                  <p className="switcher-process item-detail m-0 truncate text-[10px]">
                     {isWindow(terminal) ? "window" : terminal.process || terminal.command}
                   </p>
                 </div>
-                <ArrowUpRight
-                  size={14}
-                  aria-hidden="true"
-                  className="opacity-25 transition-opacity duration-(--motion-feedback) ease-interface group-hover:opacity-100 group-focus-visible:opacity-100 group-data-[highlighted]:opacity-100"
-                />
+                <ArrowUpRight size={14} aria-hidden="true" className="switcher-go" />
               </div>
             )
           })}
         </div>
-        <footer className="shrink-0 border-t border-line bg-shell px-5 py-3 text-[10px] text-muted">
+        <footer className="modal-footer switcher-footer shrink-0 px-5 py-3 text-[10px]">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             <span>
               {mode === "held" ? (
@@ -141,7 +135,7 @@ export const TerminalSwitcher = ({
           <p className="m-0 mt-2">
             {mode === "held" ? (
               <>
-                Release <span className="font-medium text-ink">Ctrl</span> to switch
+                Release <strong className="font-medium">Ctrl</strong> to switch
               </>
             ) : (
               <>

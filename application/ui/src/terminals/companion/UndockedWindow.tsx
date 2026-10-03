@@ -3,8 +3,6 @@ import type { WorkspaceTarget } from "../../model/types"
 import { ArtifactTab, PlanTab } from "./CompanionPane"
 import type { Panes } from "./state"
 
-import "./companion.css"
-
 // An item undocked into a window of its own: a plan, editable as in the pane, or
 // something an agent showed, loading from where it points now. The window's menu docks it
 // back into the terminal it was shown from.

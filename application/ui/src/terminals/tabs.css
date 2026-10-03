@@ -1,0 +1,137 @@
+/* The tabs recipe: a terminal's tab in the sidebar, its phase, its actions and its mail
+   count. A tab is a sidebar item; this draws only what a terminal adds to it.
+
+   Hooks on `.terminal-tab`: data-terminal-phase="idle" | "running" | "starting" |
+   "attention" | "ended", data-terminal-attention="question" | "permission",
+   data-terminal-hidden="true" | "false". Parts: `.terminal-glyph`,
+   `.terminal-tab-process`, `.terminal-tab-starting`, `.terminal-tab-action` (an
+   `.icon-button.small.dim`, pressed while it hides the tab), `.terminal-tab-mail` (a
+   `.badge`, data-mail="waiting" | "held" | "paused"), `.terminal-tab-rename`,
+   `.terminal-tab-empty`.
+
+   Tokens, each optional (its fallback in brackets):
+   --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
+   shell starts. --tab-attention-fg (warning-fg): the glyph while an agent waits.
+   --tab-process-font (mono): the program and the glyph.
+   --tab-active-process-fg (ink): the program while it runs or waits.
+   --tab-ended-image (the window's --window-ended-image, a faint ink hatch),
+   --tab-ended-fg (muted): an ended tab, and its name and icon.
+   --tab-hidden-opacity (0.5): a tab hidden from Grid and Canvas.
+   --tab-action-disabled-opacity (0.5): an action while the tab is being renamed.
+   --tab-mail-paused-bg (paper), --tab-mail-paused-fg (muted): the count of mail held
+   while the agent is paused. Waiting mail is a plain badge, held mail a warning tone.
+   --tab-empty-fg (muted): the note in an empty list. */
+.icon-button.terminal-tab-action:focus-visible {
+  outline-offset: -2px;
+}
+.icon-button.terminal-tab-action:disabled {
+  pointer-events: none;
+  opacity: var(--tab-action-disabled-opacity, 0.5);
+}
+.terminal-tab[data-terminal-hidden="true"] .sidebar-item-select {
+  opacity: var(--tab-hidden-opacity, 0.5);
+}
+.terminal-glyph,
+.terminal-tab-process,
+.terminal-tab-starting {
+  font-family: var(--tab-process-font, var(--font-mono));
+}
+.terminal-tab:is([data-terminal-phase="running"], [data-terminal-phase="attention"])
+  .sidebar-item-select
+  .terminal-tab-process {
+  color: var(--tab-active-process-fg, var(--color-ink));
+}
+.terminal-tab-empty {
+  color: var(--tab-empty-fg, var(--color-muted));
+}
+.badge.terminal-tab-mail[data-mail="paused"] {
+  --_bg: var(--tab-mail-paused-bg, var(--color-paper));
+  --_fg: var(--tab-mail-paused-fg, var(--color-muted));
+}
+/* A tab reads its terminal's phase as text: a braille spinner beside a running program,
+   as command-line tools show work, and a faint hatch once it has ended. Each tab keeps a
+   one-glyph slot before its program, so the text never shifts. Only what needs a look
+   is marked: a spinner while a program runs, a dot while the shell starts, and a cross
+   once it has ended; an idle tab leaves it blank. Reduced motion holds the spinner
+   still. */
+.terminal-glyph {
+  color: var(--tab-glyph-fg, var(--color-ink));
+}
+.terminal-glyph::before {
+  content: "\00a0";
+}
+.terminal-tab[data-terminal-phase="starting"] .terminal-glyph {
+  color: var(--tab-starting-fg, var(--color-muted));
+}
+.terminal-tab[data-terminal-phase="starting"] .terminal-glyph::before {
+  content: "·";
+}
+.terminal-tab[data-terminal-phase="ended"] .terminal-glyph::before {
+  content: "×";
+}
+/* An agent waiting on the person is marked in the warning colour: "?" for a question,
+   "!" for a permission. */
+.terminal-tab[data-terminal-phase="attention"] .terminal-glyph {
+  color: var(--tab-attention-fg, var(--color-warning-fg));
+  font-weight: 700;
+}
+.terminal-tab[data-terminal-phase="attention"] .terminal-glyph::before {
+  content: "!";
+}
+.terminal-tab[data-terminal-attention="question"] .terminal-glyph::before {
+  content: "?";
+}
+.terminal-tab[data-terminal-phase="running"] .terminal-glyph::before {
+  content: "⠋";
+  animation: terminal-spin 800ms steps(1) infinite;
+}
+@keyframes terminal-spin {
+  0% {
+    content: "⠋";
+  }
+  10% {
+    content: "⠙";
+  }
+  20% {
+    content: "⠹";
+  }
+  30% {
+    content: "⠸";
+  }
+  40% {
+    content: "⠼";
+  }
+  50% {
+    content: "⠴";
+  }
+  60% {
+    content: "⠦";
+  }
+  70% {
+    content: "⠧";
+  }
+  80% {
+    content: "⠇";
+  }
+  90% {
+    content: "⠏";
+  }
+}
+/* An ended terminal is hatched in its tab, as across its window. */
+.terminal-tab[data-terminal-phase="ended"] {
+  background-image: var(
+    --tab-ended-image,
+    var(
+      --window-ended-image,
+      repeating-linear-gradient(
+        135deg,
+        transparent 0 6px,
+        color-mix(in srgb, var(--color-ink) 3.5%, transparent) 6px 7px
+      )
+    )
+  );
+}
+.terminal-tab[data-terminal-phase="ended"] .sidebar-item-select strong,
+.terminal-tab[data-terminal-phase="ended"] .sidebar-item-icon {
+  color: var(--tab-ended-fg, var(--color-muted));
+}

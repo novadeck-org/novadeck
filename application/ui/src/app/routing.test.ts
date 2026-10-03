@@ -3,10 +3,14 @@ import { describe, expect, it } from "vitest"
 import { createTerminalState } from "../model/state"
 import { createWorkspaceStore } from "../model/store"
 import type { PreferencesValue, Workspace } from "../model/types"
-import { terminalFixture, workspaceWithWindow } from "../test/fixtures"
+import { appearance, terminalFixture, workspaceWithWindow } from "../test/fixtures"
 import { resolveRoute, routeUrl, workspaceRoute } from "./routing"
 
-const preferences: PreferencesValue = { fontSize: 13, enabledViews: ["focus", "grid", "canvas"] }
+const preferences: PreferencesValue = {
+  fontSize: 13,
+  enabledViews: ["focus", "grid", "canvas"],
+  appearance,
+}
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const fixture = (): Workspace => ({
   activeProjectId: "project",

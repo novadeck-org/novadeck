@@ -1,7 +1,20 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
 import { contentSecurityPolicyConnectSources } from "./content-security-policy"
 import { context, describe, expect, it } from "./test"
 
 describe("frontend Content Security Policy", () => {
+  it("runs only same-origin script files, so the theme's boot script is one too", () => {
+    const html = readFileSync(join(process.cwd(), "index.html"), "utf8")
+    expect(html).toContain("script-src 'self';")
+    expect(html).toContain('<script src="./theme-boot.js"></script>')
+    // Every script has a source; none is inline.
+    expect([...html.matchAll(/<script\b[^>]*>/g)].every(([tag]) => tag.includes(" src="))).toBe(
+      true,
+    )
+  })
+
   context("for a standalone production build", () => {
     it("allows only the configured remote API origin", () => {
       expect(contentSecurityPolicyConnectSources("https://api.example.com/v1", false)).toEqual([

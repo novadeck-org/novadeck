@@ -23,6 +23,18 @@ describe("compiled frontend", () => {
       ).resolves.toHaveLength(paths.length)
     })
 
+    it("sets the theme with a same-origin script before the app's module loads", async () => {
+      const html = await read("index.html")
+      const head = html.slice(0, html.indexOf("</head>"))
+      const boot = /<script src="\.\/theme-boot\.js"><\/script>/.exec(head)
+      const module = /<script type="module"[^>]*src="\.\/assets\/[^"]+\.js"/.exec(html)
+
+      expect(boot).not.toBeNull()
+      expect(module).not.toBeNull()
+      expect(boot!.index).toBeLessThan(module!.index)
+      expect(await read("theme-boot.js")).toContain("novadeck.theme-boot")
+    })
+
     it("ships every deferred view and its assets alongside the entry point", async () => {
       const manifest: Manifest = JSON.parse(await read(".vite/manifest.json"))
       const chunks = Object.values(manifest)
@@ -54,6 +66,7 @@ describe("compiled frontend", () => {
     it("contains a production Content Security Policy", async () => {
       const html = await read("index.html")
 
+      expect(html).toContain("script-src 'self';")
       expect(html).toContain("connect-src 'self' http://127.0.0.1:*")
       expect(html).not.toContain("__NOVADECK_CONNECT_SOURCES__")
       expect(html).not.toContain("ws:")

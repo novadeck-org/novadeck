@@ -33,10 +33,7 @@ export const Select = ({
   const collection = useMemo(() => createListCollection({ items }), [items])
   return (
     <ArkSelect.Root
-      className={cn(
-        "flex min-w-0 items-center justify-between gap-4 text-[12px] text-ink",
-        className,
-      )}
+      className={cn("flex min-w-0 items-center justify-between gap-4 text-[12px]", className)}
       collection={collection}
       value={[value]}
       onValueChange={(details) => {
@@ -61,12 +58,12 @@ export const Select = ({
         <ArkSelect.Trigger
           className={
             variant === "icon"
-              ? "flex size-8 shrink-0 items-center justify-center rounded-control text-ink hover:bg-shell data-[state=open]:bg-shell"
-              : "flex min-h-8 min-w-30 items-center justify-between gap-4 rounded-control border border-line bg-paper px-2.5 py-1.75 text-[11px] text-ink shadow-control hover:bg-shell data-[state=open]:border-line-strong"
+              ? "icon-button"
+              : "field flex min-h-8 min-w-30 items-center justify-between gap-4 px-2.5 py-1.75 text-[11px]"
           }
         >
           <ArkSelect.ValueText className={variant === "icon" ? "sr-only" : "truncate"} />
-          <ArkSelect.Indicator className="text-muted">
+          <ArkSelect.Indicator className="field-indicator">
             <ChevronDown size={13} aria-hidden="true" />
           </ArkSelect.Indicator>
         </ArkSelect.Trigger>
@@ -76,7 +73,7 @@ export const Select = ({
         <ArkSelect.Positioner className="z-50">
           <ArkSelect.Content
             className={cn(
-              "z-50 max-h-[min(240px,var(--available-height))] overflow-y-auto rounded-control border border-line bg-paper p-1 text-[11px] text-ink shadow-floating focus-visible:outline-none",
+              "floating z-50 max-h-[min(240px,var(--available-height))] overflow-y-auto p-1 text-[11px]",
               variant === "icon" && "min-w-48 max-w-[calc(100vw-24px)]",
             )}
           >
@@ -84,11 +81,11 @@ export const Select = ({
               <ArkSelect.Item
                 key={item.value}
                 item={item}
-                className="flex min-h-8 cursor-pointer items-center justify-between gap-3 rounded-control px-2 py-1.5 outline-none data-highlighted:bg-shell"
+                className="item flex min-h-8 cursor-pointer items-center justify-between gap-3 px-2 py-1.5"
               >
                 <ArkSelect.ItemText className="min-w-0 truncate">{item.label}</ArkSelect.ItemText>
                 {item.description && (
-                  <span className="ml-auto shrink-0 text-[10px] text-muted">
+                  <span className="item-detail ml-auto shrink-0 text-[10px]">
                     {item.description}
                   </span>
                 )}

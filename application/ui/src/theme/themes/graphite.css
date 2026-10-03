@@ -1,0 +1,176 @@
+/* Graphite, NovaDeck's own look: a near-black with greys carrying a trace of blue.
+   The strong colour is for primary actions, on states (filled buttons, switches,
+   checkboxes), what is selected, and focus rings; everything else stays grey.
+   Imported into `layer(themes)`; see docs/theming.md. */
+
+[data-theme="graphite"] {
+  color-scheme: light;
+
+  /* Grounds */
+  --color-canvas: #f2f3f5;
+  --color-shell: #f8f9fa;
+  --color-paper: #ffffff;
+  --color-soft: #eef0f2;
+  /* Text */
+  --color-ink: #1a1d21;
+  --color-muted: #676c74;
+  /* Lines */
+  --color-line: #e4e6e9;
+  --color-line-strong: #cdd1d6;
+  /* Emphasis */
+  --color-strong: #15181c;
+  --color-strong-hover: #2b2f35;
+  --color-on-strong: #ffffff;
+  /* Overlays: selection sits behind selected text, in the page and in terminals. */
+  --color-scrim: rgb(21 24 28 / 0.18);
+  --color-selection: #d6dbe1;
+  --color-shadow: rgb(21 24 28);
+  /* Tones: soft tints, each with a dark text colour of the same hue (every pair meets
+     WCAG AA). Notes the user leaves for an agent are a warm tint apart from the greys
+     and from the warning amber that marks what an agent changed. */
+  --color-success: #dcebdd;
+  --color-success-fg: #24593a;
+  --color-warning: #f5e6b8;
+  --color-warning-fg: #6b4e0a;
+  --color-danger: #f6d5d1;
+  --color-danger-fg: #8a2a22;
+  --color-note: #fdf2eb;
+  --color-note-fg: #a85f3a;
+  /* Syntax: muted hues that each meet WCAG AA on paper and on soft, where the lines an
+     agent pointed at sit. */
+  --color-syntax-keyword: #8b3a8f;
+  --color-syntax-string: #2f6b3a;
+  --color-syntax-number: #a1460f;
+  --color-syntax-property: #1d5c94;
+  --color-syntax-definition: #4a4fb0;
+  --color-syntax-type: #8a5300;
+  --color-syntax-comment: var(--color-muted);
+  /* Terminal: the page's own paper and ink, and muted ANSI hues that read on paper. */
+  --terminal-bg: var(--color-paper);
+  --terminal-fg: var(--color-ink);
+  --terminal-cursor: var(--color-ink);
+  --terminal-selection: var(--color-selection);
+  --terminal-ansi-black: #1a1d21;
+  --terminal-ansi-red: #b0362d;
+  --terminal-ansi-green: #2f7a41;
+  --terminal-ansi-yellow: #8a6100;
+  --terminal-ansi-blue: #2b61a6;
+  --terminal-ansi-magenta: #8b3a8f;
+  --terminal-ansi-cyan: #1d7280;
+  --terminal-ansi-white: #8a9099;
+  --terminal-ansi-black-bright: #676c74;
+  --terminal-ansi-red-bright: #c9463b;
+  --terminal-ansi-green-bright: #3a8d50;
+  --terminal-ansi-yellow-bright: #9e7810;
+  --terminal-ansi-blue-bright: #3a76c0;
+  --terminal-ansi-magenta-bright: #a24da5;
+  --terminal-ansi-cyan-bright: #2a8794;
+  --terminal-ansi-white-bright: #a3a8af;
+  /* Depth */
+  --shadow-control: 0 1px 3px color-mix(in srgb, var(--color-shadow) 4%, transparent);
+  --shadow-panel:
+    0 1px 2px color-mix(in srgb, var(--color-shadow) 2.5%, transparent),
+    0 4px 12px -6px color-mix(in srgb, var(--color-shadow) 8%, transparent);
+  --shadow-floating:
+    0 2px 5px -2px color-mix(in srgb, var(--color-shadow) 6%, transparent),
+    0 10px 24px -12px color-mix(in srgb, var(--color-shadow) 16%, transparent);
+  --shadow-modal:
+    0 2px 6px -2px color-mix(in srgb, var(--color-shadow) 5%, transparent),
+    0 20px 60px -20px color-mix(in srgb, var(--color-shadow) 14%, transparent);
+
+  /* Component tokens: the Deck mark's cards, two steps lighter than the tile. */
+  --deck-mark-card-near-bg: #d7dade;
+  --deck-mark-card-far-bg: #eaecee;
+  /* Component tokens: behind a live page while it loads. Pages assume a white ground
+     whatever the scheme, so this stays white in both. */
+  --artifact-webview-bg: #ffffff;
+}
+
+/* The dark scheme: near-black grounds with a trace of blue, stepping lighter from the
+   canvas to the paper. The strong colour turns light, so on states, what is selected
+   and focus read light on dark. */
+[data-theme="graphite"][data-scheme="dark"] {
+  color-scheme: dark;
+
+  /* Grounds */
+  --color-canvas: #0f1114;
+  --color-shell: #14171a;
+  --color-paper: #191c20;
+  --color-soft: #23272c;
+  /* Text */
+  --color-ink: #e6e8eb;
+  --color-muted: #9aa0a8;
+  /* Lines */
+  --color-line: #2a2e34;
+  --color-line-strong: #3b4047;
+  /* Emphasis */
+  --color-strong: #e8eaed;
+  --color-strong-hover: #cdd1d6;
+  --color-on-strong: #15181c;
+  /* Overlays */
+  --color-scrim: rgb(0 0 0 / 0.5);
+  --color-selection: #353b43;
+  --color-shadow: rgb(0 0 0);
+  /* Tones: deep tints with light text of the same hue. */
+  --color-success: #1f3326;
+  --color-success-fg: #b9dcc0;
+  --color-warning: #3a3015;
+  --color-warning-fg: #ecd592;
+  --color-danger: #3d2220;
+  --color-danger-fg: #f1b8b1;
+  --color-note: #33261e;
+  --color-note-fg: #e0a07c;
+  /* Syntax: light enough for a near-black ground. */
+  --color-syntax-keyword: #d7a5e8;
+  --color-syntax-string: #a6d4ac;
+  --color-syntax-number: #efb27f;
+  --color-syntax-property: #8fc3f0;
+  --color-syntax-definition: #adb3f5;
+  --color-syntax-type: #e4c07a;
+  --color-syntax-comment: #9aa0a8;
+  /* Terminal */
+  --terminal-bg: var(--color-paper);
+  --terminal-fg: var(--color-ink);
+  --terminal-cursor: var(--color-ink);
+  --terminal-selection: var(--color-selection);
+  /* Black stays a step above the paper so text drawn in it still reads. */
+  --terminal-ansi-black: #4a4f57;
+  --terminal-ansi-red: #e5807a;
+  --terminal-ansi-green: #8cc796;
+  --terminal-ansi-yellow: #e0c070;
+  --terminal-ansi-blue: #82b1e8;
+  --terminal-ansi-magenta: #cf9ae0;
+  --terminal-ansi-cyan: #7cc6cf;
+  --terminal-ansi-white: #c9cdd2;
+  --terminal-ansi-black-bright: #80868e;
+  --terminal-ansi-red-bright: #f1a39d;
+  --terminal-ansi-green-bright: #aedbb5;
+  --terminal-ansi-yellow-bright: #ecd592;
+  --terminal-ansi-blue-bright: #a7c8f0;
+  --terminal-ansi-magenta-bright: #dfb6ec;
+  --terminal-ansi-cyan-bright: #a3dbe2;
+  --terminal-ansi-white-bright: #f1f2f4;
+  /* Depth: deeper, so surfaces still lift off a dark ground. */
+  --shadow-control: 0 1px 3px color-mix(in srgb, var(--color-shadow) 30%, transparent);
+  --shadow-panel:
+    0 1px 2px color-mix(in srgb, var(--color-shadow) 25%, transparent),
+    0 4px 12px -6px color-mix(in srgb, var(--color-shadow) 40%, transparent);
+  --shadow-floating:
+    0 2px 5px -2px color-mix(in srgb, var(--color-shadow) 35%, transparent),
+    0 10px 24px -12px color-mix(in srgb, var(--color-shadow) 55%, transparent);
+  --shadow-modal:
+    0 2px 6px -2px color-mix(in srgb, var(--color-shadow) 35%, transparent),
+    0 20px 60px -20px color-mix(in srgb, var(--color-shadow) 60%, transparent);
+
+  /* Component tokens: an off switch and an unchecked box are drawn by their edges, which
+     a line colour leaves near invisible on a dark ground; these keep 3:1 against it. */
+  --toggle-track-off-border-color: #6b7078;
+  --toggle-thumb-border-color: #6b7078;
+  --toggle-box-border-color: #6b7078;
+  /* Component tokens: the Deck mark's cards, stepping down from the light tile. */
+  --deck-mark-card-near-bg: #8a9099;
+  --deck-mark-card-far-bg: #4b5058;
+  /* Component tokens: behind a live page while it loads. Pages assume a white ground
+     whatever the scheme, so this stays white in both. */
+  --artifact-webview-bg: #ffffff;
+}

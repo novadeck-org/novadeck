@@ -67,7 +67,9 @@ export const TerminalTabs = ({
     >
       <div className={`terminal-tab-list ${sidebarListClasses}`} ref={setList}>
         {terminals.map((terminal, index) => renderTab(terminal, index))}
-        {!terminals.length && <p className="px-3 py-3 text-[11px] text-muted">No open sessions</p>}
+        {!terminals.length && (
+          <p className="terminal-tab-empty px-3 py-3 text-[11px]">No open sessions</p>
+        )}
       </div>
     </DragDropProvider>
   )

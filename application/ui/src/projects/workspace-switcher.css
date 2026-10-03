@@ -1,0 +1,45 @@
+/* The workspace switcher in the header: a ghost button (`.workspace-switcher-trigger`)
+   that opens a popover of projects. Each `.workspace-switcher-project` is an item,
+   tinted as the keyboard or the pointer reaches it, with the project's folder as its
+   `.item-detail` in the mono face; a `.workspace-switcher-remove` icon button shows on
+   the row under the pointer. Under a rule, `.workspace-switcher-new` opens a folder: a
+   `.button.quiet`.
+
+   Hooks: on the trigger, data-state="open" while the popover is open; on a row,
+   aria-current="true" for the current project.
+
+   Tokens, each optional (its fallback in brackets):
+   --workspace-switcher-icon-fg (muted): the trigger's folder and chevron.
+   The trigger takes the ghost button's tokens; rows take --item-highlighted-bg under the
+   pointer or the keyboard, and the rule above the open-folder button --separator-bg. */
+.workspace-switcher-trigger > svg {
+  color: var(--workspace-switcher-icon-fg, var(--color-muted));
+}
+.button.workspace-switcher-trigger[data-state="open"] {
+  --_bg: var(--button-ghost-hover-bg, var(--color-soft));
+}
+
+.workspace-switcher-project:focus-visible {
+  --_bg: var(--item-highlighted-bg, var(--color-shell));
+}
+@media (hover: hover) {
+  .workspace-switcher-project:hover {
+    --_bg: var(--item-highlighted-bg, var(--color-shell));
+  }
+}
+/* The check that marks the current project is set in the row's text colour, not as a
+   secondary icon. */
+.workspace-switcher-project > svg {
+  color: inherit;
+}
+.workspace-switcher-project small {
+  font-family: var(--font-mono);
+}
+
+.workspace-switcher-remove {
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+
+.workspace-switcher-footer {
+  border-top: var(--border-width) solid var(--separator-bg, var(--color-line));
+}

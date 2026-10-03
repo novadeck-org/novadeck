@@ -12,22 +12,8 @@ const shown: Record<Exclude<FooterStatus, "ok">, { readonly tone: Tone; readonly
   unavailable: { tone: "danger", text: "Offline" },
   reconnecting: { tone: "warning", text: "Reconnecting" },
 }
-// Whole class strings, so Tailwind finds them: a soft tint, text of the same hue, and
-// borders that stay subtle in it.
-const tones: Record<Tone, { readonly bar: string; readonly separator: string }> = {
-  danger: { bar: "border-danger-fg/20 bg-danger text-danger-fg", separator: "border-danger-fg/25" },
-  warning: {
-    bar: "border-warning-fg/20 bg-warning text-warning-fg",
-    separator: "border-warning-fg/25",
-  },
-  success: {
-    bar: "border-success-fg/20 bg-success text-success-fg",
-    separator: "border-success-fg/25",
-  },
-}
-
 // The terminal counts under the workspace. While the backend link is in trouble the
-// whole bar takes the status colour, and says so on the right; after it recovers it
+// whole bar takes the status tone, and says so on the right; after it recovers it
 // turns green with "Reconnected" for a moment. The status is short, bold and set in
 // capitals by CSS, so assistive technology still reads ordinary words.
 export const WorkspaceFooter = ({
@@ -64,20 +50,16 @@ export const WorkspaceFooter = ({
   return (
     <footer
       hidden={hidden}
-      data-status={current?.tone}
-      className={`app-footer max-[701px]:px-3 max-[701px]:text-[8px] flex h-7 shrink-0 items-center justify-between border-t px-4 text-[10px] transition-[background-color,border-color,color] duration-(--motion-state) ease-interface motion-reduce:transition-none ${current ? tones[current.tone].bar : "border-line bg-paper text-muted"}`}
+      data-tone={current?.tone}
+      className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] h-7 shrink-0 items-center justify-between px-4 text-[10px]"
     >
       <span className="flex items-center gap-2">
         <span>
           {count} {count === 1 ? "terminal" : "terminals"}
         </span>
-        <span
-          className={`footer-running max-[701px]:hidden ml-2 border-l pl-3 ${current ? tones[current.tone].separator : "border-line"}`}
-        >
-          {running} running
-        </span>
+        <span className="footer-running max-[701px]:hidden ml-2 pl-3">{running} running</span>
       </span>
-      <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider">
+      <span className="footer-status flex items-center gap-1.5 font-bold">
         <span role="status" aria-live={current?.tone === "danger" ? "assertive" : "polite"}>
           {current?.text}
         </span>
@@ -86,7 +68,7 @@ export const WorkspaceFooter = ({
             <span aria-hidden="true">·</span>
             <button
               type="button"
-              className="cursor-pointer font-bold tracking-wider uppercase underline-offset-2 hover:underline focus-visible:underline"
+              className="footer-action cursor-pointer font-bold"
               onClick={onRetry}
             >
               Try again

@@ -63,6 +63,7 @@ const UndockButton = ({ onUndock }: { onUndock: () => void }): React.JSX.Element
   <span className="artifact-actions">
     <button
       type="button"
+      className="icon-button"
       aria-label="Undock to its own window"
       title="Undock to its own window"
       onClick={onUndock}
@@ -121,6 +122,7 @@ const PlanBody = ({
           {marks.length > 0 && (
             <button
               className="plan-changes-toggle"
+              data-tone="warning"
               aria-pressed={plan.showChanges}
               onClick={pane.toggleChanges}
             >

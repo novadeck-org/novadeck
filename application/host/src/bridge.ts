@@ -11,6 +11,12 @@ export const runnerPortChannel = "novadeck:runner-port"
  */
 export const saveBeforeQuitChannel = "novadeck:save-before-quit"
 
+/**
+ * Renderer-to-main report of how the page looks, `{ scheme, ground }`, which the window
+ * follows; see main/appearance.ts.
+ */
+export const appearanceChannel = "novadeck:appearance"
+
 /** Renderer-to-main request for a folder picker; answers the chosen path or null. */
 export const directoryPickerChannel = "novadeck:pick-directory"
 

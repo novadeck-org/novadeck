@@ -43,11 +43,21 @@ const ImageViewer = ({
         <code>{artifact.name}</code>
         <span>{artifact.detail}</span>
         <span className="artifact-meta-push" />
-        <div className="artifact-zoom" role="group" aria-label="Zoom">
-          <button aria-pressed={!actual} onClick={() => setActual(false)}>
+        <div className="artifact-zoom segmented" role="group" aria-label="Zoom">
+          <button
+            className="segment"
+            data-state={actual ? "off" : "on"}
+            aria-pressed={!actual}
+            onClick={() => setActual(false)}
+          >
             Fit
           </button>
-          <button aria-pressed={actual} onClick={() => setActual(true)}>
+          <button
+            className="segment"
+            data-state={actual ? "on" : "off"}
+            aria-pressed={actual}
+            onClick={() => setActual(true)}
+          >
             100%
           </button>
         </div>
@@ -172,17 +182,23 @@ const LivePage = ({ url, actions }: Actions & { url: string }): React.JSX.Elemen
   return (
     <div className="artifact-browser" data-live="">
       <div className="artifact-browser-bar">
-        <button aria-label="Back" disabled={!place.back} onClick={() => view.current?.goBack()}>
+        <button
+          className="icon-button"
+          aria-label="Back"
+          disabled={!place.back}
+          onClick={() => view.current?.goBack()}
+        >
           <ArrowLeft size={13} />
         </button>
         <button
+          className="icon-button"
           aria-label="Forward"
           disabled={!place.forward}
           onClick={() => view.current?.goForward()}
         >
           <ArrowRight size={13} />
         </button>
-        <button aria-label="Reload" onClick={() => view.current?.reload()}>
+        <button className="icon-button" aria-label="Reload" onClick={() => view.current?.reload()}>
           <RotateCw size={13} />
         </button>
         <span className="artifact-url">{place.url}</span>

@@ -23,9 +23,8 @@ const copyText = async (text: string): Promise<boolean> => {
   }
 }
 
-const primary = "small-button primary"
-const quiet =
-  "rounded-control px-1.5 py-0.5 text-[11px] text-muted underline-offset-2 hover:text-ink hover:underline"
+const primary = "button primary"
+const quiet = "button link boot-failure-link px-1.5 py-0.5 text-[11px]"
 
 // What failed on the way in, in place of the phase line: why, what happens next, and
 // the details for a bug report.
@@ -54,10 +53,10 @@ export const BootFailure = ({
   const action = failureAction(failure)
   return (
     <div role="alert" className="flex max-w-90 flex-col items-center gap-2 text-center">
-      <p className="m-0 text-[13px] font-medium text-ink">{failureTitle}</p>
-      <p className="m-0 text-[12px] leading-[1.5] text-muted">{failure.message}</p>
+      <p className="m-0 text-[13px] font-medium">{failureTitle}</p>
+      <p className="boot-failure-note m-0 text-[12px] leading-[1.5]">{failure.message}</p>
       {retryIn !== undefined && (
-        <p className="m-0 text-[12px] text-muted tabular-nums">{retryCountdown(retryIn)}</p>
+        <p className="boot-failure-note m-0 text-[12px] tabular-nums">{retryCountdown(retryIn)}</p>
       )}
       <div className="mt-2 flex items-center gap-3">
         {action === "quit" ? (
@@ -82,15 +81,15 @@ export const BootFailure = ({
       {open && (
         <div
           id="boot-failure-details"
-          className="mt-1 flex w-full flex-col items-center gap-2 rounded-control border border-line bg-shell px-3 py-2"
+          className="boot-failure-details mt-1 flex w-full flex-col items-center gap-2 px-3 py-2"
         >
-          <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-left font-mono text-[11px] text-muted">
+          <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-left text-[11px]">
             <dt>Code</dt>
-            <dd className="m-0 break-all text-ink">{failure.code}</dd>
+            <dd className="m-0 break-all">{failure.code}</dd>
             <dt>Message</dt>
-            <dd className="m-0 break-all text-ink">{failure.detail}</dd>
+            <dd className="m-0 break-all">{failure.detail}</dd>
             <dt>Attempts</dt>
-            <dd className="m-0 text-ink">{attempts}</dd>
+            <dd className="m-0">{attempts}</dd>
           </dl>
           <button
             type="button"

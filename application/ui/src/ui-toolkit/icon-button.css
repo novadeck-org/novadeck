@@ -1,0 +1,80 @@
+/* The icon-button recipe: header, window, tab and sidebar actions, and the icon select's
+   trigger. `.dim` keeps its icon faint until the pointer or focus reaches it, or while it
+   is pressed; `.small` is the 24px button of a tab's actions; `.raised` stands on paper
+   with an edge and a shadow, for a button over content, such as a peek card's close.
+
+   Hooks: aria-pressed="true" on a toggle that is on; Ark's data-state="open" on the
+   trigger of a select, menu or popover while it is open; :disabled.
+
+   Tokens, each optional (its fallback in brackets):
+   --icon-button-bg (transparent), --icon-button-fg (muted),
+   --icon-button-radius (radius-control): at rest.
+   --icon-button-hover-bg (soft), --icon-button-hover-fg (ink): under the pointer, and
+   while what it opens is open.
+   --icon-button-pressed-bg (the hover bg), --icon-button-pressed-fg (the hover fg): a
+   toggle that is on.
+   --icon-button-raised-bg (paper), --icon-button-raised-border-color (line),
+   --icon-button-raised-shadow (shadow-control): a `.raised` button; under the pointer
+   it keeps its ground and takes the hover fg.
+   --icon-button-dim-opacity (0.25): a `.dim` button's icon at rest.
+   --icon-button-disabled-opacity (0.25): a disabled button. */
+.icon-button {
+  --_bg: var(--icon-button-bg, transparent);
+  --_fg: var(--icon-button-fg, var(--color-muted));
+  @apply inline-flex size-8 shrink-0 items-center justify-center p-2;
+  border-radius: var(--icon-button-radius, var(--radius-control));
+  background-color: var(--_bg);
+  color: var(--_fg);
+}
+.icon-button:is(
+    [data-scope="select"],
+    [data-scope="menu"],
+    [data-scope="popover"]
+  )[data-state="open"] {
+  --_bg: var(--icon-button-hover-bg, var(--color-soft));
+  --_fg: var(--icon-button-hover-fg, var(--color-ink));
+}
+@media (hover: hover) {
+  .icon-button:hover {
+    --_bg: var(--icon-button-hover-bg, var(--color-soft));
+    --_fg: var(--icon-button-hover-fg, var(--color-ink));
+  }
+}
+.icon-button[aria-pressed="true"] {
+  --_bg: var(--icon-button-pressed-bg, var(--icon-button-hover-bg, var(--color-soft)));
+  --_fg: var(--icon-button-pressed-fg, var(--icon-button-hover-fg, var(--color-ink)));
+}
+.icon-button.small {
+  @apply size-6 p-1.5;
+}
+.icon-button.raised {
+  --_bg: var(--icon-button-raised-bg, var(--color-paper));
+  border: var(--border-width) solid var(--icon-button-raised-border-color, var(--color-line));
+  box-shadow: var(--icon-button-raised-shadow, var(--shadow-control));
+}
+@media (hover: hover) {
+  .icon-button.raised:hover {
+    --_bg: var(--icon-button-raised-bg, var(--color-paper));
+  }
+}
+.icon-button:disabled {
+  @apply cursor-default;
+  --_bg: var(--icon-button-bg, transparent);
+  --_fg: var(--icon-button-fg, var(--color-muted));
+  opacity: var(--icon-button-disabled-opacity, 0.25);
+}
+.icon-button > svg {
+  @apply shrink-0;
+}
+.icon-button.dim > svg {
+  opacity: var(--icon-button-dim-opacity, 0.25);
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.icon-button.dim:is(:focus-visible, [aria-pressed="true"]) > svg {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .icon-button.dim:hover > svg {
+    opacity: 1;
+  }
+}

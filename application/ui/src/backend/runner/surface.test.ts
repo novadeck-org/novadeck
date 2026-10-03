@@ -8,6 +8,7 @@ import type { TerminalMetadata } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
 import { terminalFixture } from "../../test/fixtures"
 import { render, type Rendered } from "../../test/render"
+import { themeChangeEvent } from "../../theme/apply"
 import type { BackendConnectionState } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { createRunnerTerminal } from "./RunnerTerminal"
@@ -357,6 +358,30 @@ describe("runner terminal surface", () => {
       const page = show(runtime)
       expect(input(page).getAttribute("aria-disabled")).toBe("true")
       expect(page.container.querySelector("[role=status]")?.textContent).toBe("Starting shell…")
+    })
+  })
+
+  context("when the theme changes", () => {
+    it("draws in the new theme's monospace font", () => {
+      const opened: Terminal[] = []
+      const originalOpen = Terminal.prototype.open
+      vi.spyOn(Terminal.prototype, "open").mockImplementation(function (this: Terminal, element) {
+        opened.push(this)
+        return originalOpen.call(this, element)
+      })
+      const root = document.documentElement
+      root.style.setProperty("--font-mono", "Old Mono")
+      try {
+        show(starting().runtime)
+        expect(opened[0]?.options.fontFamily).toBe("Old Mono")
+
+        root.style.setProperty("--font-mono", "New Mono")
+        act(() => void window.dispatchEvent(new CustomEvent(themeChangeEvent)))
+
+        expect(opened[0]?.options.fontFamily).toBe("New Mono")
+      } finally {
+        root.style.removeProperty("--font-mono")
+      }
     })
   })
 

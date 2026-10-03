@@ -47,9 +47,7 @@ export const SessionsPanel = ({
         >
           <Plus size={14} className="shrink-0" />
           <span className="min-w-0 truncate">Session</span>
-          <kbd className="mb-[-2px] ml-auto min-h-0 shrink-0 whitespace-nowrap border-0 bg-transparent p-0 text-[9px] text-muted opacity-70">
-            {shortcut}
-          </kbd>
+          <kbd className="hint mb-[-2px] ml-auto shrink-0 whitespace-nowrap">{shortcut}</kbd>
         </button>
       </Tooltip>
       <div
@@ -82,9 +80,7 @@ export const SessionsPanel = ({
                     {terminalCount} {terminalCount === 1 ? "terminal" : "terminals"}
                   </span>
                   {item.running > 0 && (
-                    <span className="session-running before:mr-1.5 before:text-muted before:opacity-50 before:content-['·']">
-                      {item.running} running
-                    </span>
+                    <span className="session-running">{item.running} running</span>
                   )}
                 </>
               }

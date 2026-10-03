@@ -100,7 +100,7 @@ export const WorkspaceStage = memo(
             <div
               role="status"
               aria-label="Loading workspace"
-              className="flex flex-1 items-center justify-center text-sm text-muted"
+              className="stage-note flex flex-1 items-center justify-center text-sm"
             >
               Loading workspace…
             </div>
@@ -167,9 +167,9 @@ export const WorkspaceStage = memo(
           terminals.length > 0 &&
           terminals.every((terminal) => layoutHidden[terminal.id]) && (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-center">
-              <p className="text-sm text-muted">All terminals are hidden</p>
+              <p className="stage-note text-sm">All terminals are hidden</p>
               <button
-                className="small-button"
+                className="button"
                 onClick={() =>
                   showAll(
                     target,

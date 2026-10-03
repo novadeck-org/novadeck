@@ -1,4 +1,5 @@
-// An on/off switch, named and described by elements elsewhere in the row.
+// An on/off switch, named and described by elements elsewhere in the row. The toggle
+// recipe draws it from aria-checked; data-state says the same for themes.
 export const Switch = ({
   checked,
   onChange,
@@ -25,14 +26,13 @@ export const Switch = ({
     aria-checked={checked}
     aria-busy={busy || pending}
     aria-disabled={pending || undefined}
+    data-state={checked ? "checked" : "unchecked"}
     disabled={disabled}
     onClick={() => {
       if (!pending) onChange(!checked)
     }}
-    className={`relative h-5 w-9 shrink-0 rounded-control border focus-visible:outline-2 focus-visible:outline-strong focus-visible:outline-offset-2 ${checked ? "border-strong bg-strong" : "border-line bg-soft"} ${disabled ? "cursor-not-allowed opacity-50" : pending ? "cursor-default opacity-60" : "cursor-pointer"}`}
+    className={`switch relative h-5 w-9 shrink-0 ${disabled ? "cursor-not-allowed" : pending ? "cursor-default" : "cursor-pointer"}`}
   >
-    <span
-      className={`absolute top-0.5 size-3.5 rounded-control border border-line-strong bg-paper transition-[left] duration-(--motion-feedback) ease-interface ${checked ? "left-[18px]" : "left-0.5"}`}
-    />
+    <span className="switch-thumb absolute top-0.5 size-3.5" />
   </button>
 )

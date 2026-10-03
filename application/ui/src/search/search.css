@@ -1,0 +1,29 @@
+/* The search recipe: the dialog that finds a terminal. Its field is a quiet `.field`
+   and its results are `.item`s; this draws the rest.
+
+   Parts: `.search-result-meta`, a result's command and directory, the directory
+   (`.search-result-path`) after a hairline; `.search-result-action`, the arrow that is
+   faint until its result is under the pointer, highlighted or focused;
+   `.search-empty`, what shows when nothing matches; `.search-footnote`, the strip
+   under the results, a `.modal-footer`.
+
+   Tokens, each optional (its fallback in brackets):
+   --separator-bg (line): the hairline before a result's directory.
+   --search-action-opacity (0.25): the arrow at rest.
+   --search-empty-fg (muted). */
+.search-result-meta {
+  font-family: var(--font-mono);
+}
+.search-result-path {
+  border-left: var(--border-width) solid var(--separator-bg, var(--color-line));
+}
+.search-result-action {
+  opacity: var(--search-action-opacity, 0.25);
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+.item:is(:hover, :focus-visible, [data-highlighted]) .search-result-action {
+  opacity: 1;
+}
+.search-empty {
+  color: var(--search-empty-fg, var(--color-muted));
+}

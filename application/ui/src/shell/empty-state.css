@@ -1,0 +1,12 @@
+/* The empty workspace's card: a `.panel` (the surface recipe) on the workspace, with an
+   `.empty-state-title`, an `.empty-state-description`, a primary `.button` and a quiet
+   `.button.quiet.empty-sessions-link`.
+
+   Tokens, each optional (its fallback in brackets):
+   --empty-state-description-fg (muted): the description. */
+.empty-state-title {
+  letter-spacing: -0.025em;
+}
+.empty-state-description {
+  color: var(--empty-state-description-fg, var(--color-muted));
+}

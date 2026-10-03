@@ -480,7 +480,8 @@ This is a TypeScript monorepo using pnpm workspaces and Turborepo.
 
 The UI runs real shells through the runner. Projects, sessions and their terminals
 live in the runner's SQLite metadata, and each session saves its terminals' order and
-layouts there too; preferences and sidebar settings are stored locally. Unit tests
+layouts there too; preferences (the theme and its light, dark or system mode among
+them) and sidebar settings are stored locally. Unit tests
 and behaviour specs run on the demo adapter's sample data instead.
 
 See the [terminal backend plan](docs/backend-plan.md) for the proposed runner
@@ -521,13 +522,17 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `shell/`                                           | Header, rail, panels, zen dock, sidebar, and shell state transitions.                   |
 | `sidebar/`, `projects/`, `preferences/`, `search/` | Feature components.                                                                     |
 | `interaction/`                                     | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                   |
-| `ui-toolkit/`                                      | Reusable styled controls and direct Ark UI imports.                                     |
+| `ui-toolkit/`                                      | Reusable controls, direct Ark UI imports, and the shared recipes they draw with.        |
 | `test/`                                            | Unit-test fixtures, a jsdom render helper, a command harness, and the port contract.    |
 | `assets/`                                          | Static files referenced from CSS.                                                       |
-| `styles.css`                                       | Theme tokens, global primitives, and shared workspace styles.                           |
+| `theme/`                                           | Tailwind's layout-only theme, token defaults, theme files, the theme list, `apply.ts`.  |
+| `styles.css`                                       | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources. |
 | `specs/`                                           | Behaviour specs for the whole UI, run in a real browser.                                |
 
-Imports point down the layers. `model/` imports nothing else, not even packages.
+Imports point down the layers. `model/` imports nothing else, not even packages,
+apart from the theme list's types, and `theme/` imports nothing at all; every layer
+that composes the page may use it, adapters included, and
+[docs/theming.md](docs/theming.md) is its contract with components.
 `backend/` builds on `model/` and uses React only for the port's types; adapters
 may add `ui-toolkit/`. `interaction/` builds on `model/` and imports no packages;
 features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
@@ -676,8 +681,11 @@ Keep vendor-specific types and CSS inside their adapters, and use
 application-owned types for saved layouts.
 
 Keep direct Ark UI imports in `ui-toolkit/`; features own their content and state.
-Use Tailwind utilities for ordinary component styling. See [CODING.md](CODING.md)
-for broader conventions.
+Use Tailwind utilities in TSX only to arrange elements: layout, spacing, sizes, and
+the size and flow of type. How a component looks comes from its recipe, a stylesheet
+beside it that reads theme tokens; see [docs/theming.md](docs/theming.md), which
+`theme/contract.test.ts` enforces. See [CODING.md](CODING.md) for broader
+conventions.
 
 ### UI behaviour specs
 

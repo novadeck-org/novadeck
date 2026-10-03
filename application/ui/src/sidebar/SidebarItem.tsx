@@ -3,8 +3,10 @@ import type { ComponentPropsWithoutRef, ReactNode, Ref } from "react"
 export const sidebarListClasses =
   "sidebar-list mt-2.5 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto pb-3"
 
+// An item (the item recipe draws it, its selection bar included); sidebar.css adds the
+// row's own looks.
 const sidebarItemClasses =
-  "sidebar-item relative flex min-h-17 min-w-0 shrink-0 rounded-control border border-transparent text-ink transition-[background-color,border-color,box-shadow] duration-(--motion-feedback) ease-interface hover:bg-soft focus-within:bg-soft data-[selected=true]:border-line data-[selected=true]:bg-paper data-[selected=true]:shadow-control [&.dragging]:z-50 [&.dragging]:border-line [&.dragging]:bg-paper [&.dragging]:shadow-control before:absolute before:top-1/4 before:bottom-1/4 before:left-0 before:w-0.5 before:bg-strong before:opacity-0 before:content-[''] before:transition-opacity before:duration-(--motion-state) before:ease-interface data-[selected=true]:before:opacity-100"
+  "item sidebar-item relative flex min-h-17 min-w-0 shrink-0 [&.dragging]:z-50"
 
 export const SidebarItem = ({
   name,
@@ -49,7 +51,7 @@ export const SidebarItem = ({
     <button
       ref={handleRef}
       hidden={editing}
-      className="sidebar-item-select flex min-w-0 flex-1 items-start gap-2 rounded-[inherit] px-2.5 py-[9px] text-left text-inherit focus-visible:outline-offset-[-2px]"
+      className="sidebar-item-select flex min-w-0 flex-1 items-start gap-2 px-2.5 py-[9px] text-left"
       type="button"
       aria-label={selectLabel}
       aria-description={description}
@@ -57,7 +59,7 @@ export const SidebarItem = ({
       title={tooltip}
       onClick={onSelect}
     >
-      <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center text-muted">
+      <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center">
         {icon}
       </span>
       <span className="sidebar-item-copy flex min-w-0 flex-1 flex-col gap-1">
@@ -69,7 +71,7 @@ export const SidebarItem = ({
         ) : (
           <strong className="truncate text-[12px] leading-[18px] font-medium">{name}</strong>
         )}
-        <span className="sidebar-item-detail flex h-6 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10px] leading-[18px] text-muted [.sidebar-item:has(.sidebar-item-actions)_&]:pr-[var(--sidebar-actions-space,52px)]">
+        <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10px] leading-[18px] [.sidebar-item:has(.sidebar-item-actions)_&]:pr-[var(--_sidebar-actions-space,52px)]">
           {detail}
         </span>
       </span>

@@ -1,0 +1,62 @@
+/* The sidebar's panels and rows. A `.sidebar-panel` slides in when it becomes the active
+   one; its title is a `.section-label` (the label recipe) over the panel, with a
+   `.sidebar-panel-count` beside it. Rows are items (the item recipe), each a
+   `.sidebar-item` holding a `.sidebar-item-select` button with a `.sidebar-item-icon`
+   and the row's `.item-detail`; a row being dragged is raised like a selected one. The
+   create button at the top of a panel is a `.button.sidebar-create`, ruled as quietly as
+   the rows' edges.
+
+   Hooks: on a panel, data-active="true" | "false"; on a row, the item recipe's, and the
+   `.dragging` class while it is dragged; `:focus-within` tints a row as hovering does.
+
+   Tokens, each optional (its fallback in brackets):
+   --sidebar-create-border-color (line): the create button's edge, at rest and hovered.
+   Rows take the item recipe's tokens: --item-hover-bg, the --item-selected-* tokens
+   (also while dragged) and --item-icon-fg. */
+.sidebar-panel {
+  transition:
+    opacity var(--motion-feedback) ease-out,
+    transform var(--motion-view) var(--ease-interface),
+    visibility var(--motion-view);
+}
+
+.sidebar-panel-count {
+  letter-spacing: normal;
+}
+
+.button.sidebar-create {
+  --_border-color: var(--sidebar-create-border-color, var(--color-line));
+}
+@media (hover: hover) {
+  .button.sidebar-create:hover {
+    --_border-color: var(--sidebar-create-border-color, var(--color-line));
+  }
+}
+.button.sidebar-create:focus-visible {
+  --_bg: var(--button-hover-bg, var(--color-soft));
+}
+
+.sidebar-item:focus-within {
+  --_bg: var(--item-hover-bg, var(--color-soft));
+}
+.sidebar-item.dragging {
+  --_bg: var(--item-selected-bg, var(--color-paper));
+  --_border-color: var(--item-selected-border-color, var(--color-line));
+  --_shadow: var(--item-selected-shadow, var(--shadow-control));
+}
+.sidebar-item-select {
+  border-radius: inherit;
+  color: inherit;
+}
+.sidebar-item-select:focus-visible {
+  outline-offset: -2px;
+}
+.sidebar-item-icon {
+  color: var(--item-icon-fg, var(--color-muted));
+}
+.session-running::before {
+  content: "·";
+  margin-right: calc(var(--spacing) * 1.5);
+  color: var(--item-detail-fg, var(--color-muted));
+  opacity: 0.5;
+}

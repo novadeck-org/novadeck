@@ -27,36 +27,36 @@ const show = (status: FooterStatus) => {
 
 describe("workspace footer", () => {
   context("while the runner link is healthy", () => {
-    it("shows the counts in its normal colours and no status", () => {
+    it("shows the counts untoned and no status", () => {
       const { bar, said } = show("ok")
       expect(bar().textContent).toContain("2 terminals")
-      expect(bar().className).toContain("bg-paper")
+      expect(bar().hasAttribute("data-tone")).toBe(false)
       expect(said()).toBe("")
     })
   })
 
   context("while the runner reconnects", () => {
-    it("turns the whole bar orange and says so", () => {
+    it("tones the whole bar as a warning and says so", () => {
       const { bar, said } = show("reconnecting")
-      expect(bar().className).toContain("bg-warning")
+      expect(bar().dataset["tone"]).toBe("warning")
       expect(bar().textContent).toContain("1 running")
       expect(said()).toBe("Reconnecting")
     })
   })
 
   context("when the runner is unavailable", () => {
-    it("turns the bar red and says so assertively", () => {
+    it("tones the bar as danger and says so assertively", () => {
       const { bar, said } = show("unavailable")
-      expect(bar().className).toContain("bg-danger")
+      expect(bar().dataset["tone"]).toBe("danger")
       expect(said()).toBe("Offline")
       expect(bar().querySelector("[role=status]")?.getAttribute("aria-live")).toBe("assertive")
     })
   })
 
   context("when the runner keeps restarting", () => {
-    it("turns the bar red and says so", () => {
+    it("tones the bar as danger and says so", () => {
       const { bar, said } = show("restarting")
-      expect(bar().className).toContain("bg-danger")
+      expect(bar().dataset["tone"]).toBe("danger")
       expect(said()).toBe("Crash loop")
     })
   })
@@ -97,14 +97,14 @@ describe("workspace footer", () => {
   })
 
   context("once the runner is back", () => {
-    it("turns green with Reconnected for a moment, then returns to normal", () => {
+    it("tones the bar as success with Reconnected for a moment, then rests untoned", () => {
       vi.useFakeTimers()
       const { bar, said, change } = show("reconnecting")
       change("ok")
-      expect(bar().className).toContain("bg-success")
+      expect(bar().dataset["tone"]).toBe("success")
       expect(said()).toBe("Reconnected")
       act(() => vi.advanceTimersByTime(recoveredForMs))
-      expect(bar().className).toContain("bg-paper")
+      expect(bar().hasAttribute("data-tone")).toBe(false)
       expect(said()).toBe("")
     })
   })

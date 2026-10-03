@@ -33,7 +33,10 @@ const sensors = [
 const feedback = Feedback.configure({
   dropAnimation: { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
 })
-const cursor = Cursor.configure({ cursor: "grabbing" })
+// dnd-kit puts this on every element while a drag lasts, as an unlayered `!important`
+// rule no stylesheet outranks; the taskbar recipe turns it to not-allowed, through the
+// value, while nothing takes the drop (see refuseDrop in ./tether.ts).
+const cursor = Cursor.configure({ cursor: "var(--_bar-drag-cursor, grabbing)" })
 // No scrolling the view under a dragged icon: where it would drop must stay where its
 // outline shows. No accessibility plugin either: it writes `aria-pressed` onto every
 // handle, and an icon's says whether the pane shows it. The icon describes its drag

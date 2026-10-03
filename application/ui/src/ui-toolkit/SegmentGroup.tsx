@@ -17,8 +17,10 @@ export type SegmentGroupProps = {
   value: string
   onValueChange: (value: string) => void
   className?: string
+  // Arranges each item; the segmented recipe draws it.
   itemClassName?: string
-  // The active item's look, drawn behind the items and sliding between them.
+  // Draws the active item's look behind the items, sliding between them, instead of on
+  // the active item; the class places it.
   indicatorClassName?: string
 }
 
@@ -40,7 +42,7 @@ export const SegmentGroup = ({
       ids={{ item: itemId }}
       orientation="horizontal"
       aria-label={label}
-      className={cn("relative", className)}
+      className={cn("segmented relative", className)}
       value={value}
       onValueChange={(details) => {
         if (details.value !== null) onValueChange(details.value)
@@ -51,14 +53,7 @@ export const SegmentGroup = ({
           <ArkSegmentGroup.Item
             id={itemId(item.value)}
             value={item.value}
-            className={cn(
-              "relative z-1 cursor-pointer transition-[background-color,color,border-color] duration-(--motion-feedback) ease-interface data-focus-visible:outline data-focus-visible:outline-2 data-focus-visible:outline-strong data-focus-visible:outline-offset-2",
-              itemClassName,
-              value === item.value &&
-                (indicatorClassName
-                  ? "active bg-transparent text-ink hover:bg-transparent"
-                  : "active border-line bg-paper text-ink shadow-control"),
-            )}
+            className={cn("segment relative z-1 cursor-pointer", itemClassName)}
           >
             {item.icon}
             <ArkSegmentGroup.ItemText>{item.label}</ArkSegmentGroup.ItemText>
@@ -70,7 +65,7 @@ export const SegmentGroup = ({
       {indicatorClassName && (
         <ArkSegmentGroup.Indicator
           className={cn(
-            "pointer-events-none top-(--top) z-0 h-(--height) w-(--width) [--transition-duration:var(--motion-state)] [--transition-timing-function:var(--ease-interface)]",
+            "segmented-indicator pointer-events-none top-(--top) z-0 h-(--height) w-(--width)",
             indicatorClassName,
           )}
         />

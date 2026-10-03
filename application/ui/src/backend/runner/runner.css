@@ -1,22 +1,151 @@
-/* xterm.css paints its scroll viewport black under the themed screen. At fractional
-   display scales the screen's edges land between pixels and that black shows through
-   as thin lines, so the viewport takes the surface's own background. */
-.runner-terminal .xterm .xterm-viewport {
-  background-color: transparent;
-}
+/* xterm's own stylesheet sits in the base layer with the other vendor CSS. */
+@import "@xterm/xterm/css/xterm.css" layer(base);
+@reference "../../styles.css";
 
-/* xterm draws its own scrollbar with a wide slider; thin it to the app's scrollbar
-   (one spacing unit, control radius) against the right edge. The track keeps its width
-   so the slider stays easy to grab. */
-.runner-terminal .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
-  left: auto !important;
-  right: 2px;
-  width: var(--spacing) !important;
-  border-radius: var(--radius-control);
-}
+/* The runner recipe: the surface a shell draws into, the notice while typing is paused,
+   the bar that says how the shell ended, and the debug panel (a `.floating` surface).
 
-/* Canvas scales its resize grip (28px, at the node's bottom-right corner) with
-   --canvas-chrome-scale; the end-of-session bar keeps its Restart button clear of it. */
-.canvas-node .runner-ending {
-  padding-right: calc(28px * var(--canvas-chrome-scale, 1) + 4px);
+   Hooks: data-locked on `.runner-terminal`; data-terminal-ending="success" | "warning" |
+   "danger" on `.runner-ending`; aria-disabled on `.runner-restart`. Parts:
+   `.runner-screen` (where xterm draws, greyed after a moment while locked), `.runner-lock`, `.runner-lock-notice`, `.runner-ending`, `.runner-ending-reason`,
+   `.runner-restart` (with its `kbd`), `.debug-panel`, `.debug-meta`, `.debug-heading`,
+   `.debug-action`, `.debug-hint`, `.debug-close`.
+
+   Tokens, each optional (its fallback in brackets):
+   --runner-lock-bg (canvas at 80%): over the surface while typing is paused.
+   --runner-notice-bg (paper), --runner-notice-fg (ink), --runner-notice-border-color
+   (line), --runner-notice-shadow (shadow-floating): the notice on it.
+   --runner-ending-bg (shell), --runner-ending-fg (ink), --runner-ending-border-color
+   (line), --runner-ending-reason-fg (muted): the ending bar.
+   --runner-restart-hover-bg (soft), --runner-restart-disabled-opacity (0.5): its
+   Restart button. Its key is a `kbd` on paper, muted.
+   --debug-muted-fg (muted), --debug-action-bg (shell), --debug-action-hover-bg (soft),
+   --debug-action-border-color (line): the debug panel's notes and actions. */
+
+@layer components {
+  /* The surface's padding, and the end-of-session bar's, which views override. */
+  :where(.runner-terminal) {
+    @apply p-3;
+  }
+  :where(.runner-ending) {
+    @apply pr-6 pl-3;
+  }
+
+  /* xterm.css paints its scroll viewport black under the themed screen. At fractional
+     display scales the screen's edges land between pixels and that black shows through
+     as thin lines, so the viewport takes the surface's own background. */
+  .runner-terminal .xterm .xterm-viewport {
+    background-color: transparent;
+  }
+
+  /* xterm draws its own scrollbar with a wide slider; thin it to the app's scrollbar
+     (one spacing unit, control radius) against the right edge. The track keeps its
+     width so the slider stays easy to grab. xterm sets the slider's left and width
+     inline, which only `!important` overrides. */
+  .runner-terminal .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+    left: auto !important;
+    right: 2px;
+    width: var(--spacing) !important;
+    border-radius: var(--radius-control);
+  }
+
+  /* While typing is paused the screen greys and the surface dims, after a moment, under
+     a notice. The screen also eases up out of the ending bar's way. */
+  .runner-screen {
+    transition:
+      filter var(--motion-state) var(--ease-interface),
+      margin-bottom var(--motion-state) var(--ease-interface);
+  }
+  .runner-terminal[data-locked] .runner-screen {
+    filter: grayscale(1);
+    transition-delay: 200ms;
+  }
+  .runner-lock {
+    background-color: var(
+      --runner-lock-bg,
+      color-mix(in srgb, var(--color-canvas) 80%, transparent)
+    );
+    transition: opacity var(--motion-state) var(--ease-interface) 200ms;
+  }
+  @starting-style {
+    .runner-lock {
+      opacity: 0;
+    }
+  }
+  .runner-lock-notice {
+    border: var(--border-width) solid var(--runner-notice-border-color, var(--color-line));
+    border-radius: var(--radius-control);
+    background-color: var(--runner-notice-bg, var(--color-paper));
+    color: var(--runner-notice-fg, var(--color-ink));
+    box-shadow: var(--runner-notice-shadow, var(--shadow-floating));
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  /* How the shell ended, along the surface's foot; it slides away when a new one
+     starts. */
+  .runner-ending {
+    border-top: var(--border-width) solid var(--runner-ending-border-color, var(--color-line));
+    background-color: var(--runner-ending-bg, var(--color-shell));
+    color: var(--runner-ending-fg, var(--color-ink));
+    transition:
+      opacity var(--motion-state) var(--ease-interface),
+      translate var(--motion-state) var(--ease-interface);
+  }
+  .runner-ending-reason {
+    color: var(--runner-ending-reason-fg, var(--color-muted));
+  }
+  .runner-restart {
+    --_bg: transparent;
+    border-radius: var(--radius-control);
+    background-color: var(--_bg);
+  }
+  .runner-restart:hover {
+    --_bg: var(--runner-restart-hover-bg, var(--color-soft));
+  }
+  .runner-restart:focus-visible {
+    outline: 2px solid var(--focus-ring-color, var(--color-strong));
+    outline-offset: 1px;
+  }
+  .runner-restart[aria-disabled="true"] {
+    --_bg: transparent;
+    cursor: default;
+    opacity: var(--runner-restart-disabled-opacity, 0.5);
+  }
+  .runner-restart kbd {
+    --_bg: var(--color-paper);
+    --_fg: var(--color-muted);
+  }
+
+  /* The debug panel: a floating surface of actions that put the runner in a state. */
+  .debug-meta,
+  .debug-heading,
+  .debug-hint,
+  .debug-close {
+    color: var(--debug-muted-fg, var(--color-muted));
+  }
+  .debug-meta {
+    font-family: var(--font-mono);
+  }
+  .debug-heading {
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+  }
+  .debug-close:hover {
+    color: var(--color-ink);
+  }
+  .debug-action {
+    --_bg: var(--debug-action-bg, var(--color-shell));
+    border: var(--border-width) solid var(--debug-action-border-color, var(--color-line));
+    border-radius: var(--radius-control);
+    background-color: var(--_bg);
+  }
+  .debug-action:hover {
+    --_bg: var(--debug-action-hover-bg, var(--color-soft));
+  }
+
+  /* Canvas scales its resize grip (28px, at the node's bottom-right corner) with
+     --_canvas-chrome-scale; the end-of-session bar keeps its Restart button clear of it. */
+  .canvas-node .runner-ending {
+    padding-right: calc(28px * var(--_canvas-chrome-scale, 1) + 4px);
+  }
 }

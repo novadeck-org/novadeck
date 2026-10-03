@@ -37,8 +37,7 @@ export type TerminalLayoutControls = {
   readonly onReveal?: (extent: { readonly right: number; readonly height: number }) => void
 }
 
-const headerActionClasses =
-  "icon-button [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100"
+const headerActionClasses = "icon-button dim"
 
 export type WindowShellProps = {
   // A terminal, or a window undocked from a companion, which runs nothing.
@@ -117,7 +116,7 @@ export const WindowShell = ({
   const headerDoubleAction = onFlyTo
   const header = (
     <header
-      className="terminal-header flex h-12 shrink-0 touch-manipulation select-none flex-nowrap items-center justify-between gap-3 border-b border-line bg-paper px-4 text-xs whitespace-nowrap [&_svg]:shrink-0 [&_svg]:text-muted"
+      className="terminal-header flex shrink-0 touch-manipulation select-none flex-nowrap items-center justify-between whitespace-nowrap"
       onDoubleClick={(event) => {
         if (
           performance.now() < ignoreDoubleClickUntil.current ||
@@ -195,7 +194,7 @@ export const WindowShell = ({
         else headerDoubleAction?.()
       }}
     >
-      <div className="terminal-title flex min-w-0 items-center gap-2.5 [&>h1]:truncate [&>h1]:font-medium [&>h2]:truncate [&>h2]:font-medium">
+      <div className="terminal-title flex min-w-0 items-center [&>h1]:truncate [&>h1]:font-medium [&>h2]:truncate [&>h2]:font-medium">
         {switcher ? (
           <Tooltip content="Switch terminal">
             <button
@@ -226,7 +225,7 @@ export const WindowShell = ({
               onChange={onRenameDraft}
               onSave={onRenameSave}
               onCancel={onRenameCancel}
-              className="w-full min-w-0 border-0 bg-transparent p-0 text-xs font-medium text-ink outline-none nodrag nopan"
+              className="terminal-rename-input w-full min-w-0 text-xs font-medium nodrag nopan"
             />
           )}
         </>
@@ -235,7 +234,7 @@ export const WindowShell = ({
         // Whether the agent plans, its subagents, context and busiest rate limit, in
         // full on hover. Only a focused window has room beside its name; a compact one
         // leaves them to its tab's tooltip.
-        <span className="ml-auto flex min-w-0 items-center gap-2 overflow-hidden font-mono text-[10px] text-muted">
+        <span className="terminal-metadata ml-auto flex min-w-0 items-center gap-2 overflow-hidden text-[10px]">
           {planning && (
             <span
               className="terminal-planning shrink-0"
@@ -256,7 +255,7 @@ export const WindowShell = ({
           )}
         </span>
       )}
-      <span className="terminal-actions flex shrink-0 items-center gap-1">
+      <span className="terminal-actions flex shrink-0 items-center">
         {minimize && (
           <Tooltip content={minimize.minimized ? "Restore" : "Minimize"}>
             <button
@@ -341,7 +340,7 @@ export const WindowShell = ({
   )
   return (
     <section
-      className={`terminal-window flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-panel transition-[border-color] duration-(--motion-state) ease-interface ${compact ? "terminal-compact" : "terminal-focused"}`}
+      className={`terminal-window flex h-full min-h-0 min-w-0 flex-col overflow-hidden ${compact ? "terminal-compact" : "terminal-focused"}`}
       aria-label={`${terminal.name} terminal`}
       data-terminal={terminal.id}
       data-terminal-phase={shell ? terminalPhase(shell) : "idle"}

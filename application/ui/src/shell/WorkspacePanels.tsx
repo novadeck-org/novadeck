@@ -85,8 +85,8 @@ export const WorkspacePanels = ({
             open={mobileOpen}
             onOpenChange={onMobileOpenChange}
             label={mobileLabel}
-            className="sidebar-drawer fixed top-15 bottom-7 left-0 flex w-[272px] max-w-full bg-shell text-ink shadow-panel"
-            backdropClassName="sidebar-scrim"
+            className="sidebar-drawer fixed top-15 bottom-7 left-0 flex w-[272px] max-w-full"
+            backdropClassName="overlay sidebar-scrim"
             positionerClassName="sidebar-positioner"
             initialFocusEl={() =>
               document.querySelector<HTMLButtonElement>(
@@ -108,7 +108,7 @@ export const WorkspacePanels = ({
     <div
       className={`workspace-panels relative min-h-0 min-w-0 flex-1${motion.active ? " sidebar-transition" : ""}`}
       ref={container}
-      style={{ "--sidebar-expanded-width": `${preferred}px` } as CSSProperties}
+      style={{ "--_sidebar-expanded-width": `${preferred}px` } as CSSProperties}
     >
       <Allotment
         ref={panels}

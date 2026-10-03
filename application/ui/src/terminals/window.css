@@ -1,0 +1,239 @@
+/* The window recipe: the terminal window, its header, selection bar and phase line, and
+   the content area the backends draw into.
+
+   Hooks: data-terminal-phase="idle" | "running" | "starting" | "attention" | "ended" and
+   data-new="true" on `.terminal-window`; `.terminal-focused` (Focus) and
+   `.terminal-compact` (Grid, Canvas); a selected window is `.terminal-focused`, or sits
+   in a `.grid-terminal.selected` or `.canvas-node.selected`. Parts: `.terminal-header`,
+   `.terminal-heading` (whose ::before is the selection bar and ::after the phase line),
+   `.terminal-title`, `.terminal-metadata`, `.terminal-actions`, `.terminal-rename-input`.
+
+   Tokens, each optional (its fallback in brackets):
+   --window-bg (paper), --window-fg (ink), --window-border-color (line),
+   --window-shadow (shadow-panel), --window-radius (radius-panel): the window at rest.
+   --window-selected-border-color (line-strong): the selected window's outline.
+   --window-header-bg (the window's bg), --window-header-border-color (line): the header
+   and its hairline. --window-header-icon-fg (muted): the icons in it.
+   --window-selected-header-bg (the header's bg): the selected window's header.
+   --window-metadata-fg (muted), --window-metadata-font (mono): planning, subagents and
+   usage beside the name.
+   --window-indicator-bg (the sidebar item's --item-selected-indicator-bg, then strong):
+   the selection bar at the header's leading edge.
+   --window-phase-border-width (1px): the phase line's weight.
+   --window-phase-track-border-color (line): the line the running sweep travels along.
+   --window-phase-running-border-color (strong), --window-phase-starting-border-color
+   (muted), --window-phase-attention-border-color (warning-fg),
+   --window-phase-ended-border-color (strong): the phase line in each phase.
+   --window-phase-attention-border-width (2px): its weight while an agent waits.
+   --window-ended-image (a faint ink hatch): laid over an ended window.
+   --window-ended-border-style (solid): an ended window's outline.
+   --window-ended-content-opacity (0.55): an ended terminal's output.
+   --window-new-ring-color (line-strong): the outline a new window flashes once. */
+
+/* The window's and its header's size, which the views and modes below override. */
+.terminal-window {
+  --_border-color: var(--window-border-color, var(--color-line));
+  --_border-style: solid;
+  border: var(--border-width) var(--_border-style) var(--_border-color);
+  border-radius: var(--window-radius, var(--radius-panel));
+  background-color: var(--window-bg, var(--color-paper));
+  color: var(--window-fg, var(--color-ink));
+  box-shadow: var(--window-shadow, var(--shadow-panel));
+  transition: border-color var(--motion-state) var(--ease-interface);
+}
+.terminal-header {
+  --_bg: var(--window-header-bg, var(--window-bg, var(--color-paper)));
+  --_border-color: var(--window-header-border-color, var(--color-line));
+  border-bottom: var(--border-width) solid var(--_border-color);
+  background-color: var(--_bg);
+}
+.terminal-header svg {
+  flex-shrink: 0;
+  color: var(--window-header-icon-fg, var(--color-muted));
+}
+:where(.terminal-header) {
+  @apply h-12 gap-3 px-4 text-xs;
+}
+:where(.terminal-title) {
+  @apply gap-2.5;
+}
+:where(.terminal-actions) {
+  @apply gap-1;
+}
+.terminal-metadata {
+  color: var(--window-metadata-fg, var(--color-muted));
+  font-family: var(--window-metadata-font, var(--font-mono));
+}
+/* The name being edited, in the header and in a sidebar tab: bare text in place. */
+.terminal-rename-input {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-ink);
+  box-shadow: none;
+  outline: none;
+}
+.terminal-focused,
+.grid-terminal.selected .terminal-window,
+.canvas-node.selected .terminal-window {
+  --_border-color: var(--window-selected-border-color, var(--color-line-strong));
+}
+.terminal-focused .terminal-header,
+.grid-terminal.selected .terminal-header,
+.canvas-node.selected .terminal-header {
+  --_bg: var(
+    --window-selected-header-bg,
+    var(--window-header-bg, var(--window-bg, var(--color-paper)))
+  );
+}
+/* The selection bar is one size in every view, centred on the header whatever its
+   height; Canvas scales it with the rest of the header chrome. */
+.terminal-heading::before {
+  content: "";
+  @apply absolute left-0 top-1/2 z-1 h-6 w-0.5 -translate-y-1/2;
+  background-color: var(
+    --window-indicator-bg,
+    var(--item-selected-indicator-bg, var(--color-strong))
+  );
+  opacity: 0;
+  transition: opacity var(--motion-state) var(--ease-interface);
+}
+.terminal-focused .terminal-heading::before,
+.grid-terminal.selected .terminal-heading::before,
+.canvas-node.selected .terminal-heading::before {
+  opacity: 1;
+}
+/* A terminal's phase. Its tab reads it as text (see tabs.css); its window reads it from
+   a line under the header, legible at any Canvas zoom: a sweep while a program runs,
+   dots while the shell starts, dashes once it has ended, and nothing while idle.
+   Reduced motion holds the sweep still. */
+/* An ended terminal is hatched across its window; the hatch lies over its output, which
+   is drawn on an opaque canvas, and lets clicks through. The hatch is drawn from ink,
+   so it reads on a light ground and a dark one alike. */
+.terminal-window[data-terminal-phase="ended"] {
+  --_border-style: var(--window-ended-border-style, solid);
+  position: relative;
+}
+.terminal-window[data-terminal-phase="ended"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background-image: var(
+    --window-ended-image,
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 6px,
+      color-mix(in srgb, var(--color-ink) 3.5%, transparent) 6px 7px
+    )
+  );
+  pointer-events: none;
+}
+/* The phase line is a border, like the header's hairline beneath it, so both snap to
+   the same device pixel at any display scale or Canvas zoom. */
+.terminal-heading::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  height: 0;
+  border-top: var(--window-phase-border-width, 1px) solid transparent;
+  pointer-events: none;
+}
+@property --_terminal-sweep {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: -35%;
+}
+.terminal-window[data-terminal-phase="running"] .terminal-heading::after {
+  --_track: var(--window-phase-track-border-color, var(--color-line));
+  --_sweep: var(--window-phase-running-border-color, var(--color-strong));
+  border-image: linear-gradient(
+      to right,
+      var(--_track) calc(var(--_terminal-sweep) - 25%),
+      var(--_sweep) calc(var(--_terminal-sweep) - 10%),
+      var(--_sweep) calc(var(--_terminal-sweep) + 10%),
+      var(--_track) calc(var(--_terminal-sweep) + 25%)
+    )
+    1;
+  animation: terminal-sweep 2.2s var(--ease-interface) infinite;
+}
+.terminal-window[data-terminal-phase="starting"] .terminal-heading::after {
+  border-top-style: dotted;
+  border-top-color: var(--window-phase-starting-border-color, var(--color-muted));
+  animation: terminal-pulse 1.2s ease-in-out infinite;
+}
+/* Waiting on the person: a steady line in the warning colour, which a slow pulse draws
+   the eye to unless motion is reduced. */
+.terminal-window[data-terminal-phase="attention"] .terminal-heading::after {
+  border-top: var(--window-phase-attention-border-width, 2px) solid
+    var(--window-phase-attention-border-color, var(--color-warning-fg));
+  animation: terminal-pulse 1.6s ease-in-out infinite;
+}
+.terminal-window[data-terminal-phase="ended"] .terminal-heading::after {
+  border-top-style: dashed;
+  border-top-color: var(--window-phase-ended-border-color, var(--color-strong));
+}
+.terminal-window[data-terminal-phase="ended"] .runner-terminal .xterm {
+  opacity: var(--window-ended-content-opacity, 0.55);
+}
+@keyframes terminal-sweep {
+  to {
+    --_terminal-sweep: 135%;
+  }
+}
+@keyframes terminal-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .terminal-window[data-terminal-phase="attention"] .terminal-heading::after {
+    animation: none;
+  }
+  .terminal-window[data-terminal-phase="running"] .terminal-heading::after {
+    border-image: none;
+    border-top-color: var(--window-phase-running-border-color, var(--color-strong));
+  }
+}
+.terminal-compact .terminal-content {
+  @apply px-4 pt-4;
+  font-size: calc(var(--terminal-font-size, 13px) - 2px);
+  line-height: 1.8;
+}
+.terminal-content {
+  user-select: text;
+}
+.terminal-compact .terminal-header,
+.terminal-focused .terminal-header {
+  @apply h-12 px-4;
+}
+@media (min-width: 1650px) {
+  .terminal-content,
+  .terminal-compact .terminal-content {
+    padding: 28px 32px;
+  }
+}
+@media (max-width: 700px) {
+  .terminal-content,
+  .terminal-compact .terminal-content {
+    padding: 18px 14px;
+    font-size: calc(var(--terminal-font-size, 13px) - 1px);
+  }
+}
+/* A window just created flashes its outline once. */
+.terminal-window[data-new="true"] {
+  animation: terminal-created 900ms var(--ease-interface);
+}
+@keyframes terminal-created {
+  from {
+    outline: 2px solid var(--window-new-ring-color, var(--color-line-strong));
+    outline-offset: -2px;
+  }
+  to {
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+  }
+}

@@ -1,0 +1,86 @@
+/* The workspace's panels: the resizable sidebar beside the main area, and on narrow
+   screens the sidebar as a drawer over the overlay (`.sidebar-scrim`). The region
+   recipe draws the sidebar and the drawer; this file places and moves them. */
+
+/* The sidebar's own width, which the panels and the drawer override. */
+:where(.sidebar) {
+  @apply w-57;
+}
+/* Allotment's sash colours come from the separator recipe. */
+.workspace-panels {
+  --sash-hover-size: 2px;
+}
+.workspace-panels .sidebar {
+  @apply h-full w-full;
+  border-right-width: 0;
+}
+.workspace-panels .main-area {
+  @apply h-full;
+}
+.sidebar-transition .workspace-sidebar-pane,
+.sidebar-transition .workspace-main-pane {
+  transition:
+    width var(--motion-state) var(--ease-interface),
+    left var(--motion-state) var(--ease-interface);
+}
+.sidebar-transition .sidebar-content {
+  display: block;
+  width: var(--_sidebar-expanded-width);
+}
+.sidebar-transition .sash,
+.sidebar-transition .sidebar-keyboard-resize {
+  pointer-events: none;
+  opacity: 0;
+}
+.sidebar-keyboard-resize:focus-visible {
+  outline: none;
+  /* The sash's own colour under the pointer (the separator recipe's token). */
+  background: linear-gradient(
+      var(--sash-hover-bg, var(--color-strong)),
+      var(--sash-hover-bg, var(--color-strong))
+    )
+    center / 2px 100% no-repeat;
+}
+@media (max-width: 700px) {
+  .sidebar-positioner {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+  }
+  .sidebar-drawer {
+    pointer-events: auto;
+  }
+  .sidebar-drawer .sidebar {
+    flex: 1;
+    min-width: 0;
+    width: 228px;
+  }
+  .sidebar-drawer[data-state="open"] {
+    animation: sidebar-enter var(--motion-state) var(--ease-interface);
+  }
+  .sidebar-drawer[data-state="closed"] {
+    animation: sidebar-exit var(--motion-state) var(--ease-interface);
+  }
+  .sidebar-scrim {
+    z-index: 40;
+    position: fixed;
+    inset: 0;
+  }
+}
+@keyframes sidebar-enter {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes sidebar-exit {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}

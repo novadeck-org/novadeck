@@ -1,0 +1,192 @@
+/* The boot splash recipe (concept H, "Attach"): the lockup in the middle while the
+   camera eases back over empty terminal slots that jack in one by one. Decorative apart
+   from the hairline and the status line, which follow real progress. The markup lays it
+   out; this draws it, moves it, and draws a failure in its place, with the failure's
+   details and its `.button.link`s.
+
+   Hooks: data-state="booting" | "settled" | "failed" on `.boot-splash` (settled: a
+   failure was shown during this boot, so the lockup stands finished). The hairline's
+   fill reads its progress from --_fill, 0 to 1, which the markup sets. Parts:
+   `.boot-splash-field`, `-slot`, `-terminal` (a `.panel`), `-titlebar`, `-bar`
+   (`.lead` for a slot's first line, `.title` for its name), `-cursor`, `-flash`,
+   `-hero`, `-word`, `-tag`, `-hairline`, `-lines`, `-phase`, `-failure`;
+   `.boot-failure-details`, `.boot-failure-link` (a `.button.link`).
+
+   Tokens, each optional (its fallback in brackets):
+   --boot-splash-bg (paper), --boot-splash-fg (muted): the ground, and the tag and phase.
+   --boot-splash-slot-border-color (line-strong): an empty slot's dashed outline.
+   --boot-splash-bar-bg (soft), --boot-splash-bar-lead-bg (line),
+   --boot-splash-bar-title-bg (line-strong): a slot's lines of text, its first one and
+   its name; the cursor is drawn like its name.
+   --boot-splash-flash-border-color (strong): the outline a slot flashes as it fills.
+   --boot-splash-hairline-bg (line), --boot-splash-hairline-fill-bg (strong): the
+   progress hairline; a failure fills it in danger-fg.
+   --boot-splash-failed-field-opacity (0.22): the field behind a failure.
+   --boot-failure-details-bg (shell), --boot-failure-details-border-color (line),
+   --boot-failure-fg (muted): the failure's notes and details. */
+.boot-splash {
+  background-color: var(--boot-splash-bg, var(--color-paper));
+  transition: opacity 400ms var(--ease-interface);
+}
+.boot-splash-field {
+  transition: opacity 600ms var(--ease-interface);
+}
+.boot-splash-slot {
+  border: var(--border-width) dashed var(--boot-splash-slot-border-color, var(--color-line-strong));
+  border-radius: var(--radius-panel);
+}
+.boot-splash-titlebar {
+  border-bottom: var(--border-width) solid var(--color-line);
+}
+.boot-splash-bar {
+  border-radius: 1px;
+  background-color: var(--boot-splash-bar-bg, var(--color-soft));
+}
+.boot-splash-bar.lead {
+  background-color: var(--boot-splash-bar-lead-bg, var(--color-line));
+}
+.boot-splash-bar.title,
+.boot-splash-cursor {
+  background-color: var(--boot-splash-bar-title-bg, var(--color-line-strong));
+}
+.boot-splash-flash {
+  border: var(--border-width) solid var(--boot-splash-flash-border-color, var(--color-strong));
+  border-radius: var(--radius-panel);
+  opacity: 0;
+}
+.boot-splash-word {
+  letter-spacing: -0.045em;
+}
+.boot-splash-tag,
+.boot-splash-phase {
+  color: var(--boot-splash-fg, var(--color-muted));
+}
+.boot-splash-hairline {
+  background-color: var(--boot-splash-hairline-bg, var(--color-line));
+}
+.boot-splash-hairline > i {
+  background-color: var(--boot-splash-hairline-fill-bg, var(--color-strong));
+  transform: scaleX(var(--_fill, 0));
+  transition:
+    transform 300ms var(--ease-interface),
+    background-color 300ms var(--ease-interface);
+}
+.boot-splash-phase,
+.boot-splash-failure {
+  transition: opacity 300ms var(--ease-interface);
+}
+/* The phase line and a failure share one spot and cross-fade. The failure hangs down
+   from that spot, so the lockup above never moves. */
+.boot-splash-failure {
+  pointer-events: none;
+  opacity: 0;
+}
+.boot-splash[data-state="failed"] .boot-splash-phase {
+  opacity: 0;
+}
+.boot-splash[data-state="failed"] .boot-splash-failure {
+  opacity: 1;
+  pointer-events: auto;
+}
+.boot-splash[data-state="failed"] .boot-splash-field {
+  opacity: var(--boot-splash-failed-field-opacity, 0.22);
+}
+.boot-splash[data-state="failed"] :is(.boot-splash-field, .boot-splash-field *) {
+  animation-play-state: paused;
+}
+/* A failure fills the hairline in the danger tone, whatever the progress was. */
+.boot-splash[data-state="failed"] .boot-splash-hairline > i {
+  background-color: var(--color-danger-fg);
+  transform: none;
+}
+
+/* Without motion the splash is a still composition: every slot already filled. Only
+   the field freezes on a failure: once one has been shown, the lockup stands in its
+   finished state (the markup stops animating the logo), so the name and tag stay whole
+   and legible however early it came, and a retry does not replay the entrance. */
+@media (prefers-reduced-motion: no-preference) {
+  .boot-splash-field {
+    animation: boot-camera 8.7s cubic-bezier(0.2, 0, 0.2, 1) both;
+  }
+  .boot-splash-slot {
+    animation: boot-appear 0.7s linear both;
+  }
+  .boot-splash-terminal {
+    animation: boot-jack 0.35s var(--ease-interface) both;
+    animation-delay: calc(1.3s + var(--_order) * 0.3s);
+  }
+  .boot-splash-flash {
+    animation: boot-flash 0.75s linear both;
+    animation-delay: calc(1.3s + var(--_order) * 0.3s);
+  }
+  .boot-splash-cursor {
+    animation: boot-blink 1.1s step-end infinite;
+  }
+  .boot-splash[data-state="booting"] .boot-splash-tag {
+    animation: boot-rise 0.55s var(--ease-interface) 1.25s both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boot-splash,
+  .boot-splash-field,
+  .boot-splash-lines > *,
+  .boot-splash-hairline > i {
+    transition: none;
+  }
+}
+
+@keyframes boot-camera {
+  from {
+    transform: scale(1.06);
+  }
+}
+@keyframes boot-appear {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes boot-jack {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@keyframes boot-flash {
+  0% {
+    opacity: 0;
+  }
+  11% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes boot-blink {
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes boot-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* What failed on the way in: its notes and its details. */
+.boot-failure-note,
+.boot-failure-details dl {
+  color: var(--boot-failure-fg, var(--color-muted));
+}
+.boot-failure-details {
+  border: var(--border-width) solid var(--boot-failure-details-border-color, var(--color-line));
+  border-radius: var(--radius-control);
+  background-color: var(--boot-failure-details-bg, var(--color-shell));
+}
+.boot-failure-details dl {
+  font-family: var(--font-mono);
+}
+.boot-failure-details dd {
+  color: var(--color-ink);
+}

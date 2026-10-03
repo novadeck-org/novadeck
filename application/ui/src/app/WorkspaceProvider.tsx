@@ -9,6 +9,7 @@ import { readPreferences } from "../preferences/preferences-storage"
 import { readSidebarCollapsed, readWindowedView } from "../shell/shell-storage"
 import { createPanes } from "../terminals/companion/state"
 import { createDragSession, DragSessionContext } from "../terminals/drag-session"
+import { followSavedPreferences, watchAppearance } from "./appearance"
 import { createNavigator, type NavigatorServices, type RouterBinding } from "./commands/navigator"
 import { createWorkspaceCommands } from "./commands/workspace"
 import { connectBackend } from "./controller/backend-connection"
@@ -110,6 +111,11 @@ export const WorkspaceProvider = ({
   )
   useEffect(() => services.panes?.connect(), [services])
   useEffect(() => persistUi(services.ui, services.workspace), [services])
+  useEffect(() => watchAppearance(services.ui, window, services.backend.showAppearance), [services])
+  useEffect(
+    () => followSavedPreferences(services.ui, window, services.commands.updatePreferences),
+    [services],
+  )
   useEffect(() => watchPresentation(services.workspace, services.ui), [services])
   useEffect(() => trackRecent(services.workspace, services.ui), [services])
   useEffect(() => watchSwitcher(services.workspace, services.ui), [services])

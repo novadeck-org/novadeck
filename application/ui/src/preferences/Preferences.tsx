@@ -5,26 +5,31 @@ import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
 import { viewModes } from "../model/state"
 import type { PreferencesValue } from "../model/types"
+import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { Checkbox } from "../ui-toolkit/Checkbox"
 import { Dialog } from "../ui-toolkit/Dialog"
+import { SegmentGroup } from "../ui-toolkit/SegmentGroup"
 import { Select } from "../ui-toolkit/Select"
 import { Switch } from "../ui-toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "../ui-toolkit/Tabs"
 import { AgentSwitches, agentsExplanation, type AgentSwitch } from "./AgentSwitches"
 import { settingRowClasses, settingsCardClasses } from "./settings"
 
-import motion from "../ui-toolkit/ModalMotion.module.css"
-
-const themes = [{ label: "Monochrome", value: "monochrome" }]
+const themeItems = themes.map(({ id, name }) => ({ label: name, value: id }))
+const schemeItems = [
+  { label: "System", value: "system" },
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" },
+] as const
 const fontSizes = [12, 13, 15].map((size) => ({ label: `${size}px`, value: String(size) }))
 const viewLabels = { focus: "Focus", grid: "Grid", canvas: "Canvas" } as const
 const viewIcons = { focus: PanelLeft, grid: LayoutGrid, canvas: SquareDashedMousePointer } as const
 
 // Section titles match the sidebar's panel titles.
-const sectionTitleClasses = "m-0 text-[9px] font-medium tracking-[1.3px] text-muted uppercase"
-const sectionDescriptionClasses = "m-0 mt-1.5 text-[11px] leading-relaxed text-muted"
+const sectionTitleClasses = "section-label m-0 text-[9px] font-medium"
+const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-[11px] leading-relaxed"
 const panelClasses =
-  "preferences-panel col-start-1 row-start-1 flex flex-col gap-6 px-6 py-5 outline-none transition-opacity duration-(--motion-feedback) ease-interface focus-visible:outline-2 focus-visible:outline-strong focus-visible:outline-offset-[-2px] data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[480px]:px-4"
+  "preferences-panel col-start-1 row-start-1 flex flex-col gap-6 px-6 py-5 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[480px]:px-4"
 
 // A titled group of settings; the title names the region unless a label is given.
 const Section = ({
@@ -69,7 +74,7 @@ const SettingText = ({
 }): React.JSX.Element => (
   <span className="flex min-w-0 flex-col gap-1">
     <span id={id}>{label}</span>
-    <span id={descriptionId} className="text-[11px] leading-relaxed text-muted">
+    <span id={descriptionId} className="settings-description text-[11px] leading-relaxed">
       {description}
     </span>
   </span>
@@ -112,6 +117,11 @@ export const Preferences = ({
     if (panels.current) panels.current.scrollTop = 0
   }
   const lastView = value.enabledViews.length === 1
+  const { appearance } = value
+  const theme: ThemeEntry<ThemeId> =
+    themes.find((entry) => entry.id === appearance.theme) ?? themes[0]
+  // A theme drawn in one scheme leaves nothing to choose.
+  const onlyScheme = theme.schemes.length === 1 ? theme.schemes[0] : undefined
   return (
     <Dialog
       open={open}
@@ -127,14 +137,14 @@ export const Preferences = ({
       }}
       contentRef={dialog}
       label="Preferences"
-      backdropClassName={`${motion.backdrop} fixed inset-0 z-50 bg-scrim backdrop-blur-[3px]`}
+      backdropClassName="overlay fixed inset-0 z-50"
       positionerClassName="fixed inset-0 z-50 flex items-center justify-center"
-      className={`${motion.dialog} flex h-[min(640px,calc(100dvh-48px))] w-[min(540px,calc(100vw-32px))] flex-col overflow-hidden rounded-popover border border-line-strong bg-paper text-ink shadow-modal max-[480px]:w-[calc(100vw-24px)]`}
+      className="modal flex h-[min(640px,calc(100dvh-48px))] w-[min(540px,calc(100vw-32px))] flex-col overflow-hidden max-[480px]:w-[calc(100vw-24px)]"
     >
       <Tabs value={tab} onValueChange={changeTab} className="flex min-h-0 flex-1 flex-col">
-        <div className="preferences-heading shrink-0 border-b border-line px-6 pt-5 max-[480px]:px-4">
+        <div className="modal-header preferences-heading shrink-0 px-6 pt-5 max-[480px]:px-4">
           <div className="flex items-center justify-between gap-4">
-            <h2 id="preferences-title" className="m-0 text-[15px] font-medium tracking-[-0.3px]">
+            <h2 id="preferences-title" className="modal-title m-0 text-[15px] font-medium">
               Preferences
             </h2>
             <button
@@ -148,54 +158,67 @@ export const Preferences = ({
           <TabList
             className="preferences-tabs mt-3 flex gap-5"
             label="Preference sections"
-            indicatorClassName="bottom-[-1px] h-0.5 bg-strong"
+            indicatorClassName="bottom-[-1px] h-0.5"
           >
             {(["general", "shortcuts"] as const).map((id) => (
-              <Tab
-                key={id}
-                value={id}
-                className="relative min-h-9 px-0.5 text-left text-[12px] text-muted hover:text-ink data-selected:text-ink"
-              >
+              <Tab key={id} value={id} className="relative min-h-9 px-0.5 text-left text-[12px]">
                 {id === "general" ? "General" : "Shortcuts"}
               </Tab>
             ))}
           </TabList>
         </div>
-        <div
-          ref={panels}
-          className="preferences-panels grid min-h-0 flex-1 overflow-y-auto bg-shell"
-        >
+        <div ref={panels} className="preferences-panels grid min-h-0 flex-1 overflow-y-auto">
           <TabPanel value="general" className={panelClasses}>
             <Section title="Appearance">
               <div className={settingsCardClasses}>
                 <Select
                   className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
                   label="Theme"
-                  items={themes}
-                  value="monochrome"
+                  items={themeItems}
+                  value={theme.id}
+                  onValueChange={(id) => {
+                    const chosen = themes.find((entry) => entry.id === id)
+                    if (chosen)
+                      onChange({ ...value, appearance: { ...appearance, theme: chosen.id } })
+                  }}
                   open={open && tab === "general" && openSelect === "theme"}
                   onOpenChange={(expanded) => setOpenSelect(expanded ? "theme" : null)}
                   portalContainer={dialog}
                 />
-                <div className={`preference-row ${settingRowClasses}`} title="Unavailable">
+                {/* A disabled fieldset disables the segment group inside it. */}
+                <fieldset
+                  className={`preference-row ${settingRowClasses} m-0 min-w-0`}
+                  aria-labelledby="theme-scheme-label"
+                  aria-describedby="theme-scheme-description"
+                  disabled={onlyScheme !== undefined}
+                >
                   <SettingText
-                    id="theme-mode-label"
-                    label="Dark mode"
-                    description="Coming soon"
-                    descriptionId="theme-mode-description"
+                    id="theme-scheme-label"
+                    label="Mode"
+                    description={
+                      onlyScheme
+                        ? `${theme.name} comes only in ${onlyScheme}.`
+                        : "Follow the system, or stay light or dark."
+                    }
+                    descriptionId="theme-scheme-description"
                   />
-                  <Switch
-                    checked={false}
-                    onChange={() => {}}
-                    labelledBy="theme-mode-label"
-                    describedBy="theme-mode-description"
-                    disabled
+                  <SegmentGroup
+                    label="Mode"
+                    items={[...schemeItems]}
+                    value={onlyScheme ?? appearance.scheme}
+                    onValueChange={(next) => {
+                      const scheme = schemeItems.find((item) => item.value === next)?.value
+                      if (scheme) onChange({ ...value, appearance: { ...appearance, scheme } })
+                    }}
+                    className="flex shrink-0 gap-1"
+                    itemClassName="flex h-7 min-w-14 items-center justify-center px-2.5 text-[11px] data-disabled:cursor-not-allowed"
+                    indicatorClassName="absolute"
                   />
-                </div>
+                </fieldset>
               </div>
             </Section>
             <fieldset
-              className="view-preferences m-0 min-w-0 border-0 p-0"
+              className="view-preferences settings-fieldset m-0 min-w-0 p-0"
               aria-describedby="view-modes-description"
             >
               <legend className="float-left mb-1.5 w-full p-0 px-0.5">
@@ -215,7 +238,9 @@ export const Preferences = ({
                   return (
                     <label
                       key={mode}
-                      className={`relative flex min-h-[76px] min-w-0 flex-col justify-between gap-3 rounded-panel border p-3 text-[12px] transition-[background-color,border-color,color,box-shadow] duration-(--motion-feedback) ease-interface has-focus-visible:outline-2 has-focus-visible:outline-strong has-focus-visible:outline-offset-2 ${checked ? "border-line-strong bg-paper text-ink shadow-control" : "border-line bg-paper/60 text-muted hover:border-line-strong hover:text-ink"} ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
+                      className={`choice-card relative flex min-h-[76px] min-w-0 flex-col justify-between gap-3 p-3 text-[12px] ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
+                      data-state={checked ? "checked" : "unchecked"}
+                      data-disabled={locked || undefined}
                     >
                       <Icon aria-hidden="true" className="shrink-0" size={16} strokeWidth={1.5} />
                       <span>{viewLabels[mode]}</span>
@@ -285,14 +310,14 @@ export const Preferences = ({
                   {items.map(({ label, display }) => (
                     <div
                       key={label}
-                      className="flex min-h-10.5 items-center justify-between gap-4 px-4 py-2 text-[12px] [&+&]:border-t [&+&]:border-line"
+                      className="settings-row flex min-h-10.5 items-center justify-between gap-4 px-4 py-2 text-[12px]"
                     >
                       <dt className="m-0 min-w-0">{label}</dt>
                       <dd className="m-0 flex shrink-0 gap-1">
                         {display.map((key) => (
                           <kbd
                             key={key}
-                            className="h-5.5 min-w-5.5 bg-paper pt-0.5 text-[10px] leading-none text-ink shadow-[0_1px_0_var(--color-line)]"
+                            className="h-5.5 min-w-5.5 pt-0.5 text-[10px] leading-none"
                           >
                             {key}
                           </kbd>

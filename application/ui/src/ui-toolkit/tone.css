@@ -1,0 +1,26 @@
+/* The tone recipe: anything marked with `data-tone`, such as a status bar or a badge,
+   takes that tone's tint behind it, its text colour on it, and a faint edge of the
+   same hue. It reads the foundation tones straight, so it has no tokens of its own.
+
+   Hooks: data-tone="success" | "warning" | "danger" | "note". */
+[data-tone="success"] {
+  --_tone-bg: var(--color-success);
+  --_tone-fg: var(--color-success-fg);
+}
+[data-tone="warning"] {
+  --_tone-bg: var(--color-warning);
+  --_tone-fg: var(--color-warning-fg);
+}
+[data-tone="danger"] {
+  --_tone-bg: var(--color-danger);
+  --_tone-fg: var(--color-danger-fg);
+}
+[data-tone="note"] {
+  --_tone-bg: var(--color-note);
+  --_tone-fg: var(--color-note-fg);
+}
+[data-tone] {
+  border-color: color-mix(in srgb, var(--_tone-fg) 20%, transparent);
+  background-color: var(--_tone-bg);
+  color: var(--_tone-fg);
+}

@@ -1,12 +1,16 @@
 import { createWorkspaceStore } from "../../model/store"
 import type { PreferencesValue, Workspace } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
-import { workspaceFixture } from "../../test/fixtures"
+import { appearance, workspaceFixture } from "../../test/fixtures"
 import { resolveRoute } from "../routing"
 import { createUiStore, initialUi } from "../ui-store"
 import { createNavigator, syncLocation, type RouterNavigate } from "./navigator"
 
-const preferences: PreferencesValue = { fontSize: 13, enabledViews: ["focus", "grid", "canvas"] }
+const preferences: PreferencesValue = {
+  fontSize: 13,
+  enabledViews: ["focus", "grid", "canvas"],
+  appearance,
+}
 const base = "/projects/project/sessions/initial/grid"
 
 // A navigator over fresh stores, opened at `search`, recording what it asks the router for.

@@ -1,6 +1,6 @@
 import { createWorkspaceStore } from "../model/store"
 import { context, describe, expect, it } from "../test"
-import { workspaceFixture } from "../test/fixtures"
+import { appearance, workspaceFixture } from "../test/fixtures"
 import {
   createUiStore,
   initialUi,
@@ -26,7 +26,7 @@ const initial = (): UiState =>
       dialogDepth: 0,
       navigationType: "POP",
     },
-    preferences: { fontSize: 13, enabledViews: ["focus", "grid"] },
+    preferences: { fontSize: 13, enabledViews: ["focus", "grid"], appearance },
   })
 
 describe("UI store persistence", () => {

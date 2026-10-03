@@ -3,8 +3,9 @@ import { useMemo, type ReactNode, type RefObject } from "react"
 
 import { cn } from "../class-name"
 
+// A search result: an item (the item recipe), whatever list it is in.
 export const searchResultClasses =
-  "group flex min-h-15 w-full cursor-pointer items-center gap-3 rounded-control border border-transparent px-3 py-2.5 text-left hover:border-line hover:bg-shell data-highlighted:border-line data-highlighted:bg-shell [&>svg]:shrink-0 [&>svg]:text-muted"
+  "item group flex min-h-15 w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left"
 
 export type SearchOption = { value: string; label: string; content: ReactNode }
 
@@ -53,17 +54,14 @@ export const SearchCombobox = ({
       }}
     >
       <Combobox.Control
-        className={cn(
-          "flex min-h-17 items-center gap-3 border-b border-line px-5 py-3 text-muted",
-          controlClassName,
-        )}
+        className={cn("field quiet flex min-h-17 items-center gap-3 px-5 py-3", controlClassName)}
       >
         {leading}
         <Combobox.Context>
           {(combobox) => (
             <Combobox.Input
               ref={inputRef}
-              className="min-w-0 flex-1 bg-transparent text-sm text-ink focus-visible:outline-none"
+              className="field-input min-w-0 flex-1 text-sm"
               aria-label={label}
               placeholder={placeholder}
               onFocus={() => {

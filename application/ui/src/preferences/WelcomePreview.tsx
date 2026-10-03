@@ -4,8 +4,6 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
 import { ClaudeIcon } from "../ui-toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "../ui-toolkit/icons/CodexIcon"
 
-import styles from "./WelcomePreview.module.css"
-
 const views = [
   {
     id: "focus",
@@ -41,22 +39,22 @@ type Line = {
 }
 
 const lineClasses: Record<Line["kind"], string> = {
-  prompt: "text-ink",
-  response: "text-muted",
-  check: "flex items-center gap-[5px] text-muted",
+  prompt: "prompt",
+  response: "response",
+  check: "check flex items-center gap-[5px]",
 }
 
 // Each terminal card's title bar and output; the stage's layout rules restyle the output.
 const barClasses =
-  "flex h-7 items-center gap-1.5 border-b border-line bg-shell px-[9px] text-[8px] whitespace-nowrap text-ink"
-const codeClasses = `${styles.code} flex flex-col gap-[7px] p-3 font-mono text-[8px] leading-[1.4] whitespace-nowrap`
+  "welcome-terminal-bar flex h-7 items-center gap-1.5 px-[9px] text-[8px] whitespace-nowrap"
+const codeClasses = "welcome-code flex flex-col leading-[1.4] whitespace-nowrap"
 
 // Each line types itself in after the terminals are dealt, `at` ms after opening.
 const TypedLine = ({ text, kind, at }: Line & { readonly at: number }): React.JSX.Element => (
   <span
-    className={`${styles.typed} w-fit ${lineClasses[kind]}`}
+    className={`welcome-line welcome-typed w-fit ${lineClasses[kind]}`}
     style={
-      { "--chars": text.length + (kind === "check" ? 2 : 0), "--at": `${at}ms` } as CSSProperties
+      { "--_chars": text.length + (kind === "check" ? 2 : 0), "--_at": `${at}ms` } as CSSProperties
     }
   >
     {kind === "check" && <Check size={10} />}
@@ -70,20 +68,16 @@ const typed = (lines: readonly Line[], from: number): React.JSX.Element[] =>
 // A connected agent's terminal says so, and plays a short scan the moment it connects.
 const Status = ({ connected }: { readonly connected?: boolean }): React.JSX.Element => (
   <span
-    className={`${styles.status} ml-auto flex items-center gap-1.5`}
+    className="welcome-status ml-auto flex items-center gap-1.5"
     data-connected={connected === true || undefined}
   >
     {connected && (
-      <span
-        className={`${styles.connected} flex items-center gap-[3px] font-mono text-[7px] leading-[normal] tracking-[0.4px] text-muted`}
-      >
+      <span className="welcome-status-label flex items-center gap-[3px] text-[7px] leading-[normal]">
         <Plug size={7} strokeWidth={2.2} />
         connected
       </span>
     )}
-    <span
-      className={`${styles.dot} relative size-1 rounded-[50%] transition-[background-color] duration-(--motion-state) ease-interface ${connected ? "bg-strong" : "bg-line-strong"}`}
-    />
+    <span className="welcome-status-dot relative size-1" />
   </span>
 )
 
@@ -129,15 +123,15 @@ export const WelcomePreview = ({
     const box = element.getBoundingClientRect()
     const x = event.clientX - box.left
     const y = event.clientY - box.top
-    element.style.setProperty("--mx", `${x}px`)
-    element.style.setProperty("--my", `${y}px`)
-    element.style.setProperty("--px", `${(x / box.width - 0.5) * 2}`)
-    element.style.setProperty("--py", `${(y / box.height - 0.5) * 2}`)
+    element.style.setProperty("--_mx", `${x}px`)
+    element.style.setProperty("--_my", `${y}px`)
+    element.style.setProperty("--_px", `${(x / box.width - 0.5) * 2}`)
+    element.style.setProperty("--_py", `${(y / box.height - 0.5) * 2}`)
   }
 
   const settle = (): void => {
-    stage.current?.style.setProperty("--px", "0")
-    stage.current?.style.setProperty("--py", "0")
+    stage.current?.style.setProperty("--_px", "0")
+    stage.current?.style.setProperty("--_py", "0")
   }
 
   return (
@@ -153,13 +147,13 @@ export const WelcomePreview = ({
     >
       <div
         ref={stage}
-        className={`${styles.stage} relative isolate h-[236px] overflow-hidden rounded-panel border border-line bg-canvas shadow-[inset_0_1px_2px_rgb(21_24_28/0.04)]`}
+        className="welcome-stage relative isolate overflow-hidden"
         data-view={view.id}
         aria-hidden="true"
         onPointerMove={follow}
         onPointerLeave={settle}
       >
-        <div className={`${styles.terminal} ${styles.agent}`}>
+        <div className="welcome-terminal agent">
           <div className={barClasses}>
             <ClaudeIcon size={13} />
             <span>Build something great</span>
@@ -175,13 +169,13 @@ export const WelcomePreview = ({
               ],
               1300,
             )}
-            <span className={`${styles.cursor} flex items-center gap-1.5 text-ink`}>
-              ❯ <i className="block h-[9px] w-1 bg-strong" />
+            <span className="welcome-cursor flex items-center gap-1.5">
+              ❯ <i className="block h-[9px] w-1" />
             </span>
           </div>
-          {connected.claude && <i className={styles.scan} />}
+          {connected.claude && <i className="welcome-scan" />}
         </div>
-        <div className={`${styles.terminal} ${styles.review}`}>
+        <div className="welcome-terminal review">
           <div className={barClasses}>
             <CodexIcon size={13} />
             <span>A fresh perspective</span>
@@ -197,9 +191,9 @@ export const WelcomePreview = ({
               1450,
             )}
           </div>
-          {connected.codex && <i className={styles.scan} />}
+          {connected.codex && <i className="welcome-scan" />}
         </div>
-        <div className={`${styles.terminal} ${styles.server}`}>
+        <div className="welcome-terminal server">
           <div className={barClasses}>
             <Terminal size={13} />
             <span>Dev server</span>
@@ -216,9 +210,7 @@ export const WelcomePreview = ({
             )}
           </div>
         </div>
-        <div
-          className={`${styles.scale} absolute bottom-[9px] left-3 flex gap-3 font-mono text-[8px] leading-[normal] text-muted transition-opacity duration-(--motion-state) ease-interface`}
-        >
+        <div className="welcome-zoom absolute bottom-[9px] left-3 flex gap-3 text-[8px] leading-[normal]">
           − <span>{view.id === "canvas" ? "75%" : "100%"}</span> +
         </div>
       </div>
@@ -237,16 +229,17 @@ export const WelcomePreview = ({
               key={item.id}
               type="button"
               aria-pressed={active}
+              data-state={active ? "on" : "off"}
               onClick={() => choose(item)}
-              className={`relative flex min-h-9 items-center gap-2 overflow-hidden rounded-control border px-3 py-2 text-[11px] transition-[background-color,border-color,color,box-shadow] duration-(--motion-state) ${active ? "border-line-strong bg-paper text-ink shadow-control" : "border-transparent text-muted hover:bg-soft hover:text-ink"}`}
+              className="segment relative flex min-h-9 items-center gap-2 overflow-hidden px-3 py-2 text-[11px]"
             >
               <Icon size={13} strokeWidth={1.6} aria-hidden="true" />
               {item.label}
               {active && touring && step >= 0 && !held && (
                 <span
                   key={step}
-                  className={`${styles.progress} absolute right-2 bottom-0 left-2 h-px origin-left bg-strong`}
-                  style={{ "--step": `${tourStep}ms` } as CSSProperties}
+                  className="welcome-progress absolute right-2 bottom-0 left-2 h-px origin-left"
+                  style={{ "--_step": `${tourStep}ms` } as CSSProperties}
                   aria-hidden="true"
                 />
               )}
@@ -261,7 +254,7 @@ export const WelcomePreview = ({
         aria-live={touring ? "off" : "polite"}
         aria-atomic="true"
       >
-        <p key={view.id} className={`m-0 text-[12px] text-balance text-muted ${styles.caption}`}>
+        <p key={view.id} className="welcome-caption m-0 text-[12px] text-balance">
           {view.caption}
         </p>
       </div>

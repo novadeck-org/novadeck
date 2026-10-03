@@ -1,6 +1,9 @@
 import { itemIdOf, type CompanionItem } from "../model/companion"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "../model/state"
-import type { TerminalMetadata, ViewMode, Workspace } from "../model/types"
+import type { PreferencesValue, TerminalMetadata, ViewMode, Workspace } from "../model/types"
+
+// The appearance a fresh install starts with.
+export const appearance: PreferencesValue["appearance"] = { theme: "graphite", scheme: "system" }
 
 // A plain shell terminal numbered like the ones a person creates.
 export const terminalFixture = (number: number, directory: string): TerminalMetadata => {

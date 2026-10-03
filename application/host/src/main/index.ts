@@ -8,6 +8,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  nativeTheme,
   powerMonitor,
   session,
   shell,
@@ -21,6 +22,7 @@ import {
   directoryPickerChannel,
   runnerPortChannel,
 } from "../bridge.js"
+import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
 import { debugEnabled, registerDebugIpc } from "./debug.js"
 import { attachPage, guardPage, lockPagesSession, pagesPartition, webAddress } from "./pages.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
@@ -38,6 +40,10 @@ const developmentOrigin = "http://127.0.0.1:5173"
 // How long quitting waits for the pages' last saves.
 const saveBeforeQuitMs = 1_500
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
+
+// The page's last appearance, which new windows open on so a dark theme never flashes
+// white.
+const appearance = keepAppearance(join(app.getPath("userData"), "appearance.json"))
 
 let server: HttpServer | undefined
 let runner: RunnerHost | undefined
@@ -102,7 +108,7 @@ const createWindow = (origin: string): BrowserWindow => {
     minHeight: 520,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: "#ffffff",
+    backgroundColor: appearance.current()?.ground ?? "#ffffff",
     webPreferences: {
       additionalArguments: [
         `${apiUrlArgumentPrefix}${apiUrl}`,
@@ -153,6 +159,7 @@ const createWindow = (origin: string): BrowserWindow => {
 }
 
 const launch = async (): Promise<void> => {
+  await appearance.restore(nativeTheme)
   runner = startRunner({
     entry: join(currentDirectory, "runner.js"),
     database: join(app.getPath("userData"), "workspace.sqlite"),
@@ -167,6 +174,16 @@ const launch = async (): Promise<void> => {
     enabled: debugging,
     allowed: (event) => appWindow(event) !== undefined,
     killRunner: () => runner?.kill() ?? false,
+  })
+  // The window follows the page: native menus and the page's prefers-color-scheme use
+  // its scheme, and the window its ground.
+  registerAppearanceIpc(ipcMain, {
+    window: appWindow,
+    show: (window, next) => {
+      nativeTheme.themeSource = next.scheme
+      window.setBackgroundColor(next.ground)
+      void appearance.save(next)
+    },
   })
   ipcMain.handle(directoryPickerChannel, async (event) => {
     const window = appWindow(event)

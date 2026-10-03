@@ -9,9 +9,6 @@ import { CodexIcon } from "../ui-toolkit/icons/CodexIcon"
 import { agentLabels, agentNote, type AgentSwitch } from "./AgentSwitches"
 import { WelcomePreview } from "./WelcomePreview"
 
-import motion from "../ui-toolkit/ModalMotion.module.css"
-import styles from "./WelcomeDialog.module.css"
-
 type Choices = Record<AgentSwitch["agent"], boolean>
 
 // Every agent found on this computer starts chosen; the person opts out, not in.
@@ -31,7 +28,7 @@ export type TranscriptsSetting = {
 const icons = { claude: ClaudeIcon, codex: CodexIcon, agy: Sparkles }
 
 // Staggers an entrance: `at` ms after the dialog opens.
-const at = (ms: number): CSSProperties => ({ "--at": `${ms}ms` }) as CSSProperties
+const at = (ms: number): CSSProperties => ({ "--_at": `${ms}ms` }) as CSSProperties
 
 const listed = (names: readonly string[]): string =>
   names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`
@@ -44,7 +41,7 @@ const pluginNote = (names: readonly string[]): string =>
 
 const headline = "Room to build."
 
-// One choice as a card: the icon tile turns black once chosen, like the Deck mark.
+// One choice as a card: the icon tile takes the Deck mark's face once chosen.
 const ChoiceCard = ({
   icon: Icon,
   label,
@@ -69,24 +66,23 @@ const ChoiceCard = ({
   readonly onChange: (checked: boolean) => void
 }): React.JSX.Element => (
   <label
-    className={`group flex min-h-[60px] items-center gap-3 rounded-panel border px-3 py-2.5 transition-[background-color,border-color,box-shadow] duration-(--motion-state) has-focus-visible:outline-2 has-focus-visible:outline-strong has-focus-visible:outline-offset-2 ${checked ? "border-line-strong bg-shell shadow-panel" : "border-line bg-paper"} ${disabled ? "cursor-not-allowed" : "cursor-pointer hover:border-line-strong hover:bg-shell"}`}
+    className={`choice-card solid flex min-h-[60px] items-center gap-3 px-3 py-2.5 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+    data-state={checked ? "checked" : "unchecked"}
+    data-disabled={disabled || undefined}
   >
     <span
-      className={`${styles.tile} relative flex size-[38px] flex-none items-center justify-center rounded-panel border border-line bg-shell text-ink transition-[background-color,border-color,color] duration-(--motion-state) ease-interface`}
-      data-selected={checked || undefined}
-      data-disabled={disabled || undefined}
+      className="choice-card-tile relative flex size-[38px] flex-none items-center justify-center"
       aria-hidden="true"
     >
       <Icon size={20} strokeWidth={1.4} />
     </span>
     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-      <span className={`text-[12px] font-medium ${disabled ? "text-muted" : "text-ink"}`}>
-        {label}
-      </span>
+      <span className="text-[12px] font-medium">{label}</span>
       {note && (
         <span
           id={noteId}
-          className={`text-[10px] leading-relaxed ${error ? "text-danger-fg" : "text-muted"}`}
+          className="settings-note text-[10px] leading-relaxed"
+          data-tone={error ? "danger" : undefined}
           role={error ? "alert" : undefined}
         >
           {note}
@@ -142,10 +138,10 @@ const WelcomeForm = ({
         submit()
       }}
     >
-      <div className="relative isolate min-w-0 overflow-hidden border-b border-line bg-shell px-8 pt-8 pb-6 min-[820px]:border-r min-[820px]:border-b-0 min-[820px]:px-10 min-[820px]:pt-10 max-[420px]:px-5">
-        <DeckPattern className="pointer-events-none absolute top-0 right-0 -z-10 h-[230px] w-[72%] text-line-strong opacity-40" />
+      <div className="welcome-intro relative isolate min-w-0 overflow-hidden px-8 pt-8 pb-6 min-[820px]:px-10 min-[820px]:pt-10 max-[420px]:px-5">
+        <DeckPattern className="welcome-pattern pointer-events-none absolute top-0 right-0 -z-10 h-[230px] w-[72%]" />
         <div
-          className="flex items-center gap-2.5 text-[23px] font-semibold tracking-[-0.8px]"
+          className="welcome-brand flex items-center gap-2.5 text-[23px] font-semibold"
           role="img"
           aria-label={deckName}
         >
@@ -156,12 +152,12 @@ const WelcomeForm = ({
           <DialogTitle
             ref={heading}
             tabIndex={-1}
-            className="m-0 text-[46px] leading-[1.06] font-medium tracking-[-2.2px] focus-visible:outline-none max-[819px]:text-[38px] max-[420px]:text-[34px]"
+            className="welcome-headline m-0 text-[46px] leading-[1.06] font-medium max-[819px]:text-[38px] max-[420px]:text-[34px]"
           >
             {/* Read whole at once; the typed copy is for the eyes only. */}
             <span className="sr-only">Big ideas. {headline}</span>
             <span aria-hidden="true">
-              <span className={styles.rise} style={at(420)}>
+              <span className="welcome-rise" style={at(420)}>
                 Big ideas.
               </span>
               <br />
@@ -170,41 +166,39 @@ const WelcomeForm = ({
                   // The letters never reorder.
                   // oxlint-disable-next-line react/no-array-index-key
                   key={index}
-                  className={styles.letter}
-                  style={{ "--i": index } as CSSProperties}
+                  className="welcome-letter"
+                  style={{ "--_i": index } as CSSProperties}
                 >
                   {letter}
                 </span>
               ))}
-              <span
-                className={`${styles.caret} ml-[0.08em] inline-block h-[0.8em] w-[0.14em] bg-strong align-[-0.04em] opacity-0`}
-              />
+              <span className="welcome-caret ml-[0.08em] inline-block h-[0.8em] w-[0.14em] align-[-0.04em]" />
             </span>
           </DialogTitle>
           <DialogDescription
-            className={`${styles.enter} mt-4 mb-0 max-w-[350px] text-[13px] leading-[1.7] text-muted`}
+            className="modal-description welcome-enter mt-4 mb-0 max-w-[350px] text-[13px] leading-[1.7]"
             style={at(1300)}
           >
             Terminals, agents, and projects in one workspace.
           </DialogDescription>
         </div>
-        <div className={styles.enter} style={at(500)}>
+        <div className="welcome-enter" style={at(500)}>
           <WelcomePreview connected={choices} />
         </div>
       </div>
 
       <div className="flex min-w-0 flex-col px-8 pt-10 pb-7 max-[819px]:pt-7 max-[420px]:px-5">
         <div className="my-auto">
-          <div className={`${styles.enter} mb-6`} style={at(600)}>
-            <h3 className="m-0 text-[25px] leading-[1.2] font-medium tracking-[-0.9px]">
+          <div className="welcome-enter mb-6" style={at(600)}>
+            <h3 className="welcome-heading m-0 text-[25px] leading-[1.2] font-medium">
               Connect your agents
             </h3>
-            <p className="mt-2 mb-0 text-[12px] leading-[1.7] text-muted">
+            <p className="modal-description mt-2 mb-0 text-[12px] leading-[1.7]">
               Unlock NovaDeck features inside your coding agents.
             </p>
           </div>
 
-          <fieldset className={`${styles.enter} m-0 min-w-0 border-0 p-0`} style={at(750)}>
+          <fieldset className="settings-fieldset welcome-enter m-0 min-w-0 p-0" style={at(750)}>
             <legend className="sr-only">Agents</legend>
             <div className="grid gap-2">
               {agents.map((item) => {
@@ -231,7 +225,7 @@ const WelcomeForm = ({
           </fieldset>
 
           <p
-            className={`${styles.enter} mt-3 min-h-[2lh] text-[10px] leading-[1.65] text-muted ${transcripts ? "mb-5" : "mb-8"}`}
+            className={`modal-description welcome-enter mt-3 min-h-[2lh] text-[10px] leading-[1.65] ${transcripts ? "mb-5" : "mb-8"}`}
             style={at(850)}
           >
             {pluginNote(
@@ -242,7 +236,10 @@ const WelcomeForm = ({
           </p>
 
           {transcripts && (
-            <fieldset className={`${styles.enter} m-0 mb-8 min-w-0 border-0 p-0`} style={at(900)}>
+            <fieldset
+              className="settings-fieldset welcome-enter m-0 mb-8 min-w-0 p-0"
+              style={at(900)}
+            >
               <legend className="sr-only">Terminals</legend>
               <ChoiceCard
                 icon={ScrollText}
@@ -257,17 +254,17 @@ const WelcomeForm = ({
             </fieldset>
           )}
         </div>
-        <div className={styles.enter} style={at(1000)}>
+        <div className="welcome-enter" style={at(1000)}>
           <button
             type="submit"
-            className={`${styles.start} relative flex min-h-11 w-full items-center justify-between gap-3 overflow-hidden rounded-control border border-strong bg-strong px-4 py-3 text-[12px] font-medium text-white shadow-control hover:border-strong-hover hover:bg-strong-hover focus-visible:outline-2 focus-visible:outline-strong focus-visible:outline-offset-2`}
+            className="button primary welcome-start relative min-h-11 w-full justify-between gap-3 overflow-hidden px-4 py-3 text-[12px] font-medium"
           >
             Let’s build something
-            <ArrowRight size={16} className={styles.arrow} aria-hidden="true" />
+            <ArrowRight size={16} className="welcome-arrow" aria-hidden="true" />
           </button>
           <button
             type="button"
-            className="mt-2 min-h-9 w-full rounded-control px-3 py-2 text-[11px] text-muted hover:bg-shell hover:text-ink"
+            className="button ghost welcome-skip mt-2 min-h-9 w-full px-3 py-2 text-[11px]"
             onClick={onDone}
           >
             Skip for now
@@ -303,9 +300,9 @@ export const WelcomeDialog = ({
       }}
       label="Welcome to NovaDeck"
       initialFocusEl={() => heading.current}
-      backdropClassName={`${motion.backdrop} fixed inset-0 z-50 bg-scrim backdrop-blur-[5px]`}
+      backdropClassName="overlay welcome-overlay fixed inset-0 z-50"
       positionerClassName="fixed inset-0 z-50 flex items-center justify-center p-4"
-      className={`${motion.dialog} max-h-[calc(100dvh-32px)] w-[min(980px,calc(100vw-32px))] overflow-y-auto rounded-popover border border-line-strong bg-paper text-ink shadow-modal`}
+      className="modal max-h-[calc(100dvh-32px)] w-[min(980px,calc(100vw-32px))] overflow-y-auto"
     >
       <WelcomeForm
         agents={agents}

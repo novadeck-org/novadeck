@@ -1,9 +1,15 @@
+import type { SchemePreference, ThemeId } from "../theme/themes"
 import type { CompanionItem, ItemId } from "./companion"
 import type { Bar } from "./companion-bar"
 
 export type ViewMode = "focus" | "grid" | "canvas"
 export type WindowedView = Exclude<ViewMode, "focus">
-export type PreferencesValue = { fontSize: number; enabledViews: ViewMode[] }
+export type PreferencesValue = {
+  fontSize: number
+  enabledViews: ViewMode[]
+  // The theme and the scheme chosen for it; see docs/theming.md.
+  appearance: { readonly theme: ThemeId; readonly scheme: SchemePreference }
+}
 export type Project = { id: string; name: string; directory: string }
 
 // What the agent running in a terminal says it is doing: working on a turn or waiting

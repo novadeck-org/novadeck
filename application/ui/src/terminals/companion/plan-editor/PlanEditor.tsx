@@ -6,6 +6,7 @@ import { GFM, parser } from "@lezer/markdown"
 import { useEffect, useLayoutEffect, useRef } from "react"
 
 import type { Mark } from "../plan-doc"
+import { editorTheme } from "./editor-theme"
 import { currentAgentMarks, livePreview, setMarks } from "./live-preview"
 import { scrollLineToTop } from "./scroll"
 import { lineChanges } from "./sync"
@@ -71,6 +72,7 @@ export const PlanEditor = ({
           ),
           EditorView.contentAttributes.of({ "aria-label": "Plan" }),
           livePreview,
+          editorTheme,
           EditorView.updateListener.of((update) => {
             if (
               update.transactions.some(

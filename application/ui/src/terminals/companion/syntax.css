@@ -1,0 +1,40 @@
+/* The syntax recipe: the `.tok-*` classes ./highlight.ts gives the tokens of a file an
+   agent shows. It reads the syntax foundation tokens straight, so it has no tokens of
+   its own; a theme recolours code through --color-syntax-{keyword,string,number,
+   property,definition,type,comment}, and errors through --color-danger-fg.
+
+   Hooks: the `tok-*` classes of @lezer/highlight's classHighlighter. */
+:is(.tok-keyword, .tok-meta) {
+  color: var(--color-syntax-keyword);
+}
+:is(.tok-string, .tok-string2, .tok-url) {
+  color: var(--color-syntax-string);
+}
+:is(.tok-number, .tok-bool, .tok-atom, .tok-literal) {
+  color: var(--color-syntax-number);
+}
+.tok-propertyName {
+  color: var(--color-syntax-property);
+}
+:is(.tok-typeName, .tok-className, .tok-namespace, .tok-macroName) {
+  color: var(--color-syntax-type);
+}
+.tok-definition {
+  color: var(--color-syntax-definition);
+}
+.tok-comment {
+  color: var(--color-syntax-comment);
+  font-style: italic;
+}
+:is(.tok-heading, .tok-strong) {
+  font-weight: 600;
+}
+.tok-emphasis {
+  font-style: italic;
+}
+.tok-link {
+  text-decoration: underline;
+}
+.tok-invalid {
+  color: var(--color-danger-fg);
+}

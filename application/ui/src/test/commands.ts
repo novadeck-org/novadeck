@@ -16,7 +16,7 @@ import type { CanvasHandle } from "../layouts/canvas/types"
 import { activeSession } from "../model/state"
 import { createWorkspaceStore } from "../model/store"
 import type { PreferencesValue, Workspace } from "../model/types"
-import { workspaceFixture } from "./fixtures"
+import { appearance, workspaceFixture } from "./fixtures"
 
 export type CommandsOptions = {
   readonly workspace?: Workspace
@@ -41,7 +41,7 @@ export type CommandsOptions = {
 export const openCommands = ({
   workspace = workspaceFixture(),
   url = "/projects/project/sessions/initial/grid?terminal=01",
-  preferences = { fontSize: 13, enabledViews: ["focus", "grid", "canvas"] },
+  preferences = { fontSize: 13, enabledViews: ["focus", "grid", "canvas"], appearance },
   desktop = true,
   canvas,
   pickDirectory,

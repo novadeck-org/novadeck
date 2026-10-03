@@ -297,7 +297,7 @@ class AddNoteMarker extends GutterMarker {
   }
   override toDOM(): Node {
     const button = document.createElement("span")
-    button.className = "cm-plan-add-note"
+    button.className = "icon-button cm-plan-add-note"
     // Headings sit lower in their taller lines; the marker follows their text.
     if (this.heading) button.dataset.heading = String(this.heading)
     button.title = `Add a note (${addNoteShortcut})`

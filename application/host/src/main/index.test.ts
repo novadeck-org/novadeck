@@ -60,6 +60,20 @@ describe("compiled desktop host", () => {
       expect(preload).toContain("beforeQuit")
     })
 
+    it("opens windows on the page's last ground and follows its appearance", async () => {
+      const main = await read("main/index.js")
+      const preload = await read("preload/index.cjs")
+
+      expect(main).toContain("appearance.json")
+      // How launch restores the kept scheme is covered in ./appearance.test.ts.
+      expect(main).toContain("restore(nativeTheme)")
+      expect(main).toContain("nativeTheme.themeSource")
+      expect(main).toContain("setBackgroundColor")
+      expect(main).toContain("appearance.current()?.ground")
+      expect(preload).toContain("novadeck:appearance")
+      expect(preload).toContain("showAppearance")
+    })
+
     it("blocks renderer navigation and denies permissions by default", async () => {
       const main = await read("main/index.js")
 

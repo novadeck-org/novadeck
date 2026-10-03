@@ -1,0 +1,108 @@
+/* The segmented recipe: a row of choices of which one is active, such as the view
+   switch, a segment group, a toggle group's items, and tabs. In a `.segmented` group the
+   active `.segment` is raised, or, when the group has a `.segmented-indicator`, the
+   indicator is raised and slides between them. Tabs mark theirs with a
+   `.tabs-indicator` line under the active `.tab`.
+
+   Hooks: a segment is active when it is data-state="checked" (a segment group's item)
+   or "on" (a toggle group's), aria-checked="true" or aria-pressed="true", or holds a
+   checked input; a tooltip takes over data-state, so the others still mark it then.
+   data-focus-visible; data-disabled; on a tab, data-selected.
+
+   Tokens, each optional (its fallback in brackets):
+   --segmented-bg (shell), --segmented-border-color (line),
+   --segmented-shadow (shadow-control), --segmented-radius (radius-control): the group.
+   --segmented-fg (muted), --segmented-hover-bg (soft), --segmented-hover-fg (ink): a
+   segment at rest and under the pointer.
+   --segmented-active-bg (paper), --segmented-active-fg (ink),
+   --segmented-active-border-color (line), --segmented-active-shadow (shadow-control):
+   the active segment, or the indicator.
+   --segmented-disabled-opacity (0.6): a disabled segment.
+   --tabs-fg (muted), --tabs-active-fg (ink): a tab at rest, and under the pointer or
+   selected. --tabs-indicator-bg (strong): the line under the selected tab. */
+.segmented {
+  @apply p-0.5;
+  border: var(--border-width) solid var(--segmented-border-color, var(--color-line));
+  border-radius: var(--segmented-radius, var(--radius-control));
+  background-color: var(--segmented-bg, var(--color-shell));
+  box-shadow: var(--segmented-shadow, var(--shadow-control));
+}
+.segment {
+  --_bg: transparent;
+  --_fg: var(--segmented-fg, var(--color-muted));
+  --_border-color: transparent;
+  --_shadow: none;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--segmented-radius, var(--radius-control));
+  background-color: var(--_bg);
+  color: var(--_fg);
+  box-shadow: var(--_shadow);
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface);
+}
+.segment[data-focus-visible] {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: var(--focus-ring-offset);
+}
+@media (hover: hover) {
+  .segment:hover {
+    --_bg: var(--segmented-hover-bg, var(--color-soft));
+    --_fg: var(--segmented-hover-fg, var(--color-ink));
+  }
+}
+.segment:is(
+  [data-state="checked"],
+  [data-state="on"],
+  [aria-checked="true"],
+  [aria-pressed="true"],
+  :has(> input:checked)
+),
+.segmented-indicator {
+  --_bg: var(--segmented-active-bg, var(--color-paper));
+  --_fg: var(--segmented-active-fg, var(--color-ink));
+  --_border-color: var(--segmented-active-border-color, var(--color-line));
+  --_shadow: var(--segmented-active-shadow, var(--shadow-control));
+}
+/* With an indicator, the indicator is raised and the active segment shows through. */
+.segmented:has(> .segmented-indicator)
+  .segment:is(
+    [data-state="checked"],
+    [data-state="on"],
+    [aria-checked="true"],
+    [aria-pressed="true"],
+    :has(> input:checked)
+  ) {
+  --_bg: transparent;
+  --_border-color: transparent;
+  --_shadow: none;
+}
+.segment[data-disabled] {
+  opacity: var(--segmented-disabled-opacity, 0.6);
+}
+.segmented-indicator {
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--segmented-radius, var(--radius-control));
+  background-color: var(--_bg);
+  box-shadow: var(--_shadow);
+  /* Ark slides the indicator with these. */
+  --transition-duration: var(--motion-state);
+  --transition-timing-function: var(--ease-interface);
+}
+.tab {
+  color: var(--tabs-fg, var(--color-muted));
+}
+.tab[data-selected] {
+  color: var(--tabs-active-fg, var(--color-ink));
+}
+@media (hover: hover) {
+  .tab:hover {
+    color: var(--tabs-active-fg, var(--color-ink));
+  }
+}
+.tabs-indicator {
+  background-color: var(--tabs-indicator-bg, var(--color-strong));
+  --transition-duration: var(--motion-state);
+  --transition-timing-function: var(--ease-interface);
+}

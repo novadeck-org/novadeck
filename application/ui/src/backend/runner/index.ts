@@ -140,6 +140,7 @@ export const connectRunnerBackend = async (
     ])
     const pick = desktopHost()?.pickDirectory
     const beforeQuit = desktopHost()?.beforeQuit
+    const showAppearance = desktopHost()?.showAppearance
     const kill = desktopHost()?.debugKillRunner
     const debug = rehearsals
       ? createRunnerDebug({ rehearsals, killRunner: kill && (() => kill()) })
@@ -153,6 +154,7 @@ export const connectRunnerBackend = async (
           newId,
           ...(pick ? { pickDirectory: () => pick() } : {}),
           ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
+          ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
           livePages: desktopHost()?.livePages === true,
           debug,
           transcripts,

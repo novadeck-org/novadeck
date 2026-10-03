@@ -37,7 +37,7 @@ export const WorkspaceSidebar = ({
 }: Props): React.JSX.Element => (
   <aside
     id="terminal-sidebar"
-    className="sidebar relative flex w-57 shrink-0 flex-col overflow-hidden border-r border-line bg-shell"
+    className="sidebar relative flex shrink-0 flex-col overflow-hidden"
     aria-label={sidebarPanel === "sessions" ? "Workspace sessions" : "Terminal sessions"}
     aria-hidden={!sidebarVisible}
     inert={!sidebarVisible}
@@ -77,7 +77,7 @@ export const WorkspaceSidebar = ({
       <button className={sidebarCreateClasses} aria-label="New terminal" onClick={onCreate}>
         <Plus size={14} className="shrink-0" />
         <span className="min-w-0 truncate">Terminal</span>
-        <kbd className="mb-[-2px] ml-auto min-h-0 shrink-0 whitespace-nowrap border-0 bg-transparent p-0 text-[9px] text-muted opacity-70">
+        <kbd className="hint mb-[-2px] ml-auto shrink-0 whitespace-nowrap">
           {workspaceShortcutBindings().newTerminal.display.join(" ")}
         </kbd>
       </button>

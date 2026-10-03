@@ -2,8 +2,6 @@ import { HoverCard as ArkHoverCard } from "@ark-ui/react/hover-card"
 import { Portal } from "@ark-ui/react/portal"
 import { useRef, useState, type ReactElement, type ReactNode } from "react"
 
-import motion from "./HoverCard.module.css"
-
 export type HoverCardProps = {
   trigger: ReactElement
   children: ReactNode
@@ -50,9 +48,7 @@ export const HoverCard = ({ trigger, children, className }: HoverCardProps): Rea
       </ArkHoverCard.Trigger>
       <Portal>
         <ArkHoverCard.Positioner className="z-40">
-          <ArkHoverCard.Content
-            className={`${motion.card} z-40 rounded-popover border border-line-strong bg-paper text-ink shadow-floating focus-visible:outline-none ${className ?? ""}`}
-          >
+          <ArkHoverCard.Content className={`floating peek z-40 ${className ?? ""}`}>
             {children}
           </ArkHoverCard.Content>
         </ArkHoverCard.Positioner>

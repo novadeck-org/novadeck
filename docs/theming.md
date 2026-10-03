@@ -1,0 +1,344 @@
+# Theming
+
+NovaDeck's look is a theme. Components give the interface its shape; a theme decides
+how that shape is drawn: colours, borders, depth, corners, type, and the texture of the
+workspace. Graphite, the app's own look, is a theme like any other, with a light and a
+dark scheme; Sandstone, warm, flat and rounded, has a light scheme only and draws its
+sidebar on a dark ground. A new theme is one CSS file and one line in the theme list.
+
+This guide is the contract between the two sides. Change it when the contract changes.
+
+## Layers
+
+`styles.css` declares one cascade order, before Tailwind loads:
+
+```css
+@layer theme, base, components, themes, accessibility, utilities;
+```
+
+| Layer           | Holds                                                                                                 | Written in                       |
+| --------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `theme`         | Tailwind's layout scale: spacing, breakpoints, type sizes. No colours, radii or shadows (see below).  | `theme/contract.css`             |
+| `base`          | Defaults for optional tokens, element defaults (body, focus ring, scrollbars, selection), vendor CSS. | `theme/base.css`, vendor imports |
+| `components`    | Recipes: one per component, shape only, every visual value a token.                                   | beside each component            |
+| `themes`        | Theme files: token values, and the few rules tokens can't express.                                    | `theme/themes/*.css`             |
+| `accessibility` | Reduced motion and forced colours, so no theme can defeat them.                                       | `theme/accessibility.css`        |
+| `utilities`     | Tailwind layout utilities from the TSX.                                                               | Tailwind                         |
+
+Every stylesheet is layered, vendor CSS included: CSS outside a layer beats every
+layer, so one unlayered rule would override every theme. `styles.css` imports each
+stylesheet into a layer, except Tailwind and `theme/contract.css`, which Tailwind
+layers itself; CSS imported from a script wraps its rules in `@layer`. This covers the
+stylesheets the app ships; styles a library injects while it runs are outside any
+layer, and [Exceptions](#exceptions) says how each is met. Recipes and
+themes never use `!important`, because it turns the layer order around; the few rules
+that must are listed under [Exceptions](#exceptions).
+
+`theme/contract.css` clears Tailwind's colour, radius, shadow, blur, font family,
+letter spacing, easing and animation namespaces, so those utilities don't exist: not in
+the TSX, and not through `@apply`, where a recipe may use only layout utilities.
+`styles.css` also keeps Tailwind from building utilities out of the unit tests and out
+of words the code uses in other senses, such as `outline` and `transition`.
+
+## Tokens
+
+Three tiers, each reading only from the one above it.
+
+1. **Foundation tokens** are the theme's vocabulary. A theme defines every required one
+   for each scheme it offers; `theme/contract.test.ts` checks this.
+2. **Component tokens** are each recipe's knobs, such as `--button-bg` or
+   `--window-selected-border-color`. A recipe falls back to foundation tokens when a
+   theme leaves one unset, so a theme that sets none still looks whole.
+3. **Private values** are what a recipe computes for itself, named `--_<name>`. The
+   markup may hand a recipe one through `style`, such as a boot slot's `--_order` or
+   the canvas's `--_canvas-chrome-scale`; a theme never sets them.
+
+### Who declares what
+
+Only themes declare foundation and component tokens. A recipe never declares one; it
+reads each component token, with its fallback, into a private value on its own element,
+and its states change only private values:
+
+```css
+.button {
+  --_bg: var(--button-bg, var(--color-paper));
+  background: var(--_bg);
+}
+.button:hover:not(:disabled) {
+  --_bg: var(--button-hover-bg, var(--color-soft));
+}
+```
+
+This is load-bearing. A declaration on an element beats the value it inherits, whatever
+the layers, so `.button { --button-bg: … }` in a recipe would hide the theme's
+`--button-bg` from every button. Reading tokens on the element also lets a theme
+restyle a region: `[data-theme="x"] .sidebar { --color-paper: … }` reaches every
+recipe inside the sidebar.
+
+A token whose value reads another token is resolved where it is declared, and its
+descendants inherit the result. So an `--item-selected-bg` that a theme mixes from
+`--color-strong` on `[data-theme]` keeps the root's strong colour inside a restyled
+region. A theme that restyles a region declares each such token again on the region,
+in the same rule as on its root, so it reads the region's own foundation tokens;
+`theme/themes/sandstone.css` does this for its dark sidebar.
+
+Optional foundation tokens with a plain value get their defaults in `theme/base.css`,
+on `:root` in the `base` layer, never in Tailwind's `@theme`, which would turn them
+back into utilities. An optional token whose default reads other tokens
+(`--focus-ring-color`, `--brand-tile-bg`, `--brand-tile-fg`) has no `:root` default:
+each recipe that reads it carries the default as its fallback, so it resolves on the
+element and follows a restyled region.
+
+### Foundation tokens
+
+Required in every scheme a theme offers:
+
+| Group    | Tokens                                                                                                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Grounds  | `--color-canvas` (the workspace behind windows), `--color-shell` (sidebar, rail, settings), `--color-paper` (windows, cards, header, popovers), `--color-soft` (hover and pressed fills)               |
+| Text     | `--color-ink` (primary), `--color-muted` (secondary)                                                                                                                                                   |
+| Lines    | `--color-line` (dividers, resting borders), `--color-line-strong` (emphasised borders)                                                                                                                 |
+| Emphasis | `--color-strong`, `--color-strong-hover`, `--color-on-strong`: primary actions, on states, what is selected, focus                                                                                     |
+| Overlays | `--color-scrim`, `--color-selection`, `--color-shadow` (the colour every shadow is made from)                                                                                                          |
+| Tones    | `--color-{success,warning,danger,note}` (a tint) and `--color-{success,warning,danger,note}-fg` (text on it)                                                                                           |
+| Syntax   | `--color-syntax-{keyword,string,number,property,definition,type,comment}`                                                                                                                              |
+| Terminal | `--terminal-{bg,fg,cursor,selection}`; `--terminal-ansi-{black,red,green,yellow,blue,magenta,cyan,white}`, and each again as `--terminal-ansi-{black,red,green,yellow,blue,magenta,cyan,white}-bright` |
+| Depth    | `--shadow-control`, `--shadow-panel`, `--shadow-floating`, `--shadow-modal`                                                                                                                            |
+
+Optional, with defaults in `theme/base.css` or, for those that read other tokens, in
+each recipe's fallback:
+
+| Group   | Tokens                                                                                                         |
+| ------- | -------------------------------------------------------------------------------------------------------------- |
+| Shape   | `--radius-control`, `--radius-panel`, `--radius-popover`, `--border-width`                                     |
+| Type    | `--font-sans`, `--font-mono`                                                                                   |
+| Focus   | `--focus-ring-color`, `--focus-ring-width`, `--focus-ring-offset`                                              |
+| Motion  | `--motion-feedback`, `--motion-state`, `--motion-layout`, `--motion-view`, `--ease-interface`                  |
+| Texture | `--canvas-grain-opacity`, `--canvas-dots-opacity`, `--terminal-idle-opacity`, `--terminal-hover-opacity`       |
+| Brand   | `--brand-tile-bg`, `--brand-tile-fg`, `--brand-tile-border-color` (the logo tile and the welcome start button) |
+
+Don't register colour tokens with `@property`: a registered token given a value of the
+wrong type silently falls back to its initial value.
+
+### Component tokens
+
+Names follow `--<component>[-<variant>][-<part>][-<state>]-<property>`:
+`--button-bg`, `--button-primary-hover-bg`, `--item-selected-indicator-bg`,
+`--toggle-track-on-bg`, `--window-phase-running-border-color`. Properties come from a
+short vocabulary: `bg`, `fg`, `border-color`, `border-width`, `radius`, `shadow`,
+`opacity`, `blur`, `image` (hatches, grain, dot grids), `font`, `height`, `padding`,
+`ring-color`, `ring-offset`, `border-style`.
+
+Each recipe opens with a comment that lists its tokens and what each one paints. That
+comment is the component's theming reference; there is no separate list to keep in step.
+
+The shared recipes, and what they cover:
+
+| Recipe               | Covers                                                                                                                      | Example tokens                                                                                                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `button`             | `.button`: dialog actions, empty states, create buttons; `.primary`, `.ghost`, `.quiet` (a ghost muted at rest), `.link`    | `--button-{bg,fg,border-color,shadow}`, `--button-hover-bg`, `--button-primary-bg`, `--button-quiet-fg`, `--button-link-{fg,hover-fg}`                                                                                                             |
+| `icon-button`        | Header, window, tab and sidebar actions; `.dim` stays faint until hovered; `.small`, `.raised`; pressed with `aria-pressed` | `--icon-button-fg`, `--icon-button-hover-bg`, `--icon-button-pressed-{bg,fg}`, `--icon-button-raised-{bg,border-color,shadow}`, `--icon-button-dim-opacity`                                                                                        |
+| `surface`            | `.panel`, `.card`, `.floating` (a `.peek` rises from its trigger), `.modal` with its `.modal-header` and `.modal-footer`    | `--{panel,card,floating,modal}-{bg,border-color,shadow,radius}`, `--modal-header-border-color`, `--modal-footer-{bg,fg,border-color}`                                                                                                              |
+| `overlay`            | The scrim behind dialogs and the mobile sidebar                                                                             | `--overlay-bg`, `--overlay-blur`                                                                                                                                                                                                                   |
+| `region`             | The app's chrome: header, footer, sidebar, rail, settings ground                                                            | `--region-{header,footer,sidebar,rail}-{bg,fg,border-color}`, `--region-settings-bg`                                                                                                                                                               |
+| `item`               | Sidebar rows, menu and select items, search results                                                                         | `--item-{hover,highlighted,selected}-bg`, `--item-selected-{border-color,shadow}`, `--item-selected-indicator-bg`                                                                                                                                  |
+| `segmented`          | View switch, segment groups, toggle groups, tabs                                                                            | `--segmented-bg`, `--segmented-active-{bg,fg,shadow}`, `--tabs-indicator-bg`                                                                                                                                                                       |
+| `field`              | Select and combobox triggers, inputs                                                                                        | `--field-{bg,fg,border-color,shadow}`, `--field-open-border-color`                                                                                                                                                                                 |
+| `toggle`             | Switch and checkbox                                                                                                         | `--toggle-track-{on,off}-bg`, `--toggle-thumb-bg`, `--toggle-mark-fg`                                                                                                                                                                              |
+| `tone`               | Anything marked `data-tone`: success, warning, danger or note                                                               | read straight from the foundation tones                                                                                                                                                                                                            |
+| `badge`              | Counts, `kbd`, small labels, and a `kbd.hint` set quietly inside a control                                                  | `--badge-{bg,fg,border-color}`, `--kbd-{bg,fg,border-color,shadow}`, `--kbd-hint-{fg,opacity}`                                                                                                                                                     |
+| `separator`          | Dividers and the panel sashes                                                                                               | `--separator-bg`, `--sash-hover-bg`                                                                                                                                                                                                                |
+| `label`              | `.section-label`, the small capitals that title a sidebar panel or a group of preferences                                   | `--section-label-fg`                                                                                                                                                                                                                               |
+| `sidebar`            | The sidebar's panels, its rows (items) and its create button                                                                | `--sidebar-create-border-color`; rows read the item tokens                                                                                                                                                                                         |
+| `workspace-switcher` | The header's project switcher: its trigger, rows and open-folder button                                                     | `--workspace-switcher-icon-fg`; reads the button and item tokens                                                                                                                                                                                   |
+| `empty-state`        | The empty workspace's card                                                                                                  | `--empty-state-description-fg`; reads the surface and button tokens                                                                                                                                                                                |
+| `zen-dock`           | Zen's dock of icon buttons                                                                                                  | `--zen-dock-{bg,border-color,shadow,radius,blur,idle-opacity}`                                                                                                                                                                                     |
+| `deck-logo`          | The Deck mark and wordmark                                                                                                  | `--brand-tile-{bg,fg,border-color}`, `--deck-mark-card-{near,far}-bg`, `--deck-word-fg`                                                                                                                                                            |
+| `window`             | The terminal window, its header, metadata, selection bar and phase line, the rename field                                   | `--window-{bg,border-color,shadow}`, `--window-selected-{border-color,header-bg}`, `--window-indicator-bg`, `--window-phase-{running,starting,attention,ended}-border-color`, `--window-phase-border-width`, `--window-ended-{image,border-style}` |
+| `tabs`               | A terminal's sidebar tab: its phase glyph, ended hatch, actions and mail count                                              | `--tab-{glyph,starting,attention,ended}-fg`, `--tab-ended-image`, `--tab-hidden-opacity`, `--tab-mail-paused-{bg,fg}`                                                                                                                              |
+| `switcher`           | What the terminal switcher adds to its `.modal` and `.item`s: the header's count, a row's parts                             | `--switcher-header-fg`, `--switcher-go-opacity`                                                                                                                                                                                                    |
+| `workspace`          | The ground behind Focus, Grid and Canvas, its dots and grain, resize grips and drop ghosts                                  | `--workspace-{bg,glow-bg,edge-bg,dots-fg,dots-image,grain-image}`, `--workspace-grip-{fg,image}`, `--workspace-ghost-{bg,border-color}`, `--workspace-placeholder-bg`                                                                              |
+| `runner`             | The runner's surface: the lock notice, the ending bar and Restart, the debug panel's parts                                  | `--runner-lock-bg`, `--runner-notice-{bg,fg,border-color,shadow}`, `--runner-ending-{bg,fg,border-color}`                                                                                                                                          |
+| `boot-splash`        | The boot splash, its field of slots and hairline, and a failure with its details                                            | `--boot-splash-{bg,fg,slot-border-color,hairline-bg,hairline-fill-bg}`, `--boot-failure-details-bg`                                                                                                                                                |
+| `demo`               | The demo backend's made-up terminal and agent output                                                                        | `--demo-{font,muted-fg,rule-color,request-bg}`, `--demo-badge-{bg,fg}`, `--demo-form-{bg,border-color}`                                                                                                                                            |
+| `taskbar`            | A terminal's taskbar: its icons, their marks and counts, the empty drop bar                                                 | `--taskbar-{bg,border-color}`, `--taskbar-item-{hover,pressed}-{bg,fg}`, `--taskbar-mark-active-bg`, `--taskbar-count-{held,paused}-bg`                                                                                                            |
+| `peek`               | The cards above a taskbar icon, and the previews in miniature                                                               | `--peek-card-{hover,pressed}-bg`, `--peek-thumb-{bg,border-color}`, `--peek-page-bar-bg`                                                                                                                                                           |
+| `pane`               | The split, attached and undocked pane, its divider, the outline and the plan's header                                       | `--pane-{bg,border-color}`, `--pane-attached-{border-color,shadow}`, `--spine-{bg,fg,hover-bg}`, `--plan-meta-fg`                                                                                                                                  |
+| `artifact`           | The viewers for what an agent shows: image, file, page and document                                                         | `--artifact-meta-{fg,border-color}`, `--artifact-image-image`, `--artifact-browser-bg`, `--artifact-webview-bg`                                                                                                                                    |
+| `mail`               | A terminal's threads with the other agents                                                                                  | `--mail-{border-color,meta-fg,sent-border-color,held-fg}`                                                                                                                                                                                          |
+| `prose`              | Plans and documents in the plan editor, its notes, tables and checkboxes                                                    | `--prose-{fg,heading-fg,code-bg,quote-fg}`, `--prose-changed-bg`, `--prose-note-{bg,fg}`, `--prose-table-border-color`                                                                                                                             |
+| `syntax`             | `.tok-*` highlighting in files an agent shows                                                                               | read straight from the syntax tokens                                                                                                                                                                                                               |
+| `settings`           | Preferences: its cards and rows, notes; `.choice-card`, shared with the welcome, whose cards are `.solid`                   | `--settings-description-fg`, `--settings-card-shadow`, `--choice-card-{bg,fg,border-color}`, `--choice-card-checked-{bg,fg,border-color,shadow}`, `--choice-card-solid-{bg,fg,hover-bg}`                                                           |
+| `welcome`            | The welcome dialog, its start button and its miniature workspace                                                            | `--welcome-{intro-bg,pattern-fg,caret-bg,skip-fg}`, `--welcome-stage-{border-color,dots-fg}`; reads `--brand-tile-*`, `--window-*`, `--workspace-*`                                                                                                |
+| `search`             | The terminal search dialog: result details, the empty state                                                                 | `--search-action-opacity`, `--search-empty-fg`                                                                                                                                                                                                     |
+
+`shell/panels.css`, `layouts/transition.css` and the Canvas and Grid stylesheets place
+and move what the recipes draw; they have no tokens of their own.
+
+## Hooks
+
+A theme's rules may select:
+
+- a recipe's classes: the component (`.button`, `.terminal-window`), its parts
+  (`.terminal-heading`) and its variants (`.primary`, `.ghost`, `.compact`);
+- state attributes the app or Ark UI sets: `data-state`, `data-selected`,
+  `data-highlighted`, `data-disabled`, `data-focus-visible`, `aria-checked`,
+  `aria-pressed`, `aria-current`, `aria-disabled`, `data-tone`, `data-terminal-phase`
+  and the others each recipe lists;
+- `data-theme` and `data-scheme` on `<html>`.
+
+Recipe classes and the attributes a recipe lists are public. Renaming one breaks every
+theme that uses it, so rename it in the same change as the themes. Anything else in the
+DOM may change without notice. CSS modules aren't used, because their class names
+aren't stable.
+
+Variants are classes (`.button.primary`); states are attributes. A component never
+holds a state only in its class list or only in JS: if it can be on, checked, open or
+selected, the DOM says so in an attribute.
+
+## Rules for components
+
+- **TSX arranges; recipes draw.** A `className` in TSX may use Tailwind only for how
+  elements are arranged: display, flex and grid, gap, margin, outer padding, position,
+  inset, overflow, z-index, order, visibility, transforms, pointer and scroll
+  behaviour, opacity of exactly 0 or 1, sizes that come from the layout rather than
+  the component, and the size and flow of type (`text-sm` or `text-[11px]`, line
+  height, weight, alignment, wrapping and truncation). Everything a component looks
+  like comes from its recipe: colour (every other `text-*`), background, borders
+  (every `border*`: width, sides and colour), radius, shadow, ring, opacity between 0
+  and 1, outline, fill, stroke, filters and backdrop filters, font family, letter
+  spacing, text transform and decoration, motion (transitions, durations, easing,
+  animations), and the component's own geometry, such as a control's height or a
+  row's padding. `theme/contract.test.ts` checks every string in a class context, at
+  any depth (a `className` or `…ClassName`, a `cn()` or `clsx()` call, `classList.add`,
+  `toggle` or `replace`, `setAttribute("class", …)`, a constant or function named
+  `…Class`, `…Classes` or `…ClassName`, and a lookup map or helper the context reads),
+  and every `@apply`, against an allowlist of layout utilities; it can't tell a
+  component's own geometry from layout, so that part is for review.
+- **A recipe reads only tokens.** No hex, `rgb()` or named colours outside theme
+  files; the contract test enforces it. Every `var()` a recipe reads either has a
+  fallback or names a foundation token, a private value, or a variable Ark UI sets
+  (such as `--transform-origin` or `--height`). System colours (`Canvas`, `CanvasText`,
+  `Highlight`) are allowed in the accessibility layer. A recipe may mix tokens, as in
+  `color-mix(in srgb, var(--color-ink) 4%, transparent)`.
+- **One recipe per look.** When a second component needs a look that exists, it uses
+  that recipe or adds a variant to it. Copying a look into another recipe forks the
+  theme surface.
+- **Recipes live beside their components** (`ui-toolkit/button.css`,
+  `terminals/window.css`); `styles.css` imports each into `layer(components)`.
+- **Draw absence, don't remove it.** A recipe with no visible border draws a
+  transparent one, and an elevated surface keeps a transparent outline, so forced
+  colours can show them. A selected item has an indicator, not only a fill.
+- **JS reads tokens, never colours.** Code that needs a colour outside CSS, such as the
+  xterm theme, resolves the token through a hidden probe element (`color:
+var(--terminal-bg)` read back with `getComputedStyle`), because a token can hold
+  `color-mix()`, and reads again on `novadeck:themechange`. `tokenColors` in
+  `theme/probe.ts` does this.
+
+## Exceptions
+
+A few rules break the contract on purpose, each because it must beat a style no layer
+can: one set inline, by the app or a library. `theme/contract.test.ts` keeps the same
+list of `!important`s, pinned to the exact declarations, so a new one in a listed file
+fails too, and fails when one is no longer needed.
+
+- `theme/base.css` uses `!important` in the rule that stills every transition, inline
+  ones too, while the theme changes.
+- `theme/accessibility.css` uses `!important` for reduced motion, to beat the
+  transitions libraries set inline or inject with `!important`, such as dnd-kit's drag
+  feedback.
+- `backend/runner/runner.css` uses `!important` to thin xterm's scrollbar slider, whose
+  position and width xterm sets inline.
+- `theme/accessibility.css` may name system colours (`Canvas`, `Highlight`) for forced
+  colours; no other stylesheet may.
+- CodeMirror, the plan editor, injects its own styles as CSS-in-JS at run time, outside
+  every layer, so no recipe can override them, and its base theme carries colours of its
+  own. `terminals/companion/plan-editor/editor-theme.ts` overrides the ones the plan
+  shows (the gutter, selection and caret) in an editor theme, which CodeMirror orders
+  after its base theme, with token `var()`s and their fallbacks.
+
+## Themes
+
+A theme file sets its schemes on `[data-theme]`: the first scheme `theme/themes.ts`
+lists for it on `[data-theme]` alone, each other one on `[data-scheme]` as well,
+with `color-scheme` and every required token in each:
+
+```css
+[data-theme="graphite"] {
+  color-scheme: light;
+  --color-paper: #ffffff;
+  /* every required token */
+}
+
+[data-theme="graphite"][data-scheme="dark"] {
+  color-scheme: dark;
+  --color-paper: #191c20;
+  /* every required token again */
+}
+```
+
+Then any component tokens it wants to change, and last any rules tokens can't express,
+each against a [hook](#hooks):
+
+```css
+[data-theme="blueprint"] .section-label {
+  letter-spacing: normal;
+  text-transform: none;
+}
+```
+
+Prefer tokens. The `themes` layer beats every recipe whatever the specificity, so a
+theme rule that sets a property on a component's resting selector also overrides its
+hover, selected and disabled looks; a theme that sets properties restates each state it
+needs. When a theme needs many such rules, the recipe is missing a token: add it to the
+recipe instead, and every theme gains it.
+
+Theme rules match any element under `[data-theme]`. If the app ever renders a preview
+of another theme inside the page, scope theme rules with
+`@scope ([data-theme="x"]) to ([data-theme])` so they stop at the nested preview.
+
+`theme/themes.ts` lists the themes: an id, the name Preferences shows, and the schemes
+its file defines. To add a theme:
+
+1. Copy `theme/themes/graphite.css` to `theme/themes/<id>.css`, rename the selectors and
+   change the values.
+2. Import it in `styles.css` into `layer(themes)`, and add `{ id, name, schemes }` to
+   `theme/themes.ts`.
+3. Run `pnpm --filter @novadeck/ui exec vitest run --project unit src/theme/`.
+
+## Choosing a theme
+
+Preferences holds `appearance: { theme, scheme }`, where `scheme` is `system`, `light`
+or `dark`; it starts as Graphite following the system. Preferences shows a Theme list
+from `theme/themes.ts` and a Mode choice (System, Light, Dark), disabled with a note for
+a theme with one scheme. `theme/apply.ts` resolves the preference against the system's
+scheme and the schemes the theme offers; a theme with one scheme always uses it, and
+an unknown theme falls back to the first in the list, Graphite. It then sets
+`data-theme` and `data-scheme` on `<html>` and dispatches `novadeck:themechange`.
+`app/appearance.ts` is the one place that does this while the app runs: whenever the
+preference changes, and whenever the system's scheme does.
+
+- **Switching** sets `data-theme-switching` on `<html>`, which stills transitions so
+  the whole page changes at once instead of fading control by control. `apply.ts` reads
+  a style right after, so the browser applies the new theme while transitions are
+  still, whatever started the change, and clears the attribute once a frame has drawn it.
+- **Before the first paint**, `public/theme-boot.js` sets the same attributes. It is a
+  plain script loaded in the head without `defer`, because the Content Security Policy
+  allows same-origin scripts but not inline ones. `apply.ts` saves what it needs under
+  `novadeck.theme-boot` (the theme, the chosen scheme and the theme's schemes), and the
+  script only resolves `system` against `matchMedia`. It also sets the scheme as
+  `<html>`'s inline `color-scheme`, so the browser's own ground matches it before the
+  stylesheets arrive; `apply.ts` removes that once the theme's file sets `color-scheme`.
+  A record naming a theme this version doesn't have shows unstyled until the app starts
+  and falls back to the first.
+- **Windows** stay in step: each listens for the `storage` event and takes up the
+  preferences another window saved, theme included.
+- **The desktop host** follows the page. On every change the page reports its scheme
+  and its `--color-paper`, the ground `body` paints before anything draws on it, as
+  `#rrggbb` through the preload bridge, so the window and the first paint are one
+  colour. The host sets `nativeTheme.themeSource` so native menus and
+  `prefers-color-scheme` agree, sets the window's background, and keeps that ground to
+  open new windows on, so a dark theme never flashes white. While the page follows the system it reports `system`, not the
+  scheme it resolved: a fixed `themeSource` would hide the system's own scheme from
+  `matchMedia`. The host accepts only `system`, `light` or `dark` and an opaque hex
+  colour. In a browser there is no host, and nothing is reported.

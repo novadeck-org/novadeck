@@ -1,0 +1,141 @@
+/* The surface recipe: what content sits on. `.panel` is a window or section on the
+   workspace, `.card` a bordered block inside one, `.floating` a popover, menu, select
+   list, tooltip or peek, and `.modal` a dialog over the overlay. A `.floating.peek`
+   rises out of its trigger as it opens; a `.modal` drops in. Both key their motion on
+   data-state="open" | "closed", which Ark sets and keeps through the closing animation.
+   Parts of a `.modal`: `.modal-title`, `.modal-description`, a `.modal-header` closed
+   off by a hairline and a `.modal-footer` strip under one.
+
+   Tokens, each optional (its fallback in brackets):
+   --panel-bg (paper), --panel-fg (ink), --panel-border-color (line),
+   --panel-shadow (shadow-panel), --panel-radius (radius-panel).
+   --card-bg (paper), --card-fg (ink), --card-border-color (line), --card-shadow (none),
+   --card-radius (radius-panel).
+   --floating-bg (paper), --floating-fg (ink), --floating-border-color (line),
+   --floating-shadow (shadow-floating), --floating-radius (radius-popover).
+   --modal-bg (paper), --modal-fg (ink), --modal-border-color (line-strong),
+   --modal-shadow (shadow-modal), --modal-radius (radius-popover),
+   --modal-description-fg (muted): a dialog, and the text under its title.
+   --modal-header-border-color (line): the hairline under a dialog's header.
+   --modal-footer-bg (shell), --modal-footer-fg (muted),
+   --modal-footer-border-color (line): a dialog's footer. */
+.panel {
+  --_bg: var(--panel-bg, var(--color-paper));
+  --_fg: var(--panel-fg, var(--color-ink));
+  --_border-color: var(--panel-border-color, var(--color-line));
+  --_shadow: var(--panel-shadow, var(--shadow-panel));
+  --_radius: var(--panel-radius, var(--radius-panel));
+}
+.card {
+  --_bg: var(--card-bg, var(--color-paper));
+  --_fg: var(--card-fg, var(--color-ink));
+  --_border-color: var(--card-border-color, var(--color-line));
+  --_shadow: var(--card-shadow, none);
+  --_radius: var(--card-radius, var(--radius-panel));
+}
+.floating {
+  --_bg: var(--floating-bg, var(--color-paper));
+  --_fg: var(--floating-fg, var(--color-ink));
+  --_border-color: var(--floating-border-color, var(--color-line));
+  --_shadow: var(--floating-shadow, var(--shadow-floating));
+  --_radius: var(--floating-radius, var(--radius-popover));
+}
+.modal {
+  --_bg: var(--modal-bg, var(--color-paper));
+  --_fg: var(--modal-fg, var(--color-ink));
+  --_border-color: var(--modal-border-color, var(--color-line-strong));
+  --_shadow: var(--modal-shadow, var(--shadow-modal));
+  --_radius: var(--modal-radius, var(--radius-popover));
+}
+:is(.panel, .card, .floating, .modal) {
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--_radius);
+  background-color: var(--_bg);
+  color: var(--_fg);
+  box-shadow: var(--_shadow);
+}
+/* Floating content takes focus to manage its own, and shows it on its items. */
+.floating:focus-visible {
+  outline: none;
+}
+.modal-title {
+  letter-spacing: -0.2px;
+}
+.modal-description {
+  color: var(--modal-description-fg, var(--color-muted));
+}
+.modal-header {
+  border-bottom: var(--border-width) solid var(--modal-header-border-color, var(--color-line));
+}
+.modal-footer {
+  border-top: var(--border-width) solid var(--modal-footer-border-color, var(--color-line));
+  background-color: var(--modal-footer-bg, var(--color-shell));
+  color: var(--modal-footer-fg, var(--color-muted));
+}
+
+/* A peek rises out of its trigger as it opens and settles back as it closes; Ark sets
+   --transform-origin to the side facing the trigger. */
+.floating.peek {
+  transform-origin: var(--transform-origin);
+}
+.floating.peek[data-state="open"] {
+  animation: peek-in var(--motion-state) var(--ease-interface);
+}
+.floating.peek[data-state="closed"] {
+  animation: peek-out var(--motion-feedback) var(--ease-interface) forwards;
+  pointer-events: none;
+}
+@keyframes peek-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes peek-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(2px) scale(0.985);
+  }
+}
+
+/* A dialog drops in from just above where it settles. It takes the pointer even inside
+   a positioner that lets clicks through, until it starts to close. */
+.modal {
+  transform-origin: top center;
+  pointer-events: auto;
+}
+.modal[data-state="open"] {
+  animation: modal-in var(--motion-view) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal[data-state="closed"] {
+  animation: modal-out var(--motion-view) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes modal-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+}

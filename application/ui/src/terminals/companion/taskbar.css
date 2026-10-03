@@ -1,0 +1,309 @@
+/* The taskbar recipe: the terminal's host (`.terminal-plan`, its body and its bar), and
+   the bar along the terminal's bottom (`.plan-taskbar`) with an icon (`.plan-tb-item`)
+   for the plan and for each thing its agent showed, a mark under each as an OS taskbar
+   has, and a count (`.plan-tb-count`) on a stack or on the messages. What the pane shows
+   is raised as the active segment of a segmented control is, and keeps its mark.
+
+   Hooks: on the bar, data-state="open" | "closed" as it comes and goes, and
+   data-drop-target while an icon from another bar is over it; `.plan-taskbar-empty`, the
+   bar a terminal with nothing to show offers as a drop target. On an icon,
+   aria-pressed="true" while the pane shows it, and data-state="new" | "open" | "seen"
+   for its mark. On a count, data-mail="held" | "paused". `.plan-tb-grabbed`, a card
+   pulled out of a peek, and data-settling as it goes back. data-drag-refused on the
+   root while a dragged icon is somewhere nothing takes it.
+
+   Tokens, each optional (its fallback in brackets):
+   --taskbar-bg (shell), --taskbar-border-color (line): the bar.
+   --taskbar-drop-bg (soft), --taskbar-drop-ring-color (line-strong): a bar a drop
+   lands on.
+   --taskbar-hint-fg (muted): the empty bar's hint.
+   --taskbar-item-fg (muted), --taskbar-item-radius (radius-control): an icon at rest.
+   --taskbar-item-hover-bg (soft), --taskbar-item-hover-fg (ink): under the pointer, and
+   the fg of a new icon.
+   --taskbar-item-pressed-bg (segmented-active-bg, then paper),
+   --taskbar-item-pressed-fg (segmented-active-fg, then ink),
+   --taskbar-item-pressed-border-color (segmented-active-border-color, then line),
+   --taskbar-item-pressed-shadow (segmented-active-shadow, then shadow-control): what
+   the pane shows.
+   --taskbar-item-grabbed-shadow (shadow-floating): an icon pulled out of a peek.
+   --taskbar-mark-bg (muted): the mark of something seen.
+   --taskbar-mark-active-bg (ink): the mark of something new, or showing.
+   --taskbar-count-bg (badge-bg, then soft), --taskbar-count-fg (badge-fg, then ink):
+   a count.
+   --taskbar-count-held-bg (warning), --taskbar-count-held-fg (warning-fg): messages
+   waiting for release.
+   --taskbar-count-paused-bg (paper), --taskbar-count-paused-fg (muted),
+   --taskbar-count-paused-border-color (line): the pause mark. */
+
+/* Host: the terminal body plus its taskbar. */
+.terminal-plan {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  container: terminal-plan / inline-size;
+}
+.terminal-plan[hidden] {
+  display: none;
+}
+
+.plan-taskbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 56px;
+  padding: 0 10px;
+  border-top: var(--border-width) solid var(--taskbar-border-color, var(--color-line));
+  background-color: var(--taskbar-bg, var(--color-shell));
+  /* Lighting up as a drop target, and back. */
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface);
+}
+/* The bar rises into place when the terminal first has something to show, and fades
+   as it goes. The terminal takes its new height once; only opacity and translate
+   animate. A bar there already, after a view switch or a restore, just appears. */
+.plan-taskbar[data-state="open"] {
+  animation: plan-taskbar-in var(--motion-layout) var(--ease-interface);
+}
+.plan-taskbar[data-state="closed"] {
+  animation: plan-out var(--motion-feedback) var(--ease-interface) forwards;
+  pointer-events: none;
+}
+@keyframes plan-taskbar-in {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+}
+/* How the bar, the empty bar and the pane (pane.css) fade as they go. */
+@keyframes plan-out {
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-taskbar {
+    transition: none;
+  }
+}
+/* An icon from another terminal's bar is over this one: a drop lands here. */
+.plan-taskbar[data-drop-target] {
+  background-color: var(--taskbar-drop-bg, var(--color-soft));
+  box-shadow: inset 0 0 0 1px var(--taskbar-drop-ring-color, var(--color-line-strong));
+}
+/* A terminal with nothing to show, hovered while an icon is dragged: an empty bar to drop
+   it on. */
+.plan-taskbar-empty {
+  justify-content: center;
+}
+/* The empty bar pops up under the dragged icon, a touch past its place and back, and
+   fades as the pointer leaves. Opacity and translate only. */
+.plan-taskbar-empty[data-state="open"] {
+  animation: plan-drop-bar-in 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.plan-taskbar-empty[data-state="closed"] {
+  animation: plan-out var(--motion-feedback) var(--ease-interface) forwards;
+  pointer-events: none;
+}
+@keyframes plan-drop-bar-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+.plan-tb-empty-hint {
+  font-size: 11px;
+  color: var(--taskbar-hint-fg, var(--color-muted));
+}
+
+.plan-tb-slot {
+  display: contents;
+}
+/* The bar's slots, which a drag reorders within. */
+.plan-tb-slots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.plan-tb-slots:empty {
+  display: none;
+}
+/* What the drag moves: a slot in a box of its own. */
+.plan-tb-sortable {
+  display: flex;
+}
+/* A peek stays out of the way of an icon being dragged past, and of a menu opened from
+   the taskbar, which takes over from the peek it was opened under. */
+:root:has(.plan-tb-sortable[data-dragging]) .plan-tb-peek,
+:root:has(.plan-tb-grabbed) .plan-tb-peek,
+:root:has([data-scope="menu"][data-part="content"][data-state="open"]) .plan-tb-peek {
+  visibility: hidden;
+}
+.plan-tb-peek {
+  padding: 4px;
+}
+
+.plan-tb-item {
+  --_bg: transparent;
+  --_fg: var(--taskbar-item-fg, var(--color-muted));
+  --_border-color: transparent;
+  --_shadow: none;
+  --_mark-bg: var(--taskbar-mark-bg, var(--color-muted));
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 44px;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--taskbar-item-radius, var(--radius-control));
+  background-color: var(--_bg);
+  color: var(--_fg);
+  box-shadow: var(--_shadow);
+}
+.plan-tb-item[data-state="new"] {
+  --_fg: var(--taskbar-item-hover-fg, var(--color-ink));
+}
+.plan-tb-item:is([data-state="new"], [data-state="open"]) {
+  --_mark-bg: var(--taskbar-mark-active-bg, var(--color-ink));
+}
+.plan-tb-item:hover {
+  --_bg: var(--taskbar-item-hover-bg, var(--color-soft));
+  --_fg: var(--taskbar-item-hover-fg, var(--color-ink));
+}
+.plan-tb-item[aria-pressed="true"] {
+  --_bg: var(--taskbar-item-pressed-bg, var(--segmented-active-bg, var(--color-paper)));
+  --_fg: var(--taskbar-item-pressed-fg, var(--segmented-active-fg, var(--color-ink)));
+  --_border-color: var(
+    --taskbar-item-pressed-border-color,
+    var(--segmented-active-border-color, var(--color-line))
+  );
+  --_shadow: var(
+    --taskbar-item-pressed-shadow,
+    var(--segmented-active-shadow, var(--shadow-control))
+  );
+}
+/* The mark: a dot while new, a long bar while showing, a short one once seen. */
+.plan-tb-item::after {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--_mark-bg);
+  content: "";
+  transform: translateX(-50%);
+  transition:
+    width 180ms,
+    background-color 180ms;
+}
+.plan-tb-item[data-state="new"]::after {
+  bottom: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.plan-tb-item[data-state="open"]::after {
+  width: 22px;
+}
+/* Something new arrives with a hop, once, and never takes the focus. */
+@media (prefers-reduced-motion: no-preference) {
+  .plan-tb-item[data-state="new"] svg {
+    animation: plan-tb-hop 700ms cubic-bezier(0.3, 0, 0.3, 1) 2;
+  }
+}
+@keyframes plan-tb-hop {
+  30% {
+    transform: translateY(-5px);
+  }
+  60% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(-2px);
+  }
+}
+
+/* A count is a small badge; its outline draws only for the pause mark, and lets forced
+   colours show it. */
+.plan-tb-count {
+  --_bg: var(--taskbar-count-bg, var(--badge-bg, var(--color-soft)));
+  --_fg: var(--taskbar-count-fg, var(--badge-fg, var(--color-ink)));
+  --_border-color: transparent;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: 7px;
+  outline: var(--border-width) solid var(--_border-color);
+  outline-offset: calc(var(--border-width) * -1);
+  background-color: var(--_bg);
+  color: var(--_fg);
+  font: 600 9px/13px var(--font-mono);
+}
+.plan-tb-count[data-mail="held"] {
+  --_bg: var(--taskbar-count-held-bg, var(--color-warning));
+  --_fg: var(--taskbar-count-held-fg, var(--color-warning-fg));
+}
+.plan-tb-count[data-mail="paused"] {
+  --_bg: var(--taskbar-count-paused-bg, var(--color-paper));
+  --_fg: var(--taskbar-count-paused-fg, var(--color-muted));
+  --_border-color: var(--taskbar-count-paused-border-color, var(--color-line));
+  display: grid;
+  place-items: center;
+}
+
+/* A card pulled out of a group's peek, as an icon of its own: it shrinks from the card
+   into an icon under the pointer, raised like a dragged icon, and settles back into its
+   group's icon when dropped where nothing takes it. */
+.plan-tb-grabbed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.plan-tb-grabbed > .plan-tb-item {
+  --_bg: var(--taskbar-item-pressed-bg, var(--segmented-active-bg, var(--color-paper)));
+  --_fg: var(--taskbar-item-pressed-fg, var(--segmented-active-fg, var(--color-ink)));
+  --_border-color: var(
+    --taskbar-item-pressed-border-color,
+    var(--segmented-active-border-color, var(--color-line))
+  );
+  --_shadow: var(--taskbar-item-grabbed-shadow, var(--shadow-floating));
+  translate: -50% -50%;
+  animation: plan-tb-grab 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.plan-tb-grabbed[data-settling] {
+  transition: translate 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.plan-tb-grabbed[data-settling] > .plan-tb-item {
+  opacity: 0;
+  scale: 0.8;
+  transition:
+    opacity 180ms ease-in,
+    scale 180ms ease-in;
+}
+@keyframes plan-tb-grab {
+  from {
+    opacity: 0.4;
+    scale: 2.2;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-tb-grabbed > .plan-tb-item {
+    animation: none;
+  }
+}
+
+/* The messages pulled past their window's edge: nothing out there takes them. The drag's
+   own cursor rule, which dnd-kit injects for every element while a drag lasts, reads
+   this (see use-bar-drag.ts), so nothing here has to outrank it. */
+:root[data-drag-refused] {
+  --_bar-drag-cursor: not-allowed;
+}

@@ -3,8 +3,9 @@ import type { ReactNode } from "react"
 
 import { Tooltip } from "../ui-toolkit/Tooltip"
 
+// A panel's create button: a button set flush left across the panel.
 export const sidebarCreateClasses =
-  "sidebar-create flex min-h-9 w-full shrink-0 items-center gap-2 rounded-control border border-line bg-paper px-2.5 shadow-control text-left text-[11px] text-ink hover:bg-soft focus-visible:bg-soft"
+  "button sidebar-create w-full shrink-0 justify-start px-2.5 text-left"
 
 export const SidebarPanel = ({
   id,
@@ -25,7 +26,7 @@ export const SidebarPanel = ({
 }): React.JSX.Element => (
   <section
     id={id}
-    className="sidebar-panel absolute inset-x-3 top-3 bottom-0 flex min-h-0 min-w-0 flex-col opacity-100 visible [transform:translateX(0)] [transition:opacity_var(--motion-feedback)_ease-out,transform_var(--motion-view)_var(--ease-interface),visibility_var(--motion-view)] data-[active=false]:pointer-events-none data-[active=false]:invisible data-[active=false]:[transform:translateX(-6px)] data-[active=false]:opacity-0"
+    className="sidebar-panel absolute inset-x-3 top-3 bottom-0 flex min-h-0 min-w-0 flex-col opacity-100 visible [transform:translateX(0)] data-[active=false]:pointer-events-none data-[active=false]:invisible data-[active=false]:[transform:translateX(-6px)] data-[active=false]:opacity-0"
     data-active={active}
     aria-labelledby={`${id}-title`}
     aria-hidden={!active}
@@ -36,17 +37,15 @@ export const SidebarPanel = ({
         <h2
           id={`${id}-title`}
           tabIndex={titleHint ? 0 : undefined}
-          className="m-0 flex min-w-0 items-center gap-1.5 text-[9px] font-medium tracking-[1.3px] text-muted uppercase"
+          className="section-label m-0 flex min-w-0 items-center gap-1.5 text-[9px] font-medium"
         >
           {title}
-          {count !== undefined && (
-            <span className="sidebar-panel-count tracking-normal">{count}</span>
-          )}
+          {count !== undefined && <span className="sidebar-panel-count">{count}</span>}
         </h2>
       </Tooltip>
       <Tooltip content="Hide">
         <button
-          className="icon-button sidebar-close size-7 [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100 focus-visible:[&>svg]:opacity-100"
+          className="icon-button dim sidebar-close size-7"
           type="button"
           aria-label={`Hide ${title.toLowerCase()}`}
           onClick={onClose}

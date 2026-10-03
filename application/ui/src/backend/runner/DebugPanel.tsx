@@ -212,32 +212,26 @@ export const createDebugPanel = (debug: RunnerDebug, inspect: DebugInspector) =>
     return (
       <aside
         aria-label="Debug panel"
-        className="fixed right-3 bottom-10 z-50 flex max-h-[80vh] w-80 flex-col gap-3 overflow-y-auto rounded-panel border border-line bg-paper p-3 text-[11px] text-ink shadow-floating"
+        className="debug-panel floating fixed right-3 bottom-10 z-50 flex max-h-[80vh] w-80 flex-col gap-3 overflow-y-auto p-3 text-[11px]"
       >
         <header className="flex items-center justify-between">
           <strong className="text-[12px]">Debug · Ctrl+Shift+D</strong>
-          <button
-            type="button"
-            className="text-muted hover:text-ink"
-            onClick={() => setOpen(false)}
-          >
+          <button type="button" className="debug-close" onClick={() => setOpen(false)}>
             Close
           </button>
         </header>
-        <p className="m-0 font-mono text-[10px] leading-[1.5] text-muted">
+        <p className="debug-meta m-0 text-[10px] leading-[1.5]">
           runner {info.runnerId?.slice(0, 8) ?? "?"} · {info.connection} · restarts/60 s{" "}
           {info.restarts} · terminals {info.terminals}
         </p>
         {groups.map(([title, actions]) => (
           <section key={title} className="flex flex-col gap-1.5">
-            <h2 className="m-0 text-[10px] font-semibold tracking-wide text-muted uppercase">
-              {title}
-            </h2>
+            <h2 className="debug-heading m-0 text-[10px] font-semibold">{title}</h2>
             {actions.map((action) => (
               <button
                 key={action.label}
                 type="button"
-                className="flex flex-col items-start gap-0.5 rounded-control border border-line bg-shell px-2 py-1.5 text-left hover:bg-soft"
+                className="debug-action flex flex-col items-start gap-0.5 px-2 py-1.5 text-left"
                 onClick={() => {
                   setNote("")
                   void Promise.resolve(action.run()).catch((error: unknown) =>
@@ -246,12 +240,12 @@ export const createDebugPanel = (debug: RunnerDebug, inspect: DebugInspector) =>
                 }}
               >
                 <span className="font-medium">{action.label}</span>
-                <span className="text-[10px] text-muted">{action.hint}</span>
+                <span className="debug-hint text-[10px]">{action.hint}</span>
               </button>
             ))}
           </section>
         ))}
-        {note && <p className="m-0 text-[10px] text-muted">{note}</p>}
+        {note && <p className="debug-hint m-0 text-[10px]">{note}</p>}
       </aside>
     )
   }

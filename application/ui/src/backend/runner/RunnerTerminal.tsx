@@ -1,4 +1,3 @@
-import "@xterm/xterm/css/xterm.css"
 import "./runner.css"
 import {
   useCallback,
@@ -25,9 +24,7 @@ const lockNotices = {
 // and the label fade in only after a moment.
 
 const LockNotice = ({ notice }: { readonly notice: string }): React.JSX.Element => (
-  <span className="rounded-control border border-line bg-paper px-3.5 py-2 text-[11px] font-bold tracking-wider text-ink uppercase shadow-floating">
-    {notice}
-  </span>
+  <span className="runner-lock-notice px-3.5 py-2 text-[11px] font-bold">{notice}</span>
 )
 
 // How the shell ended, along the surface's bottom edge, with the restart Enter also
@@ -50,25 +47,25 @@ const EndingBar = ({
   if (ending && (ending.tone !== shown?.tone || endingText(ending) !== text)) setShown(ending)
   return (
     <div
-      className={`runner-ending absolute inset-x-0 bottom-0 flex h-7 items-center justify-between gap-3 border-t border-line bg-shell pr-6 pl-3 text-[11px] text-ink transition-[opacity,translate] duration-(--motion-state) ease-interface ${ending ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}
+      className={`runner-ending absolute inset-x-0 bottom-0 flex h-7 items-center justify-between gap-3 text-[11px] ${ending ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}
       inert={!ending}
       data-terminal-ending={ending?.tone}
     >
       <span className="min-w-0 truncate" title={text || undefined}>
         <span className="font-medium">{shown?.status}</span>
-        {shown?.reason && <span className="text-muted"> · {shown.reason}</span>}
+        {shown?.reason && <span className="runner-ending-reason"> · {shown.reason}</span>}
       </span>
       {shown && (
         <button
           type="button"
           aria-disabled={paused || undefined}
-          className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-control px-1.5 py-0.5 font-medium hover:bg-soft focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-strong aria-disabled:cursor-default aria-disabled:bg-transparent aria-disabled:opacity-50"
+          className="runner-restart flex shrink-0 cursor-pointer items-center gap-1.5 px-1.5 py-0.5 font-medium"
           onClick={() => {
             if (!paused) onRestart()
           }}
         >
           Restart
-          <kbd aria-hidden className="min-h-4 border-line bg-paper px-1 text-[9px] text-muted">
+          <kbd aria-hidden className="min-h-4 px-1 text-[9px]">
             ↵
           </kbd>
         </button>
@@ -162,11 +159,8 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
     )
 
     useLayoutEffect(() => {
-      host.setAttribute(
-        "class",
-        `min-h-0 flex-1 transition-[filter,margin-bottom] duration-(--motion-state) ease-interface ${locked ? "grayscale delay-200" : ""} ${ending ? "mb-7" : ""}`,
-      )
-    }, [host, locked, ending])
+      host.setAttribute("class", `runner-screen min-h-0 flex-1 ${ending ? "mb-7" : ""}`)
+    }, [host, ending])
 
     useEffect(
       () => () => {
@@ -226,7 +220,7 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
           <div
             ref={onRootMount}
             data-terminal-content
-            className="terminal-content runner-terminal nodrag nopan relative flex min-h-0 flex-1 flex-col p-3"
+            className="terminal-content runner-terminal nodrag nopan relative flex min-h-0 flex-1 flex-col"
             hidden={minimized && !clipContent}
             aria-hidden={minimized}
             inert={minimized}
@@ -247,7 +241,7 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
             {locked && (
               <div
                 role="status"
-                className="pointer-events-none absolute inset-0 flex items-center justify-center bg-canvas/80 transition-opacity delay-200 duration-(--motion-state) ease-interface starting:opacity-0"
+                className="runner-lock pointer-events-none absolute inset-0 flex items-center justify-center"
               >
                 <LockNotice
                   notice={

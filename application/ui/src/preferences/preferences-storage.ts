@@ -1,10 +1,16 @@
 import { viewModes } from "../model/state"
 import type { PreferencesValue } from "../model/types"
+import { appearancePreferenceOf, defaultPreference } from "../theme/apply"
+import { themes } from "../theme/themes"
 
 export const preferencesStorageKey = "novadeck.preferences"
 
 export const readPreferences = (): PreferencesValue => {
-  const defaults: PreferencesValue = { fontSize: 13, enabledViews: [...viewModes] }
+  const defaults: PreferencesValue = {
+    fontSize: 13,
+    enabledViews: [...viewModes],
+    appearance: defaultPreference(themes),
+  }
   try {
     const saved = JSON.parse(
       localStorage.getItem(preferencesStorageKey) ?? "null",
@@ -15,6 +21,7 @@ export const readPreferences = (): PreferencesValue => {
     return {
       enabledViews: enabledViews.length ? enabledViews : defaults.enabledViews,
       fontSize: [12, 13, 15].includes(saved?.fontSize ?? 0) ? saved!.fontSize! : defaults.fontSize,
+      appearance: appearancePreferenceOf(saved?.appearance, themes),
     }
   } catch {
     return defaults

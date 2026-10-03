@@ -3,7 +3,7 @@ import type { EventEmitter } from "node:events"
 import type { DesktopHost } from "@novadeck/protocol/bridge"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { apiUrlArgumentPrefix, saveBeforeQuitChannel } from "../bridge.js"
+import { apiUrlArgumentPrefix, appearanceChannel, saveBeforeQuitChannel } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
 // Electron as the preload sees it: what it exposes to the page, and what it sends.
@@ -11,6 +11,7 @@ const electron = vi.hoisted(() => ({
   renderer: undefined as unknown as EventEmitter,
   exposed: undefined as unknown as DesktopHost,
   sent: [] as string[],
+  messages: [] as [string, unknown][],
 }))
 
 vi.mock("electron", async () => {
@@ -24,7 +25,10 @@ vi.mock("electron", async () => {
       },
     },
     ipcRenderer: Object.assign(renderer, {
-      send: (channel: string) => void electron.sent.push(channel),
+      send: (channel: string, ...values: unknown[]) => {
+        electron.sent.push(channel)
+        if (values.length) electron.messages.push([channel, values[0]])
+      },
       invoke: async () => undefined,
     }),
   }
@@ -37,6 +41,7 @@ beforeEach(async () => {
   // Each test loads a fresh preload onto the same mocked ipcRenderer.
   electron.renderer?.removeAllListeners()
   electron.sent.length = 0
+  electron.messages.length = 0
   process.argv.push(argument)
   await import("./index")
 })
@@ -84,5 +89,13 @@ describe("saving before quit, in the page", () => {
       expect(await askToSave()).toBe(2)
       expect(saves).toEqual(["second"])
     })
+  })
+})
+
+describe("the page's appearance", () => {
+  it("goes to the main process as its scheme and ground only", () => {
+    const appearance = { scheme: "dark", ground: "#0f1114", extra: "dropped" } as const
+    electron.exposed.showAppearance(appearance)
+    expect(electron.messages).toEqual([[appearanceChannel, { scheme: "dark", ground: "#0f1114" }]])
   })
 })

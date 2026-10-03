@@ -24,6 +24,24 @@ Preserve authentication, authorization, and input validation. When changing a
 boundary, describe its access rules and test allowed and denied cases. Document
 project-specific trust boundaries here as they emerge.
 
+## Desktop Appearance
+
+The desktop host takes one report from its page about how it looks, on the
+`novadeck:appearance` channel (the preload bridge's `showAppearance`). The host acts
+only on a report from the main frame of one of its own windows showing the app's own
+UI; it drops reports from any other sender, such as a page in the companion pane. A
+report passes as a scheme of `system`, `light` or `dark` and an opaque `#rrggbb`
+colour, and nothing else of it: any other value is dropped.
+
+A valid report sets Electron's `nativeTheme.themeSource`, which is global to the app: it
+changes the native parts of every window, and what `prefers-color-scheme` reports to
+every page the app shows, the companion pane's pages included. It also sets the
+reporting window's background colour and keeps the report in `appearance.json` in the
+app's data folder, written to a temporary file beside it and renamed over it. The next
+launch reads that file back through the same check before it sets `themeSource` and
+opens windows on the kept colour. A compromised UI can change no more through this
+channel than the app's colour scheme and its windows' background colour.
+
 ## Terminal Runner
 
 The standalone terminal API is a personal/self-hosted shell capability, not a

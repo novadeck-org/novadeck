@@ -1,0 +1,86 @@
+/* The button recipe: dialog actions, empty states and create buttons. A grey outline at
+   rest; `.primary` is the strong fill of the one action a view leads with, `.ghost`
+   has no outline until hovered, `.quiet` is a ghost muted until hovered, and `.link`
+   is bare text that underlines under the pointer. A disabled button still takes the
+   pointer, so its `title` shows, but does not answer it.
+
+   Tokens, each optional (its fallback in brackets):
+   --button-bg (paper), --button-fg (ink), --button-border-color (line-strong),
+   --button-shadow (shadow-control), --button-radius (radius-control): the button at rest.
+   --button-hover-bg (soft), --button-hover-fg (the rest fg),
+   --button-hover-border-color (the rest border): under the pointer.
+   --button-primary-bg, --button-primary-border-color (strong), --button-primary-fg
+   (on-strong), --button-primary-shadow (the rest shadow), --button-primary-hover-bg,
+   --button-primary-hover-border-color (strong-hover): the primary action.
+   --button-ghost-hover-bg (soft): a ghost or quiet button under the pointer.
+   --button-quiet-fg (muted): a quiet button at rest; under the pointer it takes the
+   hover fg.
+   --button-link-fg (muted), --button-link-hover-fg (ink): a link button.
+   --button-disabled-opacity (0.5): a disabled button. */
+.button {
+  --_bg: var(--button-bg, var(--color-paper));
+  --_fg: var(--button-fg, var(--color-ink));
+  --_border-color: var(--button-border-color, var(--color-line-strong));
+  --_shadow: var(--button-shadow, var(--shadow-control));
+  @apply flex h-9 items-center justify-center gap-2 px-4 text-[11px];
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--button-radius, var(--radius-control));
+  background-color: var(--_bg);
+  color: var(--_fg);
+  box-shadow: var(--_shadow);
+}
+.button.primary {
+  --_bg: var(--button-primary-bg, var(--color-strong));
+  --_fg: var(--button-primary-fg, var(--color-on-strong));
+  --_border-color: var(--button-primary-border-color, var(--color-strong));
+  --_shadow: var(--button-primary-shadow, var(--button-shadow, var(--shadow-control)));
+}
+.button:is(.ghost, .quiet, .link) {
+  --_bg: transparent;
+  --_border-color: transparent;
+  --_shadow: none;
+}
+.button.quiet {
+  --_fg: var(--button-quiet-fg, var(--color-muted));
+}
+.button.link {
+  --_fg: var(--button-link-fg, var(--color-muted));
+  height: auto;
+  text-underline-offset: 2px;
+}
+@media (hover: hover) {
+  .button:hover:not(:disabled) {
+    --_bg: var(--button-hover-bg, var(--color-soft));
+    --_fg: var(--button-hover-fg, var(--button-fg, var(--color-ink)));
+    --_border-color: var(
+      --button-hover-border-color,
+      var(--button-border-color, var(--color-line-strong))
+    );
+  }
+  .button.primary:hover:not(:disabled) {
+    --_bg: var(--button-primary-hover-bg, var(--color-strong-hover));
+    --_fg: var(--button-primary-fg, var(--color-on-strong));
+    --_border-color: var(--button-primary-hover-border-color, var(--color-strong-hover));
+  }
+  .button:is(.ghost, .quiet):hover:not(:disabled) {
+    --_bg: var(--button-ghost-hover-bg, var(--color-soft));
+    --_border-color: transparent;
+  }
+  .button.link:hover:not(:disabled) {
+    --_bg: transparent;
+    --_fg: var(--button-link-hover-fg, var(--color-ink));
+    --_border-color: transparent;
+    text-decoration: underline;
+  }
+}
+.button.link:focus-visible {
+  text-decoration: underline;
+}
+.button:disabled {
+  opacity: var(--button-disabled-opacity, 0.5);
+}
+@media (max-width: 700px) {
+  .button {
+    padding: 0 12px;
+  }
+}

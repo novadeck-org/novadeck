@@ -1,0 +1,41 @@
+/* The badge recipe: counts and small labels (`.badge`), and keys (`kbd`). A badge takes
+   a tone with `data-tone` (see tone.css). A `kbd.hint` is a shortcut set quietly inside
+   a control, as on the header's search and the sidebar's create buttons: bare and faint.
+
+   Tokens, each optional (its fallback in brackets):
+   --badge-bg (soft), --badge-fg (ink), --badge-border-color (line),
+   --badge-radius (radius-control), --badge-font (mono): a badge.
+   --kbd-bg (shell), --kbd-fg (the surrounding text), --kbd-border-color (line),
+   --kbd-shadow (none), --kbd-radius (radius-control), --kbd-font (mono): a key.
+   --kbd-hint-fg (muted), --kbd-hint-opacity (0.7): a hint's key. */
+.badge {
+  --_bg: var(--badge-bg, var(--color-soft));
+  --_fg: var(--badge-fg, var(--color-ink));
+  --_border-color: var(--badge-border-color, var(--color-line));
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--badge-radius, var(--radius-control));
+  background-color: var(--_bg);
+  color: var(--_fg);
+  font-family: var(--badge-font, var(--font-mono));
+}
+kbd {
+  --_bg: var(--kbd-bg, var(--color-shell));
+  --_fg: var(--kbd-fg, currentColor);
+  --_border-color: var(--kbd-border-color, var(--color-line));
+  @apply inline-flex min-h-5 items-center justify-center px-1.5 text-[9px];
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--kbd-radius, var(--radius-control));
+  background-color: var(--_bg);
+  color: var(--_fg);
+  box-shadow: var(--kbd-shadow, none);
+  font-family: var(--kbd-font, var(--font-mono));
+}
+kbd.hint {
+  --_bg: transparent;
+  --_fg: var(--kbd-hint-fg, var(--color-muted));
+  min-height: 0;
+  padding: 0;
+  border-width: 0;
+  box-shadow: none;
+  opacity: var(--kbd-hint-opacity, 0.7);
+}

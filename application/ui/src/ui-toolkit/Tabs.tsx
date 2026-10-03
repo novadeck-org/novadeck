@@ -20,7 +20,8 @@ export const Tabs = ({
   </ArkTabs.Root>
 )
 
-// The indicator slides to the selected tab; give it its look with `indicatorClassName`.
+// The indicator slides to the selected tab, drawn by the segmented recipe;
+// `indicatorClassName` places it.
 export const TabList = ({
   label,
   children,
@@ -31,17 +32,14 @@ export const TabList = ({
     {children}
     {indicatorClassName && (
       <ArkTabs.Indicator
-        className={cn(
-          "pointer-events-none w-(--width) [--transition-duration:var(--motion-state)] [--transition-timing-function:var(--ease-interface)]",
-          indicatorClassName,
-        )}
+        className={cn("tabs-indicator pointer-events-none w-(--width)", indicatorClassName)}
       />
     )}
   </ArkTabs.List>
 )
 
-export const Tab = (props: PartProps & { value: string }): React.JSX.Element => (
-  <ArkTabs.Trigger {...props} />
+export const Tab = ({ className, ...props }: PartProps & { value: string }): React.JSX.Element => (
+  <ArkTabs.Trigger {...props} className={cn("tab", className)} />
 )
 
 export const TabPanel = ({

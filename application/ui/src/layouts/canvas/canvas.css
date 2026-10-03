@@ -1,131 +1,127 @@
 @import "@xyflow/react/dist/base.css" layer(base);
 @reference "../../styles.css";
 
-.canvas-viewport .react-flow {
-  --xy-background-color: transparent;
-}
-.canvas-viewport .react-flow__node {
-  transition:
-    transform 160ms ease-out,
-    width 160ms ease-out,
-    height 160ms ease-out;
-}
-.canvas-viewport .react-flow__node.dragging,
-.canvas-viewport .react-flow__node.resizing {
-  transition: none;
-}
-.canvas-node {
-  opacity: var(--terminal-idle-opacity);
-  transition: opacity var(--motion-state) var(--ease-interface);
-}
-.canvas-node.selected {
-  opacity: 1;
-}
-.canvas-node.selected[data-preview="true"] {
-  opacity: 0.5;
-}
-.canvas-node .terminal-resize-grip {
-  @apply absolute right-px bottom-px z-10 flex size-7 items-end justify-end border-0 bg-transparent p-1.5 text-muted;
-  top: auto;
-  left: auto;
-  translate: none;
-  transform: scale(var(--canvas-chrome-scale));
-  transform-origin: bottom right;
-  opacity: 0.35;
-  transition: opacity var(--motion-feedback) var(--ease-interface);
-}
-.terminal-resize-grip:hover {
-  opacity: 0.8;
-}
-.terminal-resize-pattern {
-  width: 11px;
-  height: 11px;
-  background: repeating-linear-gradient(135deg, transparent 0 3px, currentColor 3px 4px);
-  clip-path: polygon(100% 0, 100% 100%, 0 100%);
-  pointer-events: none;
-}
-.canvas-node .terminal-heading {
-  height: calc(var(--canvas-header-height) * var(--canvas-chrome-scale));
-}
-/* The selection bar keeps its place in the header at any zoom, and its 2px width on
-   screen: the node is scaled by the zoom, which the chrome scale squared undoes. */
-.canvas-node .terminal-heading::before {
-  width: calc(2px * var(--canvas-chrome-scale) * var(--canvas-chrome-scale));
-  height: calc(24px * var(--canvas-chrome-scale));
-}
-.canvas-node .terminal-header {
-  width: calc(100% / var(--canvas-chrome-scale));
-  height: var(--canvas-header-height);
-  padding: 7px 16px;
-  gap: 6px;
-  line-height: 16px;
-  transform: scale(var(--canvas-chrome-scale));
-  transform-origin: top left;
-  cursor: move;
-}
-.canvas-node.compact-header .terminal-header {
-  gap: 4px;
-  padding: 5px 6px;
-}
-.canvas-node.compact-header .terminal-title {
-  gap: 4px;
-  padding: 0 2px;
-  line-height: 16px;
-}
-.canvas-node.compact-header .terminal-actions {
-  justify-content: flex-end;
-  gap: 0;
-}
-.canvas-node.compact-header .terminal-actions .icon-button {
-  width: 22px;
-  height: 22px;
-  min-width: 0;
-  flex-shrink: 1;
-  padding: 0;
-}
-.canvas-node.minimized .terminal-header {
-  border-bottom-color: transparent;
-}
-.canvas-node.minimized .terminal-resize-grip {
-  width: 16px;
-  padding-right: 3px;
-  padding-left: 0;
-  cursor: ew-resize;
-}
-.canvas-node.minimized.compact-header .terminal-resize-grip {
-  height: 12px;
-  padding-bottom: 1px;
-}
-.canvas-node .terminal-content {
-  overscroll-behavior: contain;
-}
-.canvas-node:not(.selected) .terminal-content {
-  pointer-events: none;
-  user-select: none;
-}
-.canvas-node:not(.selected) .terminal-window,
-.canvas-node:not(.selected) .terminal-header {
-  cursor: grab;
-}
-.canvas-node.selected .terminal-content {
-  user-select: text;
-  cursor: text;
-}
-
-/* The ghost of a window a drop from a taskbar would open: on the canvas's viewport, which
-   places and scales it like a window, above the windows. */
-.canvas-drop-ghost {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 10;
-}
-/* A window dropped from a taskbar gliding onto the grid from where its ghost was. */
-.react-flow__node.canvas-drop-settle {
-  transition: transform 160ms var(--ease-interface);
-}
-@media (prefers-reduced-motion: reduce) {
-  .react-flow__node.canvas-drop-settle {
+@layer components {
+  .canvas-viewport .react-flow {
+    --xy-background-color: transparent;
+  }
+  .canvas-viewport .react-flow__node {
+    transition:
+      transform 160ms ease-out,
+      width 160ms ease-out,
+      height 160ms ease-out;
+  }
+  .canvas-viewport .react-flow__node.dragging,
+  .canvas-viewport .react-flow__node.resizing {
     transition: none;
+  }
+  .canvas-node {
+    opacity: var(--terminal-idle-opacity);
+    transition: opacity var(--motion-state) var(--ease-interface);
+  }
+  .canvas-node.selected {
+    opacity: 1;
+  }
+  .canvas-node.selected[data-preview="true"] {
+    opacity: 0.5;
+  }
+  .canvas-node .terminal-resize-grip {
+    /* Its look is the workspace recipe's, shared with Grid's resize handle. */
+    @apply absolute right-px bottom-px z-10 flex size-7 items-end justify-end p-1.5;
+    top: auto;
+    left: auto;
+    border: 0;
+    background: transparent;
+    translate: none;
+    transform: scale(var(--_canvas-chrome-scale));
+    transform-origin: bottom right;
+  }
+  .terminal-resize-pattern {
+    pointer-events: none;
+  }
+  .canvas-node .terminal-heading {
+    height: calc(var(--_canvas-header-height) * var(--_canvas-chrome-scale));
+  }
+  /* The selection bar keeps its place in the header at any zoom, and its 2px width on
+     screen: the node is scaled by the zoom, which the chrome scale squared undoes. */
+  .canvas-node .terminal-heading::before {
+    width: calc(2px * var(--_canvas-chrome-scale) * var(--_canvas-chrome-scale));
+    height: calc(24px * var(--_canvas-chrome-scale));
+  }
+  .canvas-node .terminal-header {
+    width: calc(100% / var(--_canvas-chrome-scale));
+    height: var(--_canvas-header-height);
+    padding: 7px 16px;
+    gap: 6px;
+    line-height: 16px;
+    transform: scale(var(--_canvas-chrome-scale));
+    transform-origin: top left;
+    cursor: move;
+  }
+  .canvas-node.compact-header .terminal-header {
+    gap: 4px;
+    padding: 5px 6px;
+  }
+  .canvas-node.compact-header .terminal-title {
+    gap: 4px;
+    padding: 0 2px;
+    line-height: 16px;
+  }
+  .canvas-node.compact-header .terminal-actions {
+    justify-content: flex-end;
+    gap: 0;
+  }
+  .canvas-node.compact-header .terminal-actions .icon-button {
+    width: 22px;
+    height: 22px;
+    min-width: 0;
+    flex-shrink: 1;
+    padding: 0;
+  }
+  .canvas-node.minimized .terminal-header {
+    --_border-color: transparent;
+  }
+  .canvas-node.minimized .terminal-resize-grip {
+    width: 16px;
+    padding-right: 3px;
+    padding-left: 0;
+    cursor: ew-resize;
+  }
+  .canvas-node.minimized.compact-header .terminal-resize-grip {
+    height: 12px;
+    padding-bottom: 1px;
+  }
+  .canvas-node .terminal-content {
+    overscroll-behavior: contain;
+  }
+  .canvas-node:not(.selected) .terminal-content {
+    pointer-events: none;
+    user-select: none;
+  }
+  .canvas-node:not(.selected) .terminal-window,
+  .canvas-node:not(.selected) .terminal-header {
+    cursor: grab;
+  }
+  .canvas-node.selected .terminal-content {
+    user-select: text;
+    cursor: text;
+  }
+
+  /* The ghost of a window a drop from a taskbar would open: on the canvas's viewport, which
+     places and scales it like a window, above the windows. */
+  .canvas-drop-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10;
+  }
+  /* A window dropped from a taskbar gliding onto the grid from where its ghost was. */
+  .react-flow__node.canvas-drop-settle {
+    transition: transform 160ms var(--ease-interface);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .react-flow__node.canvas-drop-settle {
+      transition: none;
+    }
   }
 }

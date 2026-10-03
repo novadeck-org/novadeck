@@ -99,7 +99,7 @@ export const WorkspaceApp = (): React.JSX.Element => {
   )
   return (
     <main
-      className="workspace flex h-dvh min-h-100 flex-col overflow-hidden bg-paper"
+      className="workspace flex h-dvh min-h-100 flex-col overflow-hidden"
       data-zen={zen}
       onPointerDownCapture={cancelTerminalTransition}
       onKeyDownCapture={cancelTerminalTransition}

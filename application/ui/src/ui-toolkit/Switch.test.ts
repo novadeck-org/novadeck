@@ -27,3 +27,16 @@ describe("a switch with a change on its way", () => {
     view.unmount()
   })
 })
+
+describe("a switch", () => {
+  it("says whether it is on in data-state as well as aria-checked", () => {
+    const props = { checked: false, onChange: () => {}, labelledBy: "x" }
+    const view = render(createElement(Switch, props))
+    const button = view.container.querySelector<HTMLButtonElement>('[role="switch"]')!
+    expect(button.dataset.state).toBe("unchecked")
+    view.rerender(createElement(Switch, { ...props, checked: true }))
+    expect(button.dataset.state).toBe("checked")
+    expect(button.getAttribute("aria-checked")).toBe("true")
+    view.unmount()
+  })
+})

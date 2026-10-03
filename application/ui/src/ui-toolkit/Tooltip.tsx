@@ -21,7 +21,7 @@ export const Tooltip = ({ content, children, disabled }: TooltipProps): React.JS
     <ArkTooltip.Trigger asChild>{children}</ArkTooltip.Trigger>
     <Portal>
       <ArkTooltip.Positioner className="z-50">
-        <ArkTooltip.Content className="z-50 max-w-64 rounded-control border border-line bg-paper px-2 py-1.5 text-[11px] text-ink shadow-floating">
+        <ArkTooltip.Content className="floating z-50 max-w-64 px-2 py-1.5 text-[11px]">
           {content}
         </ArkTooltip.Content>
       </ArkTooltip.Positioner>
