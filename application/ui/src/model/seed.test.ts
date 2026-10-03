@@ -1,5 +1,7 @@
 import { context, describe, expect, it } from "../test"
-import { terminalFixture } from "../test/fixtures"
+import { itemFixture, terminalFixture } from "../test/fixtures"
+import { itemIdOf } from "./companion"
+import { messagesKey } from "./companion-bar"
 import { initialGridLayouts } from "./layout/grid-placement"
 import { workspaceFromSeed, WorkspaceSeedError, type WorkspaceSeed, viewOf } from "./seed"
 
@@ -18,13 +20,15 @@ describe("workspace from a backend seed", () => {
           id: "one",
           name: "one",
           directory: "~/one",
-          sessions: [{ id: "initial", name: "Session", terminals, canvasLayout }],
+          sessions: [
+            { id: "initial", name: "Session", items: [], windows: [], terminals, canvasLayout },
+          ],
         },
         {
           id: "two",
           name: "two",
           directory: "~/two",
-          sessions: [{ id: "initial", name: "Session", terminals: [] }],
+          sessions: [{ id: "initial", name: "Session", items: [], windows: [], terminals: [] }],
         },
       ],
     }
@@ -65,8 +69,8 @@ describe("workspace from a backend seed", () => {
               name: "one",
               directory: "~/one",
               sessions: [
-                { id: "latest", name: "Latest", terminals },
-                { id: "older", name: "Older", terminals: [] },
+                { id: "latest", name: "Latest", items: [], windows: [], terminals },
+                { id: "older", name: "Older", items: [], windows: [], terminals: [] },
               ],
             },
           ],
@@ -87,7 +91,7 @@ describe("workspace from a backend seed", () => {
             id: "one",
             name: "one",
             directory: "~/one",
-            sessions: [{ id: "s", name: "S", terminals }],
+            sessions: [{ id: "s", name: "S", items: [], windows: [], terminals }],
           },
         ],
       },
@@ -109,15 +113,25 @@ describe("workspace from a backend seed", () => {
           name: "one",
           directory: "~/one",
           sessions: [
-            { id: "latest", name: "Latest", terminals: [...live, extra], restored, visitedAt: 30 },
-            { id: "older", name: "Older", terminals: [], visitedAt: 10 },
+            {
+              id: "latest",
+              name: "Latest",
+              items: [],
+              windows: [],
+              terminals: [...live, extra],
+              restored,
+              visitedAt: 30,
+            },
+            { id: "older", name: "Older", items: [], windows: [], terminals: [], visitedAt: 10 },
           ],
         },
         {
           id: "two",
           name: "two",
           directory: "~/two",
-          sessions: [{ id: "latest", name: "Two", terminals: [], visitedAt: 20 }],
+          sessions: [
+            { id: "latest", name: "Two", items: [], windows: [], terminals: [], visitedAt: 20 },
+          ],
         },
       ],
     }
@@ -156,7 +170,7 @@ describe("workspace from a backend seed", () => {
               id: "one",
               name: "one",
               directory: "~/one",
-              sessions: [{ id: "s", name: "S", terminals }],
+              sessions: [{ id: "s", name: "S", items: [], windows: [], terminals }],
             },
           ],
         },
@@ -175,13 +189,15 @@ describe("workspace from a backend seed", () => {
               id: "one",
               name: "one",
               directory: "~/one",
-              sessions: [{ id: "s", name: "S", terminals: [kept!], restored: view }],
+              sessions: [
+                { id: "s", name: "S", items: [], windows: [], terminals: [kept!], restored: view },
+              ],
             },
           ],
         },
         defaults,
       ).projects[0]!.history[0]!.state
-      expect(seeded.roster).toEqual({ terminals: [kept], order: ["01"] })
+      expect(seeded.roster).toEqual({ terminals: [kept], windows: [], order: ["01"] })
       expect(seeded.selected).toBe("01")
       expect(seeded.layout.canvas.geometry).not.toHaveProperty("02")
       expect(
@@ -189,6 +205,84 @@ describe("workspace from a backend seed", () => {
           .flat()
           .some((item) => item?.i === "02"),
       ).toBe(false)
+    })
+  })
+
+  context("with companion items and windows", () => {
+    const older = itemFixture("older", "01", { shownAt: 1 })
+    const newer = itemFixture("newer", "01", { shownAt: 2 })
+    const undocked = itemFixture("undocked", "02", { holder: { windowId: "w1" } })
+    const window = {
+      id: "w1",
+      itemId: undocked.id,
+      name: "undocked.ts",
+      titleSource: { kind: "default" },
+    } as const
+    const seeded = (session: Partial<WorkspaceSeed["projects"][number]["sessions"][number]>) =>
+      workspaceFromSeed(
+        {
+          projects: [
+            {
+              id: "one",
+              name: "one",
+              directory: "~/one",
+              sessions: [
+                {
+                  id: "s",
+                  name: "S",
+                  terminals,
+                  items: [newer, older, undocked],
+                  windows: [window],
+                  ...session,
+                },
+              ],
+            },
+          ],
+        },
+        defaults,
+      ).projects[0]!.history[0]!.state
+
+    it("lays the windows out after the terminals and puts items on their bars, oldest first", () => {
+      const state = seeded({})
+      expect(state.roster.windows).toEqual([window])
+      expect(state.layout.canvas.geometry).toHaveProperty("w1")
+      expect(state.items).toEqual([newer, older, undocked])
+      expect(state.bars).toEqual({
+        "01": { order: [older.id, newer.id], hidden: [], tab: null, open: false },
+      })
+    })
+
+    it("marks nothing new", () => {
+      expect(seeded({}).fresh).toEqual({})
+    })
+
+    it("keeps the saved bars, less what's gone, with what they didn't know after", () => {
+      const view = viewOf({
+        ...seeded({}),
+        bars: {
+          "01": {
+            order: [itemIdOf("gone"), newer.id, messagesKey],
+            hidden: [],
+            tab: itemIdOf("gone"),
+            open: true,
+          },
+          "99": { order: [newer.id], hidden: [], tab: null, open: false },
+        },
+      })
+      const state = seeded({ restored: view })
+      expect(state.bars).toEqual({
+        "01": { order: [newer.id, messagesKey, older.id], hidden: [], tab: null, open: false },
+      })
+      expect(state.roster.windows).toEqual([window])
+    })
+
+    it("keeps items whose terminal or window isn't known, on no bar", () => {
+      const elsewhere = itemFixture("x", "99")
+      const state = seeded({ windows: [], items: [older, undocked, elsewhere] })
+      expect(state.items).toEqual([older, undocked, elsewhere])
+      expect(state.bars).toEqual({
+        "01": { order: [older.id], hidden: [], tab: null, open: false },
+      })
     })
   })
 

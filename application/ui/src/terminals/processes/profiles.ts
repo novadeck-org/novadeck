@@ -1,6 +1,7 @@
 import { FileText, Terminal, type LucideIcon } from "lucide-react"
 import type { ComponentType, ReactNode } from "react"
 
+import type { CompanionItem } from "../../model/companion"
 import type { TerminalMetadata } from "../../model/types"
 import { ClaudeIcon } from "../../ui-toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "../../ui-toolkit/icons/CodexIcon"
@@ -33,8 +34,11 @@ export const presentedProgram = (terminal: TerminalMetadata): string | undefined
 
 // A window undocked from a terminal's companion presents as what it shows: a plan, or an
 // image, file or page.
-export const terminalProfile = (terminal: TerminalMetadata): ProcessProfile => {
-  const window = terminal.companion
-  if (window) return { icon: window.artifact ? iconOf(window.artifact) : FileText }
-  return profiles.get(presentedProgram(terminal) ?? "") ?? fallback
-}
+export const windowProfile = (
+  item: Pick<CompanionItem, "kind" | "name"> | undefined,
+): ProcessProfile => ({
+  icon: !item || item.kind === "plan" ? FileText : iconOf({ kind: item.kind, name: item.name }),
+})
+
+export const terminalProfile = (terminal: TerminalMetadata): ProcessProfile =>
+  profiles.get(presentedProgram(terminal) ?? "") ?? fallback

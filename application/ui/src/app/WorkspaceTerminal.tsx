@@ -1,10 +1,13 @@
 import { useCallback, useMemo, type ReactNode } from "react"
 
+import { isOnBar, type CompanionItem, type ItemId } from "../model/companion"
+import { emptyBar } from "../model/companion-bar"
+import { isWindow } from "../model/roster"
 import { activeProject } from "../model/state"
-import type { TerminalMetadata } from "../model/types"
+import type { CompanionWindowMeta, TerminalMetadata, Tile } from "../model/types"
 import { TerminalCompanion } from "../terminals/companion/TerminalCompanion"
 import { UndockedWindow } from "../terminals/companion/UndockedWindow"
-import { presentedProgram, terminalProfile } from "../terminals/processes/profiles"
+import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
 import { renameView } from "../terminals/rename-state"
 import { windowMenu } from "../terminals/window-menu"
 import {
@@ -21,99 +24,68 @@ import {
   handleNames,
   sameTarget,
   shallowEqual,
+  sameItems,
   terminalNames,
-  undockedFrom,
   windowedDestination,
 } from "./selectors"
 
-// One terminal in the current view: the backend's surface, which keeps its controller
-// mounted while the shared window, and the body its program calls for, wrap its content.
-export const WorkspaceTerminal = ({
-  terminal,
-  controls: { minimize, onFlyTo, onResizePreset, onReveal },
-}: {
-  readonly terminal: TerminalMetadata
-  readonly controls: TerminalLayoutControls
-}): React.JSX.Element => {
-  const { backend, commands, panes } = useWorkspaceServices()
+// What every window in the current view takes from the workspace, a terminal's or one
+// undocked from a companion: its header, its menu, and the controls its layout offers.
+const useWindowFrame = (
+  tile: Tile,
+  { minimize, onFlyTo, onResizePreset }: TerminalLayoutControls,
+): Omit<WindowShellProps, "children" | "icon"> => {
+  const { backend, commands } = useWorkspaceServices()
   const { setSelected, openWindowed, openFocus, close, startRename, openSwitcher } = commands
-  const { resetTitle } = commands
-  const { changeRenameDraft, saveRename, cancelRename, setKeyboardFocus } = commands
-  const terminalId = terminal.id
-  // Each terminal selects only what concerns it, so a rename keystroke or a keyboard
-  // focus change re-renders just the terminals involved.
-  const { projectName, context, view, windowedView, active, large } = useWorkspaceState(
-    (workspace) => {
-      const state = currentState(workspace)
-      return {
-        projectName: activeProject(workspace)!.name,
-        context: currentContext(workspace),
-        view: state.view,
-        windowedView: state.windowedView,
-        active: state.selected === terminalId,
-        large:
-          state.view !== "focus" && state.layout.sizePresets[state.view][terminalId] === "large",
-      }
-    },
-    shallowEqual,
-  )
-  const { projectId, workspaceSessionId } = useWorkspaceState(currentTarget, sameTarget)
-  const terminalName = useWorkspaceState(terminalNames, shallowEqual)
-  const names = useWorkspaceState(handleNames, shallowEqual)
-  const { fresh, rename, keyboardFocus, enabledViews, fontSize } = useUiState(
+  const { resetTitle, changeRenameDraft, saveRename, cancelRename } = commands
+  const id = tile.id
+  const { context, view, windowedView, active, large } = useWorkspaceState((workspace) => {
+    const state = currentState(workspace)
+    return {
+      context: currentContext(workspace),
+      view: state.view,
+      windowedView: state.windowedView,
+      active: state.selected === id,
+      large: state.view !== "focus" && state.layout.sizePresets[state.view][id] === "large",
+    }
+  }, shallowEqual)
+  const { fresh, rename, enabledViews } = useUiState(
     (state) => ({
-      fresh: state.created?.context === context && state.created.id === terminalId,
-      rename:
-        state.rename?.context === context && state.rename.id === terminalId ? state.rename : null,
-      keyboardFocus:
-        state.shell.keyboardFocus?.id === terminalId ? state.shell.keyboardFocus : null,
+      fresh: state.created?.context === context && state.created.id === id,
+      rename: state.rename?.context === context && state.rename.id === id ? state.rename : null,
       enabledViews: state.preferences.enabledViews,
-      fontSize: state.preferences.fontSize,
     }),
     shallowEqual,
   )
   const compact = view !== "focus"
   const destination = windowedDestination(windowedView, enabledViews)
   const windowedLabel = destination === "canvas" ? "Canvas" : "Grid"
-  // Surfaces may depend on these in effects, so keep them stable across renders.
-  const terminalKey = useMemo(
-    () => ({ projectId, workspaceSessionId, terminalId }),
-    [projectId, workspaceSessionId, terminalId],
-  )
-  const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
-  const dockIn = useDockTarget(terminal)
-  // This terminal's items shown elsewhere now, and what's placed on its bar.
-  const undocked = useWorkspaceState(undockedFrom(terminalId), shallowEqual)
-  const placements = useWorkspaceState((workspace) => currentState(workspace).placements)
-  const { icon: Icon, Body } = terminalProfile(terminal)
-  const processWindow = presentedProgram(terminal)
-  const frame: Omit<WindowShellProps, "children"> = {
-    terminal,
-    icon: <Icon size={14} strokeWidth={1.5} />,
-    ...(processWindow ? { processWindow } : {}),
+  const dockIn = useDockTarget(tile)
+  return {
+    terminal: tile,
     active,
     fresh,
     rename: renameView(rename),
-    onBeginRename: () => startRename(terminal, "header"),
-    onRenameDraft: (draft) => changeRenameDraft(terminal.id, draft),
-    onRenameSave: () => saveRename(terminal.id),
-    onRenameCancel: () => cancelRename(terminal.id),
+    onBeginRename: () => startRename(tile, "header"),
+    onRenameDraft: (draft) => changeRenameDraft(id, draft),
+    onRenameSave: () => saveRename(id),
+    onRenameCancel: () => cancelRename(id),
     menu: windowMenu({
-      terminal,
-      onRename: () => startRename(terminal, "header"),
-      onResetTitle: backend.resetTitle ? () => resetTitle(terminal.id) : undefined,
+      terminal: tile,
+      onRename: () => startRename(tile, "header"),
+      onResetTitle: backend.resetTitle ? () => resetTitle(id) : undefined,
       dockIn,
-      onClose: () => close(terminal.id),
+      onClose: () => close(id),
     }),
     compact,
-    switcher: { onOpen: (button) => openSwitcher(terminal.id, button) },
-    onClose: () => close(terminal.id),
+    switcher: { onOpen: (button) => openSwitcher(id, button) },
+    onClose: () => close(id),
     ...(minimize ? { minimize } : {}),
     ...(onFlyTo ? { onFlyTo } : {}),
     ...(onResizePreset
       ? {
           onResizePreset: (button: HTMLButtonElement) => {
-            setSelected(terminal.id)
+            setSelected(id)
             onResizePreset(button)
           },
           resizeView: view === "grid" ? ("grid" as const) : ("canvas" as const),
@@ -121,10 +93,99 @@ export const WorkspaceTerminal = ({
       : {}),
     large,
     ...(compact && enabledViews.includes("focus")
-      ? { onFocus: () => openFocus(terminal.id) }
+      ? { onFocus: () => openFocus(id) }
       : !compact && destination
-        ? { windowed: { destination: windowedLabel, onOpen: () => openWindowed(terminal.id) } }
+        ? { windowed: { destination: windowedLabel, onOpen: () => openWindowed(id) } }
         : {}),
+  }
+}
+
+// A window undocked from a terminal's companion, in the same frame as a terminal's.
+const WorkspaceWindow = ({
+  window,
+  controls,
+}: {
+  readonly window: CompanionWindowMeta
+  readonly controls: TerminalLayoutControls
+}): React.JSX.Element => {
+  const { panes } = useWorkspaceServices()
+  const frame = useWindowFrame(window, controls)
+  const target = useWorkspaceState(currentTarget, sameTarget)
+  const item = useWorkspaceState((workspace) =>
+    currentState(workspace).items.find((each) => each.id === window.itemId),
+  )
+  const { icon: Icon } = windowProfile(item)
+  // What it shows, where a terminal's content would be.
+  return (
+    <WindowShell {...frame} icon={<Icon size={14} strokeWidth={1.5} />}>
+      {panes && <UndockedWindow panes={panes} target={target} item={item} />}
+    </WindowShell>
+  )
+}
+
+const noItems: readonly CompanionItem[] = []
+
+// One terminal in the current view: the backend's surface, which keeps its controller
+// mounted while the shared window, and the body its program calls for, wrap its content.
+export const WorkspaceTerminal = ({
+  terminal,
+  controls,
+}: {
+  readonly terminal: TerminalMetadata
+  readonly controls: TerminalLayoutControls
+}): React.JSX.Element => {
+  const { minimize, onReveal } = controls
+  const { backend, commands, panes } = useWorkspaceServices()
+  const { setKeyboardFocus } = commands
+  const terminalId = terminal.id
+  // Each terminal selects only what concerns it, so a rename keystroke or a keyboard
+  // focus change re-renders just the terminals involved.
+  const { projectName, view, active } = useWorkspaceState((workspace) => {
+    const state = currentState(workspace)
+    return {
+      projectName: activeProject(workspace)!.name,
+      view: state.view,
+      active: state.selected === terminalId,
+    }
+  }, shallowEqual)
+  const { projectId, workspaceSessionId } = useWorkspaceState(currentTarget, sameTarget)
+  const terminalName = useWorkspaceState(terminalNames, shallowEqual)
+  const names = useWorkspaceState(handleNames, shallowEqual)
+  const { keyboardFocus, fontSize } = useUiState(
+    (state) => ({
+      keyboardFocus:
+        state.shell.keyboardFocus?.id === terminalId ? state.shell.keyboardFocus : null,
+      fontSize: state.preferences.fontSize,
+    }),
+    shallowEqual,
+  )
+  // Surfaces may depend on these in effects, so keep them stable across renders.
+  const terminalKey = useMemo(
+    () => ({ projectId, workspaceSessionId, terminalId }),
+    [projectId, workspaceSessionId, terminalId],
+  )
+  const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
+  // What its bar holds, as the person arranged it, and what's new there.
+  const bar = useWorkspaceState((workspace) => currentState(workspace).bars[terminalId] ?? emptyBar)
+  const items = useWorkspaceState((workspace) => {
+    const held = currentState(workspace).items.filter((item) => isOnBar(item, terminalId))
+    return held.length ? held : noItems
+  }, sameItems)
+  // Only its own items' marks, so something new on another bar re-renders nothing here.
+  const fresh = useWorkspaceState((workspace): Readonly<Record<ItemId, true>> => {
+    const state = currentState(workspace)
+    return Object.fromEntries(
+      state.items.flatMap((item) =>
+        isOnBar(item, terminalId) && state.fresh[item.id] ? [[item.id, true]] : [],
+      ),
+    )
+  }, shallowEqual)
+  const { icon: Icon, Body } = terminalProfile(terminal)
+  const processWindow = presentedProgram(terminal)
+  const frame: Omit<WindowShellProps, "children"> = {
+    ...useWindowFrame(terminal, controls),
+    icon: <Icon size={14} strokeWidth={1.5} />,
+    ...(processWindow ? { processWindow } : {}),
   }
   // One shell element whatever runs, so only the body around the content changes.
   const renderWindow = (content: ReactNode): ReactNode => (
@@ -139,10 +200,11 @@ export const WorkspaceTerminal = ({
           onReveal={onReveal}
           minimized={minimize?.minimized}
           clipContent={minimize?.clipContent}
-          undocked={undocked}
-          placements={placements}
+          bar={bar}
+          items={items}
+          fresh={fresh}
           terminalName={(id) => terminalName[id]}
-          items={commands}
+          commands={commands}
         >
           {Body ? <Body>{content}</Body> : content}
         </TerminalCompanion>
@@ -153,20 +215,6 @@ export const WorkspaceTerminal = ({
       )}
     </WindowShell>
   )
-  // A window undocked from a terminal's companion: the same frame, with what it shows
-  // where a terminal's content would be, loading from that terminal.
-  if (terminal.companion)
-    return (
-      <WindowShell {...frame}>
-        {panes && (
-          <UndockedWindow
-            panes={panes}
-            origin={{ projectId, workspaceSessionId, terminalId: terminal.companion.from }}
-            window={terminal.companion}
-          />
-        )}
-      </WindowShell>
-    )
   return (
     <backend.TerminalSurface
       terminalKey={terminalKey}
@@ -182,10 +230,10 @@ export const WorkspaceTerminal = ({
   )
 }
 
-// Layouts call this for each terminal they place.
-export const renderTerminal = (
-  terminal: TerminalMetadata,
-  controls: TerminalLayoutControls,
-): React.JSX.Element => (
-  <WorkspaceTerminal key={terminal.id} terminal={terminal} controls={controls} />
-)
+// Layouts call this for each terminal and window they place.
+export const renderTerminal = (tile: Tile, controls: TerminalLayoutControls): React.JSX.Element =>
+  isWindow(tile) ? (
+    <WorkspaceWindow key={tile.id} window={tile} controls={controls} />
+  ) : (
+    <WorkspaceTerminal key={tile.id} terminal={tile} controls={controls} />
+  )

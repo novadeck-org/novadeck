@@ -53,7 +53,10 @@ describe("A terminal's messages", () => {
       ])
     const review = messageItems(thread(pane, "Checkout review", "t4"))
     await expect.poll(() => review.elements().length).toBe(4)
-    await expect.poll(() => textOf(review.nth(0))).toMatch(/^Sent to t4\d\d:\d\d.*Delivered/)
+    // The demo stamps its messages minutes back, so just after midnight they carry a date.
+    await expect
+      .poll(() => textOf(review.nth(0)))
+      .toMatch(/^Sent to t4(?:[A-Z][a-z]{2} \d{1,2}, )?\d{1,2}:\d\d.*Delivered/)
     await expect.poll(() => textOf(review.nth(1))).toMatch(/From t4/)
     await expect.poll(() => textOf(review.nth(2))).toMatch(/Delivering/)
     await expect.poll(() => textOf(review.nth(3))).toMatch(/Waiting/)

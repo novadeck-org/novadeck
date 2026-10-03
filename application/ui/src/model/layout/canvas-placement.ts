@@ -1,4 +1,4 @@
-import type { CanvasLayout, TerminalMetadata } from "../types"
+import type { CanvasLayout, Placed } from "../types"
 
 const gap = 60
 const defaultWidth = 550
@@ -74,15 +74,15 @@ export const viewportCanvasPosition = (
       }
 }
 
-const bounds = (terminal: TerminalMetadata, layout: CanvasLayout) => ({
+const bounds = (terminal: Placed, layout: CanvasLayout) => ({
   position: layout.geometry[terminal.id]?.position ?? { x: 80, y: 80 },
   width: layout.geometry[terminal.id]?.width ?? defaultWidth,
   height: layout.geometry[terminal.id]?.height ?? 400,
 })
 
 export const adjacentCanvasPosition = (
-  active: TerminalMetadata,
-  terminals: TerminalMetadata[],
+  active: Placed,
+  terminals: readonly Placed[],
   layout: CanvasLayout,
   height: number,
 ): { x: number; y: number } => {

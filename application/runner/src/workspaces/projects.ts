@@ -1,13 +1,14 @@
 import type { Project } from "@novadeck/protocol"
 
+import type { CompanionItems } from "../companions/items.js"
 import { DomainError } from "../errors.js"
 import type { Terminals } from "../terminals/index.js"
 import type { WorkspaceStore } from "./store.js"
 
 /**
- * Removing projects, which spans the store and the terminals. While a project goes, no
- * session or terminal is created in it; terminals already being created finish first,
- * so its removal closes them too, before its records are deleted.
+ * Removing projects, which spans the store, the terminals and their companion items.
+ * While a project goes, no session or terminal is created in it; terminals already being
+ * created finish first, so its removal closes them too, before its records are deleted.
  */
 export class Projects {
   /** Each project being removed, and its removal. */
@@ -18,6 +19,7 @@ export class Projects {
   constructor(
     private readonly store: WorkspaceStore,
     private readonly terminals: Terminals,
+    private readonly items: CompanionItems,
   ) {}
 
   /** Every project, in order, but those being removed, which are as good as gone. */
@@ -66,6 +68,9 @@ export class Projects {
     await Promise.allSettled(this.creating.get(projectId) ?? [])
     const sessions = this.store.sessions(projectId).map(({ id }) => id)
     await this.terminals.closeProject(projectId, sessions)
+    // In the same tick as the records go, so nothing new lands in between: watchers hear
+    // of each item and window left, as its window outlived its terminal.
+    this.items.sessionsRemoved(sessions)
     this.store.removeProject(projectId)
   }
 }

@@ -1,89 +1,31 @@
-import { useMemo } from "react"
-
-import type { ArtifactContent, CompanionKey } from "../../model/companion"
-import type { CompanionWindow } from "../../model/companion-items"
-import { ArtifactViewer } from "./ArtifactViewer"
-import { PlanTab } from "./CompanionPane"
-import type { Shown } from "./pane"
+import type { CompanionItem } from "../../model/companion"
+import type { WorkspaceTarget } from "../../model/types"
+import { ArtifactTab, PlanTab } from "./CompanionPane"
 import type { Panes } from "./state"
-import { useArtifactContent, usePane } from "./use-panes"
 
 import "./companion.css"
 
-const LoadedArtifact = ({
-  load,
-  artifact,
-}: {
-  load: (artifact: Shown) => Promise<ArtifactContent>
-  artifact: Shown
-}): React.JSX.Element => (
-  <ArtifactViewer artifact={artifact} load={useArtifactContent(load, artifact)} />
-)
-
-const ShownContent = ({
-  panes,
-  origin,
-  window: { item, artifact: undocked },
-}: {
-  panes: Panes
-  origin: CompanionKey
-  window: CompanionWindow
-}): React.JSX.Element => {
-  const { pane, load } = usePane(panes, origin)
-  const id = item.kind === "artifact" ? item.id : ""
-  // As its terminal holds it now, so the agent showing it again updates it here; as it
-  // was undocked once its terminal has it no longer.
-  const live = pane.artifacts.find((shown) => shown.id === id)
-  const shown = useMemo<Shown | undefined>(
-    () => live ?? (undocked && { ...undocked, fresh: false, at: "" }),
-    [live, undocked],
-  )
-  return shown ? (
-    <LoadedArtifact load={load} artifact={shown} />
-  ) : (
-    <div className="artifact-status">The agent no longer shows this.</div>
-  )
-}
-
-const PlanContent = ({
-  panes,
-  origin,
-  plan: ref,
-}: {
-  panes: Panes
-  origin: CompanionKey
-  plan: string
-}): React.JSX.Element => {
-  const pane = usePane(panes, origin)
-  const plan = pane.pane.plans.find((each) => each.ref === ref)
-  return (
-    <section className="plan-reader" data-workspace-companion aria-label="Plan">
-      {plan ? (
-        <PlanTab key={`${plan.ref}:${plan.writable}`} pane={pane} plan={plan} />
-      ) : (
-        <div className="artifact-status">The agent no longer keeps this plan.</div>
-      )}
-    </section>
-  )
-}
-
-// A terminal's item undocked into a window of its own: a plan, editable as in the pane, or
-// something its agent showed, loading from that terminal, `origin`. The window's menu
-// docks it back there.
+// An item undocked into a window of its own: a plan, editable as in the pane, or
+// something an agent showed, loading from where it points now. The window's menu docks it
+// back into the terminal it was shown from.
 export const UndockedWindow = ({
   panes,
-  origin,
-  window,
+  target,
+  item,
 }: {
   panes: Panes
-  origin: CompanionKey
-  window: CompanionWindow
+  target: WorkspaceTarget
+  // Undefined while the backend hasn't reported it, or once it's gone, until the window
+  // goes with it: the window shows nothing meanwhile.
+  item: CompanionItem | undefined
 }): React.JSX.Element => (
   <div className="artifact-window">
-    {window.item.kind === "plan" ? (
-      <PlanContent panes={panes} origin={origin} plan={window.item.ref} />
+    {!item ? null : item.kind === "plan" ? (
+      <section className="plan-reader" data-workspace-companion aria-label="Plan">
+        <PlanTab panes={panes} target={target} item={item} />
+      </section>
     ) : (
-      <ShownContent panes={panes} origin={origin} window={window} />
+      <ArtifactTab panes={panes} target={target} item={item} />
     )}
   </div>
 )

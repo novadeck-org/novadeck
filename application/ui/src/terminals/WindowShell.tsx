@@ -14,8 +14,9 @@ import { useRef, type ReactNode } from "react"
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { nextReset, usageBadge, usageDetail } from "../model/agent-usage"
+import { isWindow } from "../model/roster"
 import { attentionText, terminalPhase } from "../model/terminal-ending"
-import type { TerminalMetadata, WindowedView } from "../model/types"
+import type { Tile, WindowedView } from "../model/types"
 import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
@@ -40,7 +41,8 @@ const headerActionClasses =
   "icon-button [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100"
 
 export type WindowShellProps = {
-  terminal: TerminalMetadata
+  // A terminal, or a window undocked from a companion, which runs nothing.
+  terminal: Tile
   children?: ReactNode
   // The header's icon, which also opens the terminal switcher.
   icon: ReactNode
@@ -107,10 +109,11 @@ export const WindowShell = ({
   const headerTap = useRef<{ x: number; y: number; time: number; rename: boolean } | null>(null)
   const ignoreDoubleClickUntil = useRef(0)
   const renaming = Boolean(rename)
-  useRenderAt(nextReset(terminal))
-  const usage = usageBadge(terminal)
-  const subagents = subagentsBadge(terminal)
-  const planning = terminal.state === "running" && terminal.agent?.planning === true
+  const shell = isWindow(terminal) ? undefined : terminal
+  useRenderAt(shell && nextReset(shell))
+  const usage = shell && usageBadge(shell)
+  const subagents = shell && subagentsBadge(shell)
+  const planning = shell?.state === "running" && shell.agent?.planning === true
   const headerDoubleAction = onFlyTo
   const header = (
     <header
@@ -241,13 +244,13 @@ export const WindowShell = ({
               planning
             </span>
           )}
-          {subagents && (
-            <span className="terminal-subagents shrink-0" title={subagentsDetail(terminal)}>
+          {shell && subagents && (
+            <span className="terminal-subagents shrink-0" title={subagentsDetail(shell)}>
               {subagents}
             </span>
           )}
-          {usage && (
-            <span className="terminal-usage min-w-0 truncate" title={usageDetail(terminal)}>
+          {shell && usage && (
+            <span className="terminal-usage min-w-0 truncate" title={usageDetail(shell)}>
               {usage}
             </span>
           )}
@@ -341,8 +344,8 @@ export const WindowShell = ({
       className={`terminal-window flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-panel border border-line bg-paper shadow-panel transition-[border-color] duration-(--motion-state) ease-interface ${compact ? "terminal-compact" : "terminal-focused"}`}
       aria-label={`${terminal.name} terminal`}
       data-terminal={terminal.id}
-      data-terminal-phase={terminalPhase(terminal)}
-      {...(attentionText(terminal) ? { "aria-description": attentionText(terminal) } : {})}
+      data-terminal-phase={shell ? terminalPhase(shell) : "idle"}
+      {...(shell && attentionText(shell) ? { "aria-description": attentionText(shell) } : {})}
       data-process-window={processWindow}
       data-new={fresh}
     >

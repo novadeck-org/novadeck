@@ -129,8 +129,8 @@ Switching terminal tabs in Focus uses the same transition.
 
 The project switcher in the top bar removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
-The runner forgets the project with its sessions and its agents' messages, so it stays
-gone after a reload. While the runner can't be reached, the app keeps asking until it
+The runner forgets the project with its sessions, what its agents showed and the
+windows undocked from them, and its agents' messages, so it stays gone after a reload. While the runner can't be reached, the app keeps asking until it
 answers or the app quits; quitting waits briefly for it. A reload before the runner
 answers leaves the project there, and it comes back.
 
@@ -358,7 +358,15 @@ undock it (below).
 
 Besides its plan, an agent can show you other things: an image, a file from the project,
 a page in a preview browser. They join the plan in the terminal's companion pane, which
-has no header of its own. Each gets an icon in the taskbar, as an OS taskbar has, with
+has no header of its own. Each is an item the backend keeps: a pointer to the file or
+page, never a copy, so it always shows what the file holds now, and it is still there
+after a restart. Each item has one holder, a terminal's bar or a window of its own, and
+there is no limit to how many a bar holds. One that can't be shown stays on the bar and
+says why: the file is gone, can't be read or is no longer a file, it's too large to
+preview, it isn't text, or the plan it pointed at is gone. A file that may hold secrets,
+such as `.env` or a key, never opens by itself: it says so until you open it. The agent
+lists what is beside its terminal with NovaDeck's `showing` tool, and showing the same
+file or page again updates it. Each gets an icon in the taskbar, as an OS taskbar has, with
 several of a kind (images, files, pages, or plans) stacked under one; only Messages
 never stack. A markdown file the agent shows reads as a document, formatted like a plan
 with its outline, but read-only: it's the agent's file, not a plan to edit or note (the
@@ -367,23 +375,22 @@ new, showing, or seen; something new hops once, and nothing opens on its own unl
 asked for it. Hover an icon to peek: a card per thing behind it, each a preview, its
 name and the same mark, with no copy. Click an icon or a card to open it, click the icon
 again (or press Escape) to hide the pane, and close from a card's corner button or the
-icon's right-click. Anything closes, plans and Messages too: a closed plan comes back
-with the agent's next version of it, Messages with the next message, and something shown
-when it's shown again, last on the bar each time. (The agent can't yet reopen what you
-closed when asked; nothing tells the backend.) Icons line up in the order they came,
+icon's right-click. Closing a plan or Messages on its own terminal's bar hides it: the
+plan comes back with the agent's next version of it, Messages with the next message,
+last on the bar each time. Closing anything else deletes it, with the window it's in;
+nothing keeps a history, so ask the agent to show it again. Icons line up in the order they came,
 plans and Messages among them; drag any icon to reorder the bar, a group moving as one,
 or use Move left and Move right on its right-click.
 
-Drag any icon onto another terminal's bottom bar to show it there instead (Grid and
-Canvas, where both are on screen); a terminal with nothing to show grows an empty bar
-while an icon is dragged over it. What's placed stays its own terminal's: its peek, menu
-and pane say whose it is, an image or file stacks with the bar's own like any other, and
-a plan's edits still save to that agent. A new version shown by its agent updates it
-where it is. **Send back to** its terminal, on its right-click, or a drag onto that
-terminal's bar, returns it; closing it from anywhere closes it on its own terminal. A
-placement lasts until either terminal closes, and the session keeps it beside its
-terminals (`Placement` in `model/companion-items.ts`), but the backends don't keep it
-yet, so a reload puts everything home. Messages are the exception: a terminal's
+Drag any icon onto another terminal's bottom bar to move it there (Grid and Canvas,
+where both are on screen); a terminal with nothing to show grows an empty bar while an
+icon is dragged over it. It now belongs to that bar: its peek, menu and pane still say
+which terminal it came from, and an image or file stacks with the bar's own like any
+other. If that bar already holds the same file or page, the moved one replaces it. Its
+agent showing it again puts a new one on its own bar and leaves the moved one alone.
+**Send back to** its terminal, on its right-click, or a drag onto that terminal's bar,
+moves it home. Items go with the terminal whose bar holds them when it closes, and the
+backend keeps where each is across restarts. Messages are the exception: a terminal's
 messages are its agent's conversation, so they stay on its bar. Dragged off the bar,
 their icon stretches toward the pointer, giving less the further it's pulled, and
 springs back when let go; nothing out there lights up for it, and the pointer shows it
@@ -412,24 +419,24 @@ text. A page shows as a snapshot until the pane hosts a browser.
 moves a plan or what the agent showed out of the pane into a window of its own beside
 the terminal; a plan stays editable there. It joins the sidebar and every view like a
 terminal: rename, hide, minimize, resize, reorder, Focus and close all work. While it's
-undocked, the terminal's taskbar leaves it out. **Dock in** its terminal, on the
-window's right-click, closes the window and opens it in that terminal's pane again;
-closing the window puts it back on the taskbar without opening it. Nothing runs in it;
-it loads from its terminal, so once that terminal closes nothing new loads, and Dock in
-shows disabled. A window shows what its terminal holds now, so a newer version the agent
-shows updates it there too. The backends neither keep nor restore these windows yet
-(`CompanionWindow` in `model/companion-items.ts`; the terminal registry skips them).
+undocked, the terminal's taskbar leaves it out. **Dock in** the terminal it came from,
+on the window's right-click, closes the window and opens the item in that terminal's
+pane again; once that terminal has closed, Dock in shows disabled. Closing the window
+deletes the item, as closing it anywhere does. Nothing runs in a window, and it reads
+the file as it is now. Windows are the runner's, as terminals are: they outlive the
+terminal they came from and come back after a restart; the session saves only where
+each sits.
 
-The pane reads everything from the backend's optional `companions` capability
-(`model/companion.ts`): each terminal's plans and what its agent has shown, as terminals
-and plans come and go; content loaded on demand; and a save that writes the user's
-edits and notes into the plan file unless it changed since, in which case the pane
-merges and saves again. Edits save once typing pauses and when focus leaves the plan.
-Only the content-preview demo implements it, with sample agents in
+Items and windows reach the workspace the way terminals do, through the backend's seed
+and its changes. The pane loads what an item points at through the backend's optional
+`companions` capability (`model/companion.ts`): its content as it changes, and a save
+that writes the user's edits and notes into the plan file unless it changed since, in
+which case the pane merges and saves again. Edits save once typing pauses and when focus
+leaves the plan. The runner reads content from disk and can't write plans yet, so its
+plans are read-only; the content-preview demo writes them, with sample agents in
 `backend/demo/showcase/` that revise their plans over the file as the user left it and
-remove the notes they apply. The runner doesn't implement it yet, so its terminals show
-no taskbar; `docs/agent-workspace.md` ("Companion pane") says how it would. The editor
-and its merge code load when a plan first opens.
+remove the notes they apply. `docs/agent-workspace.md` ("Companion pane") describes the
+runner's side. The editor and its merge code load when a plan first opens.
 Normal development and packaged builds keep their runner behavior.
 
 ### Debug panel
@@ -501,13 +508,13 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `backend/demo/showcase/`                           | The content preview's sample agents: plans, artifacts, and their simulated work.        |
 | `backend/runner/`                                  | The runner adapter: connection, seed from the runner, saves, and the xterm surface.     |
 | `model/`                                           | Pure domain: types, reducer, workspace store, seed, and layout rules in `layout/`.      |
-| `model/companion.ts`                               | The contract for agents' plans and artifacts, and the plan note format.                 |
-| `model/companion-items.ts`                         | Items shown away from their terminal: undocked windows and placements on other bars.    |
+| `model/companion.ts`                               | Companion items, their content, the `companions` port, and the plan note format.        |
+| `model/companion-bar.ts`                           | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
 | `model/messages.ts`                                | The contract for agents' messages: threads, states, the pause, and a tab's count.       |
-| `model/roster.ts`                                  | A session's terminals, their sidebar order, and their status.                           |
+| `model/roster.ts`                                  | A session's terminals and undocked windows, laid out as tiles, their order and status.  |
 | `model/layout/workspace-layout.ts`                 | Where each terminal sits and how big it is in each view.                                |
 | `terminals/`                                       | Terminal frame, tabs, rename state, and the recent-terminal switcher.                   |
-| `terminals/companion/`                             | Taskbar and pane: the panes' store, `pane.ts` and `bar.ts` rules, `plan-editor/`.       |
+| `terminals/companion/`                             | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/`.            |
 | `terminals/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.        |
 | `layouts/canvas/`, `grid/`, `focus/`               | View adapters and colocated library styles.                                             |
 | `layouts/` (top level)                             | Helpers shared by views: view transitions, background gestures, visibility.             |
@@ -563,18 +570,20 @@ Unknown routes, missing terminals, and disabled views are replaced with a valid 
 
 The page renders from two synchronous stores, and from a third where a backend has
 companions. The workspace store in `model/store.ts` holds the model: every session's
-roster, layout, navigation memory, and the companion items placed on other terminals'
-taskbars, changed through one pure reducer. The UI store in `app/ui-store.ts`
+roster of terminals and undocked windows, layout, navigation memory, its companion items
+as the backend reports them, and how the person arranged each bar (`model/companion-bar.ts`),
+changed through one pure reducer. The UI store in `app/ui-store.ts`
 holds what the model does not own: the current route, preferences, the shell
 state from `shell/shell-state.ts`, the rename in progress, the recent-terminal
 switcher and each session's most-recent order, and the new-terminal highlight.
 It starts over on reload apart from preferences and the collapsed sidebar, which
 store subscriptions persist. Another subscription saves the active session's
 windowed view from the workspace store, and a new App seeds sessions with it. The
-companion panes' store in `terminals/companion/state.ts` holds each terminal's pane:
-its plans, what its agent showed, what the person has open, closed, and the taskbar's
-order; it follows the backend's companions and messages from an effect. What a taskbar
-shows is derived from it and the workspace in `terminals/companion/bar.ts`, never stored.
+companion panes' store in `terminals/companion/state.ts` holds what the panes load,
+by item: each plan as the person edits it, what each item last loaded, and the secret
+files the person chose to see; it follows the backend's companions and messages from an
+effect. What a taskbar shows is derived from it and the workspace in
+`terminals/companion/bar.ts`, never stored.
 `WorkspaceProvider` creates the backend, the stores, the drag session
 (`terminals/drag-session.ts`), the navigator, and the commands once per App, in a pure
 initializer, and shares them through context; it receives the page as children, so a URL

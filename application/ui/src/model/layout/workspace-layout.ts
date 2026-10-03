@@ -1,10 +1,4 @@
-import type {
-  CanvasLayout,
-  GridLayouts,
-  GridRestoreWidths,
-  TerminalLayout,
-  TerminalMetadata,
-} from "../types"
+import type { CanvasLayout, GridLayouts, GridRestoreWidths, Placed, TerminalLayout } from "../types"
 import { adjacentCanvasPosition } from "./canvas-placement"
 import { canvasPresetSize } from "./terminal-size"
 
@@ -43,7 +37,7 @@ const withoutGridItem = (layouts: GridLayouts, terminalId: string): GridLayouts 
 // Drops geometry for terminals that no longer exist, such as a delayed commit after a close.
 export const pruneCanvasLayout = (
   layout: CanvasLayout,
-  terminals: TerminalMetadata[],
+  terminals: readonly Placed[],
 ): CanvasLayout => {
   const ids = new Set(terminals.map((terminal) => terminal.id))
   const geometry = Object.fromEntries(
@@ -60,7 +54,7 @@ export const pruneCanvasLayout = (
 
 export const pruneGridLayouts = (
   layouts: GridLayouts,
-  terminals: TerminalMetadata[],
+  terminals: readonly Placed[],
 ): GridLayouts => {
   const ids = new Set(terminals.map((terminal) => terminal.id))
   const next = Object.fromEntries(
@@ -77,10 +71,10 @@ export const pruneGridLayouts = (
 }
 
 export type TerminalPlacement = {
-  readonly terminal: TerminalMetadata
-  // The terminals already placed, and the one to place the new terminal beside.
-  readonly terminals: TerminalMetadata[]
-  readonly anchor: TerminalMetadata | undefined
+  readonly terminal: Placed
+  // The terminals and windows already placed, and the one to place the new one beside.
+  readonly terminals: readonly Placed[]
+  readonly anchor: Placed | undefined
   readonly gridLayouts?: GridLayouts | undefined
   readonly canvasGeometry?: CanvasGeometry | undefined
 }
@@ -137,7 +131,7 @@ export const resizeGridTerminal = (
   layout: TerminalLayout,
   terminalId: string,
   change: { layouts: GridLayouts; restoreWidths: GridRestoreWidths | null },
-  terminals: TerminalMetadata[],
+  terminals: readonly Placed[],
 ): TerminalLayout => {
   const widths = change.restoreWidths
   return {

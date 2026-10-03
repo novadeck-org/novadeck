@@ -89,6 +89,9 @@ type AgentWorkspace = {
   operation(caller: Caller, id: string): Promise<OperationSnapshot>
 }
 
+// What is implemented keeps only pointers: a companion item points at a workspace file,
+// a page or a plan slot and is read when it loads (see Companion pane). An `artifact`
+// source holding bytes of its own is not built.
 type DocumentSource =
   | { kind: "workspace-file"; path: string }
   | { kind: "artifact"; artifactId: string; revision: string }
@@ -171,7 +174,8 @@ The inputs are distinct facts:
 | Plan ended/abandoned                 | The plan lifecycle explicitly ended                                      | Stop following updates; retain read-only history per retention policy                  |
 | Source lost or actor binding revoked | Current draft state is no longer known                                   | Mark preview stale and stop old-source updates; no false completion                    |
 
-`plans.report` is an authenticated, typed MCP operation for reporting these facts
+`plans.report`, proposed here and not built (every harness's plans come from native
+sources today), is an authenticated, typed MCP operation for reporting these facts
 and their explicit plan/source correlations. It can register a plan and return its
 canonical ID, submit a new captured revision, or request review of a known revision.
 The caller is assigned from its connection, not an arbitrary actor argument.
@@ -249,20 +253,27 @@ authority; reconciliation is required before automatic updates or a new opening.
 ## Companion pane
 
 The UI presents what an agent shows in its terminal's companion pane: a taskbar along
-the terminal's bottom with an icon for each plan and each artifact, and a pane beside
+the terminal's bottom with an icon for each plan and each other item, and a pane beside
 the terminal (inside its window in Focus and Grid, attached to its node in Canvas).
 Nothing opens on its own unless the user asked for it; everything else waits in the
-taskbar, marked new. The UI reads all of it through the backend port's optional
-`companions` capability (`application/ui/src/model/companion.ts`):
+taskbar, marked new.
 
-| `companions`                    | What it carries                                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------------ |
-| `snapshot()`                    | Each terminal's plans and shown artifacts, keyed by project, session and terminal    |
-| `plan/changed`, `plan/removed`  | A plan appeared or its file changed, with the text and a revision; a plan ended      |
-| `artifact/shown`                | Something was shown, or shown again with a newer version; `asked` opens it           |
-| `companion/closed`              | The terminal's agent is gone                                                         |
-| `load(key, artifactId)`         | An artifact's content, on demand: an image URL, a file's lines, a page               |
-| `save(key, ref, text, basedOn)` | The user's edit written to the plan file, unless it changed since revision `basedOn` |
+What is shown is a companion item: a pointer to a file, a page or a plan, never a copy,
+held by exactly one terminal's bar or one undocked window. The runner keeps items and
+windows (`companions.*`, see [Backend API](backend-api.md)), so they survive restarts.
+Moving an item to another bar or undocking it changes its holder; closing it deletes
+it, except that a plan or the Messages closed on their own terminal's bar only hide
+there, which the UI keeps as presentation. There is no cap and no eviction: an item
+that can't be shown stays and says why. Items and windows reach the workspace store
+through the backend's seed and actions, as terminals do; the person's moves are
+workspace actions the backend makes so. The pane loads content through the backend
+port's optional `companions` capability (`application/ui/src/model/companion.ts`):
+
+| `companions`                             | What it carries                                                                   |
+| ---------------------------------------- | --------------------------------------------------------------------------------- |
+| `follow(target, itemId, { reveal }, on)` | What an item holds now, then again as it changes: ready with a stamp, or why not  |
+| `save(target, itemId, text, basedOn)`    | The user's edit written to the plan file, unless it changed since stamp `basedOn` |
+| `attach?(key, path)`                     | A file the person picked, put on a terminal's bar; absent where the backend can't |
 
 ### Plans are edited in their file
 
@@ -272,31 +283,39 @@ the plan file itself: the file is the channel back to the agent, which re-reads 
 (NovaDeck's skill tells it to) and removes each note it applies. Closing the pane
 never approves anything; approval stays in the agent's own prompt.
 
-Every plan text carries a `revision`. The UI saves an edit with the revision it was
-made on, once typing pauses and at once when focus leaves the plan. The backend
-writes only if the file is still at that revision; otherwise it returns the file as it
-now stands, and the UI merges the edit into it line by line, as it merges an agent's
-rewrite, and saves again. The last revision both sides agreed on is the merge base, so
-an agent's rewrite that already contains the user's edits merges cleanly. A rewrite
-reported while a save is under way waits for that save's answer, since it may have been
-written over it. A revision must change whenever the text does, so derive it from the
-content (a hash), not a timestamp: two writes in one tick would otherwise share one. A
-backend watching the file may report the UI's own save back as `plan/changed`; it must
-carry the revision the save answered with, and the UI takes it as its own. A save that
+Every plan text carries a `stamp`. The UI saves an edit with the stamp it was made
+on, once typing pauses and at once when focus leaves the plan. The backend writes only
+if the file is still at that stamp; otherwise it returns the plan as it now stands, and
+the UI merges the edit into it line by line, as it merges an agent's rewrite, and saves
+again. The last stamp both sides agreed on is the merge base, so an agent's rewrite
+that already contains the user's edits merges cleanly. A rewrite reported while a save
+is under way waits for that save's answer, since it may have been written over it. A
+stamp must change whenever the text does, so derive it from the content (a hash), not
+a timestamp: two writes in one tick would otherwise share one. A backend following the
+file may report the UI's own save back; it must carry the stamp the save answered
+with, and the UI takes it as its own. The runner can't write plans yet, so its plans
+are read-only; the content-preview demo writes them. A save that
 fails, or goes unanswered for 20 seconds, is tried again, less often each time, and the
 plan shows it isn't saved yet until it is, or until there's nothing left to save. The
 file keeps its line breaks when it uses one kind throughout; a mixed file saves as LF.
 
-### Connecting the runner
+### The runner's items
 
-Only the content-preview demo implements `companions` so far. A runner implements it
-from what this document describes:
+The runner keeps items in its database and reads their content from disk as it loads,
+with every safety check again at that time:
 
-- **Plans** come from native observation: `agents.detail` lists each actor's latest
-  plan (root and subagents) and `agents.plan` streams its text on each change, which
-  become `plan/changed` with the file's revision (a hash of its content).
-  `plans.report` over MCP covers harnesses without native signals.
-- **Artifacts** come from NovaDeck's MCP server, which ships inside the agent plugin
+- **Plans** come from native observation: each agent session's latest plan per actor
+  (root and subagents) is an item on the bar of the terminal it runs in, updated in
+  place as the agent rewrites it, with a later version only when the observation is
+  newer, so a replay after a restart marks nothing new. A plan file is pointed at
+  directly. A plan presented as text, Codex's and Claude Code's without a file, points
+  at the transcript or rollout that records it and is decoded from there with the
+  harness's own decoders (`Harness.plans`, see [harness adapters](harness-adapters.md)),
+  so a moved one keeps working after its terminal closes and after a restart; while
+  that terminal still runs the session, its live activity is read first. No plan text
+  is copied into the database. When another agent session binds the terminal, the
+  plans its own bar mirrored of the earlier one go; moved ones stay.
+- **Other items** come from NovaDeck's MCP server, which ships inside the agent plugin
   NovaDeck already installs: `.mcp.json` for Claude Code, `mcpServers` in Codex's
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
   MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
@@ -308,17 +327,22 @@ from what this document describes:
   There its launcher answers itself (sh, or Windows Script Host's JScript on Windows,
   which agents reach through `cmd.exe`) without starting NovaDeck's runtime, which a packaged NovaDeck
   can unpack into a folder that goes when it quits. In a terminal it forwards the call
-  over the terminal's report endpoint, where the runner checks the token and shows
-  any image or text file the person can read, as a viewer would: showing a file puts it
-  on their screen and sends it nowhere, and the agent could read it anyway. Limits are
-  technical only: images up to 8 MB, text up to 1 MB (a long file around the lines
-  pointed at), and never a folder, pipe or device. A file that often holds secrets
-  (`.env`, keys, credentials, agents' and tools' logins, shell history) is shown but
-  held: it never opens by itself, even when the agent says the person asked; the pane
-  never falls back to it, its taskbar peek shows no preview, and it goes by its own
-  name, not the agent's title. So none appears unasked while they share their screen.
-  The UI reads them through `agents.shown` and fetches each with `agents.artifact`,
-  never by path.
+  over the terminal's report endpoint, where the runner checks the token and puts the
+  item on the agent's own bar: any file the person can read, as a viewer would, or an
+  http(s) page. Showing a file puts it on their screen and sends it nowhere, and the
+  agent could read it anyway. `show` refuses only what can't be an item: a missing
+  path, a folder, a pipe or a device, and a page address that isn't http(s), carries a
+  user name or password, or is too long. Binary files are accepted and load as
+  `binary`; an image over 8 MB is accepted and loads as too large to preview, which the
+  answer says. Showing the same file or page again updates the item on the agent's own
+  bar; one moved elsewhere is never touched. A file that often holds secrets (`.env`,
+  keys, credentials, agents' and tools' logins, shell history) is held: it never opens
+  by itself, even when the agent says the person asked; the pane never falls back to
+  it, its taskbar peek shows no preview, and it goes by its own name, not the agent's
+  title. So none appears unasked while they share their screen. A file that resolves
+  to such a file only later is held when it loads. The server's `showing` tool lists
+  what the agent's bar holds now, with where each item points and who put it there.
+  The UI follows each item with `companions.content`, never by path.
 - **New terminals** come from the same server's second tool, `open_terminal`, listed
   only inside NovaDeck's terminals like `show`. It opens a terminal beside the agent's,
   in `cwd` (absolute, or from the terminal's directory, which is the default), named
@@ -359,8 +383,9 @@ from what this document describes:
   window, as Electron doesn't say which frame opened it
   (`application/host/src/main/pages.ts`). Where the host can't, as the web version, a
   page is a link to open in the browser.
-- **Saving** is a new authorized plan-write operation with the revision check above,
+- **Saving** would be a new authorized plan-write operation with the stamp check above,
   scoped like `present`: the caller may write only the plan the terminal's agent keeps.
+  The runner doesn't offer it yet.
 
 ## Presentation routing and results
 
@@ -394,11 +419,10 @@ request revision and active claim, then publish it to the operation.
 An MCP call can wait only within a bounded deadline and otherwise return pending.
 Deadline expiry is not an implicit negative answer.
 
-Artifact/request/operation retention is coordinated. Retain the referenced bytes
-while the request can be viewed and for its promised review/result horizon.
-Expiry/deletion produces an explicit expired/unavailable result; it cannot leave
-a seemingly viewable request pointing to deleted content. Do not retain project
-documents indefinitely by default.
+Request/operation retention is coordinated. Companion items keep no bytes of their
+own: each points at a file, page or plan and is read when it loads, so content that is
+deleted or changes produces an explicit unavailable result (`missing`, `gone`) or the
+current version, never a stale copy. Project documents are never retained by NovaDeck.
 
 ## Walkthrough: Claude starts Codex
 

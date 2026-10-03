@@ -10,7 +10,7 @@ import {
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import { context, describe, expect, it } from "../../test"
 import { openCommands, type CommandsOptions } from "../../test/commands"
-import { workspaceFixture } from "../../test/fixtures"
+import { workspaceFixture, workspaceWithWindow } from "../../test/fixtures"
 import { createKeyCommands, keyState, runKey } from "./keys"
 
 type Press = Partial<Omit<KeyInput, "target">> & { target?: Partial<KeyTarget> }
@@ -200,6 +200,17 @@ describe("key commands", () => {
       })
       app.keydown({ key: "ArrowDown", target: { canvasNode: true } })
       expect(app.shell().canvasKeyboardFocus).toMatchObject({ id: "02" })
+    })
+
+    it("steps through undocked windows as through terminals", () => {
+      const app = openKeys({
+        workspace: workspaceWithWindow(),
+        url: "/projects/project/sessions/initial/grid?terminal=02",
+      })
+      app.keydown({ key: "ArrowDown" })
+      expect(app.state().selected).toBe("w1")
+      app.keydown({ key: "ArrowDown" })
+      expect(app.state().selected).toBe("01")
     })
 
     it("keeps arrows even when there are no terminals", () => {

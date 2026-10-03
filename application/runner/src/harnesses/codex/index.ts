@@ -13,7 +13,7 @@ import {
   type Install,
 } from "../harness.js"
 import { decode } from "./decode.js"
-import { followRollout, followSubagent } from "./rollout.js"
+import { followRollout, followSubagent, rolloutPlans } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
 import { startedSession, title } from "./title.js"
 import { transcripts } from "./transcripts.js"
@@ -118,6 +118,7 @@ export const codex = {
       : [{ path: "codex", content: posixShim, mode: 0o700 }],
   resume: (session) => ["codex", "resume", session],
   transcripts,
+  plans: rolloutPlans,
   // Its hooks and rollout; see docs/harness-coverage.md.
   coverage: {
     session: "partial",

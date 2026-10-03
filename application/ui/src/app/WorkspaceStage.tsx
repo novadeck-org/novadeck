@@ -2,6 +2,7 @@ import { memo, Suspense, useCallback, useEffect, useMemo, type RefObject } from 
 
 import type { CanvasHandle } from "../layouts/canvas/types"
 import { Focus } from "../layouts/focus/Focus"
+import { tilesOf } from "../model/roster"
 import type { ValueUpdate } from "../model/state"
 import type { CanvasLayout, GridLayouts } from "../model/types"
 import { EmptyWorkspace } from "../shell/EmptyWorkspace"
@@ -40,7 +41,7 @@ export const WorkspaceStage = memo(
         context: currentContext(workspace),
         view: state.view,
         selected: state.selected,
-        terminals: state.roster.terminals,
+        terminals: tilesOf(state.roster),
         layout: state.layout,
       }
     }, shallowEqual)

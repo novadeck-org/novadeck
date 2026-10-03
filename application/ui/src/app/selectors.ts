@@ -1,6 +1,7 @@
 import { activeProject, activeSession } from "../model/state"
 import type {
   TerminalMetadata,
+  Tile,
   ViewMode,
   WindowedView,
   Workspace,
@@ -8,7 +9,6 @@ import type {
   WorkspaceTarget,
 } from "../model/types"
 import type { FocusPreview } from "../shell/shell-state"
-import { itemKey } from "../terminals/companion/pane"
 import type { UiState } from "./ui-store"
 
 // The active session's state; the workspace always has one once seeded.
@@ -59,11 +59,11 @@ export const shallowEqual = <T>(a: T, b: T): boolean => {
 
 // The terminal Focus shows: the selection, a kept preview, or the first terminal.
 export const activeTerminal = (
-  terminals: readonly TerminalMetadata[],
+  terminals: readonly Tile[],
   selected: string,
   context: string,
   focusPreview: FocusPreview | null,
-): TerminalMetadata | undefined => {
+): Tile | undefined => {
   const displayed = selected || (focusPreview?.context === context ? focusPreview.id : "")
   return terminals.find((terminal) => terminal.id === displayed) ?? terminals[0]
 }
@@ -98,12 +98,3 @@ export const handleNames = (workspace: Workspace): Readonly<Record<string, strin
       each.handle ? [[each.handle, each.name]] : [],
     ),
   )
-
-// Terminal `from`'s items undocked into windows of their own now, by their keys in its
-// pane.
-export const undockedFrom =
-  (from: string) =>
-  (workspace: Workspace): readonly string[] =>
-    currentState(workspace).roster.terminals.flatMap(({ companion }) =>
-      companion?.from === from ? [itemKey(companion.item)] : [],
-    )

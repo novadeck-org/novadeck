@@ -1,4 +1,5 @@
-import { sameItem, windowOf, type MovableItem, type Placement } from "../../model/companion-items"
+import { isOnBar, windowOfItem, type ItemId } from "../../model/companion"
+import type { BarKey } from "../../model/companion-bar"
 import { addCompactGridTerminal } from "../../model/layout/grid-placement"
 import {
   droppedCanvasGeometry,
@@ -6,90 +7,60 @@ import {
   moveOnCanvas,
   type WindowPlace,
 } from "../../model/layout/window-place"
+import { hasTerminal, hasWindow, tilesOf } from "../../model/roster"
 import type { WorkspaceAction } from "../../model/state"
-import type { TerminalMetadata } from "../../model/types"
-import {
-  arrivedAgain,
-  close,
-  hideShowing,
-  itemKey,
-  movableOf,
-  openTab,
-  placedKey,
-  show,
-  type Pane,
-} from "../../terminals/companion/pane"
-import { titleOf } from "../../terminals/companion/plan-text"
+import type { CompanionWindowMeta } from "../../model/types"
 import { currentContext, currentState, currentTarget } from "../selectors"
 import type { CommandContext } from "./context"
 
-// What the person does with a terminal's companion items beyond its own pane: undocking
-// one into a window of its own and docking it back, placing one on another terminal's
-// taskbar and sending it back, and closing one wherever it shows. Terminals are named by
-// id in the current session.
+// What the person does with companion items and the bars that hold them: undocking an
+// item into a window of its own and docking it back, moving items onto another
+// terminal's bar, closing one, and arranging a bar. Each is one change to the workspace,
+// which the backend makes so; items are named by id, terminals by id in the current
+// session.
 export type CompanionCommands = {
-  // Undocks terminal `from`'s item into a window of its own beside it, where it was
-  // dropped when `place` says, or brings the window it's in forward, moving it there.
-  readonly undock: (from: string, item: MovableItem, place?: WindowPlace) => void
-  // Closes an undocked window and opens its item in its terminal's pane, selecting it.
+  // Undocks the item into a window of its own beside its terminal, where it was dropped
+  // when `place` says, or brings the window it's in forward, moving it there.
+  readonly undock: (itemId: ItemId, place?: WindowPlace) => void
+  // Docks a window's item back on the bar of the terminal it was shown from, open there.
   readonly dock: (windowId: string) => void
-  // Shows each terminal `from`'s item on terminal `to`'s taskbar, last; on `from`'s, it
-  // goes home. One drop of a stack places all of it at once.
-  readonly place: (placements: readonly Placement[]) => void
-  // Closes an item, by its key in terminal `from`'s pane, from whichever taskbar shows
-  // it; it goes home, closed.
-  readonly closeItem: (from: string, key: string) => void
+  // Moves the items onto terminal `terminalId`'s bar, each last.
+  readonly place: (itemIds: readonly ItemId[], terminalId: string) => void
+  // Closes the item: a plan on its own terminal's bar hides until it's rewritten; anything
+  // else is gone, with the window it was in.
+  readonly closeItem: (itemId: ItemId) => void
+  // Opens a bar's pane to what it holds, closes it, hides what's on it, or moves an icon,
+  // which `slots` gives each by the keys it stands for.
+  readonly openBarTab: (terminalId: string, key: BarKey) => void
+  readonly closeBarPane: (terminalId: string) => void
+  readonly hideOnBar: (terminalId: string, key: BarKey) => void
+  readonly moveBarSlot: (
+    terminalId: string,
+    slots: readonly (readonly BarKey[])[],
+    from: number,
+    to: number,
+  ) => void
 }
 
 export type CompanionDependencies = {
   readonly select: (id: string) => void
   readonly setSelected: (id: string) => void
-  readonly close: (id: string) => void
   readonly markCreated: (created: { readonly context: string; readonly id: string }) => void
   readonly pulse: () => void
 }
 
-// What its window is called: a plan by its title, something shown by its name.
-const describe = (
-  pane: Pane,
-  item: MovableItem,
-): Pick<TerminalMetadata, "name" | "companion"> | undefined => {
-  if (item.kind === "plan") {
-    const plan = pane.plans.find((each) => each.ref === item.ref)
-    return (
-      plan && {
-        name: titleOf(plan.path, plan.text),
-        companion: { from: pane.key.terminalId, item },
-      }
-    )
-  }
-  const shown = pane.artifacts.find((each) => each.id === item.id)
-  if (!shown) return undefined
-  const { fresh: _fresh, at: _at, ...artifact } = shown
-  return { name: shown.name, companion: { from: pane.key.terminalId, item, artifact } }
-}
-
 export const createCompanionCommands = (
   ctx: CommandContext,
-  { select, setSelected, close: closeWindow, markCreated, pulse }: CompanionDependencies,
+  { select, setSelected, markCreated, pulse }: CompanionDependencies,
 ): CompanionCommands => {
-  const { workspace, navigation, panes, effects } = ctx
-  const paneOf = (terminalId: string) =>
-    panes?.of({ ...currentTarget(workspace.getSnapshot()), terminalId })
-
-  // Terminal `from`'s item leaves the bar it's on: its own, or the one it's placed on.
-  const leaving = (from: string, item: MovableItem): void => {
-    paneOf(from)?.update((pane) => hideShowing(pane, itemKey(item)))
-    const placed = currentState(workspace.getSnapshot()).placements.find(
-      (each) => each.from === from && sameItem(each.item, item),
-    )
-    if (placed) paneOf(placed.to)?.update((pane) => hideShowing(pane, placedKey(from, item)))
-  }
+  const { workspace, navigation, effects } = ctx
+  const itemOf = (id: ItemId) =>
+    currentState(workspace.getSnapshot()).items.find((item) => item.id === id)
+  const commit = (actions: readonly WorkspaceAction[]): void => void workspace.transact(actions)
 
   const moveTo = (id: string, place: WindowPlace): void => {
-    const snapshot = workspace.getSnapshot()
-    const target = currentTarget(snapshot)
-    const action: WorkspaceAction =
+    const target = currentTarget(workspace.getSnapshot())
+    commit([
       "canvas" in place
         ? {
             type: "canvas/layout",
@@ -100,43 +71,37 @@ export const createCompanionCommands = (
             type: "grid/layouts",
             target,
             layouts: (layouts) => dropOnGrid(layouts, id, place.grid),
-          }
-    workspace.transact([action])
+          },
+    ])
     // Placed where the person dropped it, in view: selected without moving the camera.
     setSelected(id)
   }
 
   return {
-    undock: (from, item, place) => {
+    undock: (itemId, place) => {
       const snapshot = workspace.getSnapshot()
       const { roster, layout } = currentState(snapshot)
-      const open = windowOf(roster.terminals, from, item)
-      if (open) return place ? moveTo(open.id, place) : select(open.id)
-      const origin = roster.terminals.find((terminal) => terminal.id === from)
-      const pane = paneOf(from)?.current()
-      const shows = pane && describe(pane, item)
-      if (!origin || !shows) return
-      // A window, not a shell: nothing runs in it, so it's idle and has no program.
-      const terminal: TerminalMetadata = {
+      const item = itemOf(itemId)
+      if (!item) return
+      const open = windowOfItem(item)
+      if (open && hasWindow(roster, open)) return place ? moveTo(open, place) : select(open)
+      const window: CompanionWindowMeta = {
         id: effects.newId(),
-        directory: origin.directory,
-        command: "",
-        process: "",
-        state: "idle",
-        ...shows,
+        itemId,
+        name: item.name,
+        titleSource: { kind: "default" },
       }
-      const grid = addCompactGridTerminal(roster.terminals, layout.grid, terminal)
-      leaving(from, item)
-      markCreated({ context: currentContext(snapshot), id: terminal.id })
+      const grid = addCompactGridTerminal(tilesOf(roster), layout.grid, window)
+      markCreated({ context: currentContext(snapshot), id: window.id })
       navigation.navigateWorkspace(
         [
           {
-            type: "terminal/add",
+            type: "item/undock",
             target: currentTarget(snapshot),
-            terminal,
-            gridLayouts:
-              place && "grid" in place ? dropOnGrid(grid, terminal.id, place.grid) : grid,
-            anchor: from,
+            itemId,
+            window,
+            gridLayouts: place && "grid" in place ? dropOnGrid(grid, window.id, place.grid) : grid,
+            anchor: "terminalId" in item.holder ? item.holder.terminalId : item.from.terminalId,
             ...(place && "canvas" in place
               ? { canvasGeometry: droppedCanvasGeometry(place.canvas) }
               : {}),
@@ -147,41 +112,64 @@ export const createCompanionCommands = (
       if (!place) pulse()
     },
     dock: (windowId) => {
-      const { roster } = currentState(workspace.getSnapshot())
-      const window = roster.terminals.find((terminal) => terminal.id === windowId)?.companion
-      const pane = window && paneOf(window.from)
+      const snapshot = workspace.getSnapshot()
+      const { roster, items } = currentState(snapshot)
+      const window = roster.windows.find((each) => each.id === windowId)
+      const item = window && items.find((each) => each.id === window.itemId)
       // Its terminal closed: there's nowhere to dock it.
-      if (!window || !pane || !roster.terminals.some((terminal) => terminal.id === window.from))
-        return
-      closeWindow(windowId)
-      pane.update((current) =>
-        // Something shown its terminal no longer has comes back as the window kept it.
-        window.artifact && !current.artifacts.some((each) => each.id === window.artifact?.id)
-          ? show(current, window.artifact, true)
-          : openTab(current, itemKey(window.item)),
+      if (!item || !hasTerminal(roster, item.from.terminalId)) return
+      const home = item.from.terminalId
+      navigation.navigateWorkspace(
+        [
+          {
+            type: "item/move",
+            target: currentTarget(snapshot),
+            itemIds: [item.id],
+            terminalId: home,
+            open: true,
+          },
+        ],
+        { terminal: home },
       )
-      select(window.from)
+      pulse()
     },
-    place: (placements) => {
-      for (const { from, item } of placements) leaving(from, item)
-      const target = currentTarget(workspace.getSnapshot())
-      workspace.transact([{ type: "companion/place", target, placements }])
-      const now = currentState(workspace.getSnapshot()).placements
-      // Each comes last on the bar it's placed on, as anything new does.
-      for (const { from, item, to } of placements)
-        if (now.some((each) => each.from === from && each.to === to && sameItem(each.item, item)))
-          paneOf(to)?.update((pane) => arrivedAgain(pane, placedKey(from, item)))
+    place: (itemIds, terminalId) =>
+      commit([
+        { type: "item/move", target: currentTarget(workspace.getSnapshot()), itemIds, terminalId },
+      ]),
+    closeItem: (itemId) => {
+      const snapshot = workspace.getSnapshot()
+      const item = itemOf(itemId)
+      if (!item) return
+      const target = currentTarget(snapshot)
+      const home = item.from.terminalId
+      if (item.kind === "plan" && isOnBar(item, home))
+        return commit([{ type: "bar/hide", target, terminalId: home, key: itemId }])
+      const close: WorkspaceAction = { type: "item/close", target, itemId }
+      // Closing a window moves the selection on, so the address follows.
+      if (windowOfItem(item)) navigation.navigateWorkspace([close], {}, true)
+      else commit([close])
     },
-    closeItem: (from, key) => {
-      const item = movableOf(key)
-      if (item) {
-        leaving(from, item)
-        const target = currentTarget(workspace.getSnapshot())
-        workspace.transact([
-          { type: "companion/place", target, placements: [{ from, item, to: from }] },
-        ])
-      }
-      paneOf(from)?.update((pane) => close(pane, key))
-    },
+    openBarTab: (terminalId, key) =>
+      commit([
+        { type: "bar/open", target: currentTarget(workspace.getSnapshot()), terminalId, key },
+      ]),
+    closeBarPane: (terminalId) =>
+      commit([{ type: "bar/close", target: currentTarget(workspace.getSnapshot()), terminalId }]),
+    hideOnBar: (terminalId, key) =>
+      commit([
+        { type: "bar/hide", target: currentTarget(workspace.getSnapshot()), terminalId, key },
+      ]),
+    moveBarSlot: (terminalId, slots, from, to) =>
+      commit([
+        {
+          type: "bar/move",
+          target: currentTarget(workspace.getSnapshot()),
+          terminalId,
+          slots,
+          from,
+          to,
+        },
+      ]),
   }
 }

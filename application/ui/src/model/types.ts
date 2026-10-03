@@ -1,4 +1,5 @@
-import type { CompanionWindow, Placement } from "./companion-items"
+import type { CompanionItem, ItemId } from "./companion"
+import type { Bar } from "./companion-bar"
 
 export type ViewMode = "focus" | "grid" | "canvas"
 export type WindowedView = Exclude<ViewMode, "focus">
@@ -68,8 +69,8 @@ export type TerminalMetadata = {
   handle?: string
   // Who its name is from, where its backend tells.
   titleSource?: TitleSource
-  // Present on a window showing part of a terminal's companion rather than a shell.
-  companion?: CompanionWindow
+  // Never present: a window has one, which tells tiles apart (see `isWindow`).
+  itemId?: never
 } & TerminalStatus
 
 export type CanvasLayout = {
@@ -110,9 +111,27 @@ export type GridRestoreWidths = Partial<Record<GridBreakpoint, number>>
 
 export type SizePreset = "large" | "small"
 
-// The session's terminals, as the backend reports them, and their sidebar order.
+// A companion item undocked into a window of its own, as its backend keeps it: which item
+// it shows, and its name, the person's or the backend's default. It sits in the session
+// beside the terminals, so the sidebar and every view treat it as one, but it runs nothing.
+export type CompanionWindowMeta = {
+  readonly id: string
+  readonly itemId: ItemId
+  readonly name: string
+  readonly titleSource: Extract<TitleSource, { readonly kind: "person" | "default" }>
+}
+
+// Anything laid out by its id.
+export type Placed = { readonly id: string }
+
+// What the sidebar and views lay out: a terminal, or a window undocked from a companion.
+export type Tile = TerminalMetadata | CompanionWindowMeta
+
+// The session's terminals and windows, as the backend reports them, and their sidebar
+// order, which holds both.
 export type TerminalRoster = {
   readonly terminals: TerminalMetadata[]
+  readonly windows: readonly CompanionWindowMeta[]
   readonly order: string[]
 }
 // Where each terminal sits and how big it is in each view.
@@ -131,8 +150,12 @@ export type WorkspaceState = {
   readonly view: ViewMode
   readonly windowedView: WindowedView
   readonly selected: string
-  // Terminals' items shown on other terminals' taskbars, in the order they were placed.
-  readonly placements: readonly Placement[]
+  // What agents showed and the person attached, as the backend reports them.
+  readonly items: readonly CompanionItem[]
+  // Each terminal's bar as the person arranged it, by terminal id.
+  readonly bars: Readonly<Record<string, Bar>>
+  // Items shown again or anew since the person last looked; never saved.
+  readonly fresh: Readonly<Record<ItemId, true>>
 }
 export type WorkspaceSession = {
   id: string

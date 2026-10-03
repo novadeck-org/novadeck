@@ -1,10 +1,19 @@
+import { isOnBar, ownItemWith, windowOfItem, type CompanionItem, type ItemId } from "./companion"
 import {
-  forgetTerminal,
-  isCompanionWindow,
-  place,
-  unplace,
-  type Placement,
-} from "./companion-items"
+  arrive,
+  arriveLast,
+  closePane,
+  emptyBar,
+  hide,
+  leave,
+  moveSlot,
+  openTab,
+  reopen,
+  messagesKey,
+  type Bar,
+  type BarKey,
+} from "./companion-bar"
+import { addCompactGridTerminal } from "./layout/grid-placement"
 import {
   emptyLayout,
   placeTerminal,
@@ -15,18 +24,25 @@ import {
 } from "./layout/workspace-layout"
 import {
   addTerminal,
+  addWindow,
   createRoster,
   hasTerminal,
-  orderedTerminals,
+  hasTile,
+  hasWindow,
+  orderedTiles,
   removeTerminal,
+  removeWindow,
   renameTerminal,
   reorderTerminals,
   setTerminalProcess,
   setTerminalStatus,
+  tilesOf,
   updateTerminal,
+  updateWindow,
 } from "./roster"
 import type {
   CanvasLayout,
+  CompanionWindowMeta,
   GridLayouts,
   GridRestoreWidths,
   PreferencesValue,
@@ -101,8 +117,50 @@ export type WorkspaceAction =
       titleSource?: TitleSource
     }
   | { type: "terminal/close"; target: WorkspaceTarget; terminalId: string }
-  // The person shows terminals' items on other terminals' taskbars, or on their own again.
-  | { type: "companion/place"; target: WorkspaceTarget; placements: readonly Placement[] }
+  // The person moves items onto a terminal's bar, each last, docking any from its
+  // window; `open` opens the bar's pane to the last of them.
+  | {
+      type: "item/move"
+      target: WorkspaceTarget
+      itemIds: readonly ItemId[]
+      terminalId: string
+      open?: boolean
+    }
+  // The person undocks an item into a window of its own, placed beside `anchor` (the
+  // selected terminal by default) or where it was dropped.
+  | {
+      type: "item/undock"
+      target: WorkspaceTarget
+      itemId: ItemId
+      window: CompanionWindowMeta
+      gridLayouts?: GridLayouts
+      canvasGeometry?: CanvasLayout["geometry"][string]
+      anchor?: string
+    }
+  // The person closes an item, and the window it's in: it's gone.
+  | { type: "item/close"; target: WorkspaceTarget; itemId: ItemId }
+  // How the person arranges a terminal's bar: its pane opened to something or closed,
+  // something hidden from it, its icons reordered. The messages come and come back.
+  | { type: "bar/open"; target: WorkspaceTarget; terminalId: string; key: BarKey }
+  | { type: "bar/close"; target: WorkspaceTarget; terminalId: string }
+  | { type: "bar/hide"; target: WorkspaceTarget; terminalId: string; key: BarKey }
+  | { type: "bar/arrive"; target: WorkspaceTarget; terminalId: string; key: BarKey }
+  | { type: "bar/reopen"; target: WorkspaceTarget; terminalId: string; key: BarKey }
+  | {
+      type: "bar/move"
+      target: WorkspaceTarget
+      terminalId: string
+      // The bar's icons, each by the keys it stands for.
+      slots: readonly (readonly BarKey[])[]
+      from: number
+      to: number
+    }
+  // What the backend says of an item now: shown, shown again, moved, renamed.
+  | { type: "item/upsert"; target: WorkspaceTarget; item: CompanionItem }
+  | { type: "item/remove"; target: WorkspaceTarget; itemId: ItemId }
+  // What the backend says of a window: there, renamed, or gone.
+  | { type: "window/upsert"; target: WorkspaceTarget; window: CompanionWindowMeta }
+  | { type: "window/remove"; target: WorkspaceTarget; windowId: string }
   | { type: "terminal/reorder"; target: WorkspaceTarget; tabOrder: string[] }
   | { type: "terminal/status"; target: WorkspaceTarget; terminalId: string; status: TerminalStatus }
   | {
@@ -162,7 +220,9 @@ export const createTerminalState = (
   view,
   windowedView,
   selected: terminals[0]?.id ?? "",
-  placements: [],
+  items: [],
+  bars: {},
+  fresh: {},
 })
 
 export const createWorkspace = ({
@@ -253,19 +313,175 @@ const updateLayout = (
   return layout === state.layout ? state : { ...state, layout }
 }
 
-const closeTerminal = (state: WorkspaceState, terminalId: string): WorkspaceState => {
-  if (!hasTerminal(state.roster, terminalId)) return state
-  const terminals = orderedTerminals(state.roster)
-  const index = terminals.findIndex((terminal) => terminal.id === terminalId)
-  const remaining = terminals.filter((terminal) => terminal.id !== terminalId)
+// A terminal or window leaves the session, as `roster` no longer holds it: its layout
+// goes, and a selection on it passes to its neighbor in the sidebar.
+const dropTile = (state: WorkspaceState, id: string, roster: WorkspaceState["roster"]) => {
+  const tiles = orderedTiles(state.roster)
+  const index = tiles.findIndex((tile) => tile.id === id)
+  if (index < 0) return state
+  const remaining = tiles.filter((tile) => tile.id !== id)
   const neighbor =
     state.view === "canvas" ? "" : ((remaining[index] ?? remaining[index - 1])?.id ?? "")
   return {
     ...state,
-    roster: removeTerminal(state.roster, terminalId),
-    layout: removeFromLayout(state.layout, terminalId),
-    selected: state.selected === terminalId ? neighbor : state.selected,
-    placements: forgetTerminal(state.placements, terminalId),
+    roster,
+    layout: removeFromLayout(state.layout, id),
+    selected: state.selected === id ? neighbor : state.selected,
+  }
+}
+
+const without = <Value>(record: Readonly<Record<string, Value>>, key: string) => {
+  if (!(key in record)) return record
+  const { [key]: _gone, ...rest } = record
+  return rest
+}
+
+const unfresh = (state: WorkspaceState, id: ItemId): WorkspaceState => {
+  const fresh = without(state.fresh, id)
+  return fresh === state.fresh ? state : { ...state, fresh }
+}
+
+const barOf = (state: WorkspaceState, terminalId: string): Bar => state.bars[terminalId] ?? emptyBar
+
+// Changes a terminal's bar, giving one to a terminal that had none.
+const withBar = (
+  state: WorkspaceState,
+  terminalId: string,
+  change: (bar: Bar) => Bar,
+): WorkspaceState => {
+  if (!hasTerminal(state.roster, terminalId)) return state
+  const bar = barOf(state, terminalId)
+  const next = change(bar)
+  return next === bar ? state : { ...state, bars: { ...state.bars, [terminalId]: next } }
+}
+
+const barHolding = (item: CompanionItem): string | undefined =>
+  "terminalId" in item.holder ? item.holder.terminalId : undefined
+
+const withItem = (state: WorkspaceState, item: CompanionItem): WorkspaceState => ({
+  ...state,
+  items: state.items.map((each) => (each.id === item.id ? item : each)),
+})
+
+// The item leaves its bar, or the window it's in, which closes with it.
+const unhold = (state: WorkspaceState, item: CompanionItem): WorkspaceState => {
+  const bar = barHolding(item)
+  if (bar) return withBar(state, bar, (current) => leave(current, item.id))
+  const window = windowOfItem(item)
+  return window && hasWindow(state.roster, window)
+    ? dropTile(state, window, removeWindow(state.roster, window))
+    : state
+}
+
+// The item is gone, and the window it was in.
+const removeItem = (state: WorkspaceState, id: ItemId): WorkspaceState => {
+  const item = state.items.find((each) => each.id === id)
+  if (!item) return state
+  const left = unhold(unfresh(state, id), item)
+  return { ...left, items: left.items.filter((each) => each.id !== id) }
+}
+
+const closeTerminal = (state: WorkspaceState, terminalId: string): WorkspaceState => {
+  if (!hasTerminal(state.roster, terminalId)) return state
+  const closed = dropTile(state, terminalId, removeTerminal(state.roster, terminalId))
+  // What its bar held goes with it; what's in windows stays.
+  const gone: readonly CompanionItem[] = state.items.filter((item) => isOnBar(item, terminalId))
+  return {
+    ...gone.reduce((next, item) => unfresh(next, item.id), closed),
+    items: gone.length ? state.items.filter((item) => !gone.includes(item)) : state.items,
+    bars: without(state.bars, terminalId),
+  }
+}
+
+// Items moved onto terminal `terminalId`'s bar, each last; one already there keeps its
+// place. Something the bar already shows from the same file or page gives way.
+const moveItems = (
+  state: WorkspaceState,
+  ids: readonly ItemId[],
+  terminalId: string,
+): WorkspaceState => {
+  if (!hasTerminal(state.roster, terminalId)) return state
+  return ids.reduce((next, id) => {
+    const item = next.items.find((each) => each.id === id)
+    if (!item || isOnBar(item, terminalId)) return next
+    const twin = ownItemWith(
+      next.items.filter((each) => each.id !== id),
+      terminalId,
+      item,
+    )
+    const cleared = twin ? removeItem(next, twin.id) : next
+    const moved = withItem(unhold(cleared, item), { ...item, holder: { terminalId } })
+    return withBar(moved, terminalId, (bar) => arriveLast(bar, id))
+  }, state)
+}
+
+// The person undocks an item into a window of its own, which comes into view selected.
+const undockItem = (
+  state: WorkspaceState,
+  action: Extract<WorkspaceAction, { type: "item/undock" }>,
+): WorkspaceState => {
+  const { itemId, window, gridLayouts, canvasGeometry } = action
+  const item = state.items.find((each) => each.id === itemId)
+  if (!item || window.itemId !== itemId || hasTile(state.roster, window.id)) return state
+  const left = unhold(unfresh(state, itemId), item)
+  const tiles = tilesOf(left.roster)
+  const beside = action.anchor ?? left.selected
+  return {
+    ...withItem(left, { ...item, holder: { windowId: window.id } }),
+    roster: addWindow(left.roster, window),
+    layout: placeTerminal(left.layout, {
+      terminal: window,
+      terminals: tiles,
+      anchor: tiles.find((tile) => tile.id === beside) ?? tiles.at(-1),
+      gridLayouts,
+      canvasGeometry,
+    }),
+    selected: window.id,
+  }
+}
+
+// What the backend says of an item. Something new, or shown again, comes to its bar: it
+// opens there when the person asked for it, unless it may hold secrets, and is new
+// otherwise, unless the pane is already showing it. A hidden one is back on the bar.
+const upsertItem = (state: WorkspaceState, item: CompanionItem): WorkspaceState => {
+  const previous = state.items.find((each) => each.id === item.id)
+  const listed = previous ? withItem(state, item) : { ...state, items: [...state.items, item] }
+  const before = previous && barHolding(previous)
+  const after = barHolding(item)
+  const moved = previous && before !== after ? unhold(listed, previous) : listed
+  const again = !previous || item.version > previous.version
+  if (!after) return again ? unfresh(moved, item.id) : moved
+  const arrived = withBar(moved, after, (bar) => {
+    const here = before === after ? bar : arrive(bar, item.id)
+    if (!again) return here
+    const back = reopen(here, item.id)
+    return item.asked && !item.held ? openTab(back, item.id) : back
+  })
+  if (!again) return arrived
+  const bar = barOf(arrived, after)
+  return (item.asked && !item.held) || (bar.open && bar.tab === item.id)
+    ? unfresh(arrived, item.id)
+    : { ...arrived, fresh: { ...arrived.fresh, [item.id]: true } }
+}
+
+// What the backend says of a window. One the person didn't just undock here, as from
+// another of their windows, is laid out like a new terminal, without taking the selection.
+const upsertWindow = (state: WorkspaceState, window: CompanionWindowMeta): WorkspaceState => {
+  if (hasWindow(state.roster, window.id)) {
+    const roster = updateWindow(state.roster, window)
+    return roster === state.roster ? state : { ...state, roster }
+  }
+  if (hasTerminal(state.roster, window.id)) return state
+  const tiles = tilesOf(state.roster)
+  return {
+    ...state,
+    roster: addWindow(state.roster, window),
+    layout: placeTerminal(state.layout, {
+      terminal: window,
+      terminals: tiles,
+      anchor: tiles.at(-1),
+      gridLayouts: addCompactGridTerminal(tiles, state.layout.grid, window),
+    }),
   }
 }
 
@@ -387,27 +603,19 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
         const { roster } = state
         if (!action.terminal.id || hasTerminal(roster, action.terminal.id)) return state
         const beside = action.anchor ?? state.selected
-        const anchor =
-          roster.terminals.find((terminal) => terminal.id === beside) ?? roster.terminals.at(-1)
+        const tiles = tilesOf(roster)
+        const anchor = tiles.find((tile) => tile.id === beside) ?? tiles.at(-1)
         return {
           ...state,
           roster: addTerminal(roster, action.terminal),
           layout: placeTerminal(state.layout, {
             terminal: action.terminal,
-            terminals: roster.terminals,
+            terminals: tiles,
             anchor,
             gridLayouts: action.gridLayouts,
             canvasGeometry: action.canvasGeometry,
           }),
           selected: action.select === false ? state.selected : action.terminal.id,
-          // Undocked, an item leaves any other terminal's taskbar.
-          placements: action.terminal.companion
-            ? unplace(
-                state.placements,
-                action.terminal.companion.from,
-                action.terminal.companion.item,
-              )
-            : state.placements,
         }
       })
     case "terminal/rename":
@@ -429,18 +637,60 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       return updateTarget(workspace, action.target, (state) =>
         closeTerminal(state, action.terminalId),
       )
-    case "companion/place":
+    case "item/move":
       return updateTarget(workspace, action.target, (state) => {
-        // Only a terminal's own taskbar takes items: a window undocked from one has none.
-        const shell = (id: string): boolean =>
-          state.roster.terminals.some(
-            (terminal) => terminal.id === id && !isCompanionWindow(terminal),
-          )
-        const placements = action.placements
-          .filter(({ from, to }) => shell(from) && shell(to))
-          .reduce(place, state.placements)
-        return placements === state.placements ? state : { ...state, placements }
+        const moved = moveItems(state, action.itemIds, action.terminalId)
+        const last = action.itemIds.at(-1)
+        const shown = state.items.some((item) => item.id === last)
+        return action.open && last && shown
+          ? unfresh(
+              withBar(moved, action.terminalId, (bar) => openTab(bar, last)),
+              last,
+            )
+          : moved
       })
+    case "item/undock":
+      return updateTarget(workspace, action.target, (state) => undockItem(state, action))
+    case "item/close":
+    case "item/remove":
+      return updateTarget(workspace, action.target, (state) => removeItem(state, action.itemId))
+    case "item/upsert":
+      return updateTarget(workspace, action.target, (state) => upsertItem(state, action.item))
+    case "window/upsert":
+      return updateTarget(workspace, action.target, (state) => upsertWindow(state, action.window))
+    case "window/remove":
+      return updateTarget(workspace, action.target, (state) =>
+        hasWindow(state.roster, action.windowId)
+          ? dropTile(state, action.windowId, removeWindow(state.roster, action.windowId))
+          : state,
+      )
+    case "bar/open":
+      return updateTarget(workspace, action.target, (state) => {
+        const opened = withBar(state, action.terminalId, (bar) => openTab(bar, action.key))
+        return action.key === messagesKey ? opened : unfresh(opened, action.key)
+      })
+    case "bar/close":
+      return updateTarget(workspace, action.target, (state) =>
+        withBar(state, action.terminalId, closePane),
+      )
+    case "bar/hide":
+      return updateTarget(workspace, action.target, (state) =>
+        withBar(state, action.terminalId, (bar) => hide(bar, action.key)),
+      )
+    case "bar/arrive":
+      return updateTarget(workspace, action.target, (state) =>
+        withBar(state, action.terminalId, (bar) => arrive(bar, action.key)),
+      )
+    case "bar/reopen":
+      return updateTarget(workspace, action.target, (state) =>
+        withBar(state, action.terminalId, (bar) => reopen(bar, action.key)),
+      )
+    case "bar/move":
+      return updateTarget(workspace, action.target, (state) =>
+        withBar(state, action.terminalId, (bar) =>
+          moveSlot(bar, action.slots, action.from, action.to),
+        ),
+      )
     case "terminal/reorder":
       return updateTarget(workspace, action.target, (state) => {
         const roster = reorderTerminals(state.roster, action.tabOrder)
@@ -458,14 +708,14 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       })
     case "terminal/select":
       return updateTarget(workspace, action.target, (state) =>
-        (hasTerminal(state.roster, action.terminalId) || action.terminalId === "") &&
+        (hasTile(state.roster, action.terminalId) || action.terminalId === "") &&
         state.selected !== action.terminalId
           ? { ...state, selected: action.terminalId }
           : state,
       )
     case "terminal/visibility":
       return updateTarget(workspace, action.target, (state) =>
-        hasTerminal(state.roster, action.terminalId) &&
+        hasTile(state.roster, action.terminalId) &&
         Boolean(state.layout.hidden[action.terminalId]) !== action.hidden
           ? updateLayout(state, (layout) => ({
               ...layout,
@@ -493,7 +743,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
         updateLayout(state, (layout) => {
           const canvas = pruneCanvasLayout(
             apply(layout.canvas, action.layout),
-            state.roster.terminals,
+            tilesOf(state.roster),
           )
           return canvas === layout.canvas ? layout : { ...layout, canvas }
         }),
@@ -501,21 +751,21 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
     case "grid/layouts":
       return updateTarget(workspace, action.target, (state) =>
         updateLayout(state, (layout) => {
-          const grid = pruneGridLayouts(apply(layout.grid, action.layouts), state.roster.terminals)
+          const grid = pruneGridLayouts(apply(layout.grid, action.layouts), tilesOf(state.roster))
           return grid === layout.grid ? layout : { ...layout, grid }
         }),
       )
     case "grid/size-toggle":
       return updateTarget(workspace, action.target, (state) =>
-        hasTerminal(state.roster, action.terminalId)
+        hasTile(state.roster, action.terminalId)
           ? updateLayout(state, (layout) =>
-              resizeGridTerminal(layout, action.terminalId, action.change, state.roster.terminals),
+              resizeGridTerminal(layout, action.terminalId, action.change, tilesOf(state.roster)),
             )
           : state,
       )
     case "terminal/size-preset":
       return updateTarget(workspace, action.target, (state) =>
-        hasTerminal(state.roster, action.terminalId)
+        hasTile(state.roster, action.terminalId)
           ? updateLayout(state, (layout) => ({
               ...layout,
               sizePresets: {
@@ -530,7 +780,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       )
     case "grid/minimize":
       return updateTarget(workspace, action.target, (state) =>
-        hasTerminal(state.roster, action.terminalId)
+        hasTile(state.roster, action.terminalId)
           ? updateLayout(state, (layout) => ({
               ...layout,
               gridMinimized: {

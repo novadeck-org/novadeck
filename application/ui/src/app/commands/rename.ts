@@ -1,4 +1,4 @@
-import type { TerminalMetadata } from "../../model/types"
+import type { Tile } from "../../model/types"
 import {
   beginRename,
   changeDraft,
@@ -11,7 +11,10 @@ import type { CommandContext } from "./context"
 
 export type RenameCommands = {
   // Saves any other rename in progress first.
-  readonly startRename: (terminal: TerminalMetadata, origin: RenameSession["origin"]) => void
+  readonly startRename: (
+    terminal: Pick<Tile, "id" | "name">,
+    origin: RenameSession["origin"],
+  ) => void
   readonly changeRenameDraft: (id: string, draft: string) => void
   readonly saveRename: (id: string) => void
   readonly cancelRename: (id: string) => void

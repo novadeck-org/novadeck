@@ -1,18 +1,18 @@
 import { useSortable } from "@dnd-kit/react/sortable"
-import { Check, Eye, EyeOff, Pencil, X } from "lucide-react"
+import { Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { nextReset, usageDetail } from "../model/agent-usage"
 import { mailBadgeLabel, type MailBadge } from "../model/messages"
+import { isWindow } from "../model/roster"
 import { attentionText, endingText, terminalEnding, terminalPhase } from "../model/terminal-ending"
 import { titleSourceText } from "../model/title-source"
-import type { TerminalMetadata } from "../model/types"
+import type { Tile } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
 import { ContextMenu } from "../ui-toolkit/ContextMenu"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { MailCount } from "./MailCount"
-import { terminalProfile } from "./processes/profiles"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { useRenderAt } from "./use-render-at"
 import { windowMenu, type DockTarget } from "./window-menu"
@@ -21,7 +21,8 @@ const actionClasses =
   "terminal-tab-action flex size-6 shrink-0 items-center justify-center rounded-control p-1.5 text-muted hover:bg-soft hover:text-ink [&>svg]:opacity-25 [&>svg]:transition-opacity [&>svg]:duration-(--motion-feedback) [&>svg]:ease-interface hover:[&>svg]:opacity-100 focus-visible:outline-offset-[-2px] focus-visible:[&>svg]:opacity-100"
 
 export const TerminalTab = ({
-  terminal,
+  terminal: tile,
+  icon: Icon,
   index,
   selected,
   hidden,
@@ -37,7 +38,10 @@ export const TerminalTab = ({
   onResetTitle,
   dockIn,
 }: {
-  terminal: TerminalMetadata
+  // A terminal, or a window undocked from a companion, which runs nothing.
+  terminal: Tile
+  // What it presents as: its program, or what the window shows.
+  icon: LucideIcon
   index: number
   selected: boolean
   hidden: boolean
@@ -57,17 +61,18 @@ export const TerminalTab = ({
   dockIn?: DockTarget | undefined
 }): React.JSX.Element => {
   const editing = Boolean(rename)
-  const Icon = terminalProfile(terminal).icon
+  const terminal = tile
+  const shell = isWindow(tile) ? undefined : tile
   const icon = <Icon size={14} strokeWidth={1.5} />
   // The detail line shows the phase: a glyph (a spinner while a program runs) beside
   // the program, or a note while the shell starts. A tab that has ended is hatched (styles.css); the
   // tooltip and assistive technology say how it ended.
-  const phase = terminalPhase(terminal)
-  const ending = terminalEnding(terminal)
+  const phase = shell ? terminalPhase(shell) : "idle"
+  const ending = shell && terminalEnding(shell)
   const ended = ending ? endingText(ending) : undefined
   // What the agent waits on the person for, said like an ending: in the tooltip and to
   // assistive technology.
-  const waiting = attentionText(terminal)
+  const waiting = shell && attentionText(shell)
   const note = ended ?? waiting
   const named = terminal.titleSource ? titleSourceText(terminal.titleSource) : undefined
   const messages = mail ? mailBadgeLabel(mail) : undefined
@@ -79,11 +84,14 @@ export const TerminalTab = ({
     dockIn,
     onClose,
   })
-  useRenderAt(nextReset(terminal))
-  const usage = usageDetail(terminal)
-  const subagents = subagentsBadge(terminal)
-  const subagentKinds = subagents ? `${subagents}: ${subagentsDetail(terminal)}` : undefined
-  const planning = terminal.state === "running" && terminal.agent?.planning ? "Planning" : undefined
+  useRenderAt(shell && nextReset(shell))
+  const usage = shell && usageDetail(shell)
+  const subagents = shell && subagentsBadge(shell)
+  const subagentKinds = shell && subagents ? `${subagents}: ${subagentsDetail(shell)}` : undefined
+  const planning = shell?.state === "running" && shell.agent?.planning ? "Planning" : undefined
+  // A window runs no program; its tab says where it came from instead.
+  const process = shell?.process ?? ""
+  const place = shell ? `${shell.directory} · ${shell.process}` : "Undocked window"
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,
@@ -110,21 +118,21 @@ export const TerminalTab = ({
               <span
                 className={`terminal-tab-process truncate font-mono ${phase === "running" || phase === "attention" ? "text-ink" : ""}`}
               >
-                {terminal.process}
+                {process}
               </span>
             )}
           </>
         }
         selected={selected}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
-        tooltip={`${terminal.name}${named ? `\n${named}` : ""}\n${terminal.directory} · ${terminal.process}${note ? `\n${note}` : ""}${messages ? `\n${messages}` : ""}${planning ? `\n${planning}` : ""}${subagentKinds ? `\n${subagentKinds}` : ""}${usage ? `\n${usage}` : ""}`}
+        tooltip={`${terminal.name}${named ? `\n${named}` : ""}\n${place}${note ? `\n${note}` : ""}${messages ? `\n${messages}` : ""}${planning ? `\n${planning}` : ""}${subagentKinds ? `\n${subagentKinds}` : ""}${usage ? `\n${usage}` : ""}`}
         {...(description ? { description } : {})}
         {...(mail ? { badge: <MailCount badge={mail} /> } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
         data-terminal-phase={phase}
-        {...(phase === "attention" && terminal.state === "running" && terminal.agent?.attention
-          ? { "data-terminal-attention": terminal.agent.attention.kind }
+        {...(phase === "attention" && shell?.state === "running" && shell.agent?.attention
+          ? { "data-terminal-attention": shell.agent.attention.kind }
           : {})}
         data-terminal-hidden={hidden}
 
@@ -156,9 +164,7 @@ export const TerminalTab = ({
                   className="w-full border-0 bg-transparent p-0 text-[12px] leading-[18px] font-medium text-ink shadow-none outline-none"
                 />
                 <span className="sidebar-item-detail flex h-6 min-w-0 items-center overflow-hidden pr-(--sidebar-actions-space) whitespace-nowrap text-[10px] leading-[18px] text-muted">
-                  <span className="terminal-tab-process truncate font-mono">
-                    {terminal.process}
-                  </span>
+                  <span className="terminal-tab-process truncate font-mono">{process}</span>
                 </span>
               </div>
             </div>

@@ -1,11 +1,16 @@
 import { ArrowUpRight, Search, Terminal as TerminalIcon, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-import type { TerminalMetadata } from "../model/types"
+import { isWindow } from "../model/roster"
+import type { Tile } from "../model/types"
 import { Dialog } from "../ui-toolkit/Dialog"
 import { SearchCombobox } from "../ui-toolkit/SearchCombobox"
 
 import motion from "../ui-toolkit/ModalMotion.module.css"
+
+// What a result says of where it runs. A window runs nothing, so only its name finds it.
+const detail = (tile: Tile): { readonly command: string; readonly directory: string } =>
+  isWindow(tile) ? { command: "window", directory: "" } : tile
 
 export const TerminalSearch = ({
   open,
@@ -16,7 +21,7 @@ export const TerminalSearch = ({
   onExitComplete,
 }: {
   open: boolean
-  terminals: TerminalMetadata[]
+  terminals: readonly Tile[]
   destination: string
   onSelect: (id: string) => void
   onClose: () => void
@@ -28,7 +33,7 @@ export const TerminalSearch = ({
     if (open) chosen.current = null
   }, [open])
   const matches = terminals.filter((terminal) =>
-    `${terminal.name} ${terminal.directory}`.toLowerCase().includes(query.toLowerCase()),
+    `${terminal.name} ${detail(terminal).directory}`.toLowerCase().includes(query.toLowerCase()),
   )
   const select = (id: string): void => {
     chosen.current = id
@@ -90,8 +95,10 @@ export const TerminalSearch = ({
               <span className="search-result-copy flex min-w-0 flex-1 flex-col gap-1">
                 <strong className="truncate text-xs font-medium">{terminal.name}</strong>
                 <small className="flex min-w-0 items-center gap-2 font-mono text-[10px] text-muted">
-                  <span className="shrink-0">{terminal.command}</span>
-                  <span className="truncate border-l border-line pl-2">{terminal.directory}</span>
+                  <span className="shrink-0">{detail(terminal).command}</span>
+                  <span className="truncate border-l border-line pl-2">
+                    {detail(terminal).directory}
+                  </span>
                 </small>
               </span>
               <ArrowUpRight

@@ -1,17 +1,33 @@
-import type { Project, TerminalSummary, WorkspaceSession } from "@novadeck/protocol"
+import type {
+  CompanionItem,
+  CompanionWindow,
+  Project,
+  TerminalSummary,
+  WorkspaceSession,
+} from "@novadeck/protocol"
 
 import { isShellProcess } from "../../model/process"
 import type { SessionSeed, WorkspaceSeed } from "../../model/seed"
 import type { TerminalMetadata } from "../../model/types"
 import { defaultQuickExitMs, restartable, terminalActivity } from "./activity"
+import { itemOf, windowOf } from "./companions"
 import { decodeSession } from "./session-state"
 
-// Everything the runner reported at startup, one entry per project.
+// What a session's terminals' companions hold: the items agents showed and the person
+// attached, and the windows undocked from them.
+export type ListedCompanions = {
+  readonly items: readonly CompanionItem[]
+  readonly windows: readonly CompanionWindow[]
+}
+
+// Everything the runner reported at startup, one entry per project. A session listed
+// without companions has none.
 export type RunnerListing = readonly {
   readonly project: Project
   readonly sessions: readonly {
     readonly session: WorkspaceSession
     readonly terminals: readonly TerminalSummary[]
+    readonly companions?: ListedCompanions
   }[]
 }[]
 
@@ -68,24 +84,34 @@ export const runnerTerminal = (
 // A session's seed and where it sorts: by last visit, then by how open it was.
 type Ranked = { readonly seed: SessionSeed; readonly order: readonly [number, number] }
 
-// The session's terminals are the runner's, in the order they were created; how the UI
-// showed them, as it saved that, lays them out again.
+// The session's terminals, windows and items are the runner's, terminals in the order
+// they were created; how the UI showed them, as it saved that, lays them out again. A
+// shell that exited sooner than `quickExitMs` after starting failed to start.
 const sessionSeed = (
   session: WorkspaceSession,
   summaries: readonly TerminalSummary[],
   quickExitMs: number,
+  companions: ListedCompanions = { items: [], windows: [] },
 ): Ranked => {
   const saved = decodeSession(session.state)
   const terminals = summaries.flatMap((summary) => {
     const terminal = runnerTerminal(summary, quickExitMs)
     return terminal ? [terminal] : []
   })
-  // Visit times are epoch milliseconds, so -1 sorts a session never saved last.
-  if (!saved) return { seed: { id: session.id, name: session.name, terminals }, order: [-1, 0] }
-  const seed: SessionSeed = {
+  const listed = {
     id: session.id,
     name: session.name,
     terminals,
+    items: companions.items.map(itemOf),
+    // A window shows once its item is known; the adapter holds back the others.
+    windows: companions.windows
+      .filter((window) => companions.items.some((item) => item.id === window.itemId))
+      .map(windowOf),
+  }
+  // Visit times are epoch milliseconds, so -1 sorts a session never saved last.
+  if (!saved) return { seed: listed, order: [-1, 0] }
+  const seed: SessionSeed = {
+    ...listed,
     visitedAt: saved.visitedAt,
     restored: saved.state,
   }
@@ -137,7 +163,9 @@ export const runnerSeed = (
   const ranked = listing.map(({ project, sessions }) => ({
     project,
     sessions: sessions
-      .map(({ session, terminals }) => sessionSeed(session, terminals, quickExitMs))
+      .map(({ session, terminals, companions }) =>
+        sessionSeed(session, terminals, quickExitMs, companions),
+      )
       .toSorted((a, b) => later(b, a)),
   }))
   const latest = ranked.reduce<(typeof ranked)[number] | undefined>(

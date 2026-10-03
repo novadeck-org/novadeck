@@ -1,5 +1,5 @@
 import type { CommandId, KeyBinding, KeyInput, KeyPhase, KeyState } from "../../interaction/keymap"
-import { orderedTerminals } from "../../model/roster"
+import { hasTile, orderedTiles, tilesOf } from "../../model/roster"
 import { viewModes } from "../../model/state"
 import { sidebarVisible } from "../../shell/shell-state"
 import { cycleRecent, moveRecent } from "../../terminals/recent"
@@ -48,10 +48,10 @@ export const createKeyCommands = (
   const targeted = () => {
     const snapshot = workspace.getSnapshot()
     const { roster, selected, view } = currentState(snapshot)
-    const terminal = roster.terminals.find((item) => item.id === selected)
+    const terminal = tilesOf(roster).find((item) => item.id === selected)
     if (terminal || view !== "focus") return terminal
     const { focusPreview } = ui.getSnapshot().shell
-    return activeTerminal(roster.terminals, selected, currentContext(snapshot), focusPreview)
+    return activeTerminal(tilesOf(roster), selected, currentContext(snapshot), focusPreview)
   }
   const recent = (direction: 1 | -1): KeyCommand => ({
     available: () => (commands.visibleSwitcher()?.ids ?? commands.recentIds()).length >= 2,
@@ -176,7 +176,7 @@ export const createKeyCommands = (
     "terminal.step": {
       run: (input, args) => {
         const { view, selected, roster } = state()
-        const ordered = orderedTerminals(roster)
+        const ordered = orderedTiles(roster)
         if (!ordered.length) return "handled"
         const step = direction(args)
         const index = ordered.findIndex((terminal) => terminal.id === selected)
@@ -210,8 +210,7 @@ export const createKeyCommands = (
         const switcher = commands.visibleSwitcher()
         commands.setSwitcher(null)
         const id = switcher?.ids[switcher.index]
-        if (!switcher || !id || !state().roster.terminals.some((terminal) => terminal.id === id))
-          return
+        if (!switcher || !id || !hasTile(state().roster, id)) return
         if (switcher.fromInput) commands.setKeyboardFocus({ id, view: state().view })
         commands.select(id)
       }),

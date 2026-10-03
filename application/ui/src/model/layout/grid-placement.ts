@@ -1,11 +1,11 @@
-import type { CanvasLayout, GridBreakpoint, GridLayouts, TerminalMetadata } from "../types"
+import type { CanvasLayout, GridBreakpoint, GridLayouts, Placed } from "../types"
 import { canvasPresetSize, gridPresetWidth } from "./terminal-size"
 
 export const gridColumns = { wide: 16, desktop: 12, tablet: 8, mobile: 4 }
 
 // Seed each column from the saved terminal size without loading the Grid renderer.
 export const initialGridLayouts = (
-  terminals: TerminalMetadata[],
+  terminals: readonly Placed[],
   geometry: CanvasLayout["geometry"] = {},
 ): GridLayouts => {
   const result: GridLayouts = {}
@@ -24,9 +24,9 @@ export const initialGridLayouts = (
 }
 
 export const addCompactGridTerminal = (
-  terminals: TerminalMetadata[],
+  terminals: readonly Placed[],
   layouts: GridLayouts,
-  terminal: TerminalMetadata,
+  terminal: Placed,
 ): GridLayouts => {
   const current = initialGridLayouts(terminals)
   const next: GridLayouts = {}

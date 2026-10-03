@@ -1051,6 +1051,29 @@
   font-size: 12px;
   color: var(--color-muted);
 }
+/* What can't show, and why, with what can be done about it. */
+.artifact-unavailable {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  min-height: 240px;
+  padding: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.artifact-unavailable p {
+  max-width: 46ch;
+  margin: 0;
+}
+.artifact-unavailable-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
 .artifact-viewer {
   flex: 1;
   min-height: 0;

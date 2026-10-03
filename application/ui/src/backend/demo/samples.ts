@@ -169,6 +169,8 @@ export const demoSeed = (now: number, agents = false): WorkspaceSeed => ({
         id: "initial",
         name: sessionName(now),
         terminals: projectTerminals(project, agents),
+        items: [],
+        windows: [],
         canvasLayout: demoCanvasLayout(),
       },
     ],

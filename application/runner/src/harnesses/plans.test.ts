@@ -5,7 +5,6 @@ import { describe, expect, it } from "../test.js"
 import { apply, started } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import { maxPlan, planFile } from "./claude/decode.js"
-import { agentDetail, planOf, rootRef } from "./detail.js"
 import type { ActivityEvent, HarnessEvent } from "./events.js"
 import { harnesses } from "./registry.js"
 
@@ -115,40 +114,18 @@ describe("an agent's plans", () => {
       observe(null, at("/h/plans/old.md"), 2),
       observe("sub", at("/h/plans/c.md"), 4),
     ].reduce((state, event) => apply(state, binding, event) ?? state, started(0))
-    const detail = agentDetail("t", binding, activity, null)
-    expect(detail.plans).toEqual([
-      {
-        ref: expect.stringMatching(/^[\w-]{16}$/),
-        actor: rootRef(binding),
-        source: "file",
-        name: "b.md",
-      },
-      {
-        ref: expect.stringMatching(/^[\w-]{16}$/),
-        actor: expect.any(String),
-        source: "file",
-        name: "c.md",
-      },
+    expect(activity.plans).toEqual([
+      { actor: null, source: { kind: "file", path: at("/h/plans/b.md") }, at: 3 },
+      { actor: "sub", source: { kind: "file", path: at("/h/plans/c.md") }, at: 4 },
     ])
-    expect(planOf(binding, activity, detail.plans[0]!.ref)?.source).toEqual({
-      kind: "file",
-      path: at("/h/plans/b.md"),
-    })
-    // Replaced, the earlier plan's ref names nothing.
-    const first = apply(started(0), binding, observe(null, at("/h/plans/a.md"), 1))!
-    const earlier = agentDetail("t", binding, first, null).plans[0]!.ref
-    expect(planOf(binding, activity, earlier)).toBeUndefined()
   })
 
-  it("give a revised plan its own ref, and keep each actor's place", () => {
+  it("keep each actor's place as it revises its plan", () => {
     const first = apply(started(0), binding, text(null, "# One", 1))!
     const both = apply(first, binding, observe("sub", "/h/plans/c.md", 2))!
     const revised = apply(both, binding, text(null, "# Two", 3))!
-    const before = agentDetail("t", binding, both, null).plans
-    const after = agentDetail("t", binding, revised, null).plans
-    expect(after.map(({ actor }) => actor)).toEqual(before.map(({ actor }) => actor))
-    expect(after[0]?.ref).not.toBe(before[0]?.ref)
-    expect(after[1]?.ref).toBe(before[1]?.ref)
+    expect(revised.plans.map(({ actor }) => actor)).toEqual([null, "sub"])
+    expect(revised.plans[0]?.source).toEqual({ kind: "text", text: "# Two", truncated: false })
   })
 
   it("make room for a new actor's plan by the oldest subagent's", () => {

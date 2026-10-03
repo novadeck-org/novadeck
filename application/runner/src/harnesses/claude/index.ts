@@ -12,7 +12,7 @@ import {
   type Harness,
   type Install,
 } from "../harness.js"
-import { decode } from "./decode.js"
+import { decode, transcriptPlans } from "./decode.js"
 import { posixShim } from "./shim.js"
 import { transcriptEvents } from "./transcript.js"
 import { transcripts } from "./transcripts.js"
@@ -138,6 +138,7 @@ export const claude = {
     platform === "win32" ? [] : [{ path: "claude", content: posixShim, mode: 0o700 }],
   resume: (session) => ["claude", "--resume", session],
   transcripts,
+  plans: transcriptPlans,
   // Its hooks, transcript and status line; see docs/harness-coverage.md.
   coverage: {
     session: "partial",

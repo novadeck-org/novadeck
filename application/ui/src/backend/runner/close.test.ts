@@ -6,6 +6,7 @@ import type { WorkspaceAction } from "../../model/state"
 import { describe, expect, it } from "../../test"
 import { runnerBackend, type RunnerApi } from "./backend"
 import { pause } from "./pause"
+import { noCompanions } from "./scripted"
 import type { RunnerListing } from "./seed"
 
 // A terminal watch that never reports anything.
@@ -65,6 +66,7 @@ const droppingRunner = () => {
       },
       attach: () => new Promise(() => {}),
     },
+    companions: noCompanions,
   } as unknown as RunnerApi
   return { api, shells, reconnect: () => set({ state: "connected", runnerId: "r1" }) }
 }

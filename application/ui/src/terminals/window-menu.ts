@@ -1,4 +1,4 @@
-import type { TerminalMetadata } from "../model/types"
+import type { Tile } from "../model/types"
 import type { ContextMenuItem } from "../ui-toolkit/ContextMenu"
 
 // Where a window undocked from a terminal's companion docks back in: that terminal's
@@ -18,7 +18,7 @@ export const windowMenu = ({
   dockIn,
   onClose,
 }: {
-  terminal: TerminalMetadata
+  terminal: Tile
   onRename: () => void
   // Absent where the backend can't take a name back.
   onResetTitle?: (() => void) | undefined

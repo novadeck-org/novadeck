@@ -26,7 +26,8 @@ import {
 import { workspaceOverlayOpen, workspaceShortcutTarget } from "../../interaction/shortcuts"
 import { canvasPointPosition, viewportCanvasPosition } from "../../model/layout/canvas-placement"
 import { canvasNewTerminalSize, canvasPresetSize } from "../../model/layout/terminal-size"
-import type { TerminalMetadata, CanvasLayout } from "../../model/types"
+import { isWindow } from "../../model/roster"
+import type { Tile, CanvasLayout } from "../../model/types"
 import { useDrag, useDragSession } from "../../terminals/drag-session"
 import { ContextMenu } from "../../ui-toolkit/ContextMenu"
 import { backgroundPointerHandlers } from "../background"
@@ -236,7 +237,7 @@ const TerminalCanvas = ({
   )
 
   const flyTo = useCallback(
-    (terminal: TerminalMetadata) => {
+    (terminal: Tile) => {
       if (visit.flying) return
       const node = getNode(terminal.id)
       if (!node) return
@@ -280,10 +281,7 @@ const TerminalCanvas = ({
   )
 
   const nodeFrom = useCallback(
-    (
-      terminal: TerminalMetadata,
-      source: CanvasLayout["geometry"][string] | undefined,
-    ): TerminalNode => {
+    (terminal: Tile, source: CanvasLayout["geometry"][string] | undefined): TerminalNode => {
       const isMinimized = minimized[terminal.id] ?? false
       const width = source?.width ?? 550
       return {
@@ -399,7 +397,7 @@ const TerminalCanvas = ({
         // Dropped from a taskbar where the ghost was, its window opens exactly there, then
         // settles onto the place it was given.
         const ghostAt =
-          terminal.companion &&
+          isWindow(terminal) &&
           lastGhost.current &&
           saved?.position &&
           samePoint(canvasPointPosition(lastGhost.current), saved.position)

@@ -14,6 +14,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
+import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
 import { describe, expect, it as base } from "../test.js"
@@ -590,5 +591,132 @@ describe("the mailbox", () => {
     expect(reopened.messages().map(({ id }) => id)).toEqual(["m-2", "m-3"])
     expect(reopened.threads()).toEqual([])
     expect(reopened.messagingPaused()).toBe(false)
+  })
+})
+
+// A terminal kept in a session, as the terminals save one.
+const keptTerminal = (workspace: WorkspaceStore, sessionId: string, handle: string) => {
+  const id = randomUUID()
+  workspace.saveTerminal({
+    id,
+    sessionId,
+    cwd: "/work",
+    agents: {},
+    promptedAt: null,
+    handle,
+    naming: { person: null, agent: null, summary: null },
+    openedBy: null,
+    command: null,
+    lastProgram: null,
+    work: null,
+  })
+  return id
+}
+
+const item = (
+  sessionId: string,
+  terminalId: string,
+  pointerKey: string,
+  fields: Partial<ItemRecord> = {},
+): ItemRecord => ({
+  id: randomUUID(),
+  sessionId,
+  terminalId,
+  windowId: null,
+  pointerKey,
+  kind: "file",
+  path: pointerKey,
+  url: null,
+  lines: null,
+  plan: null,
+  name: pointerKey,
+  detail: pointerKey,
+  held: false,
+  by: "agent",
+  from: { terminalId, handle: "t1" },
+  version: 1,
+  asked: false,
+  shownAt: 1,
+  observedAt: null,
+  ...fields,
+})
+
+describe("companion items", () => {
+  it("keep each item with one holder, replacing a bar's copy and dropping windows left", async ({
+    directory,
+    store,
+  }) => {
+    const cwd = directory()
+    const path = join(cwd, "workspace.sqlite")
+    const workspace = store(path)
+    const project = await workspace.createProject({ id: randomUUID(), name: "P", cwd })
+    const session = workspace.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
+    const first = keptTerminal(workspace, session.id, "t1")
+    const second = keptTerminal(workspace, session.id, "t2")
+    const shown = item(session.id, first, "/work/a.ts", { lines: { from: 2, to: 4 } })
+    const plan = item(session.id, first, "plan:s1:", {
+      kind: "plan",
+      plan: { agent: "codex", session: "s1", actor: null, format: "text" },
+      observedAt: 5,
+      shownAt: 2,
+    })
+    const copy = item(session.id, second, "/work/a.ts", { shownAt: 3 })
+    for (const each of [shown, plan, copy]) workspace.saveItem(each)
+    // One pointer per bar.
+    expect(() => workspace.saveItem(item(session.id, first, "/work/a.ts"))).toThrow(/UNIQUE/)
+    expect(workspace.items(session.id)).toEqual([shown, plan, copy])
+    expect(workspace.barItems(first)).toEqual([shown, plan])
+
+    const windowId = randomUUID()
+    const undocked = workspace.undockItem(shown.id, { id: windowId, createdAt: 10 })
+    expect(undocked.item).toEqual({ ...shown, terminalId: null, windowId })
+    expect(workspace.windows(session.id)).toEqual([
+      {
+        id: windowId,
+        sessionId: session.id,
+        itemId: shown.id,
+        itemName: "/work/a.ts",
+        personTitle: null,
+      },
+    ])
+    expect(() => workspace.undockItem(plan.id, { id: windowId, createdAt: 11 })).toThrow(
+      expect.objectContaining({ code: "CONFLICT" }),
+    )
+    expect(workspace.renameWindow(windowId, "Mine")).toBe(true)
+    expect(workspace.renameWindow(randomUUID(), "Nobody's")).toBe(false)
+    // A terminal it doesn't keep can hold nothing.
+    expect(() => workspace.dockItem(plan.id, randomUUID())).toThrow(
+      expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
+    )
+    expect(() => workspace.saveItem(item(session.id, randomUUID(), "/work/b.ts"))).toThrow(
+      expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
+    )
+
+    // Docked onto the second bar, it replaces the copy there, and its window goes.
+    const docked = workspace.dockItem(shown.id, second)
+    expect(docked).toEqual({
+      item: { ...shown, terminalId: second },
+      left: expect.objectContaining({ id: windowId, personTitle: "Mine" }),
+      replaced: copy,
+    })
+    expect(workspace.windows()).toEqual([])
+    expect(workspace.item(copy.id)).toBeUndefined()
+
+    // Closing a windowed item takes its window along.
+    const again = randomUUID()
+    workspace.undockItem(plan.id, { id: again, createdAt: 12 })
+    expect(workspace.removeItem(plan.id)).toEqual({
+      item: { ...plan, terminalId: null, windowId: again },
+      window: expect.objectContaining({ id: again }),
+    })
+    expect(workspace.removeItem(plan.id)).toBeUndefined()
+    expect(workspace.window(again)).toBeUndefined()
+    workspace.close()
+
+    // Kept across a restart, and gone with the terminal holding it.
+    const reopened = store(path)
+    expect(reopened.items()).toEqual([{ ...shown, terminalId: second }])
+    reopened.removeTerminal(second)
+    expect(reopened.items()).toEqual([])
   })
 })

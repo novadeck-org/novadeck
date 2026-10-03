@@ -2,6 +2,7 @@ import { isAbsolute, relative } from "node:path"
 
 import type { TerminalMessages, TerminalSummary } from "@novadeck/protocol"
 
+import { planTitle } from "../companions/content.js"
 import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
 import type { AgentsAnswer, Messaging, SendAnswer } from "../messaging/messaging.js"
@@ -10,7 +11,6 @@ import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
 import { gitBranch } from "./branch.js"
 import type { Naming } from "./naming.js"
 import type { Facts } from "./nudges.js"
-import { planTitle } from "./plans.js"
 import { busiestFolders, shorten, type Work } from "./work.js"
 
 /** What the terminal manager tells of a terminal, for its agent to message others. */

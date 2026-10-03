@@ -11,7 +11,7 @@ import { DragDropProvider } from "@dnd-kit/react"
 import { isSortable } from "@dnd-kit/react/sortable"
 import { useMemo, useState, type ReactNode } from "react"
 
-import type { TerminalMetadata } from "../model/types"
+import type { Tile } from "../model/types"
 import { sidebarListClasses } from "../sidebar/SidebarItem"
 
 const sensors = [
@@ -41,9 +41,9 @@ export const TerminalTabs = ({
   renderTab,
   onReorder,
 }: {
-  terminals: TerminalMetadata[]
+  terminals: readonly Tile[]
   // Renders one sortable tab, usually a TerminalTab, at its position in the list.
-  renderTab: (terminal: TerminalMetadata, index: number) => ReactNode
+  renderTab: (terminal: Tile, index: number) => ReactNode
   onReorder: (ids: string[]) => void
 }): React.JSX.Element => {
   const [list, setList] = useState<HTMLDivElement | null>(null)

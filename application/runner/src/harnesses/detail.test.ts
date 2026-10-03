@@ -86,7 +86,6 @@ describe("an agent's detail", () => {
       telemetry: null,
       actors: [],
       requests: [],
-      plans: [],
       coverage: null,
     })
   })

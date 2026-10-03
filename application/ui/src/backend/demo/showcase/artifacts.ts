@@ -1,13 +1,53 @@
-import type { ArtifactContent, ArtifactRef } from "../../../model/companion"
+import type {
+  CompanionItem,
+  FileContent,
+  ItemContent,
+  UnavailableReason,
+} from "../../../model/companion"
 
-// An artifact as a sample agent keeps it: how the pane lists it, and what it loads.
-export type SampleArtifact = { readonly ref: ArtifactRef; readonly content: ArtifactContent }
+// Something a sample agent shows: the item it points at, by an id that stays the same, and
+// what it holds there, or why it can't show.
+export type SampleArtifact = {
+  readonly item: Pick<
+    CompanionItem,
+    "kind" | "name" | "detail" | "path" | "url" | "lines" | "held"
+  > & {
+    readonly id: string
+    readonly plan?: CompanionItem["plan"]
+  }
+  readonly content: ItemContent
+}
 
 export type SampleArtifacts = {
   readonly shown: readonly SampleArtifact[]
   readonly opened?: readonly SampleArtifact[]
   readonly next: readonly SampleArtifact[]
 }
+
+const ready = (content: Extract<ItemContent, { state: "ready" }>["content"]): ItemContent => ({
+  state: "ready",
+  stamp: "1",
+  content,
+})
+
+const studio = "~/projects/studio"
+
+// A file's lines as the pane loads them: all of a short file, pointing at `from`–`to`.
+const fileLines = (
+  path: string,
+  lines: readonly string[],
+  pointed: { readonly from: number; readonly to: number; readonly firstLine?: number },
+): FileContent => ({
+  kind: "file",
+  path,
+  firstLine: pointed.firstLine ?? 1,
+  lines,
+  from: pointed.from,
+  to: pointed.to,
+  total: (pointed.firstLine ?? 1) + lines.length - 1,
+  truncated: false,
+  clamped: false,
+})
 
 // What the sample Codex shows beside "Build Studio": drafts of the Studio site, drawn as
 // SVG in its own palette, files from the project, a markdown document it wrote, and the
@@ -26,12 +66,21 @@ const svg = (width: number, height: number, body: string): string =>
   )}`
 
 const image = (id: string, name: string, detail: string, body: string): SampleArtifact => ({
-  ref: { id, kind: "image", name, detail, version: 1 },
-  content: { kind: "image", src: svg(1600, 900, body) },
+  item: {
+    id,
+    kind: "image",
+    name,
+    detail,
+    path: `${studio}/drafts/${name}`,
+    url: null,
+    lines: null,
+    held: false,
+  },
+  content: ready({ kind: "image", src: svg(1600, 900, body) }),
 })
 
 const hero = image(
-  "hero",
+  "studio-hero",
   "hero.png",
   "1600 × 900 PNG",
   `<rect width="800" height="450" fill="${ivory}"/>
@@ -46,7 +95,7 @@ const hero = image(
 )
 
 const about = image(
-  "about",
+  "studio-about",
   "about.png",
   "1600 × 900 PNG",
   `<rect width="800" height="450" fill="${ivory}"/>
@@ -60,7 +109,7 @@ const about = image(
 )
 
 const mobile = image(
-  "mobile",
+  "studio-mobile",
   "home-mobile.png",
   "390 × 844 PNG",
   `<rect width="800" height="450" fill="#e9e4d8"/>
@@ -73,19 +122,25 @@ const mobile = image(
 )
 
 const home: SampleArtifact = {
-  ref: {
-    id: "home",
+  item: {
+    id: "studio-home",
     kind: "file",
     name: "Home.tsx",
     detail: "src/pages/Home.tsx · lines 12–24",
-    version: 1,
+    path: `${studio}/src/pages/Home.tsx`,
+    url: null,
+    lines: { from: 12, to: 24 },
+    held: false,
   },
-  content: {
+  content: ready({
     kind: "file",
     path: "src/pages/Home.tsx",
     firstLine: 9,
     from: 12,
     to: 24,
+    total: 25,
+    truncated: false,
+    clamped: false,
     lines: [
       'import { ProjectCard } from "../components/ProjectCard"',
       'import { projects } from "../content/projects"',
@@ -105,7 +160,7 @@ const home: SampleArtifact = {
       "  )",
       "}",
     ],
-  },
+  }),
 }
 
 const voiceLines = [
@@ -146,79 +201,76 @@ const voiceLines = [
 ]
 
 const voice: SampleArtifact = {
-  ref: {
-    id: "voice",
+  item: {
+    id: "studio-voice",
     kind: "file",
     name: "brand-voice.md",
     detail: "docs/brand-voice.md",
-    version: 1,
+    path: `${studio}/docs/brand-voice.md`,
+    url: null,
+    lines: null,
+    held: false,
   },
-  content: {
-    kind: "file",
-    path: "docs/brand-voice.md",
-    firstLine: 1,
-    from: 1,
-    to: voiceLines.length,
-    lines: voiceLines,
-  },
+  content: ready(fileLines("docs/brand-voice.md", voiceLines, { from: 1, to: voiceLines.length })),
 }
 
+const projectLines = [
+  "[",
+  "  {",
+  '    "slug": "harbour-press",',
+  '    "title": "Harbour Press",',
+  '    "year": 2025,',
+  '    "discipline": ["identity", "publication"],',
+  '    "summary": "A new identity, type system and quarterly journal for an independent publisher on the north coast, built around a single condensed serif that carries everything from the masthead to the smallest colophon.",',
+  '    "cover": "/work/harbour-press.jpg",',
+  '    "featured": true',
+  "  },",
+  "  {",
+  '    "slug": "field-notes",',
+  '    "title": "Field Notes",',
+  '    "year": 2024,',
+  '    "discipline": ["publication"],',
+  '    "cover": "/work/field-notes.jpg",',
+  '    "featured": false',
+  "  },",
+  "  {",
+  '    "slug": "the-orchard",',
+  '    "title": "The Orchard",',
+  '    "year": 2023,',
+  '    "discipline": ["place", "wayfinding"],',
+  '    "cover": "/work/the-orchard.jpg",',
+  '    "credits": "Wayfinding with Hollis & Reyes Architects; signage fabricated by Northfield Metalworks; photography by Ana Lindqvist; additional illustration by the studio team over two seasons of site visits.",',
+  '    "featured": false',
+  "  }",
+  "]",
+]
+
 const projects: SampleArtifact = {
-  ref: {
-    id: "projects",
+  item: {
+    id: "studio-projects",
     kind: "file",
     name: "projects.json",
     detail: "src/content/projects.json · lines 2–10",
-    version: 1,
+    path: `${studio}/src/content/projects.json`,
+    url: null,
+    lines: { from: 2, to: 10 },
+    held: false,
   },
-  content: {
-    kind: "file",
-    path: "src/content/projects.json",
-    firstLine: 1,
-    from: 2,
-    to: 10,
-    lines: [
-      "[",
-      "  {",
-      '    "slug": "harbour-press",',
-      '    "title": "Harbour Press",',
-      '    "year": 2025,',
-      '    "discipline": ["identity", "publication"],',
-      '    "summary": "A new identity, type system and quarterly journal for an independent publisher on the north coast, built around a single condensed serif that carries everything from the masthead to the smallest colophon.",',
-      '    "cover": "/work/harbour-press.jpg",',
-      '    "featured": true',
-      "  },",
-      "  {",
-      '    "slug": "field-notes",',
-      '    "title": "Field Notes",',
-      '    "year": 2024,',
-      '    "discipline": ["publication"],',
-      '    "cover": "/work/field-notes.jpg",',
-      '    "featured": false',
-      "  },",
-      "  {",
-      '    "slug": "the-orchard",',
-      '    "title": "The Orchard",',
-      '    "year": 2023,',
-      '    "discipline": ["place", "wayfinding"],',
-      '    "cover": "/work/the-orchard.jpg",',
-      '    "credits": "Wayfinding with Hollis & Reyes Architects; signage fabricated by Northfield Metalworks; photography by Ana Lindqvist; additional illustration by the studio team over two seasons of site visits.",',
-      '    "featured": false',
-      "  }",
-      "]",
-    ],
-  },
+  content: ready(fileLines("src/content/projects.json", projectLines, { from: 2, to: 10 })),
 }
 
 const preview: SampleArtifact = {
-  ref: {
-    id: "preview",
+  item: {
+    id: "studio-preview",
     kind: "page",
     name: "localhost:5173",
     detail: "Dev server preview",
-    version: 1,
+    path: null,
+    url: "http://localhost:5173/",
+    lines: null,
+    held: false,
   },
-  content: {
+  content: ready({
     kind: "page",
     url: "http://localhost:5173/",
     live: false,
@@ -235,7 +287,7 @@ const preview: SampleArtifact = {
   <rect x="288" y="226" width="224" height="180" rx="3" fill="${clay}"/>
   <rect x="528" y="226" width="224" height="180" rx="3" fill="${sand}"/>`,
     ),
-  },
+  }),
 }
 
 // Shown before the demo starts; opened for the user as the demo starts; then one at a
@@ -245,3 +297,100 @@ export const studioArtifacts: SampleArtifacts = {
   opened: [projects],
   next: [home, preview, mobile],
 }
+
+// What the dev server's terminal holds that can't show, one of each reason, and text that
+// shows only in part: so each looks as it would.
+const unavailable = (
+  id: string,
+  item: Partial<SampleArtifact["item"]> & Pick<SampleArtifact["item"], "name">,
+  content: ItemContent,
+): SampleArtifact => ({
+  item: {
+    id,
+    kind: "file",
+    detail: item.name,
+    path: `${studio}/${item.name}`,
+    url: null,
+    lines: null,
+    held: false,
+    ...item,
+  },
+  content,
+})
+
+const cannot = (reason: UnavailableReason, size: number | null = null): ItemContent => ({
+  state: "unavailable",
+  reason,
+  size,
+})
+
+const logLines = Array.from(
+  { length: 200 },
+  (_, index) =>
+    `12:${String(Math.floor(index / 60)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}  GET /work/${index % 7} 200 ${3 + (index % 11)}ms`,
+)
+
+const routeLines = [
+  'import { Route, Routes } from "react-router"',
+  "",
+  'import Home from "./pages/Home"',
+  'import Work from "./pages/Work"',
+  "",
+  "export const routes = (",
+  "  <Routes>",
+  '    <Route path="/" element={<Home />} />',
+  '    <Route path="/work/:slug" element={<Work />} />',
+  "  </Routes>",
+  ")",
+]
+
+const envLines = [
+  "# Local settings for the dev server",
+  "VITE_API_URL=http://localhost:8787",
+  "VITE_PREVIEW_TOKEN=demo-only-not-a-secret",
+]
+
+export const devServerArtifacts: readonly SampleArtifact[] = [
+  unavailable(
+    "dev-plan",
+    {
+      kind: "plan",
+      name: "old-migration.md",
+      detail: "In Codex's conversation",
+      path: "~/.codex/sessions/2026/09/rollout-old-migration.jsonl",
+      plan: { agent: "Codex", role: "subagent", source: "text" },
+    },
+    cannot("gone"),
+  ),
+  unavailable("dev-notes", { name: "notes.md" }, cannot("missing")),
+  unavailable("dev-log", { name: "server.log" }, cannot("unreadable")),
+  unavailable("dev-dist", { name: "dist" }, cannot("not-a-file")),
+  unavailable(
+    "dev-recording",
+    { kind: "image", name: "screen-recording.png", detail: "3840 × 2160 PNG" },
+    cannot("too-large", 14_680_064),
+  ),
+  unavailable("dev-archive", { name: "studio.zip" }, cannot("binary", 2_310_144)),
+  unavailable(
+    "dev-env",
+    { name: ".env.local", held: true },
+    ready(fileLines(".env.local", envLines, { from: 1, to: envLines.length })),
+  ),
+  unavailable(
+    "dev-build",
+    { name: "build.log", detail: "build.log · its start" },
+    ready({
+      ...fileLines("build.log", logLines, { from: 1, to: 40 }),
+      total: null,
+      truncated: true,
+    }),
+  ),
+  unavailable(
+    "dev-routes",
+    { name: "routes.tsx", detail: "src/routes.tsx · lines 6–60", lines: { from: 6, to: 60 } },
+    ready({
+      ...fileLines("src/routes.tsx", routeLines, { from: 6, to: routeLines.length }),
+      clamped: true,
+    }),
+  ),
+]

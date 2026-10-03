@@ -1,5 +1,5 @@
 import type { WorkspaceAction } from "../model/state"
-import type { TerminalMetadata, ViewMode, WorkspaceTarget } from "../model/types"
+import type { Tile, ViewMode, WorkspaceTarget } from "../model/types"
 import type { TerminalRename } from "./TerminalRenameInput"
 
 // An in-progress rename, scoped to the session and view it started in.
@@ -18,7 +18,7 @@ export type RenameSession = {
 export type RenameScope = Pick<RenameSession, "context" | "view" | "target" | "request">
 
 export const beginRename = (
-  terminal: TerminalMetadata,
+  terminal: Pick<Tile, "id" | "name">,
   origin: RenameSession["origin"],
   scope: RenameScope,
 ): RenameSession => ({

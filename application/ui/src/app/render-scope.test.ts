@@ -10,6 +10,7 @@ import { HashRouter } from "react-router"
 import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
+import { itemFixture } from "../test/fixtures"
 import { render } from "../test/render"
 import { WorkspaceApp } from "./App"
 import { selectBackend } from "./backend"
@@ -205,6 +206,31 @@ describe("workspace render scope", () => {
       act(() => services.commands.startRename(terminal, "sidebar"))
       const seen = rendersDuring(() => services.commands.changeRenameDraft("02", "Server"))
       expect(seen).toEqual({ "tab 02": 2, "frame 02": 2 })
+    })
+  })
+
+  context("when something on one terminal's bar is shown again", () => {
+    it("re-renders only that terminal's frame", async () => {
+      const { services } = await open()
+      const target = firstTarget(services)
+      const mine = itemFixture("mine", "01")
+      const theirs = itemFixture("theirs", "02")
+      act(() =>
+        services.workspace.transact([
+          { type: "item/upsert", target, item: mine },
+          { type: "item/upsert", target, item: theirs },
+          { type: "bar/open", target, terminalId: "01", key: mine.id },
+          { type: "bar/close", target, terminalId: "01" },
+        ]),
+      )
+      const seen = rendersDuring(() =>
+        services.workspace.dispatch({
+          type: "item/upsert",
+          target,
+          item: { ...mine, version: 2 },
+        }),
+      )
+      expect(seen).toEqual({ "frame 01": 2 })
     })
   })
 })

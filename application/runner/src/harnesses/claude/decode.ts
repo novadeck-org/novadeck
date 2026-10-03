@@ -12,7 +12,9 @@ import {
   subjectOf,
   text,
   withMode,
+  type WrittenPlan,
 } from "../harness.js"
+import { at as writtenAt, record } from "../items.js"
 
 /**
  * Claude Code's hooks, as normalized facts.
@@ -267,6 +269,26 @@ const presented = (
   if (path) return [{ type: "plan-observed", ...base, actor, plan: { kind: "file", path } }]
   if (typeof plan !== "string" || !plan) return []
   return [{ type: "plan-observed", ...base, actor, plan: { kind: "text", ...bounded(plan) } }]
+}
+
+/**
+ * The plans a transcript line presents for review, as its hooks would name them: what
+ * reads back a plan presented as text, which no file holds, from its actor's transcript.
+ */
+export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
+  if (!line.includes('"ExitPlanMode"')) return []
+  const fields = record(line)
+  if (fields?.type !== "assistant") return []
+  const time = writtenAt(fields.timestamp)
+  const base = { agent: "claude", sessionId: "", instance: null, startedAt: time ?? 0 } as const
+  const content = (fields.message as { content?: unknown } | undefined)?.content
+  return (Array.isArray(content) ? content : []).flatMap((part) => {
+    const { type, name, input } = (part ?? {}) as Record<string, unknown>
+    if (type !== "tool_use" || typeof name !== "string") return []
+    return presented(base, null, name, input).flatMap((event) =>
+      event.type === "plan-observed" ? [{ source: event.plan, at: time }] : [],
+    )
+  })
 }
 
 export { maxPlan } from "../harness.js"

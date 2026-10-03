@@ -1,7 +1,7 @@
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "../model/state"
 import type { TerminalMetadata, Workspace } from "../model/types"
 import { context, describe, expect, it } from "../test"
-import { terminalFixture } from "../test/fixtures"
+import { itemFixture, terminalFixture } from "../test/fixtures"
 import type { TerminalKey } from "./port"
 import { createTerminalRegistry } from "./registry"
 
@@ -51,20 +51,22 @@ describe("terminal registry", () => {
       const { registry, opened, closed } = recording()
       const workspace = fixture()
       registry.reconcile(workspace, [])
-      const shown = {
-        ...terminalFixture(3, "~/project"),
-        state: "idle" as const,
-        companion: {
-          from: "01",
-          item: { kind: "artifact" as const, id: "hero" },
-        },
-      }
-      const add: WorkspaceAction = { type: "terminal/add", target, terminal: shown }
-      const withWindow = apply(workspace, [add])
-      registry.reconcile(withWindow, [add])
-      expect(opened.map(({ key }) => key.terminalId)).not.toContain("03")
-      expect(registry.get({ ...target, terminalId: "03" })).toBeUndefined()
-      const close: WorkspaceAction = { type: "terminal/close", target, terminalId: "03" }
+      const hero = itemFixture("hero", "01")
+      const window = {
+        id: "w1",
+        itemId: hero.id,
+        name: "hero.ts",
+        titleSource: { kind: "default" },
+      } as const
+      const undock: WorkspaceAction[] = [
+        { type: "item/upsert", target, item: hero },
+        { type: "item/undock", target, itemId: hero.id, window },
+      ]
+      const withWindow = apply(workspace, undock)
+      registry.reconcile(withWindow, undock)
+      expect(opened.map(({ key }) => key.terminalId)).not.toContain("w1")
+      expect(registry.get({ ...target, terminalId: "w1" })).toBeUndefined()
+      const close: WorkspaceAction = { type: "item/close", target, itemId: hero.id }
       registry.reconcile(apply(withWindow, [close]), [close])
       expect(closed).toEqual([])
     })

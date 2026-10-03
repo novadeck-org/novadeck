@@ -2,6 +2,7 @@ export { hasCode, RunnerError, type RunnerErrorCode } from "./errors.js"
 export {
   connectRunner,
   type AttachedTerminal,
+  type CompanionWatchItem,
   type ConnectOptions,
   type Runner,
   type RunnerStatus,

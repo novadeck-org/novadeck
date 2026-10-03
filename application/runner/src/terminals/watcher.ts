@@ -1,40 +1,36 @@
 import type { TerminalChange, TerminalSummary } from "@novadeck/protocol"
 
 /**
- * One `terminals.watch` stream: every terminal's summary, `synced`, then later changes.
- * It holds at most one pending change per terminal, so a slow reader receives the latest
- * summary instead of every step, and a terminal it never saw leaves without a `removed`.
+ * One watch stream: the current state, one change per key, then `synced`, then later
+ * changes. It holds at most one pending change per key, so a slow reader receives the
+ * latest change instead of every step, and a key it never saw leaves without a removal.
+ * Coalesced changes keep their first place: what one key's change refers to in another
+ * may still be on its way, and is there once the stream has caught up.
  */
-export class Watcher {
-  private readonly initial: TerminalChange[]
-  /** Terminals reported to the reader, including those still waiting in `initial`. */
-  private readonly known: Set<string>
-  private readonly pending = new Map<string, TerminalChange>()
+export class Watcher<Key, Change> {
+  private readonly initial: Change[]
+  /** Keys reported to the reader, including those still waiting in `initial`. */
+  private readonly known: Set<Key>
+  private readonly pending = new Map<Key, { readonly change: Change; readonly removal: boolean }>()
   private finished = false
   private wake: (() => void) | undefined
 
-  constructor(terminals: readonly TerminalSummary[]) {
-    this.initial = [
-      ...terminals.map((terminal): TerminalChange => ({ type: "changed", terminal })),
-      { type: "synced" },
-    ]
-    this.known = new Set(terminals.map((terminal) => terminal.id))
+  constructor(current: readonly (readonly [Key, Change])[], synced: Change) {
+    this.initial = [...current.map(([, change]) => change), synced]
+    this.known = new Set(current.map(([key]) => key))
   }
 
-  changed(terminal: TerminalSummary): void {
-    this.queue(terminal.id, { type: "changed", terminal })
+  changed(key: Key, change: Change): void {
+    this.queue(key, { change, removal: false })
   }
 
-  removed(terminal: Pick<TerminalSummary, "id" | "sessionId">): void {
-    if (this.known.has(terminal.id)) {
-      this.queue(terminal.id, {
-        type: "removed",
-        terminalId: terminal.id,
-        sessionId: terminal.sessionId,
-      })
+  /** Reports the key gone, if the reader was told of it; otherwise drops its pending change. */
+  removed(key: Key, change: Change): void {
+    if (this.known.has(key)) {
+      this.queue(key, { change, removal: true })
       return
     }
-    this.pending.delete(terminal.id)
+    this.pending.delete(key)
   }
 
   /** Ends the stream, dropping anything not yet read. */
@@ -45,16 +41,15 @@ export class Watcher {
     this.notify()
   }
 
-  async next(): Promise<TerminalChange | undefined> {
+  async next(): Promise<Change | undefined> {
     while (true) {
-      const first = this.initial.shift()
-      if (first) return first
+      if (this.initial.length > 0) return this.initial.shift()
       const [entry] = this.pending
       if (entry) {
-        const [id, change] = entry
-        this.pending.delete(id)
-        if (change.type === "removed") this.known.delete(id)
-        else this.known.add(id)
+        const [key, { change, removal }] = entry
+        this.pending.delete(key)
+        if (removal) this.known.delete(key)
+        else this.known.add(key)
         return change
       }
       if (this.finished) return undefined
@@ -65,11 +60,13 @@ export class Watcher {
     }
   }
 
-  /** Moves the terminal to the back of the queue, so older changes are read first. */
-  private queue(id: string, change: TerminalChange): void {
+  /**
+   * Queues a key's change, in place of one of its own still unread: it keeps that one's
+   * place, so changes are read in the order their keys first changed since last read.
+   */
+  private queue(key: Key, entry: { readonly change: Change; readonly removal: boolean }): void {
     if (this.finished) return
-    this.pending.delete(id)
-    this.pending.set(id, change)
+    this.pending.set(key, entry)
     this.notify()
   }
 
@@ -77,5 +74,37 @@ export class Watcher {
     const wake = this.wake
     this.wake = undefined
     wake?.()
+  }
+}
+
+/** One `terminals.watch` stream: every terminal's summary, `synced`, then later changes. */
+export class TerminalWatcher {
+  private readonly watcher: Watcher<string, TerminalChange>
+
+  constructor(terminals: readonly TerminalSummary[]) {
+    this.watcher = new Watcher<string, TerminalChange>(
+      terminals.map((terminal) => [terminal.id, { type: "changed", terminal }] as const),
+      { type: "synced" },
+    )
+  }
+
+  changed(terminal: TerminalSummary): void {
+    this.watcher.changed(terminal.id, { type: "changed", terminal })
+  }
+
+  removed(terminal: Pick<TerminalSummary, "id" | "sessionId">): void {
+    this.watcher.removed(terminal.id, {
+      type: "removed",
+      terminalId: terminal.id,
+      sessionId: terminal.sessionId,
+    })
+  }
+
+  finish(): void {
+    this.watcher.finish()
+  }
+
+  next(): Promise<TerminalChange | undefined> {
+    return this.watcher.next()
   }
 }

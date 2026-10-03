@@ -1,6 +1,8 @@
+import { isOnBar, type CompanionItem } from "./companion"
+import { arrive, emptyBar, messagesKey, settle, type Bar, type BarKey } from "./companion-bar"
 import { addCompactGridTerminal, initialGridLayouts } from "./layout/grid-placement"
 import { placeTerminal, removeFromLayout } from "./layout/workspace-layout"
-import { addTerminal } from "./roster"
+import { addTerminal, addWindow, isWindow, tilesOf } from "./roster"
 import {
   createTerminalState,
   createWorkspace,
@@ -9,26 +11,30 @@ import {
 } from "./state"
 import type {
   CanvasLayout,
+  CompanionWindowMeta,
   Project,
   TerminalMetadata,
+  Tile,
   ViewMode,
   WindowedView,
   Workspace,
   WorkspaceState,
 } from "./types"
 
-// How the UI showed a session's terminals, as it saved it: only its own view state, by
-// terminal id, never the terminals themselves, which their backend reports. Placements
-// aren't kept: every terminal's items start on its own taskbar.
-// TODO: keep placements once a backend keeps the companion items they place.
-export type RestoredView = Omit<WorkspaceState, "roster" | "placements"> & {
+// How the UI showed a session's terminals and windows, as it saved it: only its own view
+// state, by id, never the terminals, windows or companion items themselves, which their
+// backend reports. What's new isn't kept: nothing is new after a reload.
+export type RestoredView = Omit<WorkspaceState, "roster" | "items" | "bars" | "fresh"> & {
   readonly order: readonly string[]
+  // Each terminal's bar as the person arranged it, where the view kept them.
+  readonly bars?: WorkspaceState["bars"]
 }
 
-// A session's view state, without its terminals.
+// A session's view state, without its terminals, windows and items.
 export const viewOf = ({
   roster,
-  placements: _placements,
+  items: _items,
+  fresh: _fresh,
   ...view
 }: WorkspaceState): RestoredView => ({
   ...view,
@@ -40,12 +46,17 @@ export type SessionSeed = {
   readonly name: string
   // The session's terminals, as the backend reports them, oldest first.
   readonly terminals: readonly TerminalMetadata[]
+  // Its windows undocked from companions, each with its item among `items`, and what
+  // agents showed and the person attached.
+  readonly windows: readonly CompanionWindowMeta[]
+  readonly items: readonly CompanionItem[]
   readonly canvasLayout?: CanvasLayout
   // When the session was last visited; the seed's time when omitted.
   readonly visitedAt?: number
   // How the session was shown, as saved earlier: terminals it laid out keep their place,
   // order and layout, and the others are laid out after them as new terminals would be.
-  // What it kept of terminals the backend no longer has goes. `canvasLayout` is ignored.
+  // What it kept of terminals, windows and items the backend no longer has goes.
+  // `canvasLayout` is ignored.
   readonly restored?: RestoredView
 }
 // Every project needs at least one session, and a seed needs at least one project:
@@ -67,16 +78,44 @@ const validate = (seed: WorkspaceSeed): void => {
   if (empty) throw new WorkspaceSeedError(`Project "${empty.id}" in the seed has no session`)
 }
 
-const appendTerminal = (state: WorkspaceState, terminal: TerminalMetadata): WorkspaceState => ({
-  ...state,
-  roster: addTerminal(state.roster, terminal),
-  layout: placeTerminal(state.layout, {
-    terminal,
-    terminals: state.roster.terminals,
-    anchor: state.roster.terminals.at(-1),
-    gridLayouts: addCompactGridTerminal(state.roster.terminals, state.layout.grid, terminal),
-  }),
-})
+const appendTile = (state: WorkspaceState, tile: Tile): WorkspaceState => {
+  const tiles = tilesOf(state.roster)
+  return {
+    ...state,
+    roster: isWindow(tile) ? addWindow(state.roster, tile) : addTerminal(state.roster, tile),
+    layout: placeTerminal(state.layout, {
+      terminal: tile,
+      terminals: tiles,
+      anchor: tiles.at(-1),
+      gridLayouts: addCompactGridTerminal(tiles, state.layout.grid, tile),
+    }),
+  }
+}
+
+// The session's items, and each terminal's bar: as saved, less what's gone, with what the
+// save didn't know after, oldest first. An item whose terminal or window isn't known is
+// kept, on no bar, until it is.
+const withItems = (
+  state: WorkspaceState,
+  held: readonly CompanionItem[],
+  saved: WorkspaceState["bars"],
+): WorkspaceState => {
+  const bars = Object.fromEntries(
+    state.roster.terminals.flatMap((terminal): [string, Bar][] => {
+      const own = held
+        .filter((item) => isOnBar(item, terminal.id))
+        .toSorted((a, b) => a.shownAt - b.shownAt)
+      const ids = new Set<BarKey>(own.map((item) => item.id))
+      const kept = settle(
+        saved[terminal.id] ?? emptyBar,
+        (key) => key === messagesKey || ids.has(key),
+      )
+      const bar = own.reduce((next, item) => arrive(next, item.id), kept)
+      return bar === emptyBar ? [] : [[terminal.id, bar]]
+    }),
+  )
+  return { ...state, items: held, bars }
+}
 
 // Every terminal a saved view kept something of, in any view.
 const laidOutIds = (layout: WorkspaceState["layout"], order: readonly string[]): Set<string> =>
@@ -93,27 +132,36 @@ const laidOutIds = (layout: WorkspaceState["layout"], order: readonly string[]):
   ])
 
 const restoredState = (
-  { order, ...restored }: RestoredView,
+  { order, bars = {}, ...restored }: RestoredView,
   terminals: readonly TerminalMetadata[],
+  windows: readonly CompanionWindowMeta[],
+  items: readonly CompanionItem[],
 ): WorkspaceState => {
-  const present = new Set(terminals.map((terminal) => terminal.id))
+  const tiles: readonly Tile[] = [...terminals, ...windows]
+  const present = new Set(tiles.map((tile) => tile.id))
   const laidOut = laidOutIds(restored.layout, order)
   const gone = [...laidOut, ...order].filter((id) => !present.has(id))
   const layout = gone.reduce(removeFromLayout, restored.layout)
-  const kept = terminals.filter((terminal) => laidOut.has(terminal.id))
   const sorted = order.filter((id) => present.has(id))
   // A selected terminal that is gone hands selection on.
   const selected = present.has(restored.selected)
     ? restored.selected
-    : ([...sorted, ...terminals.map((terminal) => terminal.id)][0] ?? "")
+    : ([...sorted, ...tiles.map((tile) => tile.id)][0] ?? "")
   const base: WorkspaceState = {
     ...restored,
     layout,
     selected,
-    roster: { terminals: kept, order: sorted },
-    placements: [],
+    roster: {
+      terminals: terminals.filter((terminal) => laidOut.has(terminal.id)),
+      windows: windows.filter((window) => laidOut.has(window.id)),
+      order: sorted,
+    },
+    items: [],
+    bars: {},
+    fresh: {},
   }
-  return terminals.filter((terminal) => !laidOut.has(terminal.id)).reduce(appendTerminal, base)
+  const laid = tiles.filter((tile) => !laidOut.has(tile.id)).reduce(appendTile, base)
+  return withItems(laid, items, bars)
 }
 
 export type SeedDefaults = {
@@ -134,12 +182,20 @@ export const workspaceFromSeed = (seed: WorkspaceSeed, defaults: SeedDefaults): 
     (workspace, project) =>
       project.sessions.reduceRight((next, session) => {
         const terminals = [...session.terminals]
+        const { items, windows } = session
         const state = session.restored
-          ? restoredState(session.restored, terminals)
-          : createTerminalState(terminals, defaults.view, defaults.windowedView, {
-              ...(session.canvasLayout ? { canvasLayout: session.canvasLayout } : {}),
-              gridLayouts: initialGridLayouts(terminals, session.canvasLayout?.geometry),
-            })
+          ? restoredState(session.restored, terminals, windows, items)
+          : withItems(
+              windows.reduce(
+                appendTile,
+                createTerminalState(terminals, defaults.view, defaults.windowedView, {
+                  ...(session.canvasLayout ? { canvasLayout: session.canvasLayout } : {}),
+                  gridLayouts: initialGridLayouts(terminals, session.canvasLayout?.geometry),
+                }),
+              ),
+              items,
+              {},
+            )
         return workspaceReducer(next, {
           type: "session/add",
           projectId: project.id,

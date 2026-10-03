@@ -3,6 +3,7 @@ import { homedir } from "node:os"
 import { contract, errors as contractErrors, protocolVersion } from "@novadeck/protocol"
 import { implement, ORPCError } from "@orpc/server"
 
+import type { CompanionItems } from "./companions/items.js"
 import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
 import type { Terminals } from "./terminals/index.js"
@@ -40,11 +41,12 @@ export const createRouter = (options: {
   store: WorkspaceStore
   terminals: Terminals
   projects: Projects
+  items: CompanionItems
   agents: Harnesses
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
-  const { store, terminals, projects, agents } = options
+  const { store, terminals, projects, items, agents } = options
   const api = implement(contract).$context<Context>()
   const authorized = api.use(async ({ context, next }) => {
     const connection = context.connection
@@ -189,30 +191,48 @@ export const createRouter = (options: {
           throw apiError(error)
         }
       }),
-      plan: authorized.agents.plan.handler(async function* ({ input, context, signal }) {
-        if (context.connection.closed) return
-        try {
-          yield* terminals.plan(input.terminalId, input.plan, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      shown: authorized.agents.shown.handler(async function* ({ input, context, signal }) {
-        if (context.connection.closed) return
-        try {
-          yield* terminals.shown(input.terminalId, signal)
-        } catch (error) {
-          throw apiError(error)
-        }
-      }),
-      artifact: authorized.agents.artifact.handler(({ input }) =>
-        terminals.artifact(input.terminalId, input.artifact),
-      ),
       set: authorized.agents.set.handler(async ({ input }) => {
         const result = await agents.set(input.agent, input.connected)
         if (!result.connected) terminals.forgetAgent(input.agent)
         return result
       }),
+    },
+    companions: {
+      list: authorized.companions.list.handler(({ input }) => {
+        store.session(input.sessionId)
+        return items.list(input.sessionId)
+      }),
+      watch: authorized.companions.watch.handler(async function* ({ context, signal }) {
+        // A connection that closed before this stream began has already been released.
+        if (context.connection.closed) return
+        try {
+          yield* items.watch(context.connection.id, signal)
+        } catch (error) {
+          throw apiError(error)
+        }
+      }),
+      content: authorized.companions.content.handler(async function* ({ input, context, signal }) {
+        if (context.connection.closed) return
+        try {
+          yield* items.content(input.itemId, input.reveal === true, signal)
+        } catch (error) {
+          throw apiError(error)
+        }
+      }),
+      attach: authorized.companions.attach.handler(({ input }) => items.attach(input)),
+      move: authorized.companions.move.handler(({ input }) =>
+        items.move(input.itemId, input.terminalId),
+      ),
+      undock: authorized.companions.undock.handler(({ input }) =>
+        items.undock(input.itemId, input.windowId),
+      ),
+      close: authorized.companions.close.handler(({ input }) => items.close(input.itemId)),
+      renameWindow: authorized.companions.renameWindow.handler(({ input }) =>
+        items.renameWindow(input.windowId, input.title),
+      ),
+      resetWindowTitle: authorized.companions.resetWindowTitle.handler(({ input }) =>
+        items.renameWindow(input.windowId, null),
+      ),
     },
     messages: {
       list: authorized.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),

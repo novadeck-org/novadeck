@@ -166,7 +166,9 @@ created without `cwd` opens in the home directory of the user running the runner
 `projects.remove({ projectId })` closes every terminal of the project's sessions,
 running or kept only as saved, whichever connection controls them, so watchers see
 each `removed`; then it deletes the project, its sessions and what the runner kept of
-their terminals, and its agents' messages. Its folder on disk stays. Terminals being
+their terminals, their companion items and undocked windows (`companions.watch` reports
+each `itemRemoved` and `windowRemoved`, and their `content` streams end), and its agents'
+messages. Its folder on disk stays. Terminals being
 created in the project as it begins finish first and close with the rest; while it
 goes, `projects.list` leaves it out, creating a session or terminal in it rejects
 with `NOT_FOUND`, and restarting one of its terminals with `TERMINAL_NOT_FOUND`. A
@@ -544,25 +546,75 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
-- `agents.detail` snapshots also list each actor's latest plan (`plans`: its ref, the
-  actor's ref, whether it is a file or presented text, and the file's name). Claude Code's
-  plans are the Markdown files plan mode writes in a `plans` folder, and what
-  `ExitPlanMode` presents: the file Claude Code names, wherever its plans folder is set,
-  or the plan's text, each presentation its own plan. Codex's is the plan its Plan Mode
-  proposes, as text, each proposal its own plan. Antigravity's is the Markdown artifact
-  it writes asking for the person's review (`implementation_plan.md`).
-  `agents.plan({ terminalId, plan })` streams one: its text as it stands (cut short past
-  256 KiB, marked `truncated`) with when its file last changed, then again on each
-  change. Only a plain Markdown file one of those names as a plan is ever read. A plan no longer an
-  actor's latest is `NOT_FOUND`; the stream ends once another replaces it or the agent
-  leaves its session. The client's `agents.plan(terminalId, plan)` follows it across
-  reconnections.
+- `companions.*` keeps what agents show and the person attaches beside terminals: items,
+  each a pointer to a file, a page or a plan, never a copy of it, held by exactly one
+  terminal's bar or one undocked window. Items and windows live in the runner's database,
+  so they survive restarts; an item goes when it is closed, with the terminal whose bar
+  holds it, or with its session, and a window goes with its item. Nothing caps how many
+  there are. An item has a runner-issued id, its `kind` (`image`, `file`, `page`,
+  `plan`), a name and a one-line `detail`, its `path` or `url`, the `lines` it points at,
+  `held` for a file that may hold secrets, `by` (`agent` or `person`), `from` (the
+  terminal and handle it was shown in), `version` (counts its shows), `asked` (the latest
+  show asked to open it), `shownAt`, and for a plan its agent, its actor's role and
+  whether it is a file or text.
+  - `companions.list({ sessionId })` answers a session's `items` and `windows`; an unknown
+    session is `NOT_FOUND`.
+  - `companions.watch()` streams every item and window across sessions, `synced`, then
+    each change: `item`, `itemRemoved`, `window`, `windowRemoved`. What comes before
+    `synced` is a set, applied whole at `synced`, as `terminals.watch` does. After it,
+    each change is the latest state of its item or window, coalesced in place for a slow
+    reader, in the order they first changed since the reader caught up. So a reference (an
+    item's holder window, a window's item, an item's terminal) may name one not yet
+    reported, or one whose removal follows; they agree once the stream is idle. A client
+    keeps both sides and resolves them as the rest arrives, never dropping one for it.
+    The client's `companions.watch()` yields `reset` before each fresh sequence, as
+    `terminals.watch()` does.
+  - `companions.content({ itemId, reveal? })` streams what an item points at, read from
+    disk now and again each time it changes, until the item is deleted; an unknown item
+    is `NOT_FOUND`. It is `ready`, with a `stamp` that changes with it, or `unavailable`
+    with a reason and the file's size where known: `missing`, `unreadable`, `not-a-file`,
+    `too-large` (an image over 8 MiB), `binary` (a NUL byte in its first 8 KiB), `held`
+    (a file that may hold secrets, unless `reveal`), or `gone` (a plan no longer there).
+    An image is a data URL; a page its address, which the desktop app loads live. A text
+    file is the lines around those pointed at, read to the last of them and up to 4 MiB
+    more to count the rest: `total` once it reached the file's end, else `truncated`;
+    lines past the end are pulled back to it and marked `clamped`. A plan is its text, cut
+    short past 256 KiB. Every read resolves symlinks again, refuses anything but a plain
+    file and never blocks on a pipe, and a file that now resolves to one that may hold
+    secrets is held.
+  - `companions.attach({ terminalId, path, lines?, title? })` puts a file the person
+    picked on a terminal's bar, by a path absolute or from the terminal's directory:
+    `TERMINAL_NOT_FOUND`, or `INVALID_FILE` saying why for a missing path, a folder, a
+    pipe or a device. Binary files are accepted.
+  - `companions.move({ itemId, terminalId })` moves an item onto a bar of its session,
+    from a bar or a window, which goes with it; an item that bar held under the same
+    pointer is replaced. `NOT_FOUND`, `TERMINAL_NOT_FOUND`, or `CONFLICT` for another
+    session's terminal. `companions.undock({ itemId, windowId })` moves it into a new
+    window the client names (`CONFLICT` for a taken id). `companions.close({ itemId })`
+    deletes it and its window. `companions.renameWindow({ windowId, title })` and
+    `companions.resetWindowTitle({ windowId })` give a window the person's title or its
+    item's name again.
+
+  An agent shows things with NovaDeck's MCP `show` tool, which puts each on its own
+  terminal's bar; showing the same file or page there again updates it, with a later
+  version, while one moved elsewhere is never touched. `showing` lists what its bar holds.
+  Plans come from the agents' own records: Claude Code's are the Markdown files plan mode
+  writes in a `plans` folder, and what `ExitPlanMode` presents (the file Claude Code
+  names, or the plan's text); Codex's is the plan its Plan Mode proposes, as text;
+  Antigravity's is the Markdown artifact it writes asking for review
+  (`implementation_plan.md`). Each agent session's latest plan per actor is an item on
+  the bar of the terminal it runs in, updated as it changes; a plan presented as text
+  points at the transcript or rollout that records it, and is read back from there with
+  the harness's own decoders, so it outlives its terminal. Only a plain Markdown file one
+  of those names as a plan is ever read. When another agent session binds the terminal,
+  the plans its bar mirrored of the earlier one go; moved ones stay.
+
 - `settings.get()` and `settings.set({ transcripts?, welcomed? })` read and change
   whether transcripts are kept (unless turned off; turning them off forgets every saved
   transcript) and whether the person has seen the first-run choice of agents.
 
 Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
-`INVALID_DIRECTORY`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,
+`INVALID_DIRECTORY`, `INVALID_FILE`, `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,
 `INVALID_CURSOR`, `RESOURCE_LIMIT` (too many calls in flight; retry later),
 `TERMINAL_LIMIT` (the runner's terminal cap is reached), and `SLOW_CONSUMER`. The
 schemas and contract in

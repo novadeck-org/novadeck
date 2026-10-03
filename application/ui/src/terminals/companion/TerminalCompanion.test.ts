@@ -1,19 +1,16 @@
-import { act, createElement, type ComponentProps } from "react"
+import { act, createElement, useSyncExternalStore, type ComponentProps } from "react"
 import { afterEach, vi } from "vitest"
 
-import type {
-  ArtifactRef,
-  CompanionEvent,
-  CompanionKey,
-  CompanionSnapshot,
-  Companions,
-} from "../../model/companion"
+import { emptyCompanions, isOnBar } from "../../model/companion"
+import { emptyBar, messagesKey } from "../../model/companion-bar"
 import { noMail, type AgentMessage, type MailState, type Messages } from "../../model/messages"
-import { createStore } from "../../model/store"
+import { activeSession, workspaceReducer, type WorkspaceAction } from "../../model/state"
+import { createStore, createWorkspaceStore, type WorkspaceStore } from "../../model/store"
+import type { Workspace } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
+import { itemFixture, workspaceFixture } from "../../test/fixtures"
 import { render } from "../../test/render"
 import { createDragSession, DragSessionContext } from "../drag-session"
-import { close, mailTab } from "./pane"
 import { createPanes, type Panes } from "./state"
 import { TerminalCompanion, type ItemCommands } from "./TerminalCompanion"
 
@@ -29,62 +26,70 @@ vi.hoisted(() => {
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-const key: CompanionKey = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }
-const hero: ArtifactRef = { id: "hero", kind: "image", name: "hero.png", detail: "", version: 1 }
+const target = { projectId: "project", workspaceSessionId: "initial" }
+const key = { ...target, terminalId: "01" }
+const hero = itemFixture("hero", "01", { kind: "image", name: "hero.png", path: "/p/hero.png" })
+const shown = (item = hero): WorkspaceAction => ({ type: "item/upsert", target, item })
 
-// Companions that start from `shown` and report what `emit` is given.
-const companionsOf = (shown: readonly ArtifactRef[]) => {
-  const listeners = new Set<(event: CompanionEvent) => void>()
-  const snapshot: CompanionSnapshot[] = shown.length ? [{ key, plans: [], shown }] : []
-  const companions: Companions = {
-    snapshot: () => snapshot,
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    load: () => new Promise(() => {}),
-    save: () => Promise.reject(new Error("No plans")),
-  }
-  // Async, so the presence's microtask, which marks a change after mount, runs too.
-  const emit = (event: CompanionEvent) =>
-    act(async () => listeners.forEach((listener) => listener(event)))
-  return { companions, emit }
-}
-
-// What a terminal does with its items, as the app's commands would, here only closing.
-const itemsOf = (panes: Panes): ItemCommands => ({
+// What a terminal does with its bar, as the app's commands would, here only hiding.
+const commandsOf = (workspace: WorkspaceStore): ItemCommands => ({
   undock: () => {},
   place: () => {},
-  closeItem: (from, item) =>
-    panes.of({ ...key, terminalId: from }).update((pane) => close(pane, item)),
+  closeItem: () => {},
+  openBarTab: () => {},
+  closeBarPane: () => {},
+  hideOnBar: (terminalId, barKey) =>
+    void workspace.dispatch({ type: "bar/hide", target, terminalId, key: barKey }),
+  moveBarSlot: () => {},
 })
 
-// Renders the terminal as the app does: its panes made first, following the backend only
-// once it has mounted.
-const renderTerminal = (
-  companions: Companions,
-  messages?: Messages,
-): { container: HTMLElement; panes: Panes } => {
-  const panes = createPanes(companions, messages)
+// Terminal 01 as the app renders it, from the workspace as it stands.
+const Terminal = ({
+  workspace,
+  panes,
+  messages,
+}: {
+  workspace: WorkspaceStore
+  panes: Panes
+  messages: Messages | undefined
+}) => {
+  const state = useSyncExternalStore(
+    workspace.subscribe,
+    () => activeSession(workspace.getSnapshot())!.state,
+  )
   const props: ComponentProps<typeof TerminalCompanion> = {
     panes,
     messages,
     peerName: () => undefined,
     companionKey: key,
     view: "focus",
-    items: itemsOf(panes),
+    bar: state.bars["01"] ?? emptyBar,
+    items: state.items.filter((item) => isOnBar(item, "01")),
+    fresh: state.fresh,
+    commands: commandsOf(workspace),
     children: null,
   }
+  return createElement(TerminalCompanion, props)
+}
+
+// Renders the terminal as the app does: its panes made first, following the backend only
+// once it has mounted.
+const renderTerminal = (
+  initial: Workspace,
+  messages?: Messages,
+): { container: HTMLElement; workspace: WorkspaceStore } => {
+  const workspace = createWorkspaceStore(initial)
+  const panes = createPanes({ companions: emptyCompanions(), workspace, messages })
   const { container, unmount } = render(
     createElement(
       DragSessionContext,
       { value: createDragSession() },
-      createElement(TerminalCompanion, props),
+      createElement(Terminal, { workspace, panes, messages }),
     ),
   )
   unmounts.push(unmount)
   unmounts.push(panes.connect())
-  return { container, panes }
+  return { container, workspace }
 }
 
 // A message for the terminal from its peer, and the terminal's messages holding them.
@@ -102,7 +107,7 @@ const message = (id: string): AgentMessage => ({
 const mailOf = (messages: readonly AgentMessage[]): MailState => ({
   ...noMail,
   terminals: {
-    "p/s/01": {
+    "project/initial/01": {
       handle: "t1",
       agent: true,
       threads: [{ id: "th", peer: "t2", hops: 1, allowed: 4, held: false, messages }],
@@ -115,18 +120,17 @@ const taskbar = (container: HTMLElement) => container.querySelector(".plan-taskb
 describe("a terminal's taskbar", () => {
   context("when the agent first shows something", () => {
     it("appears marked open, so it animates in", async () => {
-      const { companions, emit } = companionsOf([])
-      const { container } = renderTerminal(companions)
+      const { container, workspace } = renderTerminal(workspaceFixture())
       expect(taskbar(container)).toBeNull()
-      await emit({ type: "artifact/shown", key, artifact: hero, asked: false })
+      // Async, so the presence's microtask, which marks a change after mount, runs too.
+      await act(async () => void workspace.dispatch(shown()))
       expect(taskbar(container)?.getAttribute("data-state")).toBe("open")
     })
   })
 
   context("when the terminal already had something to show as it mounted", () => {
     it("appears as it was, without animating", () => {
-      const { companions } = companionsOf([hero])
-      const { container } = renderTerminal(companions)
+      const { container } = renderTerminal(workspaceReducer(workspaceFixture(), shown()))
       expect(taskbar(container)).not.toBeNull()
       expect(taskbar(container)?.hasAttribute("data-state")).toBe(false)
     })
@@ -134,17 +138,22 @@ describe("a terminal's taskbar", () => {
 
   context("when the person closed the messages", () => {
     it("brings them back with the next message", async () => {
-      const { companions } = companionsOf([hero])
       const state = createStore(mailOf([message("m1")]))
-      const { container, panes } = renderTerminal(companions, {
-        state,
-        pause: () => {},
-        release: () => {},
-      })
+      const { container, workspace } = renderTerminal(
+        workspaceReducer(workspaceFixture(), shown()),
+        {
+          state,
+          pause: () => {},
+          release: () => {},
+        },
+      )
       const icon = () => container.querySelector(".plan-tb-item[aria-label^='Messages']")
       expect(icon()).not.toBeNull()
       // As its menu's Close does.
-      await act(async () => panes.of(key).update((pane) => close(pane, mailTab)))
+      await act(
+        async () =>
+          void workspace.dispatch({ type: "bar/hide", target, terminalId: "01", key: messagesKey }),
+      )
       expect(icon()).toBeNull()
       await act(async () => state.update(() => mailOf([message("m1"), message("m2")])))
       expect(icon()).not.toBeNull()

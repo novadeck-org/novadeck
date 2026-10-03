@@ -297,6 +297,8 @@ type Harness = {
       signal: AbortSignal,
     ) => AsyncIterable<TranscriptChange>
   }
+  /** The plans one line of its transcript or rollout records, by its own decoders. */
+  readonly plans?: (line: string) => readonly { source: PlanSource; at: number | null }[]
   readonly telemetry?: {
     readonly usage?: Reader<Usage>
     readonly limits?: Reader<Limits>
@@ -762,8 +764,9 @@ Planning is a workflow mode, separate from working/idle and attention.
 Adapters normalize reliable native planning signals and explicit plan-content
 associations; coverage for mode, content and review readiness is independent.
 No adapter treats a file named `plan.md`, an arbitrary Markdown write or a
-transcript phrase as the current plan. Authenticated MCP `plans.report` is the
-alternative when native evidence is absent, labeled as agent-reported.
+transcript phrase as the current plan. Authenticated MCP `plans.report`, proposed and
+not built, is the alternative when native evidence is absent, labeled as
+agent-reported.
 
 `planKey` is a source alias; the shared plan service resolves it to a canonical
 plan. `PlanSource` is untrusted and resolved through the artifact service:
@@ -787,6 +790,18 @@ names a native plan can schedule only this authorized read, and the MCP
 The adapter emits facts and never calls a UI operation. Plan identity, revisions,
 presentation and dismissal follow
 [Agent operations in NovaDeck](agent-workspace.md#automatic-planning-and-live-previews).
+
+As built, each agent session's latest plan per actor is a companion item on its
+terminal's bar ([the runner's items](agent-workspace.md#the-runners-items)), a pointer
+like any other. A plan file is read directly. A plan presented as text, which no file
+holds (Codex's Plan item, Claude Code's `ExitPlanMode` without a file), points at the
+actor's transcript or rollout, which `transcripts.locate` finds, and is read back from
+it with the adapter's `plans`: the same decoders its hooks and rollout follower use,
+applied to each recorded line, the latest text plan winning. Codex's reads its rollout
+with `rolloutEvents`, Claude Code's reads `ExitPlanMode` calls from the transcript with
+the hook decoder's own `presented`; Antigravity's plans are always files, so it has
+none. The runner decodes only the lines appended since its last read, so the plan
+outlives its terminal and a restart without NovaDeck copying its text.
 
 ## Native sources
 
@@ -1092,13 +1107,14 @@ nothing else, confirmed by its hook, never retried; see
       adapter's `transcripts` (where an actor's record is, and the items one of
       its lines holds): Claude Code's session and per-subagent JSONL, Codex's
       rollouts with the messages other agents sent, Antigravity's step log.
-      Detail then lists each actor's latest plan, and `agents.plan` streams its
-      text: Claude Code's plan-mode file (a Write or Edit to Markdown in a
-      `plans` folder) or what `ExitPlanMode` presents; the Plan item Codex's
-      Plan Mode proposes, read from its rollout, which also says each turn's
-      mode (its hooks say `default` even then); the artifact Antigravity
-      writes asking for review, which a PostToolUse hook names. Codex offers
-      no `update_plan` tool any more.
+      Each actor's latest plan then becomes a companion item on its terminal's
+      bar (`companions.*`): Claude Code's plan-mode file (a Write or Edit to
+      Markdown in a `plans` folder) or what `ExitPlanMode` presents; the Plan
+      item Codex's Plan Mode proposes, read from its rollout, which also says
+      each turn's mode (its hooks say `default` even then); the artifact
+      Antigravity writes asking for review, which a PostToolUse hook names. A
+      plan presented as text is read back from its record through `plans`.
+      Codex offers no `update_plan` tool any more.
 5. **Operate.** Add caller/operation, messaging, artifact and presentation
    services, with MCP and UI exercising the same operations, including the
    spawn-Codex and present-plan walkthroughs in the companion design.

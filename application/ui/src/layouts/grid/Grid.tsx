@@ -20,7 +20,7 @@ import { canvasPresetSize, gridPresetWidth } from "../../model/layout/terminal-s
 import { dropOnGrid, type WindowPlace } from "../../model/layout/window-place"
 import type {
   SizePreset,
-  TerminalMetadata,
+  Tile,
   GridBreakpoint,
   GridLayouts,
   GridRestoreWidths,
@@ -51,7 +51,7 @@ type Props = {
   presets: Record<string, SizePreset>
   restoreWidths: Record<string, GridRestoreWidths>
   onToggleWidth: (id: string, change: GridWidthToggle) => void
-  terminals: TerminalMetadata[]
+  terminals: readonly Tile[]
   navigation: number
   selected: string
   onSelect: (id: string) => void
@@ -62,7 +62,7 @@ type Props = {
   preview: string
   onMinimize: (id: string) => void
   onCreate: () => void
-  render: (terminal: TerminalMetadata, controls: TerminalLayoutControls) => ReactNode
+  render: (terminal: Tile, controls: TerminalLayoutControls) => ReactNode
 }
 
 export const Grid = ({

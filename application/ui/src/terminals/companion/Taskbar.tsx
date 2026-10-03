@@ -119,7 +119,7 @@ export const Taskbar = ({
               key={slot.key}
               id={slot.key}
               index={index}
-              tethered={slot.members.some((member) => member.content.kind === "messages")}
+              tethered={slot.members.some((member) => member.kind === "messages")}
             >
               <TaskbarSlot
                 slot={slot}

@@ -5,6 +5,10 @@ import {
   type AgentDetail,
   type AgentIntegration,
   type AgentName,
+  type CompanionChange,
+  type CompanionItem,
+  type CompanionWindow,
+  type ItemContent,
   type Project,
   type RunnerSettings,
   type TerminalAttached,
@@ -14,9 +18,6 @@ import {
   type TerminalRequest,
   type TerminalRequestAnswer,
   type TerminalSummary,
-  type PlanContent,
-  type AgentShown,
-  type ArtifactContent,
   type TranscriptChange,
   type WorkspaceSession,
 } from "./schemas.js"
@@ -51,6 +52,12 @@ export type TerminalMode = "control" | "observe"
  * yields before each fresh `changed`…`synced` sequence.
  */
 export type TerminalWatchItem = TerminalChange | { readonly type: "reset" }
+
+/**
+ * An item of `runner.companions.watch()`: a runner change, or `reset`, which the client
+ * yields before each fresh sequence of items and windows ending in `synced`.
+ */
+export type CompanionWatchItem = CompanionChange | { readonly type: "reset" }
 
 /**
  * One attachment to a running terminal. Iterate it for screen events; each event is
@@ -228,24 +235,63 @@ export type Runner = {
       actor: string,
     ): AsyncIterableIterator<TranscriptChange, undefined>
     /**
-     * Follows a plan `detail` lists, by its ref: its text as it stands, then again on each
-     * change, across reconnections. Iteration ends once another plan replaces it, the
-     * terminal's agent leaves its session, the runner closes, or on `return()`.
-     */
-    plan(terminalId: string, plan: string): AsyncIterableIterator<PlanContent, undefined>
-    /**
-     * Follows what the terminal's agents showed the user through NovaDeck's MCP server:
-     * a snapshot, then another on each change, across reconnections. Iteration ends once
-     * the terminal is gone, the runner closes, or on `return()`.
-     */
-    shown(terminalId: string): AsyncIterableIterator<AgentShown, undefined>
-    /** One thing `shown` lists, as captured; NOT_FOUND once it no longer lists it. */
-    artifact(terminalId: string, artifact: string): Promise<ArtifactContent>
-    /**
      * Installs or removes NovaDeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
      */
     set(agent: AgentName, connected: boolean): Promise<AgentIntegration>
+  }
+  /**
+   * What agents show and the person attaches beside terminals: items, each held by a
+   * terminal's bar or an undocked window, kept across restarts as pointers.
+   */
+  readonly companions: {
+    /** A session's items and windows; `NOT_FOUND` for an unknown session. */
+    list(input: {
+      readonly sessionId: string
+    }): Promise<{ items: CompanionItem[]; windows: CompanionWindow[] }>
+    /**
+     * Follows every item and window on the runner, across sessions, as
+     * `terminals.watch()` follows terminals: each subscription yields `reset`, every item
+     * and window, then `synced`; at `synced`, forget any not reported since. Later events
+     * report changes and removals, each the latest state of its item or window, in the
+     * order they first changed since this client last caught up. A reference may name an
+     * item, window or terminal not yet reported, or one whose removal follows: keep both
+     * sides and resolve them as the rest arrives, never drop one for it. Iteration ends
+     * only when the runner closes or on `return()`.
+     */
+    watch(): AsyncIterableIterator<CompanionWatchItem, undefined>
+    /**
+     * Follows what an item points at: read now, then again each time it changes, across
+     * reconnections. A file that may hold secrets is `held` unless `reveal`. Iteration
+     * ends once the item is deleted, the runner closes, or on `return()`.
+     */
+    content(
+      itemId: string,
+      options?: { readonly reveal?: boolean },
+    ): AsyncIterableIterator<ItemContent, undefined>
+    /**
+     * Attaches a file to a terminal's bar, by a path absolute or from the terminal's
+     * directory. Rejects with `TERMINAL_NOT_FOUND`, or `INVALID_FILE` saying why.
+     */
+    attach(input: {
+      readonly terminalId: string
+      readonly path: string
+      readonly lines?: { readonly from: number; readonly to: number }
+      readonly title?: string
+    }): Promise<CompanionItem>
+    /**
+     * Moves an item onto a terminal's bar, from a bar or a window, which goes with it.
+     * Rejects with `NOT_FOUND`, `TERMINAL_NOT_FOUND`, or `CONFLICT` for another session.
+     */
+    move(itemId: string, terminalId: string): Promise<CompanionItem>
+    /** Moves an item into a new window this client names; a taken id rejects with `CONFLICT`. */
+    undock(itemId: string, windowId: string): Promise<CompanionWindow>
+    /** Deletes an item and the window holding it. */
+    close(itemId: string): Promise<void>
+    /** Gives a window the person's title; `NOT_FOUND` for an unknown window. */
+    renameWindow(windowId: string, title: string): Promise<void>
+    /** Gives a window its item's name again. */
+    resetWindowTitle(windowId: string): Promise<void>
   }
   readonly messages: {
     /** A terminal's threads and messages with their states; `TERMINAL_NOT_FOUND` when unknown. */
@@ -827,11 +873,17 @@ class Resubscription<T> implements AsyncIterableIterator<T, undefined> {
   }
 }
 
-/** `terminals.watch()`: one subscription per connection, renewed after each reconnection. */
-class TerminalWatch implements AsyncIterableIterator<TerminalWatchItem, undefined> {
+/**
+ * `terminals.watch()` and `companions.watch()`: one subscription per connection, renewed
+ * after each reconnection, each opening with `reset`.
+ */
+class Watch<Change> implements AsyncIterableIterator<
+  Change | { readonly type: "reset" },
+  undefined
+> {
   private stream:
     | {
-        readonly changes: AsyncIterator<TerminalChange>
+        readonly changes: AsyncIterator<Change>
         readonly link: Link
         readonly cancel: AbortController
       }
@@ -848,14 +900,20 @@ class TerminalWatch implements AsyncIterableIterator<TerminalWatchItem, undefine
     this.stop = () => resolve(undefined)
   })
 
-  constructor(private readonly connection: Connection) {}
+  constructor(
+    private readonly connection: Connection,
+    private readonly open: (
+      wire: WireClient,
+      signal: AbortSignal,
+    ) => Promise<AsyncIterator<Change>>,
+  ) {}
 
   [Symbol.asyncIterator](): this {
     return this
   }
 
   /** Never throws: failures resubscribe, and iteration ends only on close or `return()`. */
-  async next(): Promise<IteratorResult<TerminalWatchItem, undefined>> {
+  async next(): Promise<IteratorResult<Change | { readonly type: "reset" }, undefined>> {
     while (!this.ended) {
       const stream = this.stream
       if (!stream) {
@@ -886,7 +944,7 @@ class TerminalWatch implements AsyncIterableIterator<TerminalWatchItem, undefine
     return done
   }
 
-  return(): Promise<IteratorResult<TerminalWatchItem, undefined>> {
+  return(): Promise<IteratorResult<Change | { readonly type: "reset" }, undefined>> {
     this.end()
     return Promise.resolve(done)
   }
@@ -904,7 +962,7 @@ class TerminalWatch implements AsyncIterableIterator<TerminalWatchItem, undefine
     }
     const cancel = new AbortController()
     try {
-      const changes = await link.wire.terminals.watch(undefined, { signal: cancel.signal })
+      const changes = await this.open(link.wire, cancel.signal)
       if (this.ended) cancel.abort()
       else {
         this.stream = { changes, link, cancel }
@@ -991,7 +1049,8 @@ export const connectRunner = async (
           wire.terminals.requests(undefined, { signal }),
         ),
       answerRequest: (answer) => call((wire) => wire.terminals.answerRequest(answer)),
-      watch: () => new TerminalWatch(connection),
+      watch: () =>
+        new Watch(connection, (wire, signal) => wire.terminals.watch(undefined, { signal })),
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
       rename: (terminalId, title) => call((wire) => wire.terminals.rename({ terminalId, title })),
       resetTitle: (terminalId) => call((wire) => wire.terminals.resetTitle({ terminalId })),
@@ -1017,17 +1076,24 @@ export const connectRunner = async (
           (wire, signal) => wire.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
-      plan: (terminalId, plan) =>
-        new Resubscription(connection, (wire, signal) =>
-          wire.agents.plan({ terminalId, plan }, { signal }),
-        ),
-      shown: (terminalId) =>
-        new Resubscription(connection, (wire, signal) =>
-          wire.agents.shown({ terminalId }, { signal }),
-        ),
-      artifact: (terminalId, artifact) =>
-        call((wire) => wire.agents.artifact({ terminalId, artifact })),
       set: (agent, connected) => call((wire) => wire.agents.set({ agent, connected })),
+    },
+    companions: {
+      list: (input) => call((wire) => wire.companions.list(input)),
+      watch: () =>
+        new Watch(connection, (wire, signal) => wire.companions.watch(undefined, { signal })),
+      content: (itemId, { reveal } = {}) =>
+        new Resubscription(connection, (wire, signal) =>
+          wire.companions.content({ itemId, ...(reveal !== undefined && { reveal }) }, { signal }),
+        ),
+      attach: (input) => call((wire) => wire.companions.attach(input)),
+      move: (itemId, terminalId) => call((wire) => wire.companions.move({ itemId, terminalId })),
+      undock: (itemId, windowId) => call((wire) => wire.companions.undock({ itemId, windowId })),
+      close: (itemId) => call((wire) => wire.companions.close({ itemId })),
+      renameWindow: (windowId, title) =>
+        call((wire) => wire.companions.renameWindow({ windowId, title })),
+      resetWindowTitle: (windowId) =>
+        call((wire) => wire.companions.resetWindowTitle({ windowId })),
     },
     messages: {
       list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),

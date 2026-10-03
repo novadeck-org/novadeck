@@ -114,10 +114,9 @@ export const agentCoverage = z.strictObject({
 
 // `agents.detail` snapshots: the agent a terminal runs, its root and subagents (root
 // first; a subagent's parent is null where the harness does not say), each request
-// waiting on the person with what it asks about and the answers it offers, each actor's
-// latest plan (a file the harness keeps it in, with the file's name, or text it
-// presented), and how much of each feature this harness tells. Without an agent bound,
-// only `terminalId`.
+// waiting on the person with what it asks about and the answers it offers, and how much
+// of each feature this harness tells. Without an agent bound, only `terminalId`. Its
+// plans are companion items (`companionItem`).
 export const agentDetail = z.strictObject({
   terminalId: id,
   agent: agentName.nullable(),
@@ -146,65 +145,8 @@ export const agentDetail = z.strictObject({
       }),
     )
     .max(32),
-  plans: z
-    .array(
-      z.strictObject({
-        ref: agentRef,
-        actor: agentRef,
-        source: z.enum(["file", "text"]),
-        name: z.string().max(256).nullable(),
-      }),
-    )
-    .max(33),
   coverage: agentCoverage.nullable(),
 })
-
-// `agents.plan` snapshots: a plan's text as it stands, cut short past 256 KiB and marked
-// `truncated`, and when it last changed, in epoch milliseconds where known.
-export const planContent = z.strictObject({
-  ref: agentRef,
-  text: z.string().max(256 * 1024),
-  truncated: z.boolean(),
-  changedAt: z.number().nullable(),
-})
-
-// What an agent showed the user from its terminal through NovaDeck's MCP server, by an
-// id the runner gives it. Showing the same thing again raises `version`. `asked`: it
-// opens, as the agent said the user asked to see it. `held`: a file that may hold
-// secrets, which the UI shows only when the user picks it, never by itself.
-export const artifactId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)
-
-export const shownArtifact = z.strictObject({
-  id: artifactId,
-  kind: z.enum(["image", "file", "page"]),
-  name: z.string().max(256),
-  detail: z.string().max(512),
-  version: z.number().int().min(1),
-  asked: z.boolean(),
-  held: z.boolean().optional(),
-})
-
-// `agents.shown` snapshots: everything the terminal's agents have shown, oldest first.
-export const agentShown = z.strictObject({
-  terminalId: id,
-  shown: z.array(shownArtifact).max(64),
-})
-
-// `agents.artifact`: what was shown, as captured when it was. An image is a data URL; a
-// file is the lines around the ones pointed at, numbered from `firstLine`; a page is its
-// http(s) address, which the desktop app loads live.
-export const artifactContent = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("image"), src: z.string().max(12 * 1024 * 1024) }),
-  z.strictObject({
-    kind: z.literal("file"),
-    path: z.string().max(4096),
-    firstLine: z.number().int().min(1),
-    lines: z.array(z.string().max(4096)).max(2000),
-    from: z.number().int().min(1),
-    to: z.number().int().min(1),
-  }),
-  z.strictObject({ kind: z.literal("page"), url: z.string().max(8192) }),
-])
 
 // `agents.transcript` changes: items of an actor's conversation in the order its harness
 // recorded them, numbered from the start of the record (a tool's result may come before
@@ -311,6 +253,103 @@ export const terminalSummary = z.strictObject({
   // Its tokens and quotas, once its records named any; null otherwise.
   telemetry: agentTelemetry.nullable(),
 })
+
+// What agents show and the person attaches beside a terminal: a pointer to a file, a
+// page or a plan, never a copy of it, which `companions.content` reads when it loads.
+// Each item has one holder, a terminal's bar or an undocked window; `from` is the
+// terminal it was shown or attached in. `version` counts its shows, `asked` says the
+// latest one asked to open it, and `held` marks a file that may hold secrets, which
+// opens only when the person picks it. A plan names its agent, its actor's role, and
+// whether it is a file or text in the agent's own transcript or rollout.
+export const itemHolder = z.union([
+  z.strictObject({ terminalId: id }),
+  z.strictObject({ windowId: id }),
+])
+export const companionItem = z.strictObject({
+  id,
+  sessionId: id,
+  holder: itemHolder,
+  kind: z.enum(["image", "file", "page", "plan"]),
+  name: z.string().max(256),
+  detail: z.string().max(512),
+  path: z.string().max(4096).nullable(),
+  url: z.string().max(8192).nullable(),
+  lines: z.strictObject({ from: z.int().min(1), to: z.int().min(1) }).nullable(),
+  held: z.boolean(),
+  by: z.enum(["agent", "person"]),
+  from: z.strictObject({ terminalId: id, handle }),
+  version: z.int().min(1),
+  asked: z.boolean(),
+  shownAt: z.number(),
+  plan: z
+    .strictObject({
+      agent: agentName,
+      role: z.enum(["root", "subagent"]),
+      source: z.enum(["file", "text"]),
+    })
+    .nullable(),
+})
+
+// An undocked window holding one item, named by the client that undocked it. Its title is
+// the person's, or by default the item's name.
+export const companionWindow = z.strictObject({
+  id,
+  sessionId: id,
+  itemId: id,
+  title: terminalTitle,
+  titleSource: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("person") }),
+    z.strictObject({ kind: z.literal("default") }),
+  ]),
+})
+
+// `companions.watch` events: every item and window, `synced`, then each later change.
+export const companionChange = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("item"), item: companionItem }),
+  z.strictObject({ type: z.literal("itemRemoved"), itemId: id, sessionId: id }),
+  z.strictObject({ type: z.literal("window"), window: companionWindow }),
+  z.strictObject({ type: z.literal("windowRemoved"), windowId: id, sessionId: id }),
+  // Follows the initial events: items and windows not reported by now do not exist.
+  z.strictObject({ type: z.literal("synced") }),
+])
+
+// `companions.content`: what an item points at, read as it is now. `stamp` changes with
+// it. A file is the lines around the ones pointed at, numbered from `firstLine`, with
+// its line count where it was read to its end (`truncated` otherwise), and `clamped`
+// when the lines pointed at ran past its end. A page is its address, which the desktop
+// app loads live. Or why it can't be shown, with the file's size where known.
+export const itemContent = z.discriminatedUnion("state", [
+  z.strictObject({
+    state: z.literal("ready"),
+    stamp: z.string().max(128),
+    content: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("image"), src: z.string().max(12 * 1024 * 1024) }),
+      z.strictObject({
+        kind: z.literal("file"),
+        path: z.string().max(4096),
+        firstLine: z.int().min(1),
+        lines: z.array(z.string().max(4096)).max(2000),
+        from: z.int().min(1),
+        to: z.int().min(1),
+        total: z.int().nonnegative().nullable(),
+        truncated: z.boolean(),
+        clamped: z.boolean(),
+      }),
+      z.strictObject({ kind: z.literal("page"), url: z.string().max(8192) }),
+      z.strictObject({
+        kind: z.literal("plan"),
+        text: z.string().max(256 * 1024),
+        truncated: z.boolean(),
+        changedAt: z.number().nullable(),
+      }),
+    ]),
+  }),
+  z.strictObject({
+    state: z.literal("unavailable"),
+    reason: z.enum(["missing", "unreadable", "not-a-file", "too-large", "binary", "held", "gone"]),
+    size: z.number().nullable(),
+  }),
+])
 
 // `terminals.requests` items: an agent in terminal `from` asked, through NovaDeck's MCP
 // server, for a new terminal beside it, in `cwd`, starting `command` at its first prompt;
@@ -457,6 +496,11 @@ export type ForegroundProcess = z.infer<typeof foregroundProcess>
 export type TerminalSummary = z.infer<typeof terminalSummary>
 export type TitleSource = z.infer<typeof titleSource>
 export type TerminalChange = z.infer<typeof terminalChange>
+export type ItemHolder = z.infer<typeof itemHolder>
+export type CompanionItem = z.infer<typeof companionItem>
+export type CompanionWindow = z.infer<typeof companionWindow>
+export type CompanionChange = z.infer<typeof companionChange>
+export type ItemContent = z.infer<typeof itemContent>
 export type TerminalRequest = z.infer<typeof terminalRequest>
 export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>
@@ -466,10 +510,6 @@ export type AgentActivity = z.infer<typeof agentActivity>
 export type AgentTelemetry = z.infer<typeof agentTelemetry>
 export type AgentCoverage = z.infer<typeof agentCoverage>
 export type AgentDetail = z.infer<typeof agentDetail>
-export type PlanContent = z.infer<typeof planContent>
-export type ShownArtifact = z.infer<typeof shownArtifact>
-export type AgentShown = z.infer<typeof agentShown>
-export type ArtifactContent = z.infer<typeof artifactContent>
 export type TranscriptItem = z.infer<typeof transcriptItem>
 export type TranscriptChange = z.infer<typeof transcriptChange>
 export type AgentIntegration = z.infer<typeof agentIntegration>

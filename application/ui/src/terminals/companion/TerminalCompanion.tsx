@@ -1,47 +1,46 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
-import { companionKeyId, type CompanionKey } from "../../model/companion"
-import type { MovableItem, Placement } from "../../model/companion-items"
+import type { CompanionItem, CompanionKey, ItemId } from "../../model/companion"
+import { messagesKey, type Bar, type BarKey } from "../../model/companion-bar"
 import type { WindowPlace } from "../../model/layout/window-place"
 import type { Messages } from "../../model/messages"
 import type { ViewMode } from "../../model/types"
 import { usePresence, type Presence } from "../../ui-toolkit/presence"
 import { useDrag, type BarDrag } from "../drag-session"
 import type { TerminalLayoutControls } from "../WindowShell"
-import { barMembers, composeBar, moveSlot, onBar, type BarMember } from "./bar"
+import { barMembers, composeBar, dropOutcome, shownTab, slotKeys, type BarMember } from "./bar"
 import { CompanionPane } from "./CompanionPane"
-import { useMail, type MailHandle } from "./mail"
-import { closePane, movableOf, openTab, seen, shownTab } from "./pane"
+import { useMail } from "./mail"
 import { presentationOf, type Panes } from "./state"
 import { Taskbar } from "./Taskbar"
 import type { SlotActions } from "./TaskbarSlot"
 import type { Dragged } from "./use-bar-drag"
-import { usePane, usePanesOf, type PaneHandle } from "./use-panes"
+import { usePlans } from "./use-panes"
 
 import "./companion.css"
 
-// What the app does with a terminal's items beyond its own pane, as its commands do.
+// What the app does with a terminal's bar and the items on it, as its commands do.
 export type ItemCommands = {
-  readonly undock: (from: string, item: MovableItem, place?: WindowPlace) => void
-  readonly place: (placements: readonly Placement[]) => void
-  readonly closeItem: (from: string, key: string) => void
+  readonly undock: (itemId: ItemId, place?: WindowPlace) => void
+  readonly place: (itemIds: readonly ItemId[], terminalId: string) => void
+  readonly closeItem: (itemId: ItemId) => void
+  readonly openBarTab: (terminalId: string, key: BarKey) => void
+  readonly closeBarPane: (terminalId: string) => void
+  readonly hideOnBar: (terminalId: string, key: BarKey) => void
+  readonly moveBarSlot: (
+    terminalId: string,
+    slots: readonly (readonly BarKey[])[],
+    from: number,
+    to: number,
+  ) => void
 }
 
-const none: readonly never[] = []
 const unnamed = (): undefined => undefined
 
 const clamp = (value: number): number => Math.min(0.7, Math.max(0.22, value))
 
 // What the pane shows, wherever it's presented.
-type PaneView = {
-  readonly pane: PaneHandle
-  readonly member: BarMember | undefined
-  readonly panes: Panes
-  readonly mail: MailHandle
-  readonly peerName: (handle: string) => string | undefined
-  readonly originOf: (member: BarMember) => string
-  readonly onUndock: (member: BarMember) => void
-}
+type PaneView = Omit<Parameters<typeof CompanionPane>[0], "presentation">
 
 // Terminal left, pane right, inside the terminal's own window. The divider drags.
 const SplitPane = ({
@@ -137,10 +136,11 @@ export const TerminalCompanion = ({
   children,
   minimized,
   clipContent,
-  undocked = none,
-  placements = none,
-  terminalName = unnamed,
+  bar,
   items,
+  fresh,
+  terminalName = unnamed,
+  commands,
 }: {
   panes: Panes
   messages?: Messages | undefined
@@ -152,45 +152,36 @@ export const TerminalCompanion = ({
   children: ReactNode
   minimized?: boolean | undefined
   clipContent?: boolean | undefined
-  // This terminal's items undocked into windows of their own now, by their keys.
-  undocked?: readonly string[] | undefined
-  // The session's items placed on taskbars other than their own.
-  placements?: readonly Placement[] | undefined
+  // The bar as the person arranged it, the items on it, and which of them are new.
+  bar: Bar
+  items: readonly CompanionItem[]
+  fresh: Readonly<Record<ItemId, true>>
   // A terminal in this session by its id, as it's named.
   terminalName?: ((terminalId: string) => string | undefined) | undefined
-  items: ItemCommands
+  commands: ItemCommands
 }): React.JSX.Element => {
-  const terminal = companionKey.terminalId
-  const pane = usePane(panes, companionKey)
+  const { terminalId: terminal, projectId, workspaceSessionId } = companionKey
+  const target = useMemo(() => ({ projectId, workspaceSessionId }), [projectId, workspaceSessionId])
   const mail = useMail(messages, companionKey)
-  // Where what's placed here comes from: only those terminals' panes, so a keystroke in
-  // any other plan re-renders nothing here.
-  const sources = useMemo(
-    () =>
-      placements
-        .filter((placement) => placement.to === terminal)
-        .map((placement) => companionKeyId({ ...companionKey, terminalId: placement.from })),
-    [placements, terminal, companionKey],
+  const members = useMemo(
+    () => barMembers({ terminalId: terminal, bar, items, fresh, messages: mail.present }),
+    [terminal, bar, items, fresh, mail.present],
   )
-  const sourcePanes = usePanesOf(panes, sources)
-  const { slots, away } = useMemo(() => {
-    const bar = barMembers({
-      pane: pane.pane,
-      undocked,
-      placements,
-      messages: mail.present,
-      panes: sourcePanes,
-    })
-    return { slots: composeBar(pane.pane, bar.members), away: bar.away }
-  }, [pane.pane, undocked, placements, mail.present, sourcePanes])
-  const keys = onBar(slots)
-  const tab = shownTab(pane.pane, (key) => keys.has(key))
-  // Open while there's something to show. What the pane was opened to may be away, as
-  // something the agent was asked to show again while it's undocked: it shows there, and
-  // the pane stays hidden.
-  const open = pane.pane.open && !minimized && !away.has(pane.pane.tab) && tab !== ""
-  const showing = open ? tab : ""
-  const member = slots.flatMap((slot) => slot.members).find((each) => each.id === tab)
+  const slots = useMemo(() => composeBar(bar, members), [bar, members])
+  const planIds = useMemo(
+    () => items.flatMap((item) => (item.kind === "plan" ? [item.id] : [])),
+    [items],
+  )
+  const plans = usePlans(panes, planIds)
+  const tab = shownTab(bar, members)
+  // Open while there's something to show.
+  const open = bar.open && !minimized && tab !== null
+  const showing = open ? tab : null
+  const member = members.find((each) => each.key === tab)
+  // Who showed what's here, by its main plan's agent.
+  const agent =
+    items.find((item) => item.kind === "plan" && item.plan?.role === "root")?.plan?.agent ??
+    "The agent"
 
   // An icon dragged off another terminal's bar is over this terminal: a drop on its bar
   // lands here.
@@ -201,57 +192,53 @@ export const TerminalCompanion = ({
     (drag) => drag !== null && drag.from !== terminal && drag.over === terminal && drag.onBar,
   )
 
-  // Opens a member in this pane. One placed here is seen in its own terminal's pane too.
-  const openMember = (id: string): void => {
-    pane.update((current) => openTab(current, id))
-    const placed = slots
-      .flatMap((slot) => slot.members)
-      .find((each) => each.id === id && each.placed)
-    if (placed) panes.of(placed.source).update((current) => seen(current, placed.key))
+  const originOf = (each: BarMember): string | undefined =>
+    each.kind === "item" ? terminalName(each.item.from.terminalId) : undefined
+  // The person picked something that may hold secrets: it shows.
+  const picked = (key: BarKey): void => {
+    const found = members.find((each) => each.key === key)
+    if (found?.kind === "item" && found.item.held) panes.reveal(target, found.key)
   }
-  const originOf = (each: BarMember): string =>
-    terminalName(each.source.terminalId) ?? "another terminal"
+  const openPicked = (key: BarKey): void => {
+    picked(key)
+    commands.openBarTab(terminal, key)
+  }
   const undockMember = (each: BarMember, place?: WindowPlace): void => {
-    const item = movableOf(each.key)
-    if (item && !each.placed) items.undock(terminal, item, place)
+    if (each.kind !== "item" || each.placed) return
+    picked(each.key)
+    commands.undock(each.key, place)
   }
   const actions: Omit<SlotActions, "grab"> = {
     showing,
     mail,
     peerName,
     originOf,
-    loadOf: (each) => panes.of(each.source).load,
+    plans,
+    panes,
+    target,
     // Clicking what the pane is showing hides it, as a taskbar minimizes the active window.
-    activate: (id) => (id === showing ? pane.update(closePane) : openMember(id)),
-    open: openMember,
-    close: (each) => items.closeItem(each.source.terminalId, each.key),
+    activate: (key) => (key === showing ? commands.closeBarPane(terminal) : openPicked(key)),
+    open: openPicked,
+    close: (each) =>
+      each.kind === "messages"
+        ? commands.hideOnBar(terminal, messagesKey)
+        : commands.closeItem(each.key),
     sendBack: (each) => {
-      const item = movableOf(each.key)
-      const home = each.source.terminalId
-      if (item) items.place([{ from: home, item, to: home }])
+      if (each.kind === "item") commands.place([each.key], each.item.from.terminalId)
     },
     undock: (each) => undockMember(each),
-    move: (from, to) => pane.update((current) => moveSlot(current, slots, from, to)),
+    move: (from, to) => commands.moveBarSlot(terminal, slotKeys(slots), from, to),
   }
-  // Dropped on another terminal's bar, what was dragged shows there, a stack's each; back on
-  // its own terminal's, it goes home. Dropped on free space, it undocks there.
+  // Dropped on another terminal's bar, what was dragged moves there, a stack's each.
+  // Dropped on free space, it undocks there.
   const land = (dragged: Dragged, ended: BarDrag): boolean => {
-    const { over, place } = ended
-    if (ended.onBar && over && over !== terminal) {
-      items.place(
-        dragged.members.flatMap((each) => {
-          const item = movableOf(each.key)
-          return item ? [{ from: each.source.terminalId, item, to: over }] : []
-        }),
-      )
-      return true
+    const outcome = dropOutcome(dragged.members, ended, terminal)
+    if (outcome?.kind === "place") commands.place(outcome.itemIds, outcome.terminalId)
+    if (outcome?.kind === "undock") {
+      picked(outcome.itemId)
+      commands.undock(outcome.itemId, outcome.place)
     }
-    const [only] = dragged.members
-    if (place && dragged.undocks && only) {
-      undockMember(only, place)
-      return true
-    }
-    return false
+    return outcome !== null
   }
 
   const trigger = useRef<HTMLButtonElement>(null)
@@ -261,7 +248,7 @@ export const TerminalCompanion = ({
   // it takes its new size once, never frame by frame.
   const shown = usePresence(open)
   // The taskbar too, once the terminal first has something to show.
-  const bar = usePresence(present)
+  const taskbar = usePresence(present)
   // And an empty one to drop on, while an icon is dragged over a terminal without a bar.
   const emptyBar = usePresence(hovered && !present)
   const wasOpen = useRef(open)
@@ -273,13 +260,15 @@ export const TerminalCompanion = ({
     wasOpen.current = open
   }, [open])
   const paneView: PaneView = {
-    pane,
     member,
     panes,
+    target,
+    agent,
     mail,
     peerName,
     originOf,
     onUndock: actions.undock,
+    onHide: () => commands.closeBarPane(terminal),
   }
   return (
     <div
@@ -298,23 +287,23 @@ export const TerminalCompanion = ({
       )}
       {/* A terminal gains its taskbar once its agent has a plan, shows something, or can
           message others, or once another terminal's item is placed on it. */}
-      {bar.mounted && (
+      {taskbar.mounted && (
         <Taskbar
           terminal={terminal}
-          agent={pane.pane.plans[0]?.agent ?? "The agent"}
+          agent={agent}
           slots={slots}
           actions={actions}
           land={land}
           trigger={trigger}
           open={open}
-          onHide={() => pane.update(closePane)}
-          presence={bar}
+          onHide={() => commands.closeBarPane(terminal)}
+          presence={taskbar}
           dropTarget={overBar}
         />
       )}
       {/* Nothing to show yet, but an icon is dragged over: an empty bar to drop it on. It
           gives way to the real bar at once once something lands. */}
-      {emptyBar.mounted && !bar.mounted && (
+      {emptyBar.mounted && !taskbar.mounted && (
         <div
           {...emptyBar.props}
           className="plan-taskbar plan-taskbar-empty nodrag nopan"

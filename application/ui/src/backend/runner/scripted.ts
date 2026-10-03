@@ -1,16 +1,23 @@
 import type { TerminalSummary } from "@novadeck/protocol"
-import type { RunnerStatus, TerminalWatchItem } from "@novadeck/protocol/client"
+import type {
+  CompanionWatchItem,
+  Runner,
+  RunnerStatus,
+  TerminalWatchItem,
+} from "@novadeck/protocol/client"
 
 import { workspaceFromSeed } from "../../model/seed"
-import { createTerminalState } from "../../model/state"
+import { createTerminalState, workspaceReducer, type WorkspaceAction } from "../../model/state"
+import type { Workspace } from "../../model/types"
+import type { BackendAction } from "../port"
 import { runnerBackend, type RunnerApi } from "./backend"
-import { startingTerminal, type RunnerListing } from "./seed"
+import { startingTerminal, type ListedCompanions, type RunnerListing } from "./seed"
 import { encodeSession } from "./session-state"
 
 // Test support: a runner adapter over a runner the test scripts step by step.
 
 // Values pushed by the test, read by the adapter as a stream.
-const channel = <T>() => {
+export const channel = <T>() => {
   const queued: T[] = []
   let wake: (() => void) | undefined
   const iterator: AsyncIterableIterator<T, undefined> = {
@@ -30,6 +37,9 @@ const channel = <T>() => {
     },
   }
 }
+
+// A runner whose terminals' companions hold nothing and never change.
+export const noCompanions = { watch: () => channel<never>().iterator }
 
 const unused = (): never => {
   throw new Error("not used here")
@@ -103,6 +113,11 @@ export const scripted = ({
   restart = () => new Promise<TerminalSummary>(() => {}),
   saveSettings = async () => {},
   connect = async (agent: string, connected: boolean) => ({ agent, available: true, connected }),
+  companions = { items: [], windows: [] },
+  respond = async () => undefined,
+  content = () => channel<never>().iterator,
+  createSession = unused,
+  apply = false,
 }: {
   shown: readonly Saved[]
   background?: readonly Saved[]
@@ -110,8 +125,19 @@ export const scripted = ({
   restart?: () => Promise<TerminalSummary>
   saveSettings?: () => Promise<void>
   connect?: (agent: string, connected: boolean) => Promise<unknown>
+  // What the shown session's terminals hold as the runner lists it.
+  companions?: ListedCompanions
+  // How the runner answers each change to an item or window, by the call's name.
+  respond?: (call: string, input: unknown) => Promise<unknown>
+  content?: Runner["companions"]["content"]
+  // How the runner answers creating a session this window adds.
+  createSession?: () => Promise<unknown>
+  // Whether what the backend reports reaches the workspace it sees, as in the app.
+  apply?: boolean
 }) => {
   const changes = channel<TerminalWatchItem>()
+  const items = channel<CompanionWatchItem>()
+  const received: BackendAction[] = []
   const statuses = channel<RunnerStatus>()
   const calls: Call[] = []
   const note =
@@ -123,7 +149,12 @@ export const scripted = ({
   const api = {
     watch: () => statuses.iterator,
     projects: { list: unused, create: unused, rename: unused, remove: unused },
-    sessions: { list: unused, create: unused, rename: unused, save: async () => {} },
+    sessions: {
+      list: unused,
+      create: note("create session", createSession),
+      rename: unused,
+      save: async () => {},
+    },
     settings: { get: unused, set: note("settings", saveSettings) },
     agents: {
       list: async () => [],
@@ -144,6 +175,20 @@ export const scripted = ({
       restart: note("restart", restart),
       attach: () => new Promise(() => {}),
     },
+    companions: {
+      list: unused,
+      watch: () => items.iterator,
+      content: (...input: Parameters<typeof content>) => {
+        calls.push({ call: "content", input })
+        return content(...input)
+      },
+      attach: note("attach", (input) => respond("attach", input)),
+      move: note("move", (input) => respond("move", input)),
+      undock: note("undock", (input) => respond("undock", input)),
+      close: note("close item", (input) => respond("close item", input)),
+      renameWindow: note("rename window", (input) => respond("rename window", input)),
+      resetWindowTitle: note("reset window", (input) => respond("reset window", input)),
+    },
   } as unknown as RunnerApi
   const listing: RunnerListing = [
     {
@@ -157,6 +202,7 @@ export const scripted = ({
             state: encodeSession(state(shown, 5, id(8)), 2),
           },
           terminals: terminalsOf(shown, listed, id(8)),
+          companions,
         },
         {
           session: {
@@ -179,13 +225,39 @@ export const scripted = ({
     ],
     welcomed: false,
   })
-  created.backend.commit(
-    workspaceFromSeed(created.backend.seed, { view: "grid", windowedView: "grid", now: 1 }),
-    [],
-  )
-  const stop = created.backend.start!({ dispatch: () => {}, open: () => {} })
+  let workspace = workspaceFromSeed(created.backend.seed, {
+    view: "grid",
+    windowedView: "grid",
+    now: 1,
+  })
+  created.backend.commit(workspace, [])
+  // Commits as the store would, with the backend seeing each commit.
+  const commit = (...actions: WorkspaceAction[]): Workspace => {
+    workspace = actions.reduce(workspaceReducer, workspace)
+    created.backend.commit(workspace, actions)
+    return workspace
+  }
+  const stop = created.backend.start!({
+    dispatch: (actions) => {
+      received.push(...actions)
+      if (apply) commit(...actions)
+    },
+    open: () => {},
+  })
   statuses.push({ state: "connected", runnerId: "runner-1" })
   const of = (call: string) => calls.filter((item) => item.call === call).map((item) => item.input)
   const key = (terminalId: string) => ({ projectId: "p", workspaceSessionId: id(8), terminalId })
-  return { ...created, changes, calls, of, stop, key }
+  return {
+    ...created,
+    changes,
+    items,
+    received,
+    calls,
+    of,
+    stop,
+    key,
+    listing,
+    commit,
+    workspace: () => workspace,
+  }
 }

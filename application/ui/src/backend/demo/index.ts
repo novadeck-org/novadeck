@@ -4,7 +4,14 @@ import { emptyCompanions } from "../../model/companion"
 import type { WorkspaceSeed } from "../../model/seed"
 import { createStore } from "../../model/store"
 import type { TerminalMetadata, TitleSource, Workspace } from "../../model/types"
-import type { AgentConnection, Backend, BackendSink, CreateBackend, TerminalKey } from "../port"
+import type {
+  AgentConnection,
+  Backend,
+  BackendAction,
+  BackendSink,
+  CreateBackend,
+  TerminalKey,
+} from "../port"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
@@ -76,6 +83,27 @@ export const demoBackend = (
   }
 }
 
+// A window's name handed back: the name of what it shows, as a runner gives it. Nothing
+// for an id the workspace holds no window by.
+export const windowReset = (
+  workspace: Workspace | undefined,
+  { projectId, workspaceSessionId, terminalId }: TerminalKey,
+): BackendAction[] => {
+  const state = workspace?.projects
+    .find((project) => project.id === projectId)
+    ?.history.find((session) => session.id === workspaceSessionId)?.state
+  const window = state?.roster.windows.find((each) => each.id === terminalId)
+  const item = window && state?.items.find((each) => each.id === window.itemId)
+  if (!window || !item) return []
+  return [
+    {
+      type: "window/upsert",
+      target: { projectId, workspaceSessionId },
+      window: { ...window, name: item.name, titleSource: { kind: "default" } },
+    },
+  ]
+}
+
 // Who named each sample terminal, and the name NovaDeck gives it back on a reset.
 const namings: Readonly<
   Record<string, { readonly source: TitleSource; readonly automatic: string }>
@@ -115,22 +143,34 @@ export const withMessages = (backend: Backend, now: number): Backend => {
     workspaceSessionId: project.sessions[0]!.id,
   }))
   let sink: BackendSink | undefined
+  let latest: Workspace | undefined
   return {
     ...backend,
     seed,
+    commit: (workspace, actions) => {
+      latest = workspace
+      backend.commit(workspace, actions)
+    },
     // Its terminals show nothing in the pane but their messages.
     companions: emptyCompanions(),
     messages: createDemoMessages(checkoutMailboxes(now, targets)),
-    resetTitle: ({ projectId, workspaceSessionId, terminalId }) =>
-      sink?.dispatch([
-        {
-          type: "terminal/update",
-          target: { projectId, workspaceSessionId },
-          terminalId,
-          name: namings[terminalId]?.automatic ?? `Terminal ${terminalId}`,
-          titleSource: automaticSource(terminalId),
-        },
-      ]),
+    resetTitle: (key) => {
+      const { projectId, workspaceSessionId, terminalId } = key
+      const window = windowReset(latest, key)
+      sink?.dispatch(
+        window.length
+          ? window
+          : [
+              {
+                type: "terminal/update",
+                target: { projectId, workspaceSessionId },
+                terminalId,
+                name: namings[terminalId]?.automatic ?? `Terminal ${terminalId}`,
+                titleSource: automaticSource(terminalId),
+              },
+            ],
+      )
+    },
     start: (next) => {
       sink = next
       return () => {

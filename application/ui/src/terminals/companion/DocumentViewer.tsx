@@ -1,6 +1,6 @@
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
-import type { ArtifactContent } from "../../model/companion"
+import type { FileContent } from "../../model/companion"
 import type { PlanEditorHandle } from "./plan-editor/PlanEditor"
 import { headingsOf } from "./plan-text"
 
@@ -9,8 +9,6 @@ import { headingsOf } from "./plan-text"
 const PlanEditor = lazy(() =>
   import("./plan-editor/PlanEditor").then((module) => ({ default: module.PlanEditor })),
 )
-
-type FileContent = Extract<ArtifactContent, { kind: "file" }>
 
 const noMarks: readonly never[] = []
 const ignore = (): void => {}
@@ -46,6 +44,9 @@ export const DocumentViewer = ({
           <div className="plan-meta">
             <code className="plan-meta-path">{content.path}</code>
             <span>read-only</span>
+            {content.truncated && (
+              <span className="plan-meta-hint">It's long, so only its start is shown.</span>
+            )}
             {actions && <span className="plan-meta-actions">{actions}</span>}
           </div>
           <Suspense fallback={null}>

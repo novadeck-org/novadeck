@@ -1,8 +1,8 @@
 import { memo } from "react"
 
-import { orderedTerminals } from "../model/roster"
+import { orderedTiles } from "../model/roster"
 import { activeProject } from "../model/state"
-import type { TerminalMetadata, WorkspaceSession } from "../model/types"
+import type { WorkspaceSession } from "../model/types"
 import { useDesktop } from "../shell/desktop"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
@@ -35,7 +35,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
   )
   const target = useWorkspaceState(currentTarget, sameTarget)
   const ordered = useWorkspaceState(
-    (workspace): TerminalMetadata[] => orderedTerminals(currentState(workspace).roster),
+    (workspace) => orderedTiles(currentState(workspace).roster),
     sameItems,
   )
   const sidebarPanel = useUiState((state) => state.location.route.panel)

@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from "react"
 
-import type { TerminalMetadata } from "../../model/types"
+import type { Tile } from "../../model/types"
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
@@ -11,10 +11,10 @@ export const Focus = ({
   onSelect,
   render,
 }: {
-  terminals: TerminalMetadata[]
+  terminals: readonly Tile[]
   displayed: string
   onSelect: (id: string) => void
-  render: (terminal: TerminalMetadata, controls: TerminalLayoutControls) => ReactNode
+  render: (terminal: Tile, controls: TerminalLayoutControls) => ReactNode
 }): React.JSX.Element => {
   const hidden = useMemo(
     () => Object.fromEntries(terminals.map((terminal) => [terminal.id, terminal.id !== displayed])),

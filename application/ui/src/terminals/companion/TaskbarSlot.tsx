@@ -1,17 +1,19 @@
 import { FileStack, FileText, MessagesSquare, Pause, type LucideIcon } from "lucide-react"
 import type { ReactNode, Ref } from "react"
 
-import type { ArtifactContent } from "../../model/companion"
+import type { ItemId } from "../../model/companion"
+import type { BarKey } from "../../model/companion-bar"
 import { mailBadgeLabel } from "../../model/messages"
+import type { WorkspaceTarget } from "../../model/types"
 import { ContextMenu, type ContextMenuItem } from "../../ui-toolkit/ContextMenu"
 import { HoverCard } from "../../ui-toolkit/HoverCard"
 import { iconOf, kindIcons } from "./artifact-icons"
 import { isNew, pick, type BarMember, type BarSlot, type StackKind } from "./bar"
 import type { MailHandle } from "./mail"
-import type { Shown } from "./pane"
 import { Peek, type Indicator, type PeekEntry } from "./Peek"
-import { fileOf } from "./plan-doc"
+import type { PlanDoc } from "./plan-doc"
 import { titleOf } from "./plan-text"
+import type { Panes } from "./state"
 import { ArtifactPreview, MailThumb, PlanThumb } from "./thumbs"
 
 // One icon on a terminal's taskbar: its button, the peek above it with a card for each
@@ -19,16 +21,19 @@ import { ArtifactPreview, MailThumb, PlanThumb } from "./thumbs"
 
 // What the taskbar does for its icons.
 export type SlotActions = {
-  // What the pane shows while it's open, "" while it's hidden.
-  readonly showing: string
+  // What the pane shows while it's open, null while it's hidden.
+  readonly showing: BarKey | null
   readonly mail: MailHandle
   readonly peerName: (handle: string) => string | undefined
-  // The name of the terminal a placed item is from.
-  readonly originOf: (member: BarMember) => string
-  readonly loadOf: (member: BarMember) => (artifact: Shown) => Promise<ArtifactContent>
+  // The name of the terminal something placed here came from, while it's open.
+  readonly originOf: (member: BarMember) => string | undefined
+  // The bar's plans as the pane holds them, once loaded.
+  readonly plans: Readonly<Record<ItemId, PlanDoc>>
+  readonly panes: Panes
+  readonly target: WorkspaceTarget
   // Opens it in the pane, or hides the pane when it's what the pane shows.
-  readonly activate: (id: string) => void
-  readonly open: (id: string) => void
+  readonly activate: (key: BarKey) => void
+  readonly open: (key: BarKey) => void
   readonly close: (member: BarMember) => void
   readonly sendBack: (member: BarMember) => void
   readonly undock: (member: BarMember) => void
@@ -47,37 +52,34 @@ export type SlotActions = {
 type Look = { readonly icon: LucideIcon; readonly name: string; readonly label: string }
 
 const lookOf = (member: BarMember, actions: SlotActions): Look => {
-  const { content } = member
+  if (member.kind === "messages")
+    return { icon: MessagesSquare, name: "Messages", label: "Messages" }
+  const { item } = member
+  const title = titleOf(item.name, actions.plans[item.id]?.text ?? "")
   const look: Look =
-    content.kind === "plan"
+    item.kind === "plan"
       ? {
-          icon: content.plan.role === "root" ? FileText : FileStack,
-          name: fileOf(content.plan),
-          label: `${content.plan.role === "root" ? "Plan" : "Subagent plan"}: ${titleOf(content.plan.path, content.plan.text)}`,
+          icon: item.plan?.role === "subagent" ? FileStack : FileText,
+          name: title,
+          label: `${item.plan?.role === "subagent" ? "Subagent plan" : "Plan"}: ${title}`,
         }
-      : content.kind === "artifact"
-        ? {
-            icon: iconOf(content.artifact),
-            name: content.artifact.name,
-            label: content.artifact.name,
-          }
-        : { icon: MessagesSquare, name: "Messages", label: "Messages" }
+      : { icon: iconOf({ kind: item.kind, name: item.name }), name: item.name, label: item.name }
   if (!member.placed) return look
-  const origin = actions.originOf(member)
+  const origin = actions.originOf(member) ?? "another terminal"
   return { ...look, name: `${look.name} · from ${origin}`, label: `${look.label}, from ${origin}` }
 }
 
 const preview = (member: BarMember, actions: SlotActions): ReactNode =>
-  member.content.kind === "plan" ? (
-    <PlanThumb plan={member.content.plan} />
-  ) : member.content.kind === "artifact" ? (
-    <ArtifactPreview load={actions.loadOf(member)} artifact={member.content.artifact} />
-  ) : (
+  member.kind === "messages" ? (
     <MailThumb mail={actions.mail} peerName={actions.peerName} />
+  ) : member.item.kind === "plan" ? (
+    <PlanThumb panes={actions.panes} item={member.item} />
+  ) : (
+    <ArtifactPreview panes={actions.panes} target={actions.target} item={member.item} />
   )
 
-const indicator = (member: BarMember, showing: string): Indicator =>
-  isNew(member) ? "new" : member.id === showing ? "open" : "seen"
+const indicator = (member: BarMember, showing: BarKey | null): Indicator =>
+  isNew(member) ? "new" : member.key === showing ? "open" : "seen"
 
 // A stack's name, as its menu and its count say it.
 const stackNames: Record<StackKind, { readonly one: string; readonly many: string }> = {
@@ -89,34 +91,38 @@ const stackNames: Record<StackKind, { readonly one: string; readonly many: strin
 
 // What can be done with one item, from its menu: in a stack, each named.
 const memberMenu = (member: BarMember, actions: SlotActions, named: boolean): ContextMenuItem[] => {
-  const name = named ? ` ${lookOf({ ...member, placed: false }, actions).name}` : ""
-  const origin = member.placed ? actions.originOf(member) : ""
-  const from = named && member.placed ? ` from ${origin}` : ""
+  const placed = member.kind === "item" && member.placed
+  const name = named
+    ? ` ${lookOf(member.kind === "item" ? { ...member, placed: false } : member, actions).name}`
+    : ""
+  const origin = placed ? actions.originOf(member) : undefined
+  const from = named && placed ? ` from ${origin ?? "another terminal"}` : ""
   return [
     {
-      value: `open-${member.id}`,
+      value: `open-${member.key}`,
       label: `Open${name}${from}`,
-      onSelect: () => actions.open(member.id),
+      onSelect: () => actions.open(member.key),
     },
-    ...(member.placed
+    // Something placed here goes back to its terminal while that's open.
+    ...(placed && origin
       ? [
           {
-            value: `send-back-${member.id}`,
+            value: `send-back-${member.key}`,
             label: named ? `Send${name} back to ${origin}` : `Send back to ${origin}`,
             onSelect: () => actions.sendBack(member),
           },
         ]
-      : member.content.kind !== "messages"
+      : member.kind === "item" && !placed
         ? [
             {
-              value: `window-${member.id}`,
+              value: `window-${member.key}`,
               label: named ? `Undock${name} to its own window` : "Undock to its own window",
               onSelect: () => actions.undock(member),
             },
           ]
         : []),
     {
-      value: `close-${member.id}`,
+      value: `close-${member.key}`,
       label: `Close${name}${from}`,
       onSelect: () => actions.close(member),
     },
@@ -169,15 +175,15 @@ export const TaskbarSlot = ({
     const look = lookOf(member, actions)
     const Icon = look.icon
     return {
-      id: member.id,
+      id: member.key,
       name: look.name,
       icon: <Icon size={13} strokeWidth={1.5} />,
       preview: preview(member, actions),
       state: indicator(member, showing),
-      onOpen: () => actions.open(member.id),
+      onOpen: () => actions.open(member.key),
       onClose: () => actions.close(member),
       // The messages stay on their terminal's bar.
-      ...(member.content.kind === "messages"
+      ...(member.kind === "messages"
         ? {}
         : { onGrab: (event) => actions.grab(event, member, Icon, slot.key) }),
     }
@@ -188,9 +194,9 @@ export const TaskbarSlot = ({
     : { icon: slot.stack === "plan" ? FileText : kindIcons[slot.stack!], name: "", label: "" }
   const Icon = look.icon
   const fresh = slot.members.some(isNew)
-  const shown = slot.members.find((member) => member.id === showing)
+  const shown = slot.members.find((member) => member.key === showing)
   const names = slot.stack && stackNames[slot.stack]
-  const messages = single?.content.kind === "messages"
+  const messages = single?.kind === "messages"
   const mailLabel = actions.mail.badge
     ? `, ${mailBadgeLabel(actions.mail.badge)}`
     : actions.mail.paused
@@ -221,7 +227,7 @@ export const TaskbarSlot = ({
                 }
                 aria-pressed={Boolean(shown)}
                 aria-description="Drag to reorder, or use Move left and Move right in its menu."
-                onClick={() => actions.activate((single ?? pick(slot, showing)).id)}
+                onClick={() => actions.activate((single ?? pick(slot, showing)).key)}
               >
                 <Icon size={20} strokeWidth={1.5} />
                 {messages ? (

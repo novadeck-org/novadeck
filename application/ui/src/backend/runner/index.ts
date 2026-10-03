@@ -31,7 +31,7 @@ const transport = (): Transport => {
 // directory, and every project without a session gets one, so the workspace can open.
 // A project removed meanwhile, as from another window, is left out.
 export const loadListing = async (
-  runner: Pick<Runner, "projects" | "sessions" | "terminals">,
+  runner: Pick<Runner, "projects" | "sessions" | "terminals" | "companions">,
   newId: () => string,
   now: () => number,
 ): Promise<RunnerListing> => {
@@ -50,10 +50,13 @@ export const loadListing = async (
       return {
         project,
         sessions: await Promise.all(
-          sessions.map(async (session) => ({
-            session,
-            terminals: await runner.terminals.list({ sessionId: session.id }),
-          })),
+          sessions.map(async (session) => {
+            const [terminals, companions] = await Promise.all([
+              runner.terminals.list({ sessionId: session.id }),
+              runner.companions.list({ sessionId: session.id }),
+            ])
+            return { session, terminals, companions }
+          }),
         ),
       }
     } catch (error) {

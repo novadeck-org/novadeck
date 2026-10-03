@@ -1,5 +1,6 @@
 import { matchPath } from "react-router"
 
+import { hasTile } from "../model/roster"
 import {
   activeProject,
   activeSession,
@@ -93,8 +94,7 @@ export const resolveRoute = (
   const search = new URLSearchParams(location.search)
   const requestedTerminal = search.get("terminal")
   const terminal =
-    requestedTerminal === "" ||
-    session.state.roster.terminals.some((item) => item.id === requestedTerminal)
+    requestedTerminal === "" || hasTile(session.state.roster, requestedTerminal ?? "")
       ? requestedTerminal!
       : session.state.selected
   const target = { projectId: project.id, workspaceSessionId: session.id }

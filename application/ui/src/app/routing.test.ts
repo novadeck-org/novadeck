@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { createTerminalState } from "../model/state"
 import { createWorkspaceStore } from "../model/store"
 import type { PreferencesValue, Workspace } from "../model/types"
-import { terminalFixture } from "../test/fixtures"
+import { terminalFixture, workspaceWithWindow } from "../test/fixtures"
 import { resolveRoute, routeUrl, workspaceRoute } from "./routing"
 
 const preferences: PreferencesValue = { fontSize: 13, enabledViews: ["focus", "grid", "canvas"] }
@@ -29,6 +29,12 @@ const fixture = (): Workspace => ({
 })
 
 describe("route reconciliation", () => {
+  it("selects an undocked window the URL names, as it would a terminal", () => {
+    const location = { pathname: "/projects/project/sessions/initial/grid", search: "?terminal=w1" }
+    const resolved = resolveRoute(workspaceWithWindow(), location, preferences, 1)
+    expect(resolved.route).toMatchObject({ terminal: "w1" })
+  })
+
   it("projects URL navigation without changing the store during a render", () => {
     const store = createWorkspaceStore(fixture())
     const before = store.getSnapshot()

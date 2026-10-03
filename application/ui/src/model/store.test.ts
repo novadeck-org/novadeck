@@ -91,7 +91,7 @@ describe("workspace commands", () => {
     }
     const terminalState = createTerminalState([terminal], "canvas", "canvas", { canvasLayout })
     expect(terminalState.layout.canvas).toBe(canvasLayout)
-    expect(terminalState.roster).toEqual({ terminals: [terminal], order: [] })
+    expect(terminalState.roster).toEqual({ terminals: [terminal], windows: [], order: [] })
   })
 
   it("adding a terminal selects it and places it in every layout", () => {
@@ -151,7 +151,7 @@ describe("workspace commands", () => {
     expect(state(closed)).toEqual({
       ...seeded,
       selected: "",
-      roster: { terminals: [], order: [] },
+      roster: { terminals: [], windows: [], order: [] },
       layout: {
         canvas: { geometry: {}, minimized: {} },
         grid: { desktop: [] },

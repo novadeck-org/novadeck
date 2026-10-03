@@ -1,10 +1,7 @@
-import { basename } from "node:path"
-
 import type { AgentDetail } from "@novadeck/protocol"
 
 import { subagentRef, summary, type Activity } from "./activity.js"
 import type { Binding } from "./bindings.js"
-import type { PlanSource } from "./events.js"
 import { ref } from "./harness.js"
 import { harnesses } from "./registry.js"
 import { telemetrySummary, type Telemetry } from "./telemetry.js"
@@ -36,7 +33,6 @@ export const agentDetail = (
       telemetry: null,
       actors: [],
       requests: [],
-      plans: [],
       coverage: null,
     }
   const root = rootRef(binding)
@@ -85,31 +81,9 @@ export const agentDetail = (
         subject,
         choices: [...choices],
       })),
-    plans: (activity?.plans ?? []).map(({ actor, source }) => ({
-      ref: planRef(binding, actor, source),
-      actor: actor === null ? root : subagentRef(actor),
-      source: source.kind,
-      name: source.kind === "file" ? basename(source.path).slice(0, 256) : null,
-    })),
     coverage: harnesses[binding.agent].coverage,
   }
 }
-
-/**
- * The reference clients know a plan by: its actor's, in its file, or presented as text,
- * each presentation its own.
- */
-export const planRef = (binding: Binding, actor: string | null, source: PlanSource): string =>
-  ref(
-    "plan",
-    binding.sessionId,
-    actor ?? "",
-    source.kind === "file" ? source.path : `text\0${ref("text", source.text)}`,
-  )
-
-/** The plan a ref names among the bound session's, if it is still an actor's latest. */
-export const planOf = (binding: Binding, activity: Activity | null, plan: string) =>
-  activity?.plans.find(({ actor, source }) => planRef(binding, actor, source) === plan)
 
 /**
  * The native id of the actor a ref names in the bound session: null for its root, a

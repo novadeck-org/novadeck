@@ -1,360 +1,227 @@
-import type { AgentDetail, AgentShown, ArtifactContent, PlanContent } from "@novadeck/protocol"
+import { mkdtemp, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
-import type { CompanionEvent, CompanionKey } from "../../model/companion"
+import type { ItemContent as RunnerContent } from "@novadeck/protocol"
+import { vi } from "vitest"
+
+import { itemIdOf, type ItemContent } from "../../model/companion"
 import { context, describe, expect, it } from "../../test"
-import { createRunnerCompanions, revisionOf } from "./companions"
+import { createRunnerCompanions, itemOf, windowOf } from "./companions"
+import { channel } from "./scripted"
+import { startTestRunner } from "./testing"
 
-// A stream the test feeds, as the runner's subscriptions would.
-const channel = <T>() => {
-  const queued: T[] = []
-  let wake: (() => void) | undefined
-  let ended = false
-  const iterator: AsyncIterableIterator<T, undefined> = {
-    [Symbol.asyncIterator]: () => iterator,
-    next: async () => {
-      if (queued.length) return { done: false, value: queued.shift()! }
-      if (ended) return { done: true, value: undefined }
-      await new Promise<void>((resolve) => (wake = resolve))
-      return iterator.next()
+const target = { projectId: "p", workspaceSessionId: "s" }
+const hero = itemIdOf("hero")
+
+// Companions over a runner whose content streams the test feeds.
+const following = ({ livePages = false } = {}) => {
+  const streams = new Map<string, ReturnType<typeof channel<RunnerContent>>>()
+  const asked: { readonly itemId: string; readonly reveal: boolean | undefined }[] = []
+  const attached: unknown[] = []
+  const companions = createRunnerCompanions(
+    {
+      content: (itemId, options) => {
+        asked.push({ itemId, reveal: options?.reveal })
+        const stream = channel<RunnerContent>()
+        streams.set(itemId, stream)
+        return stream.iterator
+      },
+      attach: async (input) => {
+        attached.push(input)
+        return undefined as never
+      },
     },
-    return: async () => {
-      ended = true
-      wake?.()
-      return { done: true, value: undefined }
-    },
-  }
+    { livePages },
+  )
+  const seen: ItemContent[] = []
+  const follow = (reveal = false) =>
+    companions.follow(target, hero, { reveal }, (content) => seen.push(content))
   return {
-    iterator,
-    push: (value: T) => {
-      queued.push(value)
-      wake?.()
-    },
-    end: () => {
-      ended = true
-      wake?.()
-    },
-    get ended() {
-      return ended
-    },
+    companions,
+    asked,
+    attached,
+    seen,
+    follow,
+    push: (content: RunnerContent) => streams.get(hero)?.push(content),
   }
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-const key: CompanionKey = { projectId: "p", workspaceSessionId: "s", terminalId: "t1" }
-const root = "rootActor000000a"
-const helper = "helperActor0000b"
-
-const detail = (plans: AgentDetail["plans"]): AgentDetail => ({
-  terminalId: "t1",
-  agent: "claude",
-  sessionId: null,
-  activity: null,
-  telemetry: null,
-  actors: [
-    { ref: root, role: "root", parent: null, type: null },
-    { ref: helper, role: "subagent", parent: root, type: "planner" },
-  ],
-  requests: [],
-  plans,
-  coverage: null,
-})
-
-const content = (ref: string, text: string): PlanContent => ({
-  ref,
-  text,
-  truncated: false,
-  changedAt: null,
-})
-
-// Something an agent showed, as `agents.shown` lists it, and as the pane is told of it.
-const image = (version: number, asked = false) => ({
-  id: "hero",
-  kind: "image" as const,
-  name: "hero.png",
-  detail: "212 KB PNG",
-  version,
-  asked,
-})
-const reported = (version: number) => ({
-  id: "hero",
-  kind: "image" as const,
-  name: "hero.png",
-  detail: "212 KB PNG",
-  version,
-})
-
-const running = () => {
-  let details = channel<AgentDetail>()
-  const plans = new Map<string, ReturnType<typeof channel<PlanContent>>>()
-  let shown = channel<AgentShown>()
-  const fetched: string[] = []
-  const companions = createRunnerCompanions({
-    shown: () => {
-      if (shown.ended) shown = channel<AgentShown>()
-      return shown.iterator
-    },
-    artifact: (_terminalId, artifact) => {
-      fetched.push(artifact)
-      return Promise.resolve<ArtifactContent>({ kind: "image", src: "data:," })
-    },
-    // A fresh subscription once the last one ended, as following starts over.
-    detail: () => {
-      if (details.ended) details = channel<AgentDetail>()
-      return details.iterator
-    },
-    plan: (_terminalId, ref) => {
-      const stream = channel<PlanContent>()
-      plans.set(ref, stream)
-      return stream.iterator
-    },
+describe("the runner's companion content", () => {
+  it("follows what an item holds, revealed only when asked", async () => {
+    const app = following()
+    app.follow(true)
+    app.push({
+      state: "ready",
+      stamp: "1",
+      content: { kind: "image", src: "data:image/png;base64," },
+    })
+    await settle()
+    expect(app.asked).toEqual([{ itemId: "hero", reveal: true }])
+    expect(app.seen).toEqual([
+      { state: "ready", stamp: "1", content: { kind: "image", src: "data:image/png;base64," } },
+    ])
   })
-  const events: CompanionEvent[] = []
-  companions.subscribe((event) => events.push(event))
-  return {
-    companions,
-    get details() {
-      return details
-    },
-    get shown() {
-      return shown
-    },
-    fetched,
-    plans,
-    events,
-  }
-}
 
-describe("runner companions", () => {
-  it("report a terminal's plan once its text arrives, read-only", async () => {
-    const { companions, details, plans, events } = running()
-    companions.follow(key)
-    details.push(
-      detail([{ ref: "planAAAAAAAAAAAA", actor: root, source: "file", name: "plan.md" }]),
-    )
+  it("loads a page live where the host can", async () => {
+    const app = following({ livePages: true })
+    app.follow()
+    app.push({ state: "ready", stamp: "1", content: { kind: "page", url: "http://localhost/" } })
     await settle()
-    plans.get("planAAAAAAAAAAAA")!.push(content("planAAAAAAAAAAAA", "# Fix logins\n"))
+    expect(app.seen[0]).toMatchObject({ content: { kind: "page", live: true } })
+  })
+
+  it("gives a plan as read-only, without saying when it changed", async () => {
+    const app = following()
+    app.follow()
+    app.push({
+      state: "ready",
+      stamp: "a1",
+      content: { kind: "plan", text: "# Plan\n", truncated: false, changedAt: 5 },
+    })
     await settle()
-    expect(events).toEqual([
+    expect(app.seen).toEqual([
       {
-        type: "plan/changed",
-        key,
-        plan: {
-          ref: "planAAAAAAAAAAAA",
-          role: "root",
-          path: "plan.md",
-          agent: "Claude Code",
-          skill: false,
+        state: "ready",
+        stamp: "a1",
+        content: {
+          kind: "plan",
+          text: "# Plan\n",
+          truncated: false,
           writable: false,
-          text: "# Fix logins\n",
-          revision: revisionOf("# Fix logins\n"),
+          skill: false,
         },
       },
     ])
-    expect(companions.snapshot()).toMatchObject([{ key, plans: [{ ref: "planAAAAAAAAAAAA" }] }])
   })
 
-  it("tell a subagent's plan from the agent's own", async () => {
-    const { companions, details, plans, events } = running()
-    companions.follow(key)
-    details.push(detail([{ ref: "planBBBBBBBBBBBB", actor: helper, source: "text", name: null }]))
+  it("passes on a file cut short or pointing past its end", async () => {
+    const app = following()
+    app.follow()
+    const file = {
+      kind: "file" as const,
+      path: "/p/log",
+      firstLine: 1,
+      lines: ["a"],
+      from: 1,
+      to: 1,
+      total: null,
+      truncated: true,
+      clamped: true,
+    }
+    app.push({ state: "ready", stamp: "1", content: file })
     await settle()
-    plans.get("planBBBBBBBBBBBB")!.push(content("planBBBBBBBBBBBB", "Steps"))
-    await settle()
-    expect(events).toMatchObject([
-      { type: "plan/changed", plan: { role: "subagent", path: "Claude Code plan" } },
-    ])
+    expect(app.seen[0]).toEqual({ state: "ready", stamp: "1", content: file })
   })
 
-  context("as a plan changes and goes", () => {
-    it("reports each new text with a new revision, then its removal", async () => {
-      const { companions, details, plans, events } = running()
-      const listed = {
-        ref: "planAAAAAAAAAAAA",
-        actor: root,
-        source: "file",
-        name: "plan.md",
-      } as const
-      companions.follow(key)
-      details.push(detail([listed]))
-      await settle()
-      const stream = plans.get(listed.ref)!
-      stream.push(content(listed.ref, "v1"))
-      stream.push(content(listed.ref, "v2"))
-      await settle()
-      details.push(detail([]))
-      await settle()
-      expect(events.map((event) => event.type)).toEqual([
-        "plan/changed",
-        "plan/changed",
-        "plan/removed",
-      ])
-      expect(revisionOf("v1")).not.toBe(revisionOf("v2"))
-      expect(stream.ended).toBe(true)
+  it("says why each thing can't show", async () => {
+    const app = following()
+    app.follow()
+    const reasons = [
+      "missing",
+      "unreadable",
+      "not-a-file",
+      "too-large",
+      "binary",
+      "held",
+      "gone",
+    ] as const
+    for (const reason of reasons) app.push({ state: "unavailable", reason, size: 12 })
+    await settle()
+    expect(app.seen).toEqual(reasons.map((reason) => ({ state: "unavailable", reason, size: 12 })))
+  })
+
+  context("on a real runner", () => {
+    it("shows an item it doesn't have, or one deleted since, as gone", async () => {
+      const runner = await startTestRunner()
+      try {
+        const seen: ItemContent[] = []
+        const companions = createRunnerCompanions(runner.client.companions)
+        companions.follow(target, itemIdOf(crypto.randomUUID()), { reveal: false }, (content) =>
+          seen.push(content),
+        )
+        await vi.waitFor(() =>
+          expect(seen).toEqual([{ state: "unavailable", reason: "gone", size: null }]),
+        )
+        const terminal = await runner.client.terminals.create({
+          id: crypto.randomUUID(),
+          sessionId: runner.listing[0]!.sessions[0]!.session.id,
+          cols: 80,
+          rows: 24,
+        })
+        const directory = await mkdtemp(join(tmpdir(), "novadeck-content-"))
+        await writeFile(join(directory, "notes.md"), "# Notes\n")
+        const item = await runner.client.companions.attach({
+          terminalId: terminal.id,
+          path: join(directory, "notes.md"),
+        })
+        const later: ItemContent[] = []
+        companions.follow(target, itemIdOf(item.id), { reveal: false }, (content) =>
+          later.push(content),
+        )
+        await vi.waitFor(() => expect(later[0]).toMatchObject({ state: "ready" }))
+        await runner.client.companions.close(item.id)
+        await vi.waitFor(() =>
+          expect(later.at(-1)).toEqual({ state: "unavailable", reason: "gone", size: null }),
+        )
+      } finally {
+        await runner.close()
+      }
     })
   })
 
-  it("close a terminal's companion and its streams when it's unfollowed", async () => {
-    const { companions, details, plans, events } = running()
-    companions.follow(key)
-    details.push(
-      detail([{ ref: "planAAAAAAAAAAAA", actor: root, source: "file", name: "plan.md" }]),
-    )
+  it("reports nothing once stopped", async () => {
+    const app = following()
+    const stop = app.follow()
+    stop()
+    app.push({ state: "unavailable", reason: "missing", size: null })
     await settle()
-    companions.unfollow(key)
-    expect(events).toEqual([{ type: "companion/closed", key }])
-    expect(details.ended).toBe(true)
-    expect(plans.get("planAAAAAAAAAAAA")!.ended).toBe(true)
-    expect(companions.snapshot()).toEqual([])
+    expect(app.seen).toEqual([])
   })
 
-  it("refuse to save, having no way to write a plan yet", async () => {
-    const { companions } = running()
-    await expect(companions.save(key, "planAAAAAAAAAAAA", "x", "r")).rejects.toThrow()
+  it("rejects saving a plan, and attaches a file to a terminal", async () => {
+    const app = following()
+    await expect(app.companions.save(target, hero, "text", "1")).rejects.toThrow()
+    await app.companions.attach!({ ...target, terminalId: "t" }, "/p/notes.md")
+    expect(app.attached).toEqual([{ terminalId: "t", path: "/p/notes.md" }])
+  })
+})
+
+describe("the runner's items and windows", () => {
+  it("name a plan's agent as the person knows it, and leave out the session", () => {
+    const item = itemOf({
+      id: "plan",
+      sessionId: "s",
+      holder: { terminalId: "t" },
+      kind: "plan",
+      name: "Plan",
+      detail: "",
+      path: "/p/plan.md",
+      url: null,
+      lines: null,
+      held: false,
+      by: "agent",
+      from: { terminalId: "t", handle: "t1" },
+      version: 2,
+      asked: false,
+      shownAt: 1,
+      plan: { agent: "codex", role: "root", source: "text" },
+    })
+    expect(item).not.toHaveProperty("sessionId")
+    expect(item.plan).toEqual({ agent: "Codex", role: "root", source: "text" })
   })
 
-  context("when the runner loses the terminal", () => {
-    it("drops its plans, and follows it again once asked after a fresh shell", async () => {
-      const runner = running()
-      const listed = {
-        ref: "planAAAAAAAAAAAA",
-        actor: root,
-        source: "file",
-        name: "plan.md",
-      } as const
-      runner.companions.follow(key)
-      runner.details.push(detail([listed]))
-      await settle()
-      runner.plans.get(listed.ref)!.push(content(listed.ref, "v1"))
-      await settle()
-      // Its detail ends, as on "not found".
-      runner.details.end()
-      await settle()
-      expect(runner.events.map((event) => event.type)).toEqual(["plan/changed", "plan/removed"])
-      runner.companions.follow(key)
-      runner.details.push(detail([listed]))
-      await settle()
-      runner.plans.get(listed.ref)!.push(content(listed.ref, "v1"))
-      await settle()
-      expect(runner.events.map((event) => event.type)).toEqual([
-        "plan/changed",
-        "plan/removed",
-        "plan/changed",
-      ])
-    })
-  })
-
-  it("reports nothing more about a terminal once it's closed", async () => {
-    const runner = running()
-    runner.companions.follow(key)
-    runner.details.push(
-      detail([{ ref: "planAAAAAAAAAAAA", actor: root, source: "file", name: "plan.md" }]),
-    )
-    await settle()
-    runner.plans.get("planAAAAAAAAAAAA")!.push(content("planAAAAAAAAAAAA", "v1"))
-    await settle()
-    runner.companions.unfollow(key)
-    await settle()
-    expect(runner.events.map((event) => event.type)).toEqual(["plan/changed", "companion/closed"])
-  })
-
-  it("names a plan by what the latest detail says of it", async () => {
-    const runner = running()
-    const listed = {
-      ref: "planAAAAAAAAAAAA",
-      actor: root,
-      source: "file",
-      name: "plan.md",
-    } as const
-    runner.companions.follow(key)
-    runner.details.push(detail([listed]))
-    await settle()
-    runner.details.push({ ...detail([{ ...listed, name: "renamed.md" }]), agent: "codex" })
-    await settle()
-    runner.plans.get(listed.ref)!.push({ ...content(listed.ref, "long"), truncated: true })
-    await settle()
-    expect(runner.events).toMatchObject([
-      { plan: { path: "renamed.md", agent: "Codex", truncated: true } },
-    ])
-  })
-
-  context("when an agent shows something", () => {
-    it("reports it once, again when shown with new content, and loads it from the runner", async () => {
-      const runner = running()
-      runner.companions.follow(key)
-      // Nothing was shown before.
-      runner.shown.push({ terminalId: "t1", shown: [] })
-      runner.shown.push({ terminalId: "t1", shown: [image(1, true)] })
-      runner.shown.push({ terminalId: "t1", shown: [image(1, true)] })
-      runner.shown.push({ terminalId: "t1", shown: [image(2)] })
-      await settle()
-      expect(runner.events).toEqual([
-        { type: "artifact/shown", key, artifact: reported(1), asked: true },
-        { type: "artifact/shown", key, artifact: reported(2), asked: false },
-      ])
-      await expect(runner.companions.load(key, "hero")).resolves.toEqual({
-        kind: "image",
-        src: "data:,",
-      })
-      expect(runner.fetched).toEqual(["hero"])
-    })
-
-    it("never opens a held one by itself, whatever the runner says, and says it's held", async () => {
-      const runner = running()
-      runner.companions.follow(key)
-      runner.shown.push({ terminalId: "t1", shown: [] })
-      runner.shown.push({
-        terminalId: "t1",
-        shown: [{ ...image(1, true), held: true }],
-      })
-      await settle()
-      expect(runner.events).toEqual([
-        {
-          type: "artifact/shown",
-          key,
-          artifact: { ...reported(1), held: true },
-          asked: false,
-        },
-      ])
-    })
-
-    it("loads a page live only where the host can show it", async () => {
-      const page = (livePages?: boolean) =>
-        createRunnerCompanions(
-          {
-            shown: () => channel<AgentShown>().iterator,
-            detail: () => channel<AgentDetail>().iterator,
-            plan: () => channel<PlanContent>().iterator,
-            artifact: () =>
-              Promise.resolve<ArtifactContent>({ kind: "page", url: "http://localhost:5173/" }),
-          },
-          livePages === undefined ? {} : { livePages },
-        ).load(key, "preview")
-      await expect(page(true)).resolves.toEqual({
-        kind: "page",
-        url: "http://localhost:5173/",
-        live: true,
-      })
-      await expect(page(false)).resolves.toMatchObject({ live: false })
-      await expect(page()).resolves.toMatchObject({ live: false })
-    })
-
-    it("lists what was shown before it followed, as after a reload, as already seen", async () => {
-      const runner = running()
-      runner.companions.follow(key)
-      runner.shown.push({ terminalId: "t1", shown: [image(1, true)] })
-      await settle()
-      expect(runner.events).toEqual([
-        { type: "artifact/shown", key, artifact: reported(1), asked: true, seen: true },
-      ])
-    })
-
-    it("stops following what's shown when the terminal is unfollowed", async () => {
-      const runner = running()
-      runner.companions.follow(key)
-      await settle()
-      runner.companions.unfollow(key)
-      expect(runner.shown.ended).toBe(true)
-    })
+  it("name a window by its title", () => {
+    expect(
+      windowOf({
+        id: "w",
+        sessionId: "s",
+        itemId: "hero",
+        title: "Hero",
+        titleSource: { kind: "person" },
+      }),
+    ).toEqual({ id: "w", itemId: "hero", name: "Hero", titleSource: { kind: "person" } })
   })
 })

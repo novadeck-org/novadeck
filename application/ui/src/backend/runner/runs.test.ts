@@ -8,6 +8,7 @@ import type { Workspace } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
 import { runnerBackend, type RunnerApi } from "./backend"
+import { noCompanions } from "./scripted"
 import { startingTerminal, type RunnerListing } from "./seed"
 import { encodeSession } from "./session-state"
 import { startTestRunner } from "./testing"
@@ -82,6 +83,7 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
       restart: () => new Promise<TerminalSummary>((resolve) => restarts.push(resolve)),
       attach: () => new Promise(() => {}),
     },
+    companions: noCompanions,
   } as unknown as RunnerApi
   const session = {
     id: "s",

@@ -8,7 +8,7 @@ import type {
   GridItem,
   GridLayouts,
   GridRestoreWidths,
-  TerminalMetadata,
+  Placed,
 } from "../../model/types"
 export { gridColumns } from "../../model/layout/grid-placement"
 
@@ -16,7 +16,7 @@ const expandedHeight = (): number => Math.ceil((400 + 16) / 24)
 
 export const visibleGridLayouts = (
   // The windows it lays out, by id.
-  terminals: readonly Pick<TerminalMetadata, "id">[],
+  terminals: readonly Placed[],
   layouts: GridLayouts,
   minimized: Record<string, boolean>,
   hidden: Record<string, boolean> = {},
@@ -66,7 +66,7 @@ const sameGeometry = (next: GridLayouts, projected: GridLayouts): boolean =>
 export const expandedGridLayouts = (
   next: GridLayouts,
   previous: GridLayouts,
-  terminals: TerminalMetadata[],
+  terminals: readonly Placed[],
   minimized: Record<string, boolean>,
   hidden: Record<string, boolean> = {},
 ): GridLayouts => {
@@ -161,7 +161,7 @@ export type GridWidthToggle = {
 export const toggleGridWidth = (
   id: string,
   expand: boolean,
-  terminals: TerminalMetadata[],
+  terminals: readonly Placed[],
   layouts: GridLayouts,
   minimized: Record<string, boolean>,
   hidden: Record<string, boolean>,

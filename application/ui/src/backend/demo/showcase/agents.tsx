@@ -1,6 +1,5 @@
 import type { ReactNode } from "react"
 
-import type { PlanSnapshot } from "../../../model/companion"
 import { studioArtifacts, type SampleArtifacts } from "./artifacts"
 import authV1 from "./plans/auth-v1.md?raw"
 import studioV1 from "./plans/studio-v1.md?raw"
@@ -9,7 +8,14 @@ import type { PlanEdit } from "./revise"
 // A sample agent in a showcase terminal: the plan it wrote and how it revises it, what
 // it shows, how its terminal opens, and what it says back.
 export type SampleAgent = {
-  readonly plan: Pick<PlanSnapshot, "path" | "agent" | "skill">
+  // Its plan's item, by an id that stays the same; where the file is, the agent by the
+  // name the person knows it by, and whether NovaDeck's skill is installed for it.
+  readonly plan: {
+    readonly id: string
+    readonly path: string
+    readonly agent: string
+    readonly skill: boolean
+  }
   // The plan as the agent first wrote it.
   readonly text: string
   // Each later revision, as edits to the file as it then stands. Feedback moves it on.
@@ -21,7 +27,7 @@ export type SampleAgent = {
 
 // Codex with a structured plan and NovaDeck's skill: it re-reads the plan on its own.
 export const studioAgent: SampleAgent = {
-  plan: { path: "plans/studio.md", agent: "Codex", skill: true },
+  plan: { id: "studio-plan", path: "plans/studio.md", agent: "Codex", skill: true },
   text: studioV1,
   revisions: [
     [
@@ -73,7 +79,12 @@ export const studioAgent: SampleAgent = {
 
 // Claude Code with a prose plan and no skill: notes wait until it's asked to re-read.
 export const authAgent: SampleAgent = {
-  plan: { path: "~/.claude/plans/refactor-auth.md", agent: "Claude Code", skill: false },
+  plan: {
+    id: "auth-plan",
+    path: "~/.claude/plans/refactor-auth.md",
+    agent: "Claude Code",
+    skill: false,
+  },
   text: authV1,
   revisions: [
     [

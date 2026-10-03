@@ -1,4 +1,4 @@
-import { orderedTerminals } from "../../model/roster"
+import { orderedTiles } from "../../model/roster"
 import { openRecent, visibleSwitcher, type RecentSwitcher } from "../../terminals/recent"
 import { currentContext, currentState } from "../selectors"
 import type { CommandContext, FocusTarget } from "./context"
@@ -47,7 +47,7 @@ export const createRecentCommands = ({
       const context = currentContext(snapshot)
       const ids =
         ui.getSnapshot().recent.byContext[context] ??
-        orderedTerminals(currentState(snapshot).roster).map((terminal) => terminal.id)
+        orderedTiles(currentState(snapshot).roster).map((terminal) => terminal.id)
       trigger = button
       setSwitcher(openRecent(context, ids, id))
     },

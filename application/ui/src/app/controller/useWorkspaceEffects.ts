@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 
 import { cancelTerminalTransition } from "../../layouts/transition"
+import { tilesOf } from "../../model/roster"
 import { currentContext, currentPresentation, currentState, shallowEqual } from "../selectors"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./context"
 
@@ -15,7 +16,7 @@ export const useWorkspaceEffects = (): void => {
       context: currentContext(workspace),
       view: currentState(workspace).view,
       selected: currentState(workspace).selected,
-      terminals: currentState(workspace).roster.terminals,
+      terminals: tilesOf(currentState(workspace).roster),
       presentation: currentPresentation(workspace),
     }),
     shallowEqual,

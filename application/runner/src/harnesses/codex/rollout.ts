@@ -4,7 +4,7 @@ import type { AgentTelemetry } from "@novadeck/protocol"
 
 import type { HarnessEvent } from "../events.js"
 import { followLines } from "../follow.js"
-import { bounded, type Harness, type Run } from "../harness.js"
+import { bounded, type Harness, type Run, type WrittenPlan } from "../harness.js"
 import { transcripts } from "./transcripts.js"
 
 type Limit = AgentTelemetry["limits"][number]
@@ -80,6 +80,12 @@ export const rolloutEvents = (
       return []
   }
 }
+
+/** The plan a rollout line proposes, as `rolloutEvents` reads it. */
+export const rolloutPlans = (line: string): readonly WrittenPlan[] =>
+  rolloutEvents(line, { sessionId: "", instance: null }).flatMap((event) =>
+    event.type === "plan-observed" ? [{ source: event.plan, at: event.startedAt }] : [],
+  )
 
 // A token count's usage and rate-limit windows.
 const telemetry = (

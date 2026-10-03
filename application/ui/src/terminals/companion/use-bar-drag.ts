@@ -12,8 +12,7 @@ import type { LucideIcon } from "lucide-react"
 import { useRef, useState, type ComponentProps, type RefObject } from "react"
 
 import { useDragSession, type BarDrag } from "../drag-session"
-import type { BarMember, BarSlot } from "./bar"
-import { titleOf } from "./plan-text"
+import { undocks, type BarMember, type BarSlot } from "./bar"
 import { beyond, refuseDrop } from "./tether"
 
 // Dragging a taskbar's icons: within the bar, which reorders it, and off it, onto another
@@ -57,16 +56,10 @@ export type Dragged = {
 // opens it in one, as one plan or one thing this terminal's agent showed does.
 const draggedOf = (members: readonly BarMember[]): Dragged => {
   const [only] = members
-  const content = members.length === 1 ? only?.content : undefined
   return {
     members,
-    name:
-      content?.kind === "plan"
-        ? titleOf(content.plan.path, content.plan.text)
-        : content?.kind === "artifact"
-          ? content.artifact.name
-          : "",
-    undocks: Boolean(only && content && content.kind !== "messages" && !only.placed),
+    name: members.length === 1 && only?.kind === "item" ? only.item.name : "",
+    undocks: undocks(members),
   }
 }
 
@@ -93,7 +86,7 @@ export type BarDragging = {
 }
 
 const tethered = (members: readonly BarMember[]): boolean =>
-  members.some((member) => member.content.kind === "messages")
+  members.some((member) => member.kind === "messages")
 
 export const useBarDrag = ({
   terminal,

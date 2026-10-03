@@ -2,9 +2,8 @@ import { memo, Suspense, useEffect, useLayoutEffect, useSyncExternalStore } from
 
 import type { Backend } from "../backend/port"
 import { terminalElement } from "../interaction/dom"
-import { orderedTerminals } from "../model/roster"
+import { orderedTiles } from "../model/roster"
 import { activeProject } from "../model/state"
-import type { TerminalMetadata } from "../model/types"
 import { WelcomeDialog } from "../preferences/WelcomeDialog"
 import { CrashLoopDialog } from "../shell/CrashLoopDialog"
 import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
@@ -82,7 +81,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
     shallowEqual,
   )
   const ordered = useWorkspaceState(
-    (workspace): TerminalMetadata[] => orderedTerminals(currentState(workspace).roster),
+    (workspace) => orderedTiles(currentState(workspace).roster),
     sameItems,
   )
   const { dialog, section, preferences, switcher } = useUiState(

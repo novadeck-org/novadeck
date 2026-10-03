@@ -1,4 +1,4 @@
-import { orderedTerminals } from "../model/roster"
+import { orderedTiles } from "../model/roster"
 import { activeProject } from "../model/state"
 import { createStore, type MutableStore, type Store } from "../model/store"
 import type { PreferencesValue, Workspace } from "../model/types"
@@ -122,7 +122,7 @@ export const trackRecent = (workspace: Store<Workspace>, ui: UiStore): (() => vo
     const { roster, selected } = currentState(snapshot)
     ui.update((state) => {
       const previous = state.recent.byContext[context]
-      const ids = nextRecent(previous ?? [], selected, orderedTerminals(roster))
+      const ids = nextRecent(previous ?? [], selected, orderedTiles(roster))
       return sameIds(previous, ids)
         ? state
         : {

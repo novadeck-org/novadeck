@@ -1,24 +1,34 @@
-import type { ArtifactContent } from "../../model/companion"
+import type { CompanionItem } from "../../model/companion"
+import type { WorkspaceTarget } from "../../model/types"
 import { ArtifactThumb } from "./ArtifactViewer"
 import type { MailHandle } from "./mail"
-import type { Shown } from "./pane"
-import type { PlanDoc } from "./plan-doc"
 import { headingsOf, titleOf } from "./plan-text"
-import { useArtifactContent } from "./use-panes"
+import type { Panes } from "./state"
+import { useContent, usePlan } from "./use-panes"
 
 // What a peek shows of each thing behind a taskbar icon, in miniature.
 
-// The plan: its title over its sections.
-export const PlanThumb = ({ plan }: { plan: PlanDoc }): React.JSX.Element => (
-  <span className="peek-plan">
-    <b>{titleOf(plan.path, plan.text)}</b>
-    {headingsOf(plan.text)
-      .slice(0, 4)
-      .map((heading) => (
-        <span key={heading.at}>{heading.text}</span>
-      ))}
-  </span>
-)
+// The plan: its title over its sections, its name until it loads.
+export const PlanThumb = ({
+  panes,
+  item,
+}: {
+  panes: Panes
+  item: CompanionItem
+}): React.JSX.Element => {
+  const plan = usePlan(panes, item.id)
+  const text = plan?.text ?? ""
+  return (
+    <span className="peek-plan">
+      <b>{titleOf(item.name, text)}</b>
+      {headingsOf(text)
+        .slice(0, 4)
+        .map((heading) => (
+          <span key={heading.at}>{heading.text}</span>
+        ))}
+    </span>
+  )
+}
 
 // The threads: the agents they're with, latest first.
 export const MailThumb = ({
@@ -42,24 +52,28 @@ export const MailThumb = ({
 }
 
 const LoadedThumb = ({
-  load,
-  artifact,
+  panes,
+  target,
+  item,
 }: {
-  load: (artifact: Shown) => Promise<ArtifactContent>
-  artifact: Shown
-}): React.JSX.Element | null => <ArtifactThumb load={useArtifactContent(load, artifact)} />
+  panes: Panes
+  target: WorkspaceTarget
+  item: CompanionItem
+}): React.JSX.Element | null => <ArtifactThumb load={useContent(panes, target, item)} />
 
 // Something the agent showed, once it loads. A held one is never loaded for a peek, which
 // a passing pointer opens.
 export const ArtifactPreview = ({
-  load,
-  artifact,
+  panes,
+  target,
+  item,
 }: {
-  load: (artifact: Shown) => Promise<ArtifactContent>
-  artifact: Shown
+  panes: Panes
+  target: WorkspaceTarget
+  item: CompanionItem
 }): React.JSX.Element =>
-  artifact.held ? (
+  item.held ? (
     <span className="peek-held">May hold secrets. Click to open.</span>
   ) : (
-    <LoadedThumb load={load} artifact={artifact} />
+    <LoadedThumb panes={panes} target={target} item={item} />
   )

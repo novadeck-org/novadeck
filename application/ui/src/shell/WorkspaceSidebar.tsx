@@ -2,7 +2,7 @@ import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
 import { shortcutBindings, workspaceShortcutBindings } from "../interaction/shortcuts"
-import type { TerminalMetadata, WorkspaceSession } from "../model/types"
+import type { Tile, WorkspaceSession } from "../model/types"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
 import { TerminalTabs } from "../terminals/TerminalTabs"
@@ -12,7 +12,7 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   workspaceSessionId: string
   workspaceSessions: WorkspaceSession[]
   terminalCount: number
-  ordered: TerminalMetadata[]
+  ordered: readonly Tile[]
   sidebarPanel: "terminals" | "sessions"
   sidebarVisible: boolean
   onSessionSelect: (id: string) => void

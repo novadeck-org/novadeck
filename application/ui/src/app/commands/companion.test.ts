@@ -1,123 +1,78 @@
-import type { ArtifactRef, CompanionKey, Companions } from "../../model/companion"
-import { mailTab, openTab, planTab, placedKey } from "../../terminals/companion/pane"
-import { createPanes } from "../../terminals/companion/state"
+import { messagesKey } from "../../model/companion-bar"
+import { workspaceReducer, type WorkspaceAction } from "../../model/state"
+import type { Workspace } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
-import { workspaceFixture } from "../../test/fixtures"
+import { itemFixture, workspaceFixture } from "../../test/fixtures"
 
-const key = (terminalId: string): CompanionKey => ({
-  projectId: "project",
-  workspaceSessionId: "initial",
-  terminalId,
-})
-const hero: ArtifactRef = { id: "hero", kind: "image", name: "hero.png", detail: "", version: 1 }
-const image = { kind: "artifact", id: "hero" } as const
-const plan = { kind: "plan", ref: "root" } as const
-
+const target = { projectId: "project", workspaceSessionId: "initial" }
 // Terminal 01's agent has a plan and has shown an image.
-const companions: Companions = {
-  snapshot: () => [
-    {
-      key: key("01"),
-      plans: [
-        {
-          ref: "root",
-          role: "root",
-          path: "plan.md",
-          agent: "Codex",
-          skill: true,
-          writable: true,
-          text: "# A home for Studio\n",
-          revision: "1",
-        },
-      ],
-      shown: [hero],
-    },
-  ],
-  subscribe: () => () => {},
-  load: () => new Promise(() => {}),
-  save: () => new Promise(() => {}),
-}
+const plan = itemFixture("plan", "01", {
+  kind: "plan",
+  name: "A home for Studio",
+  plan: { agent: "Codex", role: "root", source: "file" },
+})
+const hero = itemFixture("hero", "01", { kind: "image", name: "hero.png", path: "/p/hero.png" })
+
+const withItems = (workspace: Workspace = workspaceFixture()): Workspace =>
+  [plan, hero]
+    .map((item): WorkspaceAction => ({ type: "item/upsert", target, item }))
+    .reduce(workspaceReducer, workspace)
 
 const open = (options: Parameters<typeof openCommands>[0] = {}) => {
-  const panes = createPanes(companions)
-  panes.connect()
-  const app = openCommands({ ...options, panes })
-  const windows = () => app.state().roster.terminals.filter((each) => each.companion)
-  return { ...app, panes, windows, pane: (id: string) => panes.of(key(id)).current() }
+  const app = openCommands({ workspace: withItems(), ...options })
+  const item = (id: string) => app.state().items.find((each) => each.id === id)
+  const windows = () => app.state().roster.windows
+  const bar = (terminalId: string) => app.state().bars[terminalId]
+  return { ...app, item, windows, bar }
 }
 
 describe("companion commands", () => {
   context("when undocking an item", () => {
-    it("adds an idle window beside the terminal, named for what it shows", () => {
+    it("opens it in a window of its own beside its terminal, named for it, selected", () => {
       const app = open()
-      app.commands.undock("01", image)
+      app.commands.undock(hero.id)
       expect(app.windows()).toEqual([
-        expect.objectContaining({
-          name: "hero.png",
-          state: "idle",
-          process: "",
-          directory: "~/project",
-          companion: { from: "01", item: image, artifact: hero },
-        }),
+        { id: "session-1", itemId: hero.id, name: "hero.png", titleSource: { kind: "default" } },
       ])
-      expect(app.state().selected).toBe(app.windows()[0]!.id)
-    })
-
-    it("names a plan's window by its title, one window per plan", () => {
-      const app = open()
-      app.commands.undock("01", plan)
-      app.commands.undock("01", plan)
-      expect(app.windows()).toEqual([
-        expect.objectContaining({
-          name: "A home for Studio",
-          companion: { from: "01", item: plan },
-        }),
-      ])
+      expect(app.item(hero.id)!.holder).toEqual({ windowId: "session-1" })
+      expect(app.bar("01")!.order).toEqual([plan.id])
+      expect(app.state().selected).toBe("session-1")
+      expect(app.urls.at(-1)).toContain("terminal=session-1")
     })
 
     it("brings the window already open forward rather than opening another", () => {
       const app = open()
-      app.commands.undock("01", image)
+      app.commands.undock(hero.id)
       app.commands.setSelected("02")
-      app.commands.undock("01", image)
+      app.commands.undock(hero.id)
       expect(app.windows()).toHaveLength(1)
-      expect(app.state().selected).toBe(app.windows()[0]!.id)
+      expect(app.urls.at(-1)).toContain("terminal=session-1")
     })
 
-    it("opens nothing for what the terminal doesn't have", () => {
+    it("opens nothing for what the session doesn't have", () => {
       const app = open()
       const before = app.state()
-      app.commands.undock("01", { kind: "artifact", id: "gone" })
-      app.commands.undock("99", image)
+      app.commands.undock("gone" as typeof hero.id)
       expect(app.state()).toBe(before)
-    })
-
-    it("takes it off any other terminal's taskbar", () => {
-      const app = open()
-      app.commands.place([{ from: "01", item: image, to: "02" }])
-      app.commands.undock("01", image)
-      expect(app.state().placements).toEqual([])
     })
   })
 
   context("when an item is dropped into a view", () => {
     it("opens its window where it was dropped on the canvas, settled onto the grid", () => {
       const app = open()
-      app.commands.undock("01", image, { canvas: { x: 83, y: 970 } })
-      const id = app.windows()[0]!.id
-      expect(app.state().layout.canvas.geometry[id]).toMatchObject({
+      app.commands.undock(hero.id, { canvas: { x: 83, y: 970 } })
+      expect(app.state().layout.canvas.geometry["session-1"]).toMatchObject({
         position: { x: 72, y: 960 },
       })
     })
 
     it("moves a window already open there, keeping its size", () => {
       const app = open()
-      app.commands.undock("01", image)
-      const id = app.windows()[0]!.id
-      const { width, height } = app.state().layout.canvas.geometry[id]!
-      app.commands.undock("01", image, { canvas: { x: 408, y: 240 } })
-      expect(app.state().layout.canvas.geometry[id]).toMatchObject({
+      app.commands.undock(hero.id)
+      const { width, height } = app.state().layout.canvas.geometry["session-1"]!
+      app.commands.undock(hero.id, { canvas: { x: 408, y: 240 } })
+      expect(app.state().layout.canvas.geometry["session-1"]).toMatchObject({
         position: { x: 408, y: 240 },
         width,
         height,
@@ -128,124 +83,94 @@ describe("companion commands", () => {
       const app = open()
       const cell = { x: 6, y: 24, w: 6, h: 18 }
       const moved = { i: "02", x: 0, y: 48, w: 4, h: 18 }
-      app.commands.undock("01", image, {
-        grid: { breakpoint: "desktop", layout: [moved], cell },
-      })
-      const id = app.windows()[0]!.id
+      app.commands.undock(hero.id, { grid: { breakpoint: "desktop", layout: [moved], cell } })
       expect(app.state().layout.grid.desktop).toEqual([
         moved,
-        expect.objectContaining({ i: id, ...cell }),
+        expect.objectContaining({ i: "session-1", ...cell }),
       ])
     })
   })
 
   context("when docking a window back in", () => {
-    it("closes the window and opens its item in its terminal's pane, selecting the terminal", () => {
+    it("puts its item back on its terminal's bar, open there, and selects the terminal", () => {
       const app = open()
-      app.commands.undock("01", plan)
-      app.commands.dock(app.windows()[0]!.id)
+      app.commands.undock(plan.id)
+      app.commands.dock("session-1")
       expect(app.windows()).toEqual([])
-      expect(app.pane("01")).toMatchObject({ open: true, tab: planTab("root") })
+      expect(app.item(plan.id)!.holder).toEqual({ terminalId: "01" })
+      expect(app.bar("01")).toMatchObject({ order: [hero.id, plan.id], tab: plan.id, open: true })
       expect(app.state().selected).toBe("01")
-    })
-
-    it("shows what the window shows again where its terminal no longer has it", () => {
-      const app = open()
-      app.commands.undock("01", image)
-      app.panes.of(key("01")).update((pane) => ({ ...pane, artifacts: [] }))
-      app.commands.dock(app.windows()[0]!.id)
-      expect(app.pane("01")).toMatchObject({ open: true, tab: "hero", artifacts: [{ id: "hero" }] })
     })
 
     it("does nothing once its terminal has closed", () => {
       const app = open()
-      app.commands.undock("01", plan)
-      const window = app.windows()[0]!.id
-      app.commands.close("01")
-      app.commands.dock(window)
-      expect(app.windows().map((each) => each.id)).toEqual([window])
+      app.commands.undock(hero.id)
+      app.workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
+      const before = app.state()
+      app.commands.dock("session-1")
+      expect(app.state()).toBe(before)
     })
   })
 
-  context("when placing an item on another terminal's taskbar", () => {
-    it("shows it there, last on that bar", () => {
+  context("when items are placed on another terminal's bar", () => {
+    it("moves them there, each last", () => {
       const app = open()
-      app.panes.of(key("02")).update((pane) => ({ ...pane, order: ["mine"] }))
-      app.commands.place([{ from: "01", item: image, to: "02" }])
-      expect(app.state().placements).toEqual([{ from: "01", item: image, to: "02" }])
-      expect(app.pane("02").order).toEqual(["mine", placedKey("01", image)])
+      app.commands.place([hero.id, plan.id], "02")
+      expect(app.bar("02")!.order).toEqual([hero.id, plan.id])
+      expect(app.bar("01")!.order).toEqual([])
     })
 
-    it("puts it last again when placed there again after going home", () => {
+    it("places nothing on a window", () => {
       const app = open()
-      app.commands.place([{ from: "01", item: image, to: "02" }])
-      app.panes.of(key("02")).update((pane) => ({ ...pane, order: [...pane.order, "later"] }))
-      app.commands.place([{ from: "01", item: image, to: "01" }])
-      app.commands.place([{ from: "01", item: image, to: "02" }])
-      expect(app.pane("02").order.at(-1)).toBe(placedKey("01", image))
-    })
-
-    it("sends it home, closed, when it's closed there", () => {
-      const app = open()
-      app.commands.place([{ from: "01", item: plan, to: "02" }])
-      app.commands.closeItem("01", planTab("root"))
-      expect(app.state().placements).toEqual([])
-      expect(app.pane("01").closed).toEqual([planTab("root")])
-    })
-
-    it("places nothing on a window undocked from a terminal", () => {
-      const app = open()
-      app.commands.undock("01", plan)
-      app.commands.place([{ from: "01", item: image, to: app.windows()[0]!.id }])
-      expect(app.state().placements).toEqual([])
+      app.commands.undock(plan.id)
+      const before = app.state()
+      app.commands.place([hero.id], "session-1")
+      expect(app.state()).toBe(before)
     })
   })
 
-  context("when what a pane shows leaves its bar", () => {
-    const showing = (app: ReturnType<typeof open>, id: string, tab: string) =>
-      app.panes.of(key(id)).update((pane) => openTab(pane, tab))
-
-    it("hides the pane, which stays hidden when the item comes back from its window", () => {
+  context("when an item is closed", () => {
+    it("hides a plan on its own terminal's bar, keeping it", () => {
       const app = open()
-      showing(app, "01", "hero")
-      app.commands.undock("01", image)
-      expect(app.pane("01").open).toBe(false)
-      app.commands.close(app.windows()[0]!.id)
-      expect(app.pane("01")).toMatchObject({ open: false, order: expect.arrayContaining(["hero"]) })
+      app.commands.closeItem(plan.id)
+      expect(app.bar("01")).toMatchObject({ order: [hero.id], hidden: [plan.id] })
+      expect(app.item(plan.id)).toBeDefined()
     })
 
-    it("hides the pane it leaves, and the bar's it's sent home from", () => {
+    it("deletes anything else, a plan placed elsewhere too", () => {
       const app = open()
-      showing(app, "01", "hero")
-      app.commands.place([{ from: "01", item: image, to: "02" }])
-      expect(app.pane("01").open).toBe(false)
-      showing(app, "02", placedKey("01", image))
-      app.commands.place([{ from: "01", item: image, to: "01" }])
-      expect(app.pane("02").open).toBe(false)
-      expect(app.pane("01").open).toBe(false)
+      app.commands.place([plan.id], "02")
+      app.commands.closeItem(plan.id)
+      app.commands.closeItem(hero.id)
+      expect(app.state().items).toEqual([])
     })
 
-    it("hides the bar's pane when the terminal it's from closes", () => {
-      const app = open({ workspace: workspaceFixture({ terminals: 3 }) })
-      app.commands.place([{ from: "01", item: image, to: "02" }])
-      showing(app, "02", placedKey("01", image))
-      app.commands.close("01")
-      expect(app.pane("02").open).toBe(false)
-    })
-
-    it("hides the bar's pane when it's closed there", () => {
+    it("deletes what a window shows, and the window, when the window is closed", () => {
       const app = open()
-      app.commands.place([{ from: "01", item: plan, to: "02" }])
-      showing(app, "02", placedKey("01", plan))
-      app.commands.closeItem("01", planTab("root"))
-      expect(app.pane("02").open).toBe(false)
+      app.commands.undock(hero.id)
+      app.commands.close("session-1")
+      expect(app.windows()).toEqual([])
+      expect(app.item(hero.id)).toBeUndefined()
+      expect(app.ui.getSnapshot().closing).toBeNull()
     })
   })
 
-  it("closes the messages in their terminal's pane", () => {
-    const app = open()
-    app.panes.of(key("01")).update((pane) => ({ ...pane, order: [...pane.order, mailTab] }))
-    app.commands.closeItem("01", mailTab)
-    expect(app.pane("01").closed).toEqual([mailTab])
+  context("when the person arranges a bar", () => {
+    it("opens its pane to what they pick, and hides it again", () => {
+      const app = open()
+      app.commands.openBarTab("01", hero.id)
+      expect(app.bar("01")).toMatchObject({ tab: hero.id, open: true })
+      expect(app.state().fresh).not.toHaveProperty(hero.id)
+      app.commands.closeBarPane("01")
+      expect(app.bar("01")).toMatchObject({ open: false })
+    })
+
+    it("hides the messages and moves icons", () => {
+      const app = open()
+      app.commands.hideOnBar("01", messagesKey)
+      expect(app.bar("01")!.hidden).toEqual([messagesKey])
+      app.commands.moveBarSlot("01", [[plan.id], [hero.id]], 1, 0)
+      expect(app.bar("01")!.order).toEqual([hero.id, plan.id])
+    })
   })
 })

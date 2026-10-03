@@ -1,7 +1,7 @@
 import type { Node } from "@xyflow/react"
 import type { Dispatch, SetStateAction, Ref, ReactNode } from "react"
 
-import type { SizePreset, TerminalMetadata, CanvasLayout } from "../../model/types"
+import type { SizePreset, Tile, CanvasLayout } from "../../model/types"
 import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 
 export type TerminalNode = Node<
@@ -24,7 +24,7 @@ export type CanvasProps = {
   revealOnMount: boolean
   fitOnNavigate: boolean
   onLayoutChange: Dispatch<SetStateAction<CanvasLayout>>
-  terminals: TerminalMetadata[]
+  terminals: readonly Tile[]
   hidden: Record<string, boolean>
   preview: string
   selected: string
@@ -32,7 +32,7 @@ export type CanvasProps = {
   navigation: number
   onSelect: (id: string) => void
   onCreate: () => string
-  render: (terminal: TerminalMetadata, controls: TerminalLayoutControls) => ReactNode
+  render: (terminal: Tile, controls: TerminalLayoutControls) => ReactNode
 }
 export type CanvasViewport = NonNullable<CanvasLayout["viewport"]>
 export type CanvasHandle = {

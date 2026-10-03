@@ -9,7 +9,7 @@ import {
 } from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
-import type { HarnessEvent, PromptShown } from "./events.js"
+import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
 
 /** Where a harness lives on this machine, as its setup and inspection need it. */
 export type Install = {
@@ -84,6 +84,12 @@ export type Harness = {
     /** The items one line of it records, oldest first; none for a line of anything else. */
     readonly items: (line: string) => readonly TranscriptEntry[]
   }
+  /**
+   * The plans one line of its transcript or rollout records, as its own decoders read
+   * them, each with when it was written: how a plan it presented as text, which no file
+   * of its own holds, is read back once its hooks and activity are gone.
+   */
+  readonly plans?: (line: string) => readonly WrittenPlan[]
   /** How much of each feature NovaDeck tells of it, from the sources its adapter reads. */
   readonly coverage: AgentCoverage
   /** How it takes part in agents' messaging: what its hooks print, and how it behaves. */
@@ -273,6 +279,9 @@ export const sessionStart = (source: string | undefined): Continuity =>
       : "native-switch"
 
 /** A session bound to a terminal, as a harness's `watch` follows it. */
+/** A plan a transcript or rollout line records, and when it was written where it says. */
+export type WrittenPlan = { readonly source: PlanSource; readonly at: number | null }
+
 /** An item of a transcript, before the runner numbers it. */
 export type TranscriptEntry = Omit<TranscriptItem, "index">
 

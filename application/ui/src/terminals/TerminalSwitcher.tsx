@@ -1,7 +1,8 @@
 import { ArrowUpRight, Layers, Terminal, X } from "lucide-react"
 import { useEffect, useRef } from "react"
 
-import type { TerminalMetadata } from "../model/types"
+import { isWindow } from "../model/roster"
+import type { Tile } from "../model/types"
 import { searchResultClasses } from "../ui-toolkit/SearchCombobox"
 
 import motion from "../ui-toolkit/ModalMotion.module.css"
@@ -14,7 +15,7 @@ export const TerminalSwitcher = ({
   onSelect,
   onClose,
 }: {
-  terminals: TerminalMetadata[]
+  terminals: readonly Tile[]
   selected: string | undefined
   project: string
   mode: "held" | "click"
@@ -99,7 +100,7 @@ export const TerminalSwitcher = ({
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <p className="m-0 truncate text-xs font-medium">{terminal.name}</p>
                   <p className="m-0 truncate font-mono text-[10px] text-muted">
-                    {terminal.process || terminal.command}
+                    {isWindow(terminal) ? "window" : terminal.process || terminal.command}
                   </p>
                 </div>
                 <ArrowUpRight

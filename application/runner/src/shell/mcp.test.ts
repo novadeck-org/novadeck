@@ -133,10 +133,11 @@ describe("NovaDeck's MCP server", () => {
       NOVADECK_REPORT_TOKEN: token,
     })
 
-    it("offers its tools: show, open_terminal, send, agents and describe", async () => {
+    it("offers its tools: show, showing, open_terminal, send, agents and describe", async () => {
       const [, tools] = await session(terminal(), [initialize, list])
       expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
         "show",
+        "showing",
         "open_terminal",
         "send",
         "agents",
@@ -350,7 +351,7 @@ describe("NovaDeck's MCP server", () => {
         return shown?.result
       }
       await expect(
-        said({ ok: true, id: "a", kind: "file", name: "notes.md", opened: false }),
+        said({ ok: true, id: "a", kind: "file", name: "notes.md", opened: false, again: false }),
       ).resolves.toEqual({
         content: [
           { type: "text", text: "notes.md is waiting for the user in NovaDeck, marked new." },
@@ -361,6 +362,58 @@ describe("NovaDeck's MCP server", () => {
         said({ ok: true, id: "b", kind: "file", name: ".env", opened: false, held: true }),
       ).resolves.toMatchObject({
         content: [{ type: "text", text: expect.stringContaining(".env may hold secrets") }],
+        isError: false,
+      })
+      // Shown again, it was updated where it was.
+      await expect(
+        said({ ok: true, id: "a", kind: "file", name: "notes.md", opened: false, again: true }),
+      ).resolves.toMatchObject({
+        content: [
+          {
+            type: "text",
+            text: "notes.md is updated and waiting for the user in NovaDeck, marked new.",
+          },
+        ],
+      })
+      await expect(
+        said({ ok: true, id: "a", kind: "file", name: "notes.md", opened: true, again: true }),
+      ).resolves.toMatchObject({
+        content: [
+          { type: "text", text: "Showing notes.md again, updated, to the user in NovaDeck." },
+        ],
+      })
+      // An image too large to preview is still listed.
+      await expect(
+        said({ ok: true, id: "c", kind: "image", name: "big.png", opened: true, tooLarge: true }),
+      ).resolves.toMatchObject({
+        content: [
+          {
+            type: "text",
+            text:
+              "Showing big.png to the user in NovaDeck. It's too large to preview, so " +
+              "NovaDeck lists it by its name only.",
+          },
+        ],
+      })
+    })
+
+    it("lists what is showing beside the terminal, as the runner renders it", async () => {
+      calls.length = 0
+      answer = { ok: true, text: "Nothing is showing beside your terminal in NovaDeck." }
+      const [, listed] = await session(terminal(), [
+        initialize,
+        { id: 3, method: "tools/call", params: { name: "showing", arguments: { extra: 1 } } },
+      ])
+      expect(calls).toEqual([
+        {
+          type: "showing",
+          terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
+          token,
+          request: {},
+        },
+      ])
+      expect(listed?.result).toEqual({
+        content: [{ type: "text", text: "Nothing is showing beside your terminal in NovaDeck." }],
         isError: false,
       })
     })
@@ -582,6 +635,7 @@ describe("NovaDeck's MCP server", () => {
         )
         expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
           "show",
+          "showing",
           "open_terminal",
           "send",
           "agents",

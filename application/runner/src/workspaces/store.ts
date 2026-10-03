@@ -5,6 +5,7 @@ import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
 import type { AgentName, Project, RunnerSettings, WorkspaceSession } from "@novadeck/protocol"
 
+import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
 import type { MailboxRecords } from "../messaging/records.js"
@@ -118,6 +119,48 @@ const extras = `
     -- Whether its sender was told it is gone.
     notified INTEGER NOT NULL
   ) STRICT;
+  -- What agents show and the person attaches beside a terminal: pointers, never copies.
+  -- Each item is held by one terminal's bar or one undocked window, and goes with it.
+  CREATE TABLE IF NOT EXISTS companion_windows (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    -- The title the person gave it; null when it is named by its item.
+    person_title TEXT,
+    created_at REAL NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS companion_items (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    terminal_id TEXT REFERENCES terminals(id) ON DELETE CASCADE,
+    window_id TEXT UNIQUE REFERENCES companion_windows(id) ON DELETE CASCADE,
+    -- A file's resolved path, a page's address, or a plan's slot, unique on one bar.
+    pointer_key TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan')),
+    path TEXT,
+    url TEXT,
+    lines_from INTEGER,
+    lines_to INTEGER,
+    -- A plan's agent, session and actor (empty for the root), and whether it is a file
+    -- or text in the transcript or rollout at path.
+    plan_agent TEXT,
+    plan_session TEXT,
+    plan_actor TEXT,
+    plan_format TEXT CHECK (plan_format IN ('file', 'text')),
+    name TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    held INTEGER NOT NULL,
+    shown_by TEXT NOT NULL CHECK (shown_by IN ('agent', 'person')),
+    from_terminal TEXT NOT NULL,
+    from_handle TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    asked INTEGER NOT NULL,
+    shown_at REAL NOT NULL,
+    observed_at REAL,
+    CHECK ((terminal_id IS NULL) <> (window_id IS NULL))
+  ) STRICT;
+  CREATE UNIQUE INDEX IF NOT EXISTS companion_items_bar ON companion_items(terminal_id, pointer_key)
+    WHERE terminal_id IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS companion_items_session ON companion_items(session_id);
 `
 const prepareFile = (path: string): void => {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
@@ -337,7 +380,97 @@ const messageOf = (row: MessageRow): Message => ({
   notified: row.notified === 1,
 })
 
-export class WorkspaceStore implements TerminalRecords, MailboxRecords {
+/** Whether SQLite refused a write for a row it references that is not there. */
+const missingReference = (error: unknown): boolean =>
+  (error as { errcode?: unknown } | undefined)?.errcode === 787
+
+/** A write that references a row, failing as `code` when that row is gone. */
+const referencing = <T>(code: "TERMINAL_NOT_FOUND" | "NOT_FOUND", write: () => T): T => {
+  try {
+    return write()
+  } catch (error) {
+    if (missingReference(error)) throw new DomainError(code)
+    throw error
+  }
+}
+
+type ItemRow = {
+  id: string
+  session_id: string
+  terminal_id: string | null
+  window_id: string | null
+  pointer_key: string
+  kind: ItemRecord["kind"]
+  path: string | null
+  url: string | null
+  lines_from: number | null
+  lines_to: number | null
+  plan_agent: string | null
+  plan_session: string | null
+  plan_actor: string | null
+  plan_format: string | null
+  name: string
+  detail: string
+  held: number
+  shown_by: ItemRecord["by"]
+  from_terminal: string
+  from_handle: string
+  version: number
+  asked: number
+  shown_at: number
+  observed_at: number | null
+}
+
+const itemOf = (row: ItemRow): ItemRecord => ({
+  id: row.id,
+  sessionId: row.session_id,
+  terminalId: row.terminal_id,
+  windowId: row.window_id,
+  pointerKey: row.pointer_key,
+  kind: row.kind,
+  path: row.path,
+  url: row.url,
+  lines:
+    row.lines_from !== null && row.lines_to !== null
+      ? { from: row.lines_from, to: row.lines_to }
+      : null,
+  plan:
+    row.plan_agent !== null && row.plan_session !== null
+      ? {
+          agent: row.plan_agent as AgentName,
+          session: row.plan_session,
+          actor: row.plan_actor || null,
+          format: row.plan_format === "text" ? "text" : "file",
+        }
+      : null,
+  name: row.name,
+  detail: row.detail,
+  held: row.held === 1,
+  by: row.shown_by,
+  from: { terminalId: row.from_terminal, handle: row.from_handle },
+  version: row.version,
+  asked: row.asked === 1,
+  shownAt: row.shown_at,
+  observedAt: row.observed_at,
+})
+
+type WindowRow = {
+  id: string
+  session_id: string
+  person_title: string | null
+  item_id: string
+  item_name: string
+}
+
+const windowOf = (row: WindowRow): WindowRecord => ({
+  id: row.id,
+  sessionId: row.session_id,
+  itemId: row.item_id,
+  itemName: row.item_name,
+  personTitle: row.person_title,
+})
+
+export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemRecords {
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
   private lastSave = 0
@@ -356,7 +489,7 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords {
     }
     // Transcripts may hold secrets: what is deleted is overwritten, not left in free pages.
     this.database.exec("PRAGMA secure_delete = ON")
-    this.queries = this.database.createTagStore(48)
+    this.queries = this.database.createTagStore(64)
   }
 
   projects(): Project[] {
@@ -397,9 +530,9 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords {
    */
   removeProject(projectId: string): void {
     this.project(projectId)
-    this.database.exec("BEGIN IMMEDIATE")
-    try {
+    this.transaction(() => {
       const sessions = "SELECT id FROM sessions WHERE project_id = ?"
+      // Its sessions' companion items and windows go with them, by their foreign keys.
       for (const sql of [
         "DELETE FROM messages WHERE project_id = ?",
         "DELETE FROM message_threads WHERE project_id = ?",
@@ -409,11 +542,7 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords {
         "DELETE FROM projects WHERE id = ?",
       ])
         this.database.prepare(sql).run(projectId)
-      this.database.exec("COMMIT")
-    } catch (error) {
-      this.database.exec("ROLLBACK")
-      throw error
-    }
+    })
   }
 
   project(projectId: string): Project {
@@ -667,6 +796,162 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords {
         INSERT INTO settings (key, value) VALUES (${key}, ${String(value)})
         ON CONFLICT (key) DO UPDATE SET value = excluded.value
       `
+  }
+
+  item(itemId: string): ItemRecord | undefined {
+    const row = this.queries.get`SELECT * FROM companion_items WHERE id = ${itemId}` as
+      | ItemRow
+      | undefined
+    return row && itemOf(row)
+  }
+
+  items(sessionId?: string): ItemRecord[] {
+    const rows =
+      sessionId === undefined
+        ? this.queries.all`SELECT * FROM companion_items ORDER BY shown_at, rowid`
+        : this.queries.all`
+          SELECT * FROM companion_items WHERE session_id = ${sessionId} ORDER BY shown_at, rowid`
+    return (rows as ItemRow[]).map(itemOf)
+  }
+
+  barItems(terminalId: string): ItemRecord[] {
+    const rows = this.queries.all`
+      SELECT * FROM companion_items WHERE terminal_id = ${terminalId} ORDER BY shown_at, rowid`
+    return (rows as ItemRow[]).map(itemOf)
+  }
+
+  itemsAt(sessionId: string, pointerKey: string): ItemRecord[] {
+    const rows = this.queries.all`
+      SELECT * FROM companion_items WHERE session_id = ${sessionId} AND pointer_key = ${pointerKey}
+      ORDER BY shown_at, rowid`
+    return (rows as ItemRow[]).map(itemOf)
+  }
+
+  window(windowId: string): WindowRecord | undefined {
+    const row = this.queries.get`
+      SELECT w.id, w.session_id, w.person_title, i.id AS item_id, i.name AS item_name
+      FROM companion_windows w JOIN companion_items i ON i.window_id = w.id
+      WHERE w.id = ${windowId}
+    ` as WindowRow | undefined
+    return row && windowOf(row)
+  }
+
+  windows(sessionId?: string): WindowRecord[] {
+    const rows =
+      sessionId === undefined
+        ? this.queries.all`
+          SELECT w.id, w.session_id, w.person_title, i.id AS item_id, i.name AS item_name
+          FROM companion_windows w JOIN companion_items i ON i.window_id = w.id
+          ORDER BY w.created_at, w.rowid`
+        : this.queries.all`
+          SELECT w.id, w.session_id, w.person_title, i.id AS item_id, i.name AS item_name
+          FROM companion_windows w JOIN companion_items i ON i.window_id = w.id
+          WHERE w.session_id = ${sessionId} ORDER BY w.created_at, w.rowid`
+    return (rows as WindowRow[]).map(windowOf)
+  }
+
+  /** Adds or changes an item; TERMINAL_NOT_FOUND when its terminal or session is gone. */
+  saveItem(item: ItemRecord): void {
+    const { plan, lines, from } = item
+    referencing(
+      "TERMINAL_NOT_FOUND",
+      () => this.queries.run`
+      INSERT INTO companion_items (id, session_id, terminal_id, window_id, pointer_key, kind, path,
+        url, lines_from, lines_to, plan_agent, plan_session, plan_actor, plan_format, name,
+        detail, held, shown_by, from_terminal, from_handle, version, asked, shown_at,
+        observed_at)
+      VALUES (${item.id}, ${item.sessionId}, ${item.terminalId}, ${item.windowId},
+        ${item.pointerKey}, ${item.kind}, ${item.path}, ${item.url}, ${lines?.from ?? null},
+        ${lines?.to ?? null}, ${plan?.agent ?? null}, ${plan?.session ?? null},
+        ${plan ? (plan.actor ?? "") : null}, ${plan?.format ?? null}, ${item.name},
+        ${item.detail}, ${item.held ? 1 : 0}, ${item.by}, ${from.terminalId}, ${from.handle},
+        ${item.version}, ${item.asked ? 1 : 0}, ${item.shownAt}, ${item.observedAt})
+      ON CONFLICT (id) DO UPDATE SET terminal_id = excluded.terminal_id,
+        window_id = excluded.window_id, pointer_key = excluded.pointer_key, kind = excluded.kind,
+        path = excluded.path, url = excluded.url, lines_from = excluded.lines_from,
+        lines_to = excluded.lines_to, plan_agent = excluded.plan_agent,
+        plan_session = excluded.plan_session, plan_actor = excluded.plan_actor,
+        plan_format = excluded.plan_format, name = excluded.name, detail = excluded.detail,
+        held = excluded.held, shown_by = excluded.shown_by,
+        from_terminal = excluded.from_terminal, from_handle = excluded.from_handle,
+        version = excluded.version, asked = excluded.asked, shown_at = excluded.shown_at,
+        observed_at = excluded.observed_at
+    `,
+    )
+  }
+
+  /** TERMINAL_NOT_FOUND when the terminal is not kept. */
+  dockItem(itemId: string, terminalId: string): Placed {
+    return this.transaction(() => {
+      const item = this.item(itemId)
+      if (!item) throw new DomainError("NOT_FOUND", "Item not found")
+      const left = item.windowId === null ? undefined : this.window(item.windowId)
+      const row = this.queries.get`
+        SELECT * FROM companion_items
+        WHERE terminal_id = ${terminalId} AND pointer_key = ${item.pointerKey} AND id <> ${itemId}
+      ` as ItemRow | undefined
+      if (row) void this.queries.run`DELETE FROM companion_items WHERE id = ${row.id}`
+      referencing(
+        "TERMINAL_NOT_FOUND",
+        () => this.queries.run`
+          UPDATE companion_items SET terminal_id = ${terminalId}, window_id = NULL
+          WHERE id = ${itemId}`,
+      )
+      if (left) void this.queries.run`DELETE FROM companion_windows WHERE id = ${left.id}`
+      return { item: this.item(itemId)!, left, replaced: row && itemOf(row) }
+    })
+  }
+
+  undockItem(itemId: string, window: { readonly id: string; readonly createdAt: number }): Placed {
+    return this.transaction(() => {
+      const item = this.item(itemId)
+      if (!item) throw new DomainError("NOT_FOUND", "Item not found")
+      if (this.queries.get`SELECT 1 FROM companion_windows WHERE id = ${window.id}`)
+        throw new DomainError("CONFLICT", "Window id is already taken")
+      const left = item.windowId === null ? undefined : this.window(item.windowId)
+      // Its session gone, so is the item.
+      referencing(
+        "NOT_FOUND",
+        () => this.queries.run`
+          INSERT INTO companion_windows (id, session_id, created_at)
+          VALUES (${window.id}, ${item.sessionId}, ${window.createdAt})`,
+      )
+      void this.queries.run`
+        UPDATE companion_items SET terminal_id = NULL, window_id = ${window.id} WHERE id = ${itemId}`
+      if (left) void this.queries.run`DELETE FROM companion_windows WHERE id = ${left.id}`
+      return { item: this.item(itemId)!, left, replaced: undefined }
+    })
+  }
+
+  removeItem(itemId: string): { item: ItemRecord; window: WindowRecord | undefined } | undefined {
+    return this.transaction(() => {
+      const item = this.item(itemId)
+      if (!item) return undefined
+      const window = item.windowId === null ? undefined : this.window(item.windowId)
+      // A window goes with its item, which its own deletion takes along.
+      if (window) void this.queries.run`DELETE FROM companion_windows WHERE id = ${window.id}`
+      else void this.queries.run`DELETE FROM companion_items WHERE id = ${itemId}`
+      return { item, window }
+    })
+  }
+
+  renameWindow(windowId: string, title: string | null): boolean {
+    const result = this.queries
+      .run`UPDATE companion_windows SET person_title = ${title} WHERE id = ${windowId}`
+    return result.changes > 0
+  }
+
+  /** Runs `work` as one transaction, undone whole when it throws. */
+  private transaction<T>(work: () => T): T {
+    this.database.exec("BEGIN IMMEDIATE")
+    try {
+      const result = work()
+      this.database.exec("COMMIT")
+      return result
+    } catch (error) {
+      this.database.exec("ROLLBACK")
+      throw error
+    }
   }
 
   close(): void {

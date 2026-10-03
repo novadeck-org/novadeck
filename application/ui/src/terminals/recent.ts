@@ -1,4 +1,4 @@
-import type { TerminalMetadata } from "../model/types"
+import type { Placed } from "../model/types"
 
 // The recent-terminal switcher: held while Control is down, or opened with a click.
 export type RecentSwitcher = {
@@ -14,7 +14,7 @@ export type RecentSwitcher = {
 export const nextRecent = (
   previous: readonly string[],
   selected: string,
-  ordered: readonly TerminalMetadata[],
+  ordered: readonly Placed[],
 ): string[] => [
   ...(selected ? [selected] : []),
   ...previous.filter((id) => id !== selected && ordered.some((terminal) => terminal.id === id)),

@@ -1,20 +1,23 @@
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
-import type { ArtifactContent } from "../../model/companion"
+import {
+  pathOf,
+  type CompanionItem,
+  type FileContent,
+  type ImageContent,
+  type ItemContent,
+  type PageContent,
+  type UnavailableReason,
+} from "../../model/companion"
 import { isMarkdown } from "./artifact-icons"
 import { DocumentViewer } from "./DocumentViewer"
 import type { HighlightedLine } from "./highlight"
-import type { Shown } from "./pane"
 import { headingsOf, titleOf } from "./plan-text"
-import type { ArtifactLoad } from "./use-panes"
 import { createWebview, type WebviewElement } from "./webview"
 
-type ImageContent = Extract<ArtifactContent, { kind: "image" }>
-type FileContent = Extract<ArtifactContent, { kind: "file" }>
-type PageContent = Extract<ArtifactContent, { kind: "page" }>
-
-// Viewers for what an agent shows beside its terminal. Files show as plain text at
+// Viewers for what an agent shows beside its terminal, as it loads from the file or page
+// it points at now, or why it can't show. Files show as plain text at
 // once, then highlighted when their language is one NovaDeck knows (see ./highlight.ts);
 // a markdown file reads as a document instead, formatted as a plan is.
 // A page loads live where the backend's host allows, in Electron's <webview>, which the
@@ -30,7 +33,7 @@ const ImageViewer = ({
   content,
   actions,
 }: Actions & {
-  artifact: Shown
+  artifact: CompanionItem
   content: ImageContent
 }): React.JSX.Element => {
   const [actual, setActual] = useState(false)
@@ -98,6 +101,8 @@ const FileViewer = ({
         <span>
           lines {artifact.from}–{artifact.to} · read-only
         </span>
+        {artifact.clamped && <span>The file ends at line {artifact.to}.</span>}
+        {artifact.truncated && <span>It's long, so only its start is shown.</span>}
         {actions && <span className="artifact-meta-push" />}
         {actions}
       </div>
@@ -210,11 +215,108 @@ const PageViewer = ({
     </div>
   )
 
+// A size in bytes as a person reads it.
+const sizeText = (bytes: number): string =>
+  bytes < 1024
+    ? `${bytes} bytes`
+    : bytes < 1024 * 1024
+      ? `${Math.round(bytes / 1024)} KB`
+      : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+
+// Why it can't show, in a few words, as a peek says it.
+const shortReasons: Record<UnavailableReason, string> = {
+  missing: "Not there any more",
+  unreadable: "Can't be read",
+  "not-a-file": "Not a file",
+  "too-large": "Too large to preview",
+  binary: "Not text",
+  held: "May hold secrets. Click to open.",
+  gone: "Gone",
+}
+
+// Why it can't show, as the pane says it.
+const reasonText = (reason: UnavailableReason, name: string, size: number | null): string => {
+  switch (reason) {
+    case "missing":
+      return `${name} isn't there any more.`
+    case "unreadable":
+      return `NovaDeck can't read ${name}.`
+    case "not-a-file":
+      return `${name} is no longer a file.`
+    case "too-large":
+      return `${name} is too large to preview${size === null ? "" : ` (${sizeText(size)})`}.`
+    case "binary":
+      return `${name} isn't text, so it can't be previewed.`
+    case "held":
+      return `${name} may hold secrets, so it shows only when you ask.`
+    case "gone":
+      return `${name} is gone.`
+  }
+}
+
+const CopyPath = ({ path }: { path: string }): React.JSX.Element => {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 1500)
+    return () => clearTimeout(timer)
+  }, [copied])
+  return (
+    <button
+      type="button"
+      className="artifact-open"
+      onClick={() => {
+        void navigator.clipboard?.writeText(path).then(
+          () => setCopied(true),
+          () => undefined,
+        )
+      }}
+    >
+      {copied ? "Copied" : "Copy path"}
+    </button>
+  )
+}
+
+// What can't show, and why, with its path to copy where it has one. One that may hold
+// secrets shows once the person asks.
+export const Unavailable = ({
+  item,
+  reason,
+  size,
+  onReveal,
+  actions,
+}: Actions & {
+  item: Pick<CompanionItem, "name" | "path" | "plan">
+  reason: UnavailableReason
+  size: number | null
+  onReveal?: (() => void) | undefined
+}): React.JSX.Element => (
+  <div className="artifact-unavailable" data-reason={reason}>
+    <p>{reasonText(reason, item.name, size)}</p>
+    <div className="artifact-unavailable-actions">
+      {reason === "held" && onReveal && (
+        <button type="button" className="artifact-open" onClick={onReveal}>
+          Show it
+        </button>
+      )}
+      {pathOf(item) !== null && <CopyPath path={pathOf(item)!} />}
+      {actions}
+    </div>
+  </div>
+)
+
 // A small picture of an artifact, for a peek: the image itself, the lines the agent
-// pointed at, or the page in a browser frame. Blank until it loads.
-export const ArtifactThumb = ({ load }: { load: ArtifactLoad }): React.JSX.Element | null => {
-  if (load.status !== "ready") return null
+// pointed at, or the page in a browser frame, or why it can't show. Blank until it loads.
+export const ArtifactThumb = ({
+  load,
+}: {
+  load: ItemContent | undefined
+}): React.JSX.Element | null => {
+  if (!load) return null
+  if (load.state === "unavailable")
+    return <span className="peek-held">{shortReasons[load.reason]}</span>
   const { content } = load
+  if (content.kind === "plan") return null
   return content.kind === "image" ? (
     <img src={content.src} alt="" />
   ) : content.kind === "file" && isMarkdown(content.path) ? (
@@ -249,30 +351,42 @@ export const ArtifactViewer = ({
   artifact,
   load,
   actions,
+  onReveal,
 }: Actions & {
-  artifact: Shown
-  load: ArtifactLoad
-}): React.JSX.Element => (
-  <div
-    className="artifact-viewer"
-    aria-busy={load.status === "loading"}
-    data-document={
-      (load.status === "ready" && load.content.kind === "file" && isMarkdown(load.content.path)) ||
-      undefined
-    }
-  >
-    {load.status === "loading" ? (
-      <div className="artifact-status" />
-    ) : load.status === "failed" ? (
-      <div className="artifact-status">Couldn't load {artifact.name}.</div>
-    ) : load.content.kind === "image" ? (
-      <ImageViewer artifact={artifact} content={load.content} actions={actions} />
-    ) : load.content.kind === "file" && isMarkdown(load.content.path) ? (
-      <DocumentViewer content={load.content} actions={actions} />
-    ) : load.content.kind === "file" ? (
-      <FileViewer content={load.content} actions={actions} />
-    ) : (
-      <PageViewer content={load.content} actions={actions} />
-    )}
-  </div>
-)
+  artifact: CompanionItem
+  // Undefined until it first loads.
+  load: ItemContent | undefined
+  // Shows something that may hold secrets, once the person asks.
+  onReveal?: (() => void) | undefined
+}): React.JSX.Element => {
+  const ready = load?.state === "ready" ? load.content : undefined
+  return (
+    <div
+      className="artifact-viewer"
+      aria-busy={load === undefined}
+      data-document={(ready?.kind === "file" && isMarkdown(ready.path)) || undefined}
+    >
+      {load === undefined ? (
+        <div className="artifact-status" />
+      ) : load.state === "unavailable" ? (
+        <Unavailable
+          item={artifact}
+          reason={load.reason}
+          size={load.size}
+          onReveal={onReveal}
+          actions={actions}
+        />
+      ) : ready?.kind === "image" ? (
+        <ImageViewer artifact={artifact} content={ready} actions={actions} />
+      ) : ready?.kind === "file" && isMarkdown(ready.path) ? (
+        <DocumentViewer content={ready} actions={actions} />
+      ) : ready?.kind === "file" ? (
+        <FileViewer content={ready} actions={actions} />
+      ) : ready?.kind === "page" ? (
+        <PageViewer content={ready} actions={actions} />
+      ) : (
+        <div className="artifact-status">Couldn't load {artifact.name}.</div>
+      )}
+    </div>
+  )
+}

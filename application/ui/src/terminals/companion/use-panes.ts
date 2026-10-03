@@ -1,63 +1,50 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useSyncExternalStore } from "react"
 
-import type { ArtifactContent, CompanionKey } from "../../model/companion"
-import type { Pane, Shown } from "./pane"
-import type { PaneActions, PaneMap, Panes } from "./state"
+import type { CompanionItem, ItemContent, ItemId } from "../../model/companion"
+import type { WorkspaceTarget } from "../../model/types"
+import type { PlanDoc } from "./plan-doc"
+import type { Panes } from "./state"
 
-// A terminal's pane as its components use it: as it stands, and what changes it.
-export type PaneHandle = PaneActions & { readonly pane: Pane }
+// The panes' state as components use it: one part each, so a keystroke in one plan
+// re-renders only what shows that plan.
 
-export const usePane = (panes: Panes, key: CompanionKey): PaneHandle => {
-  const actions = panes.of(key)
-  const pane = useSyncExternalStore(panes.store.subscribe, actions.current)
-  return { ...actions, pane }
-}
+export const usePlan = (panes: Panes, itemId: ItemId): PlanDoc | undefined =>
+  useSyncExternalStore(panes.store.subscribe, () => panes.store.getSnapshot().plans[itemId])
 
-const noPanes: PaneMap = {}
+const noPlans: Readonly<Record<ItemId, PlanDoc>> = {}
 
-// Only the panes of the terminals `ids` names, so a change to any other pane, as a
-// keystroke in its plan, re-renders nothing here.
-export const usePanesOf = (panes: Panes, ids: readonly string[]): PaneMap => {
-  const last = useRef<PaneMap>(noPanes)
-  const select = (): PaneMap => {
-    const all = panes.store.getSnapshot()
+// Only the plans `ids` names, so a keystroke in any other plan re-renders nothing here.
+export const usePlans = (
+  panes: Panes,
+  ids: readonly ItemId[],
+): Readonly<Record<ItemId, PlanDoc>> => {
+  const last = useRef(noPlans)
+  return useSyncExternalStore(panes.store.subscribe, () => {
+    const all = panes.store.getSnapshot().plans
     const held = ids.filter((id) => all[id] !== undefined)
     const previous = last.current
     const same =
       Object.keys(previous).length === held.length && held.every((id) => previous[id] === all[id])
     if (!same)
-      last.current = held.length ? Object.fromEntries(held.map((id) => [id, all[id]!])) : noPanes
+      last.current = held.length
+        ? (Object.fromEntries(held.map((id) => [id, all[id]!])) as Record<ItemId, PlanDoc>)
+        : noPlans
     return last.current
-  }
-  return useSyncExternalStore(panes.store.subscribe, select)
+  })
 }
 
-export type ArtifactLoad =
-  | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly content: ArtifactContent }
-  | { readonly status: "failed" }
-
-// An artifact's content, loading on first use.
-export const useArtifactContent = (
-  load: (artifact: Shown) => Promise<ArtifactContent>,
-  artifact: Shown,
-): ArtifactLoad => {
-  const [state, setState] = useState<{ readonly for: string; readonly state: ArtifactLoad }>({
-    for: "",
-    state: { status: "loading" },
-  })
-  const which = `${artifact.id}@${artifact.version}`
-  useEffect(() => {
-    let current = true
-    load(artifact).then(
-      (content) => current && setState({ for: which, state: { status: "ready", content } }),
-      () => current && setState({ for: which, state: { status: "failed" } }),
-    )
-    return () => {
-      current = false
-    }
-    // The artifact's identity and version decide what loads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [which])
-  return state.for === which ? state.state : { status: "loading" }
+// What an item holds, followed while the component shows it. Undefined until it first
+// reports. A plan is followed whether shown or not.
+export const useContent = (
+  panes: Panes,
+  target: WorkspaceTarget,
+  item: Pick<CompanionItem, "id" | "kind">,
+): ItemContent | undefined => {
+  const { projectId, workspaceSessionId } = target
+  const { id, kind } = item
+  useEffect(
+    () => (kind === "plan" ? undefined : panes.watch({ projectId, workspaceSessionId }, id)),
+    [panes, projectId, workspaceSessionId, id, kind],
+  )
+  return useSyncExternalStore(panes.store.subscribe, () => panes.store.getSnapshot().content[id])
 }

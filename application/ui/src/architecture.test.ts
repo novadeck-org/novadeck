@@ -31,11 +31,8 @@ const rules: Record<string, readonly string[]> = {
     "shell/shell-state.ts",
     "terminals/rename-state.ts",
     "terminals/recent.ts",
-    // The companion panes' store, which commands use by its type and change through its
-    // actions, and the panes' pure transitions.
+    // The companion panes' store, which commands use by its type.
     "terminals/companion/state.ts",
-    "terminals/companion/pane.ts",
-    "terminals/companion/plan-text.ts",
     "layouts/canvas/types.ts",
   ],
   "specs/": ["specs/", "app/App.tsx", "styles.css"],

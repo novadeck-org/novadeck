@@ -14,16 +14,9 @@ import {
   type TerminalWatchItem,
 } from "@novadeck/protocol/client"
 
-import { isCompanionWindow } from "../../model/companion-items"
 import { createStore } from "../../model/store"
 import { sameTitleSource } from "../../model/title-source"
-import type {
-  TerminalMetadata,
-  TerminalStatus,
-  TitleSource,
-  Workspace,
-  WorkspaceTarget,
-} from "../../model/types"
+import type { TerminalMetadata, TerminalStatus, TitleSource, Workspace } from "../../model/types"
 import type {
   AgentConnection,
   Backend,
@@ -38,6 +31,7 @@ import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"
 import type { RunnerDebug } from "./debug"
 import { createDebugPanel } from "./DebugPanel"
+import { createRunnerItems } from "./items"
 import { createRunnerMessages } from "./messages"
 import { pause } from "./pause"
 import { resumableProgram } from "./resumable"
@@ -56,7 +50,14 @@ import {
 // The part of the runner client the adapter uses.
 export type RunnerApi = Pick<
   Runner,
-  "watch" | "projects" | "sessions" | "terminals" | "agents" | "messages" | "settings"
+  | "watch"
+  | "projects"
+  | "sessions"
+  | "terminals"
+  | "agents"
+  | "messages"
+  | "settings"
+  | "companions"
 >
 
 export type RunnerBackendOptions = {
@@ -235,18 +236,6 @@ const target = ({ projectId, workspaceSessionId }: TerminalKey) => ({
 const defaultSaveDelay = 800
 const failedToCreate: TerminalStatus = { state: "failed", message: "Could not create the terminal" }
 const defaultSize: TerminalSize = { cols: 80, rows: 24 }
-// Whether a renamed window is undocked from a terminal's companion, not a terminal.
-const isWindow = (
-  workspace: Workspace,
-  renamed: { readonly target: WorkspaceTarget; readonly terminalId: string },
-): boolean => {
-  const terminal = workspace.projects
-    .find((project) => project.id === renamed.target.projectId)
-    ?.history.find((session) => session.id === renamed.target.workspaceSessionId)
-    ?.state.roster.terminals.find((each) => each.id === renamed.terminalId)
-  return terminal !== undefined && isCompanionWindow(terminal)
-}
-
 // More runner restarts than this within the window stop fresh shells from starting on
 // their own; each terminal then waits for Enter.
 const restartLimit = 3
@@ -920,17 +909,20 @@ export const runnerBackend = (
       }
   }
 
-  // The plans each terminal's agent keeps, followed while the backend runs.
-  const companions = createRunnerCompanions(
-    {
-      detail: (terminalId) => runner.agents.detail(terminalId),
-      plan: (terminalId, plan) => runner.agents.plan(terminalId, plan),
-      shown: (terminalId) => runner.agents.shown(terminalId),
-      artifact: (terminalId, artifact) => runner.agents.artifact(terminalId, artifact),
-    },
-    { livePages: options.livePages === true },
-  )
-  // The messages between their agents, followed alongside.
+  // What agents show and the person attaches, and the windows undocked from them: kept in
+  // step with the runner, each change the person makes sent once its session exists there.
+  const items = createRunnerItems({
+    runner: runner.companions,
+    listing,
+    latest: () => latest,
+    ready: (sessionId) => sessions.get(sessionId) ?? created,
+    // A terminal this window created exists on the runner once its create answered.
+    terminalReady: (terminalId) => entries.get(terminalId)?.ready ?? created,
+    call: (operation, done) => track(untilAnswered(operation, { done })),
+    dispatch: (actions) => dispatch(actions),
+    consume,
+  })
+  // The messages between their agents, followed once each terminal's shell is there.
   const messages = createRunnerMessages(
     {
       watch: (terminalId) => runner.messages.watch(terminalId),
@@ -940,13 +932,12 @@ export const runnerBackend = (
     track,
   )
   let following = false
-  // Follows a terminal's plans once the runner has it: its detail answers "not found"
-  // before then. Called whenever a shell is created or started afresh.
+  // Follows a terminal's messages once the runner has it: it answers "not found" before
+  // then. Called whenever a shell is created or started afresh.
   const followWhenReady = (entry: RunnerEntry): void => {
     const { ready } = entry
     void ready.then((ok) => {
       if (!ok || !following || entry.closed || entry.ready !== ready) return
-      companions.follow(entry.key)
       messages.follow(entry.key)
     })
   }
@@ -984,7 +975,6 @@ export const runnerBackend = (
     close: (entry, key) => {
       entry.closed = true
       entries.delete(key.terminalId)
-      companions.unfollow(key)
       messages.unfollow(key)
       // A removed project's terminals are closed by the runner, as it removes the project.
       if (!removedProjects.has(key.projectId)) void track(endShell(entry))
@@ -1042,11 +1032,11 @@ export const runnerBackend = (
     registry.reconcile(workspace, actions)
     for (const projectId of removed) void removeOnRunner(projectId)
     saves.note(workspace)
+    // What the person did to items and windows, renames of windows among it.
+    items.commit(actions)
     for (const action of actions) {
-      // The person's renames go to the runner, which owns every terminal's title; a
-      // companion window is no terminal of the runner's, so its name stays in the UI.
-      // TODO: keep companion windows' names once the runner keeps the windows.
-      if (action.type === "terminal/rename" && !isWindow(workspace, action))
+      // The person's renames go to the runner, which owns every terminal's title.
+      if (action.type === "terminal/rename" && !items.holdsWindow(action.target, action.terminalId))
         void track(renameOnRunner({ ...action.target, terminalId: action.terminalId }, action.name))
     }
     // The first commit renders the page and must start nothing; `start` covers it.
@@ -1191,6 +1181,7 @@ export const runnerBackend = (
         }).catch(() => {}),
       )
     void consume(changes, onChange)
+    const stopItems = items.watch()
     void consume(statuses, onStatus)
     void consume(requests, onRequest)
     following = true
@@ -1210,7 +1201,7 @@ export const runnerBackend = (
       stopQuit?.()
       stopOutage?.()
       following = false
-      companions.stop()
+      stopItems()
       messages.stop()
       // The last changes are saved; nothing retries after this.
       flush()
@@ -1234,9 +1225,14 @@ export const runnerBackend = (
     commit,
     TerminalSurface: createRunnerTerminal(runtime),
     start,
-    companions,
+    companions: createRunnerCompanions(runner.companions, {
+      livePages: options.livePages === true,
+    }),
     messages,
-    resetTitle: ({ terminalId }) => {
+    resetTitle: (key) => {
+      const { terminalId } = key
+      if (items.holdsWindow(target(key), terminalId))
+        return items.resetWindow(target(key), terminalId)
       // The person's name goes here too, so nothing sends it to the runner again, and a
       // rename still on its way is called off.
       titles.delete(terminalId)

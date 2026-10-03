@@ -48,10 +48,11 @@ export type TerminalSurfaceProps = {
   readonly onInputFocused: () => void
 }
 
-// Workspace changes a backend reports on its own, as the owner of every terminal: one
-// added elsewhere (another window, an agent), a name or directory changed, a process
-// exiting, a program taking over the foreground, or a terminal closed, as by a shell
-// that ended cleanly.
+// Workspace changes a backend reports on its own, as the owner of every terminal, item
+// and window: a terminal added elsewhere (another window, an agent), a name or directory
+// changed, a process exiting, a program taking over the foreground, or a terminal
+// closed, as by a shell that ended cleanly; something an agent showed or showed again,
+// moved, or gone; a window undocked, renamed or closed elsewhere.
 export type BackendAction = Extract<
   WorkspaceAction,
   {
@@ -61,6 +62,10 @@ export type BackendAction = Extract<
       | "terminal/status"
       | "terminal/process"
       | "terminal/close"
+      | "item/upsert"
+      | "item/remove"
+      | "window/upsert"
+      | "window/remove"
   }
 >
 
@@ -153,9 +158,10 @@ export type Backend = {
     readonly welcome: Store<boolean>
     readonly finishWelcome: () => void
   }
-  // Optional. What agents put in front of the user beside their terminals: the plans
-  // they write and what they show. A terminal it lists gets a taskbar and companion pane.
-  // The runner reports them from the agents' files and what they present through
+  // Optional. Where the content of what agents put in front of the person comes from: the
+  // plans they write and what they show, which the backend reports as items through the
+  // seed and `item/*` and `window/*` actions. Every terminal gets a taskbar and companion
+  // pane. The runner reads them from the agents' files and what they present through
   // NovaDeck's MCP server; the content-preview demo from its sample agents.
   readonly companions?: Companions
   // Optional. Messages between the agents in its terminals, and the pause that holds

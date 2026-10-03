@@ -58,7 +58,9 @@ const createServices = (
   )
   const { bind, settle, ...navigation } = createNavigator({ workspace, ui, now })
   const canvas = createRef<CanvasHandle>()
-  const panes = backend.companions && createPanes(backend.companions, backend.messages)
+  const panes =
+    backend.companions &&
+    createPanes({ companions: backend.companions, workspace, messages: backend.messages })
   const commands = createWorkspaceCommands({
     workspace,
     ui,
