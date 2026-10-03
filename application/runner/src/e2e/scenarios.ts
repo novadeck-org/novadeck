@@ -197,6 +197,18 @@ export const opens = (text: string, agent: AgentName, message: string): Rule =>
   })
 
 /**
+ * Answers the agent's first look at a user turn holding `text` by closing the terminal
+ * whose handle is `to` (`close_terminal`). The calls after the tool answered go to the
+ * next rules.
+ */
+export const closes = (text: string, to: string): Rule =>
+  own((call) => {
+    const close = tool(call, "close_terminal")
+    if (!close || !asked(call, text)) return undefined
+    return { calls: [{ name: close, input: { to } }] }
+  })
+
+/**
  * Answers the agent's first look at a user turn holding `text` with `reply`, a reply that
  * depends on the call, such as an `approval`'s request or a `background`'s start.
  */
@@ -213,6 +225,16 @@ export const result = (call: Call): string | undefined => {
 export const opened = (call: Call, handle: string): boolean => {
   const last = call.turns.at(-1)
   return last?.role === "tool" && last.text.includes(`Opened a new terminal, ${handle},`)
+}
+
+/** Whether the call is the agent's next look after its `close_terminal` closed `handle`. */
+export const closed = (call: Call, handle: string): boolean => {
+  const last = call.turns.at(-1)
+  // Its answer's first word for the terminal, as "Closed t2." or "Closed t2, which ran…",
+  // never another handle that begins the same, as t20.
+  return (
+    last?.role === "tool" && [".", ","].some((end) => last.text.includes(`Closed ${handle}${end}`))
+  )
 }
 
 /** Whether the call is the agent's next look after its send to `to` went. */

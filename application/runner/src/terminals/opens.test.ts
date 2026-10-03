@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 
 import { describe, expect, it } from "../test.js"
-import { allowOpen, OpenRequests, openLimit, readOpenRequest } from "./opens.js"
+import { allowOpen, OpenRequests, openLimit, prune, readOpenRequest } from "./opens.js"
 
 describe("reading a request for a new terminal", () => {
   it("takes a command, a folder, a name and focus, each optional", () => {
@@ -61,6 +61,17 @@ describe("how many terminals a terminal's agents may open", () => {
 
   it("forgets the times that fell out of the window", () => {
     expect(allowOpen([0, 10, 20], 120_000, { count: 2, windowMs: 1_000 })).toEqual([120_000])
+  })
+})
+
+describe("letting go of budgets", () => {
+  it("drops those whose every time has passed out of the window, and keeps the rest", () => {
+    const budgets = new Map<string, readonly number[]>([
+      ["gone", [0, 10]],
+      ["recent", [0, 60_500]],
+    ])
+    prune(budgets, 70_000, 60_000)
+    expect([...budgets]).toEqual([["recent", [0, 60_500]]])
   })
 })
 

@@ -2,19 +2,23 @@ import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { latest } from "./model/script.js"
 import {
+  closed,
+  closes,
   deliveries,
   delivered,
   holds,
   opened,
   opens,
   own,
+  result,
   ring,
   start,
   through,
 } from "./scenarios.js"
 
-// An agent starting another with a task (docs/agent-messaging.md, "Starting a task"), the
-// same for every harness (see messaging.e2e.ts for the rule on parity).
+// An agent starting another with a task (docs/agent-messaging.md, "Starting a task"), or
+// closing another's terminal (docs/agent-workspace.md), the same for every harness (see
+// messaging.e2e.ts for the rule on parity).
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
@@ -49,6 +53,32 @@ for (const setup of setups) {
       expect(t2.summary().agent).toBe(setup.agent)
       await t1.until("Started t2.")
       await t1.reached("settled", { after: mark })
+    })
+
+    it("closes another terminal it was asked to, ending the agent there and its shell", async ({
+      e2e: run,
+    }) => {
+      run.model.use(
+        closes("Close t2", "t2"),
+        own((call) => (closed(call, "t2") ? { text: "Closed it." } : undefined)),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      expect(t2.handle).toBe("t2")
+      const calls = run.model.mark()
+      const mark = t1.mark()
+
+      await t1.submit("Close t2")
+
+      const after = await run.model.waitFor((call) => closed(call, "t2"), { after: calls })
+      expect(result(after)).toMatch(/Closed t2, which ran \S/)
+      await t1.until("Closed it.")
+      await t1.reached("settled", { after: mark })
+      // Gone from the runner, as the person's close leaves it: its shell ended and forgotten.
+      expect(() => run.deck.terminals.get(t2.id)).toThrow(
+        expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
+      )
+      expect(run.deck.store.terminal(t2.id)).toBeUndefined()
     })
   })
 }

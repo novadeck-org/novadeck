@@ -1531,7 +1531,7 @@ const present = async (
   shell: Fixture,
   manager: Terminals,
   terminalId: string,
-  calls: { request: object; token?: string; type?: "present" | "open" }[],
+  calls: { request: object; token?: string; type?: "present" | "open" | "close" }[],
   // Who controls the terminal's input.
   owner = "owner",
 ): Promise<unknown[]> => {
@@ -2300,6 +2300,286 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   },
 )
 
+// A call to close a terminal, as NovaDeck's MCP server sends it.
+const close = (to: string) => ({ type: "close" as const, request: { to } })
+
+// What a close of the terminal `t<number>` answers.
+const closed = (number: number) => ({ ok: true, handle: `t${number}` })
+
+describe.skipIf(process.platform === "win32" || !existsSync(bash))(
+  "agents closing other bash terminals",
+  () => {
+    it("closes another terminal of its project and session as the person would, whatever window controls it", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      const claude = await create(manager, shell)
+      const codex = await create(manager, shell)
+      const third = await create(manager, shell)
+      // Another session of the project, whose terminals are no one's here.
+      const elsewhere = shell.store.createSession({
+        id: randomUUID(),
+        projectId: shell.store.session(shell.sessionId).projectId,
+        name: "S2",
+      })
+      const away = await Promise.all(
+        [1, 2].map(() =>
+          manager.create(
+            { id: randomUUID(), sessionId: elsewhere.id, cwd: shell.home, cols: 100, rows: 20 },
+            "owner",
+          ),
+        ),
+      )
+      const pidFile = join(shell.home, "codex.pid")
+      manager.write({ terminalId: codex.id, data: `echo $$ > '${pidFile}'\r` }, "owner")
+      await expect
+        .poll(() => existsSync(pidFile) && readFileSync(pidFile, "utf8").trim())
+        .toBeTruthy()
+      const shellPid = Number(readFileSync(pidFile, "utf8").trim())
+      const { start, step } = driver(shell, manager)
+      await start(claude.id, "claude", "s-claude")
+      await start(codex.id, "codex", "s-codex")
+      await start(third.id, "claude", "s-third")
+      await expect.poll(() => manager.messages(codex.id).delivery).toBe("fresh")
+      const call = async (from: string, type: string, request: object) =>
+        JSON.parse(await step(from, { call: type, request })) as {
+          ok: boolean
+          id?: string
+          reason?: string
+          gone?: unknown
+        }
+      const mine = await call(claude.id, "send", { to: "t2", text: "Review a.ts." })
+      const theirs = await call(third.id, "send", { to: "t2", text: "And b.ts." })
+      expect([mine.ok, theirs.ok]).toEqual([true, true])
+      // Its agent shows a file beside it, on its bar.
+      const notes = join(shell.home, "notes")
+      mkdirSync(notes)
+      writeFileSync(join(notes, "plan.txt"), "plan\n")
+      await expect(
+        call(codex.id, "present", { path: join(notes, "plan.txt") }),
+      ).resolves.toMatchObject({ ok: true })
+      const items = shell.items(manager)
+      expect(items.bar(codex.id)).toHaveLength(1)
+
+      // A window controls it, so a close from anywhere else is refused.
+      const window = new AbortController()
+      const events: string[] = []
+      const viewing = (async () => {
+        for await (const event of manager.attach(
+          { terminalId: codex.id, mode: "control" },
+          "owner",
+          window.signal,
+        ))
+          events.push(event.type)
+      })()
+      await expect.poll(() => events).toContain("snapshot")
+      await expect(manager.close({ terminalId: codex.id }, "elsewhere")).rejects.toMatchObject({
+        code: "CONTROL_IN_USE",
+      })
+      const changes: TerminalChange[] = []
+      const watching = new AbortController()
+      const watched = (async () => {
+        for await (const change of manager.watch("watcher", watching.signal)) changes.push(change)
+      })()
+
+      // Never its own terminal, nor a handle not there.
+      await expect(call(claude.id, "close", { to: "t1" })).resolves.toEqual({
+        ok: false,
+        reason:
+          "t1 is your own terminal, which close_terminal never closes; to end your own " +
+          "session, use your harness's own way to exit.",
+      })
+      const unknown = await call(claude.id, "close", { to: "codex" })
+      expect(unknown.ok).toBe(false)
+      expect(unknown.reason).toMatch(/^"codex" is no terminal's handle here\./)
+      expect(unknown.reason).toContain("- t2: Codex")
+      expect(unknown.reason).toContain("- t3: Claude Code")
+      await expect(call(claude.id, "close", { to: "t2", force: true })).resolves.toMatchObject({
+        ok: false,
+      })
+      expect(manager.get(codex.id).exit).toBeNull()
+
+      // Closed: its shell ended, the terminal gone and forgotten, and what waited for it gone.
+      await expect(call(claude.id, "close", { to: "t2" })).resolves.toEqual({
+        ok: true,
+        handle: "t2",
+        ran: "Codex",
+        gone: [{ id: mine.id, to: "t2" }],
+        others: 1,
+      })
+      await viewing
+      expect(events).toContain("exited")
+      expect(() => process.kill(shellPid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
+      expect(() => manager.get(codex.id)).toThrow(
+        expect.objectContaining({ code: "TERMINAL_NOT_FOUND" }),
+      )
+      expect(shell.store.terminal(codex.id)).toBeUndefined()
+      // What its bar held went with it.
+      expect(items.bar(codex.id)).toEqual([])
+      expect(shell.store.items().filter((item) => item.name === "plan.txt")).toEqual([])
+      await expect
+        .poll(() =>
+          changes.some((change) => change.type === "removed" && change.terminalId === codex.id),
+        )
+        .toBe(true)
+      // The other sender learns so with its next answer, as for any message gone.
+      await expect(call(third.id, "send", { to: "t1", text: "Done?" })).resolves.toMatchObject({
+        ok: true,
+        gone: [{ id: theirs.id, to: "t2" }],
+      })
+
+      // The other session's t2 is no one's here.
+      const outside = await call(claude.id, "close", { to: "t2" })
+      expect(outside).toMatchObject({ ok: false })
+      expect(outside.reason).toMatch(/^"t2" is no terminal's handle here\./)
+      expect(away.map(({ id }) => manager.get(id).exit)).toEqual([null, null])
+      // Nor does a call without the terminal's own token close anything.
+      await expect(
+        manager.closePeer({
+          type: "close",
+          terminalId: claude.id,
+          token: "0".repeat(48),
+          request: { to: "t3" },
+        }),
+      ).resolves.toEqual(unansweredCalls.close)
+      expect(manager.get(third.id).exit).toBeNull()
+      watching.abort()
+      await watched
+    })
+
+    it("refuses a terminal already closing, and closes none once the runner stops", async ({
+      shell,
+    }) => {
+      const manager = shell.manager()
+      const [first, second, target, last] = await Promise.all(
+        [1, 2, 3, 4].map(() => create(manager, shell)),
+      )
+      // Each caller's own token, as its shell has it, for calls made as its MCP server would.
+      const token = async (terminalId: string) => {
+        const file = join(shell.home, `token-${terminalId}`)
+        manager.write(
+          { terminalId, data: `echo "$NOVADECK_REPORT_TOKEN" > '${file}'; echo saved\r` },
+          "owner",
+        )
+        await shell.until(manager, terminalId, /^saved$/m)
+        return readFileSync(file, "utf8").trim()
+      }
+      const calls = {
+        first: { type: "close" as const, terminalId: first!.id, token: await token(first!.id) },
+        second: { type: "close" as const, terminalId: second!.id, token: await token(second!.id) },
+      }
+      // The terminals ignore hangups, so ending each takes its second signal, a second on.
+      for (const { id } of [target!, last!]) {
+        manager.write({ terminalId: id, data: "trap '' HUP; echo trapped\r" }, "owner")
+        // eslint-disable-next-line no-await-in-loop -- Each is readied in turn.
+        await shell.until(manager, id, /^trapped$/m)
+      }
+      const closing = manager.closePeer({ ...calls.first, request: { to: "t3" } })
+      await new Promise((resolve) => setImmediate(resolve))
+      await expect(manager.closePeer({ ...calls.second, request: { to: "t3" } })).resolves.toEqual({
+        ok: false,
+        reason: "t3 is already closing.",
+      })
+      await expect(closing).resolves.toEqual({ ok: true, handle: "t3" })
+      // The runner stops while a close ends the shell: it keeps the terminal, saved.
+      const stopped = manager.closePeer({ ...calls.first, request: { to: "t4" } })
+      await new Promise((resolve) => setImmediate(resolve))
+      const stopping = manager.shutdown()
+      await expect(stopped).resolves.toEqual(unansweredCalls.close)
+      await stopping
+      expect(shell.store.terminal(last!.id)).toBeDefined()
+      expect(shell.store.terminal(target!.id)).toBeUndefined()
+    })
+
+    it("lets a chain of terminals' agents close five a minute, and all agents twenty", async ({
+      shell,
+    }) => {
+      const bin = presenter(shell.home)
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+      })
+      // t1 to t26, in order, so each handle is the terminal's place in the list.
+      const terminals: TerminalSummary[] = []
+      for (let index = 0; index < 26; index += 1)
+        // eslint-disable-next-line no-await-in-loop -- Created in turn, so handles follow the list.
+        terminals.push(await create(manager, shell))
+      const closes = (from: number, to: readonly number[]) =>
+        present(
+          shell,
+          manager,
+          terminals[from - 1]!.id,
+          to.map((each) => close(`t${each}`)),
+        )
+      const spent = {
+        ok: false,
+        reason:
+          "Agents closed as many terminals as they may in the last minute; try again shortly, " +
+          "or leave the rest for the user to close.",
+      }
+      // One terminal's agents close four.
+      await expect(closes(1, [2, 3, 4, 5])).resolves.toEqual([2, 3, 4, 5].map(closed))
+      // A terminal its agents opened shares their budgets, so a chain can't do more, even
+      // once it closed the terminal that began it.
+      const controller = new AbortController()
+      const client = (async () => {
+        let opening = true
+        for await (const { requestId, sessionId, cwd } of manager.requests(
+          "client",
+          controller.signal,
+        )) {
+          // This client opens only the first terminal asked for.
+          if (!opening) {
+            manager.answerRequest({ requestId, reason: "Not now." }, "client")
+            continue
+          }
+          opening = false
+          const id = randomUUID()
+          // eslint-disable-next-line no-await-in-loop -- Requests are opened in turn.
+          await manager.create({ id, sessionId, cwd, cols: 100, rows: 20, requestId }, "client")
+          manager.answerRequest({ requestId, terminalId: id }, "client")
+        }
+      })()
+      try {
+        const [opened] = (await present(shell, manager, terminals[0]!.id, [open({})])) as {
+          terminalId: string
+        }[]
+        const chained = (calls: { request: object; type: "open" | "close" }[]) =>
+          present(shell, manager, opened!.terminalId, calls, "client")
+        await expect(chained([close("t1"), close("t6")])).resolves.toEqual([closed(1), spent])
+        await expect(chained(Array.from({ length: 5 }, () => open({})))).resolves.toEqual([
+          ...Array.from({ length: 4 }, () => ({ ok: false, reason: "Not now." })),
+          {
+            ok: false,
+            reason:
+              "Agents opened as many terminals as they may in the last minute; try again shortly.",
+          },
+        ])
+      } finally {
+        controller.abort()
+        await client
+      }
+      expect(manager.get(terminals[5]!.id).exit).toBeNull()
+      // Refusals cost nothing: a handle not there, or its own.
+      await expect(closes(7, [99, 7])).resolves.toMatchObject([{ ok: false }, { ok: false }])
+      // Others' budgets are their own, until all agents closed twenty this minute.
+      await expect(closes(7, [10, 11, 12, 13, 14])).resolves.toEqual(
+        [10, 11, 12, 13, 14].map(closed),
+      )
+      await expect(closes(8, [15, 16, 17, 18, 19])).resolves.toEqual(
+        [15, 16, 17, 18, 19].map(closed),
+      )
+      await expect(closes(9, [20, 21, 22, 23, 24])).resolves.toEqual(
+        [20, 21, 22, 23, 24].map(closed),
+      )
+      await expect(closes(25, [26])).resolves.toEqual([spent])
+      expect(manager.get(terminals[25]!.id).exit).toBeNull()
+    })
+  },
+)
+
 /** What a prompt-time hook added to what Claude Code or Codex sees; nothing when it printed nothing. */
 const context = (printed: string): string =>
   printed
@@ -2943,6 +3223,9 @@ const turn = (prompt, typed = true) => {
   const perm = mode === "perm" && turns === 2
   // With "slowhook", its second turn's hook reports after the doorbell's confirmation lapsed.
   const slow = mode === "slowhook" && turns === 2
+  // With "latehook", its second turn's hook reports 1.5 s after the Enter, well within the
+  // doorbell's confirmation.
+  const latehook = mode === "latehook" && turns === 2
   // With "slowkick", a turn it starts by itself reports a while after it began, as a
   // loaded machine's hook does: it is busy, and ignores Enter, before NovaDeck knows.
   const late = mode === "slowkick" && !typed
@@ -3009,7 +3292,7 @@ const turn = (prompt, typed = true) => {
       process.stdout.write("\r\x1b[2Kapproved; running npm test\r\n")
       setTimeout(() => hook("PostToolUse", { tool_name: "Bash", tool_input: input, tool_response: {} }, finish), 1500)
     })
-  }), slow ? 6_000 : late ? 800 : 0)
+  }), slow ? 6_000 : latehook ? 1_500 : late ? 800 : 0)
 }
 process.on("SIGUSR1", () => turn("background result", false))
 // It exits by itself, as an agent that ends without a key from the person.
@@ -3982,6 +4265,32 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
       expect(tui.received()[1]!.prompt).toMatch(/^\[NovaDeck: automatic notice/)
       expect(pastes(tui.raw())).toHaveLength(1)
+      await expect.poll(() => tui.manager.get(tui.idle.id)).toMatchObject({ cols: 70, rows: 20 })
+    })
+
+    it("lets the person's keys go after the ring's Enter, and its held resize once its prompt confirms it", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "latehook")
+      await tui.first()
+      const { cols, rows } = tui.manager.get(tui.idle.id)
+      await tui.send("Review a.ts")
+      await vi.waitFor(
+        async () => expect(await screen(tui.manager, tui.idle.id)).toContain("automatic notice"),
+        { timeout: 10_000, interval: 5 },
+      )
+      tui.manager.resize({ terminalId: tui.idle.id, cols: 70, rows: 20 }, "owner")
+      // Its Enter went; its prompt's hook is still to report.
+      // eslint-disable-next-line no-control-regex -- A bracketed paste's end marker.
+      await vi.waitFor(() => expect(tui.raw().join("")).toMatch(/\x1b\[201~[\s\S]*\r/), {
+        timeout: 5_000,
+      })
+      tui.type("xyz")
+      await vi.waitFor(() => expect(tui.raw().join("")).toContain("xyz"))
+      expect(tui.received()).toHaveLength(1)
+      expect(tui.manager.get(tui.idle.id)).toMatchObject({ cols, rows })
+      // Its prompt confirms the ring: the size it held goes on.
+      await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
       await expect.poll(() => tui.manager.get(tui.idle.id)).toMatchObject({ cols: 70, rows: 20 })
     })
 

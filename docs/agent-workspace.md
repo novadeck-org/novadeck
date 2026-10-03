@@ -363,6 +363,26 @@ with every safety check again at that time:
   through the same file the shell integration resumes agents from, so it leaves no
   history entry; a shell without the integration, or with configured arguments, can't
   run one, and the terminal does not open rather than start a plain shell.
+- **Closing terminals** comes from the same server's `close_terminal`, listed only
+  inside NovaDeck's terminals like the others. An agent closes another terminal of its
+  project and session, an agent's or a plain shell, by its exact handle, as `send`
+  names its recipient; any other `to` is refused with the terminals there described, as
+  `send` refuses one, and so is its own terminal, with a pointer to its harness's own
+  exit. Its description tells agents to close only a terminal they are done with or
+  the person asked about, as closing ends whatever runs there. The runner checks the
+  token, reads the request strictly, and closes it as the person's close does: it ends
+  the shell, removes the terminal and forgets it, even while a window controls it, so
+  the UI drops it from the layout on `terminals.watch`'s `removed`, as for a close in
+  another window. Messages still waiting for it are `gone`, their senders told as
+  always; the answer names the agent that ran there and counts them. A terminal's
+  agents close five a minute, a terminal opened on request sharing the budget of the
+  one that began the chain, and all agents twenty a minute across the runner, each
+  budget apart from the one for opening, so a runaway loop can't empty the workspace.
+  A chain's times, for opening and closing alike, outlive the terminal that began it
+  until they pass out of the minute, so its terminals can't start afresh by closing
+  it. A terminal already closing is refused as such, at no cost, and a close the
+  runner's own shutdown overtakes answers that it failed, the terminal kept as
+  shutdown keeps every terminal.
 - **Messages** between agents come from the same server's `send` and `agents` tools,
   listed only inside NovaDeck's terminals like the others: an agent messages another
   terminal of its project and session by its handle, such as `t3`, which `open_terminal` also

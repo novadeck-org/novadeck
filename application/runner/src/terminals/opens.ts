@@ -105,6 +105,15 @@ export const allowOpen = (
 }
 
 /**
+ * Lets go of the budgets in `budgets` whose every time has passed out of a window of
+ * `windowMs` by `now`, so budgets of terminals long gone don't pile up.
+ */
+export const prune = (budgets: Map<string, readonly number[]>, now: number, windowMs: number) => {
+  for (const [key, times] of budgets)
+    if (times.every((time) => now - time >= windowMs)) budgets.delete(key)
+}
+
+/**
  * Who asked for a terminal: its terminal's handle, the title it asked for, if any, and the
  * command it starts there, whose prompt is never the person's.
  */

@@ -4,6 +4,12 @@ import { defineConfig } from "vitest/config"
 
 import viteConfig from "./vite.config"
 
+// On CI a failed behaviour spec leaves a screenshot in .vitest/attachments/, which the
+// workflow uploads. Tracing slows every spec, so it records only when asked for, as a
+// CI re-run with debug logging does; a failed spec's trace then joins its screenshot.
+const ci = Boolean(process.env.CI)
+const trace = Boolean(process.env.NOVADECK_UI_TRACE)
+
 // The CSP plugin guards the app's index.html; the browser runner serves its own tester page.
 const plugins = viteConfig.plugins?.filter(
   (plugin) => !(plugin && "name" in plugin && plugin.name === "novadeck-content-security-policy"),
@@ -42,7 +48,10 @@ export default mergeConfig(
             browser: {
               enabled: true,
               headless: true,
-              screenshotFailures: false,
+              screenshotFailures: ci,
+              ...(trace
+                ? { trace: { mode: "retain-on-failure", tracesDir: "test-results/traces" } }
+                : {}),
               provider: playwright({ contextOptions: { reducedMotion: "reduce" } }),
               instances: [{ browser: "chromium" }],
               viewport: { width: 1440, height: 900 },

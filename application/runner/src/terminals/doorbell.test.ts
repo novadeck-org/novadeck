@@ -38,6 +38,8 @@ const terminal = (
   const failed: string[] = []
   let holds = 0
   let held = false
+  // Whether the app's resizes are held, until the hold settles.
+  let sizes = false
   let rings = 0
   let pastedAt: number | undefined
   let resizedAt = 0
@@ -75,12 +77,18 @@ const terminal = (
     hold: () => {
       holds += 1
       held = true
+      sizes = true
       const lapse =
         options.holdMs === undefined ? undefined : setTimeout(() => (held = false), options.holdMs)
+      const release = () => {
+        clearTimeout(lapse)
+        held = false
+      }
       return {
-        release: () => {
-          clearTimeout(lapse)
-          held = false
+        release,
+        settle: () => {
+          release()
+          sizes = false
         },
         holding: () => held,
       }
@@ -101,7 +109,7 @@ const terminal = (
     rows,
     written,
     failed,
-    state: () => ({ ringing, holds, held, rings, pastedAt, resizedAt }),
+    state: () => ({ ringing, holds, held, sizes, rings, pastedAt, resizedAt }),
     // The app resized its window now.
     resize: () => (resizedAt = Date.now()),
     // The ring's prompt arrived: messaging leaves Ringing.
@@ -128,6 +136,38 @@ describe("the doorbell", () => {
     expect(failed).toEqual([])
     expect(enters(written)).toBe(1)
     doorbell.close()
+  })
+
+  it("holds the app's resizes past its Enter until its prompt confirms the ring", async () => {
+    const { host, written, state, confirm } = terminal()
+    const doorbell = new Doorbell(host, { ...fast, confirmMs: 1_000 })
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(enters(written)).toBe(1))
+    // The person's keys go on after the Enter; the app's sizes wait for the prompt.
+    expect(state()).toMatchObject({ held: false, sizes: true })
+    await sleep(100)
+    expect(state().sizes).toBe(true)
+    confirm()
+    doorbell.changed("t")
+    expect(state().sizes).toBe(false)
+    doorbell.close()
+  })
+
+  it("lets the app's resizes go once a ring fails, pressed or not", async () => {
+    const swallowed = terminal({ takes: "nothing" })
+    const refused = new Doorbell(swallowed.host, fast)
+    refused.changed("t")
+    await vi.waitFor(() => expect(swallowed.failed).toHaveLength(1))
+    expect(swallowed.state().sizes).toBe(false)
+    refused.close()
+    const unconfirmed = terminal()
+    const lapsed = new Doorbell(unconfirmed.host, fast)
+    lapsed.changed("t")
+    await vi.waitFor(() => expect(enters(unconfirmed.written)).toBe(1))
+    expect(unconfirmed.state().sizes).toBe(true)
+    await vi.waitFor(() => expect(unconfirmed.failed).toHaveLength(1))
+    expect(unconfirmed.state().sizes).toBe(false)
+    lapsed.close()
   })
 
   it("takes a first screen's logo vanishing as the line lands only when the terminal is Ready", async () => {

@@ -109,6 +109,19 @@ export type SendAnswer =
       readonly unbound?: true
     }
 
+/**
+ * A terminal an agent named among its peers: its id, its handle, and the agent running
+ * there, if any; or why none is.
+ */
+export type PeerAnswer =
+  | {
+      readonly ok: true
+      readonly terminalId: string
+      readonly handle: string
+      readonly agent: AgentName | null
+    }
+  | { readonly ok: false; readonly reason: string }
+
 /** What `agents` answers: the listing, rendered once, as agents read it. */
 export type AgentsAnswer =
   | { readonly ok: true; readonly text: string }
@@ -611,6 +624,48 @@ export class Messaging {
   }
 
   /**
+   * The other running terminal in the caller's project and session whose exact handle
+   * `to` is, as `send` finds its recipient, with the agent running there as `agents`
+   * names it; or why there is none, describing every terminal there as `send` does.
+   */
+  peer(terminalId: string, to: string, about: About = () => undefined): PeerAnswer {
+    const live = this.live.get(terminalId)
+    if (!live) return refused("NovaDeck couldn't find the terminals here.")
+    const found = this.scoped(live).find((peer) => peer.handle === to)
+    if (found)
+      return {
+        ok: true,
+        terminalId: found.terminalId,
+        handle: found.handle,
+        agent: found.root?.agent ?? found.shown?.agent ?? null,
+      }
+    return refused(unknownHandle(to, live.handle, this.peers(live, about), this.now()))
+  }
+
+  /**
+   * How many messages terminals other than `except` sent `terminalId` that are yet to
+   * arrive, which closing it makes gone.
+   */
+  waitingFor(terminalId: string, except: string): number {
+    return [...this.messages.values()].filter(
+      (message) =>
+        message.to.terminalId === terminalId &&
+        message.from.terminalId !== except &&
+        undelivered(message),
+    ).length
+  }
+
+  /** The caller's messages gone since it was last told, told now, as every answer tells them. */
+  goneFrom(terminalId: string): readonly { readonly id: string; readonly to: string }[] {
+    const gone = [...this.messages.values()].filter(
+      (message) =>
+        message.from.terminalId === terminalId && message.state === "gone" && !message.notified,
+    )
+    for (const message of gone) this.put({ ...message, notified: true })
+    return gone.map((message) => ({ id: message.id, to: message.to.handle }))
+  }
+
+  /**
    * An agent's message to another terminal in its project and session, by that
    * terminal's exact handle. It never claims delivery: it answers where the message is,
    * or why not, describing every terminal there when `to` is no current handle.
@@ -1000,17 +1055,9 @@ export class Messaging {
 
   /** What every answer to the sender adds: its messages newly gone, and whether replies reach it. */
   private extras(live: Live) {
-    const gone = [...this.messages.values()].filter(
-      (message) =>
-        message.from.terminalId === live.terminalId &&
-        message.state === "gone" &&
-        !message.notified,
-    )
-    for (const message of gone) this.put({ ...message, notified: true })
+    const gone = this.goneFrom(live.terminalId)
     return {
-      ...(gone.length > 0 && {
-        gone: gone.map((message) => ({ id: message.id, to: message.to.handle })),
-      }),
+      ...(gone.length > 0 && { gone }),
       ...(this.unbound(live) && { unbound: true as const }),
     }
   }

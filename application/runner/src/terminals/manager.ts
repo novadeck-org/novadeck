@@ -69,6 +69,15 @@ import {
   type Report,
   type Reports,
 } from "../shell/reports.js"
+import {
+  allowClose,
+  closeLimit,
+  readCloseRequest,
+  runnerCloseLimit,
+  selfRefusal,
+  spentRefusal,
+  type CloseAnswer,
+} from "./closes.js"
 import { coalesced } from "./coalesce.js"
 import { expectedAgent, promptIn } from "./commands.js"
 import { readDescribeRequest, type DescribeAnswer } from "./describe.js"
@@ -100,6 +109,8 @@ import {
 import { atPrompt, described, fired, noNudges, nudgeText, type Nudges } from "./nudges.js"
 import {
   allowOpen,
+  openLimit,
+  prune,
   runnerOpenLimit,
   OpenRequests,
   readOpenRequest,
@@ -291,12 +302,14 @@ type Record = {
   /** What the root session worked on, kept with the terminal; null before any did. */
   work: Work | null
   /**
-   * What waits while the doorbell's test paste is on screen: the person's input, and the
-   * latest size the app asked for, as a resize redraws the screen the paste is checked on;
-   * null otherwise.
+   * What waits while the doorbell rings: the person's input, while its test paste is on
+   * screen (null once that's let go, after its Enter), and the latest size the app asked
+   * for, until its prompt confirms the ring or the ring fails, as a resize redraws the
+   * screen the paste is checked on, and one landing as the doorbell's turn starts crashed
+   * Codex (0.159.3); null otherwise.
    */
   held: {
-    readonly input: string[]
+    input: string[] | null
     size: {
       readonly cols: number
       readonly rows: number
@@ -427,6 +440,10 @@ const sameToken = (a: string, b: string): boolean =>
 // well beyond a ring's test paste.
 const holdCapMs = 3_000
 
+// The longest it holds the app's resizes, in milliseconds: a safety cap beyond the wait
+// for the ring's prompt to confirm it.
+const sizeCapMs = 8_000
+
 // How much time a prompt's hook must have left for drift to be read, in milliseconds:
 // a git branch and a plan's file, each with its own short timeout.
 const driftReadMs = 1_500
@@ -479,13 +496,25 @@ export class Terminals {
   private readonly mail = new Map<string, Set<Latest<TerminalMessages>>>()
   /** Agents' requests for a new terminal, on their way to the client. */
   private readonly opens = new OpenRequests()
-  /** When each terminal's agents opened terminals lately, for `openLimit`. */
+  /**
+   * When each chain's agents opened terminals lately, for `openLimit`. A chain's times
+   * outlive the terminal that began it, until they pass out of the window, so the
+   * terminals it opened can't start afresh by closing it; `prune` lets them go then.
+   */
   private readonly opened = new Map<string, readonly number[]>()
   // Which terminal a terminal opened on request is charged to: the one that began the
   // chain, so terminals opening terminals share one budget rather than each get theirs.
   private readonly openers = new Map<string, string>()
   // Every request's time, for the runner's own limit across all chains.
   private allOpened: readonly number[] = []
+  /**
+   * When each chain's agents closed terminals lately, for `closeLimit`: charged as opens
+   * are, to the terminal that began the chain, from a budget apart from theirs, and kept
+   * as theirs are.
+   */
+  private readonly closed = new Map<string, readonly number[]>()
+  // Every close's time, for the runner's own limit across all chains.
+  private allClosed: readonly number[] = []
   private sampler: ReturnType<typeof setInterval> | undefined
   private saver: ReturnType<typeof setInterval> | undefined
   private readonly options: Required<
@@ -945,7 +974,7 @@ export class Terminals {
       if (this.messaging.untrustedAgent(input.terminalId)) this.recheckTrust(record)
     }
     // While the doorbell's test paste is on screen, the person's input waits its turn.
-    if (record.held) {
+    if (record.held?.input) {
       record.held.input.push(input.data)
       return
     }
@@ -1017,15 +1046,23 @@ export class Terminals {
       hold: (terminalId) => {
         const record = live(terminalId)
         // A hold already in force is another ring's: this one has none.
-        if (!record || record.held) return { release: () => {}, holding: () => false }
+        if (!record || record.held)
+          return { release: () => {}, settle: () => {}, holding: () => false }
         const held: NonNullable<Record["held"]> = { input: [], size: null }
         record.held = held
         const release = () => {
-          clearTimeout(timer)
+          clearTimeout(inputCap)
+          const { input } = held
+          if (record.held !== held || !input) return
+          held.input = null
+          if (input.length > 0 && live(terminalId) === record) record.process.write(input.join(""))
+        }
+        const settle = () => {
+          release()
+          clearTimeout(sizeCap)
           if (record.held !== held) return
           record.held = null
           if (live(terminalId) !== record) return
-          if (held.input.length > 0) record.process.write(held.input.join(""))
           // Only for the attachment still in control: one that took over meanwhile, or
           // the same window attached anew, was told the size in force and asks its own.
           const { size } = held
@@ -1041,10 +1078,17 @@ export class Terminals {
             // A shell that exited meanwhile takes no size; its exit is handled in turn.
           }
         }
-        // A ring takes well under this; should it not, the person's keys go on.
-        const timer = setTimeout(release, holdCapMs)
-        timer.unref()
-        return { release, holding: () => record.held === held && live(terminalId) === record }
+        // A ring takes well under these; should it not, the person's keys, then the app's
+        // sizes, go on.
+        const inputCap = setTimeout(release, holdCapMs)
+        inputCap.unref()
+        const sizeCap = setTimeout(settle, sizeCapMs)
+        sizeCap.unref()
+        return {
+          release,
+          settle,
+          holding: () => record.held === held && held.input !== null && live(terminalId) === record,
+        }
       },
       write: (terminalId, data) => {
         const record = live(terminalId)
@@ -1058,8 +1102,8 @@ export class Terminals {
   resize(input: { terminalId: string; cols: number; rows: number }, ownerId: string): void {
     const record = this.control(input.terminalId, ownerId)
     this.running(record)
-    // While the doorbell's test paste is on screen, a resize would redraw it and fail the
-    // ring: the latest waits for the ring's hold to end.
+    // While the doorbell rings, a resize would redraw the screen its paste is checked on,
+    // or land as its turn starts: the latest waits for the ring's hold to settle.
     if (record.held) {
       record.held.size = {
         cols: input.cols,
@@ -1267,7 +1311,6 @@ export class Terminals {
     this.messaging.unregister(terminalId)
     this.doorbell?.forget(terminalId)
     for (const [key, claimant] of this.claims) if (claimant === terminalId) this.claims.delete(key)
-    this.opened.delete(terminalId)
     this.openers.delete(terminalId)
     this.persisting(() => this.options.records?.removeTerminal(terminalId))
   }
@@ -1617,6 +1660,7 @@ export class Terminals {
     if (this.stopping || this.records.get(call.terminalId) !== record) return unansweredCalls.open
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
+    prune(this.opened, now, openLimit.windowMs)
     const times = allowOpen(this.opened.get(charged) ?? [], now)
     const all = allowOpen(this.allOpened, now, runnerOpenLimit)
     if (!times || !all)
@@ -1702,6 +1746,56 @@ export class Terminals {
     }
   }
 
+  /**
+   * Closes another terminal of the caller's project and session, as an agent asked
+   * through NovaDeck's MCP server by the terminal's exact handle: as the person's close
+   * does, it ends the shell, then forgets the terminal, whatever window controls it, and
+   * messages still waiting for it are gone. Never the caller's own terminal; a handle
+   * not there is refused with every terminal there described. A chain of terminals'
+   * agents close a few at most each minute, and all agents a few more. A call without
+   * the shell's own token learns nothing more.
+   */
+  async closePeer(call: Call): Promise<CloseAnswer> {
+    const record = this.records.get(call.terminalId)
+    if (!record || record.exitQueued || !sameToken(record.token, call.token))
+      return unansweredCalls.close
+    const read = readCloseRequest(call.request)
+    if (!read.ok) return read
+    const { to } = read.request
+    if (to === record.summary.handle) return refused(selfRefusal(to))
+    const target = await this.peers.target(record, to)
+    if (!target.ok) return target
+    // Closed, or the runner stopped, while the terminals were described.
+    const closing = this.records.get(target.terminalId)
+    if (this.stopping || this.records.get(call.terminalId) !== record || !closing)
+      return unansweredCalls.close
+    // Already on its way out, as another close ended its shell: nothing more to charge.
+    if (closing.closing) return refused(`${target.handle} is already closing.`)
+    const now = Date.now()
+    const charged = this.openers.get(call.terminalId) ?? call.terminalId
+    prune(this.closed, now, closeLimit.windowMs)
+    const times = allowClose(this.closed.get(charged) ?? [], now)
+    const all = allowClose(this.allClosed, now, runnerCloseLimit)
+    if (!times || !all) return refused(spentRefusal)
+    this.closed.set(charged, times)
+    this.allClosed = all
+    const { agent } = target
+    const others = this.messaging.waitingFor(target.terminalId, call.terminalId)
+    await this.terminate(closing)
+    // The runner began to stop meanwhile: it keeps the terminal, saved, so it isn't closed.
+    if (this.stopping) return unansweredCalls.close
+    this.remove(closing)
+    this.forget(target.terminalId)
+    const gone = this.messaging.goneFrom(call.terminalId)
+    return {
+      ok: true,
+      handle: target.handle,
+      ...(agent !== null && { ran: agentLabel(agent) }),
+      ...(gone.length > 0 && { gone }),
+      ...(others > 0 && { others }),
+    }
+  }
+
   /** A tool call from NovaDeck's MCP server, to the operation it names. */
   private call(call: Call): Promise<unknown> {
     switch (call.type) {
@@ -1711,6 +1805,8 @@ export class Terminals {
         return Promise.resolve(this.showing(call))
       case "open":
         return this.open(call)
+      case "close":
+        return this.closePeer(call)
       case "send":
         return this.send(call)
       case "agents":
@@ -3252,8 +3348,8 @@ export class Terminals {
         if (saved) watcher.changed(this.savedSummary(saved))
         else watcher.removed(record.summary)
       this.undetail(record.summary.id)
-      // Its share of what agents opened, as `forget` drops it on close.
-      this.opened.delete(record.summary.id)
+      // Which chain it belongs to, as `forget` drops it on close; the chain's own times
+      // stay until they pass out of the window.
       this.openers.delete(record.summary.id)
     }
   }

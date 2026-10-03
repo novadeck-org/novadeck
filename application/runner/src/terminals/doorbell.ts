@@ -42,11 +42,13 @@ export type DoorbellHost = {
   /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
   readonly resizedAt: (terminalId: string) => number
   /**
-   * Holds the person's input to the terminal, and the app's resizes of it, until it is
-   * released, or a safety cap lapses it; `holding` says it is still in force.
+   * Holds the person's input to the terminal until it is released, and the app's resizes
+   * of it until the hold settles, which releases the input too; a safety cap lapses each.
+   * `holding` says the input is still held.
    */
   readonly hold: (terminalId: string) => {
     readonly release: () => void
+    readonly settle: () => void
     readonly holding: () => boolean
   }
   /** Writes to the terminal's shell; false once it is gone. */
@@ -94,6 +96,11 @@ export class Doorbell {
     "NovaDeck's doorbell failed:",
   )
   private readonly checking = new Set<string>()
+  /** Each terminal's ring pressed and awaiting its prompt: its nonce, and its hold to settle. */
+  private readonly pressed = new Map<
+    string,
+    { readonly nonce: string; readonly settle: () => void }
+  >()
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>()
   private closed = false
 
@@ -111,11 +118,15 @@ export class Doorbell {
 
   /** The terminal's screen or messages changed: it is looked at again, once this tick. */
   changed(terminalId: string): void {
+    const pressed = this.pressed.get(terminalId)
+    // Its prompt confirmed the ring, or the ring failed: the app's resizes go on.
+    if (pressed && this.host.ringing(terminalId) !== pressed.nonce) this.settle(terminalId)
     if (!this.closed) this.schedule(terminalId)
   }
 
   /** Forgets a terminal that stopped running. */
   forget(terminalId: string): void {
+    this.settle(terminalId)
     clearTimeout(this.timers.get(terminalId))
     this.timers.delete(terminalId)
     this.still.delete(terminalId)
@@ -123,8 +134,15 @@ export class Doorbell {
 
   close(): void {
     this.closed = true
+    for (const terminalId of this.pressed.keys()) this.settle(terminalId)
     for (const timer of this.timers.values()) clearTimeout(timer)
     this.timers.clear()
+  }
+
+  /** Settles the hold of the terminal's ring awaiting its prompt, if any. */
+  private settle(terminalId: string): void {
+    this.pressed.get(terminalId)?.settle()
+    this.pressed.delete(terminalId)
   }
 
   private later(terminalId: string, ms: number): void {
@@ -176,8 +194,8 @@ export class Doorbell {
   }
 
   /**
-   * Rings once: the test paste, with the person's input and the app's resizes held for the
-   * whole ring; Enter only once the line shows alone, twice running, and while the hold is
+   * Rings once: the test paste, with the person's input held until its Enter, and the
+   * app's resizes until its prompt confirms it or it fails; Enter only once the line shows alone, twice running, and while the hold is
    * still in force; then a wait for its doorbell prompt. A resize since the calm began
    * (`calmSince`) puts the ring off untried. A ring abandoned on
    * the way fails, leaving its line, if it landed, as the person's draft.
@@ -220,11 +238,16 @@ export class Doorbell {
       hold.release()
     }
     if (!pressed) {
+      hold.settle()
       this.host.ringFailed(terminalId, nonce)
       return
     }
+    // The app's resizes wait on until its prompt confirms the ring, or it fails, as one
+    // landing as the turn starts crashed Codex (0.159.3).
+    this.pressed.set(terminalId, { nonce, settle: hold.settle })
     const timer = setTimeout(() => {
       if (this.host.ringing(terminalId) === nonce) this.host.ringFailed(terminalId, nonce)
+      if (this.pressed.get(terminalId)?.nonce === nonce) this.settle(terminalId)
     }, this.confirmMs)
     timer.unref()
   }

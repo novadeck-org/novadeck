@@ -73,7 +73,7 @@ type Grabbed = { readonly icon: LucideIcon; readonly from: DOMRect | undefined }
 export type BarDragging = {
   readonly provider: Pick<
     ComponentProps<typeof DragDropProvider>,
-    "sensors" | "plugins" | "onDragStart" | "onDragEnd"
+    "sensors" | "plugins" | "onBeforeDragStart" | "onDragEnd"
   >
   readonly grab: (
     event: React.PointerEvent<HTMLElement>,
@@ -133,7 +133,9 @@ export const useBarDrag = ({
   const provider: BarDragging["provider"] = {
     sensors,
     plugins,
-    onDragStart: (event) => {
+    // From the move that starts the drag, before dnd-kit renders it as one, so no move
+    // after that one goes unfollowed.
+    onBeforeDragStart: (event) => {
       const members = slotOf(event.operation.source?.id)?.members ?? []
       begin(members)
       // The drag keeps the pointer's moves to itself, so this listens ahead of it.
@@ -150,7 +152,12 @@ export const useBarDrag = ({
       const sortable = !event.canceled && isSortable(source)
       // Where the bar's own drag left it, so the bar stays as its DOM shows it.
       if (sortable && source.initialIndex !== source.index) move(source.initialIndex, source.index)
-      finish(sortable ? slotOf(source.id)?.members : undefined, event.canceled)
+      const members = sortable ? slotOf(source.id)?.members : undefined
+      // It lands where it's let go, which the last move followed may not have reached.
+      const { nativeEvent } = event
+      if (members && nativeEvent instanceof PointerEvent)
+        follow(members, nativeEvent.clientX, nativeEvent.clientY)
+      finish(members, event.canceled)
     },
   }
 
@@ -203,7 +210,11 @@ export const useBarDrag = ({
     const released = (pointer: PointerEvent): void => {
       if (pointer.pointerId !== start.pointerId) return
       stop()
-      if (dragging) settle(finish(members, false))
+      if (!dragging) return
+      // A cancelled pointer lands nowhere, as a cancelled icon drag goes back.
+      const lost = pointer.type === "pointercancel"
+      if (!lost) follow(members, pointer.clientX, pointer.clientY)
+      settle(finish(members, lost))
     }
     const cancelled = (key: KeyboardEvent): void => {
       if (key.key !== "Escape" || !dragging) return

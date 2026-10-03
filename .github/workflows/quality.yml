@@ -82,6 +82,19 @@ jobs:
 
       - name: Run ${{ matrix.name }}
         run: ${{ matrix.command }}
+        env:
+          # A re-run with debug logging records Playwright traces of failed UI specs.
+          NOVADECK_UI_TRACE: ${{ runner.debug == '1' && '1' || '' }}
+
+      # A failed UI spec leaves its screenshot, and its trace when one was recorded.
+      - name: Upload UI Test Failures
+        if: failure() && matrix.browser
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-test-failures-${{ runner.os }}
+          path: application/ui/.vitest/attachments/
+          if-no-files-found: ignore
+          retention-days: 7
 
   test:
     name: Test

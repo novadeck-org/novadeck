@@ -3,10 +3,11 @@
  * NovaDeck's own runtime, so it needs no dependencies. It speaks MCP over stdio, one
  * JSON message per line, just enough for its tools: `show`, which puts an image, a text
  * file or a web page in front of the user, beside the terminal the agent runs in, and
- * `showing`, which lists what is there now; `open_terminal`, which opens a new terminal beside it, optionally starting a command
- * there; `send` and `agents`, which message the agents in the project's other
- * terminals and list them; and `describe`, which names the agent's own terminal and says
- * what it works on (see docs/agent-messaging.md). It forwards each call to that
+ * `showing`, which lists what is there now; `open_terminal`, which opens a new terminal
+ * beside it, optionally starting a command there; `close_terminal`, which closes another
+ * of the project's terminals by its handle; `send` and `agents`, which message the agents
+ * in the project's other terminals and list them; and `describe`, which names the agent's
+ * own terminal and says what it works on (see docs/agent-messaging.md). It forwards each call to that
  * terminal's runner over the endpoint the agent's hooks report to, with the terminal's
  * own token, and returns the runner's answer. Only Claude Code reads a server's own
  * instructions, so each tool's description carries its rules. Outside NovaDeck's
@@ -187,6 +188,55 @@ const openTerminal = {
   failed: "NovaDeck couldn't open the terminal.",
 }
 
+const closeTerminal = {
+  name: "close_terminal",
+  description:
+    "Close another NovaDeck terminal of this project and session, by the terminal's exact " +
+    "handle as agents lists it (such as t2); anything else is refused, with the terminals " +
+    "described. Closing ends whatever runs there, an agent or a command such as a dev " +
+    "server, as the user closing it would, and messages waiting for it never arrive. Close " +
+    "only a terminal you are done with, such as one you opened for work now finished, or " +
+    "one the user asked you to close. Never your own: to end your own session, use your " +
+    "harness's own way to exit. Whenever you are unsure which terminal is meant, call " +
+    "agents again and pick by title, folder, branch and work; if more than one could " +
+    "match, ask the user rather than guess.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      to: {
+        type: "string",
+        description: "The terminal's exact handle, such as t2, as agents lists it.",
+      },
+    },
+    required: ["to"],
+    additionalProperties: false,
+  },
+  call: "close",
+  request: (args) => picked(args, ["to"]),
+  said: (answer) => {
+    const lines = [
+      "Closed " + answer.handle + (answer.ran ? ", which ran " + answer.ran : "") + ".",
+    ]
+    for (const gone of answer.gone ?? [])
+      lines.push(
+        gone.to === answer.handle
+          ? "Your message " + gone.id + " to " + gone.to + " won't arrive, as that terminal " +
+              "is closed."
+          : "Your earlier message " + gone.id + " to " + gone.to + " won't arrive: the agent " +
+              "session it was for ended there.",
+      )
+    if (answer.others)
+      lines.push(
+        (answer.others === 1
+          ? "1 message another agent sent it"
+          : answer.others + " messages other agents sent it") +
+          " won't arrive; NovaDeck tells their senders.",
+      )
+    return lines.join("\\n")
+  },
+  failed: "NovaDeck couldn't close the terminal.",
+}
+
 // The rules for messaging other agents, which only Claude Code would read from the
 // server's own instructions.
 const rules =
@@ -318,7 +368,7 @@ const describe = {
   failed: "NovaDeck couldn't describe the terminal.",
 }
 
-const tools = [show, showing, openTerminal, send, agents, describe]
+const tools = [show, showing, openTerminal, closeTerminal, send, agents, describe]
 
 // The MCP versions this server speaks, newest first; it answers others with the newest.
 const versions = ${JSON.stringify(mcpVersions)}

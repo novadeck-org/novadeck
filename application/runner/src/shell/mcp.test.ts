@@ -133,12 +133,13 @@ describe("NovaDeck's MCP server", () => {
       NOVADECK_REPORT_TOKEN: token,
     })
 
-    it("offers its tools: show, showing, open_terminal, send, agents and describe", async () => {
+    it("offers its tools: show, showing, open_terminal, close_terminal, send, agents and describe", async () => {
       const [, tools] = await session(terminal(), [initialize, list])
       expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
         "show",
         "showing",
         "open_terminal",
+        "close_terminal",
         "send",
         "agents",
         "describe",
@@ -256,6 +257,76 @@ describe("NovaDeck's MCP server", () => {
       expect((waits!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
         /doesn't trust this folder yet, so it started without its task: message m-1 reaches it once the user trusts the folder and its prompt shows\./,
       )
+    })
+
+    it("closes another terminal by its handle, and says what that ended", async () => {
+      calls.length = 0
+      const said = async (runner: unknown) => {
+        answer = runner
+        const [, closed] = await session(terminal(), [
+          initialize,
+          {
+            id: 3,
+            method: "tools/call",
+            params: { name: "close_terminal", arguments: { to: "t2", force: true } },
+          },
+        ])
+        return closed?.result as { content: { text: string }[]; isError: boolean }
+      }
+      await expect(said({ ok: true, handle: "t2" })).resolves.toEqual({
+        content: [{ type: "text", text: "Closed t2." }],
+        isError: false,
+      })
+      expect(calls).toEqual([
+        {
+          type: "close",
+          terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
+          token,
+          request: { to: "t2" },
+        },
+      ])
+      const lost = await said({
+        ok: true,
+        handle: "t2",
+        ran: "Codex",
+        gone: [
+          { id: "m-1", to: "t2" },
+          { id: "m-0", to: "t3" },
+        ],
+        others: 2,
+      })
+      expect(lost.content[0]?.text).toBe(
+        [
+          "Closed t2, which ran Codex.",
+          "Your message m-1 to t2 won't arrive, as that terminal is closed.",
+          "Your earlier message m-0 to t3 won't arrive: the agent session it was for ended there.",
+          "2 messages other agents sent it won't arrive; NovaDeck tells their senders.",
+        ].join("\n"),
+      )
+      const one = await said({ ok: true, handle: "t2", others: 1 })
+      expect(one.content[0]?.text).toContain(
+        "1 message another agent sent it won't arrive; NovaDeck tells their senders.",
+      )
+      await expect(said({ ok: false, reason: "t1 is your own terminal." })).resolves.toEqual({
+        content: [{ type: "text", text: "t1 is your own terminal." }],
+        isError: true,
+      })
+    })
+
+    it("tells agents to close only what they are done with or were asked to", async () => {
+      const [, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as {
+        name: string
+        description: string
+        inputSchema: object
+      }[]
+      const close = described.find((tool) => tool.name === "close_terminal")!
+      expect(close.description).toContain("exact handle")
+      expect(close.description).toContain("Closing ends whatever runs there")
+      expect(close.description).toContain("only a terminal you are done with")
+      expect(close.description).toContain("the user asked you to close")
+      expect(close.description).toContain("Never your own")
+      expect(close.inputSchema).toMatchObject({ required: ["to"], additionalProperties: false })
     })
 
     it("describes only its own terminal, and says when the title stayed", async () => {
@@ -437,7 +508,7 @@ describe("NovaDeck's MCP server", () => {
     it("offers nothing and calls nothing when one of the terminal's variables is missing", async () => {
       calls.length = 0
       const { NOVADECK_REPORT_TOKEN: _, ...partial } = terminal()
-      const [, tools, call, open, sent, listed] = await session(partial, [
+      const [, tools, call, open, sent, listed, closed] = await session(partial, [
         initialize,
         list,
         { id: 3, method: "tools/call", params: { name: "show", arguments: { path: "a" } } },
@@ -448,9 +519,14 @@ describe("NovaDeck's MCP server", () => {
           params: { name: "send", arguments: { to: "codex", text: "hi" } },
         },
         { id: 6, method: "tools/call", params: { name: "agents", arguments: {} } },
+        {
+          id: 7,
+          method: "tools/call",
+          params: { name: "close_terminal", arguments: { to: "t2" } },
+        },
       ])
       expect(tools?.result?.tools).toEqual([])
-      for (const refused of [call, open, sent, listed])
+      for (const refused of [call, open, sent, listed, closed])
         expect(refused?.error).toMatchObject({ code: -32602 })
       expect(calls).toEqual([])
     })
@@ -637,6 +713,7 @@ describe("NovaDeck's MCP server", () => {
           "show",
           "showing",
           "open_terminal",
+          "close_terminal",
           "send",
           "agents",
           "describe",

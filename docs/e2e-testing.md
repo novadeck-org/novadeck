@@ -227,8 +227,8 @@ network:
 ## Writing a scenario
 
 Messaging scenarios live in `messaging.e2e.ts`, a runner restart's in `restart.e2e.ts`,
-an agent starting another with a task in `tasks.e2e.ts`, the person typing around
-messages in `person.e2e.ts`, messages that come while the agent waits on the person (a
+an agent starting another with a task, or closing another's terminal, in
+`tasks.e2e.ts`, the person typing around messages in `person.e2e.ts`, messages that come while the agent waits on the person (a
 permission question, its own popup, a picker) in `requests.e2e.ts`, a nested run of the
 harness inside an agent's turn in `nested.e2e.ts`, the person forking a session in a new
 terminal or in place in `forks.e2e.ts`, the person clearing the conversation
@@ -365,8 +365,9 @@ for (const setup of setups) {
   parses the `<novadeck-messages>` a hook added, plain or HTML-escaped, into
   `{ from, text }`; `ring` matches the doorbell's line; `opens` is a rule that answers a
   prompt by starting an agent with a task (`open_terminal`), and `opened(call, handle)`
-  tells the agent's next look once it did; `answers(text, reply)` answers a prompt with
-  a reply built from the call, such as a trait's, and `result(call)` is the text of the
+  tells the agent's next look once it did; `closes` and `closed(call, handle)` do the
+  same for closing a terminal (`close_terminal`); `answers(text, reply)` answers a
+  prompt with a reply built from the call, such as a trait's, and `result(call)` is the text of the
   tool result the call looks at, if it looks at one. `unrung` is how long a scenario
   watches a terminal for a ring that mustn't come, past the doorbell's settle window;
   `handing(run, first, then)` opens a terminal whose command runs `first`, then `then`

@@ -43,11 +43,11 @@ export type Ack = { readonly terminalId: string; readonly token: string; readonl
 /**
  * What NovaDeck's MCP server forwards: a tool call an agent made in a terminal, which
  * waits for its answer. `present` shows something beside it and `showing` lists what is
- * there (see `companions/items.ts`), `open`
- * opens a new terminal beside it (see `terminals/opens.ts`), `send` and `agents`
- * message other terminals' agents and describe them (see `messaging/messaging.ts`), and
- * `describe` names the caller's own terminal (see `terminals/naming.ts`); the runner
- * reads `request`, and nothing here does.
+ * there (see `companions/items.ts`), `open` opens a new terminal beside it (see
+ * `terminals/opens.ts`), `close` closes another terminal of its project and session (see
+ * `terminals/closes.ts`), `send` and `agents` message other terminals' agents and
+ * describe them (see `messaging/messaging.ts`), and `describe` names the caller's own
+ * terminal (see `terminals/naming.ts`); the runner reads `request`, and nothing here does.
  */
 export type Call = {
   readonly type: CallType
@@ -56,7 +56,7 @@ export type Call = {
   readonly request: { readonly [key: string]: unknown }
 }
 
-const callTypes = ["present", "showing", "open", "send", "agents", "describe"] as const
+const callTypes = ["present", "showing", "open", "close", "send", "agents", "describe"] as const
 export type CallType = (typeof callTypes)[number]
 
 /** The answer to a call that failed, took too long, or could not be read. */
@@ -67,6 +67,7 @@ export const unansweredCalls = {
   present: unanswered,
   showing: { ok: false, reason: "NovaDeck couldn't list what is showing beside you." },
   open: { ok: false, reason: "NovaDeck couldn't open the terminal." },
+  close: { ok: false, reason: "NovaDeck couldn't close the terminal." },
   send: { ok: false, reason: "NovaDeck couldn't send the message." },
   agents: { ok: false, reason: "NovaDeck couldn't list the terminals." },
   describe: { ok: false, reason: "NovaDeck couldn't describe the terminal." },

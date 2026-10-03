@@ -3,6 +3,7 @@ import { page } from "vitest/browser"
 
 import { boxOf, canvasView, dragBackground, viewBox } from "./support/canvas"
 import {
+  cancelPointerOver,
   chooseFromIconMenu,
   companionPane,
   dragCardToBar,
@@ -110,6 +111,16 @@ describe("Placing an item on another terminal's taskbar", () => {
     })
   })
 
+  context("when the pointer is cancelled while an image is dragged over it", () => {
+    it("stays where it was", async () => {
+      await openShowcase()
+      cancelPointerOver(taskbar("Refactor auth"))
+      await dragCardToBar("Build Studio", "2 images", "hero.png", "Refactor auth")
+      await expectStaysAbsent(taskbarIcon("Refactor auth", "hero.png, from Build Studio"))
+      await expect.element(taskbarIcon("Build Studio", "2 images")).toBeVisible()
+    })
+  })
+
   context("when an image is dragged onto it in Canvas", () => {
     it("shows there, from its terminal", async () => {
       await openShowcase("canvas")
@@ -171,6 +182,20 @@ describe("Undocking an item into a window of its own", () => {
     it("opens a window there", async () => {
       await openShowcase()
       await dragIconToFreeSpace("Refactor auth", "Plan: refactor-auth.md", gridView())
+      await expect.element(terminal("refactor-auth.md")).toBeVisible()
+      await expect.element(terminalTab("refactor-auth.md")).toBeVisible()
+      await expect
+        .element(taskbarIcon("Refactor auth", "Plan: refactor-auth.md"))
+        .not.toBeInTheDocument()
+    })
+  })
+
+  context("when dropped on the Grid's free space by the move that starts the drag", () => {
+    it("opens a window there", async () => {
+      await openShowcase()
+      await dragIconToFreeSpace("Refactor auth", "Plan: refactor-auth.md", gridView(), {
+        one: true,
+      })
       await expect.element(terminal("refactor-auth.md")).toBeVisible()
       await expect.element(terminalTab("refactor-auth.md")).toBeVisible()
       await expect

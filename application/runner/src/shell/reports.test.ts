@@ -133,6 +133,27 @@ describe("the report endpoint", () => {
     expect(calls).toHaveLength(2)
   })
 
+  it("takes a call to close a terminal, and says in its own words when it went unanswered", async ({
+    resources,
+  }) => {
+    const calls: Call[] = []
+    const reports = await listenForReports(
+      handlers({
+        call: (asked) => {
+          calls.push(asked)
+          return new Promise(() => {})
+        },
+      }),
+      { answerMs: 50 },
+    )
+    resources.defer(() => reports.close())
+    const close = { type: "close", terminalId: "t", token, request: { to: "t2" } }
+    await expect(send(reports.endpoint, JSON.stringify(close), { end: false })).resolves.toBe(
+      `${JSON.stringify({ ok: false, reason: "NovaDeck couldn't close the terminal." })}\n`,
+    )
+    expect(calls).toEqual([close])
+  })
+
   it("answers a call it cannot read as a failure, without asking", async ({ resources }) => {
     const calls: Call[] = []
     const reports = await listenForReports(

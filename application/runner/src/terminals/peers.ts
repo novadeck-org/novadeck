@@ -5,7 +5,7 @@ import type { TerminalMessages, TerminalSummary } from "@novadeck/protocol"
 import { planTitle } from "../companions/content.js"
 import { DomainError } from "../errors.js"
 import type { Activity } from "../harnesses/activity.js"
-import type { AgentsAnswer, Messaging, SendAnswer } from "../messaging/messaging.js"
+import type { AgentsAnswer, Messaging, PeerAnswer, SendAnswer } from "../messaging/messaging.js"
 import type { Whereabouts } from "../messaging/peers.js"
 import { unansweredCalls, type Ack, type Call } from "../shell/reports.js"
 import { gitBranch } from "./branch.js"
@@ -79,6 +79,20 @@ export class TerminalPeers {
     if (!caller) return unansweredCalls.agents
     const about = await this.whereabouts(caller.summary.sessionId)
     return this.options.messaging.agents(call.terminalId, (id) => about.get(id))
+  }
+
+  /**
+   * The terminal an agent named by its handle, among the other running terminals of its
+   * project and session, as `send` finds its recipient, with the agent running there; or
+   * why none is, with every terminal there described, as `send` refuses an unknown handle.
+   */
+  async target(caller: PeerTerminal, to: string): Promise<PeerAnswer> {
+    const { messaging } = this.options
+    const found = messaging.peer(caller.summary.id, to)
+    // Where `to` is a handle there, nothing needs describing: no branches or plans read.
+    if (found.ok) return found
+    const about = await this.whereabouts(caller.summary.sessionId)
+    return messaging.peer(caller.summary.id, to, (id) => about.get(id))
   }
 
   /** A hook printed what a lease delivered; one without the shell's own token is ignored. */
