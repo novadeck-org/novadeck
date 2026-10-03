@@ -51,10 +51,15 @@ export const demoBackend = (
       return title ? { ...terminal, name: title } : terminal
     },
     commit: (workspace, actions) => {
+      // A removed project is forgotten with its sessions' numbering; the engine closes
+      // its terminals as it finds them gone.
+      const gone = latest?.projects.filter(
+        (project) => !workspace.projects.some((each) => each.id === project.id),
+      )
+      for (const session of gone?.flatMap((project) => project.history) ?? [])
+        numbers.delete(session.id)
       latest = workspace
       engine.reconcile(workspace, actions)
-      // TODO: on "project/remove", forget the project for good. The demo keeps nothing
-      // between reloads, so the engine closing its terminals is all it does for now.
     },
     TerminalSurface: createDemoTerminal(engine, introOf),
     transcripts: { enabled: transcripts, set: (enabled) => transcripts.update(() => enabled) },

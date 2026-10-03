@@ -856,6 +856,43 @@ describe("terminal restart", () => {
   )
 })
 
+describe("project closing", () => {
+  it("lets no restart under way start a shell again in a terminal it closes", async ({
+    terminals,
+  }) => {
+    // The restart waits on whether its agent is connected until the test lets it go on.
+    let ask: (() => void) | undefined
+    let answer: ((connected: boolean) => void) | undefined
+    const asked = new Promise<void>((resolve) => (ask = resolve))
+    const manager = terminals.manager({
+      ...ptyOptions,
+      connected: () => {
+        ask?.()
+        return new Promise((resolve) => (answer = resolve))
+      },
+    })
+    const id = randomUUID()
+    await manager.create({ id, sessionId: "session", cwd, cols: 80, rows: 24 }, "owner")
+    const stream = terminals.attach(manager, id, "owner")
+    await read(manager, stream, "owner", (_event, text) => text.includes("PTY_READY"))
+    manager.write({ terminalId: id, data: command({ type: "exit", code: 0 }) }, "owner")
+    await read(manager, stream, "owner", (event) => event.type === "exited")
+    const restarting = manager.restart(
+      { terminalId: id, cols: 80, rows: 24, resume: "claude" },
+      "owner",
+    )
+    await asked
+    answer?.(false)
+    const closing = manager.closeProject("project", ["session"])
+    await expect(restarting).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+    await closing
+    expect(manager.list("session")).toEqual([])
+    await expect(
+      manager.restart({ terminalId: id, cols: 80, rows: 24 }, "owner"),
+    ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+  })
+})
+
 describe.skipIf(process.platform === "win32")("terminal environment", () => {
   it("starts shells from the runner's environment unless given another, never with its token", async ({
     terminals,

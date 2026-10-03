@@ -120,6 +120,8 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       list: () => runner.projects.list(),
       create: (input) => note(`create project ${input.id}`, () => runner.projects.create(input)),
       rename: (input) => runner.projects.rename(input),
+      remove: (input) =>
+        note(`remove project ${input.projectId}`, () => runner.projects.remove(input)),
     },
     sessions: {
       list: (input) => runner.sessions.list(input),

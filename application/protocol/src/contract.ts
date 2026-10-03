@@ -85,6 +85,11 @@ export const contract = {
       .input(z.strictObject({ id, name, cwd: directory.optional() }))
       .output(project),
     rename: procedure.input(z.strictObject({ projectId: id, name })).output(project),
+    // Closes every terminal of the project's sessions, as `terminals.close` does but
+    // whichever connection controls them, then forgets the project, its sessions and its
+    // agents' messages; its folder stays. A project the runner doesn't have, as one
+    // removed already, is NOT_FOUND.
+    remove: procedure.input(z.strictObject({ projectId: id })).output(z.void()),
   },
   sessions: {
     list: procedure.input(z.strictObject({ projectId: id })).output(z.array(workspaceSession)),

@@ -1,3 +1,4 @@
+import { RunnerError } from "@novadeck/protocol/client"
 import { afterAll, vi } from "vitest"
 
 import { companionKeyId } from "../../model/companion"
@@ -12,11 +13,16 @@ import {
 import type { Workspace, WorkspaceTarget } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
 import type { BackendAction } from "../port"
-import { runnerBackend, type RunnerBackend, type RunnerBackendOptions } from "./backend"
+import {
+  runnerBackend,
+  type RunnerApi,
+  type RunnerBackend,
+  type RunnerBackendOptions,
+} from "./backend"
 import { keptSummary } from "./scripted"
 import { runnerSeed, startingTerminal, type RunnerListing } from "./seed"
 import { encodeSession } from "./session-state"
-import { startTestRunner, typeInto } from "./testing"
+import { recordingRunner, startTestRunner, typeInto } from "./testing"
 
 // The runner samples the foreground process about once a second.
 const eventually = { timeout: 5000 }
@@ -28,8 +34,12 @@ const runner = await startTestRunner()
 afterAll(() => runner.close())
 
 // A backend over the runner as the app drives it: seeded, committed and started.
-const open = (listing: RunnerListing = runner.listing, options: RunnerBackendOptions = {}) => {
-  const created: RunnerBackend = runnerBackend(runner.client, listing, {
+const open = (
+  listing: RunnerListing = runner.listing,
+  options: RunnerBackendOptions = {},
+  api: RunnerApi = runner.client,
+) => {
+  const created: RunnerBackend = runnerBackend(api, listing, {
     saveDelay: 10,
     ...options,
   })
@@ -94,6 +104,23 @@ const statusOf = (app: ReturnType<typeof open>, terminalId: string) =>
       ? [action]
       : [],
   )
+
+// Opens a new project with its first session, and gives a way to remove it.
+const openProject = (app: ReturnType<typeof open>) => {
+  const added = { id: crypto.randomUUID(), name: "tmp", directory: process.cwd() }
+  const session = {
+    id: crypto.randomUUID(),
+    name: "First",
+    visitedAt: Date.now(),
+    state: createTerminalState([], "grid", "grid"),
+  }
+  app.commit([{ type: "project/add", project: added, activate: true, initialSession: session }])
+  const remove = () =>
+    app.commit([{ type: "project/remove", projectId: added.id, now: Date.now() }])
+  return { id: added.id, session, remove }
+}
+// The projects a reload lists.
+const listedProjects = async () => (await runner.reload()).map((item) => item.project.id)
 
 describe("runner backend", () => {
   context("when the workspace changes", () => {
@@ -561,6 +588,116 @@ describe("runner backend", () => {
         // The runner forgets a terminal closed on purpose, so a reload cannot bring it back.
         expect(listed.map((item) => item.id)).not.toContain(terminal.id)
       })
+    })
+  })
+
+  context("when the person removes a project", () => {
+    it("removes it on the runner, which closes its terminals, so a reload leaves it out", async () => {
+      const io: string[] = []
+      const app = open(runner.listing, {}, recordingRunner(runner.client, io))
+      const kept = app.target().projectId
+      const { id, session, remove } = openProject(app)
+      const terminal = app.addTerminal()
+      await app.idle()
+      remove()
+      await app.idle()
+      app.stop()
+      expect(io).toContain(`remove project ${id}`)
+      // The runner closes them as it removes the project, so the app closes none itself.
+      expect(io).not.toContain(`close ${terminal.id}`)
+      expect(await listedProjects()).toContain(kept)
+      expect(await listedProjects()).not.toContain(id)
+      await expect(runner.client.terminals.list({ sessionId: session.id })).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      })
+    })
+
+    it("removes one the runner is still creating once the runner has it", async () => {
+      const io: string[] = []
+      const app = open(runner.listing, {}, recordingRunner(runner.client, io))
+      const { id, remove } = openProject(app)
+      remove()
+      await app.idle()
+      app.stop()
+      expect(io.indexOf(`create project ${id}`)).toBeGreaterThan(-1)
+      expect(io.indexOf(`remove project ${id}`)).toBeGreaterThan(io.indexOf(`create project ${id}`))
+      expect(await listedProjects()).not.toContain(id)
+    })
+
+    it("removes it once the runner is back, when the link dropped", async () => {
+      const app = open()
+      const { id, remove } = openProject(app)
+      await app.idle()
+      await runner.drop()
+      remove()
+      await app.idle()
+      app.stop()
+      expect(await listedProjects()).not.toContain(id)
+    })
+
+    it("takes one another window removed first as removed, without asking again", async () => {
+      const io: string[] = []
+      const app = open(runner.listing, {}, recordingRunner(runner.client, io))
+      const { id, remove } = openProject(app)
+      await app.idle()
+      await runner.client.projects.remove({ projectId: id })
+      remove()
+      await app.idle()
+      app.stop()
+      expect(io.filter((call) => call === `remove project ${id}`)).toHaveLength(1)
+      expect(await listedProjects()).not.toContain(id)
+    })
+
+    it("holds a quit until a removal the runner put off while restarting goes through", async () => {
+      const quits: (() => Promise<void>)[] = []
+      const attempts: string[] = []
+      let pass: (() => void) | undefined
+      const gate = new Promise<void>((resolve) => (pass = resolve))
+      const api: RunnerApi = {
+        ...runner.client,
+        projects: {
+          ...runner.client.projects,
+          remove: async (input) => {
+            attempts.push(input.projectId)
+            if (attempts.length === 1) throw new RunnerError("RUNTIME_CLOSING", "restarting")
+            await gate
+            return runner.client.projects.remove(input)
+          },
+        },
+      }
+      const app = open(
+        runner.listing,
+        {
+          beforeQuit: (save) => {
+            quits.push(save)
+            return () => void quits.splice(quits.indexOf(save), 1)
+          },
+        },
+        api,
+      )
+      const { id, remove } = openProject(app)
+      await app.idle()
+      remove()
+      let quit = false
+      const quitting = quits[0]!().then(() => (quit = true))
+      await vi.waitFor(() => expect(attempts).toHaveLength(2), eventually)
+      expect(quit).toBe(false)
+      pass?.()
+      await quitting
+      app.stop()
+      expect(await listedProjects()).not.toContain(id)
+    })
+
+    it("leaves the last project on the runner, as the workspace keeps it", async () => {
+      const io: string[] = []
+      const last = runner.listing.slice(0, 1)
+      const app = open(last, {}, recordingRunner(runner.client, io))
+      const { projectId } = app.target()
+      app.commit([{ type: "project/remove", projectId, now: Date.now() }])
+      await app.idle()
+      app.stop()
+      expect(io).not.toContain(`remove project ${projectId}`)
+      expect((await runner.reload()).map((item) => item.project.id)).toContain(projectId)
     })
   })
 

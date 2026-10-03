@@ -1064,6 +1064,31 @@ describe("gone messages", () => {
   })
 })
 
+describe("a removed project", () => {
+  it("forgets its messages and threads, which nothing saves again, and keeps the others'", () => {
+    const { messaging, records, send, follow } = create()
+    const removed = sent(send("A", "t2", "hello"))
+    messaging.register("C", elsewhere, "t1")
+    messaging.register("D", elsewhere, "t2")
+    follow("D", binding("codex", "s-other", "3"))
+    const kept = sent(send("C", "t2", "hi"))
+    const threads = new Map(records.messages().map(({ id, thread }) => [id, thread]))
+    // Its terminals close, then the store deletes what it kept of the project.
+    messaging.unregister("A")
+    messaging.unregister("B")
+    messaging.forgetProject(here.projectId)
+    records.removeMessages([removed.id])
+    records.removeThreads([threads.get(removed.id)!])
+    messaging.pause(true)
+    expect(records.messages().map(({ id }) => id)).toEqual([kept.id])
+    expect(records.threads().map(({ id }) => id)).toEqual([threads.get(kept.id)])
+    expect(messages(messaging, "D").map(({ state }) => state)).toEqual(["held"])
+    expect(() => messaging.release(threads.get(removed.id)!)).toThrow(
+      expect.objectContaining({ code: "NOT_FOUND" }),
+    )
+  })
+})
+
 describe("Antigravity's root conversation", () => {
   beforeEach(() => {
     vi.useFakeTimers()

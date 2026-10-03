@@ -390,6 +390,32 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords {
     return this.project(input.projectId)
   }
 
+  /**
+   * Deletes the project, its sessions, what they kept of their terminals and their
+   * numbering, and its agents' messages and threads, all at once; an unknown project is
+   * `NOT_FOUND`. Its terminals' shells are the caller's to end first.
+   */
+  removeProject(projectId: string): void {
+    this.project(projectId)
+    this.database.exec("BEGIN IMMEDIATE")
+    try {
+      const sessions = "SELECT id FROM sessions WHERE project_id = ?"
+      for (const sql of [
+        "DELETE FROM messages WHERE project_id = ?",
+        "DELETE FROM message_threads WHERE project_id = ?",
+        `DELETE FROM terminals WHERE session_id IN (${sessions})`,
+        `DELETE FROM terminal_numbers WHERE session_id IN (${sessions})`,
+        "DELETE FROM sessions WHERE project_id = ?",
+        "DELETE FROM projects WHERE id = ?",
+      ])
+        this.database.prepare(sql).run(projectId)
+      this.database.exec("COMMIT")
+    } catch (error) {
+      this.database.exec("ROLLBACK")
+      throw error
+    }
+  }
+
   project(projectId: string): Project {
     const project = this.queries.get`SELECT id, name, cwd FROM projects WHERE id = ${projectId}` as
       | Project

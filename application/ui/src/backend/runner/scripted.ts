@@ -122,7 +122,7 @@ export const scripted = ({
     }
   const api = {
     watch: () => statuses.iterator,
-    projects: { list: unused, create: unused, rename: unused },
+    projects: { list: unused, create: unused, rename: unused, remove: unused },
     sessions: { list: unused, create: unused, rename: unused, save: async () => {} },
     settings: { get: unused, set: note("settings", saveSettings) },
     agents: {

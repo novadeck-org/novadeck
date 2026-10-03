@@ -902,6 +902,20 @@ export class Messaging {
   }
 
   /**
+   * Forgets a removed project's messages and threads, once its terminals are gone. The
+   * records keep them until the project's own are deleted, with them.
+   */
+  forgetProject(projectId: string): void {
+    for (const [id, message] of this.messages)
+      if (message.projectId === projectId) {
+        this.messages.delete(id)
+        this.everLeased.delete(id)
+      }
+    for (const [id, thread] of this.threads)
+      if (thread.projectId === projectId) this.threads.delete(id)
+  }
+
+  /**
    * Deletes each message once neither of its terminals exists and its latest activity is
    * a day old, and the threads only they kept.
    */

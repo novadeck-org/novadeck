@@ -142,12 +142,54 @@ describe("workspace metadata", () => {
       () => workspace.renameProject({ projectId: "missing", name: "Renamed" }),
       () => workspace.session("missing"),
       () => workspace.renameSession({ sessionId: "missing", name: "Renamed" }),
+      () => workspace.removeProject("missing"),
     ]
     for (const operation of operations) {
       expect(operation).toThrow(DomainError)
       expect(operation).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
     }
     expect(workspace.projects()).toEqual([])
+  })
+
+  it("removes a project with its sessions, kept terminals, numbering and messages", async ({
+    directory,
+    store,
+  }) => {
+    const cwd = directory()
+    const workspace = store(join(cwd, "workspace.sqlite"))
+    const removed = await workspace.createProject({ id: "p", name: "Removed", cwd })
+    const kept = await workspace.createProject({ id: "q", name: "Kept", cwd })
+    workspace.createSession({ id: "s", projectId: removed.id, name: "Session" })
+    const other = workspace.createSession({ id: "o", projectId: kept.id, name: "Other" })
+    workspace.saveTerminal(numbered("a", "t1"))
+    workspace.saveTerminal({ ...numbered("b", "t1"), sessionId: other.id })
+    workspace.nextTerminalNumber("s")
+    workspace.nextTerminalNumber(other.id)
+    workspace.saveMessage(message("m-1", "queued"))
+    workspace.saveMessage({ ...message("m-2", "queued"), projectId: kept.id, thread: "t-2" })
+    const thread: Thread = {
+      id: "t-1",
+      projectId: removed.id,
+      between: ["a", "b"],
+      hops: 1,
+      allowed: 12,
+      lastAt: 1,
+    }
+    workspace.saveThread(thread)
+    workspace.saveThread({ ...thread, id: "t-2", projectId: kept.id })
+
+    workspace.removeProject(removed.id)
+    expect(workspace.projects()).toEqual([kept])
+    expect(() => workspace.session("s")).toThrow(expect.objectContaining({ code: "NOT_FOUND" }))
+    expect(workspace.terminals().map(({ id }) => id)).toEqual(["b"])
+    expect(workspace.messages().map(({ id }) => id)).toEqual(["m-2"])
+    expect(workspace.threads().map(({ id }) => id)).toEqual(["t-2"])
+    // A session of the same id numbers its terminals afresh; the other goes on.
+    expect(workspace.nextTerminalNumber("s")).toBe(1)
+    expect(workspace.nextTerminalNumber(other.id)).toBe(2)
+    expect(() => workspace.removeProject(removed.id)).toThrow(
+      expect.objectContaining({ code: "NOT_FOUND" }),
+    )
   })
 
   it("stores the canonical directory rather than a symbolic link", async ({ directory, store }) => {

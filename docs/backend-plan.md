@@ -118,7 +118,8 @@ screen state; output contains subsequent terminal data. Batch output into chunks
 instead of sending a procedure call per character. Procedures return typed errors
 such as `TERMINAL_NOT_FOUND`, `TERMINAL_EXITED`, and `INCOMPATIBLE_PROTOCOL`.
 
-Projects and sessions are created and renamed through the same contract pattern.
+Projects and sessions are created and renamed through the same contract pattern, and
+removing a project closes its terminals before it forgets the project and its sessions.
 Each session also stores an opaque client state, such as the UI layout, which the
 runner saves without reading. Store connection profiles in the client so one UI
 build can select "This computer" or "My VPS".

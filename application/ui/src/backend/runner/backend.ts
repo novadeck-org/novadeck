@@ -501,6 +501,9 @@ export const runnerBackend = (
     readonly stillWanted?: () => void
     // Whether the work is still wanted; checked before every attempt.
     readonly cancelled?: () => boolean
+    // Errors that pass, such as RUNTIME_CLOSING from a runner on its way to a restart;
+    // the call is tried again after a pause, as while too many calls are in flight.
+    readonly again?: readonly Parameters<typeof hasCode>[1][]
   }
   // Repeats `operation` until the runner answers: after each reconnection, and with a
   // growing pause while too many calls are in flight. It stops, rejecting with
@@ -508,7 +511,7 @@ export const runnerBackend = (
   // error rejects.
   const untilAnswered = async <T>(
     operation: () => Promise<T>,
-    { done = [], stillWanted = () => {}, cancelled = () => false }: Retry = {},
+    { done = [], stillWanted = () => {}, cancelled = () => false, again = [] }: Retry = {},
   ): Promise<T | undefined> => {
     const unwanted = (): boolean => halted || cancelled()
     for (let attempt = 0; ; attempt += 1) {
@@ -518,7 +521,7 @@ export const runnerBackend = (
         return await operation()
       } catch (error) {
         if (done.length && hasCode(error, ...done)) return undefined
-        if (hasCode(error, "RESOURCE_LIMIT")) {
+        if (hasCode(error, "RESOURCE_LIMIT", ...again)) {
           // eslint-disable-next-line no-await-in-loop -- Back off before trying again.
           await pause(Math.min(200 * 2 ** Math.min(attempt, 4), 3_000))
           continue
@@ -562,6 +565,35 @@ export const runnerBackend = (
           : false,
       ),
     )
+
+  // Projects the person removed, whose terminals the runner closes as it removes them.
+  const removedProjects = new Set<string>()
+  // Removals on their way to the runner, which a quit waits for, as it does for saves.
+  const removals = new Set<Promise<void>>()
+  // Removes the project on the runner once it has it, retrying while the runner is
+  // unreachable or restarting. One already gone, as removed from another window, is left
+  // as it is. Retries end with the backend: a reload or quit before the runner answers
+  // leaves the project there, and it comes back with the next listing.
+  const removeOnRunner = (projectId: string): Promise<void> => {
+    const removal = (async () => {
+      if (!(await (projects.get(projectId) ?? created))) return
+      await untilAnswered(() => runner.projects.remove({ projectId }), {
+        done: ["NOT_FOUND"],
+        again: ["RUNTIME_CLOSING"],
+      }).catch((error: unknown) => {
+        // Cancelled only as the backend stops; anything else was the runner refusing it.
+        if (!(error instanceof Cancelled))
+          console.error("NovaDeck could not remove the project on the runner:", error)
+      })
+    })()
+    removals.add(removal)
+    void removal.finally(() => removals.delete(removal))
+    return track(removal)
+  }
+  // What a quit waits for: the last saves and the removals under way.
+  const beforeQuit = async (): Promise<void> => {
+    await Promise.all([saves.settle(), Promise.allSettled(removals)])
+  }
 
   // Ends the shell, retrying while the runner is unreachable. A terminal already gone,
   // or one another window controls, is left as it is.
@@ -954,7 +986,8 @@ export const runnerBackend = (
       entries.delete(key.terminalId)
       companions.unfollow(key)
       messages.unfollow(key)
-      void track(endShell(entry))
+      // A removed project's terminals are closed by the runner, as it removes the project.
+      if (!removedProjects.has(key.projectId)) void track(endShell(entry))
       checkBoot()
     },
   })
@@ -998,7 +1031,16 @@ export const runnerBackend = (
             ),
           )
     }
+    // The reducer keeps the last project, so only one gone from the workspace is removed.
+    const removed = actions.flatMap((action) =>
+      action.type === "project/remove" &&
+      !workspace.projects.some((project) => project.id === action.projectId)
+        ? [action.projectId]
+        : [],
+    )
+    for (const projectId of removed) removedProjects.add(projectId)
     registry.reconcile(workspace, actions)
+    for (const projectId of removed) void removeOnRunner(projectId)
     saves.note(workspace)
     for (const action of actions) {
       // The person's renames go to the runner, which owns every terminal's title; a
@@ -1006,8 +1048,6 @@ export const runnerBackend = (
       // TODO: keep companion windows' names once the runner keeps the windows.
       if (action.type === "terminal/rename" && !isWindow(workspace, action))
         void track(renameOnRunner({ ...action.target, terminalId: action.terminalId }, action.name))
-      // TODO: on "project/remove", remove the project on the runner. Until then only its
-      // terminals close, as the registry finds them gone, and it returns on reload.
     }
     // The first commit renders the page and must start nothing; `start` covers it.
     // Reviving reports to the store, which cannot take a transaction inside its
@@ -1156,9 +1196,9 @@ export const runnerBackend = (
     following = true
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     window.addEventListener("pagehide", flush)
-    // The host waits for these saves before a close or quit can end the shells, so they
-    // name what still runs.
-    const stopQuit = options.beforeQuit?.(saves.settle)
+    // The host waits for these saves, and removals, before a close or quit can end the
+    // shells, so they name what still runs.
+    const stopQuit = options.beforeQuit?.(beforeQuit)
     const stopOutage = options.debug?.outage.subscribe(showConnection)
     return () => {
       live = false

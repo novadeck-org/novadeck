@@ -6,6 +6,7 @@ import { implement, ORPCError } from "@orpc/server"
 import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
 import type { Terminals } from "./terminals/index.js"
+import type { Projects } from "./workspaces/projects.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 
 /** One client of a runner. Its transport decides how the handshake token is checked. */
@@ -38,11 +39,12 @@ export const createRouter = (options: {
   claim: (connection: Connection, clientId: string) => void
   store: WorkspaceStore
   terminals: Terminals
+  projects: Projects
   agents: Harnesses
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
-  const { store, terminals, agents } = options
+  const { store, terminals, projects, agents } = options
   const api = implement(contract).$context<Context>()
   const authorized = api.use(async ({ context, next }) => {
     const connection = context.connection
@@ -77,15 +79,19 @@ export const createRouter = (options: {
       }),
     },
     projects: {
-      list: authorized.projects.list.handler(() => store.projects()),
+      list: authorized.projects.list.handler(() => projects.list()),
       create: authorized.projects.create.handler(({ input }) =>
         store.createProject({ ...input, cwd: input.cwd ?? homedir() }),
       ),
       rename: authorized.projects.rename.handler(({ input }) => store.renameProject(input)),
+      remove: authorized.projects.remove.handler(({ input }) => projects.remove(input.projectId)),
     },
     sessions: {
       list: authorized.sessions.list.handler(({ input }) => store.sessions(input.projectId)),
-      create: authorized.sessions.create.handler(({ input }) => store.createSession(input)),
+      create: authorized.sessions.create.handler(({ input }) => {
+        projects.ensureNotRemoving(input.projectId)
+        return store.createSession(input)
+      }),
       rename: authorized.sessions.rename.handler(({ input }) => store.renameSession(input)),
       save: authorized.sessions.save.handler(({ input }) => {
         // Shells exiting during shutdown would otherwise overwrite the last state saved
@@ -102,7 +108,9 @@ export const createRouter = (options: {
       create: authorized.terminals.create.handler(async ({ input, context }) => {
         const session = store.session(input.sessionId)
         const project = store.project(session.projectId)
-        return terminals.create({ ...input, cwd: input.cwd ?? project.cwd }, context.connection.id)
+        return projects.creatingIn(project.id, () =>
+          terminals.create({ ...input, cwd: input.cwd ?? project.cwd }, context.connection.id),
+        )
       }),
       requests: authorized.terminals.requests.handler(async function* ({ context, signal }) {
         if (context.connection.closed) return

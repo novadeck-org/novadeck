@@ -514,6 +514,8 @@ export class Terminals {
   private readonly doorbell: Doorbell | undefined
   /** Sessions given out to resume, as agent:session, and the terminal each went to. */
   private readonly claims = new Map<string, string>()
+  /** Sessions whose project is going, whose terminals no restart starts again. */
+  private readonly closingSessions = new Set<string>()
   /** How many times each harness was disconnected, so a report that waited meanwhile is dropped. */
   private readonly disconnections = new Map<AgentName, number>()
   private creating = 0
@@ -1041,6 +1043,8 @@ export class Terminals {
   ): Promise<TerminalSummary> {
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
     const record = this.record(input.terminalId)
+    if (this.closingSessions.has(record.summary.sessionId))
+      throw new DomainError("TERMINAL_NOT_FOUND")
     if (record.summary.exit === null || record.restarting)
       throw new DomainError("CONFLICT", "Only an exited terminal can restart.")
     if (record.controller !== undefined && record.controller !== ownerId)
@@ -1058,7 +1062,11 @@ export class Terminals {
       // The swap waits for the old shell's queued work, which still uses the old screen.
       return await this.enqueue(record, () => {
         if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
-        if (this.records.get(input.terminalId) !== record)
+        // Closed meanwhile, or its project is closing: no shell starts in it again.
+        if (
+          this.records.get(input.terminalId) !== record ||
+          this.closingSessions.has(record.summary.sessionId)
+        )
           throw new DomainError("TERMINAL_NOT_FOUND")
         const resume =
           input.resume &&
@@ -1152,6 +1160,52 @@ export class Terminals {
     await this.terminate(record)
     this.remove(record)
     this.forget(input.terminalId)
+  }
+
+  /**
+   * Closes every terminal of a project's sessions, running or kept only as saved, as
+   * `close` does but whoever controls them, then forgets its agents' messages: the
+   * project is going. Its records are the caller's to delete.
+   */
+  async closeProject(projectId: string, sessionIds: readonly string[]): Promise<void> {
+    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    const sessions = new Set(sessionIds)
+    // Marked first, so a restart under way can't swap a fresh shell in behind the close.
+    for (const sessionId of sessions) this.closingSessions.add(sessionId)
+    try {
+      await this.closeSessions(sessions)
+    } finally {
+      for (const sessionId of sessions) this.closingSessions.delete(sessionId)
+    }
+    // Shutting down meanwhile kept what the shells left saved: the project stays, for the
+    // next runner to remove.
+    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    this.messaging.forgetProject(projectId)
+  }
+
+  /** Closes every terminal of the sessions, running or kept, whoever controls them. */
+  private async closeSessions(sessions: ReadonlySet<string>): Promise<void> {
+    const running = [...this.records.values()].filter(({ summary }) =>
+      sessions.has(summary.sessionId),
+    )
+    await Promise.all(
+      running.map(async (record) => {
+        await this.terminate(record)
+        this.remove(record)
+        this.forget(record.summary.id)
+      }),
+    )
+    for (const sessionId of sessions) {
+      let kept: readonly ListedTerminal[] = []
+      this.persisting(() => {
+        kept = this.options.records?.terminals(sessionId) ?? []
+      })
+      for (const terminal of kept) {
+        this.forget(terminal.id)
+        for (const watcher of this.watchers.keys()) watcher.removed(terminal)
+      }
+      this.numbers.delete(sessionId)
+    }
   }
 
   /** Forgets what restores the terminal, and the sessions it claimed. */

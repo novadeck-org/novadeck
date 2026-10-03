@@ -70,7 +70,7 @@ const scripted = (reported: TerminalSummary, lastProgram = "") => {
   const restarts: ((summary: TerminalSummary) => void)[] = []
   const api = {
     watch: () => statuses.iterator,
-    projects: { list: unused, create: unused, rename: unused },
+    projects: { list: unused, create: unused, rename: unused, remove: unused },
     sessions: { list: unused, create: unused, rename: unused, save: async () => {} },
     terminals: {
       list: unused,
