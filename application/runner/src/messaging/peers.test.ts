@@ -277,6 +277,28 @@ describe("what agents and a refused send say", () => {
     )
   })
 
+  it("describe every other terminal there in full for a name that is no handle", () => {
+    const others = [peer, opened(true)]
+    expect(unknownHandle("codex", "t1", others, now)).toBe(
+      [
+        '"codex" is no terminal\'s handle here. Send to one of these by its exact handle, ' +
+          "picking by its title, folder and work; if more than one could be meant, ask the user " +
+          "rather than guess.",
+        "Other terminals in this project and session:",
+        ...renderPeer(peer, now),
+        ...renderPeer(opened(true), now),
+      ].join("\n"),
+    )
+    // Each by what tells it apart: its title, folder and work.
+    expect(renderPeer(peer, now)).toEqual(
+      expect.arrayContaining([
+        "  title: API author (set by t1, not the user)",
+        "  folder: src/api, branch feat/paging",
+        "  works in: src/api/ (2), tests/ (1)",
+      ]),
+    )
+  })
+
   it("say how long ago in words", () => {
     expect(ago(now - 10_000, now)).toBe("just now")
     expect(ago(now - 59 * 60_000, now)).toBe("59 min ago")

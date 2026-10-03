@@ -114,6 +114,28 @@ describe("responses", () => {
     })
   })
 
+  it("reports no rate limits unless the reply gives them", async () => {
+    const { headers } = await answer(turn, () => ({ text: "Hi there" }))
+    expect(Object.keys(headers).filter((name) => name.startsWith("x-codex-"))).toEqual([])
+  })
+
+  it("reports the share of its rate limits a reply says is used, as Codex reads them", async () => {
+    const before = Math.floor(Date.now() / 1000)
+    const { headers } = await answer(turn, () => ({
+      text: "Hi there",
+      limits: { usedPercent: 95 },
+    }))
+    expect(headers).toMatchObject({
+      "x-codex-primary-used-percent": "95",
+      "x-codex-primary-window-minutes": "300",
+      "x-codex-secondary-used-percent": "95",
+      "x-codex-secondary-window-minutes": "10080",
+    })
+    const resets = Number(headers["x-codex-primary-reset-at"])
+    expect(resets).toBeGreaterThanOrEqual(before + 300 * 60)
+    expect(resets).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 300 * 60)
+  })
+
   it("sends a call to a namespaced tool back in its namespace", async () => {
     const { events: streamed } = await answer(turn, (call) => ({
       calls: [{ name: tool(call, "send") ?? "", input: { to: "t1", text: "pong" } }],

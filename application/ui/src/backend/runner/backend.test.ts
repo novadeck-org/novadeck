@@ -656,7 +656,8 @@ describe("runner backend", () => {
     })
 
     it("counts a shell that exits at once with an error as failing to start", async () => {
-      const app = open()
+      // However slow the machine, the shell exits within a minute of starting.
+      const app = open(runner.listing, { quickExitMs: 60_000 })
       const terminal = app.addTerminal()
       await app.idle()
       await typeInto(runner.client, terminal.id, "exit 5\r")
@@ -688,7 +689,8 @@ describe("runner backend", () => {
     })
 
     it("starts a fresh shell in the same terminal when asked to restart", async () => {
-      const app = open()
+      // However slow the machine, the shell exits within a minute of starting.
+      const app = open(runner.listing, { quickExitMs: 60_000 })
       const terminal = app.addTerminal()
       await app.idle()
       const key = { ...app.target(), terminalId: terminal.id }

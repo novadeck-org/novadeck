@@ -36,10 +36,25 @@ export type ToolCall = {
   readonly input: Readonly<Record<string, unknown>>
 }
 
-/** What the fake model answers: text, tool calls, or both. */
+/**
+ * What the fake model answers: text, tool calls, or both, and, where the API reports them
+ * with an answer, the account's limits and the answer's usage.
+ */
 export type Reply = {
   readonly text?: string
   readonly calls?: readonly Omit<ToolCall, "id">[]
+  /**
+   * How much of the account's rate limits the answer says is used, in percent, both its
+   * short and its long window, as Codex reads them from the Responses API's headers.
+   * None are reported unless given.
+   */
+  readonly limits?: { readonly usedPercent: number }
+  /**
+   * The output tokens the answer says it took, in place of the dialect's own count, as
+   * Claude Code prices its session by them from the Messages API. Only that dialect
+   * reports it.
+   */
+  readonly usage?: { readonly outputTokens: number }
 }
 
 /**

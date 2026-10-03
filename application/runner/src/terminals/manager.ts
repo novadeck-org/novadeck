@@ -240,12 +240,27 @@ type Record = {
   agents: { [agent in AgentName]?: AgentReport }
   /** The harness session holding the current shell's foreground; `summary.agent` shows it. */
   binding: Binding | null
+  /**
+   * The last binding ended as its process was found gone (`endExited`): a late report of
+   * that session from no process or from that one, as from a hook that outlived it, binds
+   * it no more. It stays past later bindings, until another such end replaces it: what it
+   * drops is only that session's reports from no process or from its dead pid, and an
+   * outliving hook of it may still come after the next session of the same agent bound,
+   * which it would otherwise replace. A resume of that session in a new process names its
+   * own pid, so it binds all the same.
+   */
+  left?: Binding
   /** What the bound agent is doing, as its hooks said; null without a binding. */
   activity: Activity | null
   /** The bound agent's tokens and quotas, as its records said; null until they did. */
   telemetry: Telemetry | null
   /** Stops following the bound session's own sources, as its transcript. */
   watching: AbortController | null
+  /**
+   * Stops following each of its subagents with a request waiting, by its id, in its own
+   * sources, from when its oldest such request was asked.
+   */
+  actorWatches: Map<string, { readonly controller: AbortController; readonly since: number }>
   /** The bound session's transcript, where its hooks named one. */
   transcript: string | null
   /** Ends the `agents.transcript` and `agents.plan` streams reading the bound session's. */
@@ -708,6 +723,7 @@ export class Terminals {
         activity: null,
         telemetry: null,
         watching: null,
+        actorWatches: new Map(),
         transcript: null,
         sourceReaders: new Set(),
         promptedAt: saved?.promptedAt ?? null,
@@ -923,8 +939,17 @@ export class Terminals {
       return record && !record.exitQueued && record.summary.exit === null ? record : undefined
     }
     return {
-      ringable: (terminalId) =>
-        live(terminalId) !== undefined && !this.stopping && this.messaging.ringable(terminalId),
+      // A request asked after the turn's Stop waits on the person though messaging has the
+      // terminal Settled: the line would land in its dialog.
+      ringable: (terminalId) => {
+        const record = live(terminalId)
+        return (
+          record !== undefined &&
+          (record.activity?.pending.length ?? 0) === 0 &&
+          !this.stopping &&
+          this.messaging.ringable(terminalId)
+        )
+      },
       settledSince: (terminalId) => this.messaging.settledSince(terminalId),
       ring: (terminalId, nonce) => this.messaging.ring(terminalId, nonce),
       ringing: (terminalId) => this.messaging.ringing(terminalId),
@@ -945,8 +970,22 @@ export class Terminals {
         // terminal, as the shell's prompt may have come back unseen (a nested shell).
         const shown = record.binding ? undefined : this.messaging.shownAgent(terminalId)
         if (shown) return foregroundRuns(record.process.pid, shown)
-        const instance = record.binding?.instance
+        const { binding } = record
+        const instance = binding?.instance
         if (!instance) return undefined
+        // The bound agent left unseen: no ring for its session, whatever holds the terminal
+        // now, and its binding ends, in turn with the reports.
+        if (!alive(instance)) {
+          void this.queue(
+            terminalId,
+            () => {
+              if (record.binding === binding) this.endExited(record)
+              return Promise.resolve()
+            },
+            undefined,
+          )
+          return false
+        }
         const [held, own] = await Promise.all([
           terminalForeground(record.process.pid),
           processGroup(Number(instance)),
@@ -2264,7 +2303,7 @@ export class Terminals {
     // The bound agent process may have exited without the shell showing a prompt, as in
     // tmux or a nested shell: its binding ended with it, and a later process may bind.
     let changed = false
-    if (record.binding?.instance && !alive(record.binding.instance)) this.endBinding(record)
+    this.endExited(record)
     const facts = {
       promptedAt: record.promptedAt,
       shellInForeground: foreground,
@@ -2293,6 +2332,7 @@ export class Terminals {
         this.applyFact(record, event)
         continue
       }
+      if (this.late(record, event)) continue
       // The bound session's transcript, from a later report when the one that bound it
       // named none, as Antigravity's status line does.
       const { binding: bound } = record
@@ -2559,12 +2599,21 @@ export class Terminals {
       // Asked before it joins the terminal's queue, so a slow answer from the harness
       // never holds the terminal's reports up.
       // Still the terminal's latest title, from the same process, with no session bound, no
-      // binding ended and no root turn started since, nor the shell's prompt back.
-      const current = () =>
-        record.titles === seq &&
-        record.process === child &&
-        !record.exitQueued &&
-        this.messaging.delivery(record.summary.id)?.epoch === epoch
+      // binding ended and no root turn started since, nor the shell's prompt back. Only the
+      // binding it found, ended since as its process was found gone (by a ring's check or a
+      // report while this asked), and nothing after: its prompt shows as from no binding.
+      const current = () => {
+        if (record.titles !== seq || record.process !== child || record.exitQueued) return false
+        const now = this.messaging.delivery(record.summary.id)?.epoch
+        if (now === epoch) return true
+        return (
+          binding !== null &&
+          epoch !== undefined &&
+          now === epoch + 1 &&
+          record.left === binding &&
+          record.binding === null
+        )
+      }
       void (async () => {
         const found = await this.harnessIn(record, child, agent)
         if (!found) return
@@ -2582,9 +2631,11 @@ export class Terminals {
             undefined,
           )
         if (trust !== "counts") return
+        // The bound agent left unseen, as its own process is gone: this prompt is another's.
+        const exited = binding?.instance ? !alive(binding.instance) : false
         // Another session's id ends the bound one only once the harness says it started
         // it as a new root; otherwise that session's own hooks tell, at its first prompt.
-        if (binding) {
+        if (binding && !exited) {
           if (replaced === undefined || prefix === undefined || turning) return
           const started = await harnesses[agent].startedSession?.(
             found.where,
@@ -2597,7 +2648,10 @@ export class Terminals {
         await this.queue(
           record.summary.id,
           () => {
-            if (current()) this.showPrompt(record, shown, replaced)
+            if (!current()) return Promise.resolve()
+            // Ended in turn with the reports, so a session bound since is never touched.
+            if (exited && record.binding === binding) this.endExited(record)
+            this.showPrompt(record, shown, exited ? undefined : replaced)
             return Promise.resolve()
           },
           undefined,
@@ -2711,6 +2765,30 @@ export class Terminals {
   }
 
   /**
+   * Ends the binding of an agent process known to have exited without the shell showing
+   * its prompt, as in tmux, a nested shell or `claude ; codex`: whatever shows or binds
+   * there next is another agent's. Whether it ended one. Where the platform hides the
+   * process (Windows), nothing tells, and the binding stays until the shell's prompt.
+   */
+  private endExited(record: Record): boolean {
+    const { binding } = record
+    if (!binding?.instance || alive(binding.instance)) return false
+    record.left = binding
+    return this.endBinding(record)
+  }
+
+  /** Whether an observation is a late one of the session whose process was found gone. */
+  private late(record: Record, event: SessionObserved): boolean {
+    const { left } = record
+    return (
+      left !== undefined &&
+      left.agent === event.agent &&
+      left.sessionId === event.sessionId &&
+      (event.instance === null || event.instance === left.instance)
+    )
+  }
+
+  /**
    * Ends the terminal's binding, with its activity and the sources that follow it; with
    * `only`, only while that session is still the one bound. Whether it ended one.
    */
@@ -2747,12 +2825,17 @@ export class Terminals {
     }
     void watch(run, controller.signal, (fact) => {
       if (record.watching !== controller || fact.type === "session-observed") return
-      if (this.applyFact(record, fact)) this.publishAgent(record, false)
-      // What only its records say, as an interrupted turn, reaches messaging too.
-      if (this.trackRoot(record, [fact], false)) this.save(record, false)
-      this.messaging.observe(record.summary.id, [fact])
-      this.escaped(record)
+      this.sourceFact(record, fact)
     }).catch((error: unknown) => console.error("NovaDeck stopped following an agent:", error))
+  }
+
+  /** Applies what the bound session's own sources said, as its hooks' reports apply. */
+  private sourceFact(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): void {
+    if (this.applyFact(record, fact)) this.publishAgent(record, false)
+    // What only its records say, as an interrupted turn, reaches messaging too.
+    if (this.trackRoot(record, [fact], false)) this.save(record, false)
+    this.messaging.observe(record.summary.id, [fact])
+    this.escaped(record)
   }
 
   /**
@@ -2793,10 +2876,53 @@ export class Terminals {
     const waited = (record.activity?.pending.length ?? 0) > 0
     const applied = this.appliedFact(record, fact)
     // A request no longer waits on the person: what they typed meanwhile counts now, at
-    // once, before the report's prompt reaches messaging.
-    if (waited && (record.activity?.pending.length ?? 0) === 0)
+    // once, before the report's prompt reaches messaging. The doorbell looks again too, as
+    // the request kept it from ringing and its screen may not change.
+    const waits = (record.activity?.pending.length ?? 0) > 0
+    if (waited && !waits) {
       this.messaging.askedCleared(record.summary.id)
+      this.doorbell?.changed(record.summary.id)
+    }
+    // A request asked while a ring is under way (none waited as it began) may show its
+    // dialog where the ring's Enter would land: the ring fails, pressing nothing more, as
+    // its line may already be in that dialog.
+    const nonce = waits ? this.messaging.ringing(record.summary.id) : undefined
+    if (nonce !== undefined) this.messaging.ringFailed(record.summary.id, nonce)
+    if (applied) this.watchActors(record)
     return applied
+  }
+
+  /**
+   * Follows each running subagent with a request waiting in its own sources, where its
+   * harness reads them, for what ends its turn that no hook reports (Codex's rollout
+   * recording Esc on its request): from its oldest request's ask, until it has none
+   * waiting or the binding ends. What they say applies like its hooks' reports.
+   */
+  private watchActors(record: Record): void {
+    const { binding, activity, transcript, actorWatches } = record
+    const watchActor = binding && harnesses[binding.agent].watchActor
+    const waiting = new Map<string, number>()
+    if (binding && activity && transcript !== null && watchActor)
+      for (const { actor, askedAt } of activity.pending)
+        if (actor !== null && activity.subagents.some(({ id }) => id === actor))
+          waiting.set(actor, Math.min(askedAt, waiting.get(actor) ?? Number.POSITIVE_INFINITY))
+    for (const [actor, { controller, since }] of actorWatches)
+      if (waiting.get(actor) !== since) {
+        controller.abort()
+        actorWatches.delete(actor)
+      }
+    if (!binding || !watchActor || transcript === null) return
+    const run = { sessionId: binding.sessionId, instance: binding.instance, transcript }
+    for (const [actor, since] of waiting) {
+      if (actorWatches.has(actor)) continue
+      const controller = new AbortController()
+      actorWatches.set(actor, { controller, since })
+      void watchActor(run, actor, since, controller.signal, (fact) => {
+        if (actorWatches.get(actor)?.controller !== controller) return
+        if (fact.type === "session-observed") return
+        this.sourceFact(record, fact)
+      }).catch((error: unknown) => console.error("NovaDeck stopped following a subagent:", error))
+    }
   }
 
   private appliedFact(record: Record, fact: Exclude<HarnessEvent, SessionObserved>): boolean {
@@ -2814,6 +2940,8 @@ export class Terminals {
   private unwatch(record: Record): void {
     record.watching?.abort()
     record.watching = null
+    for (const { controller } of record.actorWatches.values()) controller.abort()
+    record.actorWatches.clear()
     record.transcript = null
     for (const reader of record.sourceReaders) reader.abort()
     record.sourceReaders.clear()

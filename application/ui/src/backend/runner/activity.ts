@@ -9,12 +9,15 @@ import { isShellProcess, runningProgram } from "../../model/process"
 import type { AgentStatus, TerminalStatus } from "../../model/types"
 
 // A shell that exits sooner than this after starting counts as failing to start.
-export const quickExitMs = 2000
+export const defaultQuickExitMs = 2000
 
 // How a shell ended: "clean" (code 0, no signal) closes its terminal; anything else
 // keeps it with a label: killed by a signal, whenever it came; a non-zero code, or
-// failing to start when that code came right away.
-export const exitStatus = (exit: TerminalExit): TerminalStatus | "clean" => {
+// failing to start when that code came within `quickExitMs` of starting.
+export const exitStatus = (
+  exit: TerminalExit,
+  quickExitMs = defaultQuickExitMs,
+): TerminalStatus | "clean" => {
   if (exit.code === 0 && !exit.signal) return "clean"
   if (exit.signal) return { state: "exited", exitCode: exit.code, signal: exit.signal }
   if (exit.ranMs < quickExitMs) return { state: "failed", message: "Exited right after starting" }
@@ -47,9 +50,12 @@ const agentStatus = (
 // What the UI shows for a terminal the runner reports: which program it runs, and
 // whether it is busy (a program runs in the foreground) or idle (the shell waits for
 // input). An agent in the foreground adds what its hooks say it does. A terminal
-// without an exit is running.
-export const terminalActivity = (summary: TerminalSummary): TerminalActivity => {
-  if (summary.exit) return { status: exitStatus(summary.exit) }
+// without an exit is running; one with an exit ends as `exitStatus` says.
+export const terminalActivity = (
+  summary: TerminalSummary,
+  quickExitMs = defaultQuickExitMs,
+): TerminalActivity => {
+  if (summary.exit) return { status: exitStatus(summary.exit, quickExitMs) }
   const program = runningProgram(summary.process, summary.agent)
   if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }
   const agent =

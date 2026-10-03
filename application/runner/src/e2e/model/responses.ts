@@ -262,6 +262,20 @@ export const stream = (call: Call, reply: Reply, offered: readonly Tool[] = []):
   ]
 }
 
+/**
+ * The rate-limit headers Codex reads beside a response: the share used of its short
+ * window (five hours) and its long one (a week), each resetting a window from now.
+ */
+export const limits = (usedPercent: number): Record<string, string> => {
+  const now = Math.floor(Date.now() / 1000)
+  const window = (name: string, minutes: number) => ({
+    [`x-codex-${name}-used-percent`]: String(usedPercent),
+    [`x-codex-${name}-window-minutes`]: String(minutes),
+    [`x-codex-${name}-reset-at`]: String(now + minutes * 60),
+  })
+  return { ...window("primary", 300), ...window("secondary", 10_080) }
+}
+
 const route = (path: string): string => path.split("?")[0] ?? path
 
 /**
@@ -291,6 +305,7 @@ export const responses: Dialect = {
         "content-type": "text/event-stream",
         "cache-control": "no-cache",
         "x-request-id": id("req"),
+        ...(answer.limits && limits(answer.limits.usedPercent)),
       },
       body: stream(call, answer, offered),
     }

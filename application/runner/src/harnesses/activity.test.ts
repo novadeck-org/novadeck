@@ -140,6 +140,9 @@ describe("activity from captured hooks", () => {
 const fact = (fields: Partial<ActivityEvent> & Pick<ActivityEvent, "type">) =>
   ({ agent: "claude", sessionId: "s", instance: "7", startedAt: 5, ...fields }) as ActivityEvent
 
+/** The ids of the requests waiting. */
+const ids = (activity: Activity) => activity.pending.map(({ requestId }) => requestId)
+
 describe("applying activity", () => {
   const binding: Binding = { agent: "claude", sessionId: "s", instance: "7" }
 
@@ -168,8 +171,17 @@ describe("applying activity", () => {
       kind: "permission",
       startedAt,
     })
+  // A result's hook starts after its request's, which these ask by 8.
   const result = (requestId: string, actor: string | null, toolName = "Bash", loose = false) =>
-    fact({ type: "attention-resolved", requestId, actor, toolName, loose, outcome: "allowed" })
+    fact({
+      type: "attention-resolved",
+      requestId,
+      actor,
+      toolName,
+      loose,
+      outcome: "allowed",
+      startedAt: 9,
+    })
 
   it("keeps one actor's request waiting while another actor's calls finish", () => {
     const waiting = apply(started(0), binding, request("a:Bash:1", "a"))!
@@ -191,6 +203,18 @@ describe("applying activity", () => {
       fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
     )!
     expect(apply(over, binding, request("a", null, 9))).toBeUndefined()
+  })
+
+  it("settles the root's own requests when its turn ends, as a faked Stop would too", () => {
+    const working = apply(started(0), binding, fact({ type: "turn-started", startedAt: 1 }))!
+    const waiting = apply(working, binding, request("a", null, 5))!
+    const ended = apply(
+      waiting,
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    expect(ended.pending).toEqual([])
+    expect(summary(ended).attention).toEqual({ pending: 0, kind: null })
   })
 
   it("settles a question loosely by its actor and tool, as its answered call changed", () => {
@@ -229,6 +253,56 @@ describe("applying activity", () => {
     expect(summary(apply(next, binding, subagent("subagent-stopped", "a", 7))!).subagents).toEqual(
       [],
     )
+  })
+
+  // A background subagent from before the turn, and the root, each asking.
+  const asking = () => {
+    const background = apply(started(0), binding, subagent("subagent-started", "bg", 3))!
+    const turn = apply(background, binding, fact({ type: "turn-started", startedAt: 4 }))!
+    return apply(
+      apply(turn, binding, request("bg:Bash:1", "bg", 6))!,
+      binding,
+      request("root:Bash:1", null, 7),
+    )!
+  }
+
+  it("keeps a background subagent's request past the root's turn start, end, idle and escape", () => {
+    for (const boundary of [
+      fact({ type: "turn-started", startedAt: 10 }),
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+      fact({ type: "turn-idle", startedAt: 10 }),
+      fact({ type: "turn-escaped", startedAt: 10 }),
+    ]) {
+      const next = apply(asking(), binding, boundary)!
+      expect(ids(next), boundary.type).toEqual(["bg:Bash:1"])
+      expect(summary(next).attention, boundary.type).toEqual({ pending: 1, kind: "permission" })
+    }
+  })
+
+  it("settles a background subagent's request at its own resolution or stop", () => {
+    const ended = apply(
+      asking(),
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    expect(apply(ended, binding, result("bg:Bash:1", "bg"))?.pending).toEqual([])
+    expect(apply(ended, binding, subagent("subagent-stopped", "bg", 12))?.pending).toEqual([])
+  })
+
+  it("settles the requests of the subagents an interrupted turn ended, and of none running", () => {
+    const running = apply(asking(), binding, subagent("subagent-started", "fg", 5))!
+    const both = apply(
+      apply(running, binding, request("fg:Bash:1", "fg", 8))!,
+      binding,
+      // A subagent never seen starting, or already stopped: nothing else would settle it.
+      request("gone:Bash:1", "gone", 8),
+    )!
+    const stopped = apply(
+      both,
+      binding,
+      fact({ type: "turn-ended", outcome: "interrupted", startedAt: 10 }),
+    )!
+    expect(ids(stopped)).toEqual(["bg:Bash:1"])
   })
 
   it("ignores a stop for a subagent never seen starting, as internal agents send", () => {
@@ -322,11 +396,196 @@ describe("applying activity", () => {
     expect(summary(typed).subagents[0]?.type).toHaveLength(256)
   })
 
+  it("keeps a subagent's request when it asks again, as its parallel calls show dialogs together", () => {
+    const ended = apply(
+      asking(),
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    // Its call's result, of a call it ran alongside, or another actor's request: none
+    // tells that its dialog closed.
+    expect(apply(ended, binding, { ...result("bg:Read:2", "bg"), startedAt: 12 })).toBeUndefined()
+    const other = apply(ended, binding, request("fg:Bash:1", "fg", 12))!
+    expect(ids(other)).toEqual(["bg:Bash:1", "fg:Bash:1"])
+    // Nor does its own next request: both dialogs may show.
+    const again = apply(ended, binding, request("bg:Bash:2", "bg", 12))!
+    expect(ids(again)).toEqual(["bg:Bash:1", "bg:Bash:2"])
+    expect(summary(again).attention).toEqual({ pending: 2, kind: "permission" })
+    // An older one, arriving after the newer one, waits too.
+    expect(ids(apply(again, binding, request("bg:Bash:0", "bg", 8))!)).toEqual([
+      "bg:Bash:1",
+      "bg:Bash:2",
+      "bg:Bash:0",
+    ])
+  })
+
+  it("keeps a running subagent's request asked before the root's Stop, and drops the root's", () => {
+    const ended = apply(
+      asking(),
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    // Hooks that started before the Stop, reported after it.
+    const late = apply(ended, binding, request("bg:Edit:1", "bg", 9))!
+    expect(ids(late)).toEqual(["bg:Bash:1", "bg:Edit:1"])
+    expect(late.state).toBe("idle")
+    expect(apply(ended, binding, request("root:Edit:1", null, 9))).toBeUndefined()
+    // One never seen starting runs from its request on; one seen stopping after it asked
+    // waits on the person no longer.
+    expect(ids(apply(ended, binding, request("unseen:Edit:1", "unseen", 9))!)).toEqual([
+      "bg:Bash:1",
+      "unseen:Edit:1",
+    ])
+    const gone = apply(ended, binding, subagent("subagent-stopped", "gone", 9))!
+    expect(apply(gone, binding, request("gone:Edit:1", "gone", 8))).toBeUndefined()
+  })
+
+  it("leaves the root idle when a background subagent asks after its Stop", () => {
+    // As Codex's spawned agent asks after the root's turn ended (probed 2026-10-03, 0.159.3).
+    const ended = apply(
+      asking(),
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    const asked = apply(ended, binding, request("bg:Bash:2", "bg", 12))!
+    expect(summary(asked)).toMatchObject({ state: "idle", attention: { pending: 2 } })
+    // The root's own request still says its turn runs.
+    expect(apply(started(0), binding, request("root:Bash:1", null, 12))?.state).toBe("working")
+  })
+
+  it("settles a subagent's request its rollout says it aborted, and none it asked after", () => {
+    // Codex fires no hook when Esc dismisses a spawned agent's request; its own rollout's
+    // `turn_aborted` ends that subagent's turn, at the abort's time.
+    const turn = apply(
+      apply(asking(), binding, fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }))!,
+      binding,
+      fact({ type: "turn-started", startedAt: 11 }),
+    )!
+    expect(ids(turn)).toEqual(["bg:Bash:1"])
+    const abort = fact({ type: "subagent-turn-aborted", actor: "bg", startedAt: 12 })
+    const aborted = apply(turn, binding, abort)!
+    expect(ids(aborted)).toEqual([])
+    // Its next turn's request, asked after the abort, waits.
+    expect(ids(apply(aborted, binding, request("bg:Bash:2", "bg", 13))!)).toEqual(["bg:Bash:2"])
+    // One asked after the abort, reported before it, outlives it.
+    const later = apply(turn, binding, request("bg:Bash:3", "bg", 14))!
+    expect(ids(apply(later, binding, abort)!)).toEqual(["bg:Bash:3"])
+  })
+
+  it("leaves a request asked again after a result whose hook started before it", () => {
+    const again = apply(started(0), binding, request("a:Bash:1", "a", 10))!
+    // The first time's result, its hook started before the second ask's.
+    const early = fact({
+      type: "attention-resolved",
+      requestId: "a:Bash:1",
+      actor: "a",
+      toolName: "Bash",
+      loose: false,
+      outcome: "allowed",
+      startedAt: 8,
+    })
+    expect(apply(again, binding, early)).toBeUndefined()
+    expect(apply(again, binding, { ...early, startedAt: 11 })?.pending).toEqual([])
+  })
+
   it("keeps at most 32 subagents", () => {
     let activity = started(0)
     for (let index = 0; index < 40; index += 1)
       activity = apply(activity, binding, subagent("subagent-started", `a${index}`)) ?? activity
     expect(activity.subagents).toHaveLength(32)
+  })
+
+  it("makes room at 32 subagents for a new one's request, the one whose turn aborted longest ago giving way", () => {
+    // Codex keeps a subagent's thread open after Esc aborted its turn: it may never run
+    // again, and must not crowd a live one's request out of the subagents it follows.
+    let full = started(0)
+    for (let index = 0; index < 32; index += 1)
+      full = apply(full, binding, subagent("subagent-started", `a${index}`, 1))!
+    const abort = (activity: Activity, actor: string, at: number) =>
+      apply(
+        apply(activity, binding, request(`${actor}:Bash:1`, actor, at))!,
+        binding,
+        fact({ type: "subagent-turn-aborted", actor, startedAt: at + 1 }),
+      )!
+    const aborted = abort(abort(full, "a7", 4), "a3", 6)
+    const asked = apply(aborted, binding, request("n:Bash:1", "n", 9))!
+    const running = asked.subagents.map(({ id }) => id)
+    expect(running).toHaveLength(32)
+    expect(running).toContain("n")
+    expect(running).not.toContain("a7")
+    expect(running).toContain("a3")
+    // Its request, a running subagent's, outlives the root's turns.
+    expect(ids(apply(asked, binding, fact({ type: "turn-started", startedAt: 10 }))!)).toEqual([
+      "n:Bash:1",
+    ])
+    // A subagent that asked again since its abort runs: none gives way, and a start waits.
+    const again = apply(abort(full, "a7", 4), binding, request("a7:Bash:2", "a7", 8))!
+    expect(apply(again, binding, subagent("subagent-started", "m", 9))).toBeUndefined()
+  })
+
+  it("keeps a Codex subagent running when its rollout says its turn aborted, settling what it asked by then", () => {
+    // Esc on a Codex spawned agent's request fires no hook, and its thread stays open: its
+    // rollout's `turn_aborted` ends only that turn.
+    const ended = apply(
+      asking(),
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    const aborted = apply(
+      ended,
+      binding,
+      fact({ type: "subagent-turn-aborted", actor: "bg", startedAt: 12 }),
+    )!
+    expect(ids(aborted)).toEqual([])
+    expect(summary(aborted).subagents).toEqual([{ id: subagentRef("bg"), type: "explorer" }])
+    // Its next request, as a running subagent's, outlives the root's turns.
+    const again = apply(aborted, binding, request("bg:Bash:2", "bg", 13))!
+    const next = apply(
+      apply(again, binding, fact({ type: "turn-started", startedAt: 14 }))!,
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 15 }),
+    )!
+    expect(ids(next)).toEqual(["bg:Bash:2"])
+    // An abort before it, reported after it, settles nothing.
+    expect(
+      apply(again, binding, fact({ type: "subagent-turn-aborted", actor: "bg", startedAt: 12 })),
+    ).toBeUndefined()
+  })
+
+  it("keeps each of a subagent's requests raised alongside until its own result", () => {
+    // Parallel calls raise their dialogs together; hooks report in any order.
+    const ended = apply(
+      asking(),
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    const b = apply(ended, binding, request("bg:Bash:b", "bg", 13))!
+    // A's hook started first but reports after B's.
+    const both = apply(b, binding, request("bg:Bash:a", "bg", 12))!
+    expect(ids(both)).toEqual(["bg:Bash:1", "bg:Bash:b", "bg:Bash:a"])
+    const bDone = apply(both, binding, { ...result("bg:Bash:b", "bg"), startedAt: 14 })!
+    expect(ids(bDone)).toEqual(["bg:Bash:1", "bg:Bash:a"])
+    expect(summary(bDone).attention.pending).toBe(2)
+  })
+
+  it("follows a subagent it never saw start from its request on, as one started before the binding", () => {
+    const turn = apply(started(0), binding, fact({ type: "turn-started", startedAt: 4 }))!
+    const asked = apply(turn, binding, request("pre:Bash:1", "pre", 6))!
+    expect(summary(asked).subagents).toEqual([{ id: subagentRef("pre"), type: null }])
+    // The root's turn ends; the subagent's dialog may still show.
+    const ended = apply(
+      asked,
+      binding,
+      fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
+    )!
+    expect(ids(ended)).toEqual(["pre:Bash:1"])
+    // Asked before that Stop, reported after it, it still waits.
+    expect(ids(apply(ended, binding, request("pre2:Bash:1", "pre2", 9))!)).toEqual([
+      "pre:Bash:1",
+      "pre2:Bash:1",
+    ])
+    // Its stop settles it, as a running subagent's.
+    expect(ids(apply(ended, binding, subagent("subagent-stopped", "pre", 12))!)).toEqual([])
   })
 })
 

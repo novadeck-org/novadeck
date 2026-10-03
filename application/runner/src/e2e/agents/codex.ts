@@ -86,6 +86,34 @@ export const codex: AgentSetup = {
   },
   // Escape mid-turn says so (probed 2026-10-02, 0.159.3).
   interrupted: () => /■ Conversation interrupted/,
+  // Esc-Esc browses its transcript, its footer saying so ("↵ rewind · esc back"); a paste
+  // leaves that mode and lands in its composer, rewinding nothing (probed 2026-10-02,
+  // 0.159.3).
+  rewind: { shows: /Browsing transcript · .*↵ rewind/, swallows: false },
+  // With its rate limits reported nearly used up beside a turn's reply, it offers a
+  // cheaper model once the turn completes, a menu with switching selected (probed
+  // 2026-10-02, 0.159.3).
+  popup: {
+    reply: (text) => ({ text, limits: { usedPercent: 95 } }),
+    shows: /Approaching rate limits[\s\S]*› 1\. Switch to /,
+  },
+  // Its `exec_command`, running `codex exec`, which a rule of its execution policy allows
+  // (see `prepare`). It waits at most 30 s for the command, its cap (300000 waited 30 s,
+  // probed 2026-10-03, 0.159.3), then answers that it still runs; a nested run takes
+  // under a second.
+  shell: {
+    run: (_call, command) => ({
+      calls: [{ name: "exec_command", input: { cmd: command, yield_time_ms: 30_000 } }],
+    }),
+    nested: (prompt) => `codex exec --skip-git-repo-check '${prompt}'`,
+  },
+  // `codex fork` picks the session to fork in its "Fork a previous session" picker, each
+  // session named by its first prompt; `/fork` forks in place, saying "Fork created"
+  // (probed 2026-10-03, 0.159.3).
+  fork: {
+    picker: { command: "codex fork", picked: (prompt) => new RegExp(`› .*${prompt}`) },
+    inPlace: "/fork",
+  },
   // No `background`: nothing a Codex agent starts wakes it once its turn has ended (probed
   // 2026-10-02, 0.159.3). A subagent from `spawn_agent` (`multi_agent_v1`, the default,
   // and `collaboration` with `features.multi_agent_v2`) and a command `exec_command` left
@@ -125,6 +153,12 @@ export const codex: AgentSetup = {
       JSON.stringify({ name: "openai-curated", plugins: [] }),
     )
     await writeFile(join(home, ".tmp", "plugins.sha"), `${"0".repeat(40)}\n`)
+    // `codex exec` runs unasked, as `shell` runs it.
+    await mkdir(join(home, "rules"), { recursive: true })
+    await writeFile(
+      join(home, "rules", "default.rules"),
+      'prefix_rule(pattern = ["codex", "exec"], decision = "allow")\n',
+    )
     return { CODEX_HOME: home, [key]: model.credential }
   },
 }

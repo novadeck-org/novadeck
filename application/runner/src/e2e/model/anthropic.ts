@@ -116,10 +116,10 @@ const blocksOf = (reply: Reply) => [
   })),
 ]
 
-const usage = (call: Call) => ({
+const usage = (call: Call, reply: Reply) => ({
   // About four characters a token, which is all a harness's context meter needs.
   input_tokens: Math.ceil(JSON.stringify(call.turns).length / 4),
-  output_tokens: 1,
+  output_tokens: reply.usage?.outputTokens ?? 1,
   cache_creation_input_tokens: 0,
   cache_read_input_tokens: 0,
 })
@@ -164,7 +164,7 @@ const messageOf = (call: Call, reply: Reply) => {
     content: blocks.length > 0 ? blocks : [{ type: "text" as const, text: "" }],
     stop_reason: reply.calls?.length ? "tool_use" : "end_turn",
     stop_sequence: null,
-    usage: usage(call),
+    usage: usage(call, reply),
   }
 }
 

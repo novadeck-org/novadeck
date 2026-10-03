@@ -118,6 +118,22 @@ describe("a terminal's root session", () => {
     ])
   })
 
+  it("names no other conversation from a report that can't tell its process, while its own is known", () => {
+    // As a nested `agy -p` whose hooks outlive it, inside the root's turn.
+    const root = binding("agy", "c-root")
+    const nested = binding("agy", "c-nested", null)
+    const options = { mode: "status-line" as const, statusLine: true }
+    const confirmed = follow(null, root, [observed(root, true)], options).root
+    expect(follow(confirmed, root, [observed(nested, true)], options).changes).toEqual([])
+    const guess = follow(null, root, [], { mode: "status-line" }).root
+    expect(follow(guess, root, [observed(nested, true)], options).changes).toEqual([])
+    expect(follow(guess, root, [started(nested)], { mode: "status-line" }).changes).toEqual([])
+    // Its own conversation, it still confirms.
+    expect(
+      follow(guess, root, [observed(binding("agy", "c-root", null), true)], options).changes,
+    ).toMatchObject([{ type: "corrected", from: "c-root", confirmed: true }])
+  })
+
   it("is a new root when another process binds", () => {
     const first = follow(null, binding("codex", "s1", "1")).root
     expect(follow(first, binding("codex", "s1", "2")).changes).toMatchObject([{ type: "new" }])

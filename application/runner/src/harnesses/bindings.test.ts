@@ -106,7 +106,26 @@ describe("observing a harness session", () => {
     // Another Antigravity process, as one run from the agent in the foreground, does not.
     expect(observe(agy, { ...next, instance: "41" }, facts)).toBeUndefined()
     // Where the platform hides the process, its harness alone has to do.
-    expect(observe(agy, { ...next, instance: null }, facts)?.binding?.sessionId).toBe("two")
+    const hidden = { ...agy, binding: { agent: "agy" as const, sessionId: "one", instance: null } }
+    expect(observe(hidden, { ...next, instance: null }, facts)?.binding?.sessionId).toBe("two")
+  })
+
+  it("switches to no other session on a report that can't tell its process, while the bound one is known", () => {
+    // As a nested `agy -p`'s status line drawn as it exits, inside the root's turn: its hook
+    // outlives it and finds no Antigravity above it. Unknown may be that nested run's.
+    const agy: Sessions = {
+      sessions: { agy: { sessionId: "root", seq: 2_000 } },
+      binding: { agent: "agy", sessionId: "root", instance: "40" },
+      cwd: "/",
+    }
+    const nested = seen({
+      agent: "agy",
+      sessionId: "nested",
+      startedAt: 3_000,
+      evidence: "conversation-observed",
+      instance: null,
+    })
+    expect(observe(agy, nested, facts)).toBeUndefined()
   })
 
   it("refuses a switch announced by another process of the bound harness", () => {
@@ -124,6 +143,19 @@ describe("observing a harness session", () => {
     expect(observe(bound, { ...nested, instance: "7" }, facts)?.binding).toEqual({
       agent: "claude",
       sessionId: "n",
+      instance: "7",
+    })
+  })
+
+  it("keeps the bound process when a report of its session can't tell which process made it", () => {
+    // As Antigravity's status line drawn as it exits: its hook outlives it, and finds no
+    // process of its name above it. Unknown is not another process, so the one known stays,
+    // and its exit can still be told.
+    const bound = { ...running, binding: { agent: "agy" as const, sessionId: "a", instance: "7" } }
+    const late = seen({ agent: "agy", startedAt: 3_000, evidence: "conversation-observed" })
+    expect(observe(bound, late, facts)?.binding).toEqual({
+      agent: "agy",
+      sessionId: "a",
       instance: "7",
     })
   })

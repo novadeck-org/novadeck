@@ -124,6 +124,10 @@ export const followRoot = (
   for (const event of events) {
     const now = root!
     if (event.agent !== now.agent || !sameProcess(now.instance, event.instance)) continue
+    // A report that can't tell its process names no other conversation for a root whose
+    // process is known: it may be a nested run's, its hook outliving it.
+    if (now.instance !== null && event.instance === null && event.sessionId !== now.sessionId)
+      continue
     if (event.type === "session-observed" && event.root && input.statusLine) {
       // A new conversation its status line names: a /clear, or another resumed.
       if (now.source !== "status-line") correct(event.sessionId, "status-line")

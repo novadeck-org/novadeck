@@ -13,7 +13,7 @@ import {
   type Install,
 } from "../harness.js"
 import { decode } from "./decode.js"
-import { followRollout } from "./rollout.js"
+import { followRollout, followSubagent } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
 import { startedSession, title } from "./title.js"
 import { transcripts } from "./transcripts.js"
@@ -140,4 +140,6 @@ export const codex = {
   // The rollout records the session's tokens and the account's rate-limit windows, each
   // turn's mode and the plans it proposes.
   watch: followRollout,
+  // A subagent's rollout records Esc on its request, which no hook reports.
+  watchActor: followSubagent,
 } satisfies Harness

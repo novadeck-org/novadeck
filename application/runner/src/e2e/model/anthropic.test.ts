@@ -123,6 +123,26 @@ describe("anthropic", () => {
     )
   })
 
+  it("reports the output tokens a reply says it took, or its own count", async () => {
+    const delta = async (reply: Reply) => {
+      const { response } = await handle(
+        post("/v1/messages?beta=true", { ...conversation, stream: true }),
+        reply,
+      )
+      return events(response.body).find((event) => event.type === "message_delta")
+    }
+
+    expect(await delta({ text: "Done." })).toMatchObject({ usage: { output_tokens: 1 } })
+    expect(await delta({ text: "Done.", usage: { outputTokens: 300_000 } })).toMatchObject({
+      usage: { output_tokens: 300_000 },
+    })
+    const { response } = await handle(post("/v1/messages", conversation), {
+      text: "Done.",
+      usage: { outputTokens: 42 },
+    })
+    expect(JSON.parse(response.body as string).usage).toMatchObject({ output_tokens: 42 })
+  })
+
   it("answers whole when not asked to stream", async () => {
     const { response } = await handle(post("/v1/messages", conversation), { text: "Done." })
 

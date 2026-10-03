@@ -58,17 +58,30 @@ const drafting = run(settled, typing)
 const unknown = run(working, ended)
 
 describe("a terminal's delivery state", () => {
-  it("keeps neutral keys from changing readiness, drafts or pending submissions", () => {
-    const ready = transition(unbound, announced)
-    const ringing = transition(ready, { type: "ring", nonce: "k3f9", opening: false })
-    for (const from of [unbound, bound, ready, working, settled, drafting, unknown, ringing]) {
+  it("keeps neutral keys from changing a draft the person typed, or pending submissions", () => {
+    // No session, or a draft of the person's own, where the caret moves.
+    for (const from of [unbound, drafting, run(working, typing), run(settled, enter, typing)])
       expect(transition(from, key("neutral"))).toBe(from)
-      expect(transition(from, key("neutral", at, true))).toBe(from)
-    }
-    // Moving the cursor after Enter does not invalidate its pending submission.
+    // A key after the person's Enter, before its hook, keeps the prompt theirs.
     expect(run(settled, enter, key("neutral"), prompted()).byPerson).toBe(true)
-    // Navigating during a turn leaves its empty prompt ready for a message after Stop.
-    expect(run(working, key("neutral"), stop).state).toBe("settled")
+  })
+
+  it("takes Left, Home or End on a box known empty as the person's input, as only the harness's own view can take it", () => {
+    // Claude Code 2.1.287's Left at an empty prompt opens its agents view, whose field a
+    // ring's line would land in and its Enter start a new session with.
+    const ready = transition(unbound, announced)
+    expect(transition(ready, key("neutral")).state).toBe("drafting")
+    expect(transition(settled, key("neutral")).state).toBe("drafting")
+    expect(ringableSince(transition(settled, key("neutral")))).toBeUndefined()
+    // During a turn too, its Stop then leaves a draft.
+    expect(run(working, key("neutral"), stop).state).toBe("drafting")
+    expect(run(bound, key("neutral"), harness, stop).state).toBe("drafting")
+    // In a request's dialog, a draft once it clears (see the stale request's case below).
+    expect(run(working, key("neutral", at, true), { type: "asked-cleared" }, stop).state).toBe(
+      "drafting",
+    )
+    // Escape stays neutral: what Esc-Esc opens, the ring's test paste is left to judge.
+    expect(transition(settled, key("escape"))).toBe(settled)
   })
 
   it("is Drafting after Right or Tab, which may take a prompt suggestion into the box", () => {
@@ -76,8 +89,58 @@ describe("a terminal's delivery state", () => {
     expect(transition(ready, key("accept")).state).toBe("drafting")
     expect(transition(settled, key("accept")).state).toBe("drafting")
     expect(run(working, key("accept"), stop).state).toBe("drafting")
-    // A request's dialog shows no suggestion.
-    expect(transition(settled, key("accept", at, true))).toBe(settled)
+    // In a request's dialog, a draft once it clears, as the dialog may be gone.
+    expect(run(settled, key("accept", at, true), { type: "asked-cleared" }).state).toBe("drafting")
+  })
+
+  it("takes Left, Home or End as input wherever the harness's box may be empty, the person's prompt still theirs", () => {
+    // Mid-ring, held until after the doorbell's Enter emptied the box: the ring's prompt
+    // leaves a draft.
+    const ringing = transition(settled, { type: "ring", nonce: "k3f9", opening: false })
+    expect(transition(ringing, key("neutral"))).toMatchObject({ state: "ringing", touched: true })
+    const rung = run(
+      ringing,
+      key("neutral"),
+      { type: "prompt", by: "doorbell", nonce: "k3f9", at, startedAt: at },
+      stop,
+    )
+    expect(rung.state).toBe("drafting")
+    // After the person's Enter, before its hook: their prompt, but its Stop leaves a draft.
+    const entered = run(settled, enter, key("neutral"), prompted())
+    expect(entered).toMatchObject({ byPerson: true, box: { empty: false } })
+    expect(transition(entered, stop).state).toBe("drafting")
+    // After a prompt queued mid-turn: the next prompt is still theirs, and leaves a draft.
+    const queued = run(working, typing, key("enter", at + 200), key("neutral", at + 300), stop)
+    expect(queued).toMatchObject({ state: "drafting", box: { queued: true } })
+    const next = run(queued, prompted(at + 400))
+    expect(next.byPerson).toBe(true)
+    expect(transition(next, stop).state).toBe("drafting")
+    // Without one, the person's next submission empties the box again.
+    expect(run(settled, enter, prompted(), stop).state).toBe("settled")
+  })
+
+  it("lets a stray Left after an Enter that started no prompt cost no later submission", () => {
+    // The Enter's window long gone, the key is input as anywhere else, and the person's next
+    // submission empties the box again.
+    const stale = run(settled, enter, key("neutral", at + 5_000))
+    expect(stale.state).toBe("drafting")
+    const next = run(stale, key("enter", at + 6_000), prompted(at + 6_100))
+    expect(next.byPerson).toBe(true)
+    expect(transition(next, stop).state).toBe("settled")
+  })
+
+  it("forgets a stray key once the agent it strayed in has gone and another starts", () => {
+    // The Left's view went with its agent: the Enter that starts the next one clears it.
+    const gone = run(settled, enter, key("neutral"), { type: "unbound" })
+    expect(run(gone, key("enter", at + 5_000), announced).state).toBe("ready")
+  })
+
+  it("leaves a draft for Left, Home or End while a stale request waits, its dialog gone", () => {
+    // A request answered with no report: the key lands at the prompt, as Claude Code's
+    // Left opens its agents view there, and the request clears later.
+    const left = run(settled, key("neutral", at, true))
+    expect(left.box.draftWhileAsked).toBe(true)
+    expect(transition(left, { type: "asked-cleared" }).state).toBe("drafting")
   })
 
   it("is Fresh once a session binds, with its prompt known empty", () => {
@@ -491,17 +554,13 @@ describe("keys while a request waits on the person", () => {
     expect(run(answering, { type: "asked-cleared" }, stop).state).toBe("drafting")
   })
 
-  it("leave the box as it was when only Enter and neutral keys answered", () => {
-    expect(
-      run(
-        working,
-        asked("neutral"),
-        asked("accept"),
-        asked("enter"),
-        { type: "asked-cleared" },
-        stop,
-      ).state,
-    ).toBe("settled")
+  it("leave the box as it was when only Enter answered, a draft after any other key", () => {
+    expect(run(working, asked("enter"), { type: "asked-cleared" }, stop).state).toBe("settled")
+    // Left, Right, Home, End and Tab too: the request may be stale, its dialog gone.
+    for (const kind of ["neutral", "accept"] as const)
+      expect(run(working, asked(kind), asked("enter"), { type: "asked-cleared" }, stop).state).toBe(
+        "drafting",
+      )
   })
 
   it("keep their draft until a confirmed submission undoes it", () => {

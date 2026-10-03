@@ -169,6 +169,9 @@ const sendRequest = z.strictObject({
 
 const refused = (reason: string) => ({ ok: false, reason }) as const
 
+// Closed, messaging keeps nothing more, so a message then would be lost, not queued.
+const stopping = "NovaDeck is stopping and couldn't keep the message; send it again once it's back."
+
 /** When a thread's latest message was sent. */
 const latest = (thread: MessageThread): number => thread.messages.at(-1)?.sentAt ?? 0
 
@@ -209,6 +212,11 @@ export class Messaging {
   private allSent: readonly number[] = []
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private readonly restoring: ReturnType<typeof setTimeout> | undefined
+  /**
+   * Whether the runner closed it: what its end does to its terminals, each shell's exit
+   * unregistering it, is the runner stopping, not its agents ending, so no message changes.
+   */
+  private closed = false
 
   constructor(options: MessagingOptions = {}) {
     this.records = options.records ?? memoryMailbox()
@@ -235,8 +243,12 @@ export class Messaging {
     }
   }
 
-  /** Stops its timers; leases left go back to waiting with the next runner. */
+  /**
+   * Stops its timers and changes no message from then on, nor leases one: leases left, and
+   * every message waiting, wait again with the next runner, for their sessions resumed there.
+   */
   close(): void {
+    this.closed = true
     clearInterval(this.sweeper)
     clearTimeout(this.restoring)
     this.leases.clear()
@@ -606,6 +618,7 @@ export class Messaging {
   send(terminalId: string, request: unknown, about: About = () => undefined): SendAnswer {
     const live = this.live.get(terminalId)
     if (!live) return refused("NovaDeck couldn't send the message.")
+    if (this.closed) return refused(stopping)
     const answer = this.sendFrom(live, request, about)
     // Refused too, a sender whose own session never bound learns replies can't reach it.
     return answer.ok || !this.unbound(live) ? answer : { ...answer, unbound: true }
@@ -683,6 +696,7 @@ export class Messaging {
   refusal(terminalId: string, text: string, agent: AgentName): string | undefined {
     const live = this.live.get(terminalId)
     if (!live) return "NovaDeck couldn't send the message."
+    if (this.closed) return stopping
     const clean = cleanText(text)
     const textRefusal = refusalOfText(clean)
     if (textRefusal) return textRefusal
@@ -1017,6 +1031,9 @@ export class Messaging {
     kind: Lease["kind"],
     background: boolean,
   ): Lease | undefined {
+    // Once closed, nothing is saved, so no ack could record a delivery: the next runner
+    // would deliver again what a hook printed now. Its messages wait for that runner.
+    if (this.closed) return undefined
     const queued = [...this.messages.values()]
       .filter(({ state, ...message }) => state === "queued" && this.addressed(message, root))
       .filter(({ to }) => to.terminalId === live.terminalId)
@@ -1226,6 +1243,7 @@ export class Messaging {
   }
 
   private put(message: Message): void {
+    if (this.closed) return
     this.messages.set(message.id, message)
     this.write(() => this.records.saveMessage(message))
     this.changed(message.to.terminalId)
@@ -1247,6 +1265,7 @@ export class Messaging {
   }
 
   private putThread(thread: Thread): void {
+    if (this.closed) return
     this.threads.set(thread.id, thread)
     this.write(() => this.records.saveThread(thread))
   }

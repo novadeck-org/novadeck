@@ -13,14 +13,15 @@ import {
   messages,
   own,
   prompted,
-  replies,
   result,
+  replies,
   ring,
   sends,
   sent,
   start,
   through,
   turn,
+  unrung,
 } from "./scenarios.js"
 
 // The person's controls over a running agent, and seeds that leave something untrusted,
@@ -31,10 +32,6 @@ import {
 // The tool the agent called last, whose answer the call may be its look at.
 const calledLast = (call: Call): string | undefined =>
   call.turns.findLast((each) => each.role === "assistant")?.calls.at(-1)?.name
-
-// How long a terminal is watched for a ring that mustn't come: past the doorbell's settle
-// window (6 s from when a terminal shows Ready), so a ring had every chance to start.
-const unrung = 8000
 
 // How long a terminal is watched for what a held reply, once let go, would show.
 const quiet = 3000

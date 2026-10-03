@@ -38,6 +38,12 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
   switch (event) {
     case "SessionStart": {
       const cwd = absolute(payload.cwd)
+      // An ephemeral thread keeps no rollout, so its hooks give its transcript as null. One
+      // forked so is a `/side` conversation, whose start says `fork` at its first prompt:
+      // the person asks it on the side and goes back to the thread it forked from, which
+      // stays the terminal's session (probed 2026-10-02, 0.159.3). An ephemeral root, as
+      // `codex exec --ephemeral` starts, is the terminal's session all the same.
+      if (payload.transcript_path == null && payload.source === "fork") return []
       const transcript = absolute(payload.transcript_path)
       const source = text(payload.source)
       const evidence = sessionStart(source)

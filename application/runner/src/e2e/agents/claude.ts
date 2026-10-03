@@ -57,6 +57,17 @@ export const claude: AgentSetup = {
   // between the box's rules, with no word of the interruption (probed 2026-10-02, 2.1.287).
   interrupted: (prompt) =>
     new RegExp(`─\\n❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n─`),
+  // Esc-Esc opens its Rewind picker, a list with no text field, which swallows a paste
+  // whole and stays as it was (probed 2026-10-02, 2.1.287).
+  rewind: { shows: /Restore the code and\/or conversation to the point before/, swallows: true },
+  // Its cost warning, a menu raised once a turn has ended with the session's cost at $5 or
+  // more, which it shows a key's user only as a billing admin (seeded `popup: true`).
+  // 300k output tokens cost Opus 5.5 over $5; its context meter counts input tokens alone,
+  // so nothing compacts (probed 2026-10-02, 2.1.287).
+  popup: {
+    reply: (text) => ({ text, usage: { outputTokens: 300_000 } }),
+    shows: /You've spent \$5 on the Anthropic API this session\.[\s\S]*❯ 1\. Got it, thanks!/,
+  },
   // A subagent run in the background: its Stop lists it as a running background task, and
   // once it finishes Claude Code starts a turn by itself, with a task notification.
   background: {
@@ -79,6 +90,27 @@ export const claude: AgentSetup = {
       !call.side &&
       (call.turns.find((turn) => turn.role === "user")?.text.includes(marker) ?? false),
   },
+  // Its Bash tool, running its own print mode, which its settings allow (`Bash(claude -p:*)`).
+  shell: {
+    run: (_call, command) => ({
+      calls: [{ name: "Bash", input: { command, description: "Run a command" } }],
+    }),
+    nested: (prompt) => `claude -p '${prompt}'`,
+  },
+  // `--resume --fork-session` picks the session to fork in its "Resume session" picker,
+  // each session named by its first prompt. Its `/fork` copies the conversation into a
+  // background session and keeps the terminal's (probed again 2026-10-03, 2.1.287): the
+  // terminal stays bound to its session, Drafting after the command as after any Enter
+  // that started no turn; the background session's own turn (`/fork <prompt>`) doesn't
+  // rebind it, and a message sent then waits for the terminal's own. That session runs
+  // under a daemon with no terminal, which outlives the deck, and its agents view's
+  // ctrl+x didn't end it.
+  fork: {
+    picker: {
+      command: "claude --resume --fork-session",
+      picked: (prompt) => new RegExp(`❯ ${prompt}`),
+    },
+  },
   // Its folder-trust question shows "No, exit" selected, trusting the folder below it.
   trust: {
     folder: {
@@ -88,6 +120,8 @@ export const claude: AgentSetup = {
     },
   },
   absent: {
+    "fork.inPlace":
+      "its /fork doesn't fork in place: it copies the conversation into a background session and the terminal keeps its own, whose binding stays; that session's daemon outlives the terminal, so the suite can't run it (probed 2026-10-03, 2.1.287)",
     "trust.hooks":
       "it runs a plugin's hooks with no review: every scenario's session binds unasked (2.1.287)",
   },
@@ -106,6 +140,10 @@ export const claude: AgentSetup = {
         officialMarketplaceAutoInstall: false,
         // It asks once about a key from the environment, by the key's last 20 characters.
         customApiKeyResponses: { approved: [model.credential.slice(-20)], rejected: [] },
+        // An account with a billing admin's role, for whom it warns of the session's cost.
+        ...(seed.popup && {
+          oauthAccount: { organizationRole: "admin", workspaceRole: "workspace_admin" },
+        }),
         projects: {
           [sandbox.project]: {
             hasTrustDialogAccepted: seed.folderTrusted ?? true,
@@ -120,7 +158,8 @@ export const claude: AgentSetup = {
       join(config, "settings.json"),
       JSON.stringify({
         permissions: {
-          allow: ["mcp__plugin_novadeck_novadeck"],
+          // Its own print mode, so `shell` runs a nested Claude Code unasked.
+          allow: ["mcp__plugin_novadeck_novadeck", "Bash(claude -p:*)"],
           defaultMode: "default",
           disableAutoMode: "disable",
         },

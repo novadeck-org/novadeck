@@ -58,8 +58,9 @@ export type PromptShown = {
 
 /**
  * What the agent in a session did, as its own hooks report it: a turn started or ended,
- * a request started or stopped waiting on the person, a subagent started or stopped, the
- * agent was seen planning or not, or an actor wrote or presented a plan. A turn starts
+ * a request started or stopped waiting on the person, a subagent started, stopped or had
+ * its turn aborted, the agent was seen planning or not, or an actor wrote or presented a
+ * plan. A turn starts
  * with a `prompt` submitted at the root (the person's, as far as anything tells), one
  * the harness started by itself (a background task's result), a later model `call` of a
  * turn already running, or NovaDeck's `doorbell`: a prompt that is exactly its line. It ends `completed` only when its harness says so (a root
@@ -138,6 +139,12 @@ export type ActivityEvent = {
       readonly actorType: string | null
     }
   | { readonly type: "subagent-stopped"; readonly actor: string }
+  /**
+   * A subagent's turn aborted, its thread still open, as Codex's rollout records Esc on
+   * its request, which no hook reports: what it asked by then waits on the person no
+   * longer, and it runs on.
+   */
+  | { readonly type: "subagent-turn-aborted"; readonly actor: string }
   | { readonly type: "mode-observed"; readonly planning: boolean }
   | { readonly type: "plan-observed"; readonly actor: string | null; readonly plan: PlanSource }
 )

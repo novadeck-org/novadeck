@@ -227,7 +227,12 @@ network:
 ## Writing a scenario
 
 Messaging scenarios live in `messaging.e2e.ts`, a runner restart's in `restart.e2e.ts`,
-an agent starting another with a task in `tasks.e2e.ts`, and the person's controls over
+an agent starting another with a task in `tasks.e2e.ts`, the person typing around
+messages in `person.e2e.ts`, messages that come while the agent waits on the person (a
+permission question, its own popup, a picker) in `requests.e2e.ts`, a nested run of the
+harness inside an agent's turn in `nested.e2e.ts`, the person forking a session in a new
+terminal or in place in `forks.e2e.ts`, the person clearing the conversation
+or leaving the agent for another in `lifecycle.e2e.ts`, and the person's controls over
 a running agent and untrusted seeds in `controls.e2e.ts`, each written once and run for
 every harness in `setups` (`agents/index.ts`):
 
@@ -253,12 +258,14 @@ for (const setup of setups) {
 
 - **One rule for parity: a scenario never branches on `setup.agent`.** A difference
   between harnesses is either a trait of its setup (`name`, `banner`, `bindsAtReady`,
-  `refused`, `approval`, `background`, `trust`) or a known gap in
+  `refused`, `interrupted`, `approval`, `background`, `trust`, `shell`, `rewind`,
+  `popup`, `fork`) or a known gap in
   `known-gaps.ts`, which picks the documented detour (see [Known gaps](#known-gaps)). A
   `<harness>.e2e.ts` holds only what is truly that harness's own, such as Codex's logo
-  on its first screen, or a known gap's pin.
+  on its first screen, its `/side` conversation and its spawned agent's dialog
+  (`codex.e2e.ts`), or a known gap's pin.
 - **Traits a harness may not have** (`approval`, `background`, `trust.folder`,
-  `trust.hooks`) gate the scenarios that need them: `gated(it, lacking(setup, "approval"))`
+  `trust.hooks`, `rewind`, `popup`, `shell`, `fork.picker`, `fork.inPlace`) gate the scenarios that need them: `gated(it, lacking(setup, "approval"))`
   runs the test, or skips it with its name saying which trait the harness lacks and why.
   Skip on a trait, never on a harness's name. A missing trait means the harness doesn't
   have the behaviour at all, as Claude Code has no hooks review, and its setup says so in
@@ -294,14 +301,35 @@ for (const setup of setups) {
     option as shown selected, for `confirm`.
   - `trust.hooks`: `{ shows, skip }`, its hooks-review screen and the keys that leave it
     without trusting NovaDeck's hooks, as `hooksTrusted: false` shows it.
+  - `rewind`: `{ shows, swallows }`, what Esc-Esc (two Escapes about 300 ms apart, sent
+    with `press`) opens at its idle prompt, a picker or mode for going back to an earlier
+    prompt, and whether it swallows a paste (`true`: the ring fails) or is left by it, the
+    paste landing in the prompt (`false`: the ring delivers).
+  - `popup`: `{ reply(text), shows }`, a reply ending the turn with `text` that makes the
+    harness raise a popup of its own once the turn has ended, through what the API
+    reports beside it (the reply's `usage` or `limits`), and what that popup shows, as
+    seeded `popup: true`.
+  - `shell`: `{ run(call, command), nested(prompt) }`, a reply having the agent run
+    `command` through its shell tool, and the command running the harness itself once,
+    non-interactively, on `prompt` (`claude -p`, `codex exec`, `agy -p`), which its seed
+    lets run without asking, unlike `approval`'s. The nested run inherits the agent's
+    environment, so it reaches the fake model, and its own hooks report to NovaDeck.
+  - `fork.picker`: `{ command, picked(prompt) }`, the command that, in a new terminal,
+    shows a picker of the project's sessions, latest first and selected, Down selecting
+    the next, and forks the one picked; `picked` matches the row of the session whose
+    first prompt was `prompt` as selected, for `confirm`.
+  - `fork.inPlace`: the command, typed at its prompt, that forks its conversation in the
+    same terminal, the harness then naming the fork as a new session.
 
 - **Seeds.** `e2e(setup)` starts each harness trusted and straight at its prompt.
   `e2e.seeded(seed, ...setups)` seeds every setup of the test otherwise, through
   `prepare(sandbox, model, installed, seed)` and `connected(sandbox, model, seed)`:
   `{ folderTrusted: false }` leaves the project folder untrusted, so the harness asks
   first, and `{ hooksTrusted: false }` leaves NovaDeck's hooks untrusted where the
-  harness has that step (Codex), so they don't run. A seed holds for every terminal of
-  the test, as both are settings of the project; a harness with no such step ignores it.
+  harness has that step (Codex), so they don't run. `{ popup: true }` seeds the account
+  as one the harness's `popup` shows for, where it shows it only for some (Claude Code's
+  cost warning, only for a billing admin); no other test gets that account. A seed holds
+  for every terminal of the test, as both are settings of the project; a harness with no such step ignores it.
   A seeded test goes in its own `describe`, as `e2e.seeded` gives its own `it`.
 - `e2e(...setups)` gives each test a fake model, a sandbox and a deck, with each
   setup's harness installed (once, before its tests), seeded and connected to NovaDeck
@@ -318,6 +346,12 @@ for (const setup of setups) {
   a hook added beside the prompt, and `side` marks a call the harness makes for itself,
   such as a title. `model.mark()` and `waitFor(match, { after })` wait only for calls
   made after a point, so a second call of the same kind isn't mistaken for the first.
+  A `Reply` may also say what the API reports beside it, for a harness that acts on it:
+  `limits: { usedPercent }`, the share of the account's rate limits used, as the
+  Responses API's `x-codex-{primary,secondary}-{used-percent,window-minutes,reset-at}`
+  headers carry it (a five-hour and a weekly window, each resetting a window from now);
+  and `usage: { outputTokens }`, the output tokens the Messages API reports for it in
+  place of the dialect's own count. A dialect whose API reports neither ignores them.
 - **Helpers** in `scenarios.ts` make most scenarios a few lines: `start` opens a
   terminal and waits for Ready and then `prompted`, its `banner` on screen with no
   startup question (folder trust, hooks review) left. Ready alone doesn't say the
@@ -333,7 +367,10 @@ for (const setup of setups) {
   prompt by starting an agent with a task (`open_terminal`), and `opened(call, handle)`
   tells the agent's next look once it did; `answers(text, reply)` answers a prompt with
   a reply built from the call, such as a trait's, and `result(call)` is the text of the
-  tool result the call looks at, if it looks at one.
+  tool result the call looks at, if it looks at one. `unrung` is how long a scenario
+  watches a terminal for a ring that mustn't come, past the doorbell's settle window;
+  `handing(run, first, then)` opens a terminal whose command runs `first`, then `then`
+  once it exits (`claude ; codex`), and waits until the first is at its prompt.
 - **NovaDeck's state** is recorded as it changes, not polled: each deck terminal keeps
   the history of its delivery state and its messages' states from the moment it opens.
   `t.mark()` and `t.reached(state or predicate, { after })` wait for a transition after
@@ -367,7 +404,18 @@ for (const setup of setups) {
   again, as the app does for each terminal it shows: `terminals.create` with its id and
   `restore`, and `resume` naming the agent that ran there, which the runner resumes in
   the session that agent last reported in it. `deck.terminals` and `deck.store` are
-  always the current runner's.
+  always the current runner's. A restart can catch a lease its hook holds: started from
+  the history step that shows the message `leased`, it stops the runner, ending every
+  lease, in the same tick the runner leased it, as message watches coalesce a tick's
+  changes with `setImmediate`, while the hook has yet to read its answer, print it and
+  connect again to acknowledge it. The restart scenario does so: the new runner's first
+  listing of the terminal, restored, holds the message queued, and the resumed session
+  is rung for it again.
+- **NovaDeck's shell files.** `deck.shell` is where NovaDeck's shells read their files,
+  the same across restarts. A scenario reads it only as a readiness signal for the
+  person's _while it starts_ scenario, a peek at the shell's resume files
+  (`deck.shell.resume` empty once the shell has taken the command starting the agent),
+  never to drive or assert NovaDeck's state.
 - **Agents' requests for a terminal.** Without a client answering them, an agent's
   `open_terminal` opens nothing. `deck.answerRequests()` answers them as the app does,
   from the call on and across restarts: it opens a terminal in the request's folder,
@@ -399,6 +447,130 @@ for (const setup of setups) {
   - _Folder untrusted_: t1 and t2 both ask; trusted in t1, t1 sends t2 a message, which
     waits queued while t2's question shows, past the doorbell's settle window, t2 never
     Ready nor rung; trusted there too, t2 goes Ready, is rung, and its hook delivers.
+- **The person's scenarios** (`person.e2e.ts`), the person typing around messages,
+  asserting docs/agent-messaging.md's "Acceptance scenarios" for them. In each, t2 sends
+  t1 a message from its own prompt, which waits queued; a terminal that mustn't be rung
+  is watched past the doorbell's settle window; and no model call ever holds the
+  doorbell's line:
+  - _Mid-sentence_: after a turn, Settled, the person types half a prompt (`press`); t1
+    goes Drafting, and the message waits, never rung. `submit` finishes the sentence: the
+    model's call holds the whole prompt with the message beside it, the one call that
+    carries it, and the turn settles.
+  - _Queued prompt_: with the turn's reply held at a `gate()`, the message comes, then
+    the person submits their next prompt. The model's call holding that prompt carries
+    the message, and no other call does, so no Stop continued the turn with it. Each
+    harness gets there its own way, which the scenario doesn't ask: Claude Code and
+    Antigravity run the queued prompt after the Stop (Drafting in between), and Codex's
+    Enter steers it into the running turn, its hook firing as it is submitted.
+  - _Next prompt typed mid-turn_: with the reply held, the person types without
+    submitting, and a message comes. Having submitted nothing, the Stop continues the
+    turn with it (its call holds no typed text), and the turn ends Drafting, never
+    Settled. A second message then waits, never rung, and the person's prompt carries it.
+  - _Ready_: the person types at the agent's first prompt; Drafting, never rung; their
+    prompt carries the message.
+  - _While it starts_: the person types once the shell has taken the command starting
+    the agent (its file in `deck.shell.resume` gone), and NovaDeck, taking the keys in
+    the write itself, still sees it Unbound. Whether the harness had drawn its first
+    screen by then is a race a fast harness wins, so the scenario doesn't ask. Its first
+    state past Unbound is Drafting, never Ready nor rung, whatever of the keys reached
+    its box; the person's prompt carries the message.
+- **The requests' scenarios** (`requests.e2e.ts`), a message that comes while the agent
+  waits on the person, asserting docs/agent-messaging.md's "Acceptance scenarios" for
+  them. t2 sends t1 the message from its own prompt:
+  - _Permission question open_: t1's tool waits on its `approval` question when the
+    message comes; it waits queued past the doorbell's settle window, t1 never rung, its
+    turn Working. `confirm` allows the tool, and the Stop after it delivers: the model's
+    call carrying the message comes after t1's look at the tool's result (a call of the
+    conversation holding t1's prompt, not t2's look at its send), in the same
+    conversation, after its answer to it and with no prompt of anyone's, and t1 is only
+    ever Working until it settles.
+  - _Enter on a permission question_: with the turn's first model call held until the
+    message waits, `confirm` answers the question that call brings. The Enter is no
+    submission: the Stop continues the turn with the message, as above, and t1 is never
+    Drafting from its turn on.
+  - _Esc-Esc_ (`rewind`): after a turn, with its screen calm, the person opens what
+    Esc-Esc opens, and the message comes. Where it swallows the paste, the ring fails:
+    t1 goes Ringing then Unknown, it stays open with no doorbell line in it, the message
+    waits queued and no model call holds the line; once the person leaves it with
+    Escape, their next prompt's hook delivers. Where the paste leaves it, the ring goes
+    on as at an empty prompt: the doorbell's line is the prompt, and the call still holds
+    the turn before it, so nothing was rewound.
+  - _Popup after the Stop_ (`popup`, seeded `popup: true`): the turn's reply makes the
+    harness raise its popup, which shows before the message comes. The ring's test paste
+    fails on it: Ringing then Unknown, the popup still up, the message queued and no
+    model call holding the line. The person leaves it with Escape and submits a prompt,
+    whose hook delivers, to the model the turn before used, as no option was taken.
+- **The lifecycle's scenarios** (`lifecycle.e2e.ts`), the person clearing the
+  conversation or leaving the agent, asserting docs/agent-messaging.md's "Acceptance
+  scenarios", "Messages" and "Message states" for them. Each starts with a turn, so a
+  session is bound:
+  - _`/clear`, then a message_: the clear drops the conversation from the screen, and
+    NovaDeck sees the agent Ready with the old session no longer bound (a new one, or
+    none yet where the harness binds only at its next prompt). t2's message rings it; the
+    new session's hook delivers it, the call holding nothing of the conversation before
+    the clear, and the session bound then is neither none nor the old one.
+  - _A message waiting at `/clear`_: the person types `/clear` (Drafting), and t2's
+    message comes for the session, queued; once the clear is submitted the message is
+    `gone`. t2's next `send` answers that it won't arrive, and the new session is rung
+    for that second message alone.
+  - _Another agent in the terminal_: the terminal opens with `claude ; claude` (its
+    harness twice), so the person leaving the first starts the second with no key
+    pressed at the shell's prompt; NovaDeck expects the first, by the command's first
+    word. With `/exit` typed and submitted as above, the message is `gone` and the second
+    start is Ready, another session, and draws its `banner` anew: once more than the
+    fewest times the screen showed it since the Enter, as Claude Code and Codex clear
+    their screen as they exit and Antigravity leaves its own, so the first's banner
+    can't pass for the second's. No Unbound need show between them: with no shell
+    prompt in between, NovaDeck notices the first process gone only as the next reports,
+    in the same handling as the session it binds. t2's next `send` says the first won't
+    arrive, and the new session gets only the second. `lifecycle.mixed.e2e.ts` does the
+    same with a different harness second, each harness's terminal starting the next's.
+- **The nested run's scenario** (`nested.e2e.ts`, `shell`): t1's turn runs the harness
+  itself once through its shell tool, started only once t2's message waits for t1. The
+  nested run's model call comes, carrying nothing, and its answer reaches t1's agent as
+  the tool's output. Then t1's own Stop delivers the message in t1's conversation: never
+  a ring (its call holds no doorbell line, and t1 is never Ringing) and nothing Settled
+  before it. No call of the nested run carries a message; while it ran, t1 stayed
+  Working and the message queued, never leased; t1's session and agent are as before.
+  The shell tool waits for the command up to its harness's ceiling (Antigravity 10 s,
+  Codex 30 s, Claude Code 2 minutes), far past the second a nested run takes.
+- **The forks' scenarios** (`forks.e2e.ts`), asserting docs/agent-messaging.md's
+  "Acceptance scenarios" for forks:
+  - _A fork from a picker_ (`fork.picker`): t1 takes a turn and t2 another; a third
+    terminal starts the picker, its latest session (t2's) selected. t2's message for t3
+    waits queued while it shows, t3 only ever Unbound and never rung past the settle
+    window. Once the person picks t1's session, the fork goes Ready, is rung, and its
+    hook delivers the message alone, in a call holding t1's conversation; the fork's
+    session is neither none nor t1's, and t1's is unchanged. A message for t1 then rings
+    t1, its hook delivering it in t1's own conversation, which holds nothing of the
+    fork's; both sessions stay as they were, and t3 has only its own message.
+  - _A fork in place_ (`fork.inPlace`): with the person's draft in t1's box, t2's message
+    waits; they erase it and submit the fork command. The message is `gone`, never
+    delivered, and the fork is Ready; t2's next message rings it, its hook delivering
+    that one alone in the conversation carried over, and the session bound is no longer
+    the parent's. Claude Code's `/fork` doesn't fork in place (its `absent` says why).
+- **Codex's own** (`codex.e2e.ts`), behaviour only Codex has:
+  - _First screen_: its logo shows as t2 is rung, and the ring goes through (the
+    doorbell's paste erases it).
+  - _`/side`_: with a side conversation open, t2's message waits, t1 Drafting from the
+    person's keys, never Ringing nor Unbound, and no call holds the doorbell's line past
+    the settle window. The side conversation's first prompt carries nothing; t1's
+    session and agent stay, the message queued. Back at the root (Ctrl-C closes the side
+    view), the person's next prompt carries the message, in the root's own conversation,
+    which never held the side question, and t1 settles, still bound to the root.
+  - _A spawned agent's dialog dismissed with Esc_: t1's root spawns an agent
+    (`spawn_agent`, `multi_agent_v1`) and its turn ends; the agent's escalated
+    `exec_command` asks (its `approval` request), the dialog showing in the root's screen
+    as "Thread: Agent (<id>)". NovaDeck sees the request waiting (`detail().requests`,
+    `activity.attention`) from a subagent it lists as running. t2's message waits queued
+    past the settle window, t1 never rung and no call holding the doorbell's line. The
+    person presses Esc on the dialog (`escape()`, never Enter), which fires no hook:
+    NovaDeck's request goes to none by following the agent's own rollout, the subagent
+    still listed as running, and t1 is then rung and its hook delivers. Codex's own
+    evidence that it aborted: the dialog's thread line leaves the screen, the agent's
+    rollout (`rollout-<time>-<agent id>.jsonl` under `CODEX_HOME/sessions`) holds
+    `turn_aborted`, and no call of its conversation ever looks at the command's result.
+    It pins the undocumented rollout naming and record NovaDeck relies on there.
 - Prefer asserting on what the model received and on NovaDeck's state over reading the
   screen; read the screen for what only it shows, such as a reply rendered, or the
   harness's own first screen (`banner`).
@@ -420,7 +592,8 @@ for (const setup of setups) {
      fake credential. `connected(sandbox, model, seed)`, when given, runs once NovaDeck's
      plugin is connected and before any harness starts, for setup only the plugin's files
      make possible. Both honour the test's `Seed` (`folderTrusted: false`,
-     `hooksTrusted: false`) for each step the harness has, and ignore the rest.
+     `hooksTrusted: false`, `popup: true`) for each step the harness has, and ignore the
+     rest.
    - Its traits: `name`; `banner`, text on its first screen; `bindsAtReady`, whether
      its session binds before its first prompt; `hosts`, its real API and login hosts,
      which no request may try; and `refused`, hosts it tries that no setting turns off.
@@ -434,11 +607,20 @@ for (const setup of setups) {
      scenario needing a trait it lacks skips, saying why from `absent`, so add them all:
      every harness runs every scenario. A trait goes in `absent` only once a probe shows
      the harness lacks the behaviour. Escape is `\x1b` for all three; a harness reading
-     another key would bring back an `escape` trait.
-   - Traits the acceptance scenarios will add, with them: `exit`, how the person leaves
-     the harness; `clear`, its clear command, where it differs; and `shell(command)`, a
-     reply calling a shell tool its seed allows, so it runs without asking, unlike
-     `approval`'s.
+     another key would bring back an `escape` trait. Likewise all three clear their
+     conversation with `/clear` and leave with `/exit`, each typed at their prompt and
+     submitted (probed 2026-10-02); a harness with another command would bring back a
+     `clear` or `exit` trait.
+   - `shell`, a reply running a command through its shell tool, and its own one-shot,
+     non-interactive mode as the command, which its seed allows so it runs without
+     asking, unlike `approval`'s, and which waits for the command as long as the tool
+     allows (its ceiling, found by a probe, as Antigravity's `run_command` caps its wait at
+     10 s). A harness with no non-interactive mode has it `absent`.
+   - `fork`, how the person forks a session: `picker`, a command forking the session
+     picked in its picker, and `inPlace`, a command forking the conversation in place.
+   - The requests' traits: `rewind`, what Esc-Esc opens at its idle prompt and whether
+     it swallows a paste; and `popup`, a popup it raises by itself after its Stop, which
+     a reply's `usage` or `limits` (and the `popup` seed) can bring about.
 4. Add the setup to `setups` in `src/e2e/agents/index.ts`. That one list drives the
    messaging scenarios and the tripwire, so every scenario runs for it and its home is
    watched. A gap it shows goes in `known-gaps.ts`, with the test that pins it.
@@ -450,9 +632,11 @@ for (const setup of setups) {
   Its `.claude.json` there marks onboarding done, picks a theme, records the installed
   version's onboarding and release notes as seen (the version installed, not the pin, so
   a run against `latest` shows no release notes), turns auto-updates off, approves the fake key (by its last 20
-  characters), and trusts the project unless seeded `folderTrusted: false`.
-  `settings.json` allows NovaDeck's MCP tools (`mcp__plugin_novadeck_novadeck`), and
-  sets the manual permission mode with auto mode off (`defaultMode: "default"`,
+  characters), and trusts the project unless seeded `folderTrusted: false`. Seeded
+  `popup: true`, it also names an account (`oauthAccount`) with a billing admin's roles,
+  for whom Claude Code warns of a session's cost.
+  `settings.json` allows NovaDeck's MCP tools (`mcp__plugin_novadeck_novadeck`) and its
+  own print mode (`Bash(claude -p:*)`, for `shell`), and sets the manual permission mode with auto mode off (`defaultMode: "default"`,
   `disableAutoMode: "disable"`): 2.1.287 defaults to auto mode, where a classifier
   decides what asks, and shows a notice about its billing through a gateway, or with
   `defaultMode` alone an offer to make auto mode the default, each waiting on Enter.
@@ -477,6 +661,23 @@ for (const setup of setups) {
     stayed selected for a second. No `SessionStart` fires behind it. Once trusted, it
     reports its `SessionStart` a moment before its prompt draws, while the terminal
     still echoes what's typed, which `prompted` waits past. It has no hooks review.
+  - _Rewind_: Esc-Esc at its idle prompt opens its Rewind picker ("Restore the code
+    and/or conversation to the point before…"), a list with no text field, which
+    swallows a paste and stays as it was.
+  - _Popup_: a reply reporting 300k output tokens (`usage`) puts the session's cost over
+    $5 (on Opus 5.5), and once the turn has ended it raises "You've spent $5 on the
+    Anthropic API this session." with `❯ 1. Got it, thanks!` selected. It shows only for
+    a billing admin (`popup: true`); its context meter counts input tokens alone, so
+    nothing compacts.
+  - _Shell_: its Bash tool running `claude -p '<prompt>'`, which prints the nested
+    session's answer. The nested Claude Code reports its own `CLAUDE_PID` and session
+    to NovaDeck's hooks, a `SessionStart` (`startup`), its prompt and its Stop.
+  - _Fork_: `claude --resume --fork-session` shows its "Resume session" picker, latest
+    first, each session by its first prompt, the first selected (`❯`), with no
+    `SessionStart` until one is picked; picked, the fork starts at its prompt with a
+    session of its own. Its `/fork` copies the conversation into a background session
+    and keeps working in the terminal's own, whose binding stays, so it has no
+    `fork.inPlace`.
 - **Environment.** `ANTHROPIC_BASE_URL` points at the fake model and
   `ANTHROPIC_API_KEY` holds the fake credential. Also set: `DISABLE_AUTOUPDATER`,
   `DISABLE_UPDATES`, `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING`,
@@ -497,7 +698,10 @@ for (const setup of setups) {
   the fake credential in `NOVADECK_E2E_CODEX_KEY`), points `chatgpt_base_url` at the
   fake model, switches off update checks, analytics and metrics, and trusts the
   project. An empty copy of OpenAI's curated plugins keeps Codex from downloading them
-  from chatgpt.com.
+  from chatgpt.com. A rule of its execution policy (`rules/default.rules`,
+  `prefix_rule(pattern = ["codex", "exec"], decision = "allow")`) lets `codex exec` run
+  unasked, for `shell`; so allowed, the nested Codex reached the fake model and wrote its
+  rollout in its home.
 - **Hook trust.** Codex runs a plugin's hooks only once trusted, and NovaDeck counts
   its prompt only then. Once the plugin is connected, `connected` starts the pinned
   `codex app-server` and makes the calls its "Hooks need review" screen makes:
@@ -511,7 +715,30 @@ for (const setup of setups) {
   `mcp__novadeck.send`. A prompt hook's context arrives as a developer message after
   the prompt; a Stop hook's reason as a user message `<hook_prompt>`, HTML-escaped. A
   call is `side` when its `x-codex-turn-metadata` says it isn't the agent's turn, as
-  its thread's title.
+  its thread's title. It reads its rate limits from the response's headers (`limits`).
+- **Its traits**, probed in the sandbox against 0.159.3, beside the controls' (see its
+  setup):
+  - _Rewind_: Esc-Esc at its idle prompt browses its transcript, its footer saying so
+    ("Browsing transcript · … ↵ rewind · esc back"). A paste leaves that mode and lands
+    in its composer, rewinding nothing.
+  - _Popup_: a reply reporting 95% of both rate-limit windows used (`limits`) warns of
+    them in the transcript, and once the turn completes raises "Approaching rate limits",
+    offering a cheaper model with `› 1. Switch to …` selected; Enter would switch.
+  - _Shell_: `exec_command` running `codex exec --skip-git-repo-check '<prompt>'`; the
+    project isn't a Git repository, and without the flag `codex exec` refuses to run
+    there whatever its trust. The nested Codex's hooks run with the agent's thread in
+    `CODEX_THREAD_ID`, so its decoder takes nothing of them.
+  - _`/side`_: typed and submitted, it shows a side conversation, its footer saying "Side
+    from main thread · ctrl+/ to switch · ctrl+c to close"; ctrl+c goes back to the root.
+    Its thread is ephemeral: its first prompt fires a `SessionStart` saying `fork`, and
+    every hook of it gives `transcript_path` as null.
+  - _Fork_: `codex fork` shows its "Fork a previous session" picker, latest first, each
+    session by its first prompt, the first selected (`›`), with no title until one is
+    picked ("enter fork"); picked, the fork shows "Thread forked from <id>", its title
+    Ready with the fork's id, and its session binds at its first prompt; given an id,
+    `codex fork <id>` skips the picker. `/fork` at its prompt says "Fork created. You can continue
+    here.": its title names the fork, whose new writer lock confirms it as the new root,
+    so the parent's binding ends and the terminal is Ready, its messages gone.
 - **Refused tunnels.** Codex's curated-plugin sync and its startup tips try GitHub
   (`github.com`, `api.github.com`, `raw.githubusercontent.com`), which no setting turns
   off. The proxy refuses them; they are its setup's `refused`, and the hermetic
@@ -527,7 +754,14 @@ for (const setup of setups) {
   route stays untested.
 - **Seeding.** `~/.gemini/antigravity-cli/settings.json` in the sandbox marks
   onboarding complete, trusts the project, picks the Gemini provider and allows
-  NovaDeck's MCP tools (`mcp(novadeck_novadeck/*)`) to run without asking.
+  NovaDeck's MCP tools (`mcp(novadeck_novadeck/*)`) and its own print mode
+  (`command(agy -p)`, for `shell`) to run without asking. Its shell tool, `run_command`,
+  runs `agy -p '<prompt>'`, waiting up to 30 s before leaving it to run on; the nested
+  Antigravity's hooks report a conversation of its own. `/fork` at its prompt says
+  "Forked conversation." and how to go back (`/resume <parent>`); its status line names
+  the fork, which binds, Ready, the parent's messages gone, and back again should the
+  person resume the parent. No command line forks a conversation, so it has no
+  `fork.picker`.
   `AGY_CLI_DISABLE_AUTO_UPDATE` stops it updating itself.
 - **What it calls.** 1.2.14 streams each model call from
   `POST /v1beta/models/<model>:streamGenerateContent?alt=sse`; its session's title is a
@@ -541,6 +775,11 @@ for (const setup of setups) {
   `refused`.
 - **The keyring.** Signed in on the machine, Antigravity reads its login from the secret
   service whatever HOME says. The sandbox's dead D-Bus address is what keeps it out.
+- **Traits it lacks**, probed in the sandbox against 1.2.14: `rewind`, as Esc-Esc opens
+  nothing (its rewind is the typed `/rewind` command, which Untouched covers); and
+  `popup`, as nothing shows after a turn on its Gemini API route, its screen still for
+  15 s, and its program holds no dialog for after one: its quota screens belong to the
+  Code Assist route, which the suite doesn't run.
 
 ## Known gaps
 

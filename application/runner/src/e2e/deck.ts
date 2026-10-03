@@ -12,6 +12,7 @@ import type {
 import headless from "@xterm/headless"
 
 import { wire } from "../runner.js"
+import { shellPaths, type ShellPaths } from "../shell/scripts.js"
 import type { Terminals } from "../terminals/index.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import { createHistory, type Reach, type ReachOptions, type Snapshot } from "./history.js"
@@ -128,6 +129,8 @@ export type Deck = {
   /** The store of the runner wired now: a restart opens it again. */
   readonly store: WorkspaceStore
   readonly sessionId: string
+  /** NovaDeck's shell files, as its shells read them: the same across restarts. */
+  readonly shell: ShellPaths
   /** Installs NovaDeck's plugin into the harness through its own commands, as Connect does. */
   readonly connect: (agent: AgentName) => Promise<void>
   /** Opens a terminal in the project that runs `command` at its shell's first prompt. */
@@ -435,10 +438,11 @@ const now = async <T>(stream: (signal: AbortSignal) => AsyncGenerator<T>): Promi
  * nothing of the developer's reaches a shell. A restart wires another on the same files.
  */
 export const createDeck = async (options: DeckOptions): Promise<Deck> => {
+  const shellFolder = join(options.data, "shell")
   const start = async (): Promise<Runner> => {
     const { store, shellFiles, agents, terminals } = wire({
       database: join(options.data, "workspace.sqlite"),
-      shell: join(options.data, "shell"),
+      shell: shellFolder,
       // Plugin commands run with the sandbox's environment as it is: a login shell's
       // startup files, even the system's own in /etc/profile, could put another PATH
       // before the pinned harnesses.
@@ -640,6 +644,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       return runner.store
     },
     sessionId: session.id,
+    shell: shellPaths(shellFolder),
     connect: async (agent) => {
       const result = await runner.agents.set(agent, true)
       if (!result.connected) throw new Error(`${agent} did not connect`)

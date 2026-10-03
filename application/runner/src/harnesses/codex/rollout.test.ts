@@ -1,11 +1,18 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../../test.js"
 import { apply, started } from "../activity.js"
 import type { HarnessEvent } from "../events.js"
-import { followRollout, rolloutEvents } from "./rollout.js"
+import { followRollout, followSubagent, rolloutEvents, subagentEvents } from "./rollout.js"
 
 type Record_ = {
   type: string
@@ -129,5 +136,81 @@ describe("following a Codex rollout", () => {
       (record) => (record as { payload?: { type?: string } }).payload?.type === "item_completed",
     )!
     expect(planned?.startedAt).toBe(Date.parse(written.timestamp))
+  })
+})
+
+// A rollout's event record, as Codex writes them.
+const event = (timestamp: string, payload: Record<string, unknown>) =>
+  JSON.stringify({ timestamp, type: "event_msg", payload })
+
+describe("a Codex subagent's rollout", () => {
+  const run = { ...session, transcript: "/sessions/2026/10/03/rollout-root.jsonl" }
+  const since = Date.parse("2026-10-03T01:03:10.000Z")
+
+  it("says its turn aborted, as Esc on its request does with no hook, at the abort's time, its thread still open", () => {
+    const aborted = event("2026-10-03T01:03:12.500Z", {
+      type: "turn_aborted",
+      reason: "interrupted",
+    })
+    expect(subagentEvents(aborted, run, "a1", since)).toEqual([
+      {
+        type: "subagent-turn-aborted",
+        agent: "codex",
+        sessionId: "s",
+        instance: "7",
+        actor: "a1",
+        startedAt: Date.parse("2026-10-03T01:03:12.500Z"),
+      },
+    ])
+  })
+
+  it("says nothing of an abort before its request, a completed turn, other records or a broken line", () => {
+    for (const line of [
+      event("2026-10-03T01:03:09.000Z", { type: "turn_aborted" }),
+      event("2026-10-03T01:03:12.000Z", { type: "task_complete" }),
+      event("2026-10-03T01:03:12.000Z", { type: "token_count" }),
+      JSON.stringify({
+        timestamp: "2026-10-03T01:03:12.000Z",
+        type: "response_item",
+        payload: { type: "turn_aborted" },
+      }),
+      event("not a time", { type: "turn_aborted" }),
+      '{"type":"event_msg","payload":{"type":"turn_aborted"',
+    ])
+      expect(subagentEvents(line, run, "a1", since), line).toEqual([])
+  })
+
+  it("is found beside its root's, by its own id, and followed for its aborts", async ({
+    resources,
+  }) => {
+    const sessions = mkdtempSync(join(tmpdir(), "novadeck-sessions-"))
+    resources.defer(() => rmSync(sessions, { recursive: true, force: true }))
+    const day = join(sessions, "2026", "10", "03")
+    mkdirSync(day, { recursive: true })
+    const root = join(day, "rollout-2026-10-03T01-03-00-root.jsonl")
+    writeFileSync(root, `${event("2026-10-03T01:03:13.000Z", { type: "turn_aborted" })}\n`)
+    const controller = new AbortController()
+    resources.defer(() => controller.abort())
+    const events: HarnessEvent[] = []
+    // Its rollout comes after the follower began looking.
+    void followSubagent({ ...session, transcript: root }, "a1", since, controller.signal, (one) =>
+      events.push(one),
+    )
+    const own = join(day, "rollout-2026-10-03T01-03-05-a1.jsonl")
+    writeFileSync(
+      own,
+      [
+        event("2026-10-03T01:03:05.000Z", { type: "turn_aborted" }),
+        event("2026-10-03T01:03:11.000Z", { type: "task_complete" }),
+        "",
+      ].join("\n"),
+    )
+    appendFileSync(own, `${event("2026-10-03T01:03:12.000Z", { type: "turn_aborted" })}\n`)
+    await expect.poll(() => events, { timeout: 5000 }).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: "subagent-turn-aborted",
+      actor: "a1",
+      startedAt: Date.parse("2026-10-03T01:03:12.000Z"),
+    })
   })
 })

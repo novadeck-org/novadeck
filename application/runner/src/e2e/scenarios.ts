@@ -1,6 +1,7 @@
 import type { AgentName, MessageState } from "@novadeck/protocol"
 
 import { doorbell } from "../harnesses/harness.js"
+import { expectedAgent } from "../terminals/commands.js"
 import type { AgentSetup, Trait } from "./agents/agent.js"
 import { poll, withScreen, type DeckTerminal } from "./deck.js"
 import type { E2E } from "./fixture.js"
@@ -16,6 +17,8 @@ import { asked, latest, tool, type Call, type Reply, type Rule } from "./model/s
 const has = (setup: AgentSetup, trait: Trait): boolean => {
   if (trait === "trust.folder") return setup.trust?.folder !== undefined
   if (trait === "trust.hooks") return setup.trust?.hooks !== undefined
+  if (trait === "fork.picker") return setup.fork?.picker !== undefined
+  if (trait === "fork.inPlace") return setup.fork?.inPlace !== undefined
   return setup[trait] !== undefined
 }
 
@@ -77,6 +80,32 @@ export const start = async ({ deck }: E2E, setup: AgentSetup): Promise<DeckTermi
   const terminal = await deck.open(setup.agent)
   await terminal.reached("ready", { timeoutMs: 60_000 })
   await prompted(terminal, setup)
+  return terminal
+}
+
+/**
+ * How long a terminal is watched for a ring that mustn't come: past the doorbell's settle
+ * window (6 s from when a terminal shows Ready or Settled), so a ring had every chance.
+ */
+export const unrung = 8000
+
+/**
+ * Opens a terminal whose command runs `first`, then `then` once it exits, and waits until
+ * the first is Ready at its prompt: the person leaving the first starts the second, with
+ * no key pressed at the shell's prompt. NovaDeck expects the first there, by its command's
+ * first word, which `;` set apart keeps whole.
+ */
+export const handing = async (
+  { deck }: E2E,
+  first: AgentSetup,
+  then: AgentSetup,
+): Promise<DeckTerminal> => {
+  const command = `${first.agent} ; ${then.agent}`
+  if (expectedAgent(command, undefined) !== first.agent)
+    throw new Error(`NovaDeck doesn't expect ${first.agent} first in \`${command}\``)
+  const terminal = await deck.open(command)
+  await terminal.reached("ready", { timeoutMs: 60_000 })
+  await prompted(terminal, first)
   return terminal
 }
 

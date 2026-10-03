@@ -1,7 +1,7 @@
 import type { TerminalSummary } from "@novadeck/protocol"
 
 import { context, describe, expect, it } from "../../test"
-import { terminalActivity } from "./activity"
+import { exitStatus, terminalActivity } from "./activity"
 
 const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   id: "00000000-0000-4000-8000-000000000001",
@@ -179,6 +179,14 @@ describe("terminal activity", () => {
       expect(exited(null, "SIGKILL", 100)).toEqual({
         status: { state: "exited", exitCode: null, signal: "SIGKILL" },
       })
+    })
+
+    it("counts a non-zero exit as failing to start within the threshold it is given", () => {
+      const exit = { code: 1, signal: null, ranMs: 9_000 }
+      expect([exitStatus(exit, 60_000), exitStatus(exit, 5_000)]).toEqual([
+        { state: "failed", message: "Exited right after starting" },
+        { state: "exited", exitCode: 1, signal: null },
+      ])
     })
   })
 })

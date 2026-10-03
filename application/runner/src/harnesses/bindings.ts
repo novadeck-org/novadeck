@@ -41,12 +41,17 @@ export type Facts = {
  * conversation it observed (Antigravity reports no source). Another process of the same
  * harness is a nested one, as is a fresh start while a session is bound: a subagent's, a
  * Codex started by another Codex, or an agent run from the one in the foreground. Where
- * the platform hides the process, the harness alone has to do.
+ * the platform hides the process, the harness alone has to do. A report that can't tell
+ * its process while the bound one is known, as from a hook outliving its agent, refreshes
+ * the bound session at most: it may be a nested run's that just ended, as a nested
+ * `agy -p`'s status line drawn as it exits.
  */
 const replaces = (binding: Binding, event: SessionObserved): boolean => {
   if (binding.agent !== event.agent) return false
   if (binding.instance !== null && event.instance !== null && binding.instance !== event.instance)
     return false
+  if (binding.instance !== null && event.instance === null)
+    return binding.sessionId === event.sessionId
   return binding.sessionId === event.sessionId || event.evidence !== "startup"
 }
 
@@ -77,7 +82,14 @@ export const observe = (
   return event.startedAt > (facts.promptedAt ?? 0)
     ? {
         sessions,
-        binding: { agent: event.agent, sessionId: event.sessionId, instance: event.instance },
+        binding: {
+          agent: event.agent,
+          sessionId: event.sessionId,
+          // A report that can't tell its process, as from a hook outliving its agent, is
+          // of the bound one where one is (`replaces`): what is known of it stays, so its
+          // exit can still be told.
+          instance: event.instance ?? state.binding?.instance ?? null,
+        },
         cwd: event.cwd ?? state.cwd,
       }
     : { ...state, sessions }

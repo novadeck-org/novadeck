@@ -1,8 +1,11 @@
+import { setTimeout as sleep } from "node:timers/promises"
+
 import type { AgentTelemetry } from "@novadeck/protocol"
 
 import type { HarnessEvent } from "../events.js"
 import { followLines } from "../follow.js"
 import { bounded, type Harness, type Run } from "../harness.js"
+import { transcripts } from "./transcripts.js"
 
 type Limit = AgentTelemetry["limits"][number]
 
@@ -136,5 +139,68 @@ export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) 
         backlog = undefined
       },
     },
+  )
+}
+
+/**
+ * What one line of a subagent's own rollout says that no hook does: its turn aborted, as
+ * Esc on its request does, firing neither `Interrupt` nor `SubagentStop` (probed
+ * 2026-10-03, 0.159.3). Its turn over, it waits on the person no longer, though its
+ * thread stays open, so it runs on; only an abort from `since` on, when its request was
+ * asked, counts.
+ */
+export const subagentEvents = (
+  line: string,
+  { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
+  actor: string,
+  since: number,
+): readonly HarnessEvent[] => {
+  if (!line.includes('"turn_aborted"')) return []
+  let record: unknown
+  try {
+    record = JSON.parse(line)
+  } catch {
+    return []
+  }
+  if (typeof record !== "object" || record === null) return []
+  const { type, timestamp, payload } = record as Record<string, unknown>
+  if (type !== "event_msg" || typeof timestamp !== "string") return []
+  if ((payload as { type?: unknown } | null)?.type !== "turn_aborted") return []
+  const startedAt = Date.parse(timestamp)
+  if (!Number.isFinite(startedAt) || startedAt < since) return []
+  return [{ type: "subagent-turn-aborted", agent: "codex", sessionId, instance, actor, startedAt }]
+}
+
+// How often a subagent's rollout is looked for until it is found.
+const locateMs = 1000
+
+/**
+ * Follows a subagent's own rollout, which Codex files beside its root's under its own
+ * id (its hooks name only the root's), for its turn aborting from `since` on. Looked for
+ * until found, as Codex may write it after the hook that asks.
+ */
+export const followSubagent: NonNullable<Harness["watchActor"]> = async (
+  run,
+  actor,
+  since,
+  signal,
+  emit,
+) => {
+  let path: string | undefined
+  while (!signal.aborted) {
+    // eslint-disable-next-line no-await-in-loop -- Each look follows the one before.
+    path = await transcripts.locate(run.transcript, run.sessionId, actor)
+    if (path) break
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    await sleep(locateMs, undefined, { signal }).catch(() => {})
+  }
+  if (!path || signal.aborted) return
+  await followLines(
+    path,
+    signal,
+    (line) => {
+      for (const event of subagentEvents(line, run, actor, since)) emit(event)
+    },
+    { fromStart: true },
   )
 }

@@ -616,8 +616,11 @@ has no correlation, so it produces an imprecise attention hint and never a
 response target.
 
 No harness gives a permission request its own id. Claude Code and Codex fire
-`PermissionRequest` right after the `PreToolUse` of the same call, whose
-`tool_use_id` becomes the `requestId`. Antigravity shows one confirmation at a
+`PermissionRequest` right after the `PreToolUse` of the same call, but it carries
+no `tool_use_id`, so the `requestId` is derived from the actor, the tool and a
+hash of the call's input (`callId`), as the call's `PostToolUse` derives it too.
+Two identical calls asked at once share one id and count as one request, which
+the first one's result settles. Antigravity shows one confirmation at a
 time, and its status line's `tool_confirmation_pending` names no step, so its
 request is the fixed `confirmation`, resolved when a later snapshot shows the
 agent working without it. A matching tool result resolves the request as
@@ -634,8 +637,28 @@ transcript ends it as `unknown`: a denial and an approved call interrupted with
 Esc leave the same records. Approval itself is seen only when the tool
 finishes, so the attention view uses `claude agents --json` (`busy` versus
 `waiting`) for Claude Code and `tool_confirmation_pending` for Antigravity to
-stop showing a request once the person has answered it. Without such evidence, the next tool, turn or
-session event of that actor resolves the request as `unknown`. Claude Code's `AskUserQuestion` goes through
+stop showing a request once the person has answered it. Without such evidence, the
+actor moving on resolves the request as `unknown`: the root's next turn start or end,
+or a subagent's stop or its turn's abort. Neither a subagent's next request nor its
+result for another call counts: its parallel calls may show several dialogs at once,
+and that call may have run alongside the one asked about. A request answered with no
+report otherwise waits until its subagent stops, as the person missing a ring is safe
+and a ring onto a live dialog is not. A Codex subagent's `SubagentStop` ends its turn,
+but Esc on its request fires no hook at all; only its own rollout records
+`turn_aborted`, and its thread stays open. So while a subagent's request waits, the
+adapter's `watchActor` follows that subagent's own sources (Codex: its rollout, found
+beside the root's by its id), and an abort recorded at or after the request was asked
+settles that subagent's requests asked by then, at the abort's time, the subagent
+still running. It stops following once the subagent has no request waiting, or the
+binding ends. A Claude Code background subagent needs none: a denial reaches it as the
+call's result, and it runs on to its `SubagentStop`. A subagent asking that NovaDeck
+never saw start, as its start came before the binding or its harness reported its
+stop at a turn's end, counts as running from that request on, unless a stop after the
+request says it is over. At most 32 subagents are followed; once that many run, the one
+whose turn aborted longest ago, with no request since, makes room for another, which it
+joins again as one never seen starting if it asks later; with none such, a further
+subagent isn't followed, and its request settles at the root's next turn start or end.
+Claude Code's `AskUserQuestion` goes through
 `PermissionRequest` too, so the attention kind comes from the tool name.
 
 NovaDeck's Antigravity hook must answer `PreToolUse` with
@@ -686,7 +709,8 @@ gates acceptance.
 Attention is separate from turn activity. A correlated request clears on its
 resolution; a verified turn end clears remaining requests of that actor and
 turn. A child's stop does not end the root turn, and a background child's
-requests survive its parent's turn ending. A child's request raises the
+requests survive its parent's turn ending, even one whose hook started before that
+end and reported after it; the root's own such request is dropped. A child's request raises the
 terminal's indicator only when the adapter establishes that it is shown to that
 terminal's user.
 

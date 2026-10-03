@@ -141,6 +141,19 @@ export type Harness = {
     signal: AbortSignal,
     emit: (event: HarnessEvent) => void,
   ) => Promise<void>
+  /**
+   * Follows one of a bound session's subagents, by its id, in its own sources, for what
+   * ends its turn that no hook reports, as Codex's rollout records a request dismissed
+   * with Esc: from `since`, when its oldest request still waiting was asked, until
+   * `signal` aborts. NovaDeck follows it only while that subagent's request waits.
+   */
+  readonly watchActor?: (
+    run: Run,
+    actor: string,
+    since: number,
+    signal: AbortSignal,
+    emit: (event: HarnessEvent) => void,
+  ) => Promise<void>
 }
 
 /**

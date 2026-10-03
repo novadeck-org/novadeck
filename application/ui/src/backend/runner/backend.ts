@@ -33,7 +33,7 @@ import type {
   TerminalKey,
 } from "../port"
 import { createTerminalRegistry } from "../registry"
-import { exitStatus, restartable, terminalActivity } from "./activity"
+import { defaultQuickExitMs, exitStatus, restartable, terminalActivity } from "./activity"
 import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"
 import type { RunnerDebug } from "./debug"
@@ -63,6 +63,9 @@ export type RunnerBackendOptions = {
   readonly newId?: () => string
   // How long saving waits for more changes, in milliseconds.
   readonly saveDelay?: number
+  // A shell that exits sooner than this after starting counts as failing to start, in
+  // milliseconds.
+  readonly quickExitMs?: number
   readonly pickDirectory?: () => Promise<string | null>
   // Where the host lets the page finish its saves before its window closes or the app
   // quits; returns the undo.
@@ -284,7 +287,8 @@ export const runnerBackend = (
   const restarts: number[] = []
   const restartingOften = (): boolean => restartingTooOften(restarts, now())
   const saveDelay = options.saveDelay ?? defaultSaveDelay
-  const seed = runnerSeed(listing)
+  const quickExitMs = options.quickExitMs ?? defaultQuickExitMs
+  const seed = runnerSeed(listing, quickExitMs)
   const connection = createStore<BackendConnectionState>("connected")
   const transcripts = createStore(options.transcripts ?? true)
   const agents = createStore<readonly AgentConnection[]>(
@@ -408,7 +412,7 @@ export const runnerBackend = (
       }
     }
     if (entry.settled) return []
-    const activity = terminalActivity(summary)
+    const activity = terminalActivity(summary, quickExitMs)
     const { terminalId } = entry.key
     // A shell that ended cleanly takes its terminal with it.
     if (activity.status === "clean")
@@ -659,7 +663,7 @@ export const runnerBackend = (
     const project = latest?.projects.find((each) =>
       each.history.some((session) => session.id === summary.sessionId),
     )
-    const terminal = runnerTerminal(summary)
+    const terminal = runnerTerminal(summary, quickExitMs)
     if (!project || !terminal || adopted.has(summary.id)) return
     adopted.set(summary.id, summary)
     dispatch([
@@ -1036,7 +1040,7 @@ export const runnerBackend = (
     exited: (key, exit) => {
       const entry = registry.get(key)?.entry
       if (!entry || entry.closed || entry.settled || entry.starting) return
-      const status = exitStatus(exit)
+      const status = exitStatus(exit, quickExitMs)
       if (status === "clean")
         return dispatch([
           { type: "terminal/close", target: target(key), terminalId: key.terminalId },

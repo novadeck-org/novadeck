@@ -14,6 +14,11 @@ export type Seed = {
   readonly folderTrusted?: boolean
   /** False: NovaDeck's hooks are not trusted (Codex's "Hooks need review"), so they don't run. */
   readonly hooksTrusted?: boolean
+  /**
+   * True: the account seeded as one the harness's `popup` may show for, where it shows it
+   * only for some (Claude Code's cost warning, only for a billing admin).
+   */
+  readonly popup?: boolean
 }
 
 /**
@@ -46,7 +51,16 @@ export type FolderQuestion = {
 }
 
 /** The traits a scenario may need of a setup, which a harness may not have. */
-export type Trait = "approval" | "background" | "trust.folder" | "trust.hooks"
+export type Trait =
+  | "approval"
+  | "background"
+  | "trust.folder"
+  | "trust.hooks"
+  | "shell"
+  | "rewind"
+  | "popup"
+  | "fork.picker"
+  | "fork.inPlace"
 
 /**
  * How a scenario makes the harness ask the person before a tool runs, and what that
@@ -75,6 +89,73 @@ export type Background = {
   readonly start: (call: Call) => Reply
   /** Whether a call is the background work's own, rather than the agent's turn. */
   readonly owns: (call: Call) => boolean
+}
+
+/**
+ * How a scenario has the agent run a command through its shell tool without asking, as
+ * its seed allows, unlike `approval`'s command: a nested run of the harness itself
+ * inside the agent's turn.
+ */
+export type Shell = {
+  /**
+   * A reply that has the agent run `command` through its shell tool, given the call it
+   * answers, waiting for it to finish. Only a command the seed allows runs without
+   * asking: `nested`'s.
+   */
+  readonly run: (call: Call, command: string) => Reply
+  /**
+   * The command that runs the harness once, non-interactively, on `prompt` and prints its
+   * answer (`claude -p`, `codex exec`, `agy -p`), which its seed lets `run` run unasked.
+   * It inherits the agent's environment, so it reaches the fake model too. `prompt` is
+   * plain words, with no quotes.
+   */
+  readonly nested: (prompt: string) => string
+}
+
+/**
+ * How the person forks a session: its conversation goes on in a session of its own, the
+ * parent left as it was.
+ */
+export type Fork = {
+  /**
+   * Starting the harness with `command` in a new terminal shows a picker of the project's
+   * sessions, latest first, Down selecting the next, and forks the one picked.
+   * `picked(prompt)` matches, as selected, the row of the session whose first prompt was
+   * `prompt`, for `confirm`.
+   */
+  readonly picker?: { readonly command: string; readonly picked: (prompt: string) => RegExp }
+  /** The command, typed at its prompt, that forks its conversation in place. */
+  readonly inPlace?: string
+}
+
+/**
+ * A popup the harness raises by itself once its turn has ended, a menu waiting on the
+ * person, which the fake model can bring about.
+ */
+export type Popup = {
+  /**
+   * A reply ending the turn with `text` that makes the harness raise the popup once the
+   * turn has ended, through what the API reports beside it (its usage, its rate limits).
+   */
+  readonly reply: (text: string) => Reply
+  /** What the popup shows, its first option selected. */
+  readonly shows: RegExp
+}
+
+/**
+ * What the person opens with Esc-Esc at an idle prompt (two Escapes about 300 ms apart):
+ * a picker or mode for going back to an earlier prompt. Escape is a neutral key, so the
+ * terminal stays Settled and a ring reaches the test paste with it open.
+ */
+export type Rewind = {
+  /** What the screen shows while it is open. */
+  readonly shows: RegExp
+  /**
+   * Whether it swallows a paste, so the ring fails and nothing is pressed (true), or the
+   * paste leaves it and lands in the prompt, so the ring goes on as at an empty prompt
+   * (false).
+   */
+  readonly swallows: boolean
 }
 
 /**
@@ -131,6 +212,14 @@ export type AgentSetup = {
   readonly approval?: Approval
   /** How its agent starts work that outlives its turn. */
   readonly background?: Background
+  /** How its agent runs a command, a nested run of the harness, without asking. */
+  readonly shell?: Shell
+  /** How the person forks a session, in a new terminal or in place. */
+  readonly fork?: Fork
+  /** What Esc-Esc opens at its idle prompt, and what it does with a paste. */
+  readonly rewind?: Rewind
+  /** A popup it raises by itself after its Stop, seeded `popup: true`. */
+  readonly popup?: Popup
   /**
    * What the screen shows once Escape has interrupted the turn of `prompt` before its
    * reply came, the harness's own account of the interruption.

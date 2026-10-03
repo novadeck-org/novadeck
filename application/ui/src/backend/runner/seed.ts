@@ -3,7 +3,7 @@ import type { Project, TerminalSummary, WorkspaceSession } from "@novadeck/proto
 import { isShellProcess } from "../../model/process"
 import type { SessionSeed, WorkspaceSeed } from "../../model/seed"
 import type { TerminalMetadata } from "../../model/types"
-import { restartable, terminalActivity } from "./activity"
+import { defaultQuickExitMs, restartable, terminalActivity } from "./activity"
 import { decodeSession } from "./session-state"
 
 // Everything the runner reported at startup, one entry per project.
@@ -41,7 +41,11 @@ const restored = (summary: TerminalSummary): Pick<TerminalMetadata, "restoredPro
 
 // A terminal as the runner keeps it, or undefined once its shell exited cleanly, which
 // closes it. One the runner has no shell for, as after it restarted, needs a fresh one.
-export const runnerTerminal = (summary: TerminalSummary): TerminalMetadata | undefined => {
+// A shell that exited sooner than `quickExitMs` after starting failed to start.
+export const runnerTerminal = (
+  summary: TerminalSummary,
+  quickExitMs = defaultQuickExitMs,
+): TerminalMetadata | undefined => {
   const identity = {
     id: summary.id,
     name: summary.title,
@@ -51,7 +55,7 @@ export const runnerTerminal = (summary: TerminalSummary): TerminalMetadata | und
     titleSource: summary.titleSource,
   }
   if (!summary.started) return { ...identity, ...restored(summary), process: "", state: "starting" }
-  const { status, process } = terminalActivity(summary)
+  const { status, process } = terminalActivity(summary, quickExitMs)
   if (status === "clean") return undefined
   return {
     ...identity,
@@ -66,10 +70,14 @@ type Ranked = { readonly seed: SessionSeed; readonly order: readonly [number, nu
 
 // The session's terminals are the runner's, in the order they were created; how the UI
 // showed them, as it saved that, lays them out again.
-const sessionSeed = (session: WorkspaceSession, summaries: readonly TerminalSummary[]): Ranked => {
+const sessionSeed = (
+  session: WorkspaceSession,
+  summaries: readonly TerminalSummary[],
+  quickExitMs: number,
+): Ranked => {
   const saved = decodeSession(session.state)
   const terminals = summaries.flatMap((summary) => {
-    const terminal = runnerTerminal(summary)
+    const terminal = runnerTerminal(summary, quickExitMs)
     return terminal ? [terminal] : []
   })
   // Visit times are epoch milliseconds, so -1 sorts a session never saved last.
@@ -122,11 +130,14 @@ export const lostTerminals = (listing: RunnerListing): ReadonlySet<string> =>
     ),
   )
 
-export const runnerSeed = (listing: RunnerListing): WorkspaceSeed => {
+export const runnerSeed = (
+  listing: RunnerListing,
+  quickExitMs = defaultQuickExitMs,
+): WorkspaceSeed => {
   const ranked = listing.map(({ project, sessions }) => ({
     project,
     sessions: sessions
-      .map(({ session, terminals }) => sessionSeed(session, terminals))
+      .map(({ session, terminals }) => sessionSeed(session, terminals, quickExitMs))
       .toSorted((a, b) => later(b, a)),
   }))
   const latest = ranked.reduce<(typeof ranked)[number] | undefined>(
