@@ -290,8 +290,23 @@ type Record = {
   root: Root | null
   /** What the root session worked on, kept with the terminal; null before any did. */
   work: Work | null
-  /** The person's input waiting while the doorbell's test paste is on screen; null otherwise. */
-  held: string[] | null
+  /**
+   * What waits while the doorbell's test paste is on screen: the person's input, and the
+   * latest size the app asked for, as a resize redraws the screen the paste is checked on;
+   * null otherwise.
+   */
+  held: {
+    readonly input: string[]
+    size: {
+      readonly cols: number
+      readonly rows: number
+      readonly owner: string
+      /** The owner's attachment that asked, as a window showing it anew attaches again. */
+      readonly attachment: Subscription | undefined
+    } | null
+  } | null
+  /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
+  resizedAt: number
   /** The handle of the terminal whose agent opened this one; null otherwise. */
   openedBy: string | null
   /**
@@ -741,6 +756,7 @@ export class Terminals {
         root: null,
         work,
         held: null,
+        resizedAt: 0,
         openedBy,
         openerCommand: opener?.command ?? null,
         // Only a session the opener's command started, running an agent, is the opener's.
@@ -930,7 +946,7 @@ export class Terminals {
     }
     // While the doorbell's test paste is on screen, the person's input waits its turn.
     if (record.held) {
-      record.held.push(input.data)
+      record.held.input.push(input.data)
       return
     }
     // node-pty accepts each write synchronously; no input is retried after an uncertain delivery.
@@ -997,17 +1013,33 @@ export class Terminals {
         ])
         return held === undefined || own === undefined ? undefined : held === own
       },
+      resizedAt: (terminalId) => live(terminalId)?.resizedAt ?? 0,
       hold: (terminalId) => {
         const record = live(terminalId)
         // A hold already in force is another ring's: this one has none.
         if (!record || record.held) return { release: () => {}, holding: () => false }
-        const held: string[] = []
+        const held: NonNullable<Record["held"]> = { input: [], size: null }
         record.held = held
         const release = () => {
           clearTimeout(timer)
           if (record.held !== held) return
           record.held = null
-          if (held.length > 0 && live(terminalId) === record) record.process.write(held.join(""))
+          if (live(terminalId) !== record) return
+          if (held.input.length > 0) record.process.write(held.input.join(""))
+          // Only for the attachment still in control: one that took over meanwhile, or
+          // the same window attached anew, was told the size in force and asks its own.
+          const { size } = held
+          if (
+            !size ||
+            record.controller !== size.owner ||
+            record.subscribers.get(size.owner) !== size.attachment
+          )
+            return
+          try {
+            this.applySize(record, size)
+          } catch {
+            // A shell that exited meanwhile takes no size; its exit is handled in turn.
+          }
         }
         // A ring takes well under this; should it not, the person's keys go on.
         const timer = setTimeout(release, holdCapMs)
@@ -1026,12 +1058,29 @@ export class Terminals {
   resize(input: { terminalId: string; cols: number; rows: number }, ownerId: string): void {
     const record = this.control(input.terminalId, ownerId)
     this.running(record)
-    record.process.resize(input.cols, input.rows)
+    // While the doorbell's test paste is on screen, a resize would redraw it and fail the
+    // ring: the latest waits for the ring's hold to end.
+    if (record.held) {
+      record.held.size = {
+        cols: input.cols,
+        rows: input.rows,
+        owner: ownerId,
+        attachment: record.subscribers.get(ownerId),
+      }
+      return
+    }
+    this.applySize(record, input)
+  }
+
+  private applySize(record: Record, { cols, rows }: { cols: number; rows: number }): void {
+    // Only a new size redraws the screen, as a window attaching again may ask for the same.
+    if (cols !== record.summary.cols || rows !== record.summary.rows) record.resizedAt = Date.now()
+    record.process.resize(cols, rows)
     void this.enqueue(record, () => {
-      record.screen.resize(input.cols, input.rows)
-      record.summary = { ...record.summary, cols: input.cols, rows: input.rows }
+      record.screen.resize(cols, rows)
+      record.summary = { ...record.summary, cols, rows }
       this.announce(record)
-      this.emit(record, { type: "resized", cols: input.cols, rows: input.rows })
+      this.emit(record, { type: "resized", cols, rows })
     })
   }
 

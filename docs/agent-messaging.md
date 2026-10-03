@@ -118,14 +118,14 @@ flowchart LR
   R --> U[Runner API: messages, pause, release]
 ```
 
-| Part         | Where                                                                                 | Owns                                                                    |
-| ------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing` and `open_terminal`                          | `send`, `agents` and `describe`; the terminal's token on every call     |
-| Mailbox      | Runner, stored with the workspace (`WorkspaceStore`)                                  | Messages, threads, guards, pause, retention                             |
-| Delivery     | Runner, one state machine per recipient terminal                                      | When and how a recipient notices: leases to hooks and the doorbell      |
-| Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                            | Each harness's output encoding, in its adapter beside its decoder       |
-| Doorbell     | `terminals/doorbell.ts`, behind `DoorbellHost`; the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input |
-| Runner API   | Protocol and router                                                                   | Listing messages, pause and release, for the UI to come                 |
+| Part         | Where                                                                                 | Owns                                                                                |
+| ------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing` and `open_terminal`                          | `send`, `agents` and `describe`; the terminal's token on every call                 |
+| Mailbox      | Runner, stored with the workspace (`WorkspaceStore`)                                  | Messages, threads, guards, pause, retention                                         |
+| Delivery     | Runner, one state machine per recipient terminal                                      | When and how a recipient notices: leases to hooks and the doorbell                  |
+| Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                            | Each harness's output encoding, in its adapter beside its decoder                   |
+| Doorbell     | `terminals/doorbell.ts`, behind `DoorbellHost`; the manager owns every PTY and screen | The settle window, the calm check, the test paste, Enter, holding input and resizes |
+| Runner API   | Protocol and router                                                                   | Listing messages, pause and release, for the UI to come                             |
 
 Messaging is an application operation like `present` and `open_terminal`: the MCP
 server only forwards calls with the terminal's token, and the runner decides.
@@ -686,7 +686,10 @@ text in `record.screen` (`@xterm/headless`), with its paste mode. The ring, in o
    Claude Code's clears a row about 5 s after it, and after a start, and a ring meanwhile
    would fail on that change.
 4. **Calm.** The screen's text has been unchanged for 750 ms (its text, not the PTY's
-   bytes, as TUIs redraw carets while idle). Bracketed paste is on now. Where the
+   bytes, as TUIs redraw carets while idle), and its window wasn't resized meanwhile, as
+   the TUI may not have redrawn for a resize yet. A resize after the calm began, before
+   the ring's hold took effect, puts the ring off untried until the screen is calm again.
+   Bracketed paste is on now. Where the
    platform tells (not Windows), the agent still holds the terminal: the foreground
    process group is the bound instance's, or, for a prompt shown before any session
    bound, holds a process of that agent's name, as the agent may have left unseen (a
@@ -695,7 +698,10 @@ text in `record.screen` (`@xterm/headless`), with its paste mode. The ring, in o
    A gate that fails presses nothing and is tried again on the next change to the screen
    or the terminal's messages.
 5. **Test paste.** With the person's input to the terminal held for the whole ring,
-   until after its Enter (a safety cap releases it after 3 s whatever happened): snapshot
+   until after its Enter, and the app's resizes of it too, the latest applied once the
+   hold ends, as a resize redraws the screen mid-check and would fail the ring (a pane
+   changing size, the companion bar opening, a font size; a safety cap releases the hold
+   after 3 s whatever happened): snapshot
    the screen text, write the line as one bracketed paste, and poll the screen for up to
    1.5 s, which leaves room in the cap for the last looks and the Enter. It is accepted
    only when:

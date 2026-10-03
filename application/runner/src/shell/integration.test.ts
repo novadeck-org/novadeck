@@ -2889,6 +2889,13 @@ const hook = (event, payload, done) => {
   child.on("close", () => done(printed))
   child.stdin.end(JSON.stringify({ hook_event_name: event, session_id: current, cwd: process.cwd(), ...rollout, ...payload }))
 }
+// Asks a permission whose dialog Enter allows from the moment it is asked, as a TUI shows
+// its dialog then, however long the request's hook takes to return; the tool's result
+// follows the request's hook.
+const ask = (input) => {
+  const asked = new Promise((resolve) => hook("PermissionRequest", input, resolve))
+  dialog = () => asked.then(() => hook("PostToolUse", { ...input, tool_response: {} }, () => {}))
+}
 // With "subabort" or "subagain", Codex's hooks name its rollout, filed by day as Codex files it.
 const rollout =
   mode === "subabort" || mode === "subagain"
@@ -2953,10 +2960,7 @@ const turn = (prompt, typed = true) => {
         // background task's may: its dialog draws nothing, and Enter allows it, so only the
         // request's own resolution tells NovaDeck it no longer waits.
         if (mode === "askafter" && turns === 1) {
-          const input = { tool_name: "Bash", tool_input: { command: "ls" } }
-          hook("PermissionRequest", input, () => {
-            dialog = () => hook("PostToolUse", { ...input, tool_response: {} }, () => {})
-          })
+          ask({ tool_name: "Bash", tool_input: { command: "ls" } })
         }
         // With "subabort", a spawned agent asks a permission after its first turn's Stop;
         // Esc on it fires no hook, and only its own rollout records the turn aborted.
@@ -2973,10 +2977,7 @@ const turn = (prompt, typed = true) => {
           const input = { ...spawned, tool_name: "Bash", tool_input: { command: "ls " + turns } }
           if (turns === 1)
             hook("SubagentStart", spawned, () => hook("PermissionRequest", input, () => {}))
-          else
-            hook("PermissionRequest", input, () => {
-              dialog = () => hook("PostToolUse", { ...input, tool_response: {} }, () => {})
-            })
+          else ask(input)
         }
         // Antigravity's status line, which keeps running, names the conversation idle.
         if (agent === "agy" && showing)
@@ -3968,9 +3969,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect.poll(tui.delivery).toBe("drafting")
     })
 
-    it("presses nothing when the terminal is resized mid-ring, and takes its line as a draft", async ({
-      shell,
-    }) => {
+    it("holds a resize during the ring, submits its line, and resizes after", async ({ shell }) => {
       const tui = await ringing(shell)
       await tui.first()
       await tui.send("Review a.ts")
@@ -3978,15 +3977,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         async () => expect(await screen(tui.manager, tui.idle.id)).toContain("automatic notice"),
         { timeout: 10_000, interval: 5 },
       )
+      // A pane changing size mid-ring would redraw the screen the line is checked on.
       tui.manager.resize({ terminalId: tui.idle.id, cols: 70, rows: 20 }, "owner")
-      await expect.poll(tui.delivery, { timeout: 5_000 }).toBe("unknown")
-      expect(tui.raw().filter((data) => data === "\r")).toHaveLength(1)
-      // A turn that starts by itself and ends: the line is still in the box, so no ring.
-      tui.kick()
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
-      await expect.poll(tui.delivery).toBe("drafting")
-      await quiet()
+      expect(tui.received()[1]!.prompt).toMatch(/^\[NovaDeck: automatic notice/)
       expect(pastes(tui.raw())).toHaveLength(1)
+      await expect.poll(() => tui.manager.get(tui.idle.id)).toMatchObject({ cols: 70, rows: 20 })
     })
 
     // The turn the TUI starts by itself may reach NovaDeck before the doorbell's Enter, or

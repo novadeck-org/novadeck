@@ -25,6 +25,8 @@ const terminal = (
     ready?: boolean
     /** Whether its first screen draws a logo, far from its box, only while the box is empty. */
     logo?: boolean
+    /** Resizes it as the foreground is looked at, once: after the calm, before the ring. */
+    resizeAtForeground?: boolean
   } = {},
 ) => {
   const rows = options.logo
@@ -36,12 +38,17 @@ const terminal = (
   const failed: string[] = []
   let holds = 0
   let held = false
+  let rings = 0
+  let pastedAt: number | undefined
+  let resizedAt = 0
+  let resizeAtForeground = options.resizeAtForeground ?? false
   const host: DoorbellHost = {
     ringable: () => ringable && ringing === undefined,
     settledSince: () => options.settledAt,
     ready: () => options.ready ?? false,
     ring: (_, nonce) => {
       if (!ringable) return false
+      rings += 1
       ringable = false
       ringing = nonce
       return true
@@ -57,7 +64,14 @@ const terminal = (
       if (options.screenMs) await sleep(options.screenMs)
       return text
     },
-    foreground: () => Promise.resolve(options.foreground),
+    foreground: () => {
+      if (resizeAtForeground) {
+        resizeAtForeground = false
+        resizedAt = Date.now()
+      }
+      return Promise.resolve(options.foreground)
+    },
+    resizedAt: () => resizedAt,
     hold: () => {
       holds += 1
       held = true
@@ -75,6 +89,7 @@ const terminal = (
       written.push(data)
       // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
       const pasted = /^\x1b\[200~(.*)\x1b\[201~$/.exec(data)?.[1]
+      if (pasted) pastedAt ??= Date.now()
       if (pasted && options.takes !== "nothing") rows[6] = `> ${pasted}`
       if (pasted && options.takes === "elsewhere") rows[0] = "popup closed"
       if (pasted && options.logo) rows[2] = ""
@@ -86,7 +101,9 @@ const terminal = (
     rows,
     written,
     failed,
-    state: () => ({ ringing, holds, held }),
+    state: () => ({ ringing, holds, held, rings, pastedAt, resizedAt }),
+    // The app resized its window now.
+    resize: () => (resizedAt = Date.now()),
     // The ring's prompt arrived: messaging leaves Ringing.
     confirm: () => (ringing = undefined),
   }
@@ -158,6 +175,32 @@ describe("the doorbell", () => {
     await sleep(150)
     expect(written).toEqual([])
     await vi.waitFor(() => expect(enters(written)).toBe(1), { timeout: 1_000 })
+    doorbell.close()
+  })
+
+  it("counts a resize as an end to the calm, as the screen may not have redrawn for it yet", async () => {
+    const { host, written, resize } = terminal()
+    const doorbell = new Doorbell(host, { ...fast, calmMs: 200 })
+    doorbell.changed("t")
+    await sleep(100)
+    resize()
+    await sleep(150)
+    expect(written).toEqual([])
+    await vi.waitFor(() => expect(enters(written)).toBe(1), { timeout: 1_000 })
+    doorbell.close()
+  })
+
+  it("puts off, untried, a ring whose terminal was resized after its calm, and rings once calm again", async () => {
+    const { host, written, failed, state } = terminal({ resizeAtForeground: true })
+    const doorbell = new Doorbell(host, { ...fast, calmMs: 100 })
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(enters(written)).toBe(1), { timeout: 1_000 })
+    const { rings, pastedAt, resizedAt } = state()
+    // One ring, begun only once the screen had been calm again since the resize.
+    expect(rings).toBe(1)
+    expect(pastedAt! - resizedAt).toBeGreaterThanOrEqual(100)
+    expect(written).toHaveLength(2)
+    expect(failed).toEqual([])
     doorbell.close()
   })
 

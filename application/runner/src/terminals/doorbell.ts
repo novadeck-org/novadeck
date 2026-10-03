@@ -39,9 +39,11 @@ export type DoorbellHost = {
   readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
   /** Whether the bound instance holds the foreground; undefined where that can't be told. */
   readonly foreground: (terminalId: string) => Promise<boolean | undefined>
+  /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
+  readonly resizedAt: (terminalId: string) => number
   /**
-   * Holds the person's input to the terminal until it is released, or a safety cap lapses
-   * it; `holding` says it is still in force.
+   * Holds the person's input to the terminal, and the app's resizes of it, until it is
+   * released, or a safety cap lapses it; `holding` says it is still in force.
    */
   readonly hold: (terminalId: string) => {
     readonly release: () => void
@@ -154,7 +156,8 @@ export class Doorbell {
         still = { text, since: now }
         this.still.set(terminalId, still)
       }
-      const calm = now - still.since
+      // A resize ends the calm too: the TUI may not have redrawn for it yet.
+      const calm = now - Math.max(still.since, this.host.resizedAt(terminalId))
       if (calm < this.calmMs) return this.later(terminalId, this.calmMs - calm)
       const foreground = await this.host.foreground(terminalId)
       const verdict = gate(
@@ -166,23 +169,25 @@ export class Doorbell {
         },
         this.calmMs,
       )
-      if (verdict === "open") await this.ring(terminalId)
+      if (verdict === "open") await this.ring(terminalId, now - calm)
     } finally {
       this.checking.delete(terminalId)
     }
   }
 
   /**
-   * Rings once: the test paste, with the person's input held for the whole ring; Enter
-   * only once the line shows alone, twice running, and while the hold is still in force;
-   * then a wait for its doorbell prompt. A ring abandoned on the way fails, leaving its
-   * line, if it landed, as the person's draft.
+   * Rings once: the test paste, with the person's input and the app's resizes held for the
+   * whole ring; Enter only once the line shows alone, twice running, and while the hold is
+   * still in force; then a wait for its doorbell prompt. A resize since the calm began
+   * (`calmSince`) puts the ring off untried. A ring abandoned on
+   * the way fails, leaving its line, if it landed, as the person's draft.
    */
-  private async ring(terminalId: string): Promise<void> {
+  private async ring(terminalId: string, calmSince: number): Promise<void> {
     const nonce = freshNonce()
     const line = doorbellLine(nonce)
     // Only a Ready terminal may lose a block of text as the line lands, as Codex's logo.
     const vanish = this.host.ready(terminalId)
+    if (this.host.resizedAt(terminalId) > calmSince) return this.later(terminalId, this.calmMs)
     if (!this.host.ring(terminalId, nonce)) return
     const hold = this.host.hold(terminalId)
     let pressed = false

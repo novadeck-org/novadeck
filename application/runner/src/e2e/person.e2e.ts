@@ -334,5 +334,35 @@ for (const setup of setups) {
       })
       expect(carried(run, calls)).toEqual([prompt])
     })
+
+    it("delivers a ring whose window the person resizes as its line lands", async ({
+      e2e: run,
+    }) => {
+      run.model.use(
+        sends("Tell t2 the news", "t2", "The build is green."),
+        own((call) => (sent(call, "t2") ? { text: "Told t2." } : undefined)),
+        own((call) => (deliveries(call).length > 0 ? { text: "Noted." } : undefined)),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      const calls = run.model.mark()
+      const from2 = t2.mark()
+
+      // A pane changing size mid-ring, as a layout change or the companion bar makes it:
+      // the resize redraws the screen the line is checked on, so it waits for the ring.
+      await t1.submit("Tell t2 the news")
+      await t2.reached("ringing", { after: from2 })
+      await sleep(40)
+      t2.resize(120, 34)
+
+      const rung = await run.model.waitFor((call) => deliveries(call).length > 0, { after: calls })
+      expect(latest(rung)).toMatch(ring)
+      expect(deliveries(rung)).toEqual([{ from: "t1", text: "The build is green." }])
+      await t2.until("Noted.")
+      await through(t2, ["ringing", "working", holds("t1", "t2", "delivered"), "settled"], {
+        after: from2,
+      })
+      expect(t2.summary()).toMatchObject({ cols: 120, rows: 34 })
+    })
   })
 }

@@ -83,6 +83,8 @@ export type DeckTerminal = {
    * unawaited. Like `press`, it refuses Enter.
    */
   readonly escape: (keys?: string) => Promise<void>
+  /** Resizes its window, as the app does whenever its pane changes size. */
+  readonly resize: (cols: number, rows: number) => void
   /**
    * The one deliberate Enter besides `submit` and `confirm`: a bare Enter on a box known
    * empty, mid-turn. It goes only while the turn of the prompt this terminal last
@@ -568,6 +570,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         send(keys)
       },
       escape: escaper(send),
+      resize: (cols, rows) => terminals.resize({ terminalId: id, cols, rows }, owner),
       enterEmpty: () => {
         const refusal = emptyEnterRefusal(prompted, history.snapshots())
         if (refusal) throw new Error(refusal)
