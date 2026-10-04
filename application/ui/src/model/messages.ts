@@ -119,6 +119,7 @@ export const mailBadgeLabel = ({ count, kind }: MailBadge): string =>
       ? `${messagesWord(count)} waiting, held while messaging is paused`
       : `${messagesWord(count)} waiting`
 
-// Whether a terminal has a messages view: an agent is there, or it has had messages.
+// Whether a terminal has a messages view: it has had messages. An agent with none yet
+// keeps its bar clear until one comes.
 export const hasMail = (mail: TerminalMail | undefined): boolean =>
-  Boolean(mail && (mail.agent || mail.threads.length > 0))
+  Boolean(mail && mail.threads.length > 0)

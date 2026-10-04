@@ -3,6 +3,7 @@ import { page, userEvent, type Locator } from "vitest/browser"
 
 import {
   messageItems,
+  messagesButton,
   openMessages,
   openMessagesDemo,
   pauseSwitch,
@@ -11,24 +12,21 @@ import {
   thread,
 } from "./support/messages"
 import { confirmClose, sidebarRenameField, tabAction } from "./support/terminals"
-import { expectStaysAbsent, terminalTab } from "./support/workspace"
+import { expectStaysAbsent, tabDescription, terminalTab } from "./support/workspace"
 
 const textOf = (locator: Locator) => locator.element().textContent
 
-const description = (name: string) => terminalTab(name).element().getAttribute("aria-description")
+const description = tabDescription
 
 describe("Messages waiting for an agent", () => {
-  it("count on its terminal's tab, and only those still on their way to it", async () => {
+  it("count in its terminal's tab's description, and only those still on their way to it", async () => {
     await openMessagesDemo()
     // Codex has one message being delivered and one queued; what it sent doesn't count.
     await expect
       .poll(() => description("Checkout review"))
       .toBe("Needs permission, 2 messages waiting")
-    await expect
-      .element(terminalTab("Checkout review").getByText("2", { exact: true }))
-      .toBeVisible()
     // The dev server's message is gone, never waiting.
-    await expect.element(terminalTab("Dev server")).not.toHaveAttribute("aria-description")
+    expect(description("Dev server")).toBeNull()
   })
 
   it("say a release is needed when their thread is held", async () => {
@@ -80,10 +78,11 @@ describe("A terminal's messages", () => {
     await expect.element(written.getByRole("code")).not.toBeInTheDocument()
   })
 
-  it("says so when an agent has had none", async () => {
+  it("stay off the taskbar of an agent that has had none", async () => {
     await openMessagesDemo("/projects/api-service/sessions/initial/focus")
-    const pane = await openMessages("Checkout implementation")
-    await expect.element(pane.getByText(/^No messages yet/)).toBeVisible()
+    await terminalTab("Checkout implementation").click()
+    await expectStaysAbsent(messagesButton("Checkout implementation"))
+    expect(messagesButton("Checkout implementation").query()).toBeNull()
   })
 
   it("names a peer that's gone from the session by its handle alone", async () => {
@@ -155,8 +154,8 @@ describe("Who named a terminal", () => {
   it("shows in its tab's tooltip", async () => {
     await openMessagesDemo()
     await expect.poll(() => tabTooltip("Checkout implementation")).toMatch(/\nNamed by you\n/)
-    expect(tabTooltip("Checkout review")).toMatch(/\nNamed by the agent in t1\n/)
-    expect(tabTooltip("Tests")).toMatch(/\nNamed after its first prompt\n/)
+    expect(await tabTooltip("Checkout review")).toMatch(/\nNamed by the agent in t1\n/)
+    expect(await tabTooltip("Tests")).toMatch(/\nNamed after its first prompt\n/)
   })
 
   it("can be handed back to NovaDeck from the tab's menu when the person named it", async () => {

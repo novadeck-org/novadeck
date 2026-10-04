@@ -165,6 +165,15 @@ describe("companion commands", () => {
       expect(app.bar("01")).toMatchObject({ open: false })
     })
 
+    it("takes what they peeked at as seen, leaving the pane as it was", () => {
+      const app = open()
+      expect(app.state().fresh).toHaveProperty(hero.id)
+      app.commands.markSeen([hero.id])
+      expect(app.state().fresh).not.toHaveProperty(hero.id)
+      expect(app.state().fresh).toHaveProperty(plan.id)
+      expect(app.bar("01")).toMatchObject({ open: false })
+    })
+
     it("hides the messages and moves icons", () => {
       const app = open()
       app.commands.hideOnBar("01", messagesKey)

@@ -25,6 +25,8 @@ export const ZenDock = ({
   onExit: () => void
 }): React.JSX.Element => {
   const [open, setOpen] = useState(false)
+  // With one view left there's nothing to switch to.
+  const switchable = enabledViews.length > 1
   const dock = useRef<HTMLDivElement>(null)
   const create = useRef<HTMLButtonElement>(null)
   const controls = useId()
@@ -79,29 +81,33 @@ export const ZenDock = ({
       </button>
       <div className="zen-dock-reveal" inert={!open} aria-hidden={!open} id={controls}>
         <div className="zen-dock-actions flex min-w-0 items-center gap-0.5 overflow-hidden whitespace-nowrap">
-          <div
-            data-workspace-view-switch
-            className="view-switch flex gap-0.5"
-            role="group"
-            aria-label="Workspace layout"
-          >
-            {views
-              .filter(({ id }) => enabledViews.includes(id))
-              .map(({ id, label, icon: Icon }) => (
-                <Tooltip key={id} content={label}>
-                  <button
-                    className="icon-button"
-                    aria-label={`${label} view`}
-                    aria-pressed={view === id}
-                    onClick={() => onViewChange(id)}
-                  >
-                    <Icon size={15} strokeWidth={1.6} />
-                  </button>
-                </Tooltip>
-              ))}
-          </div>
+          {switchable && (
+            <>
+              <div
+                data-workspace-view-switch
+                className="view-switch flex gap-0.5"
+                role="group"
+                aria-label="Workspace layout"
+              >
+                {views
+                  .filter(({ id }) => enabledViews.includes(id))
+                  .map(({ id, label, icon: Icon }) => (
+                    <Tooltip key={id} content={label}>
+                      <button
+                        className="icon-button"
+                        aria-label={`${label} view`}
+                        aria-pressed={view === id}
+                        onClick={() => onViewChange(id)}
+                      >
+                        <Icon size={15} strokeWidth={1.6} />
+                      </button>
+                    </Tooltip>
+                  ))}
+              </div>
 
-          <div className="separator mx-0.5 h-3 w-px" aria-hidden="true" />
+              <div className="separator mx-0.5 h-3 w-px" aria-hidden="true" />
+            </>
+          )}
           <button
             className="icon-button zen-exit w-auto gap-1.5 px-2 py-0 text-[11px]"
             onClick={onExit}

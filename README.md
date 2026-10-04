@@ -103,11 +103,17 @@ A terminal tab's tooltip says who its name is from: you, the agent in another te
 **Close**, and, for a name you gave, **Reset to automatic**, which hands the name back
 to NovaDeck.
 
+A terminal's sidebar tab ends its name's line in a small icon for each icon on its
+taskbar, in the taskbar's order: its plan, images, files, pages and messages. What
+you've seen is faint; something you haven't opened yet, and the messages while some wait
+for the agent, is a step brighter with a small dot. A long name truncates before them,
+so they line up down the list.
+
 When agents message each other (see [Agent messaging](docs/agent-messaging.md)), a
-terminal's tab counts the messages waiting for its agent: queued, being delivered or
-held, never those delivered. The count turns amber when a thread is held for your
-release, and shows a pause mark while messaging is paused. A terminal with an agent, or
-one that has had messages, gets a **Messages** icon in its taskbar, which opens its
+terminal's tab says in its tooltip how many messages wait for its agent: queued, being
+delivered or held, never those delivered, and whether a thread is held for your release
+or messaging is paused. A terminal that has had messages gets a **Messages** icon in its
+taskbar, with that count, which opens its
 threads in the companion pane: one per peer, latest first, each message with its
 direction, time, state and the agent's text exactly as written, never formatted. A held
 thread has **Release**, and the pane's header has **Pause all agents' messages**, one
@@ -371,9 +377,10 @@ several of a kind (images, files, pages, or plans) stacked under one; only Messa
 never stack. A markdown file the agent shows reads as a document, formatted like a plan
 with its outline, but read-only: it's the agent's file, not a plan to edit or note (the
 demo's Codex has shown `docs/brand-voice.md`). The mark under an icon says whether it's
-new, showing, or seen; something new hops once, and nothing opens on its own unless you
-asked for it. Hover an icon to peek: a card per thing behind it, each a preview, its
-name and the same mark, with no copy. Click an icon or a card to open it, click the icon
+new, showing, or seen: something new gets a dot, quietly, and nothing opens on its own
+unless you asked for it. Hover an icon to peek: a card per thing behind it, each a
+preview, its name and the same mark, with no copy. Once you've peeked, what was new is
+seen, without opening it. Click an icon or a card to open it, click the icon
 again (or press Escape) to hide the pane, and close from a card's corner button or the
 icon's right-click. Closing a plan or Messages on its own terminal's bar hides it: the
 plan comes back with the agent's next version of it, Messages with the next message,

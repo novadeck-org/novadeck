@@ -1,13 +1,17 @@
-/* The tabs recipe: a terminal's tab in the sidebar, its phase, its actions and its mail
-   count. A tab is a sidebar item; this draws only what a terminal adds to it.
+/* The tabs recipe: a terminal's tab in the sidebar, its phase, its actions and what its
+   companion bar holds. A tab is a sidebar item; this draws only what a terminal adds to
+   it.
 
    Hooks on `.terminal-tab`: data-terminal-phase="idle" | "running" | "starting" |
    "attention" | "ended", data-terminal-attention="question" | "permission",
    data-terminal-hidden="true" | "false". Parts: `.terminal-glyph`,
    `.terminal-tab-process`, `.terminal-tab-starting`, `.terminal-tab-action` (an
-   `.icon-button.small.dim`, pressed while it hides the tab), `.terminal-tab-mail` (a
-   `.badge`, data-mail="waiting" | "held" | "paused"), `.terminal-tab-rename`,
-   `.terminal-tab-empty`.
+   `.icon-button.small.dim.quiet`, pressed while it hides the tab but looking as it does
+   at rest, so a hidden tab doesn't draw the eye; `.terminal-tab-revealed` on Hide and
+   Rename, which show under the pointer or with keyboard focus), `.terminal-tab-kinds`
+   (what its companion bar holds, at the end of the name's line), each
+   `.terminal-tab-kind` data-state="new" | "seen",
+   `.terminal-tab-rename`, `.terminal-tab-empty`.
 
    Tokens, each optional (its fallback in brackets):
    --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
@@ -18,11 +22,22 @@
    --tab-ended-fg (muted): an ended tab, and its name and icon.
    --tab-hidden-opacity (0.5): a tab hidden from Grid and Canvas.
    --tab-action-disabled-opacity (0.5): an action while the tab is being renamed.
-   --tab-mail-paused-bg (paper), --tab-mail-paused-fg (muted): the count of mail held
-   while the agent is paused. Waiting mail is a plain badge, held mail a warning tone.
+   --tab-kind-fg (muted), --tab-kind-opacity (icon-button-dim-opacity, then 0.5): what's
+   on the bar and seen. --tab-kind-new-opacity (1): something not yet opened, and the
+   messages while some wait. --tab-kind-new-bg (ink): the dot on it.
    --tab-empty-fg (muted): the note in an empty list. */
 .icon-button.terminal-tab-action:focus-visible {
   outline-offset: -2px;
+}
+/* Hide and Rename fade in under the pointer or with keyboard focus, and stay while the
+   tab is renamed; Close is always there. Without a pointer that hovers, they all stay. */
+.icon-button.terminal-tab-revealed {
+  transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+@media (hover: hover) {
+  .terminal-tab:not(:hover, :has(:focus-visible), .editing) .icon-button.terminal-tab-revealed {
+    opacity: 0;
+  }
 }
 .icon-button.terminal-tab-action:disabled {
   pointer-events: none;
@@ -44,9 +59,37 @@
 .terminal-tab-empty {
   color: var(--tab-empty-fg, var(--color-muted));
 }
-.badge.terminal-tab-mail[data-mail="paused"] {
-  --_bg: var(--tab-mail-paused-bg, var(--color-paper));
-  --_fg: var(--tab-mail-paused-fg, var(--color-muted));
+/* What the companion bar holds, at the end of the name's line: the name truncates before
+   it, so the icons line up down the list. */
+.terminal-tab-kinds {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+/* What's been seen is faint; something new is a step brighter, short of the name's
+   ink, with a small dot at its corner: there to notice without asking to be opened. */
+.terminal-tab-kind {
+  position: relative;
+  display: inline-flex;
+  color: var(--tab-kind-fg, var(--color-muted));
+}
+.terminal-tab-kind > svg {
+  opacity: var(--tab-kind-opacity, var(--icon-button-dim-opacity, 0.5));
+}
+.terminal-tab-kind[data-state="new"] > svg {
+  opacity: var(--tab-kind-new-opacity, 1);
+}
+.terminal-tab-kind[data-state="new"]::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background-color: var(--tab-kind-new-bg, var(--color-ink));
 }
 /* A tab reads its terminal's phase as text: a braille spinner beside a running program,
    as command-line tools show work, and a faint hatch once it has ended. Each tab keeps a

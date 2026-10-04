@@ -1,12 +1,17 @@
+import { useMemo } from "react"
+
 import { isWindow } from "../model/roster"
 import type { Tile } from "../model/types"
-import { useMailBadge } from "../terminals/companion/mail"
+import { barMembers, composeBar } from "../terminals/companion/bar"
+import { useHasMail, useMailBadge } from "../terminals/companion/mail"
+import { TabKinds } from "../terminals/companion/TabKinds"
 import { terminalProfile, windowProfile } from "../terminals/processes/profiles"
 import { renameView } from "../terminals/rename-state"
 import { TerminalTab } from "../terminals/TerminalTab"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useDockTarget } from "./dock-target"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
+import { useTerminalBar } from "./terminal-bar"
 
 // One terminal's or window's sidebar tab. It selects only what concerns its own tile, so
 // a rename keystroke re-renders the tab being renamed and no other.
@@ -40,7 +45,15 @@ export const WorkspaceTab = ({
       ? undefined
       : currentState(workspace).items.find((each) => each.id === itemId),
   )
-  const badge = useMailBadge(backend.messages, { ...target, terminalId: id })
+  const companionKey = { ...target, terminalId: id }
+  const badge = useMailBadge(backend.messages, companionKey)
+  // What its companion bar holds, as the bar itself draws it.
+  const hasMail = useHasMail(backend.messages, companionKey)
+  const { bar, items, fresh } = useTerminalBar(id)
+  const slots = useMemo(
+    () => composeBar(bar, barMembers({ terminalId: id, bar, items, fresh, messages: hasMail })),
+    [id, bar, items, fresh, hasMail],
+  )
   const dockIn = useDockTarget(terminal)
   return (
     <TerminalTab
@@ -51,6 +64,7 @@ export const WorkspaceTab = ({
       hidden={hidden}
       rename={rename}
       mail={badge}
+      companion={<TabKinds slots={slots} mail={badge !== null} />}
       onVisibilityChange={(isHidden) => commands.setVisibility(target, id, isHidden)}
       onSelect={() => commands.select(id)}
       onBeginRename={() => commands.startRename(terminal, "sidebar")}

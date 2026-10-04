@@ -20,6 +20,7 @@ import {
 import {
   chooseView,
   commandInput,
+  expectNothingSelected,
   expectSelected,
   expectStaysAbsent,
   openWorkspace,
@@ -30,9 +31,20 @@ import {
   terminalTabNames,
   visibleTerminalCounts,
   view,
+  tooltipOf,
 } from "./support/workspace"
 
 const views = ["Focus", "Grid", "Canvas"] as const
+
+/** An element's own opacity. */
+const opacity = (locator: Locator): number => Number(getComputedStyle(locator.element()).opacity)
+
+/** How a button looks: its ground, its colour, and its icon's opacity. */
+const look = (button: Element): string[] => [
+  getComputedStyle(button).backgroundColor,
+  getComputedStyle(button).color,
+  getComputedStyle(button.querySelector("svg")!).opacity,
+]
 
 /** A terminal's offset and size relative to a neighbour, rounded to whole pixels. */
 const placeBeside = (subject: Locator, neighbour: Locator): number[] => {
@@ -459,8 +471,57 @@ describe("closing terminals", () => {
   }
 })
 
+describe("a tab's actions", () => {
+  it("show Hide and Rename under the pointer, and Close always", async () => {
+    await openWorkspace()
+    const hide = visibilityToggle("Dev server", "Hide")
+    const rename = sidebar().getByRole("button", { name: "Rename Dev server" })
+    const close = tabAction("Close Dev server")
+    await userEvent.unhover(terminalTab("Dev server"))
+    await expect.poll(() => [opacity(hide), opacity(rename)]).toEqual([0, 0])
+    expect(opacity(close)).toBe(1)
+
+    await userEvent.hover(terminalTab("Dev server"))
+
+    await expect.poll(() => [opacity(hide), opacity(rename)]).toEqual([1, 1])
+    expect(opacity(close)).toBe(1)
+  })
+
+  it("keep telling a screen reader how to reorder the tab once its tooltip has shown", async () => {
+    await openWorkspace()
+    const tab = terminalTab("Dev server")
+    const instructions = (): string | null => {
+      const id = tab.element().getAttribute("aria-describedby")
+      return id ? (document.getElementById(id)?.textContent ?? null) : null
+    }
+    await expect.poll(instructions).toMatch(/^Press Enter to select a terminal\./)
+
+    await tooltipOf(tab)
+    await userEvent.unhover(tab)
+    await expect
+      .poll(() =>
+        document.querySelector('[data-scope="tooltip"][data-part="content"][data-state="open"]'),
+      )
+      .toBeNull()
+
+    expect(instructions()).toMatch(/^Press Enter to select a terminal\./)
+  })
+})
+
 describe("hiding terminals from Grid and Canvas", () => {
   context("when clicking the eye on a tab", () => {
+    it("draws the eye that shows it again no stronger than the tab's other actions", async () => {
+      await openWorkspace()
+      await visibilityToggle("Dev server", "Hide").click()
+      const show = visibilityToggle("Dev server", "Show")
+      await expect.element(show).toHaveAttribute("aria-pressed", "true")
+
+      await userEvent.unhover(show)
+
+      const rename = sidebar().getByRole("button", { name: "Rename Dev server" })
+      await expect.poll(() => look(show.element())).toEqual(look(rename.element()))
+    })
+
     it("keeps the tab in the list with a faded label and keeps the current selection", async () => {
       await openWorkspace()
       await chooseView("Grid")
@@ -497,6 +558,40 @@ describe("hiding terminals from Grid and Canvas", () => {
       await hiddenTerminalTab("Dev server").click()
 
       await expect.element(terminal("Dev server")).toBeVisible()
+    })
+  })
+
+  context("in Grid", () => {
+    it("shows every terminal at full opacity, selected or not", async () => {
+      await openWorkspace()
+      await chooseView("Grid")
+      await terminalTab("Tests").click()
+      await expectSelected("Tests")
+      await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(1, 1)
+      expect(renderedOpacity(headerName("Tests"))).toBeCloseTo(1, 1)
+
+      await press("{Escape}")
+
+      await expectNothingSelected()
+      expect(renderedOpacity(headerName("Dev server"))).toBeCloseTo(1, 1)
+      expect(renderedOpacity(headerName("Tests"))).toBeCloseTo(1, 1)
+    })
+  })
+
+  context("in Canvas", () => {
+    it("fades the terminals not selected, until nothing is", async () => {
+      await openWorkspace()
+      await chooseView("Canvas")
+      await terminalTab("Tests").click()
+      await expectSelected("Tests")
+      await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(0.5, 1)
+      expect(renderedOpacity(headerName("Tests"))).toBeCloseTo(1, 1)
+
+      await press("{Escape}")
+
+      await expectNothingSelected()
+      await expect.poll(() => renderedOpacity(headerName("Dev server"))).toBeCloseTo(1, 1)
+      expect(renderedOpacity(headerName("Tests"))).toBeCloseTo(1, 1)
     })
   })
 

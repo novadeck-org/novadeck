@@ -245,7 +245,6 @@ export const Grid = ({
       className="grid-viewport relative flex min-h-0 flex-1 overflow-hidden workspace-background"
       aria-label="Terminal grid"
       tabIndex={-1}
-      data-has-selection={Boolean(selected)}
       {...backgroundPointerHandlers}
       onMouseDownCapture={(event) => {
         if ((event.target as Element).closest(".react-resizable-handle")) event.preventDefault()

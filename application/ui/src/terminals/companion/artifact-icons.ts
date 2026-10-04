@@ -1,6 +1,16 @@
-import { BookText, FileCode2, Globe, Image, type LucideIcon } from "lucide-react"
+import {
+  BookText,
+  FileCode2,
+  FileStack,
+  FileText,
+  Globe,
+  Image,
+  MessagesSquare,
+  type LucideIcon,
+} from "lucide-react"
 
 import type { ArtifactKind } from "../../model/companion"
+import type { BarMember, BarSlot } from "./bar"
 
 export const kindIcons: Record<ArtifactKind, LucideIcon> = {
   image: Image,
@@ -17,3 +27,22 @@ export const iconOf = (artifact: {
   readonly name: string
 }): LucideIcon =>
   artifact.kind === "file" && isMarkdown(artifact.name) ? BookText : kindIcons[artifact.kind]
+
+// What a bar's member shows as, on the taskbar and on its terminal's tab: the messages,
+// a plan (a subagent's apart), or its artifact's icon.
+export const memberIcon = (member: BarMember): LucideIcon =>
+  member.kind === "messages"
+    ? MessagesSquare
+    : member.item.kind === "plan"
+      ? member.item.plan?.role === "subagent"
+        ? FileStack
+        : FileText
+      : iconOf({ kind: member.item.kind, name: member.item.name })
+
+// An icon on the bar: its one member's, or its stack's kind.
+export const slotIcon = (slot: BarSlot): LucideIcon =>
+  slot.stack === "plan"
+    ? FileText
+    : slot.stack
+      ? kindIcons[slot.stack]
+      : memberIcon(slot.members[0]!)

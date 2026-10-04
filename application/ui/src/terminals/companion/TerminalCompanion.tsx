@@ -22,6 +22,7 @@ export type ItemCommands = {
   readonly undock: (itemId: ItemId, place?: WindowPlace) => void
   readonly place: (itemIds: readonly ItemId[], terminalId: string) => void
   readonly closeItem: (itemId: ItemId) => void
+  readonly markSeen: (itemIds: readonly ItemId[]) => void
   readonly openBarTab: (terminalId: string, key: BarKey) => void
   readonly closeBarPane: (terminalId: string) => void
   readonly hideOnBar: (terminalId: string, key: BarKey) => void
@@ -217,6 +218,7 @@ export const TerminalCompanion = ({
     // Clicking what the pane is showing hides it, as a taskbar minimizes the active window.
     activate: (key) => (key === showing ? commands.closeBarPane(terminal) : openPicked(key)),
     open: openPicked,
+    seen: (itemIds) => commands.markSeen(itemIds),
     close: (each) =>
       each.kind === "messages"
         ? commands.hideOnBar(terminal, messagesKey)

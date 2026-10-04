@@ -36,6 +36,7 @@ const commandsOf = (workspace: WorkspaceStore): ItemCommands => ({
   undock: () => {},
   place: () => {},
   closeItem: () => {},
+  markSeen: () => {},
   openBarTab: () => {},
   closeBarPane: () => {},
   hideOnBar: (terminalId, barKey) =>

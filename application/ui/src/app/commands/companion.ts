@@ -29,6 +29,8 @@ export type CompanionCommands = {
   // Closes the item: a plan on its own terminal's bar hides until it's rewritten; anything
   // else is gone, with the window it was in.
   readonly closeItem: (itemId: ItemId) => void
+  // The person looked at items without opening them, in a peek: no longer new.
+  readonly markSeen: (itemIds: readonly ItemId[]) => void
   // Opens a bar's pane to what it holds, closes it, hides what's on it, or moves an icon,
   // which `slots` gives each by the keys it stands for.
   readonly openBarTab: (terminalId: string, key: BarKey) => void
@@ -150,6 +152,8 @@ export const createCompanionCommands = (
       if (windowOfItem(item)) navigation.navigateWorkspace([close], {}, true)
       else commit([close])
     },
+    markSeen: (itemIds) =>
+      commit([{ type: "item/seen", target: currentTarget(workspace.getSnapshot()), itemIds }]),
     openBarTab: (terminalId, key) =>
       commit([
         { type: "bar/open", target: currentTarget(workspace.getSnapshot()), terminalId, key },

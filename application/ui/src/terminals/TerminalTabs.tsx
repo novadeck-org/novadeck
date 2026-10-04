@@ -25,7 +25,12 @@ const sensors = [
     keyboardCodes: { ...KeyboardSensor.defaults.keyboardCodes, start: ["Space"] },
   }),
 ]
+// What a screen reader says of each tab: dnd-kit's description, by an id the tab names
+// itself, so a tooltip on the tab can't take its place.
+const reorderId = "terminal-tabs"
+export const tabInstructionsId = `dnd-kit-description-${reorderId}`
 const accessibility = Accessibility.configure({
+  id: reorderId,
   screenReaderInstructions: {
     draggable:
       "Press Enter to select a terminal. Press Space to pick up a tab, use arrow keys to reorder, then Space to drop or Escape to cancel.",

@@ -236,22 +236,19 @@ export const WindowShell = ({
         // leaves them to its tab's tooltip.
         <span className="terminal-metadata ml-auto flex min-w-0 items-center gap-2 overflow-hidden text-[10px]">
           {planning && (
-            <span
-              className="terminal-planning shrink-0"
-              title="Planning, not changing anything yet"
-            >
-              planning
-            </span>
+            <Tooltip content="Planning, not changing anything yet">
+              <span className="terminal-planning shrink-0">planning</span>
+            </Tooltip>
           )}
           {shell && subagents && (
-            <span className="terminal-subagents shrink-0" title={subagentsDetail(shell)}>
-              {subagents}
-            </span>
+            <Tooltip content={subagentsDetail(shell)}>
+              <span className="terminal-subagents shrink-0">{subagents}</span>
+            </Tooltip>
           )}
           {shell && usage && (
-            <span className="terminal-usage min-w-0 truncate" title={usageDetail(shell)}>
-              {usage}
-            </span>
+            <Tooltip content={usageDetail(shell)}>
+              <span className="terminal-usage min-w-0 truncate">{usage}</span>
+            </Tooltip>
           )}
         </span>
       )}

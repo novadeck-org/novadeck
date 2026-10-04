@@ -62,6 +62,21 @@ export const WorkspaceHeader = ({
 }): React.JSX.Element => {
   const iconOnly = useSyncExternalStore(subscribe, isIconOnly)
   const searchShortcut = workspaceShortcutBindings().find.display.join(" ")
+  // With one view left there's nothing to switch to: the switch goes, and Zen joins the
+  // actions on the right.
+  const switchable = enabledViews.length > 1
+  const zen = (
+    <Tooltip content={`Zen · ${workspaceShortcutBindings().zen.display.join(" ")}`}>
+      <button
+        data-workspace-zen-enter
+        className="icon-button zen-enter"
+        aria-label="Enter Zen mode"
+        onClick={onZen}
+      >
+        <Scan size={16} />
+      </button>
+    </Tooltip>
+  )
   return (
     <header
       hidden={hidden}
@@ -90,40 +105,36 @@ export const WorkspaceHeader = ({
         data-workspace-view-switch
         className="header-view-controls relative flex shrink-0 items-center"
       >
-        <SegmentGroup
-          label="Workspace layout"
-          tooltips={iconOnly}
-          className="view-switch max-[701px]:gap-0 flex shrink-0 gap-1"
-          itemClassName="flex h-8 min-w-22 items-center justify-center gap-2 px-3 text-[11px] max-[701px]:min-w-0 max-[701px]:w-8 max-[701px]:px-2 max-[701px]:gap-0 max-[701px]:text-[10px] [&>span]:max-[701px]:hidden"
-          items={views
-            .filter(({ id }) => enabledViews.includes(id))
-            .map(({ id, label, icon: Icon }) => ({
-              value: id,
-              label,
-              icon: <Icon size={14} strokeWidth={1.6} aria-hidden="true" />,
-            }))}
-          indicatorClassName="view-switch-indicator"
-          value={view}
-          onValueChange={(value) => {
-            const mode = enabledViews.find((candidate) => candidate === value)
-            if (mode) onViewChange(mode)
-          }}
-        />
-        <div className="absolute left-[calc(100%+0.5rem)] flex items-center gap-2 max-[701px]:left-[calc(100%+0.25rem)] max-[701px]:gap-1">
-          <div className="separator h-4 w-px" aria-hidden="true" />
-          <Tooltip content={`Zen · ${workspaceShortcutBindings().zen.display.join(" ")}`}>
-            <button
-              data-workspace-zen-enter
-              className="icon-button zen-enter"
-              aria-label="Enter Zen mode"
-              onClick={onZen}
-            >
-              <Scan size={16} />
-            </button>
-          </Tooltip>
-        </div>
+        {switchable && (
+          <>
+            <SegmentGroup
+              label="Workspace layout"
+              tooltips={iconOnly}
+              className="view-switch max-[701px]:gap-0 flex shrink-0 gap-1"
+              itemClassName="flex h-8 min-w-22 items-center justify-center gap-2 px-3 text-[11px] max-[701px]:min-w-0 max-[701px]:w-8 max-[701px]:px-2 max-[701px]:gap-0 max-[701px]:text-[10px] [&>span]:max-[701px]:hidden"
+              items={views
+                .filter(({ id }) => enabledViews.includes(id))
+                .map(({ id, label, icon: Icon }) => ({
+                  value: id,
+                  label,
+                  icon: <Icon size={14} strokeWidth={1.6} aria-hidden="true" />,
+                }))}
+              indicatorClassName="view-switch-indicator"
+              value={view}
+              onValueChange={(value) => {
+                const mode = enabledViews.find((candidate) => candidate === value)
+                if (mode) onViewChange(mode)
+              }}
+            />
+            <div className="absolute left-[calc(100%+0.5rem)] flex items-center gap-2 max-[701px]:left-[calc(100%+0.25rem)] max-[701px]:gap-1">
+              <div className="separator h-4 w-px" aria-hidden="true" />
+              {zen}
+            </div>
+          </>
+        )}
       </div>
       <div className="header-actions max-[1001px]:ml-0 max-[701px]:shrink-0 max-[701px]:gap-0 flex items-center justify-self-end gap-2">
+        {!switchable && zen}
         <Tooltip content={`Search · ${searchShortcut}`} disabled={!iconOnly}>
           <button
             className="icon-button header-search w-auto gap-2 px-2.5 text-[11px] max-[701px]:w-8 max-[701px]:gap-0 max-[701px]:px-0"

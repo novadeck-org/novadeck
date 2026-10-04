@@ -228,7 +228,8 @@ export const Preferences = ({
                 id="view-modes-description"
                 className={`clear-both px-0.5 ${sectionDescriptionClasses}`}
               >
-                Layouts shown in the header. At least one stays on.
+                Layouts shown in the header. At least one stays on; with one, the header has no
+                switch.
               </p>
               <div className="view-preference-options mt-2.5 grid grid-cols-3 gap-2 max-[360px]:gap-1.5">
                 {viewModes.map((mode) => {

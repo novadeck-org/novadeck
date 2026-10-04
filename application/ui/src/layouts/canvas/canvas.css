@@ -25,6 +25,10 @@
   .canvas-node.selected[data-preview="true"] {
     opacity: 0.5;
   }
+  /* With nothing selected, no window recedes, as in Grid. */
+  .canvas-viewport[data-has-selection="false"] .canvas-node {
+    opacity: 1;
+  }
   .canvas-node .terminal-resize-grip {
     /* Its look is the workspace recipe's, shared with Grid's resize handle. */
     @apply absolute right-px bottom-px z-10 flex size-7 items-end justify-end p-1.5;

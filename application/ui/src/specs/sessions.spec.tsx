@@ -44,6 +44,27 @@ describe("projects", () => {
         .element(menu.getByRole("button", { name: /^api-service / }))
         .not.toHaveAttribute("aria-current")
     })
+
+    it("opens under its button and gives the focus back to it on Escape", async () => {
+      await openWorkspace()
+      const trigger = workspaceSwitcher()
+
+      await trigger.click()
+
+      const menu = page.getByRole("dialog", { name: "Switch workspace" })
+      await expect.element(menu).toBeVisible()
+      await expect.element(trigger).toHaveAttribute("aria-expanded", "true")
+      const button = trigger.element().getBoundingClientRect()
+      await expect
+        .poll(() => menu.element().getBoundingClientRect().top)
+        .toBeGreaterThanOrEqual(button.bottom)
+      expect(Math.abs(menu.element().getBoundingClientRect().left - button.left)).toBeLessThan(2)
+
+      await press("{Escape}")
+
+      await expect.element(menu).not.toBeInTheDocument()
+      await expect.element(trigger).toHaveFocus()
+    })
   })
 
   context("when switching to another project", () => {

@@ -9,6 +9,7 @@ import {
 } from "react"
 
 import { endingText, terminalEnding, type TerminalEnding } from "../../model/terminal-ending"
+import { Tooltip } from "../../ui-toolkit/Tooltip"
 import type { TerminalSurfaceProps } from "../port"
 import { restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
@@ -51,10 +52,12 @@ const EndingBar = ({
       inert={!ending}
       data-terminal-ending={ending?.tone}
     >
-      <span className="min-w-0 truncate" title={text || undefined}>
-        <span className="font-medium">{shown?.status}</span>
-        {shown?.reason && <span className="runner-ending-reason"> · {shown.reason}</span>}
-      </span>
+      <Tooltip content={text} disabled={!text}>
+        <span className="min-w-0 truncate">
+          <span className="font-medium">{shown?.status}</span>
+          {shown?.reason && <span className="runner-ending-reason"> · {shown.reason}</span>}
+        </span>
+      </Tooltip>
       {shown && (
         <button
           type="button"

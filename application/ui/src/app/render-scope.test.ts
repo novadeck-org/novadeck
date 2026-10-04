@@ -210,7 +210,7 @@ describe("workspace render scope", () => {
   })
 
   context("when something on one terminal's bar is shown again", () => {
-    it("re-renders only that terminal's frame", async () => {
+    it("re-renders only that terminal's frame and its tab, which shows its bar", async () => {
       const { services } = await open()
       const target = firstTarget(services)
       const mine = itemFixture("mine", "01")
@@ -230,7 +230,7 @@ describe("workspace render scope", () => {
           item: { ...mine, version: 2 },
         }),
       )
-      expect(seen).toEqual({ "frame 01": 2 })
+      expect(seen).toEqual({ "frame 01": 2, "tab 01": 2 })
     })
   })
 })

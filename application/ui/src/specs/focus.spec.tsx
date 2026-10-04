@@ -194,5 +194,33 @@ describe("available view modes", () => {
       await expect.element(focusView()).toBeVisible()
       await expect.element(page.getByRole("button", { name: /^Open in / })).not.toBeInTheDocument()
     })
+
+    it("hides the view switcher, keeping Zen", async () => {
+      await openWorkspace()
+
+      await disableView("Grid")
+      await disableView("Canvas")
+
+      await expect.element(viewSwitcher()).not.toBeInTheDocument()
+      await expect.element(page.getByRole("button", { name: "Enter Zen mode" })).toBeVisible()
+
+      await page.getByRole("button", { name: "Enter Zen mode" }).click()
+      const dock = page.getByRole("group", { name: "Zen controls" })
+      await dock.getByRole("button", { name: "Show Zen controls" }).click()
+      await expect.element(dock.getByRole("button", { name: "Exit Zen" })).toBeVisible()
+      await expect.element(dock.getByRole("button", { name: /view$/ })).not.toBeInTheDocument()
+    })
+
+    it("brings the view switcher back once another view is enabled", async () => {
+      await openWorkspace()
+      await disableView("Grid")
+      await disableView("Canvas")
+      await expect.element(viewSwitcher()).not.toBeInTheDocument()
+
+      // The same checkbox turns Grid back on.
+      await disableView("Grid")
+
+      await expect.element(viewSwitcher().getByRole("radio")).toHaveLength(2)
+    })
   })
 })

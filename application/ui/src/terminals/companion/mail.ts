@@ -31,6 +31,12 @@ export const useMailBadge = (
   return mailBadge(mail, paused)
 }
 
+// Whether a terminal has a messages view, which puts the messages on its bar.
+export const useHasMail = (messages: Messages | undefined, key: CompanionKey): boolean => {
+  const id = companionKeyId(key)
+  return useMailPart(messages, (state) => hasMail(state.terminals[id]))
+}
+
 // A terminal's messages as its companion pane uses them.
 export type MailHandle = {
   readonly mail: TerminalMail | undefined
@@ -42,7 +48,7 @@ export type MailHandle = {
   readonly releasing: readonly string[]
   // Why a thread's last release didn't take, by thread.
   readonly failed: Readonly<Record<string, string>>
-  // Whether the terminal has a messages view: an agent is there, or it had messages.
+  // Whether the terminal has a messages view: it has had messages.
   readonly present: boolean
   readonly badge: MailBadge | null
   readonly pause: (paused: boolean) => void

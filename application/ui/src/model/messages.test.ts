@@ -87,9 +87,10 @@ describe("a terminal's badge", () => {
 })
 
 describe("a terminal's messages view", () => {
-  it("is there for an agent, or for messages it had, but not for a plain shell", () => {
-    expect(hasMail(mail([]))).toBe(true)
+  it("is there for messages it had, but not for an agent that has had none", () => {
+    expect(hasMail(mail(outbound))).toBe(true)
     expect(hasMail(mail(outbound, false))).toBe(true)
+    expect(hasMail(mail([]))).toBe(false)
     expect(hasMail(mail([], false))).toBe(false)
     expect(hasMail(undefined)).toBe(false)
   })

@@ -1,10 +1,13 @@
 /* The icon-button recipe: header, window, tab and sidebar actions, and the icon select's
    trigger. `.dim` keeps its icon faint until the pointer or focus reaches it, or while it
-   is pressed; `.small` is the 24px button of a tab's actions; `.raised` stands on paper
-   with an edge and a shadow, for a button over content, such as a peek card's close.
+   is pressed; `.quiet` keeps a toggle that is on looking as it does off, for one whose
+   state shows elsewhere and shouldn't draw the eye; `.small` is the 24px button of a
+   tab's actions; `.raised` stands on paper with an edge and a shadow, for a button over
+   content, such as a peek card's close.
 
-   Hooks: aria-pressed="true" on a toggle that is on; Ark's data-state="open" on the
-   trigger of a select, menu or popover while it is open; :disabled.
+   Hooks: aria-pressed="true" on a toggle that is on; aria-expanded="true" with
+   aria-haspopup on the trigger of a select, menu or popover while it is open (its
+   data-state may be a tooltip's around it); :disabled.
 
    Tokens, each optional (its fallback in brackets):
    --icon-button-bg (transparent), --icon-button-fg (muted),
@@ -16,7 +19,7 @@
    --icon-button-raised-bg (paper), --icon-button-raised-border-color (line),
    --icon-button-raised-shadow (shadow-control): a `.raised` button; under the pointer
    it keeps its ground and takes the hover fg.
-   --icon-button-dim-opacity (0.25): a `.dim` button's icon at rest.
+   --icon-button-dim-opacity (0.5): a `.dim` button's icon at rest.
    --icon-button-disabled-opacity (0.25): a disabled button. */
 .icon-button {
   --_bg: var(--icon-button-bg, transparent);
@@ -26,11 +29,7 @@
   background-color: var(--_bg);
   color: var(--_fg);
 }
-.icon-button:is(
-    [data-scope="select"],
-    [data-scope="menu"],
-    [data-scope="popover"]
-  )[data-state="open"] {
+.icon-button[aria-haspopup][aria-expanded="true"] {
   --_bg: var(--icon-button-hover-bg, var(--color-soft));
   --_fg: var(--icon-button-hover-fg, var(--color-ink));
 }
@@ -40,7 +39,7 @@
     --_fg: var(--icon-button-hover-fg, var(--color-ink));
   }
 }
-.icon-button[aria-pressed="true"] {
+.icon-button[aria-pressed="true"]:not(.quiet) {
   --_bg: var(--icon-button-pressed-bg, var(--icon-button-hover-bg, var(--color-soft)));
   --_fg: var(--icon-button-pressed-fg, var(--icon-button-hover-fg, var(--color-ink)));
 }
@@ -67,10 +66,10 @@
   @apply shrink-0;
 }
 .icon-button.dim > svg {
-  opacity: var(--icon-button-dim-opacity, 0.25);
+  opacity: var(--icon-button-dim-opacity, 0.5);
   transition: opacity var(--motion-feedback) var(--ease-interface);
 }
-.icon-button.dim:is(:focus-visible, [aria-pressed="true"]) > svg {
+.icon-button.dim:is(:focus-visible, [aria-pressed="true"]:not(.quiet)) > svg {
   opacity: 1;
 }
 @media (hover: hover) {

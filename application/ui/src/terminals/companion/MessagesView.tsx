@@ -3,6 +3,7 @@ import { useEffect, useId, useRef } from "react"
 
 import type { AgentMessage, MessageThread } from "../../model/messages"
 import { Switch } from "../../ui-toolkit/Switch"
+import { Tooltip } from "../../ui-toolkit/Tooltip"
 import type { MailHandle } from "./mail"
 
 // When a message was sent or delivered: the time, with the date when it wasn't today.
@@ -59,13 +60,14 @@ const MessageItem = ({
           <span className="sr-only">{sent ? `Sent to ${message.to}` : `From ${message.from}`}</span>
         </span>
         <time dateTime={new Date(message.sentAt).toISOString()}>{clock(message.sentAt)}</time>
-        <span
-          className={`mail-state${message.state === "delivered" ? " sr-only" : ""}`}
-          data-state={message.state}
-          title={stateHint[message.state]}
-        >
-          {stateText(message)}
-        </span>
+        <Tooltip content={stateHint[message.state]}>
+          <span
+            className={`mail-state${message.state === "delivered" ? " sr-only" : ""}`}
+            data-state={message.state}
+          >
+            {stateText(message)}
+          </span>
+        </Tooltip>
       </div>
       {/* The agent's words, exactly as it wrote them: never formatted or interpreted. */}
       <p className="mail-text">{message.text}</p>

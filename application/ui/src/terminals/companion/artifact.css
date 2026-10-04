@@ -3,7 +3,8 @@
    (`.artifact-image`) with its zoom, a segmented control (`.artifact-zoom`); a file's
    lines (`.artifact-code`, highlighted by the syntax recipe); a page in a browser frame
    (`.artifact-browser`, its bar `.artifact-browser-bar` with `.icon-button`s, its
-   address `.artifact-url` and a link to open it, `.artifact-open`); and a markdown
+   address `.artifact-url` and a link to open it, `.artifact-open`, and a snapshot in
+   `.artifact-page-scroll`); and a markdown
    document, which the prose recipe formats. `.artifact-status` says when there's
    nothing to show yet; `.artifact-unavailable` says why something can't show, over
    `.artifact-unavailable-actions`, what can be done about it. `.artifact-actions` holds what the place showing it offers, as
@@ -35,18 +36,22 @@
 /* While an artifact loads, or when it couldn't. */
 .artifact-status {
   display: grid;
+  flex: 1;
   place-items: center;
-  min-height: 240px;
+  min-height: 0;
+  overflow: auto;
   font-size: 12px;
   color: var(--artifact-status-fg, var(--color-muted));
 }
 /* What can't show, and why, with what can be done about it. */
 .artifact-unavailable {
   display: grid;
+  flex: 1;
   place-content: center;
   justify-items: center;
   gap: 10px;
-  min-height: 240px;
+  min-height: 0;
+  overflow: auto;
   padding: 24px;
   text-align: center;
   font-size: 12px;
@@ -63,17 +68,17 @@
   justify-content: center;
   gap: 4px;
 }
+/* Each viewer's header stays while what's under it scrolls: an image in its checker, a
+   file's lines, a page under its bar, a markdown document in its reader. */
 .artifact-viewer {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-/* A markdown document scrolls inside its reader, beside its outline, as a plan does. */
-.artifact-viewer[data-document] {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
+/* Each line of the header is as tall as the controls it may hold, so a header is one
+   height with them or without, and what sits at its end stays put. */
 .artifact-meta {
   display: flex;
   flex-wrap: wrap;
@@ -82,6 +87,7 @@
   padding: 8px 14px;
   border-bottom: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
   font-size: 11px;
+  line-height: 22px;
   color: var(--artifact-meta-fg, var(--color-muted));
 }
 .artifact-meta code {
@@ -92,8 +98,7 @@
   flex: 1;
 }
 /* What the place showing an artifact offers for it, at the end of the viewer's header:
-   centred on the header's text, and no taller than its line, so the row keeps its
-   height. */
+   centred on the header's text, and as tall as its line. */
 .artifact-actions {
   display: flex;
   align-self: stretch;
@@ -103,11 +108,10 @@
 .artifact-actions .icon-button {
   width: 24px;
   height: 22px;
-  margin-block: -3px;
   padding: 0;
 }
 
-/* The zoom is a segmented control, a pixel tighter so the header keeps its height. */
+/* The zoom is a segmented control, as tall as the header's line. */
 .artifact-zoom {
   display: flex;
   gap: 2px;
@@ -115,12 +119,14 @@
 }
 .artifact-zoom .segment {
   padding: 0 7px;
+  line-height: 16px;
   font-size: 11px;
 }
 .artifact-image {
   display: grid;
+  flex: 1;
   place-items: center;
-  min-height: calc(100% - 38px);
+  min-height: 0;
   padding: 20px;
   background-image: var(
     --artifact-image-image,
@@ -145,8 +151,10 @@
 }
 
 .artifact-code {
+  flex: 1;
+  min-height: 0;
   padding: 10px 0;
-  overflow-x: auto;
+  overflow: auto;
   font: 11.5px/1.75 var(--font-mono);
   user-select: text;
 }
@@ -168,8 +176,9 @@
 
 .artifact-browser {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  min-height: 100%;
+  min-height: 0;
 }
 .artifact-browser-bar {
   display: flex;
@@ -217,15 +226,11 @@
   --_bg: var(--artifact-open-hover-bg, var(--color-soft));
   --_fg: var(--artifact-open-hover-fg, var(--color-ink));
 }
-/* A live page fills the viewer, and scrolls itself. */
-.artifact-viewer:has(> .artifact-browser[data-live]) {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.artifact-browser[data-live] {
+/* A live page fills the viewer, and scrolls itself; a snapshot scrolls under the bar. */
+.artifact-page-scroll {
   flex: 1;
   min-height: 0;
+  overflow: auto;
 }
 .artifact-webview-frame {
   display: flex;

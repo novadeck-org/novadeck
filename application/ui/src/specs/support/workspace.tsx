@@ -148,5 +148,44 @@ export const visibleTerminalCounts = (): (string | null)[] =>
 /** Types keys through the real keyboard, e.g. `press("{Escape}")` or `press("{Control>}{Tab}{/Control}")`. */
 export const press = (keys: string): Promise<void> => userEvent.keyboard(keys)
 
+/** What `trigger`'s tooltip says, once the pointer has rested on it, as a person reads it. */
+export const tooltipOf = async (trigger: Locator): Promise<string> => {
+  await userEvent.hover(trigger)
+  // The open tooltip is the trigger's own, never another still closing: the one its
+  // description names, or, where something else describes it (a sortable handle), the
+  // one its id pairs with.
+  const shown = (): Element | null => {
+    const element = trigger.element()
+    const named = (element.getAttribute("aria-describedby") ?? "")
+      .split(/\s+/)
+      .map((id) => document.getElementById(id))
+      .find((each) => each?.matches('[data-scope="tooltip"][data-part="content"]'))
+    const paired = element.id.endsWith(":trigger")
+      ? document.getElementById(element.id.replace(/:trigger$/, ":content"))
+      : null
+    const open = named ?? paired
+    return open?.getAttribute("data-state") === "open" ? open : null
+  }
+  await expect.poll(shown).not.toBeNull()
+  return shown()!.textContent ?? ""
+}
+
 /** The platform modifier: Cmd on macOS, Ctrl elsewhere. Chromium on Linux/Windows uses Ctrl. */
 export const isMac = (): boolean => /Mac|iPhone|iPad/.test(navigator.platform)
+
+/**
+ * What a screen reader hears describe a terminal's tab, as aria-describedby resolves it,
+ * less the instructions for reordering tabs every tab has; null when that's all.
+ */
+export const tabDescription = (name: string): string | null => {
+  const tab = terminalTab(name).element()
+  const ids = tab.getAttribute("aria-describedby")
+  // Whatever aria-describedby names, a screen reader hears it instead of aria-description.
+  if (!ids) return tab.getAttribute("aria-description")
+  const parts = ids
+    .split(/\s+/)
+    // dnd-kit's own description, how to reorder the tab, is every tab's.
+    .filter((id) => id && !id.startsWith("dnd-kit-description-"))
+    .map((id) => document.getElementById(id)?.textContent ?? "")
+  return parts.length ? parts.join(" ") : null
+}

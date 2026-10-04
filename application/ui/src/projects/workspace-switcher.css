@@ -5,7 +5,7 @@
    the row under the pointer. Under a rule, `.workspace-switcher-new` opens a folder: a
    `.button.quiet`.
 
-   Hooks: on the trigger, data-state="open" while the popover is open; on a row,
+   Hooks: on the trigger, aria-expanded="true" while the popover is open; on a row,
    aria-current="true" for the current project.
 
    Tokens, each optional (its fallback in brackets):
@@ -15,7 +15,7 @@
 .workspace-switcher-trigger > svg {
   color: var(--workspace-switcher-icon-fg, var(--color-muted));
 }
-.button.workspace-switcher-trigger[data-state="open"] {
+.button.workspace-switcher-trigger[aria-expanded="true"] {
   --_bg: var(--button-ghost-hover-bg, var(--color-soft));
 }
 

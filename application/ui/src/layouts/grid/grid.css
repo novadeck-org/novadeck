@@ -9,14 +9,10 @@
   .grid-terminal[aria-hidden="true"] > .react-resizable-handle {
     visibility: hidden;
   }
-  .grid-terminal.selected {
-    opacity: 1;
-  }
+  /* Grid's windows stay opaque whatever is selected; only a hidden one shown while
+     selected recedes. */
   .grid-terminal.selected[data-preview="true"] {
     opacity: 0.5;
-  }
-  .grid-viewport[data-has-selection="false"] .grid-terminal {
-    opacity: 1;
   }
   .terminal-grid .grid-terminal.cssTransforms {
     transition:

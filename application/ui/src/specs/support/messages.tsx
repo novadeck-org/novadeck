@@ -1,7 +1,7 @@
 import { expect } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { openWorkspace, terminal, terminalTab } from "./workspace"
+import { openWorkspace, terminal, terminalTab, tooltipOf } from "./workspace"
 
 // Vocabulary for agents' messages: the counts on terminals' tabs, a terminal's messages
 // in its companion pane, and who named a terminal.
@@ -14,8 +14,7 @@ export const openMessagesDemo = async (route = "/"): Promise<void> => {
 }
 
 /** The tooltip a terminal's tab shows on hover. */
-export const tabTooltip = (name: string): string | null =>
-  terminalTab(name).element().getAttribute("title")
+export const tabTooltip = (name: string): Promise<string> => tooltipOf(terminalTab(name))
 
 /** The Messages button in a terminal's taskbar. */
 export const messagesButton = (name: string): Locator =>

@@ -1,7 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from "react"
 
-import { isOnBar, type CompanionItem, type ItemId } from "../model/companion"
-import { emptyBar } from "../model/companion-bar"
 import { isWindow } from "../model/roster"
 import { activeProject } from "../model/state"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "../model/types"
@@ -24,10 +22,10 @@ import {
   handleNames,
   sameTarget,
   shallowEqual,
-  sameItems,
   terminalNames,
   windowedDestination,
 } from "./selectors"
+import { useTerminalBar } from "./terminal-bar"
 
 // What every window in the current view takes from the workspace, a terminal's or one
 // undocked from a companion: its header, its menu, and the controls its layout offers.
@@ -123,8 +121,6 @@ const WorkspaceWindow = ({
   )
 }
 
-const noItems: readonly CompanionItem[] = []
-
 // One terminal in the current view: the backend's surface, which keeps its controller
 // mounted while the shared window, and the body its program calls for, wrap its content.
 export const WorkspaceTerminal = ({
@@ -165,21 +161,7 @@ export const WorkspaceTerminal = ({
     [projectId, workspaceSessionId, terminalId],
   )
   const onInputFocused = useCallback(() => setKeyboardFocus(null), [setKeyboardFocus])
-  // What its bar holds, as the person arranged it, and what's new there.
-  const bar = useWorkspaceState((workspace) => currentState(workspace).bars[terminalId] ?? emptyBar)
-  const items = useWorkspaceState((workspace) => {
-    const held = currentState(workspace).items.filter((item) => isOnBar(item, terminalId))
-    return held.length ? held : noItems
-  }, sameItems)
-  // Only its own items' marks, so something new on another bar re-renders nothing here.
-  const fresh = useWorkspaceState((workspace): Readonly<Record<ItemId, true>> => {
-    const state = currentState(workspace)
-    return Object.fromEntries(
-      state.items.flatMap((item) =>
-        isOnBar(item, terminalId) && state.fresh[item.id] ? [[item.id, true]] : [],
-      ),
-    )
-  }, shallowEqual)
+  const { bar, items, fresh } = useTerminalBar(terminalId)
   const { icon: Icon, Body } = terminalProfile(terminal)
   const processWindow = presentedProgram(terminal)
   const frame: Omit<WindowShellProps, "children"> = {

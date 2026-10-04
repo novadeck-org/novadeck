@@ -514,6 +514,7 @@ const TerminalCanvas = ({
         } as CSSProperties
       }
       aria-label="Terminal canvas"
+      data-has-selection={Boolean(selected)}
       tabIndex={0}
       {...backgroundPointerHandlers}
       onContextMenu={(event) => {

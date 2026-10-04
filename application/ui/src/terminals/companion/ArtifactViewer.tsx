@@ -224,7 +224,9 @@ const PageViewer = ({
         {actions}
       </div>
       {artifact.snapshot ? (
-        <img className="artifact-page" src={artifact.snapshot} alt={`${artifact.url} as shown`} />
+        <div className="artifact-page-scroll">
+          <img className="artifact-page" src={artifact.snapshot} alt={`${artifact.url} as shown`} />
+        </div>
       ) : (
         <div className="artifact-status">This page opens in your browser.</div>
       )}

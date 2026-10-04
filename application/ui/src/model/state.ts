@@ -139,6 +139,8 @@ export type WorkspaceAction =
     }
   // The person closes an item, and the window it's in: it's gone.
   | { type: "item/close"; target: WorkspaceTarget; itemId: ItemId }
+  // The person looked at items without opening them, as a peek shows them: no longer new.
+  | { type: "item/seen"; target: WorkspaceTarget; itemIds: readonly ItemId[] }
   // How the person arranges a terminal's bar: its pane opened to something or closed,
   // something hidden from it, its icons reordered. The messages come and come back.
   | { type: "bar/open"; target: WorkspaceTarget; terminalId: string; key: BarKey }
@@ -656,6 +658,10 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
       return updateTarget(workspace, action.target, (state) => removeItem(state, action.itemId))
     case "item/upsert":
       return updateTarget(workspace, action.target, (state) => upsertItem(state, action.item))
+    case "item/seen":
+      return updateTarget(workspace, action.target, (state) =>
+        action.itemIds.reduce(unfresh, state),
+      )
     case "window/upsert":
       return updateTarget(workspace, action.target, (state) => upsertWindow(state, action.window))
     case "window/remove":

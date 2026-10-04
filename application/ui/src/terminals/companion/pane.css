@@ -3,8 +3,9 @@
    (`.plan-divider`); attached (`.plan-attached`), it hangs off the canvas node; undocked,
    it fills a window of its own (`.artifact-window`, see artifact.css). In each, the
    reader (`.plan-reader`) holds the outline (`.plan-spine`) beside the document, under
-   its header (`.plan-meta`), with the toggle for the agent's changes
-   (`.plan-changes-toggle`, toned as a warning); an item placed from another terminal
+   the header every viewer has (`.artifact-meta`, see artifact.css), with the toggle for
+   the agent's changes (`.plan-changes-toggle`, toned as a warning) and its hints
+   (`.plan-meta-hint`); an item placed from another terminal
    sits under a line saying whose it is (`.placed-from`).
 
    Hooks: on the split's pane and the attached sheet, data-state="open" | "closed" as
@@ -25,8 +26,6 @@
    --spine-fg (muted), --spine-hover-bg (soft), --spine-hover-fg (ink): an entry.
    --spine-count-bg (strong), --spine-count-fg (on-strong): an entry's count of notes.
    --spine-changed-bg (warning-fg): the dot by a changed entry.
-   --plan-meta-fg (muted): the header's text.
-   --plan-meta-path-fg (ink): the file's path.
    --plan-meta-hint-fg (warning-fg): what keeps a plan from saving, or reading whole.
    --plan-changes-action-bg (paper): the changes toggle's Show or Hide.
    --placed-from-bg (shell), --placed-from-fg (muted), --placed-from-border-color (line):
@@ -167,6 +166,7 @@
 .plan-reader-body[data-outline="false"] {
   grid-template-columns: minmax(0, 1fr);
 }
+/* The document scrolls beside its outline, under the reader's header, which stays. */
 .plan-document-scroll {
   min-height: 0;
   overflow: auto;
@@ -245,45 +245,19 @@
   }
 }
 
-/* Always editable: the meta row, then the file. Lined up on the text's baseline: the
-   path's monospace and the label beside it differ in height, so centring their boxes
-   leaves the text unaligned. */
-.plan-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 14px;
-  max-width: 700px;
-  margin: auto;
-  padding: 24px 44px 0;
-  font-size: 11px;
-  color: var(--plan-meta-fg, var(--color-muted));
-}
-@container plan-reader (max-width: 560px) {
-  .plan-meta {
-    padding: 18px 20px 0 44px;
-  }
-}
-.plan-meta-path {
-  font: 11px var(--font-mono);
-  color: var(--plan-meta-path-fg, var(--color-ink));
-}
+/* What keeps a plan from saving, or reading whole, in the reader's header. */
 .plan-meta-hint {
   color: var(--plan-meta-hint-fg, var(--color-warning-fg));
 }
-/* The plan header's actions sit at its far end. */
-.plan-meta-actions {
-  display: flex;
-  margin-left: auto;
-  align-self: stretch;
-}
 /* The tone recipe paints it; shown, the changes take the tint and the toggle lets go of
    it. */
+/* In the reader's header, as tall as its line. */
 .plan-changes-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 6px 4px 9px;
+  padding: 0 6px 0 9px;
+  line-height: 20px;
   border-width: var(--border-width);
   border-style: solid;
   border-radius: var(--radius-control);

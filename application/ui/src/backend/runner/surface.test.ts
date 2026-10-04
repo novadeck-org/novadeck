@@ -395,6 +395,9 @@ describe("runner terminal surface", () => {
   })
 
   context("once its shell ended", () => {
+    // How it ended, in full in its tooltip when the bar is too narrow.
+    const ending = '[data-scope="tooltip"][data-part="trigger"]'
+
     it("says how under its output, in honey for an exit code, and announces it", () => {
       const { page, bar } = ended({ state: "exited", exitCode: 3, signal: null })
       expect(bar?.dataset.terminalEnding).toBe("warning")
@@ -402,7 +405,7 @@ describe("runner terminal surface", () => {
       const announcer = page.container.querySelector("[aria-live=polite]")
       expect(announcer?.textContent).toBe("Exited · code 3")
       expect(announcer?.closest("[inert]")).toBeNull()
-      expect(bar?.querySelector("[title]")?.textContent).toBe("Exited · code 3")
+      expect(bar?.querySelector(ending)?.textContent).toBe("Exited · code 3")
     })
 
     it("announces it from a region that outlives the program's body changing", () => {
@@ -435,9 +438,7 @@ describe("runner terminal surface", () => {
     it("names why it could not start, in rose", () => {
       const { bar } = ended({ state: "failed", message: "Folder not found" })
       expect(bar?.dataset.terminalEnding).toBe("danger")
-      expect(bar?.querySelector("[title]")?.getAttribute("title")).toBe(
-        "Failed to start · Folder not found",
-      )
+      expect(bar?.querySelector(ending)?.textContent).toBe("Failed to start · Folder not found")
     })
 
     it("starts a fresh shell from its Restart button", () => {

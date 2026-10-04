@@ -170,6 +170,9 @@
   /* Component tokens: the Deck mark's cards, stepping down from the light tile. */
   --deck-mark-card-near-bg: #8a9099;
   --deck-mark-card-far-bg: #4b5058;
+  /* Component tokens: the workspace's edges shade darker than its ground, as in light;
+     the soft ground, lighter here, would make them glow instead. */
+  --workspace-edge-bg: #08090b;
   /* Component tokens: behind a live page while it loads. Pages assume a white ground
      whatever the scheme, so this stays white in both. */
   --artifact-webview-bg: #ffffff;

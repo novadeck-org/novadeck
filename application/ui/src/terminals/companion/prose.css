@@ -35,8 +35,10 @@
    A checkbox reads --toggle-box-bg, --toggle-box-border-color, --toggle-track-on-bg,
    --toggle-track-on-border-color and --toggle-mark-fg (see toggle.css). */
 
+/* The document takes the reader's width, up to a long but still readable line, so a
+   wide pane or a window of its own isn't mostly margin. */
 .plan-editor .cm-editor {
-  max-width: 700px;
+  max-width: 1100px;
   margin: auto;
   background: transparent;
   color: var(--prose-fg, var(--color-ink));

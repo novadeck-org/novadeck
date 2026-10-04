@@ -1,6 +1,7 @@
 import { NodeResizeControl, type NodeProps } from "@xyflow/react"
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react"
 
+import { Tooltip } from "../../ui-toolkit/Tooltip"
 import type { TerminalNode } from "./types"
 
 // Terminal content comes from the canvas's current render, not from node data: node data
@@ -36,7 +37,9 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
           onResizeStart={data.onResizeStart}
           onResizeEnd={(_, { width, height }) => data.onResizeEnd(width, height)}
         >
-          <span className="terminal-resize-pattern" title="Resize" />
+          <Tooltip content="Resize">
+            <span className="terminal-resize-pattern" />
+          </Tooltip>
         </NodeResizeControl>
         {contentOf(id)}
       </div>

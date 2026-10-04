@@ -1,5 +1,5 @@
 /* The workspace recipe: the ground behind Focus, Grid and Canvas, its grain, its dot
-   grid and the spotlight that follows the pointer, how idle terminals fade, the
+   grid and the spotlight that follows the pointer, how idle terminals fade in Canvas, the
    windows' resize grips, and the ghost of a window a drop would open. Zen
    (data-zen="true" on `.workspace`) quiets the ground.
 
@@ -20,8 +20,8 @@
    dots under the pointer.
    --workspace-zen-dots-opacity (0.07), --workspace-zen-spotlight-opacity (0.18),
    --workspace-zen-grain-opacity (0.02): the same in Zen.
-   --terminal-idle-opacity, --terminal-hover-opacity: a window not selected, at rest
-   and under the pointer, while another one is.
+   --terminal-idle-opacity, --terminal-hover-opacity: a Canvas window not selected, at
+   rest and under the pointer, while another one is.
    --workspace-grip-fg (muted), --workspace-grip-opacity (0.35),
    --workspace-grip-hover-opacity (0.8), --workspace-grip-image (a hatch of the grip's
    colour): a window's resize grip.
@@ -100,7 +100,6 @@
   }
 }
 .grid-terminal {
-  opacity: var(--terminal-idle-opacity);
   transition: opacity var(--motion-state) var(--ease-interface);
 }
 .terminal-visibility {
@@ -125,7 +124,6 @@
 :where(.focus-stage > .terminal-visibility) {
   @apply inset-3 max-[701px]:inset-1.5;
 }
-.grid-terminal:not(.selected):hover,
 .canvas-node:not(.selected):hover {
   opacity: var(--terminal-hover-opacity);
 }

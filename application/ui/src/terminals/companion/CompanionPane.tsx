@@ -3,6 +3,7 @@ import { lazy, Suspense, useRef, type ReactNode } from "react"
 
 import { pathOf, notePattern, notesIn, type CompanionItem } from "../../model/companion"
 import type { WorkspaceTarget } from "../../model/types"
+import { Tooltip } from "../../ui-toolkit/Tooltip"
 import { ArtifactViewer, Unavailable } from "./ArtifactViewer"
 import type { BarMember } from "./bar"
 import type { MailHandle } from "./mail"
@@ -61,15 +62,16 @@ const PlanOutline = ({
 // Undocks what the pane shows into a window of its own, at the end of its header.
 const UndockButton = ({ onUndock }: { onUndock: () => void }): React.JSX.Element => (
   <span className="artifact-actions">
-    <button
-      type="button"
-      className="icon-button"
-      aria-label="Undock to its own window"
-      title="Undock to its own window"
-      onClick={onUndock}
-    >
-      <AppWindow size={13} strokeWidth={1.75} aria-hidden />
-    </button>
+    <Tooltip content="Undock to its own window">
+      <button
+        type="button"
+        className="icon-button"
+        aria-label="Undock to its own window"
+        onClick={onUndock}
+      >
+        <AppWindow size={13} strokeWidth={1.75} aria-hidden />
+      </button>
+    </Tooltip>
   </span>
 )
 
@@ -108,63 +110,67 @@ const PlanBody = ({
   const editor = useRef<PlanEditorHandle | null>(null)
   const marks = currentMarks(plan)
   const agent = item.plan?.agent ?? "The agent"
+  // The header every viewer has, across the pane, then the outline beside the plan.
   return (
-    <div className="plan-reader-body" data-outline={headingsOf(plan.text).length > 0}>
-      <PlanOutline plan={plan} jump={(at) => editor.current?.jumpTo(at)} />
-      <div className="plan-document-scroll" data-changes={plan.showChanges}>
-        <div className="plan-meta">
-          {pathOf(item) === null ? (
-            <span>{item.detail || item.name}</span>
-          ) : (
-            <code className="plan-meta-path">{pathOf(item)}</code>
-          )}
-          <span>v{item.version}</span>
-          {marks.length > 0 && (
-            <button
-              className="plan-changes-toggle"
-              data-tone="warning"
-              aria-pressed={plan.showChanges}
-              onClick={pane.toggleChanges}
-            >
-              <i aria-hidden="true" />
-              {plural(plan.changes, "change")} since you last read
-              <span>{plan.showChanges ? "Hide" : "Show"}</span>
-            </button>
-          )}
-          {plan.unsaved && <span className="plan-meta-hint">Not saved yet. Trying again.</span>}
-          {plan.resolved > 0 && plan.marked === plan.text && (
-            <span>
-              {agent} resolved {plural(plan.resolved, "note")}
-            </span>
-          )}
-          {!plan.writable && (
-            <span className="plan-meta-hint">Read-only: NovaDeck can't write this plan yet.</span>
-          )}
-          {plan.truncated && (
-            <span className="plan-meta-hint">It's long, so only its start is shown.</span>
-          )}
-          {/* Without NovaDeck's skill, notes wait for the person to point the agent at them. */}
-          {plan.writable && !plan.skill && notesIn(plan.text) > 0 && (
-            <span className="plan-meta-hint">
-              {agent} doesn't have NovaDeck's skill. Ask it to re-read the plan.
-            </span>
-          )}
-          {actions && <span className="plan-meta-actions">{actions}</span>}
-        </div>
-        <Suspense fallback={null}>
-          <PlanEditor
-            readOnly={!plan.writable}
-            text={plan.text}
-            marks={marks}
-            onChange={pane.edit}
-            onReady={(handle) => {
-              editor.current = handle
-            }}
-            onClose={pane.closeEditor}
-          />
-        </Suspense>
+    <>
+      <div className="artifact-meta">
+        {pathOf(item) === null ? (
+          <span>{item.detail || item.name}</span>
+        ) : (
+          <code>{pathOf(item)}</code>
+        )}
+        <span>v{item.version}</span>
+        {marks.length > 0 && (
+          <button
+            className="plan-changes-toggle"
+            data-tone="warning"
+            aria-pressed={plan.showChanges}
+            onClick={pane.toggleChanges}
+          >
+            <i aria-hidden="true" />
+            {plural(plan.changes, "change")} since you last read
+            <span>{plan.showChanges ? "Hide" : "Show"}</span>
+          </button>
+        )}
+        {plan.unsaved && <span className="plan-meta-hint">Not saved yet. Trying again.</span>}
+        {plan.resolved > 0 && plan.marked === plan.text && (
+          <span>
+            {agent} resolved {plural(plan.resolved, "note")}
+          </span>
+        )}
+        {!plan.writable && (
+          <span className="plan-meta-hint">Read-only: NovaDeck can't write this plan yet.</span>
+        )}
+        {plan.truncated && (
+          <span className="plan-meta-hint">It's long, so only its start is shown.</span>
+        )}
+        {/* Without NovaDeck's skill, notes wait for the person to point the agent at them. */}
+        {plan.writable && !plan.skill && notesIn(plan.text) > 0 && (
+          <span className="plan-meta-hint">
+            {agent} doesn't have NovaDeck's skill. Ask it to re-read the plan.
+          </span>
+        )}
+        {actions && <span className="artifact-meta-push" />}
+        {actions}
       </div>
-    </div>
+      <div className="plan-reader-body" data-outline={headingsOf(plan.text).length > 0}>
+        <PlanOutline plan={plan} jump={(at) => editor.current?.jumpTo(at)} />
+        <div className="plan-document-scroll" data-changes={plan.showChanges}>
+          <Suspense fallback={null}>
+            <PlanEditor
+              readOnly={!plan.writable}
+              text={plan.text}
+              marks={marks}
+              onChange={pane.edit}
+              onReady={(handle) => {
+                editor.current = handle
+              }}
+              onClose={pane.closeEditor}
+            />
+          </Suspense>
+        </div>
+      </div>
+    </>
   )
 }
 

@@ -1,4 +1,4 @@
-import { FileStack, FileText, MessagesSquare, Pause, type LucideIcon } from "lucide-react"
+import { Pause, type LucideIcon } from "lucide-react"
 import type { ReactNode, Ref } from "react"
 
 import type { ItemId } from "../../model/companion"
@@ -7,7 +7,7 @@ import { mailBadgeLabel } from "../../model/messages"
 import type { WorkspaceTarget } from "../../model/types"
 import { ContextMenu, type ContextMenuItem } from "../../ui-toolkit/ContextMenu"
 import { HoverCard } from "../../ui-toolkit/HoverCard"
-import { iconOf, kindIcons } from "./artifact-icons"
+import { memberIcon, slotIcon } from "./artifact-icons"
 import { isNew, pick, type BarMember, type BarSlot, type StackKind } from "./bar"
 import type { MailHandle } from "./mail"
 import { Peek, type Indicator, type PeekEntry } from "./Peek"
@@ -34,6 +34,8 @@ export type SlotActions = {
   // Opens it in the pane, or hides the pane when it's what the pane shows.
   readonly activate: (key: BarKey) => void
   readonly open: (key: BarKey) => void
+  // The person looked at these in a peek without opening them.
+  readonly seen: (itemIds: readonly ItemId[]) => void
   readonly close: (member: BarMember) => void
   readonly sendBack: (member: BarMember) => void
   readonly undock: (member: BarMember) => void
@@ -53,17 +55,17 @@ type Look = { readonly icon: LucideIcon; readonly name: string; readonly label: 
 
 const lookOf = (member: BarMember, actions: SlotActions): Look => {
   if (member.kind === "messages")
-    return { icon: MessagesSquare, name: "Messages", label: "Messages" }
+    return { icon: memberIcon(member), name: "Messages", label: "Messages" }
   const { item } = member
   const title = titleOf(item.name, actions.plans[item.id]?.text ?? "")
   const look: Look =
     item.kind === "plan"
       ? {
-          icon: item.plan?.role === "subagent" ? FileStack : FileText,
+          icon: memberIcon(member),
           name: title,
           label: `${item.plan?.role === "subagent" ? "Subagent plan" : "Plan"}: ${title}`,
         }
-      : { icon: iconOf({ kind: item.kind, name: item.name }), name: item.name, label: item.name }
+      : { icon: memberIcon(member), name: item.name, label: item.name }
   if (!member.placed) return look
   const origin = actions.originOf(member) ?? "another terminal"
   return { ...look, name: `${look.name} · from ${origin}`, label: `${look.label}, from ${origin}` }
@@ -189,9 +191,7 @@ export const TaskbarSlot = ({
     }
   })
   const single = slot.stack ? undefined : slot.members[0]!
-  const look = single
-    ? lookOf(single, actions)
-    : { icon: slot.stack === "plan" ? FileText : kindIcons[slot.stack!], name: "", label: "" }
+  const look = single ? lookOf(single, actions) : { icon: slotIcon(slot), name: "", label: "" }
   const Icon = look.icon
   const fresh = slot.members.some(isNew)
   const shown = slot.members.find((member) => member.key === showing)
@@ -215,6 +215,13 @@ export const TaskbarSlot = ({
         <span className="plan-tb-slot">
           <HoverCard
             className="plan-tb-peek"
+            // What was new in a peek the person looked at is new no more once it closes.
+            onOpenChange={(open) => {
+              const newKeys = slot.members.flatMap((member) =>
+                member.kind === "item" && isNew(member) ? [member.key] : [],
+              )
+              if (!open && newKeys.length) actions.seen(newKeys)
+            }}
             trigger={
               <button
                 ref={buttonRef}
