@@ -26,6 +26,12 @@ export type DesktopBridge = {
     readonly scheme: "system" | "light" | "dark"
     readonly ground: string
   }): void
+  /**
+   * The path on this machine of a file the person pasted, such as one copied
+   * in a file manager, or "" for one that is no file there, as a copied image's bytes.
+   * Absent from hosts that came before it.
+   */
+  pathForFile?(file: File): string
 }
 
 /** Present only when the host enables its debug panel for this launch. */

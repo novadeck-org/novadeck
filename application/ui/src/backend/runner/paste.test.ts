@@ -3,6 +3,7 @@ import { afterEach, vi } from "vitest"
 
 import { context, describe, expect, it } from "../../test"
 import {
+  ownPath,
   pasteNotice,
   pastedFiles,
   pastedText,
@@ -32,8 +33,21 @@ const pasteEvent = (carried: Parameters<typeof transfer>[0]) => {
 
 const shot = () => new File([new Uint8Array([137, 80, 78, 71])], "", { type: "image/png" })
 
-// A terminal host with the emulator's field inside, recording uploads and pastes.
-const terminal = (saved = (name: string) => Promise.resolve(`/data/uploads/t/${name}`)) => {
+// Files on this machine as the desktop host names them: only those copied in a file
+// manager have a path; bytes from the clipboard have none.
+const disk = new Map<File, string>()
+const onDisk = (path: string, file = new File(["x"], path.split(/[/\\]/).pop()!)) => {
+  disk.set(file, path)
+  return file
+}
+const pathOf = (file: File) => disk.get(file) ?? ""
+
+// A terminal host with the emulator's field inside, recording uploads and pastes; in the
+// desktop app when `desktop`.
+const terminal = (
+  saved = (name: string) => Promise.resolve(`/data/uploads/t/${name}`),
+  desktop = false,
+) => {
   const host = document.createElement("div")
   const field = document.createElement("textarea")
   host.append(field)
@@ -48,6 +62,7 @@ const terminal = (saved = (name: string) => Promise.resolve(`/data/uploads/t/${n
     },
     paste: (text) => pasted.push(text),
     failed: (notice) => notices.push(notice),
+    pathOf: desktop ? pathOf : undefined,
   }
   const reached: Event[] = []
   field.addEventListener("paste", (event) => reached.push(event))
@@ -56,6 +71,7 @@ const terminal = (saved = (name: string) => Promise.resolve(`/data/uploads/t/${n
 }
 
 afterEach(() => {
+  disk.clear()
   document.body.replaceChildren()
   Reflect.deleteProperty(navigator, "clipboard")
 })
@@ -101,6 +117,11 @@ describe("a pasted path", () => {
       )
       expect(shellPath("/tmp/plain.png")).toBe("/tmp/plain.png")
     })
+
+    it("escapes ^, which zsh's extended globs negate with", () => {
+      expect(shellPath("/tmp/^x.png")).toBe("/tmp/\\^x.png")
+      expect(shellPath("/tmp/a^b.png")).toBe("/tmp/a\\^b.png")
+    })
   })
 
   context("on a Windows runner", () => {
@@ -110,6 +131,78 @@ describe("a pasted path", () => {
         '"C:\\Users\\Jo Doe\\uploads\\shot.png"',
       )
     })
+  })
+})
+
+describe("a file's own path", () => {
+  context("on a POSIX machine", () => {
+    it("goes in escaped as any path, whatever its name", () => {
+      expect(ownPath("/home/me/my shot.png")).toBe("/home/me/my\\ shot.png")
+      expect(ownPath("/tmp/$(rm -rf ~);`id`&x.png")).toBe(
+        "/tmp/\\$\\(rm\\ -rf\\ \\~\\)\\;\\`id\\`\\&x.png",
+      )
+      expect(ownPath("/home/me/^x.png")).toBe("/home/me/\\^x.png")
+    })
+
+    it("doesn't go in with a control character, which no escape keeps inert", () => {
+      expect(ownPath("/tmp/two\nlines.png")).toBeUndefined()
+      expect(ownPath("/tmp/bell\u0007.png")).toBeUndefined()
+      expect(ownPath("/tmp/del\u007f.png")).toBeUndefined()
+      expect(ownPath("/tmp/c1\u009b.png")).toBeUndefined()
+    })
+  })
+
+  context("on a Windows machine", () => {
+    it("goes in when cmd and PowerShell take nothing in it, quoted when it has a space", () => {
+      expect(ownPath("D:\\a\\_temp\\shots\\my shot.png")).toBe('"D:\\a\\_temp\\shots\\my shot.png"')
+      expect(ownPath("C:\\Users\\Zoë\\画面-1.png")).toBe("C:\\Users\\Zoë\\画面-1.png")
+      expect(ownPath("\\\\server\\share\\notes.txt")).toBe("\\\\server\\share\\notes.txt")
+      // Japanese's long-vowel mark and 々 are modifier letters, but no code page quotes them.
+      expect(ownPath("C:\\shots\\スクリーン.png")).toBe("C:\\shots\\スクリーン.png")
+      expect(ownPath("C:\\shots\\人々.png")).toBe("C:\\shots\\人々.png")
+    })
+
+    it("doesn't go in with anything cmd or PowerShell may act on, quoted or not", () => {
+      // PowerShell runs a `.cmd` with an unspaced word's quotes gone, as `code a&calc&b.txt`,
+      // and a paste into a quote already open leaves `&`, `;` or `(…)` bare.
+      for (const name of [
+        "a&calc&b.txt",
+        "Screenshot (calc).png",
+        "Screenshot (1).png",
+        "a;b.png",
+        "it's.png",
+        "a,b.png",
+        "@home#1.png",
+        "a+b=c.png",
+        "~a^b.png",
+        "{x}.png",
+        "100%.png",
+        "wow!.png",
+        "$x.png",
+        "a`b.png",
+        'a"b.png',
+        "[1].png",
+        "a/b.png",
+      ])
+        expect(ownPath(`C:\\shots\\${name}`)).toBeUndefined()
+    })
+
+    it("doesn't go in with a character a code page may turn into a quote", () => {
+      // U+02BC MODIFIER LETTER APOSTROPHE, U+02EE MODIFIER LETTER DOUBLE APOSTROPHE and
+      // U+030E COMBINING DOUBLE VERTICAL LINE ABOVE.
+      expect(ownPath("C:\\shots\\it\u02bcs.png")).toBeUndefined()
+      expect(ownPath("C:\\shots\\say\u02eehi.png")).toBeUndefined()
+      expect(ownPath("C:\\shots\\a\u030eb.png")).toBeUndefined()
+    })
+
+    it("doesn't go in with a space before a `-`, an option were its quotes lost", () => {
+      expect(ownPath("C:\\x\\a -Recurse b.png")).toBeUndefined()
+      expect(ownPath("C:\\x\\my-shot 1.png")).toBe('"C:\\x\\my-shot 1.png"')
+    })
+  })
+
+  it("is none for a file that has no path", () => {
+    expect(ownPath("")).toBeUndefined()
   })
 })
 
@@ -133,6 +226,57 @@ describe("a failed paste's notice", () => {
       "Couldn't paste the image",
     )
     expect(pasteNotice({ type: "", error: new Error("disk full") })).toBe("Couldn't paste the file")
+  })
+})
+
+describe("pasting into the desktop app's terminal", () => {
+  context("a file copied in a file manager", () => {
+    it("pastes the file's own path, saving no copy", async () => {
+      const page = terminal(undefined, true)
+      page.field.dispatchEvent(pasteEvent({ files: [onDisk("/home/me/my shot.png")] }))
+      await vi.waitFor(() => expect(page.pasted).toEqual(["/home/me/my\\ shot.png "]))
+      expect(page.uploads).toEqual([])
+    })
+
+    it("pastes a folder's own path too", async () => {
+      const folder = onDisk("/home/me/project", new File([], "project"))
+      const page = terminal(undefined, true)
+      page.field.dispatchEvent(pasteEvent({ files: [folder] }))
+      await vi.waitFor(() => expect(page.pasted).toEqual(["/home/me/project "]))
+      expect(page.uploads).toEqual([])
+    })
+
+    it("pastes its own path however large it is", async () => {
+      const big = onDisk("/home/me/big.iso")
+      Object.defineProperty(big, "size", { value: 33 * 1024 * 1024 })
+      const page = terminal(undefined, true)
+      page.field.dispatchEvent(pasteEvent({ files: [big] }))
+      await vi.waitFor(() => expect(page.pasted).toEqual(["/home/me/big.iso "]))
+      expect(page.notices).toEqual([])
+    })
+  })
+
+  context("a file whose own path can't go in safely", () => {
+    it("pastes a copy's path instead, for a Windows name a shell would act on", async () => {
+      const page = terminal(undefined, true)
+      page.field.dispatchEvent(pasteEvent({ files: [onDisk("C:\\shots\\100%.png")] }))
+      await vi.waitFor(() => expect(page.pasted).toEqual(["/data/uploads/t/100%.png "]))
+      expect(page.uploads.map((file) => file.name)).toEqual(["100%.png"])
+    })
+
+    it("pastes a copy's path instead, for a name with a control character", async () => {
+      const page = terminal(undefined, true)
+      page.field.dispatchEvent(pasteEvent({ files: [onDisk("/tmp/two\nlines.png")] }))
+      await vi.waitFor(() => expect(page.uploads).toHaveLength(1))
+    })
+  })
+
+  context("bytes with no file behind them, as a copied image", () => {
+    it("pastes a copy's path", async () => {
+      const page = terminal(undefined, true)
+      page.field.dispatchEvent(pasteEvent({ items: [shot()] }))
+      await vi.waitFor(() => expect(page.uploads).toHaveLength(1))
+    })
   })
 })
 
@@ -402,6 +546,7 @@ const keyboard = (
       paste: (text) => void log.push(`paste ${text}`),
       failed: (notice) => void log.push(`notice ${notice}`),
       active: () => options.active ?? true,
+      pathOf,
       hold: () => {
         log.push("hold")
         return (controlV) => void log.push(controlV ? "release with ^V" : "release")

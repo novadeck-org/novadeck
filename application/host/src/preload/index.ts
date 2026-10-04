@@ -4,7 +4,7 @@ import {
   type DesktopDebugBridge,
   type DesktopHost,
 } from "@novadeck/protocol/bridge"
-import { contextBridge, ipcRenderer } from "electron"
+import { contextBridge, ipcRenderer, webUtils } from "electron"
 
 import {
   apiUrlArgumentPrefix,
@@ -53,6 +53,13 @@ const bridge = {
     beforeQuit = save
     return () => {
       if (beforeQuit === save) beforeQuit = undefined
+    }
+  },
+  pathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ""
     }
   },
 } satisfies DesktopBridge

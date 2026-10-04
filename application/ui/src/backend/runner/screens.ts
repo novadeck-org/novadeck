@@ -221,6 +221,8 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     let gone = false
     const target: PasteTarget = {
       upload: (file) => runtime.upload(key.terminalId, file),
+      // The desktop app's runner is on this machine, so a copied file's own path names it.
+      pathOf: desktopHost()?.pathForFile,
       paste: (text) => {
         if (!gone) xterm.paste(text)
       },

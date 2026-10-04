@@ -24,6 +24,13 @@ vi.mock("electron", async () => {
         electron.exposed = api
       },
     },
+    // A file is one on this machine when it names its path; other files have none.
+    webUtils: {
+      getPathForFile: (file: { path?: string }) => {
+        if (file.path === undefined) throw new TypeError("not a File")
+        return file.path
+      },
+    },
     ipcRenderer: Object.assign(renderer, {
       send: (channel: string, ...values: unknown[]) => {
         electron.sent.push(channel)
@@ -97,5 +104,20 @@ describe("the page's appearance", () => {
     const appearance = { scheme: "dark", ground: "#0f1114", extra: "dropped" } as const
     electron.exposed.showAppearance(appearance)
     expect(electron.messages).toEqual([[appearanceChannel, { scheme: "dark", ground: "#0f1114" }]])
+  })
+})
+
+describe("a pasted file's path", () => {
+  it("is its path on this machine", () => {
+    const file = { path: "/home/me/my shot.png" } as unknown as File
+    expect(electron.exposed.pathForFile?.(file)).toBe("/home/me/my shot.png")
+  })
+
+  it("is empty for a file that has none", () => {
+    expect(electron.exposed.pathForFile?.({ path: "" } as unknown as File)).toBe("")
+  })
+
+  it("is empty for anything Electron can't take as a file", () => {
+    expect(electron.exposed.pathForFile?.({} as unknown as File)).toBe("")
   })
 })

@@ -47,6 +47,11 @@ describe("an upload's name", () => {
     expect(safeName("हिंदी.png")).toBe("हिंदी.png")
   })
 
+  it("replaces the modifier letters and stray diacritics a code page may turn into quotes", () => {
+    expect(safeName("a\u02ba b\u02ba.png")).toBe("a_ b_.png")
+    expect(safeName("a\u030eb.png")).toBe("a_b.png")
+  })
+
   it("puts a `_` before a name Windows keeps for a device", () => {
     expect(safeName("CON")).toBe("_CON")
     expect(safeName("nul.png")).toBe("_nul.png")

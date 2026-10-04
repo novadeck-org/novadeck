@@ -524,6 +524,29 @@ describe("runner terminal surface", () => {
     })
   })
 
+  context("when a file copied in a file manager is pasted in the desktop app", () => {
+    afterEach(() => void Reflect.deleteProperty(globalThis, "novadeck"))
+
+    it("pastes the file's own path, as the desktop host names it, without uploading", async () => {
+      const file = new File(["x"], "notes.txt")
+      Object.defineProperty(globalThis, "novadeck", {
+        configurable: true,
+        value: { pathForFile: (pasted: File) => (pasted === file ? "/home/me/notes.txt" : "") },
+      })
+      const { runtime } = starting()
+      const upload = vi.fn<SurfaceRuntime["upload"]>(async () => "/u/copy.txt")
+      const paste = vi.spyOn(Terminal.prototype, "paste")
+      const page = show({ ...runtime, upload })
+      const event = new Event("paste", { bubbles: true, cancelable: true })
+      Object.defineProperty(event, "clipboardData", {
+        value: { files: [file], items: [], getData: () => "" },
+      })
+      act(() => void input(page).dispatchEvent(event))
+      await vi.waitFor(() => expect(paste).toHaveBeenCalledWith("/home/me/notes.txt "))
+      expect(upload).not.toHaveBeenCalled()
+    })
+  })
+
   context("when Ctrl+V is pressed on Linux or Windows", () => {
     // A running shell's surface in a browser that lets the page read the clipboard,
     // recording what reaches the shell. `read` answers the clipboard, `upload` saves.

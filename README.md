@@ -279,13 +279,19 @@ with anything else on the clipboard, or one NovaDeck can't read, it sends Ctrl+V
 program as before, and what is typed meanwhile follows it, held for 2 seconds at most.
 In a browser, Ctrl+V looks for an image only once the page may read the clipboard, as
 after a first image pasted with Ctrl+Shift+V, so it never asks. On macOS ⌘V pastes and
-Ctrl+V stays the program's. The runner saves the file on its own machine, readable by its
-owner only, under a name of letters, digits and `.`, `_`, `-` or spaces, in an `uploads`
+Ctrl+V stays the program's. In the desktop app, a file or folder copied in a file
+manager pastes its own path, whatever its size, so an agent edits the file itself; a
+Windows name with anything but letters, digits, spaces and `.`, `_`, `-`, such as
+`&`, `%` or the brackets of `Screenshot (1).png`, or with a space before a `-`, as in
+`Report - Final.pdf`, goes as a copy instead. On macOS that path may be in a folder the system protects, such as
+Desktop, Documents or Downloads, so a program in the terminal may need macOS's
+permission to read it, where a copy needed none. The runner saves a copy of anything else (a screenshot, an image from a
+page, any file pasted in a browser) on its own machine, readable by its owner only, under a name of letters, digits and `.`, `_`, `-` or spaces, in an `uploads`
 folder beside its database, or a temporary folder without one; each upload removes
 those older than a week. Claude Code and Codex take a pasted
 image's path as the image. The desktop app may read the clipboard for this; in a
 browser, the first paste of an image asks for permission. A paste that fails, as of a
-file over 32 MB or with the clipboard unreadable, says why for a moment at the top of the
+copy over 32 MB or with the clipboard unreadable, says why for a moment at the top of the
 terminal; Ctrl+V says nothing of a clipboard it can't read.
 
 The new-session shortcut creates and selects an empty session in the current project

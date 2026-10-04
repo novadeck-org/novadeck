@@ -237,7 +237,9 @@ where that is an agent.
 
 `runner.terminals.upload(terminalId, { name, data })` saves a file pasted into a
 terminal on the runner's machine and resolves with its absolute path there, for the UI
-to paste into the terminal. The runner keeps each file in a folder of its own under its
+to paste into the terminal. The desktop app, whose runner is on its own machine, pastes
+a file copied in a file manager by its own path instead, through the host's
+`pathForFile`, and uploads only what has none, or a Windows name it can't paste safely. The runner keeps each file in a folder of its own under its
 `uploads` option (beside the database for the standalone and desktop runners, a fresh
 temporary folder otherwise), readable by its owner only, and removes uploads older than
 a week as the next one starts. The client sends the file base64 in parts that each fit

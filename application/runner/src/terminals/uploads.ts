@@ -33,11 +33,13 @@ const fitted = (name: string): string => {
  * A file name safe to save under and to paste into any shell: its last segment, with
  * every character but letters (with their marks), digits, `.`, `_`, `-` and spaces replaced
  * by `_`, cut to what a file system takes, or `upload` where nothing usable is left. A
- * name Windows keeps for a device gets a `_` before it.
+ * name Windows keeps for a device gets a `_` before it. Spacing modifier letters and
+ * combining diacritics left over once composed (U+02B0 to U+036F) go too, as a code
+ * page may turn some into quotes.
  */
 export const safeName = (name: string): string => {
   const last = name.normalize("NFC").split(/[/\\]/).pop() ?? ""
-  const clean = last.replace(/[^\p{L}\p{M}\p{N}._\- ]/gu, "_").trim()
+  const clean = last.replace(/[^\p{L}\p{M}\p{N}._\- ]|[\u02b0-\u036f]/gu, "_").trim()
   if (/^\.*$/.test(clean)) return "upload"
   return fitted(device.test(clean) ? `_${clean}` : clean)
 }
