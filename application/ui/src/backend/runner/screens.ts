@@ -6,9 +6,10 @@ import { themeChangeEvent } from "../../theme/apply"
 import { tokenColors } from "../../theme/probe"
 import type { TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"
+import { desktopHost } from "./desktop-host"
 import { followTerminal, type FollowedTerminal, type Screen } from "./follow"
 import { linkTerminal } from "./links"
-import { takeFilePastes } from "./paste"
+import { clipboardAccess, takeCtrlV, takeFilePastes, type PasteTarget } from "./paste"
 import { silenceQueries } from "./queries"
 
 // The sizes the runner accepts.
@@ -126,6 +127,8 @@ const id = ({ projectId, workspaceSessionId, terminalId }: TerminalKey): string 
 // closes once nobody took it back.
 export const createScreens = (runtime: SurfaceRuntime) => {
   const entries = new Map<string, Entry>()
+  // Whether Ctrl+V may read the clipboard, the same for every terminal.
+  const readable = clipboardAccess(desktopHost() !== undefined)
   const entryOf = (key: TerminalKey): Entry => {
     const known = entries.get(id(key))
     if (known) return known
@@ -195,10 +198,19 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       },
       refocus: false,
     }
-    const send = (data: string): void => {
-      // A shell that exited or failed to start only listens for Enter, to start again.
-      if (!screen.waiting && !stream.getSnapshot().waits) return followed.input(data)
+    // Whether the shell takes input; one that exited or failed to start only listens for
+    // Enter, to start again.
+    const taking = (): boolean => !screen.waiting && !stream.getSnapshot().waits
+    const deliver = (data: string): void => {
+      if (taking()) return followed.input(data)
       if (data.includes("\r")) screen.restart()
+    }
+    // Input held while Ctrl+V reads the clipboard, and whether a paste goes ahead of it.
+    let held: string[] | undefined
+    let ahead = false
+    const send = (data: string): void => {
+      if (held && !ahead) held.push(data)
+      else deliver(data)
     }
     const input = xterm.onData(send)
     // Some mouse reports arrive as binary; they go to the shell the same way.
@@ -207,7 +219,7 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     // upload that ends after the screen is gone pastes and tells nothing.
     let noticed: ReturnType<typeof setTimeout> | undefined
     let gone = false
-    const pastes = takeFilePastes(element, {
+    const target: PasteTarget = {
       upload: (file) => runtime.upload(key.terminalId, file),
       paste: (text) => {
         if (!gone) xterm.paste(text)
@@ -218,7 +230,37 @@ export const createScreens = (runtime: SurfaceRuntime) => {
         clearTimeout(noticed)
         noticed = setTimeout(() => notice.update(() => null), pasteNoticeMs)
       },
-    })
+    }
+    const pastes = takeFilePastes(element, target)
+    // Ctrl+V on Linux and Windows pastes a clipboard of images too; what is typed while it
+    // looks waits behind it.
+    takeCtrlV(
+      xterm,
+      {
+        ...target,
+        paste: (text) => {
+          ahead = true
+          try {
+            target.paste(text)
+          } finally {
+            ahead = false
+          }
+        },
+        active: () => taking() && !xterm.options.disableStdin,
+        hold: () => {
+          held = []
+          return (controlV) => {
+            const queued = held ?? []
+            held = undefined
+            if (gone) return
+            // As typed, so it scrolls to the prompt, and is dropped while typing is locked.
+            if (controlV) xterm.input("\u0016", true)
+            queued.forEach(deliver)
+          }
+        },
+      },
+      { readable },
+    )
     let settling: ReturnType<typeof setTimeout> | undefined
     // A theme sets the colours and the font; a new font changes the cell size, so the
     // terminal fits again.

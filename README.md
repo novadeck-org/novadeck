@@ -273,15 +273,20 @@ text or reaches the program.
 
 Pasting an image, such as a screenshot, into a terminal pastes the path of a file
 holding it, as a native terminal does for a dropped file. A paste with any text stays
-text, even with an image beside it, as cells copied from a spreadsheet come, and Ctrl+V
-still reaches the program. The runner saves the file on its own machine, readable by its
+text, even with an image beside it, as cells copied from a spreadsheet come. On Linux
+and Windows, Ctrl+V pastes a clipboard that holds an image and no text the same way;
+with anything else on the clipboard, or one NovaDeck can't read, it sends Ctrl+V to the
+program as before, and what is typed meanwhile follows it, held for 2 seconds at most.
+In a browser, Ctrl+V looks for an image only once the page may read the clipboard, as
+after a first image pasted with Ctrl+Shift+V, so it never asks. On macOS ⌘V pastes and
+Ctrl+V stays the program's. The runner saves the file on its own machine, readable by its
 owner only, under a name of letters, digits and `.`, `_`, `-` or spaces, in an `uploads`
 folder beside its database, or a temporary folder without one; each upload removes
 those older than a week. Claude Code and Codex take a pasted
 image's path as the image. The desktop app may read the clipboard for this; in a
 browser, the first paste of an image asks for permission. A paste that fails, as of a
 file over 32 MB or with the clipboard unreadable, says why for a moment at the top of the
-terminal.
+terminal; Ctrl+V says nothing of a clipboard it can't read.
 
 The new-session shortcut creates and selects an empty session in the current project
 and opens the Sessions sidebar.

@@ -1,11 +1,9 @@
 import { WebLinksAddon } from "@xterm/addon-web-links"
 import type { ILinkHandler, Terminal } from "@xterm/xterm"
 
-type Click = Pick<MouseEvent, "button" | "ctrlKey" | "metaKey">
-type Platform = "mac" | "other"
+import { currentPlatform, type Platform } from "./platform"
 
-const currentPlatform = (): Platform =>
-  /Mac|iPhone|iPad/.test(navigator.platform) ? "mac" : "other"
+type Click = Pick<MouseEvent, "button" | "ctrlKey" | "metaKey">
 
 // A link opens on a primary ⌘-click on Apple platforms and Ctrl-click elsewhere, so a plain
 // click still selects text or reaches a program that reads the mouse.

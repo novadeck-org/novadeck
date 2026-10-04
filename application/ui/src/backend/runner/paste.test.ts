@@ -6,11 +6,16 @@ import {
   pasteNotice,
   pastedFiles,
   pastedText,
+  pastesImages,
+  plainCtrlV,
+  clipboardAccess,
   shellPath,
+  takeCtrlV,
   takeFilePastes,
   uploadName,
   type PasteTarget,
 } from "./paste"
+import type { Platform } from "./platform"
 
 // What a paste event carries, as the browser fills `clipboardData`.
 const transfer = (carried: { files?: File[]; items?: File[]; text?: string }) => ({
@@ -297,5 +302,302 @@ describe("pasting into a runner terminal", () => {
     page.field.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(false)
     expect(page.reached).toEqual([event])
+  })
+})
+
+// A keydown as the browser reports it, Ctrl+V unless told otherwise.
+const key = (init: KeyboardEventInit & { type?: string } = {}) =>
+  new KeyboardEvent(init.type ?? "keydown", {
+    key: "v",
+    code: "KeyV",
+    ctrlKey: true,
+    cancelable: true,
+    ...init,
+  })
+
+describe("a plain Ctrl+V", () => {
+  it("is Ctrl with V, pressed, on Linux and Windows", () => {
+    expect(plainCtrlV(key(), "other")).toBe(true)
+    expect(plainCtrlV(key({ key: "V" }), "other")).toBe(true)
+  })
+
+  it("is not on Apple platforms, where ⌘V pastes", () => {
+    expect(plainCtrlV(key(), "mac")).toBe(false)
+  })
+
+  it("is not while an input method composes text", () => {
+    expect(plainCtrlV(key({ isComposing: true }), "other")).toBe(false)
+    expect(plainCtrlV(key({ keyCode: 229 } as KeyboardEventInit), "other")).toBe(false)
+  })
+
+  it("is not with Shift, Alt, AltGr or Meta, nor its release", () => {
+    for (const init of [
+      { shiftKey: true },
+      { altKey: true },
+      { metaKey: true },
+      { ctrlKey: false },
+      { type: "keyup" },
+      { type: "keypress" },
+    ])
+      expect(plainCtrlV(key(init), "other")).toBe(false)
+  })
+
+  context("on a layout whose letters move", () => {
+    it("follows the layout's V, not the key's place", () => {
+      // Dvorak: V is where QWERTY has a period, and the key at V's place types K.
+      expect(plainCtrlV(key({ key: "v", code: "Period" }), "other")).toBe(true)
+      expect(plainCtrlV(key({ key: "k", code: "KeyV" }), "other")).toBe(false)
+    })
+
+    it("takes the key's place on a layout without Latin letters", () => {
+      expect(plainCtrlV(key({ key: "м", code: "KeyV" }), "other")).toBe(true)
+      expect(plainCtrlV(key({ key: "ч", code: "KeyX" }), "other")).toBe(false)
+    })
+  })
+})
+
+describe("what Ctrl+V pastes", () => {
+  it("is a clipboard's images when it holds an image and no text", () => {
+    expect(pastesImages([{ types: ["image/png"] }])).toBe(true)
+    expect(pastesImages([{ types: ["text/html", "image/png"] }])).toBe(true)
+  })
+
+  it("is nothing when it holds text, even beside an image, or no image", () => {
+    expect(pastesImages([{ types: ["text/plain", "image/png"] }])).toBe(false)
+    expect(pastesImages([{ types: ["image/png"] }, { types: ["text/plain"] }])).toBe(false)
+    expect(pastesImages([{ types: ["text/html"] }])).toBe(false)
+    expect(pastesImages([])).toBe(false)
+  })
+})
+
+// A clipboard of `items`, each a type and its bytes.
+const clipboard = (read: () => Promise<unknown[]>) =>
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { read } })
+const item = (...types: string[]) => ({
+  types,
+  getType: async (type: string) => new Blob([new Uint8Array([7])], { type }),
+})
+
+// A terminal whose Ctrl+V reads the clipboard, recording in order what it holds,
+// releases, pastes and tells.
+const keyboard = (
+  options: {
+    platform?: Platform
+    readable?: boolean
+    waitMs?: number
+    holdMs?: number
+    active?: boolean
+    saved?: () => Promise<string>
+  } = {},
+) => {
+  let handler: ((event: KeyboardEvent) => boolean) | undefined
+  const log: string[] = []
+  takeCtrlV(
+    { attachCustomKeyEventHandler: (attached) => void (handler = attached) },
+    {
+      upload: (file) => {
+        log.push(`upload ${file.name.replace(/\d/g, "0")}`)
+        return options.saved?.() ?? Promise.resolve("/u/shot.png")
+      },
+      paste: (text) => void log.push(`paste ${text}`),
+      failed: (notice) => void log.push(`notice ${notice}`),
+      active: () => options.active ?? true,
+      hold: () => {
+        log.push("hold")
+        return (controlV) => void log.push(controlV ? "release with ^V" : "release")
+      },
+    },
+    {
+      platform: options.platform ?? "other",
+      readable: () => options.readable ?? true,
+      waitMs: options.waitMs ?? 1000,
+      holdMs: options.holdMs ?? 2000,
+    },
+  )
+  const press = (init?: Parameters<typeof key>[0]) => {
+    const event = key(init)
+    return { passed: handler?.(event) ?? true, prevented: event.defaultPrevented }
+  }
+  return { log, press }
+}
+
+describe("Ctrl+V in a runner terminal", () => {
+  context("with only an image on the clipboard", () => {
+    it("pastes the image's path instead of sending Ctrl+V", async () => {
+      clipboard(async () => [item("image/png")])
+      const page = keyboard()
+      expect(page.press()).toEqual({ passed: false, prevented: true })
+      await vi.waitFor(() => expect(page.log).toContain("release"))
+      expect(page.log).toEqual([
+        "hold",
+        "upload pasted-00000000-000000.png",
+        "paste /u/shot.png ",
+        "release",
+      ])
+    })
+
+    it("tells why and sends Ctrl+V when the image can't be saved", async () => {
+      clipboard(async () => [item("image/png")])
+      vi.spyOn(console, "error").mockImplementation(() => {})
+      const page = keyboard({ saved: () => Promise.reject(new RunnerError("DISCONNECTED")) })
+      page.press()
+      await vi.waitFor(() => expect(page.log.at(-1)).toBe("release with ^V"))
+      expect(page.log).toContain("notice Couldn't paste the image")
+    })
+
+    it("lets typing go after a while, pasting the path once the upload ends", async () => {
+      clipboard(async () => [item("image/png")])
+      let saved: ((path: string) => void) | undefined
+      const page = keyboard({
+        holdMs: 20,
+        saved: () => new Promise((resolve) => (saved = resolve)),
+      })
+      page.press()
+      await vi.waitFor(() => expect(page.log).toContain("release"))
+      expect(page.log).toEqual(["hold", "upload pasted-00000000-000000.png", "release"])
+      saved?.("/u/late.png")
+      await vi.waitFor(() => expect(page.log.at(-1)).toBe("paste /u/late.png "))
+    })
+  })
+
+  context("with text on the clipboard, even beside an image", () => {
+    it("sends Ctrl+V", async () => {
+      clipboard(async () => [item("text/plain", "image/png")])
+      const page = keyboard()
+      page.press()
+      await vi.waitFor(() => expect(page.log).toEqual(["hold", "release with ^V"]))
+    })
+  })
+
+  context("with a clipboard it can't read", () => {
+    it("sends Ctrl+V without a word", async () => {
+      clipboard(async () => {
+        throw new DOMException("Read permission denied.", "NotAllowedError")
+      })
+      const page = keyboard()
+      page.press()
+      await vi.waitFor(() => expect(page.log).toEqual(["hold", "release with ^V"]))
+    })
+
+    it("sends Ctrl+V without a word where there is no clipboard API", async () => {
+      const page = keyboard()
+      page.press()
+      await vi.waitFor(() => expect(page.log).toEqual(["hold", "release with ^V"]))
+    })
+  })
+
+  context("with a clipboard slow to answer", () => {
+    it("sends Ctrl+V once it has waited long enough, and pastes nothing later", async () => {
+      let answer: ((items: unknown[]) => void) | undefined
+      clipboard(() => new Promise((resolve) => (answer = resolve)))
+      const page = keyboard({ waitMs: 20 })
+      page.press()
+      await vi.waitFor(() => expect(page.log).toEqual(["hold", "release with ^V"]))
+      answer?.([item("image/png")])
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(page.log).toEqual(["hold", "release with ^V"])
+    })
+  })
+
+  context("pressed again, or repeating, while it looks", () => {
+    it("does nothing more, so an image goes in once", async () => {
+      clipboard(async () => [item("image/png")])
+      const page = keyboard()
+      page.press()
+      expect(page.press()).toEqual({ passed: false, prevented: true })
+      expect(page.press({ repeat: true })).toEqual({ passed: false, prevented: true })
+      await vi.waitFor(() => expect(page.log).toContain("release"))
+      expect(page.log.filter((entry) => entry.startsWith("upload"))).toHaveLength(1)
+      expect(page.log.filter((entry) => entry === "hold")).toHaveLength(1)
+    })
+
+    it("works again once typing goes, though a slow upload goes on", async () => {
+      clipboard(async () => [item("image/png")])
+      const page = keyboard({ holdMs: 20, saved: () => new Promise(() => {}) })
+      page.press()
+      await vi.waitFor(() => expect(page.log).toContain("release"))
+      clipboard(async () => [item("text/plain")])
+      expect(page.press()).toEqual({ passed: false, prevented: true })
+      await vi.waitFor(() => expect(page.log.at(-1)).toBe("release with ^V"))
+      expect(page.log.filter((entry) => entry === "hold")).toHaveLength(2)
+    })
+  })
+
+  context("in a browser that hasn't let the page read the clipboard", () => {
+    it("leaves Ctrl+V to the emulator without reading it", () => {
+      const read = vi.fn<() => Promise<unknown[]>>(async () => [item("image/png")])
+      clipboard(read)
+      const page = keyboard({ readable: false })
+      expect(page.press()).toEqual({ passed: true, prevented: false })
+      expect(read).not.toHaveBeenCalled()
+      expect(page.log).toEqual([])
+    })
+  })
+
+  it("leaves other keys, Ctrl+Shift+V and Apple platforms to the emulator", () => {
+    const read = vi.fn<() => Promise<unknown[]>>(async () => [])
+    clipboard(read)
+    const page = keyboard()
+    expect(page.press({ shiftKey: true })).toEqual({ passed: true, prevented: false })
+    expect(page.press({ key: "c", code: "KeyC" })).toEqual({ passed: true, prevented: false })
+    expect(page.press({ type: "keyup" })).toEqual({ passed: true, prevented: false })
+    expect(page.press({ isComposing: true })).toEqual({ passed: true, prevented: false })
+    expect(keyboard({ platform: "mac" }).press()).toEqual({ passed: true, prevented: false })
+    expect(read).not.toHaveBeenCalled()
+    expect(page.log).toEqual([])
+  })
+
+  it("leaves Ctrl+V to the emulator while the program takes no input", () => {
+    const page = keyboard({ active: false })
+    expect(page.press()).toEqual({ passed: true, prevented: false })
+    expect(page.log).toEqual([])
+  })
+})
+
+// A browser whose clipboard-read permission is `state`, or whose query fails.
+const permission = (state: PermissionState | Error) => {
+  const status = Object.assign(new EventTarget(), { state })
+  Object.defineProperty(navigator, "permissions", {
+    configurable: true,
+    value: {
+      query: async () => {
+        if (state instanceof Error) throw state
+        return status
+      },
+    },
+  })
+  return status
+}
+
+describe("whether Ctrl+V may read the clipboard", () => {
+  afterEach(() => void Reflect.deleteProperty(navigator, "permissions"))
+
+  it("may in the desktop app, which allows it", () => {
+    expect(clipboardAccess(true)()).toBe(true)
+  })
+
+  it("may in a browser once the page is allowed to, and follows a later change", async () => {
+    const status = permission("prompt")
+    const readable = clipboardAccess(false)
+    await Promise.resolve()
+    expect(readable()).toBe(false)
+    status.state = "granted"
+    status.dispatchEvent(new Event("change"))
+    expect(readable()).toBe(true)
+  })
+
+  it("may at once in a browser that already allows it", async () => {
+    permission("granted")
+    const readable = clipboardAccess(false)
+    await vi.waitFor(() => expect(readable()).toBe(true))
+  })
+
+  it("may not in a browser that can't say, or without the permissions API", async () => {
+    permission(new TypeError("'clipboard-read' is not a valid permission name"))
+    const unknown = clipboardAccess(false)
+    await new Promise((resolve) => setTimeout(resolve))
+    expect(unknown()).toBe(false)
+    Reflect.deleteProperty(navigator, "permissions")
+    expect(clipboardAccess(false)()).toBe(false)
   })
 })

@@ -1,5 +1,8 @@
 import { maxUploadBytes } from "@novadeck/protocol"
 import { hasCode, RunnerError } from "@novadeck/protocol/client"
+import type { Terminal } from "@xterm/xterm"
+
+import { currentPlatform, type Platform } from "./platform"
 
 // Files pasted into a terminal reach its programs as paths: the runner saves each one on
 // its machine, and the terminal gets their paths as pasted text, as a native terminal
@@ -61,19 +64,25 @@ export const shellPath = (path: string): string => {
 // has no clipboard API.
 export const clipboardImages = async (now: Date): Promise<File[] | undefined> => {
   try {
-    const items = await navigator.clipboard.read()
-    const images = await Promise.all(
-      items.map(async (item) => {
-        const type = item.types.find((name) => name.startsWith("image/"))
-        if (!type) return undefined
-        const blob = await item.getType(type)
-        return new File([blob], uploadName({ name: "", type }, now), { type })
-      }),
-    )
-    return images.filter((image) => image !== undefined)
+    return await imagesOf(await navigator.clipboard.read(), now)
   } catch {
     return undefined
   }
+}
+
+type ClipboardEntry = Pick<ClipboardItem, "types" | "getType">
+
+// The images among a clipboard's items, as files.
+const imagesOf = async (items: readonly ClipboardEntry[], now: Date): Promise<File[]> => {
+  const images = await Promise.all(
+    items.map(async (item) => {
+      const type = item.types.find((name) => name.startsWith("image/"))
+      if (!type) return undefined
+      const blob = await item.getType(type)
+      return new File([blob], uploadName({ name: "", type }, now), { type })
+    }),
+  )
+  return images.filter((image) => image !== undefined)
 }
 
 // What a failed paste tells the person: that the clipboard could not be read, or which
@@ -154,4 +163,124 @@ export const takeFilePastes = (host: HTMLElement, target: PasteTarget): (() => v
   }
   host.addEventListener("paste", listener, true)
   return () => host.removeEventListener("paste", listener, true)
+}
+
+// How long typing waits behind Ctrl+V while the clipboard is read, at most.
+export const ctrlVWaitMs = 1_000
+// How long typing waits behind Ctrl+V at all, even for an image still uploading, whose
+// path then goes in when it is saved.
+export const ctrlVHoldMs = 2_000
+
+type Key = Pick<
+  KeyboardEvent,
+  | "type"
+  | "key"
+  | "code"
+  | "ctrlKey"
+  | "shiftKey"
+  | "altKey"
+  | "metaKey"
+  | "isComposing"
+  | "keyCode"
+>
+
+// Whether a key press is a plain Ctrl+V on Linux or Windows, which may paste an image.
+// On Apple platforms ⌘V pastes and Ctrl+V stays the program's; with Shift it pastes
+// already, AltGr reports Ctrl with Alt, and a key composing text belongs to the input
+// method. The V is the layout's, or the key's place where the layout has no Latin
+// letters there.
+export const plainCtrlV = (event: Key, platform: Platform): boolean => {
+  if (platform === "mac" || event.type !== "keydown") return false
+  if (event.isComposing || event.keyCode === 229) return false
+  if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return false
+  return /^[a-z]$/i.test(event.key) ? event.key.toLowerCase() === "v" : event.code === "KeyV"
+}
+
+// Whether Ctrl+V pastes a clipboard's images: it holds an image and no text. Text stays
+// the program's, as the paste of text beside an image does.
+export const pastesImages = (items: readonly Pick<ClipboardItem, "types">[]): boolean =>
+  items.some((item) => item.types.some((type) => type.startsWith("image/"))) &&
+  !items.some((item) => item.types.includes("text/plain"))
+
+// The images Ctrl+V pastes: none but on a clipboard of images and no text, or one it
+// can't read.
+const ctrlVImages = async (now: Date): Promise<File[]> => {
+  try {
+    const items = await navigator.clipboard.read()
+    return pastesImages(items) ? await imagesOf(items, now) : []
+  } catch {
+    return []
+  }
+}
+
+// Whether Ctrl+V may read the clipboard without asking: always in the desktop app, which
+// allows it, and in a browser once the page may, as after a first image pasted with
+// Ctrl+Shift+V. Reading it otherwise would ask on every Ctrl+V, as vim's.
+export const clipboardAccess = (desktop: boolean): (() => boolean) => {
+  if (desktop) return () => true
+  let granted = false
+  const watch = async (): Promise<void> => {
+    const status = await navigator.permissions.query({ name: "clipboard-read" as PermissionName })
+    granted = status.state === "granted"
+    status.addEventListener("change", () => (granted = status.state === "granted"))
+  }
+  // A browser that has no such permission to ask about never reads it.
+  watch().catch(() => {})
+  return () => granted
+}
+
+export type CtrlVTarget = PasteTarget & {
+  // Whether the terminal's program takes input now; otherwise Ctrl+V goes as it did.
+  readonly active: () => boolean
+  // Holds the terminal's input until the returned release, which first sends Ctrl+V as
+  // typed when `controlV`. Pastes while held go ahead of what it holds.
+  readonly hold: () => (controlV: boolean) => void
+}
+
+// Makes a plain Ctrl+V on Linux and Windows paste a clipboard of images as their paths,
+// as a paste of them does. Any other clipboard, one it can't read, or one read too slowly
+// sends Ctrl+V to the program, without a word, as programs such as vim take it. Typing
+// meanwhile waits, to arrive after the paths or Ctrl+V, for `holdMs` at most. Ctrl+V
+// pressed again, or repeating, while typing waits does nothing, so an image goes in once;
+// once typing goes again, as past a slow upload, Ctrl+V does too.
+export const takeCtrlV = (
+  xterm: Pick<Terminal, "attachCustomKeyEventHandler">,
+  target: CtrlVTarget,
+  {
+    platform = currentPlatform(),
+    readable = (): boolean => true,
+    waitMs = ctrlVWaitMs,
+    holdMs = ctrlVHoldMs,
+  } = {},
+): void => {
+  let holding = false
+  const check = async (): Promise<void> => {
+    const hold = target.hold()
+    let cap: ReturnType<typeof setTimeout> | undefined
+    let released = false
+    const release = (controlV: boolean): void => {
+      if (released) return
+      released = true
+      holding = false
+      clearTimeout(cap)
+      hold(controlV)
+    }
+    // An image found but slow to upload lets typing go, and sends no Ctrl+V.
+    cap = setTimeout(() => release(false), holdMs)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const late = new Promise<File[]>((resolve) => (timer = setTimeout(resolve, waitMs, [])))
+    const images = await Promise.race([ctrlVImages(new Date()), late])
+    clearTimeout(timer)
+    if (images.length === 0) return release(true)
+    // An image none of whose paths went in leaves Ctrl+V to the program, as its paste does.
+    release((await pasteFiles(images, target)) === 0)
+  }
+  xterm.attachCustomKeyEventHandler((event) => {
+    if (!plainCtrlV(event, platform) || !target.active() || !readable()) return true
+    event.preventDefault()
+    if (holding) return false
+    holding = true
+    void check().catch(() => (holding = false))
+    return false
+  })
 }
