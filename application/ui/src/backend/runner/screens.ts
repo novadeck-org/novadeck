@@ -7,6 +7,7 @@ import { tokenColors } from "../../theme/probe"
 import type { TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { followTerminal, type FollowedTerminal, type Screen } from "./follow"
+import { linkTerminal } from "./links"
 import { silenceQueries } from "./queries"
 
 // The sizes the runner accepts.
@@ -143,6 +144,7 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     })
     const fit = new FitAddon()
     xterm.loadAddon(fit)
+    linkTerminal(xterm)
     xterm.open(element)
     const queries = silenceQueries(xterm)
     xterm.textarea?.setAttribute("data-terminal-input", "")

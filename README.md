@@ -267,6 +267,10 @@ these simpler keys work in both normal and Zen mode:
 The modifier shortcuts above remain available from terminal input. Workspace keys
 never replace typing, editing, or dialog navigation.
 
+Web addresses in a terminal, and the web hyperlinks programs print, open in your browser on
+Ctrl-click (⌘-click on macOS); hovering one shows where it goes. A plain click still selects
+text or reaches the program.
+
 The new-session shortcut creates and selects an empty session in the current project
 and opens the Sessions sidebar.
 
