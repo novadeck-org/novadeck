@@ -5,6 +5,7 @@ import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
 import { createRouter, type Connection } from "./router.js"
 import { installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
+import { Uploads } from "./terminals/uploads.js"
 import { Projects } from "./workspaces/projects.js"
 import { WorkspaceStore } from "./workspaces/store.js"
 
@@ -18,6 +19,11 @@ export type RunnerOptions = {
    * folder beside the database. Without it shells start without the integration.
    */
   shell?: string
+  /**
+   * Where files pasted into terminals are saved, such as an `uploads` folder beside the
+   * database; a fresh temporary folder when omitted.
+   */
+  uploads?: string
   /** Where agents are looked for and how their plugin commands run; for tests. */
   agents?: HarnessesOptions
 }
@@ -87,13 +93,14 @@ export const wire = (options: RunnerOptions) => {
     ...options.terminals,
   })
   const projects = new Projects(store, terminals, items)
-  return { store, shellFiles, agents, terminals, items, projects }
+  const uploads = new Uploads(options.uploads)
+  return { store, shellFiles, agents, terminals, items, projects, uploads }
 }
 
 /** Owns shells and workspace metadata, independent of how clients reach it. */
 export const createRunner = (options: RunnerOptions = {}): Runner => {
   const id = randomUUID()
-  const { store, terminals, items, agents, projects } = wire(options)
+  const { store, terminals, items, agents, projects, uploads } = wire(options)
   const clients = new Map<string, Connection>()
   let closing: Promise<void> | undefined
   const disconnect = (connection: Connection) => {
@@ -125,6 +132,7 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
       projects,
       items,
       agents,
+      uploads,
       closing: () => closing !== undefined,
     }),
     snapshotBytes: options.terminals?.snapshotBytes ?? 32 * 1024 * 1024,

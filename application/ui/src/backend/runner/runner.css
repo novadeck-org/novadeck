@@ -2,12 +2,13 @@
 @import "@xterm/xterm/css/xterm.css" layer(base);
 @reference "../../styles.css";
 
-/* The runner recipe: the surface a shell draws into, the notice while typing is paused,
+/* The runner recipe: the surface a shell draws into, the notice while typing is paused
+   (also shown for a moment at the top when a paste fails),
    the bar that says how the shell ended, and the debug panel (a `.floating` surface).
 
    Hooks: data-locked on `.runner-terminal`; data-terminal-ending="success" | "warning" |
    "danger" on `.runner-ending`; aria-disabled on `.runner-restart`. Parts:
-   `.runner-screen` (where xterm draws, greyed after a moment while locked), `.runner-lock`, `.runner-lock-notice`, `.runner-ending`, `.runner-ending-reason`,
+   `.runner-screen` (where xterm draws, greyed after a moment while locked), `.runner-lock`, `.runner-paste`, `.runner-lock-notice`, `.runner-ending`, `.runner-ending-reason`,
    `.runner-restart` (with its `kbd`), `.debug-panel`, `.debug-meta`, `.debug-heading`,
    `.debug-action`, `.debug-hint`, `.debug-close`.
 
@@ -69,6 +70,14 @@
   }
   @starting-style {
     .runner-lock {
+      opacity: 0;
+    }
+  }
+  .runner-paste {
+    transition: opacity var(--motion-state) var(--ease-interface);
+  }
+  @starting-style {
+    .runner-paste {
       opacity: 0;
     }
   }

@@ -1,6 +1,8 @@
 import type { WireClient } from "./contract.js"
 import { hasCode, normalize, RunnerError } from "./errors.js"
 import {
+  maxUploadBytes,
+  maxUploadPartLength,
   protocolVersion,
   type AgentDetail,
   type AgentIntegration,
@@ -198,6 +200,16 @@ export type Runner = {
      * Rejects as `rename` does.
      */
     resetTitle(terminalId: string): Promise<void>
+    /**
+     * Saves a file pasted into a terminal on the runner's machine, sending it in
+     * parts that each fit a message, and resolves with its absolute path there. Rejects
+     * with `UPLOAD_TOO_LARGE` past `maxUploadBytes`, before sending anything, and as
+     * `rename` does.
+     */
+    upload(
+      terminalId: string,
+      file: { readonly name: string; readonly data: Uint8Array },
+    ): Promise<string>
     /**
      * Starts a fresh shell in an exited terminal the runner still holds, keeping its id,
      * session and directory, and gives this client control. Attach again for the new
@@ -1005,6 +1017,21 @@ class Watch<Change> implements AsyncIterableIterator<
   }
 }
 
+// Bytes as base64 parts of `terminals.upload`: whole groups of three bytes, so no part
+// but the last is padded.
+const uploadParts = (data: Uint8Array): string[] => {
+  const size = (maxUploadPartLength / 4) * 3
+  const parts: string[] = []
+  for (let start = 0; start < data.length; start += size) {
+    const part = data.subarray(start, start + size)
+    let binary = ""
+    for (let at = 0; at < part.length; at += 8192)
+      binary += String.fromCharCode(...part.subarray(at, at + 8192))
+    parts.push(btoa(binary))
+  }
+  return parts
+}
+
 /**
  * Connects to a runner and resolves after the first successful handshake. Later
  * disconnections reconnect automatically; `status` and `watch()` report them.
@@ -1054,6 +1081,20 @@ export const connectRunner = async (
       close: (terminalId) => call((wire) => wire.terminals.close({ terminalId })),
       rename: (terminalId, title) => call((wire) => wire.terminals.rename({ terminalId, title })),
       resetTitle: (terminalId) => call((wire) => wire.terminals.resetTitle({ terminalId })),
+      async upload(terminalId, { name, data }) {
+        if (data.length > maxUploadBytes) throw new RunnerError("UPLOAD_TOO_LARGE")
+        const [first = "", ...rest] = uploadParts(data)
+        const started = await call((wire) =>
+          wire.terminals.upload({ terminalId, name, data: first }),
+        )
+        // Each later part adds to the file the first one started.
+        for (const part of rest)
+          // eslint-disable-next-line no-await-in-loop -- Parts arrive in order.
+          await call((wire) =>
+            wire.terminals.upload({ terminalId, path: started.path, data: part }),
+          )
+        return started.path
+      },
       restart: (terminalId, { cols, rows, resume }) =>
         call((wire) =>
           wire.terminals.restart({ terminalId, cols, rows, ...(resume ? { resume } : {}) }),

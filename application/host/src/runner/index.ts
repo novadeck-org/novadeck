@@ -11,9 +11,16 @@ const database = process.argv
   ?.slice(databaseArgumentPrefix.length)
 
 // Without `maxTerminals`, the desktop runner starts as many terminals as the user opens.
-// Its shell integration lives beside the database, in the app's own data directory.
+// Its shell integration and pasted files live beside the database, in the app's own data
+// directory.
 const runner = createRunner(
-  database === undefined ? {} : { database, shell: join(dirname(database), "shell") },
+  database === undefined
+    ? {}
+    : {
+        database,
+        shell: join(dirname(database), "shell"),
+        uploads: join(dirname(database), "uploads"),
+      },
 )
 
 process.parentPort.on(

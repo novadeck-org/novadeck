@@ -1,4 +1,4 @@
-import type { AttachedTerminal } from "@novadeck/protocol/client"
+import { RunnerError, type AttachedTerminal } from "@novadeck/protocol/client"
 import { Terminal } from "@xterm/xterm"
 import { act, createElement, type ReactNode } from "react"
 import { afterEach, vi } from "vitest"
@@ -12,6 +12,7 @@ import { themeChangeEvent } from "../../theme/apply"
 import type { BackendConnectionState } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { createRunnerTerminal } from "./RunnerTerminal"
+import { pasteNoticeMs } from "./screens"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -61,6 +62,7 @@ const starting = () => {
   const runtime: SurfaceRuntime = {
     entry: () => entry,
     attach: () => new Promise(() => {}),
+    upload: () => new Promise(() => {}),
     resized: () => {},
     attached: () => () => {},
     connected: async () => {},
@@ -94,6 +96,9 @@ const show = (
   mounted.push(page)
   return page
 }
+
+// The notice of a failed paste, while it shows.
+const notice = (page: Rendered) => page.container.querySelector("[data-paste-notice]")
 
 const input = (page: Rendered) =>
   page.container.querySelector<HTMLTextAreaElement>("[data-terminal-input]")!
@@ -461,6 +466,47 @@ describe("runner terminal surface", () => {
       expect(button.hasAttribute("aria-disabled")).toBe(false)
       act(() => button.click())
       expect(restarts).toEqual(["01"])
+    })
+  })
+
+  context("when a pasted image can't be saved", () => {
+    // Pastes an image into the surface, whose runner refuses it with `error`.
+    const pasteRefused = (error: Error) => {
+      const { runtime } = starting()
+      const page = show({ ...runtime, upload: () => Promise.reject(error) })
+      vi.spyOn(console, "error").mockImplementation(() => {})
+      const event = new Event("paste", { bubbles: true, cancelable: true })
+      const image = new File([new Uint8Array([1])], "", { type: "image/png" })
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          files: [],
+          items: [{ kind: "file", getAsFile: () => image }],
+          getData: () => "",
+        },
+      })
+      act(() => void input(page).dispatchEvent(event))
+      return page
+    }
+
+    it("says why at the top of the surface, then lets the notice go", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      try {
+        const page = pasteRefused(new RunnerError("UPLOAD_TOO_LARGE"))
+        await act(() => vi.advanceTimersByTimeAsync(0))
+        expect(notice(page)?.textContent).toBe("Couldn't paste the image: it's over 32 MB")
+        expect(page.container.querySelector("[aria-live]:last-of-type")?.textContent).toBe(
+          "Couldn't paste the image: it's over 32 MB",
+        )
+        await act(() => vi.advanceTimersByTimeAsync(pasteNoticeMs))
+        expect(notice(page)).toBeNull()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("says only that it failed when the runner is unreachable", async () => {
+      const page = pasteRefused(new RunnerError("DISCONNECTED"))
+      await vi.waitFor(() => expect(notice(page)?.textContent).toBe("Couldn't paste the image"))
     })
   })
 

@@ -25,6 +25,7 @@ import {
 import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
 import { debugEnabled, registerDebugIpc } from "./debug.js"
 import { attachPage, guardPage, lockPagesSession, pagesPartition, webAddress } from "./pages.js"
+import { limitPermissions, ownPage } from "./permissions.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { startRunner, type RunnerHost } from "./runner.js"
 
@@ -64,12 +65,13 @@ const waitFor = async (origin: string, attempts = 100): Promise<void> => {
 }
 
 /** Whether a frame shows this app's own UI: the packaged page or the dev server. */
-const isAppPage = (url: string): boolean => {
-  const page = new URL(url)
-  if (!app.isPackaged) return page.origin === developmentOrigin
-  const packaged = pathToFileURL(join(process.resourcesPath, "ui", "index.html"))
-  return page.protocol === "file:" && page.pathname === packaged.pathname
-}
+const isAppPage = (url: string): boolean =>
+  ownPage(
+    url,
+    app.isPackaged
+      ? pathToFileURL(join(process.resourcesPath, "ui", "index.html")).href
+      : developmentOrigin,
+  )
 
 /**
  * The window of a request from the main frame of this app's own window showing its own
@@ -210,10 +212,7 @@ app.setAppUserModelId(appId)
 app.whenReady().then(() => {
   // A system shutdown quits, which saves every page and terminal before the shells end.
   quitOnShutdown(powerMonitor, () => app.quit())
-  session.defaultSession.setPermissionCheckHandler(() => false)
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, respond) =>
-    respond(false),
-  )
+  limitPermissions(session.defaultSession, isAppPage)
   lockPagesSession(session.fromPartition(pagesPartition))
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") guardPage(contents, (url) => shell.openExternal(url))

@@ -15,6 +15,7 @@ import {
   directory,
   id,
   itemContent,
+  maxUploadPartLength,
   name,
   project,
   protocolVersion,
@@ -50,6 +51,7 @@ export const errors = {
   ALREADY_ATTACHED: { status: 409 },
   SLOW_CONSUMER: { status: 429 },
   SNAPSHOT_TOO_LARGE: { status: 413 },
+  UPLOAD_TOO_LARGE: { status: 413 },
   INVALID_CURSOR: { status: 400 },
   SPAWN_FAILED: { status: 500 },
   RUNTIME_CLOSING: { status: 503 },
@@ -173,6 +175,26 @@ export const contract = {
     // takes the one an agent gave it last, the person's first prompt there, or its
     // default, as `rename` does announcing it. TERMINAL_NOT_FOUND as for `rename`.
     resetTitle: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
+    // Saves a file pasted into a terminal in a folder of its own on the runner's machine,
+    // for the terminal's programs to read at the absolute `path` it answers; uploads go a
+    // week later. The file comes base64 in parts: one with `name`
+    // starts it, and one with the `path` an earlier part answered adds to it. A file past
+    // `maxUploadBytes` is UPLOAD_TOO_LARGE and goes, a `path` the runner isn't receiving
+    // is NOT_FOUND, and a terminal it keeps nothing of TERMINAL_NOT_FOUND.
+    upload: procedure
+      .input(
+        z
+          .strictObject({
+            terminalId: id,
+            name: z.string().min(1).max(255).optional(),
+            path: directory.optional(),
+            data: z.base64().max(maxUploadPartLength),
+          })
+          .refine((part) => (part.name === undefined) !== (part.path === undefined), {
+            message: "A part either starts a file by its name or adds to one by its path.",
+          }),
+      )
+      .output(z.strictObject({ path: directory })),
     // Starts a fresh shell in an exited terminal, keeping its id, session and cwd; the
     // caller gains control. A running terminal is a CONFLICT. The earlier shell's screen
     // shows above the new one's, unless `resume` resumes an agent session, as for create.

@@ -271,6 +271,18 @@ Web addresses in a terminal, and the web hyperlinks programs print, open in your
 Ctrl-click (⌘-click on macOS); hovering one shows where it goes. A plain click still selects
 text or reaches the program.
 
+Pasting an image, such as a screenshot, into a terminal pastes the path of a file
+holding it, as a native terminal does for a dropped file. A paste with any text stays
+text, even with an image beside it, as cells copied from a spreadsheet come, and Ctrl+V
+still reaches the program. The runner saves the file on its own machine, readable by its
+owner only, under a name of letters, digits and `.`, `_`, `-` or spaces, in an `uploads`
+folder beside its database, or a temporary folder without one; each upload removes
+those older than a week. Claude Code and Codex take a pasted
+image's path as the image. The desktop app may read the clipboard for this; in a
+browser, the first paste of an image asks for permission. A paste that fails, as of a
+file over 32 MB or with the clipboard unreadable, says why for a moment at the top of the
+terminal.
+
 The new-session shortcut creates and selects an empty session in the current project
 and opens the Sessions sidebar.
 

@@ -16,6 +16,14 @@ export const maxWebSocketMessageBytes = 256 * 1024
  */
 export const maxClientStateLength = 196_608
 
+/** The largest file a client may paste into a terminal, in bytes. */
+export const maxUploadBytes = 32 * 1024 * 1024
+/**
+ * The longest part of an upload, in base64 characters: 144 KiB of the file, so a whole
+ * `terminals.upload` call fits in `maxWebSocketMessageBytes`.
+ */
+export const maxUploadPartLength = 196_608
+
 // Opaque client-owned state the runner stores without reading, such as a UI layout.
 export const clientState = z.string().max(maxClientStateLength)
 

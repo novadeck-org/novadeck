@@ -7,6 +7,7 @@ import type { CompanionItems } from "./companions/items.js"
 import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
 import type { Terminals } from "./terminals/index.js"
+import type { Uploads } from "./terminals/uploads.js"
 import type { Projects } from "./workspaces/projects.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 
@@ -43,10 +44,11 @@ export const createRouter = (options: {
   projects: Projects
   items: CompanionItems
   agents: Harnesses
+  uploads: Uploads
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
-  const { store, terminals, projects, items, agents } = options
+  const { store, terminals, projects, items, agents, uploads } = options
   const api = implement(contract).$context<Context>()
   const authorized = api.use(async ({ context, next }) => {
     const connection = context.connection
@@ -158,6 +160,10 @@ export const createRouter = (options: {
       ack: authorized.terminals.ack.handler(({ input, context }) =>
         terminals.ack(input, context.connection.id),
       ),
+      upload: authorized.terminals.upload.handler(async ({ input }) => {
+        if (!terminals.place(input.terminalId)) throw new DomainError("TERMINAL_NOT_FOUND")
+        return { path: await uploads.save(input) }
+      }),
       restart: authorized.terminals.restart.handler(async ({ input, context }) =>
         terminals.restart(input, context.connection.id),
       ),

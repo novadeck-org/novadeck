@@ -1,10 +1,10 @@
-import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { MessageChannel } from "node:worker_threads"
 
-import type { TerminalEvent } from "@novadeck/protocol"
+import { maxUploadBytes, type TerminalEvent } from "@novadeck/protocol"
 import {
   connectRunner,
   messagePort,
@@ -894,6 +894,33 @@ describe("runner client agent detail across reconnections", () => {
     expect(settled).toBe(false)
     await runner.terminals.close(created.id)
     await expect(ending).resolves.toEqual({ done: true, value: undefined })
+  })
+})
+
+describe("runner client uploads", () => {
+  it("saves a file larger than a message where the runner keeps uploads, in parts", async ({
+    resources,
+  }) => {
+    const uploads = join(await temporary(resources), "uploads")
+    const app = await deployed(resources, { uploads })
+    const runner = await app.connect()
+    const { id: sessionId } = await session(runner, app.directory)
+    const created = await runner.terminals.create(shell(sessionId))
+    // Several parts over WebSocket, past a single message's limit.
+    const data = Uint8Array.from({ length: 600 * 1024 + 7 }, (_, at) => (at * 31) % 256)
+    const path = await runner.terminals.upload(created.id, { name: "screen shot.png", data })
+    expect(path.startsWith(join(uploads, ""))).toBe(true)
+    expect(path.endsWith("screen shot.png")).toBe(true)
+    expect(new Uint8Array(await readFile(path))).toEqual(data)
+    await expect(
+      runner.terminals.upload(crypto.randomUUID(), { name: "x.png", data }),
+    ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+    await expect(
+      runner.terminals.upload(created.id, {
+        name: "huge.bin",
+        data: new Uint8Array(maxUploadBytes + 1),
+      }),
+    ).rejects.toMatchObject({ name: "RunnerError", code: "UPLOAD_TOO_LARGE" })
   })
 })
 

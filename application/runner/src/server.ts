@@ -7,6 +7,8 @@ export type ServerOptions = HttpOptions &
     database?: string
     /** Where the shell integration goes; see `RunnerOptions.shell`. */
     shell?: string
+    /** Where pasted files go; see `RunnerOptions.uploads`. */
+    uploads?: string
     terminals?: TerminalOptions
     maxConnections?: number
     heartbeatMs?: number
@@ -21,6 +23,7 @@ export const startServer = async (options: ServerOptions = {}): Promise<HttpServ
   const runner = createRunner({
     ...(options.database !== undefined && { database: options.database }),
     ...(options.shell !== undefined && { shell: options.shell }),
+    ...(options.uploads !== undefined && { uploads: options.uploads }),
     // A shared, network-reachable runner keeps a cap; the desktop runner has none.
     terminals: { maxTerminals: 32, ...options.terminals },
   })

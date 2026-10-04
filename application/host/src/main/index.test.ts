@@ -74,12 +74,14 @@ describe("compiled desktop host", () => {
       expect(preload).toContain("showAppearance")
     })
 
-    it("blocks renderer navigation and denies permissions by default", async () => {
+    it("blocks renderer navigation and denies permissions but the app page's clipboard", async () => {
       const main = await read("main/index.js")
 
       expect(main).toContain('webContents.on("will-navigate"')
       expect(main).toContain("setPermissionCheckHandler")
       expect(main).toContain("setPermissionRequestHandler")
+      // Which frames get the clipboard is covered in ./permissions.test.ts.
+      expect(main).toContain("limitPermissions(session.defaultSession, isAppPage)")
     })
   })
 })

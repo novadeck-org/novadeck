@@ -42,7 +42,12 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
     hostname: environment.HOST?.trim() || "127.0.0.1",
     port: readPort(environment.PORT),
     origins: readOrigins(environment.CORS_ORIGINS),
-    // The shell integration lives beside the metadata it restores terminals from.
-    ...(token !== undefined && { token, database, shell: join(dirname(database), "shell") }),
+    // The shell integration and pasted files live beside the metadata.
+    ...(token !== undefined && {
+      token,
+      database,
+      shell: join(dirname(database), "shell"),
+      uploads: join(dirname(database), "uploads"),
+    }),
   }
 }

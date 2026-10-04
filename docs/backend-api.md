@@ -235,6 +235,18 @@ its handle across renames. `command` is what it was opened to run, and
 `lastProgram` the program it last had in its foreground, which a fresh shell resumes
 where that is an agent.
 
+`runner.terminals.upload(terminalId, { name, data })` saves a file pasted into a
+terminal on the runner's machine and resolves with its absolute path there, for the UI
+to paste into the terminal. The runner keeps each file in a folder of its own under its
+`uploads` option (beside the database for the standalone and desktop runners, a fresh
+temporary folder otherwise), readable by its owner only, and removes uploads older than
+a week as the next one starts. The client sends the file base64 in parts that each fit
+a WebSocket message: on the wire, `terminals.upload({ terminalId, name, data })` starts
+it and answers `{ path }`, and `terminals.upload({ terminalId, path, data })` adds the
+next part within a minute. A file past `maxUploadBytes` (32 MiB) is
+`UPLOAD_TOO_LARGE`, a `path` the runner isn't receiving `NOT_FOUND`, and an unknown
+terminal `TERMINAL_NOT_FOUND`.
+
 Agents in a project's terminals message each other (see
 [Agent messaging](agent-messaging.md)); the runner API lets a client see and steer it:
 
@@ -615,7 +627,7 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
 
 Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
 `INVALID_DIRECTORY`, `INVALID_FILE`, `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,
-`INVALID_CURSOR`, `RESOURCE_LIMIT` (too many calls in flight; retry later),
+`INVALID_CURSOR`, `UPLOAD_TOO_LARGE`, `RESOURCE_LIMIT` (too many calls in flight; retry later),
 `TERMINAL_LIMIT` (the runner's terminal cap is reached), and `SLOW_CONSUMER`. The
 schemas and contract in
 `application/protocol/src/` are the authoritative API definition.

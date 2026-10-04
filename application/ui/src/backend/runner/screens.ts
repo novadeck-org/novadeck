@@ -8,6 +8,7 @@ import type { TerminalKey } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { followTerminal, type FollowedTerminal, type Screen } from "./follow"
 import { linkTerminal } from "./links"
+import { takeFilePastes } from "./paste"
 import { silenceQueries } from "./queries"
 
 // The sizes the runner accepts.
@@ -70,6 +71,8 @@ const monospace = (element: Element): string =>
 // forces a layout and may tell the runner, so a zoom or a drag refits once it pauses,
 // not on every frame across dozens of terminals.
 const resizeSettleMs = 120
+// How long a notice of a failed paste stays.
+export const pasteNoticeMs = 4_000
 
 // Whether a stream draws the terminal now, and whether its shell waits for Enter.
 export type ScreenStream = {
@@ -90,6 +93,8 @@ export type RunnerScreen = {
   readonly xterm: Terminal
   readonly followed: FollowedTerminal
   readonly stream: Store<ScreenStream>
+  // Why the last paste failed, for a few seconds after it did.
+  readonly notice: Store<string | null>
   // Whether the terminal's status waits for Enter, as the surface last rendered it.
   waiting: boolean
   // Starts a fresh shell, as Enter or the Restart button asks.
@@ -150,6 +155,7 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     xterm.textarea?.setAttribute("data-terminal-input", "")
     xterm.textarea?.setAttribute("aria-label", `Input for ${name}`)
     const stream = createStore<ScreenStream>({ live: false, resuming: false, waits: false })
+    const notice = createStore<string | null>(null)
     const drawn: Screen = {
       exited: () => {},
       live: () => {},
@@ -180,6 +186,7 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       xterm,
       followed,
       stream,
+      notice,
       waiting,
       restart: () => {
         // Locked until the fresh shell's screen arrives.
@@ -196,6 +203,22 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     const input = xterm.onData(send)
     // Some mouse reports arrive as binary; they go to the shell the same way.
     const binary = xterm.onBinary(send)
+    // Pasted files go in as their paths on the runner's machine, as a bracketed paste. An
+    // upload that ends after the screen is gone pastes and tells nothing.
+    let noticed: ReturnType<typeof setTimeout> | undefined
+    let gone = false
+    const pastes = takeFilePastes(element, {
+      upload: (file) => runtime.upload(key.terminalId, file),
+      paste: (text) => {
+        if (!gone) xterm.paste(text)
+      },
+      failed: (text) => {
+        if (gone) return
+        notice.update(() => text)
+        clearTimeout(noticed)
+        noticed = setTimeout(() => notice.update(() => null), pasteNoticeMs)
+      },
+    })
     let settling: ReturnType<typeof setTimeout> | undefined
     // A theme sets the colours and the font; a new font changes the cell size, so the
     // terminal fits again.
@@ -227,6 +250,9 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       resizes.disconnect()
       input.dispose()
       binary.dispose()
+      gone = true
+      pastes()
+      clearTimeout(noticed)
       queries.dispose()
       followed.stop()
       xterm.dispose()

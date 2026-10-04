@@ -14,11 +14,12 @@ describe("server configuration", () => {
     ).toMatchObject({ token, database: resolve("/tmp/novadeck-test.sqlite") })
   })
 
-  it("makes a relative database path absolute, with the shell integration beside it", () => {
+  it("makes a relative database path absolute, with the shell integration and uploads beside it", () => {
     const token = "configuration-tests-only-not-a-real-credential"
     const config = readConfig({ NOVADECK_TOKEN: token, NOVADECK_DATABASE: "data/workspace.sqlite" })
     expect(config.database).toBe(resolve("data/workspace.sqlite"))
     expect(config.shell).toBe(join(resolve("data"), "shell"))
+    expect(config.uploads).toBe(join(resolve("data"), "uploads"))
   })
 
   it("rejects empty, short, and oversized credentials", () => {

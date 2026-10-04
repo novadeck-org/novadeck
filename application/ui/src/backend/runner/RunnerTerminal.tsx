@@ -15,7 +15,8 @@ import { restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
 import { createScreens, type RunnerScreen, type ScreenStream } from "./screens"
 
-// Why typing is paused, set in capitals by CSS so assistive technology reads words.
+// Why typing is paused, set in capitals by CSS so assistive technology reads words. A
+// failed paste says why in the same notice.
 const lockNotices = {
   connected: "Starting shell…",
   reconnecting: "Reconnecting…",
@@ -78,6 +79,7 @@ const EndingBar = ({
 }
 
 const quiet: ScreenStream = { live: false, resuming: false, waits: false }
+const silent = (): null => null
 const ignore = (): (() => void) => () => {}
 
 // One component per backend, so its identity stays stable while the backend lives. Its
@@ -119,6 +121,11 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
       () => screen?.stream.getSnapshot() ?? quiet,
     )
     const locked = connection !== "connected" || (!waiting && !waits && !live)
+    // Why a paste just failed, shown for a moment at the surface's top.
+    const notice = useSyncExternalStore(
+      screen?.notice.subscribe ?? ignore,
+      screen?.notice.getSnapshot ?? silent,
+    )
 
     const onWheel = useCallback((event: WheelEvent): void => {
       // Intercept before XYFlow's native listener, but let zoom gestures reach it.
@@ -241,6 +248,15 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
                 screen?.xterm.focus()
               }}
             />
+            {notice && (
+              <div
+                aria-hidden
+                data-paste-notice
+                className="runner-paste pointer-events-none absolute inset-x-0 top-3 flex justify-center px-3"
+              >
+                <LockNotice notice={notice} />
+              </div>
+            )}
             {locked && (
               <div
                 role="status"
@@ -263,6 +279,10 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
             while no ending shows, so a repeat of the same ending is announced again. */}
         <span aria-live="polite" aria-atomic className="sr-only">
           {ending ? endingText(ending) : ""}
+        </span>
+        {/* A failed paste, announced the same way. */}
+        <span aria-live="polite" aria-atomic className="sr-only">
+          {notice ?? ""}
         </span>
       </>
     )

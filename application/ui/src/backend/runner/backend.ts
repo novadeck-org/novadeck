@@ -157,6 +157,8 @@ export type SurfaceRuntime = {
   // took its place, as another surface's, alone.
   readonly attached: (key: TerminalKey, attachment: AttachedTerminal) => () => void
   readonly attach: (terminalId: string) => Promise<AttachedTerminal>
+  // Saves a file pasted into a terminal on the runner's machine; resolves with its path.
+  readonly upload: Runner["terminals"]["upload"]
   // Resolves once the runner is reachable again, or closed for good.
   readonly connected: () => Promise<void>
   // Reports why the surface could not follow its terminal.
@@ -1061,6 +1063,7 @@ export const runnerBackend = (
       }
     },
     attach: (terminalId) => runner.terminals.attach(terminalId),
+    upload: (terminalId, file) => track(runner.terminals.upload(terminalId, file)),
     connected,
     lost: (key, error) => {
       const entry = registry.get(key)?.entry

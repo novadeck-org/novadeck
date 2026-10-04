@@ -44,6 +44,7 @@ describe("following a runner terminal", () => {
           { ...envelope, sequence: 2, type: "output", data: " $$\r\n" },
           { ...envelope, sequence: 3, type: "exited", exit },
         ]),
+      upload: async () => "",
       resized: () => {},
       attached: () => () => {},
       connected: async () => {},
