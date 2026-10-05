@@ -177,7 +177,7 @@ export type TerminalOptions = {
   /** The connected harnesses whose shims new shells put first on PATH. */
   shims?: () => Promise<readonly AgentName[]>
   /**
-   * Whether NovaDeck's plugin is installed into the harness: a disconnected one resumes
+   * Whether Novadeck's plugin is installed into the harness: a disconnected one resumes
    * nothing and its reports are ignored. Every harness counts as connected when omitted.
    */
   connected?: (agent: AgentName) => Promise<boolean>
@@ -211,7 +211,7 @@ export type TerminalOptions = {
    */
   install?: (agent: AgentName) => Promise<Install | undefined>
   /**
-   * Whether NovaDeck's hooks run for the harness in a folder, where it runs them only
+   * Whether Novadeck's hooks run for the harness in a folder, where it runs them only
    * once the person trusts them (`Harness.hooksTrusted`); asked of the harness itself when
    * omitted. Undefined, or a failure, is unknown.
    */
@@ -416,7 +416,7 @@ const resumeGroup = (group: number): void => {
   }
 }
 
-// Variables of NovaDeck's own shells and of agent sessions, which a runner started from
+// Variables of Novadeck's own shells and of agent sessions, which a runner started from
 // inside one must not pass on.
 const inherited = [
   "NOVADECK_TOKEN",
@@ -429,8 +429,8 @@ const inherited = [
   "NOVADECK_ZDOTDIR",
   "NOVADECK_RESUME",
   "NOVADECK_SHIMS",
-  // An agent's own session markers, when NovaDeck was started from inside one: an agent
-  // in NovaDeck's shells would take itself for that session's child. Claude Code, for
+  // An agent's own session markers, when Novadeck was started from inside one: an agent
+  // in Novadeck's shells would take itself for that session's child. Claude Code, for
   // one, then stops saving its transcript.
   "CLAUDECODE",
   "CLAUDE_CODE_CHILD_SESSION",
@@ -447,10 +447,10 @@ const inherited = [
 
 // Why a request for a new terminal went unanswered.
 const unopened = {
-  nobody: "NovaDeck isn't open to show a new terminal.",
+  nobody: "Novadeck isn't open to show a new terminal.",
   // Its window may still open it, so the agent should look before asking again.
-  gone: "NovaDeck's window went away while opening the terminal; it may still open, so check before asking again.",
-  late: "NovaDeck didn't confirm the new terminal in time; it may still open, so check before asking again.",
+  gone: "Novadeck's window went away while opening the terminal; it may still open, so check before asking again.",
+  late: "Novadeck didn't confirm the new terminal in time; it may still open, so check before asking again.",
 }
 
 const sameToken = (a: string, b: string): boolean =>
@@ -657,7 +657,7 @@ export class Terminals {
       items: options.items,
     }
     // Child programs do not need the runner's network capability, nor the identity of a
-    // NovaDeck terminal the runner itself was started from.
+    // Novadeck terminal the runner itself was started from.
     for (const name of inherited) delete this.options.env[name]
     this.transcripts = options.transcripts ?? true
     this.messaging = new Messaging({
@@ -668,7 +668,7 @@ export class Terminals {
     })
     this.doorbell =
       options.doorbell === false ? undefined : new Doorbell(this.ringHost(), options.doorbell)
-    // A Stop NovaDeck continued whose lease lapsed ended its turn after all.
+    // A Stop Novadeck continued whose lease lapsed ended its turn after all.
     this.messaging.subscribe((change) => {
       if (change.kind !== "terminal") return
       const record = this.records.get(change.terminalId)
@@ -683,7 +683,7 @@ export class Terminals {
     // A burst of changes makes one listing, once this tick.
     const mailChanged = coalesced(
       (terminalId) => this.mailChanged(terminalId),
-      "NovaDeck could not tell its message watches:",
+      "Novadeck could not tell its message watches:",
     )
     this.messaging.subscribe((change) => {
       if (change.kind === "terminal") mailChanged(change.terminalId)
@@ -722,7 +722,7 @@ export class Terminals {
       if (!this.stopping) return { paths, reports }
       await reports.close()
     } catch (error) {
-      console.error("NovaDeck shell integration is unavailable:", error)
+      console.error("Novadeck shell integration is unavailable:", error)
     }
     return undefined
   }
@@ -953,7 +953,7 @@ export class Terminals {
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
     if (number === undefined)
       throw new Error(
-        "NovaDeck couldn't number a new terminal in its workspace database, so it didn't create it.",
+        "Novadeck couldn't number a new terminal in its workspace database, so it didn't create it.",
       )
     return number
   }
@@ -1666,7 +1666,7 @@ export class Terminals {
   }
 
   /**
-   * Shows the person what an agent asked to, through NovaDeck's MCP server in one of
+   * Shows the person what an agent asked to, through Novadeck's MCP server in one of
    * the terminal's shells, on the terminal's own bar (see `CompanionItems.show`). A call
    * without the shell's own token learns nothing more.
    */
@@ -1680,7 +1680,7 @@ export class Terminals {
     return this.options.items.show(place, read.request)
   }
 
-  /** What the caller's own terminal's bar holds, as its agent asked through NovaDeck's MCP server. */
+  /** What the caller's own terminal's bar holds, as its agent asked through Novadeck's MCP server. */
   private showing(call: Call): { ok: true; text: string } | typeof unansweredCalls.showing {
     const record = this.records.get(call.terminalId)
     if (!record || record.exitQueued || !sameToken(record.token, call.token))
@@ -1690,7 +1690,7 @@ export class Terminals {
   }
 
   /**
-   * Opens a new terminal beside the caller's, as an agent asked through NovaDeck's MCP
+   * Opens a new terminal beside the caller's, as an agent asked through Novadeck's MCP
    * server in one of the terminal's shells: in a folder, from the terminal's directory,
    * optionally starting a command at its first prompt. The client that lays terminals
    * out opens it (see `requests`), so without one nothing opens. A terminal's agents
@@ -1712,12 +1712,12 @@ export class Terminals {
     }
     if (request.agent !== undefined && !(await this.connected(request.agent)))
       return refused(
-        `NovaDeck isn't connected to ${agentLabel(request.agent)}, so its hooks couldn't take ` +
-          "the task; the user can connect it in NovaDeck's preferences.",
+        `Novadeck isn't connected to ${agentLabel(request.agent)}, so its hooks couldn't take ` +
+          "the task; the user can connect it in Novadeck's preferences.",
       )
     if (starts && !(await this.startsCommands()))
       return refused(
-        "NovaDeck's shells can't start a command as they open here, as its shell integration " +
+        "Novadeck's shells can't start a command as they open here, as its shell integration " +
           "isn't loaded, so no terminal opened.",
       )
     const folder = request.cwd ?? "."
@@ -1820,7 +1820,7 @@ export class Terminals {
 
   /**
    * Closes another terminal of the caller's project and session, as an agent asked
-   * through NovaDeck's MCP server by the terminal's exact handle: as the person's close
+   * through Novadeck's MCP server by the terminal's exact handle: as the person's close
    * does, it ends the shell, then forgets the terminal, whatever window controls it, and
    * messages still waiting for it are gone. Never the caller's own terminal; a handle
    * not there is refused with every terminal there described. A chain of terminals'
@@ -1868,7 +1868,7 @@ export class Terminals {
     }
   }
 
-  /** A tool call from NovaDeck's MCP server, to the operation it names. */
+  /** A tool call from Novadeck's MCP server, to the operation it names. */
   private call(call: Call): Promise<unknown> {
     switch (call.type) {
       case "present":
@@ -1889,7 +1889,7 @@ export class Terminals {
   }
 
   /**
-   * Describes the caller's own terminal, as its agent asked through NovaDeck's MCP server:
+   * Describes the caller's own terminal, as its agent asked through Novadeck's MCP server:
    * its agent's title, shown unless the person gave one, and the summary of its work
    * `agents()` lists. A title the person gave stays, unless the agent says the person
    * `asked` for this one, which then becomes theirs; that is taken only in a root turn
@@ -1930,7 +1930,7 @@ export class Terminals {
     return { ok: true, title: record.summary.title, ...(kept && { kept }) }
   }
 
-  /** Sends another terminal's agent a message, as an agent asked through NovaDeck's MCP server. */
+  /** Sends another terminal's agent a message, as an agent asked through Novadeck's MCP server. */
   send(call: Call): Promise<SendAnswer> {
     return this.peers.send(call)
   }
@@ -2060,7 +2060,7 @@ export class Terminals {
    * An actor's conversation, as its harness recorded it: every item so far, then each
    * later one, until the terminal's agent leaves the session it belongs to or `signal`
    * aborts. An actor the bound session does not have, or whose harness keeps no
-   * transcript NovaDeck reads, is NOT_FOUND.
+   * transcript Novadeck reads, is NOT_FOUND.
    */
   async *transcript(
     terminalId: string,
@@ -2495,7 +2495,7 @@ export class Terminals {
     const result = (this.reports.get(terminalId) ?? Promise.resolve())
       .then(work)
       .catch((error: unknown) => {
-        console.error("NovaDeck could not take an agent report:", error)
+        console.error("Novadeck could not take an agent report:", error)
         return fallback
       })
     const tail = result.then(() => {})
@@ -2632,7 +2632,7 @@ export class Terminals {
       }
       record.summary = { ...record.summary, cwd: next.cwd }
     }
-    // A Stop NovaDeck may continue shows once its ask is answered, so a continued turn
+    // A Stop Novadeck may continue shows once its ask is answered, so a continued turn
     // never flashes idle.
     const stopAsk =
       deadline !== undefined && harnesses[report.agent].messaging.asks[report.event] === "stop"
@@ -2672,7 +2672,7 @@ export class Terminals {
     return this.nudged(record, report, told, answer, deadline)
   }
 
-  /** A Stop NovaDeck continued, lapsed as delivery took it, ends the agent's turn too. */
+  /** A Stop Novadeck continued, lapsed as delivery took it, ends the agent's turn too. */
   private lapsed(record: Record): void {
     const { binding, activity } = record
     const event =
@@ -2681,7 +2681,7 @@ export class Terminals {
   }
 
   /**
-   * A root Stop NovaDeck continued with messages, its hook's answer leasing them: the
+   * A root Stop Novadeck continued with messages, its hook's answer leasing them: the
    * agent's turn goes on, as delivery's does, until the continuation's own Stop.
    */
   private continued(record: Record, events: readonly HarnessEvent[], answer: HookAnswer): void {
@@ -2872,7 +2872,7 @@ export class Terminals {
 
   /**
    * The terminal's title changed: a harness that tells by its title that its prompt shows,
-   * as Codex through NovaDeck's shim, may say so. Anything can set a title, so it counts
+   * as Codex through Novadeck's shim, may say so. Anything can set a title, so it counts
    * only while a process of that harness's name runs in the terminal's foreground, in turn
    * with the terminal's reports.
    */
@@ -2958,7 +2958,7 @@ export class Terminals {
           },
           undefined,
         )
-      })().catch((error: unknown) => console.error("NovaDeck could not read a title:", error))
+      })().catch((error: unknown) => console.error("Novadeck could not read a title:", error))
     }
   }
 
@@ -3014,7 +3014,7 @@ export class Terminals {
   }
 
   /**
-   * Whether a prompt the harness shows counts: it is connected, and NovaDeck's hooks run
+   * Whether a prompt the harness shows counts: it is connected, and Novadeck's hooks run
    * for it there, as `where` (see `harnessIn`) asks it. `untrusted` only when the harness
    * answered that they don't run there, as nothing could deliver to that agent; `unknown`
    * when it couldn't answer, or nothing could ask it.
@@ -3029,7 +3029,7 @@ export class Terminals {
     return trusted === true ? "counts" : trusted === false ? "untrusted" : "unknown"
   }
 
-  /** Whether NovaDeck's hooks run for the agent in the terminal's folder; undefined unknown. */
+  /** Whether Novadeck's hooks run for the agent in the terminal's folder; undefined unknown. */
   private hooksTrustedIn(
     record: Record,
     agent: AgentName,
@@ -3044,7 +3044,7 @@ export class Terminals {
 
   /**
    * A connected harness's own empty prompt shows, before a session it names in full binds,
-   * and NovaDeck's hooks run for it there (`promptTrust`; see docs/agent-messaging.md,
+   * and Novadeck's hooks run for it there (`promptTrust`; see docs/agent-messaging.md,
    * "States"): messages wait for the session it starts there, and the doorbell may ring
    * it. One the shell's prompt came after is stale: the agent left. With a session of
    * that agent bound, it changes nothing, unless it `replaces` it, as the harness started
@@ -3139,7 +3139,7 @@ export class Terminals {
     void watch(run, controller.signal, (fact) => {
       if (record.watching !== controller || fact.type === "session-observed") return
       this.sourceFact(record, fact)
-    }).catch((error: unknown) => console.error("NovaDeck stopped following an agent:", error))
+    }).catch((error: unknown) => console.error("Novadeck stopped following an agent:", error))
   }
 
   /** Applies what the bound session's own sources said, as its hooks' reports apply. */
@@ -3246,7 +3246,7 @@ export class Terminals {
         if (actorWatches.get(actor)?.controller !== controller) return
         if (fact.type === "session-observed") return
         this.sourceFact(record, fact)
-      }).catch((error: unknown) => console.error("NovaDeck stopped following a subagent:", error))
+      }).catch((error: unknown) => console.error("Novadeck stopped following a subagent:", error))
     }
   }
 
@@ -3351,7 +3351,7 @@ export class Terminals {
     record.readyReturn.unref()
   }
 
-  /** The agent whose own prompt shows there, with NovaDeck's hooks, before any session bound. */
+  /** The agent whose own prompt shows there, with Novadeck's hooks, before any session bound. */
   private readyOf(record: Record): AgentName | null {
     if (record.binding || record.readyEntered) return null
     return this.messaging.shownAgent(record.summary.id) ?? null
@@ -3413,7 +3413,7 @@ export class Terminals {
       work()
       return true
     } catch (error) {
-      console.error("NovaDeck could not save a terminal:", error)
+      console.error("Novadeck could not save a terminal:", error)
       return false
     }
   }

@@ -730,7 +730,7 @@ describe("an agent waiting on what its turn left running", () => {
     )
   })
 
-  it("keeps working through a Stop NovaDeck continued, until the continuation's own Stop", () => {
+  it("keeps working through a Stop Novadeck continued, until the continuation's own Stop", () => {
     const stopped = stop(turn(started(0), 1), 2, { background: none })!
     const continued = apply(stopped, binding, fact({ type: "turn-continued", startedAt: 2 }))!
     expect(summary(continued).state).toBe("working")
@@ -805,7 +805,7 @@ describe("an agent waiting on what its turn left running", () => {
     expect(summary(recorded("t1")!).state).toBe("idle")
   })
 
-  it("ends a continuation at its Stop when NovaDeck's continuing lapsed", () => {
+  it("ends a continuation at its Stop when Novadeck's continuing lapsed", () => {
     const stopped = stop(turn(started(0), 1), 2, { background: { agents: 1, tasks: 0 } })!
     const continued = apply(stopped, binding, fact({ type: "turn-continued", startedAt: 2 }))!
     const lapsed = apply(continued, binding, fact({ type: "turn-lapsed", startedAt: 2 }))!

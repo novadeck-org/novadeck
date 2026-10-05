@@ -1,7 +1,7 @@
 import { basename, sep } from "node:path"
 
 // Files that often hold secrets: a key, credentials, an environment file, an agent's or a
-// tool's login, a shell's history. NovaDeck shows them, as any file the person can
+// tool's login, a shell's history. Novadeck shows them, as any file the person can
 // read, but never puts one on screen by itself, as while the person shares it.
 const secretFolders = new Set([".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker"])
 const secretNames = [

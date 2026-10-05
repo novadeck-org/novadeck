@@ -12,7 +12,7 @@ import type { Sandbox } from "../sandbox.js"
 export type Seed = {
   /** False: the project folder is not trusted, so the harness asks first. */
   readonly folderTrusted?: boolean
-  /** False: NovaDeck's hooks are not trusted (Codex's "Hooks need review"), so they don't run. */
+  /** False: Novadeck's hooks are not trusted (Codex's "Hooks need review"), so they don't run. */
   readonly hooksTrusted?: boolean
   /**
    * True: the account seeded as one the harness's `popup` may show for, where it shows it
@@ -30,7 +30,7 @@ export type Trust = {
   /** With `folderTrusted: false`: its question about the project folder. */
   readonly folder?: FolderQuestion
   /**
-   * With `hooksTrusted: false`: the screen asking to review NovaDeck's hooks (`shows`),
+   * With `hooksTrusted: false`: the screen asking to review Novadeck's hooks (`shows`),
    * when the harness shows one, and the keys that leave it without trusting them
    * (`skip`, pressed without Enter). Its hooks then don't run, so no session binds.
    */
@@ -167,7 +167,7 @@ export type Rewind = {
 
 /**
  * One harness, as an end-to-end test runs it: its pinned program, pointed at the fake
- * model, in a sandbox of its own, starting straight at its prompt with NovaDeck's plugin
+ * model, in a sandbox of its own, starting straight at its prompt with Novadeck's plugin
  * connected.
  */
 export type AgentSetup = {
@@ -205,7 +205,7 @@ export type AgentSetup = {
    * Seeds the harness's configuration inside the sandbox, so it starts at its own prompt
    * with no trust, onboarding, sign-in, update or key screen, for the version installed.
    * Returns what the sandbox's environment gains for it: its config home, the fake
-   * model's address and the fake credential. The test's deck then connects NovaDeck's
+   * model's address and the fake credential. The test's deck then connects Novadeck's
    * plugin through the harness's own commands, with that environment, as the Connect
    * button does.
    */
@@ -234,18 +234,18 @@ export type AgentSetup = {
    * reply came, the harness's own account of the interruption.
    */
   readonly interrupted: (prompt: string) => RegExp
-  /** What it shows when a seed leaves the folder or NovaDeck's hooks untrusted. */
+  /** What it shows when a seed leaves the folder or Novadeck's hooks untrusted. */
   readonly trust?: Trust
   /**
    * Why it has none of a trait it lacks: the harness doesn't have the behaviour, as a
    * probe of the pinned version found, which the skipped test's name carries. Never a
-   * gap in NovaDeck's support of it: that goes to `known-gaps.ts`, raised as a blocker.
+   * gap in Novadeck's support of it: that goes to `known-gaps.ts`, raised as a blocker.
    * `lacking` fails on a missing trait with no reason here.
    */
   readonly absent?: Readonly<Partial<Record<Trait, string>>>
   /**
    * Finishes what only the connected plugin makes possible, before any harness starts:
-   * Codex trusts NovaDeck's hooks, whose hashes are of the hooks the plugin installed.
+   * Codex trusts Novadeck's hooks, whose hashes are of the hooks the plugin installed.
    */
   readonly connected?: (sandbox: Sandbox, model: FakeModel, seed?: Seed) => Promise<void>
   /**

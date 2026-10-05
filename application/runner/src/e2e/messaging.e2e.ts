@@ -68,8 +68,8 @@ for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
     const it = e2e(setup)
 
-    it("starts straight at its prompt, which NovaDeck sees as Ready", async ({ e2e: run }) => {
-      // Ready is NovaDeck's word that the agent's own empty prompt shows, past any trust,
+    it("starts straight at its prompt, which Novadeck sees as Ready", async ({ e2e: run }) => {
+      // Ready is Novadeck's word that the agent's own empty prompt shows, past any trust,
       // onboarding, sign-in, key, update or hooks screen, each harness telling it its own
       // way (docs/agent-messaging.md, "States").
       const t1 = await start(run, setup)
@@ -82,7 +82,7 @@ for (const setup of setups) {
       expect(detail.requests).toEqual([])
       expect(detail.sessionId !== null).toBe(setup.bindsAtReady)
       expect(t1.summary().agent).toBe(setup.bindsAtReady ? setup.agent : null)
-      // Its terminal shows it idle at that prompt, NovaDeck hearing from it, either way.
+      // Its terminal shows it idle at that prompt, Novadeck hearing from it, either way.
       if (!setup.bindsAtReady)
         await t1.poll(
           () => (t1.summary().ready === setup.agent ? true : undefined),
@@ -108,17 +108,17 @@ for (const setup of setups) {
       expect(t1.summary().agent).toBe(setup.agent)
     })
 
-    it("reaches its own NovaDeck's MCP server when another build connected it last", async ({
+    it("reaches its own Novadeck's MCP server when another build connected it last", async ({
       e2e: run,
     }) => {
-      // Another NovaDeck, as a development build beside the installed app, connecting the
+      // Another Novadeck, as a development build beside the installed app, connecting the
       // agent after this one: every plugin copy names that build's launcher instead.
       const other = join(run.sandbox.root, "other build", "shell")
       const marker = join(run.sandbox.root, "other build", "started")
       mkdirSync(other, { recursive: true })
       const decoy = join(other, "mcp")
       writeFileSync(decoy, `#!/bin/sh\ntouch '${marker}'\nexit 1\n`, { mode: 0o755 })
-      // The copy the harness installed, not only NovaDeck's own source of it.
+      // The copy the harness installed, not only Novadeck's own source of it.
       const rewritten = renamePlugins(run.sandbox.root, run.deck.shell.mcp, decoy)
       expect(rewritten.some((path) => path.startsWith(run.sandbox.home))).toBe(true)
       run.model.use(replies("Say the word", "Pelican-7 says hello."))
@@ -126,7 +126,7 @@ for (const setup of setups) {
 
       await turn(t1, "Say the word", "Pelican-7 says hello.")
 
-      // The terminal's NOVADECK_MCP started this NovaDeck's server, which offers its tools.
+      // The terminal's NOVADECK_MCP started this Novadeck's server, which offers its tools.
       const call = await run.model.waitFor(
         (one) => !one.side && latest(one).includes("Say the word"),
       )
@@ -276,7 +276,7 @@ for (const setup of setups) {
     it("ends a continuation whose own Stop hook's report never came, as its records tell", async ({
       e2e: run,
     }) => {
-      // As when NovaDeck's hook failed to run for the continuation's Stop: its records, or
+      // As when Novadeck's hook failed to run for the continuation's Stop: its records, or
       // Antigravity's idle status line, end the turn all the same.
       const ending = gate()
       run.model.use(
@@ -329,7 +329,7 @@ for (const setup of setups) {
         const heard = () => t1.summary().ready === setup.agent || t1.summary().agent === setup.agent
         await t1.poll(() => (heard() ? true : undefined), "the agent at its prompt")
         await t1.submit(setup.idleCommand!)
-        // Its prompt still shows: NovaDeck hears it there again within moments.
+        // Its prompt still shows: Novadeck hears it there again within moments.
         await t1.poll(() => (heard() ? true : undefined), "the agent at its prompt again", 10_000)
         expect(t1.summary().activity?.state ?? "idle").toBe("idle")
       },

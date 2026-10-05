@@ -6,7 +6,7 @@ export type Availability =
   | { readonly state: "unavailable"; readonly reason: UnavailableReason }
 
 export type UnavailableReason =
-  /** NovaDeck's plugin is not installed into the harness. */
+  /** Novadeck's plugin is not installed into the harness. */
   | "not-connected"
   /** The harness has no such feature. */
   | "unsupported"

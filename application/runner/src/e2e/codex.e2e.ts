@@ -44,7 +44,7 @@ const helper = (call: Call): boolean =>
 
 /**
  * The records of a spawned agent's own rollout, which Codex files beside its root's under
- * the agent's id (`rollout-<time>-<agent id>.jsonl`), as NovaDeck follows it.
+ * the agent's id (`rollout-<time>-<agent id>.jsonl`), as Novadeck follows it.
  */
 const rollout = (
   home: string,
@@ -170,7 +170,7 @@ describe.skipIf(!supported)("Codex", () => {
   })
   // A spawned agent's approval dialog shows in its root's screen, naming its thread. Esc on
   // it fires no hook (no Interrupt, no SubagentStop) and aborts only that agent's turn,
-  // which only its own rollout records, `turn_aborted`; NovaDeck follows that rollout while
+  // which only its own rollout records, `turn_aborted`; Novadeck follows that rollout while
   // the request waits (docs/agent-messaging.md, "What counts"). The root's turn has ended,
   // so nothing else would ever say the dialog is gone.
   it("never rings while a spawned agent's request waits, and rings once its rollout records Esc on it", async ({
@@ -194,7 +194,7 @@ describe.skipIf(!supported)("Codex", () => {
     const mark = t1.mark()
 
     // The root spawns an agent and its turn ends; the agent's command asks, its dialog in
-    // the root's screen, and NovaDeck sees the request waiting.
+    // the root's screen, and Novadeck sees the request waiting.
     await turn(t1, "Spawn a helper", "Spawned it.")
     const spawned = await run.model.waitFor(
       (call) => !call.side && result(call)?.includes('"agent_id"') === true,
@@ -206,7 +206,7 @@ describe.skipIf(!supported)("Codex", () => {
     const waiting = await t1.poll(async () => {
       const detail = await t1.detail()
       return detail.requests.length > 0 ? detail : undefined
-    }, "NovaDeck to see the spawned agent's request")
+    }, "Novadeck to see the spawned agent's request")
     expect(waiting.requests).toHaveLength(1)
     expect(waiting.activity?.attention?.pending).toBe(1)
     const asking = waiting.requests[0]!.actor
@@ -236,7 +236,7 @@ describe.skipIf(!supported)("Codex", () => {
     const after = await t1.poll(async () => {
       const detail = await t1.detail()
       return detail.requests.length === 0 ? detail : undefined
-    }, "NovaDeck to take the spawned agent's request as settled")
+    }, "Novadeck to take the spawned agent's request as settled")
     expect(after.activity?.attention?.pending ?? 0).toBe(0)
     // Its turn aborted, its thread open: it still runs.
     expect(after.activity?.subagents.map((one) => one.id)).toEqual([asking])

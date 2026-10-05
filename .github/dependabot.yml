@@ -34,7 +34,7 @@ updates:
       prefix: "build"
       include: "scope"
 
-  # The relay's crates, built into every package NovaDeck ships.
+  # The relay's crates, built into every package Novadeck ships.
   - package-ecosystem: "cargo"
     directory: "/application/relay"
     schedule:

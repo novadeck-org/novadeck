@@ -64,7 +64,7 @@ const extensions: Record<string, Language> = {
   yml: "yaml",
 }
 
-// The language of a file by its name, if it's one NovaDeck highlights.
+// The language of a file by its name, if it's one Novadeck highlights.
 export const languageOf = (path: string): Language | undefined => {
   const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase()
   const dot = name.lastIndexOf(".")
@@ -84,7 +84,7 @@ const parserFor = (language: Language): Promise<Parser> => {
 }
 
 // The lines split into runs by kind of token, or null when the file's language isn't
-// one NovaDeck highlights. The lines are parsed together, so a construct spanning lines,
+// one Novadeck highlights. The lines are parsed together, so a construct spanning lines,
 // such as a block comment, colours them all.
 export const highlightLines = async (
   path: string,

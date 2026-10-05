@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import type { Install } from "../harness.js"
 
-/** NovaDeck's plugin, as Codex names the plugin a hook comes from. */
+/** Novadeck's plugin, as Codex names the plugin a hook comes from. */
 const pluginId = "novadeck@novadeck"
 
 /**
@@ -20,8 +20,8 @@ type Hook = {
 }
 
 /**
- * Whether the app-server's `hooks/list` result says NovaDeck's hooks run: each one it
- * needs is listed from NovaDeck's plugin, and every such one is `trusted` (not
+ * Whether the app-server's `hooks/list` result says Novadeck's hooks run: each one it
+ * needs is listed from Novadeck's plugin, and every such one is `trusted` (not
  * `untrusted`, nor `modified` since the person trusted it).
  */
 export const trustedIn = (result: unknown): boolean => {
@@ -106,7 +106,7 @@ const changed = (path: string): Promise<number> =>
 
 /**
  * What trust depends on, as it changes: Codex's `config.toml`, which records it, and the
- * hook definitions of NovaDeck's plugin, as Codex keeps them in its plugin cache, which a
+ * hook definitions of Novadeck's plugin, as Codex keeps them in its plugin cache, which a
  * plugin's reinstall rewrites (and which then reads "modified").
  */
 const stateOf = async (home: string): Promise<string> => {
@@ -133,9 +133,9 @@ const known = new Map<string, Known>()
 const asking = new Map<string, Promise<boolean | undefined>>()
 
 /**
- * Whether NovaDeck's Codex hooks run in `cwd`: Codex runs a plugin's hooks only once the
+ * Whether Novadeck's Codex hooks run in `cwd`: Codex runs a plugin's hooks only once the
  * person trusts them, and no hook says when it doesn't, so its app-server is asked. The
- * answer is kept until Codex's configuration or NovaDeck's hook definitions change.
+ * answer is kept until Codex's configuration or Novadeck's hook definitions change.
  * Undefined when Codex couldn't answer (it couldn't start, or didn't answer within 10 s),
  * which is asked again only a minute later: unknown, never taken for untrusted. Asks
  * under way are shared.

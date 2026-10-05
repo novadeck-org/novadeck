@@ -105,8 +105,8 @@ const launchFailure = (launch: Launch | undefined): string => {
   const { failure } = launch ?? {}
   const why = failure instanceof Error && failure.message ? ` ${failure.message}` : ""
   return launch?.command === undefined
-    ? `NovaDeck couldn't open the terminal.${why}`
-    : `NovaDeck couldn't start the command in a new terminal.${why}`
+    ? `Novadeck couldn't open the terminal.${why}`
+    : `Novadeck couldn't start the command in a new terminal.${why}`
 }
 
 // One terminal the workspace holds, whichever view shows it.
@@ -578,7 +578,7 @@ export const runnerBackend = (
       }).catch((error: unknown) => {
         // Cancelled only as the backend stops; anything else was the runner refusing it.
         if (!(error instanceof Cancelled))
-          console.error("NovaDeck could not remove the project on the runner:", error)
+          console.error("Novadeck could not remove the project on the runner:", error)
       })
     })()
     removals.add(removal)

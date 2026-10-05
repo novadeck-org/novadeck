@@ -117,9 +117,9 @@ export const pageAt = (
     return failure("That isn't a valid address.")
   }
   if (url.protocol !== "http:" && url.protocol !== "https:")
-    return failure("NovaDeck shows only http and https pages.")
+    return failure("Novadeck shows only http and https pages.")
   if (url.username || url.password)
-    return failure("NovaDeck won't show an address with a user name or password in it.")
+    return failure("Novadeck won't show an address with a user name or password in it.")
   // Encoding can lengthen it past what the protocol carries.
   if (url.href.length > maxUrlChars) return failure("That address is too long.")
   return { ok: true, url }

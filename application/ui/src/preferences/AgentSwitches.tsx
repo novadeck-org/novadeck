@@ -29,7 +29,7 @@ export const agentNote = ({
   return undefined
 }
 
-// One switch per agent: on installs NovaDeck's plugin into it, off removes it. An agent
+// One switch per agent: on installs Novadeck's plugin into it, off removes it. An agent
 // that is not installed, or one mid-change, cannot be switched.
 export const AgentSwitches = ({
   agents,
@@ -81,4 +81,4 @@ export const AgentSwitches = ({
 
 // What connecting means, shown above the switches.
 export const agentsExplanation =
-  "Unlock NovaDeck features inside your coding agents, like resuming sessions after a restart. Connecting adds a small plugin; switching it off removes it."
+  "Unlock Novadeck features inside your coding agents, like resuming sessions after a restart. Connecting adds a small plugin; switching it off removes it."

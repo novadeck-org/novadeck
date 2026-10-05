@@ -29,7 +29,7 @@ export type About = (terminalId: string) => Whereabouts | undefined
 
 /**
  * A terminal another can message, and what tells an agent which it is, all of it
- * NovaDeck's own knowledge, and only what is marked so an agent's say: its handle; the
+ * Novadeck's own knowledge, and only what is marked so an agent's say: its handle; the
  * agent bound there; its title, and who it is from; the summary its agent described its
  * work with; its folder and git branch; the person's first and latest prompts there; its
  * plan's title; the folders it writes in most; the latest message between it and the
@@ -42,7 +42,7 @@ export type Peer = {
   /** The agent it was opened to run, which messages may already be sent to, before it binds. */
   readonly expecting: AgentName | null
   /**
-   * The agent whose prompt shows there with no session bound, but whose hooks NovaDeck
+   * The agent whose prompt shows there with no session bound, but whose hooks Novadeck
    * can't run there until the user trusts them (Codex's `/hooks`): nothing can deliver.
    */
   readonly untrusted: AgentName | null
@@ -166,10 +166,10 @@ export const renderPeer = (peer: Peer, now: number): readonly string[] =>
       peer.agent
         ? `${agentLabel(peer.agent)}, ${peer.state}${peer.activeAt === null ? "" : `, last active ${ago(peer.activeAt, now)}`}`
         : peer.untrusted
-          ? `no agent NovaDeck can deliver to: ${untrustedNote(peer.untrusted)}`
+          ? `no agent Novadeck can deliver to: ${untrustedNote(peer.untrusted)}`
           : peer.expecting
             ? `expecting ${agentLabel(peer.expecting)}, not started yet`
-            : "no agent NovaDeck can deliver to"
+            : "no agent Novadeck can deliver to"
     }`,
     peer.title && `  title: ${peer.title}${titleNote(peer)}`,
     peer.summary && `  described by its agent: ${peer.summary.split("\n").join(" / ")}`,
@@ -204,15 +204,15 @@ const standing = (message: Message, hold: ReturnType<typeof holdOf>): string => 
   return message.state
 }
 
-/** Why nothing can deliver to an agent whose hooks NovaDeck can't run where it runs. */
+/** Why nothing can deliver to an agent whose hooks Novadeck can't run where it runs. */
 export const untrustedNote = (agent: AgentName): string =>
-  `${agentLabel(agent)} runs there, but NovaDeck's hooks aren't trusted for it yet ` +
+  `${agentLabel(agent)} runs there, but Novadeck's hooks aren't trusted for it yet ` +
   "(the user can trust them with /hooks)"
 
 /** That a terminal's own session never bound, so replies can't reach it. */
 export const unboundNote =
-  "NovaDeck hasn't seen this terminal's own agent session, so replies can't reach you " +
-  "until NovaDeck's hooks run here (in Codex, trust them with /hooks)."
+  "Novadeck hasn't seen this terminal's own agent session, so replies can't reach you " +
+  "until Novadeck's hooks run here (in Codex, trust them with /hooks)."
 
 /** What `agents` answers, as agents read it. */
 export const renderAgents = (input: {
@@ -226,7 +226,7 @@ export const renderAgents = (input: {
   readonly now: number
 }): string =>
   [
-    `You are ${input.handle} in NovaDeck.`,
+    `You are ${input.handle} in Novadeck.`,
     renderPeers(input.peers, input.now),
     ...(input.messages.length > 0
       ? [

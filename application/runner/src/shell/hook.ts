@@ -4,15 +4,15 @@ import { harnesses } from "../harnesses/registry.js"
 import type { Report } from "./reports.js"
 
 /**
- * An agent hook, as the runner takes it from NovaDeck's relay (see application/relay).
- * A connected agent's NovaDeck plugin runs the hook launcher, which starts the relay; the
+ * An agent hook, as the runner takes it from Novadeck's relay (see application/relay).
+ * A connected agent's Novadeck plugin runs the hook launcher, which starts the relay; the
  * relay sends what the hook knows, unread: the event its agent reported, the agent's
  * payload as it came, when the hook started, the processes it runs under, and what of
  * its environment tells agents apart. The runner reads it here into a report, which the
  * agent's harness decodes (see `harnesses/<id>/decode.ts`). A Stop or prompt-time hook
  * asks instead, with a deadline: the runner answers what to print, which may deliver
  * agents' messages (see docs/agent-messaging.md). Claude Code's status line runs through
- * the hook in NovaDeck's shells, which then shows the person's own, as the relay finds
+ * the hook in Novadeck's shells, which then shows the person's own, as the relay finds
  * and runs it beside the report.
  */
 export type RelayHook = {

@@ -126,9 +126,9 @@ describe("a prompt's nudge", () => {
 })
 
 describe("a nudge", () => {
-  it("asks for a description while there is none, as one line of NovaDeck's notice", () => {
+  it("asks for a description while there is none, as one line of Novadeck's notice", () => {
     const text = nudgeText({ title: "Terminal 01", summary: null })
-    expect(text).toMatch(/^NovaDeck: automatic notice, not from the user: this terminal has no/)
+    expect(text).toMatch(/^Novadeck: automatic notice, not from the user: this terminal has no/)
     expect(text).toContain("describe tool")
     expect(text).not.toContain("\n")
     expect(text).not.toContain("asked")
@@ -137,9 +137,9 @@ describe("a nudge", () => {
   it("shows the current description later, to update only if it no longer fits", () => {
     const text = nudgeText({ title: "Users API", summary: "Builds the users API.\nThen paging." })
     expect(text).toBe(
-      'NovaDeck: automatic notice, not from the user: this terminal is described as "Users API", ' +
+      'Novadeck: automatic notice, not from the user: this terminal is described as "Users API", ' +
         'with the summary "Builds the users API. Then paging."; if that no longer fits your work, ' +
-        "update it with NovaDeck's describe tool, and otherwise this notice can be ignored.",
+        "update it with Novadeck's describe tool, and otherwise this notice can be ignored.",
     )
   })
 })

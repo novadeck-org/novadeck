@@ -117,7 +117,7 @@ const imagesOf = async (items: readonly ClipboardEntry[], now: Date): Promise<Fi
 export const pasteNotice = (
   failure: "clipboard" | { readonly type: string; readonly error: unknown },
 ): string => {
-  if (failure === "clipboard") return "NovaDeck can't read the clipboard"
+  if (failure === "clipboard") return "Novadeck can't read the clipboard"
   const pasted = failure.type.startsWith("image/") ? "image" : "file"
   return hasCode(failure.error, "UPLOAD_TOO_LARGE")
     ? `Couldn't paste the ${pasted}: it's over ${maxUploadBytes / 1024 / 1024} MB`
@@ -164,7 +164,7 @@ const pasteFiles = async (files: readonly File[], target: PasteTarget): Promise<
       target.paste(`${await save(file, target, now)} `)
       pasted += 1
     } catch (error) {
-      console.error("NovaDeck could not save a pasted file on the runner:", error)
+      console.error("Novadeck could not save a pasted file on the runner:", error)
       notice ??= pasteNotice({ type: file.type, error })
     }
   }

@@ -52,7 +52,7 @@ export const foregroundProcess = z.strictObject({
   argv: z.array(z.string().max(4096)).max(64).nullable(),
 })
 
-// Agents whose sessions NovaDeck identifies and can resume once connected: Claude Code,
+// Agents whose sessions Novadeck identifies and can resume once connected: Claude Code,
 // Codex and Antigravity. An agent session id is what the agent itself names its
 // session: a UUID today, kept to a plain token so a shell can run it as it is.
 export const agentName = z.enum(["claude", "codex", "agy"])
@@ -135,7 +135,7 @@ export const agentTelemetry = z.strictObject({
 // never see a harness's own ids.
 export const agentRef = z.string().regex(/^[A-Za-z0-9_-]{16}$/)
 
-// How much of a feature NovaDeck can tell of an agent: all of it, some, or nothing.
+// How much of a feature Novadeck can tell of an agent: all of it, some, or nothing.
 const coverageLevel = z.enum(["unsupported", "partial", "complete"])
 export const agentCoverage = z.strictObject({
   session: coverageLevel,
@@ -232,7 +232,7 @@ export const terminalTitle = z
     "A title must be one line, without control characters.",
   )
 
-// A terminal's handle: `t` and a number its NovaDeck session gives it as it is created,
+// A terminal's handle: `t` and a number its Novadeck session gives it as it is created,
 // never twice, from the same count as its default title ("Terminal 03" is `t3`). It
 // stays as the terminal is renamed, and agents address each other by it.
 export const handle = z.string().regex(/^t[1-9][0-9]{0,8}$/)
@@ -285,7 +285,7 @@ export const terminalSummary = z.strictObject({
   // The agent that reported a session in this shell since its last prompt, so a client
   // can name the program where the process alone cannot, as on Windows. Null otherwise.
   agent: agentName.nullable(),
-  // The agent whose own empty prompt shows there, with NovaDeck's hooks running for it,
+  // The agent whose own empty prompt shows there, with Novadeck's hooks running for it,
   // before it reported a session, as Codex and Antigravity do only with their first
   // prompt. Null otherwise, and once a session is reported.
   ready: agentName.nullable(),
@@ -392,7 +392,7 @@ export const itemContent = z.discriminatedUnion("state", [
   }),
 ])
 
-// `terminals.requests` items: an agent in terminal `from` asked, through NovaDeck's MCP
+// `terminals.requests` items: an agent in terminal `from` asked, through Novadeck's MCP
 // server, for a new terminal beside it, in `cwd`, starting `command` at its first prompt;
 // `focus` when the person asked to see it. A title the agent asked for is the runner's to
 // give, as the agent's: the client creates the terminal with `requestId`.
@@ -447,7 +447,7 @@ export const terminalAttached = z.strictObject({
   mode: z.enum(["control", "observe"]),
 })
 
-// An agent NovaDeck can connect: whether it is installed here, and whether NovaDeck's
+// An agent Novadeck can connect: whether it is installed here, and whether Novadeck's
 // plugin, which reports its sessions so they can resume, is installed into it.
 export const agentIntegration = z.strictObject({
   agent: agentName,

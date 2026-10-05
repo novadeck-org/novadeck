@@ -109,7 +109,7 @@ describe("backend connection", () => {
       const late = request()
       sinks[0]!.open(late.asked)
       expect(handled).toHaveLength(1)
-      expect(late.answers).toEqual([{ reason: "NovaDeck closed before it opened the terminal." }])
+      expect(late.answers).toEqual([{ reason: "Novadeck closed before it opened the terminal." }])
     })
   })
 

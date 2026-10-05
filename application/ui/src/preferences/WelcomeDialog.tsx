@@ -194,7 +194,7 @@ const WelcomeForm = ({
               Connect your agents
             </h3>
             <p className="modal-description mt-2 mb-0 text-[12px] leading-[1.7]">
-              Unlock NovaDeck features inside your coding agents.
+              Unlock Novadeck features inside your coding agents.
             </p>
           </div>
 
@@ -298,7 +298,7 @@ export const WelcomeDialog = ({
       onOpenChange={(expanded) => {
         if (!expanded) onDone()
       }}
-      label="Welcome to NovaDeck"
+      label="Welcome to Novadeck"
       initialFocusEl={() => heading.current}
       backdropClassName="overlay welcome-overlay fixed inset-0 z-50"
       positionerClassName="fixed inset-0 z-50 flex items-center justify-center p-4"

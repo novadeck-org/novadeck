@@ -287,7 +287,7 @@ const settingsOf = (fixture: Fixture) =>
 const read = (file: string) => JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>
 
 describe("connecting Antigravity's status line", () => {
-  it("puts NovaDeck's in place beside Antigravity's own, and takes it out again", async ({
+  it("puts Novadeck's in place beside Antigravity's own, and takes it out again", async ({
     fixture,
   }) => {
     writeFileSync(fixture.settings, JSON.stringify({ trustedWorkspaces: ["/w"] }))
@@ -317,7 +317,7 @@ describe("connecting Antigravity's status line", () => {
       ...own,
       command: statusLineCommand(own.command),
     })
-    // Another NovaDeck connected it too; what the person changed meanwhile stays.
+    // Another Novadeck connected it too; what the person changed meanwhile stays.
     await apply({ ...fixture.install, plugin: join(fixture.root, "elsewhere") })
     const connected = read(fixture.settings)
     writeFileSync(
@@ -380,8 +380,8 @@ describe("connecting Antigravity's status line", () => {
   })
 })
 
-describe.skipIf(process.platform === "win32")("NovaDeck's status line for Antigravity", () => {
-  it("hands its input to NovaDeck's hook, then shows the person's own", ({ fixture }) => {
+describe.skipIf(process.platform === "win32")("Novadeck's status line for Antigravity", () => {
+  it("hands its input to Novadeck's hook, then shows the person's own", ({ fixture }) => {
     const hook = join(fixture.root, "hook")
     const log = join(fixture.root, "hook.log")
     writeFileSync(hook, `#!/bin/sh\necho "$1 $2 $(cat)" > "${log}"\necho noise\n`, { mode: 0o755 })
@@ -399,7 +399,7 @@ describe.skipIf(process.platform === "win32")("NovaDeck's status line for Antigr
     expect(() => readFileSync(log)).toThrow()
   })
 
-  it("stays quiet when NovaDeck's hook cannot run", ({ fixture }) => {
+  it("stays quiet when Novadeck's hook cannot run", ({ fixture }) => {
     const result = spawnSync("sh", ["-c", statusLineCommand(undefined)], {
       input: "{}",
       encoding: "utf8",

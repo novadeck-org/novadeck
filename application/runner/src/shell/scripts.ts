@@ -8,8 +8,8 @@ import { header } from "./header.js"
 import { hookVariables } from "./hook.js"
 import { mcpVersions } from "./mcp.js"
 
-// The files NovaDeck puts in shells it starts, and the plugins agents install when the
-// person connects them, as text. They are written into NovaDeck's own data directory;
+// The files Novadeck puts in shells it starts, and the plugins agents install when the
+// person connects them, as text. They are written into Novadeck's own data directory;
 // only connecting an agent installs anything elsewhere, through the agent's own commands.
 
 /** Where each file lives under the shell directory. */
@@ -29,7 +29,7 @@ export type ShellPaths = {
   readonly hook: string
   /** The MCP server's launcher, which connected agents' plugins start. */
   readonly mcp: string
-  /** NovaDeck's copy of the relay the launchers start (see application/relay). */
+  /** Novadeck's copy of the relay the launchers start (see application/relay). */
   readonly relay: string
   /** What the runner tells the relay about the agents, which the hook launcher names. */
   readonly relayConfig: string
@@ -101,8 +101,8 @@ fi
 
 # A restored terminal resumes its agent at the first prompt, after your own prompt
 # commands, as if typed there, but without the typing or a history entry. The command
-# waits in the file NOVADECK_RESUME names, which NovaDeck removes if you type first.
-# The prompt is reported once the agent exits, so NovaDeck knows it ended.
+# waits in the file NOVADECK_RESUME names, which Novadeck removes if you type first.
+# The prompt is reported once the agent exits, so Novadeck knows it ended.
 __novadeck_resume() {
   [ -n "\${NOVADECK_RESUME:-}" ] || return 0
   # Named so the command, which runs in here, sees none of its own as yours.
@@ -124,7 +124,7 @@ if [ -n "\${NOVADECK_RESUME:-}" ]; then
 fi
 `
 
-// zsh reads its startup files from ZDOTDIR, which NovaDeck points here. .zshenv reads
+// zsh reads its startup files from ZDOTDIR, which Novadeck points here. .zshenv reads
 // the user's own with ZDOTDIR as they had it (NOVADECK_ZDOTDIR, or unset), and notes
 // where their .zshenv left it; later files read the user's from there. .zshrc hands
 // ZDOTDIR back, so .zlogin and any nested zsh read theirs.
@@ -173,8 +173,8 @@ add-zsh-hook precmd __novadeck_prompt
 
 # A restored terminal resumes its agent at the first prompt, after your own precmd
 # hooks, as if typed there, but without the typing or a history entry. The command
-# waits in the file NOVADECK_RESUME names, which NovaDeck removes if you type first.
-# The prompt is reported once the agent exits, so NovaDeck knows it ended. The agent
+# waits in the file NOVADECK_RESUME names, which Novadeck removes if you type first.
+# The prompt is reported once the agent exits, so Novadeck knows it ended. The agent
 # gets the terminal itself, as a prompt that draws early may still hold the shell's.
 __novadeck_resume() {
   add-zsh-hook -d precmd __novadeck_resume
@@ -207,8 +207,8 @@ end
 
 # A restored terminal resumes its agent at the first prompt, as if typed there, but
 # without the typing or a history entry. The command waits in the file NOVADECK_RESUME
-# names, which NovaDeck removes if you type first. The prompt is reported once the
-# agent exits, so NovaDeck knows it ended.
+# names, which Novadeck removes if you type first. The prompt is reported once the
+# agent exits, so Novadeck knows it ended.
 function __novadeck_resume --on-event fish_prompt
     set -q NOVADECK_RESUME; or return
     # Named so the command, which runs in here, sees none of its own as yours.
@@ -229,42 +229,42 @@ end
 const powershell = `${header("#", "shell integration for PowerShell")}
 # Your profile may put other directories first; the Codex shim goes back in front.
 if ($env:NOVADECK_BIN) {
-  $__NovaDeckSeparator = [IO.Path]::PathSeparator
-  if (-not $env:PATH.StartsWith("$env:NOVADECK_BIN$__NovaDeckSeparator")) {
-    $env:PATH = "$env:NOVADECK_BIN$__NovaDeckSeparator$env:PATH"
+  $__novadeckSeparator = [IO.Path]::PathSeparator
+  if (-not $env:PATH.StartsWith("$env:NOVADECK_BIN$__novadeckSeparator")) {
+    $env:PATH = "$env:NOVADECK_BIN$__novadeckSeparator$env:PATH"
   }
 }
-$global:__NovaDeckPrompt = $function:prompt
+$global:__novadeckPrompt = $function:prompt
 function global:prompt {
-  $prompt = & $global:__NovaDeckPrompt
+  $prompt = & $global:__novadeckPrompt
   $location = $executionContext.SessionState.Path.CurrentLocation
   if ($location.Provider.Name -ne 'FileSystem') { return $prompt }
   "$([char]27)]9;9;\`"$($location.ProviderPath)\`"$([char]27)\\$prompt"
 }
 # A restored terminal resumes its agent before the first prompt, as if typed there, but
 # without the typing or a history entry. The command waits in the file NOVADECK_RESUME
-# names, which NovaDeck removes if you type first.
+# names, which Novadeck removes if you type first.
 if ($env:NOVADECK_RESUME) {
-  $__NovaDeckResume = $env:NOVADECK_RESUME
+  $__novadeckResume = $env:NOVADECK_RESUME
   Remove-Item Env:NOVADECK_RESUME
-  if (Test-Path -LiteralPath $__NovaDeckResume) {
-    $__NovaDeckCommand = Get-Content -LiteralPath $__NovaDeckResume -Raw
-    Remove-Item -LiteralPath $__NovaDeckResume
+  if (Test-Path -LiteralPath $__novadeckResume) {
+    $__novadeckCommand = Get-Content -LiteralPath $__novadeckResume -Raw
+    Remove-Item -LiteralPath $__novadeckResume
     # Shown as typed at a prompt would show it: the integration around this hides errors.
-    try { Invoke-Expression $__NovaDeckCommand } catch { $Host.UI.WriteErrorLine($_.ToString()) }
+    try { Invoke-Expression $__novadeckCommand } catch { $Host.UI.WriteErrorLine($_.ToString()) }
   }
-  Remove-Variable __NovaDeckResume, __NovaDeckCommand -ErrorAction SilentlyContinue
+  Remove-Variable __novadeckResume, __novadeckCommand -ErrorAction SilentlyContinue
 }
 `
 
-// The launchers start NovaDeck's relay (see application/relay), which carries an agent's
-// hooks and MCP messages to the runner of the terminal it runs in, or, outside NovaDeck's
+// The launchers start Novadeck's relay (see application/relay), which carries an agent's
+// hooks and MCP messages to the runner of the terminal it runs in, or, outside Novadeck's
 // terminals, answers itself: for the MCP server, the handshake with no tools. Its copy
 // lives here, beside them, so it stays when the app's own folder goes (an AppImage's
 // mount, a portable build's unpacked copy). The MCP server answers as this version of
 // it: its plugin's version, then the MCP versions it speaks, newest first.
 
-// What a hook prints with nothing from NovaDeck, by agent and event, as each harness's
+// What a hook prints with nothing from Novadeck, by agent and event, as each harness's
 // messaging names it, without the line's end.
 const silentAnswers = Object.fromEntries(
   agents.map((agent) => [
@@ -281,7 +281,7 @@ const silentAnswers = Object.fromEntries(
 /**
  * What the relay knows of the agents, as `relay.json` holds it: which events ask, as
  * each waits longer for its answer, what of a hook's environment it forwards, and what
- * each prints without NovaDeck.
+ * each prints without Novadeck.
  */
 export const relayConfig = {
   asks: Object.fromEntries(
@@ -305,7 +305,7 @@ const relayLine = (paths: ShellPaths, mode: Mode, quote: (value: string) => stri
   return args.map((each) => (/^[\w.-]+$/.test(each) ? each : quote(each))).join(" ")
 }
 
-// Each agent's answers without NovaDeck, events of their own first: as sh's cases, and as
+// Each agent's answers without Novadeck, events of their own first: as sh's cases, and as
 // cmd's lines, which hold none of cmd's own special characters.
 const silentCases = (each: (agent: string, event: string, text: string) => string) =>
   agents.flatMap((agent) =>
@@ -323,7 +323,7 @@ const posixLauncher = (paths: ShellPaths, mode: Mode, what: string) =>
     ? `#!/bin/sh
 ${header("#", what)}
 if [ ! -x ${shQuote(paths.relay)} ]; then
-  printf '%s\\n' ${shQuote(`NovaDeck's relay is missing at ${paths.relay}; restarting NovaDeck puts it back.`)} >&2
+  printf '%s\\n' ${shQuote(`Novadeck's relay is missing at ${paths.relay}; restarting Novadeck puts it back.`)} >&2
   exit 1
 fi
 exec ${shQuote(paths.relay)} ${relayLine(paths, mode, shQuote)} "$@"
@@ -333,7 +333,7 @@ ${header("#", what)}
 if [ -x ${shQuote(paths.relay)} ] && [ -r ${shQuote(paths.relayConfig)} ]; then
   exec ${shQuote(paths.relay)} ${relayLine(paths, mode, shQuote)} "$@"
 fi
-# Without its relay or what it reads, as when NovaDeck couldn't put them in place: the
+# Without its relay or what it reads, as when Novadeck couldn't put them in place: the
 # hook takes the agent's input and prints what the agent needs, as Antigravity denies a
 # tool otherwise.
 cat >/dev/null
@@ -372,8 +372,8 @@ ${silentCases(
   )
 
 /**
- * How agents start NovaDeck's MCP server: on Linux and macOS the launcher the terminal
- * names in NOVADECK_MCP, else this NovaDeck's, either replaced by sh and then by the
+ * How agents start Novadeck's MCP server: on Linux and macOS the launcher the terminal
+ * names in NOVADECK_MCP, else this Novadeck's, either replaced by sh and then by the
  * relay; on Windows the relay itself, as a launcher there needs cmd, which stays running
  * beside it, costing each agent several megabytes.
  */
@@ -383,12 +383,12 @@ export const mcpStart = (paths: ShellPaths, platform = process.platform): Start 
     : terminalsOwn({ command: paths.mcp })
 
 /**
- * `start`, unless the terminal names its own NovaDeck's MCP launcher in NOVADECK_MCP.
- * An agent's plugin comes from whichever NovaDeck connected it last, while several builds
+ * `start`, unless the terminal names its own Novadeck's MCP launcher in NOVADECK_MCP.
+ * An agent's plugin comes from whichever Novadeck connected it last, while several builds
  * (an installed app and a development one, say) may run side by side; so an agent in a
  * terminal of any of them starts that one's relay, which speaks its runner's protocol
  * and is there for as long as it runs. A variable that names no runnable file, as unset
- * outside NovaDeck or left from a build since removed, starts `start`. sh takes `start`
+ * outside Novadeck or left from a build since removed, starts `start`. sh takes `start`
  * as `$0` and its arguments as `$@`, so it never parses them, and the script holds no
  * `${...}`, which Claude Code expands itself.
  */
@@ -436,7 +436,7 @@ export const shellFiles = (
     ? [
         ...common,
         file(paths.hook, cmdLauncher(paths, "hook", "agent hook launcher")),
-        // Agents connected before NovaDeck started the relay itself on Windows keep their
+        // Agents connected before Novadeck started the relay itself on Windows keep their
         // plugin's copy, which starts the MCP server through cmd and this launcher.
         file(paths.mcp, cmdLauncher(paths, "mcp", "MCP server launcher")),
         ...bin,

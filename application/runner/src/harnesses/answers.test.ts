@@ -41,7 +41,7 @@ describe("each harness's hook answers", () => {
       expect(line(answers.prompt(delivery))).toEqual({
         hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
       })
-      // With nothing to deliver they print nothing, as without NovaDeck.
+      // With nothing to deliver they print nothing, as without Novadeck.
       expect(silentFor(answers, "Stop")).toBe("")
       expect(silentFor(answers, "UserPromptSubmit")).toBe("")
     }
@@ -87,7 +87,7 @@ describe("a continuation's prompt", () => {
   it("is a Stop hook's or a delivery's, never the person's", () => {
     expect(continuationPrompt("<hook_prompt>go on</hook_prompt>")).toBe(true)
     expect(continuationPrompt(`text\n${delivery}`)).toBe(true)
-    expect(continuationPrompt("Review the NovaDeck notice")).toBe(false)
+    expect(continuationPrompt("Review the Novadeck notice")).toBe(false)
   })
 })
 
@@ -99,7 +99,7 @@ describe("a doorbell prompt", () => {
     expect(doorbellNonce(bell)).toBe("k3f9q2")
     expect(doorbellNonce(` ${bell}\n`)).toBe("k3f9q2")
     expect(doorbellNonce(`fix it ${bell}`)).toBeUndefined()
-    expect(doorbellNonce("[NovaDeck: automatic notice, agent messages waiting]")).toBeUndefined()
+    expect(doorbellNonce("[Novadeck: automatic notice, agent messages waiting]")).toBeUndefined()
     expect(promptStart(base, bell)).toEqual({
       type: "turn-started",
       ...base,

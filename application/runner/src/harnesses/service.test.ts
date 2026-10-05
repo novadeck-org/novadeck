@@ -120,7 +120,7 @@ const installed = (home: string, ...agents: string[]) => {
     mkdirSync(join(home, ...homes[agent as keyof typeof homes]), { recursive: true })
 }
 
-describe("agents NovaDeck can connect", () => {
+describe("agents Novadeck can connect", () => {
   it("are available only where their own home exists", async ({ fixture }) => {
     installed(fixture.home, "codex")
     expect(await fixture.agents().list()).toEqual([
@@ -130,7 +130,7 @@ describe("agents NovaDeck can connect", () => {
     ])
   })
 
-  it("connect Claude Code through its own plugin commands, from NovaDeck's marketplace", async ({
+  it("connect Claude Code through its own plugin commands, from Novadeck's marketplace", async ({
     fixture,
   }) => {
     installed(fixture.home, "claude")
@@ -164,7 +164,7 @@ describe("agents NovaDeck can connect", () => {
     ])
     expect(fixture.calls()).toContainEqual(["codex", "plugin", "add", "novadeck@novadeck"])
     expect(fixture.calls()).toContainEqual(["agy", "plugin", "install", fixture.paths.plugins.agy])
-    // Antigravity's status line, which only its settings name, runs NovaDeck's hook too.
+    // Antigravity's status line, which only its settings name, runs Novadeck's hook too.
     const settings = join(fixture.home, ".gemini", "antigravity-cli", "settings.json")
     const statusLine = () =>
       (JSON.parse(readFileSync(settings, "utf8")) as { statusLine?: { command: string } })
@@ -305,7 +305,7 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
     await restore(before)
     await client.agents.set("claude", true)
     await restore(after)
-    // A connected Claude Code runs through NovaDeck's shim, which adds its status line.
+    // A connected Claude Code runs through Novadeck's shim, which adds its status line.
     const resumed = (id: string) =>
       fixture
         .calls()

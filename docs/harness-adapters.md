@@ -1,11 +1,11 @@
 # Harness adapters
 
-Proposed architecture for NovaDeck's Claude Code, Codex, and Antigravity
+Proposed architecture for Novadeck's Claude Code, Codex, and Antigravity
 integrations. This document designs the boundary; it does not change runtime
 behavior. The first implementation should preserve resume behavior, followed by
 agent activity reporting.
 
-NovaDeck presents **one normalized agent model** for Claude, Codex and AGY:
+Novadeck presents **one normalized agent model** for Claude, Codex and AGY:
 sessions, activity, permissions, questions, subagents, transcripts, plans and
 usage. Per-harness adapters report facts into that model. Differences between
 harnesses are not hidden as silent gaps; they surface as explicit per-feature
@@ -15,12 +15,12 @@ and can still say "unknown for this harness".
 Use one internal adapter per harness: a plain `Harness` table of data and small
 functions, in the style of today's `shell/agents.ts`.
 A shared harness service owns their lifecycle and turns their facts into the
-agent model. The adapters own provider knowledge; the service owns NovaDeck
-policy. The UI and NovaDeck's local MCP consume only the agent model.
+agent model. The adapters own provider knowledge; the service owns Novadeck
+policy. The UI and Novadeck's local MCP consume only the agent model.
 
 In the first version, permissions and questions are **observed, not answered**.
-NovaDeck shows that an agent needs attention and what it is asking; the user
-answers in the terminal. Responding from NovaDeck is a later capability module
+Novadeck shows that an agent needs attention and what it is asking; the user
+answers in the terminal. Responding from Novadeck is a later capability module
 (see [Growing the interface](#growing-the-interface)).
 
 This proposal establishes interfaces, not a claim that all three harnesses
@@ -67,9 +67,9 @@ The registry is a typed map of built-in adapters. Keep the existing finite
 product; “agent” remains the existing wire name. A workspace session is still a
 group of terminals, distinct from a harness session.
 
-Adapters are trusted application code shipped with NovaDeck. Dynamically loading
+Adapters are trusted application code shipped with Novadeck. Dynamically loading
 third-party code, a public plugin ABI, and compatibility with arbitrary adapter
-versions are outside this proposal. NovaDeck's plugins installed into the
+versions are outside this proposal. Novadeck's plugins installed into the
 harnesses remain delivery mechanisms for the adapters' hooks.
 
 | Adapter owns                                                    | Shared service/terminal manager owns                                                 |
@@ -111,7 +111,7 @@ back into provider implementations.
 
 ## Agent model
 
-This is the one interface NovaDeck's clients see. It lives in
+This is the one interface Novadeck's clients see. It lives in
 `application/protocol` as Zod schemas and derived types. It contains no provider
 names beyond the finite `AgentName`, and no native identifiers other than the
 opaque resumable session ID.
@@ -180,8 +180,8 @@ type FeatureCoverage = Record<
 
 type CoverageReason =
   | "no-native-source" // the harness exposes nothing for it
-  | "not-connected" // NovaDeck's plugin is not installed
-  | "untrusted" // installed, but the harness has not trusted NovaDeck's hooks
+  | "not-connected" // Novadeck's plugin is not installed
+  | "untrusted" // installed, but the harness has not trusted Novadeck's hooks
   | "source-lost" // a source it relies on failed or went quiet
   | "unverified" // this harness version was never probed
 ```
@@ -214,7 +214,7 @@ the same facade. `AgentDetailChange` is a snapshot followed by revisioned
 changes; a stale or expired revision forces a fresh snapshot rather than a
 replay of hook events. Plans are listed in the detail tier. Their content,
 revisions and presentation belong to the shared plan and presentation services
-in [Agent operations in NovaDeck](agent-workspace.md).
+in [Agent operations in Novadeck](agent-workspace.md).
 
 The terminal indicator derives from the summary through one shared resolver:
 
@@ -226,7 +226,7 @@ The terminal indicator derives from the summary through one shared resolver:
 | Agent detected, but no usable activity evidence | Not reporting                                       |
 | Ordinary shell/program                          | Existing shell/process activity                     |
 
-Working spans the agent's turn, a Stop NovaDeck continued included, and, after it, the
+Working spans the agent's turn, a Stop Novadeck continued included, and, after it, the
 subagents it started that run on and will wake it once done;
 `TerminalSummary.activity.background` counts what the turn left running, a command too,
 which shows but keeps nothing working (see
@@ -254,7 +254,7 @@ compatibility shapes.
 
 ## Adapter contract
 
-An adapter is a table of what NovaDeck knows about one harness, in the style of
+An adapter is a table of what Novadeck knows about one harness, in the style of
 the `describe()` table that used to live in `shell/agents.ts`: static facts are data, behavior is a
 few small functions, and optional features are optional fields. A harness
 without a field does not have that feature; there is no separate flag.
@@ -265,14 +265,14 @@ type Install = {
   readonly env: NodeJS.ProcessEnv // the login environment
   readonly home: string
   readonly platform: NodeJS.Platform
-  /** NovaDeck's directory for this harness's plugin files. */
+  /** Novadeck's directory for this harness's plugin files. */
   readonly plugin: string
 }
 
 /** One harness, as its own files and commands describe it. */
 type Harness = {
   readonly id: AgentName
-  /** Where NovaDeck keeps its plugin, under the plugins directory. */
+  /** Where Novadeck keeps its plugin, under the plugins directory. */
   readonly plugin: string
   /** Program names that identify it in the foreground or behind a launcher. */
   readonly programs: readonly string[]
@@ -280,7 +280,7 @@ type Harness = {
   readonly fallback?: (home: string) => string
   /** Its own home, whose presence says it is installed. */
   readonly home: (install: Install) => string
-  /** Whether its configuration lists NovaDeck's plugin as installed. */
+  /** Whether its configuration lists Novadeck's plugin as installed. */
   readonly connected: (install: Install) => Promise<boolean>
   /** Its plugin commands, run in order; a failing one marked `optional` is skipped. */
   readonly connect: (install: Install) => readonly Command[]
@@ -289,7 +289,7 @@ type Harness = {
   readonly hook: (platform: NodeJS.Platform) => string
   /** Plugin manifests and hook registrations, relative to its plugin directory. */
   readonly files: (platform: NodeJS.Platform) => readonly File[]
-  /** Programs NovaDeck's shells put first on PATH while it is connected, as Codex's shim. */
+  /** Programs Novadeck's shells put first on PATH while it is connected, as Codex's shim. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
   /** The words that continue a session by its id. */
   readonly resume?: (session: string) => readonly string[]
@@ -359,10 +359,10 @@ Shared code does everything that is the same for every harness:
 - **Setup.** The service runs `connect`/`disconnect` in order with deadlines and
   cancellation, then inspects again, as `createAgents` does today. Failed setup
   is reported, not rolled back. It writes `files` and `shims` atomically under
-  NovaDeck's directories and rejects paths that escape them.
+  Novadeck's directories and rejects paths that escape them.
 - **Recognition.** A shared matcher compares the foreground process's
   executable or launcher position with each harness's `programs`, never
-  arbitrary arguments. Ambiguous matches stay unclassified. NovaDeck's own launch
+  arbitrary arguments. Ambiguous matches stay unclassified. Novadeck's own launch
   intent for the run also counts. On Windows, a manually started agent may stay
   unclassified until a hook reports it, because there is no foreground sample.
 - **Availability.** The service derives it from whether the field exists, `Found`,
@@ -405,7 +405,7 @@ readonly decode: (report: Report) => readonly HarnessEvent[]
 
 Decoding in the runner keeps decoders ordinary, tested TypeScript beside their
 harness, checked against the captured fixtures, with no separate build for the
-hook process. The payload travels only over NovaDeck's local report socket to
+hook process. The payload travels only over Novadeck's local report socket to
 the runner, which already sees the terminal's output. `decode` performs no I/O,
 and ignores events it does not use by returning none.
 
@@ -454,16 +454,16 @@ Besides the facts shared with the agent model, decoders give
   in full has bound: Antigravity's status line idle with no conversation yet (its
   adapter's `shown`, read from the status line report), and Codex's terminal title
   holding the run state Ready, and the start of its thread's id (its adapter's `title`,
-  read from the title the terminal's screen keeps; NovaDeck's Codex shim names the
+  read from the title the terminal's screen keeps; Novadeck's Codex shim names the
   title's items, and a title of the person's own with `status` and `thread-id` reads the
   same). It is not a `HarnessEvent`, as it names no session: the terminal manager takes
   it apart. A title counts only while a process of the harness's name runs in the
   terminal's foreground group, which the doorbell checks again as it rings; a stale one,
   as the shell's prompt came after it, is dropped, as is one a later title overtook. For
-  a harness with `hooksTrusted` (Codex), it counts only once NovaDeck's hooks are trusted
+  a harness with `hooksTrusted` (Codex), it counts only once Novadeck's hooks are trusted
   there, as its app-server's `hooks/list` says, asked with the program and environment
   of the Codex in the terminal where the platform tells (Linux), kept until Codex's
-  `config.toml` or NovaDeck's hook definitions in its plugin cache change, a failure kept
+  `config.toml` or Novadeck's hook definitions in its plugin cache change, a failure kept
   a minute. A Codex that can't answer gets nothing before its first prompt. A title
   naming another thread than the bound one ends that binding only when the adapter's
   `startedSession` confirms a new root (Codex's writer lock for that thread, made around
@@ -481,7 +481,7 @@ shared code names a harness:
 type MessagingProfile = {
   /** The hook events that ask, and when each fires: as a turn ends, or as a prompt starts it. */
   readonly asks: { readonly [event: string]: "stop" | "prompt" }
-  /** What a hook prints with nothing to deliver, as it does without NovaDeck. */
+  /** What a hook prints with nothing to deliver, as it does without Novadeck. */
   readonly silent: (event: string) => string
   /** A Stop's answer that continues the turn with a delivery. */
   readonly stop: (delivery: string) => string
@@ -555,7 +555,7 @@ correlate two reports, it emits unknown or partial observation instead of
 choosing one.
 
 The service does not merge sources. It owns only what spans runs or needs
-NovaDeck policy:
+Novadeck policy:
 
 - Authenticating hook records before they enter a run's feed.
 - Session acquisition and replacement, and binding invalidation.
@@ -667,7 +667,7 @@ beside the root's by its id), and an abort recorded at or after the request was 
 settles that subagent's requests asked by then, at the abort's time, the subagent
 still running. It stops following once the subagent has no request waiting, or the
 binding ends. A Claude Code background subagent needs none: a denial reaches it as the
-call's result, and it runs on to its `SubagentStop`. A subagent asking that NovaDeck
+call's result, and it runs on to its `SubagentStop`. A subagent asking that Novadeck
 never saw start, as its start came before the binding or its harness reported its
 stop at a turn's end, counts as running from that request on, unless a stop after the
 request says it is over. At most 32 subagents are followed; once that many run, the one
@@ -677,7 +677,7 @@ subagent isn't followed, and its request settles at the root's next turn start o
 Claude Code's `AskUserQuestion` goes through
 `PermissionRequest` too, so the attention kind comes from the tool name.
 
-NovaDeck's Antigravity hook must answer `PreToolUse` with
+Novadeck's Antigravity hook must answer `PreToolUse` with
 `{"decision": "ask"}`: Antigravity reads an answer without a decision as a
 denial.
 
@@ -688,7 +688,7 @@ grandparent is `agy`. The hook host reports the nearest ancestor whose
 executable is the harness. Environment variables alone never prove it, since
 a hook inherits every ancestor harness's variables.
 
-Interruption reaches NovaDeck differently per harness: Codex fires `Interrupt`,
+Interruption reaches Novadeck differently per harness: Codex fires `Interrupt`,
 Claude Code's transcript records the interruption, and Antigravity reports it
 only through its status line's `agent_state` returning to `idle`. Without such a source, a turn
 stays `working` until its next event, and activity coverage is `partial`. A turn's end
@@ -750,9 +750,9 @@ keep their immediate parent edges.
 | Turn                 | Work submitted to one actor; native identity when exposed                    |
 | Attention request    | Question or permission belonging to an actor and possibly a turn             |
 | Transcript stream    | Recorded conversation/item sequence for one actor                            |
-| Creator relationship | Which NovaDeck caller requested an independent terminal                      |
+| Creator relationship | Which Novadeck caller requested an independent terminal                      |
 
-Native subagent parentage and NovaDeck creator relationships are separate edges.
+Native subagent parentage and Novadeck creator relationships are separate edges.
 A Codex terminal started by Claude through MCP is its own root, not a Claude child.
 
 The transcript service reads through the adapter using the actor's
@@ -806,7 +806,7 @@ names a native plan can schedule only this authorized read, and the MCP
 
 The adapter emits facts and never calls a UI operation. Plan identity, revisions,
 presentation and dismissal follow
-[Agent operations in NovaDeck](agent-workspace.md#automatic-planning-and-live-previews).
+[Agent operations in Novadeck](agent-workspace.md#automatic-planning-and-live-previews).
 
 As built, each agent session's latest plan per actor is a companion item on its
 terminal's bar ([the runner's items](agent-workspace.md#the-runners-items)), a pointer
@@ -818,7 +818,7 @@ applied to each recorded line, the latest text plan winning. Codex's reads its r
 with `rolloutEvents`, Claude Code's reads `ExitPlanMode` calls from the transcript with
 the hook decoder's own `presented`; Antigravity's plans are always files, so it has
 none. The runner decodes only the lines appended since its last read, so the plan
-outlives its terminal and a restart without NovaDeck copying its text.
+outlives its terminal and a restart without Novadeck copying its text.
 
 ## Native sources
 
@@ -833,14 +833,14 @@ beside each adapter. Three kinds of source feed a harness's `watch`:
   Claude Code's rate limits and context occupancy, and of Antigravity's agent
   state, confirmations, usage, quota and context.
 
-The status line is one user-level setting. NovaDeck aims for feature parity
+The status line is one user-level setting. Novadeck aims for feature parity
 across harnesses, so it installs a bridge command that forwards each snapshot
-to NovaDeck and then runs the person's own status line command, whose output it
-passes through. For Claude Code, NovaDeck's shells pass `--settings` at launch,
-the way the Codex shim adds its flag, so the bridge applies only to NovaDeck's
+to Novadeck and then runs the person's own status line command, whose output it
+passes through. For Claude Code, Novadeck's shells pass `--settings` at launch,
+the way the Codex shim adds its flag, so the bridge applies only to Novadeck's
 terminals. Antigravity takes a status line only from its user settings, so
-connecting it writes NovaDeck's there and disconnecting restores the person's
-own; outside NovaDeck's shells the bridge only runs the person's command. The
+connecting it writes Novadeck's there and disconnecting restores the person's
+own; outside Novadeck's shells the bridge only runs the person's command. The
 snapshot can carry the account's email, which no decoder reads.
 
 Codex's plugin hooks run only once the person trusts them in `/hooks`, and no
@@ -975,8 +975,8 @@ outstanding operations before their late results can change state.
 
 ## Hook distribution
 
-The hook runs in a short-lived process, NovaDeck's relay (`application/relay`), through
-a launcher in NovaDeck's integration directory, so it needs no install inside the
+The hook runs in a short-lived process, Novadeck's relay (`application/relay`), through
+a launcher in Novadeck's integration directory, so it needs no install inside the
 person's project. It is one program for every harness, copied in on each start.
 Each plugin's hook command passes the harness and the event.
 
@@ -986,20 +986,20 @@ The relay does the following:
 - keeps each hook's deadline: two seconds to report, which the runner answers at once,
   four to ask, as the launcher names the asking events, and five for Claude Code's
   status line,
-- checks it runs in a NovaDeck terminal,
+- checks it runs in a Novadeck terminal,
 - sends the payload unread, with its start time and the processes it runs under,
 - for Claude Code's status line, runs the person's own, as their settings name it,
   beside the report, so it shows even when the runner can't be reached,
-- prints the runner's answer, or what the harness needs without NovaDeck.
+- prints the runner's answer, or what the harness needs without Novadeck.
 
 The runner prunes the payload, finds the agent process and decides whether the hook asks
-(`shell/hook.ts`). Without the relay, as when NovaDeck couldn't put it in place, the
+(`shell/hook.ts`). Without the relay, as when Novadeck couldn't put it in place, the
 launcher still prints what Antigravity needs.
 
 Everything harness-specific happens in the runner (see
 [Hook decoders](#hook-decoders)).
 
-NovaDeck has no users yet, so hook definitions change whenever that improves
+Novadeck has no users yet, so hook definitions change whenever that improves
 the integration. Codex and AGY trust a hook by its definition, so a changed
 definition or a new event registration asks whoever connected them to review
 the hook again; installation and hook trust are distinct states.
@@ -1007,7 +1007,7 @@ the hook again; installation and hook trust are distinct states.
 ## Local MCP
 
 The application boundary, caller identity, messaging, spawning and plan
-presentation are specified in [Agent operations in NovaDeck](agent-workspace.md).
+presentation are specified in [Agent operations in Novadeck](agent-workspace.md).
 MCP is another client of the same application services as the UI. It reads the
 agent model through `AgentObservation` and never reaches a `Harness` directly.
 
@@ -1018,15 +1018,15 @@ saved into a global manifest), and, for [Agent messaging](agent-messaging.md), t
 encoding of messages into their Stop and prompt-time hook answers. Installed MCP
 configuration and a live authenticated connection are separate readiness facts.
 
-An agent's plugin is installed once per user, by whichever NovaDeck connected it last,
-while several NovaDeck builds (an installed app and a development build, say) may run
+An agent's plugin is installed once per user, by whichever Novadeck connected it last,
+while several Novadeck builds (an installed app and a development build, say) may run
 side by side. The MCP server it starts is the relay, which carries the agent's messages
 to the runner of the terminal it runs in, so the tools are always that runner's. On
-Linux and macOS the relay is also that NovaDeck's own: as hooks run the launcher the
+Linux and macOS the relay is also that Novadeck's own: as hooks run the launcher the
 terminal names in `NOVADECK_HOOK`, the MCP server starts from the launcher the terminal
 names in `NOVADECK_MCP`, so it speaks its runner's relay protocol and is there for as
-long as that NovaDeck is. Only where the variable names no runnable file, as when it is
-unset for an agent started outside NovaDeck or names a build since removed, does the
+long as that Novadeck is. Only where the variable names no runnable file, as when it is
+unset for an agent started outside Novadeck or names a build since removed, does the
 command fall back to the connecting build's launcher by its absolute path (`mcpStart` in
 `shell/scripts.ts`). A runner whose relay failed to install leaves the variable unset
 in its terminals, so their agents fall back too instead of starting a launcher with no
@@ -1038,7 +1038,7 @@ holds no `${...}`, which Claude Code would expand itself. sh and the launcher ea
 build's relay itself, by its absolute path: a command there that read the variable
 would need cmd, which stays running beside the relay for as long as the agent does, so
 the variable is unset there. Codex passes an MCP server only the variables its
-`env_vars` lists, which name `NOVADECK_MCP` too. A plugin installed by a NovaDeck before
+`env_vars` lists, which name `NOVADECK_MCP` too. A plugin installed by a Novadeck before
 this names only its own launcher; connecting the agent again installs the new command.
 
 ## Growing the interface
@@ -1117,15 +1117,15 @@ nothing else, confirmed by its hook, never retried; see
       context held. `TerminalSummary.telemetry` carries them, and each window's
       header shows the context and busiest limit. The status line bridge adds
       Claude Code's limits and context capacity, and Antigravity's telemetry.
-      For Claude Code, NovaDeck's shells run `claude` through a shim (while it
-      is connected, outside Windows) that adds `--settings` naming NovaDeck's
+      For Claude Code, Novadeck's shells run `claude` through a shim (while it
+      is connected, outside Windows) that adds `--settings` naming Novadeck's
       hook as the status line. The hook forwards the snapshot, then runs the
       person's own status line command from their settings and prints its
       output. Each shim now checks `NOVADECK_SHIMS`, so one harness's shim
       never applies while only another is connected. For Antigravity, a
       harness's optional `settings` step edits its user settings after a
       verified connect and before a disconnect: its status line becomes a
-      command that hands the snapshot to NovaDeck's hook inside NovaDeck's
+      command that hands the snapshot to Novadeck's hook inside Novadeck's
       shells, then runs the person's own, which the command itself names, so
       disconnecting puts it back from the settings alone. Its snapshots give
       the agent's state (idle ends a turn after an Esc or a denial, working
@@ -1187,7 +1187,7 @@ declaration.
 **Hooks and ingress**
 
 - Native payload fixtures for every provider, malformed input, nested sessions
-  and hooks running outside NovaDeck.
+  and hooks running outside Novadeck.
 - Generated hooks executed as child processes over the real transport:
   deadlines, exact stdout, missing runner, changed run tokens, decoder exceptions.
 - Standalone and packaged Electron artifacts on Linux, macOS and Windows,
@@ -1229,14 +1229,14 @@ declaration.
 
 **Harness environment**
 
-- NovaDeck's shells drop harness session variables inherited from the runner's
+- Novadeck's shells drop harness session variables inherited from the runner's
   own environment: Claude Code's session markers (`CLAUDECODE`,
   `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID` and the
   like, never the person's own `CLAUDE_CODE_*` settings), `CODEX_THREAD_ID` and
   `ANTIGRAVITY_CONVERSATION_ID`. Otherwise a runner started from inside Claude
   Code makes every Claude Code in its terminals a child session, whose
   transcript saving is off.
-- NovaDeck's Antigravity hook answers `PreToolUse` with `{"decision": "ask"}`, and
+- Novadeck's Antigravity hook answers `PreToolUse` with `{"decision": "ask"}`, and
   a test fails if an empty answer reaches Antigravity.
 
 **Model and clients**

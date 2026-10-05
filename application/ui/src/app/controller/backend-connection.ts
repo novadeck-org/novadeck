@@ -17,7 +17,7 @@ export const connectBackend = (
     },
     open: (request) => {
       if (live) open(request)
-      else request.answer({ reason: "NovaDeck closed before it opened the terminal." })
+      else request.answer({ reason: "Novadeck closed before it opened the terminal." })
     },
   })
   return () => {

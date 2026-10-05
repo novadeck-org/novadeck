@@ -10,7 +10,7 @@ import { asked, latest, tool, type Call, type Reply, type Rule } from "./model/s
 
 /**
  * What the scenarios share, whichever harness they run: starting a terminal and taking a
- * turn, the rules an agent's turns follow, what NovaDeck's state goes through, and what a
+ * turn, the rules an agent's turns follow, what Novadeck's state goes through, and what a
  * call delivered.
  */
 
@@ -74,7 +74,7 @@ export const prompted = async (
 }
 
 /**
- * Opens a terminal running the harness and waits until NovaDeck sees it Ready and its
+ * Opens a terminal running the harness and waits until Novadeck sees it Ready and its
  * prompt shows (`prompted`), so a prompt can be submitted at once.
  */
 export const start = async ({ deck }: E2E, setup: AgentSetup): Promise<DeckTerminal> => {
@@ -93,7 +93,7 @@ export const unrung = 8000
 /**
  * Opens a terminal whose command runs `first`, then `then` once it exits, and waits until
  * the first is Ready at its prompt: the person leaving the first starts the second, with
- * no key pressed at the shell's prompt. NovaDeck expects the first there, by its command's
+ * no key pressed at the shell's prompt. Novadeck expects the first there, by its command's
  * first word, which `;` set apart keeps whole.
  */
 export const handing = async (
@@ -103,7 +103,7 @@ export const handing = async (
 ): Promise<DeckTerminal> => {
   const command = `${first.agent} ; ${then.agent}`
   if (expectedAgent(command, undefined) !== first.agent)
-    throw new Error(`NovaDeck doesn't expect ${first.agent} first in \`${command}\``)
+    throw new Error(`Novadeck doesn't expect ${first.agent} first in \`${command}\``)
   const terminal = await deck.open(command)
   await terminal.reached("ready", { timeoutMs: 60_000 })
   await prompted(terminal, first)
@@ -150,7 +150,7 @@ export const through = async (
 }
 
 /**
- * Submits a prompt the model answers by showing `shows`, and waits until NovaDeck saw the
+ * Submits a prompt the model answers by showing `shows`, and waits until Novadeck saw the
  * turn work and end, Settled.
  */
 export const turn = async (
@@ -278,7 +278,7 @@ const messagesIn = (wrapped: string): Delivery[] =>
   }))
 
 /**
- * The messages the call's latest user turn delivered, in order, as NovaDeck wraps them in
+ * The messages the call's latest user turn delivered, in order, as Novadeck wraps them in
  * `<novadeck-messages>`: beside a prompt, as a hook adds them, or HTML-escaped inside a
  * Codex Stop hook's continuation. Text that only looks like a wrapper inside a message
  * stays that message's text.

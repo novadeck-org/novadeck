@@ -3,7 +3,7 @@ import { z } from "zod"
 import type { Kept } from "./naming.js"
 
 /**
- * What an agent asks to describe its own terminal with, through NovaDeck's MCP server: a
+ * What an agent asks to describe its own terminal with, through Novadeck's MCP server: a
  * title, a summary of its work, and whether the person asked, in their own words, for
  * this title. There is no target: it is always the caller's terminal.
  */

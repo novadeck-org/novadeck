@@ -1,13 +1,13 @@
 import type { Session, WebContents, WebPreferences } from "electron"
 
 // Web pages an agent shows load live in the companion pane, in a <webview>: a browser
-// view apart from NovaDeck's page. Whatever the element asks for, each gets no preload,
+// view apart from Novadeck's page. Whatever the element asks for, each gets no preload,
 // no Node, a sandbox, and its own session in memory, where every permission and
 // download is refused and no file loads. It goes only to http(s) addresses by its own
 // links and redirects. A window it opens right after the person clicked or typed in it
 // opens in their own browser, one per click or key; any other opens nowhere.
 
-/** The session live pages load in: in memory, apart from NovaDeck's own. */
+/** The session live pages load in: in memory, apart from Novadeck's own. */
 export const pagesPartition = "novadeck-pages"
 
 /** Whether `url` is an http(s) address, the only kind a page view loads. */
@@ -95,7 +95,7 @@ export const guardPage = (
 
 /**
  * Refuses the pages' session every permission, every download, and every file, which
- * NovaDeck's own page could otherwise point a view at.
+ * Novadeck's own page could otherwise point a view at.
  */
 export const lockPagesSession = (pages: Session): void => {
   pages.protocol.handle("file", () => new Response("", { status: 403 }))

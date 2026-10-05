@@ -58,7 +58,7 @@ describe("the doorbell's test paste", () => {
     expect(
       checkPaste(
         before,
-        ["b", "c", "d", "e", "> [NovaDeck: automatic notice,", "agent messages waiting, n7Q2]"],
+        ["b", "c", "d", "e", "> [Novadeck: automatic notice,", "agent messages waiting, n7Q2]"],
         line,
       ),
     ).toMatchObject({
@@ -68,10 +68,10 @@ describe("the doorbell's test paste", () => {
 
   it("finds the line wrapped across rows, indented or not", () => {
     expect(
-      findLine(["> [NovaDeck: automatic notice, agent messages", "  waiting, n7Q2]"], line),
+      findLine(["> [Novadeck: automatic notice, agent messages", "  waiting, n7Q2]"], line),
     ).toEqual([{ first: 0, last: 1, column: 2 }])
     expect(
-      findLine(["[NovaDeck: automatic notice, agent mess", "ages waiting, n7Q2]"], line),
+      findLine(["[Novadeck: automatic notice, agent mess", "ages waiting, n7Q2]"], line),
     ).toEqual([{ first: 0, last: 1, column: 0 }])
   })
 })

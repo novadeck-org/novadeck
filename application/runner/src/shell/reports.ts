@@ -33,7 +33,7 @@ export type Report = {
 /**
  * What a Stop or prompt-time hook hears back as it asks (see docs/agent-messaging.md):
  * what it prints, exactly as its agent expects, and the lease it acknowledges once it has
- * printed it. A null `stdout` leaves the hook to print what it does without NovaDeck.
+ * printed it. A null `stdout` leaves the hook to print what it does without Novadeck.
  */
 export type HookAnswer = { readonly leaseId: string | null; readonly stdout: string | null }
 
@@ -44,7 +44,7 @@ export const unheard: HookAnswer = { leaseId: null, stdout: null }
 export type Ack = { readonly terminalId: string; readonly token: string; readonly leaseId: string }
 
 /**
- * What NovaDeck's MCP server forwards: a tool call an agent made in a terminal, which
+ * What Novadeck's MCP server forwards: a tool call an agent made in a terminal, which
  * waits for its answer. `present` shows something beside it and `showing` lists what is
  * there (see `companions/items.ts`), `open` opens a new terminal beside it (see
  * `terminals/opens.ts`), `close` closes another terminal of its project and session (see
@@ -63,17 +63,17 @@ const callTypes = ["present", "showing", "open", "close", "send", "agents", "des
 export type CallType = (typeof callTypes)[number]
 
 /** The answer to a call that failed, took too long, or could not be read. */
-export const unanswered = { ok: false, reason: "NovaDeck couldn't show it." } as const
+export const unanswered = { ok: false, reason: "Novadeck couldn't show it." } as const
 
 /** The same, for each type of call. */
 export const unansweredCalls = {
   present: unanswered,
-  showing: { ok: false, reason: "NovaDeck couldn't list what is showing beside you." },
-  open: { ok: false, reason: "NovaDeck couldn't open the terminal." },
-  close: { ok: false, reason: "NovaDeck couldn't close the terminal." },
-  send: { ok: false, reason: "NovaDeck couldn't send the message." },
-  agents: { ok: false, reason: "NovaDeck couldn't list the terminals." },
-  describe: { ok: false, reason: "NovaDeck couldn't describe the terminal." },
+  showing: { ok: false, reason: "Novadeck couldn't list what is showing beside you." },
+  open: { ok: false, reason: "Novadeck couldn't open the terminal." },
+  close: { ok: false, reason: "Novadeck couldn't close the terminal." },
+  send: { ok: false, reason: "Novadeck couldn't send the message." },
+  agents: { ok: false, reason: "Novadeck couldn't list the terminals." },
+  describe: { ok: false, reason: "Novadeck couldn't describe the terminal." },
 } as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
 
 const object = (value: unknown): value is { readonly [key: string]: unknown } =>
@@ -125,7 +125,7 @@ const refuse = (value: unknown): void => {
       : `a relay speaking version ${JSON.stringify(relay)} of its protocol`
   if (refused.has(why)) return
   refused.add(why)
-  console.error(`NovaDeck's report endpoint turned away ${why}.`)
+  console.error(`Novadeck's report endpoint turned away ${why}.`)
 }
 
 // One line of an agent's MCP session may hold more than a hook's report, as a message's
@@ -152,7 +152,7 @@ const tooLong = (head: string, tail: string): string => {
     // Unreadable: answered without one.
   }
   const message =
-    "The request is over 1 MiB, more than NovaDeck takes; put long content in a file and pass its path."
+    "The request is over 1 MiB, more than Novadeck takes; put long content in a file and pass its path."
   return JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32600, message } })
 }
 
@@ -250,8 +250,8 @@ export type ReportsOptions = {
   /**
    * How long a call waits for its answer before it gets its type's `unansweredCalls`, in
    * milliseconds:
-   * by default 8 s, as opening a terminal waits for NovaDeck's window, and within the
-   * 10 s NovaDeck's MCP server waits.
+   * by default 8 s, as opening a terminal waits for Novadeck's window, and within the
+   * 10 s Novadeck's MCP server waits.
    */
   readonly answerMs?: number
 }
@@ -275,7 +275,7 @@ export type Reports = {
 }
 
 /**
- * Listens for NovaDeck's relays (see application/relay), which speak only the relay
+ * Listens for Novadeck's relays (see application/relay), which speak only the relay
  * protocol (docs/backend-api.md, "Relay protocol"). Each connection's first line names
  * the relay's version and what it carries: an agent's hook, a report or an ask, answered
  * with one line, a `HookAnswer`, and then perhaps acknowledged (see `serveHook`); or an

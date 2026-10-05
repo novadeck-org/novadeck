@@ -91,12 +91,12 @@ describe("what a show points at", () => {
     expect(pageAt("http://localhost:5173/app?x=1#top")).toMatchObject({ ok: true })
     expect(pageAt("file:///etc/passwd")).toEqual({
       ok: false,
-      reason: "NovaDeck shows only http and https pages.",
+      reason: "Novadeck shows only http and https pages.",
     })
     expect(pageAt("javascript:alert(1)")).toMatchObject({ ok: false })
     expect(pageAt("https://me:secret@example.com/")).toEqual({
       ok: false,
-      reason: "NovaDeck won't show an address with a user name or password in it.",
+      reason: "Novadeck won't show an address with a user name or password in it.",
     })
     expect(pageAt("not an address")).toEqual({ ok: false, reason: "That isn't a valid address." })
     // Each ł takes six characters once encoded.

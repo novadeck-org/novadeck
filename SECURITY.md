@@ -83,7 +83,7 @@ holds, which only a paste gives it; it names no other file and reads nothing. Th
 companion pane's pages get no preload (see `application/host/src/main/pages.ts`), so
 they have no bridge to ask through.
 
-A file copied in a file manager pastes its own path, so names chosen outside NovaDeck,
+A file copied in a file manager pastes its own path, so names chosen outside Novadeck,
 such as a downloaded file's, now reach the terminal's shell. They go in inert or not at
 all (`ownPath` in `application/ui/src/backend/runner/paste.ts`): a path with a control
 character never does; a POSIX path has a backslash before every character a shell
@@ -158,6 +158,6 @@ session id limited to letters, digits, `.`, `_` and `-`, so a report cannot make
 shell run anything else.
 The shell integration and hook live in the runner's own `shell` folder; the runner
 never writes to the user's rc files or dotfiles. Only when the person connects an agent
-does it install NovaDeck's plugin into that agent, through the agent's own plugin
+does it install Novadeck's plugin into that agent, through the agent's own plugin
 commands, and disconnecting removes it. The plugin's hook does nothing outside
-NovaDeck's shells. On Linux and macOS its MCP server starts the launcher the terminal names in `NOVADECK_MCP`, as its hook starts `NOVADECK_HOOK`'s, and otherwise the launcher of the NovaDeck that connected the agent; both are the user's own environment, so a process that changes them runs nothing it couldn't run already.
+Novadeck's shells. On Linux and macOS its MCP server starts the launcher the terminal names in `NOVADECK_MCP`, as its hook starts `NOVADECK_HOOK`'s, and otherwise the launcher of the Novadeck that connected the agent; both are the user's own environment, so a process that changes them runs nothing it couldn't run already.

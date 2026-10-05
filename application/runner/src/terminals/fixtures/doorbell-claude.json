@@ -85,7 +85,7 @@
         "",
         "  tmux focus-events off · add 'set -g focus-events on' to…",
         "────────────────────────────────────────────────────────────",
-        "❯ [NovaDeck: automatic notice, agent messages waiting,",
+        "❯ [Novadeck: automatic notice, agent messages waiting,",
         "  n7Q2]",
         "────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on"
@@ -176,7 +176,7 @@
         "",
         "  tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tra…",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "❯ [NovaDeck: automatic notice, agent messages waiting, n7Q2]",
+        "❯ [Novadeck: automatic notice, agent messages waiting, n7Q2]",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on"
       ]
@@ -266,7 +266,7 @@
         "",
         "                                                          tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tracking",
         "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "❯ [NovaDeck: automatic notice, agent messages waiting, n7Q2]",
+        "❯ [Novadeck: automatic notice, agent messages waiting, n7Q2]",
         "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on"
       ]
@@ -331,7 +331,7 @@
         "  with /model.",
         "",
         "────────────────────────────────────────────────────────────",
-        "❯ [NovaDeck: automatic notice, agent messages waiting,",
+        "❯ [Novadeck: automatic notice, agent messages waiting,",
         "  n7Q2]",
         "────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on",
@@ -446,7 +446,7 @@
         "",
         "                                                          tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tracking",
         "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "❯ [NovaDeck: automatic notice, agent messages waiting, n7Q2]",
+        "❯ [Novadeck: automatic notice, agent messages waiting, n7Q2]",
         "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on"
       ]
@@ -515,7 +515,7 @@
         "✻ Brewed for 1s · done 14:03",
         "",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "❯ [NovaDeck: automatic notice, agent messages waiting, n7Q2]",
+        "❯ [Novadeck: automatic notice, agent messages waiting, n7Q2]",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on",
         "",
@@ -626,7 +626,7 @@
         "",
         "  tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tra…",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "❯ [NovaDeck: automatic notice, agent messages waiting, n7Q2]",
+        "❯ [Novadeck: automatic notice, agent messages waiting, n7Q2]",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on"
       ]
@@ -716,7 +716,7 @@
         "",
         "                                                                      Ctrl+Y to paste deleted text",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "❯ [NovaDeck: automatic notice, agent messages waiting, n7Q2]",
+        "❯ [Novadeck: automatic notice, agent messages waiting, n7Q2]",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
         "  -- INSERT -- ⏸ manual mode on"
       ]
@@ -806,7 +806,7 @@
         "",
         "  tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tra…",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "❯ [NovaDeck: automatic notice, agent messages waiting, n7Q2]",
+        "❯ [Novadeck: automatic notice, agent messages waiting, n7Q2]",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on"
       ]
@@ -1076,7 +1076,7 @@
         "",
         "  tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tra…",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "❯ /mod[NovaDeck: automatic notice, agent messages waiting, n7Q2]",
+        "❯ /mod[Novadeck: automatic notice, agent messages waiting, n7Q2]",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on"
       ]
@@ -1145,7 +1145,7 @@
         "✻ Brewed for 1s · done 14:03",
         "",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "❯ half typed draft[NovaDeck: automatic notice, agent messages waiting, n7Q2]",
+        "❯ half typed draft[Novadeck: automatic notice, agent messages waiting, n7Q2]",
         "────────────────────────────────────────────────────────────────────────────────────────────────────",
         "  ⏸ manual mode on                                                    Ctrl+Y to paste deleted text",
         "",

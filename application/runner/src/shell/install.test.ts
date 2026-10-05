@@ -97,6 +97,6 @@ describe.skipIf(process.platform === "win32")("the MCP server's launcher", () =>
     resources.defer(() => logged.mockRestore())
     const paths = await installShellFiles(join(folder, "shell"), { relay: join(folder, "gone") })
     expect(paths.mcpLauncher).toBeUndefined()
-    expect(logged).toHaveBeenCalledWith("NovaDeck's relay is unavailable:", expect.anything())
+    expect(logged).toHaveBeenCalledWith("Novadeck's relay is unavailable:", expect.anything())
   })
 })

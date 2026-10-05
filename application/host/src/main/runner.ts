@@ -42,12 +42,12 @@ export const startRunner = (options: {
     const worker = utilityProcess.fork(
       options.entry,
       [`${databaseArgumentPrefix}${options.database}`, `${relayArgumentPrefix}${options.relay}`],
-      { serviceName: "NovaDeck Runner" },
+      { serviceName: "Novadeck Runner" },
     )
     worker.once("exit", (code) => {
       if (child === worker) child = undefined
       // The next connection request starts a new runner.
-      if (!closing) console.error(`NovaDeck runner exited unexpectedly (code ${code})`)
+      if (!closing) console.error(`Novadeck runner exited unexpectedly (code ${code})`)
     })
     child = worker
     return worker

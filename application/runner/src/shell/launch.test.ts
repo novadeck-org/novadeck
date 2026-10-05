@@ -9,7 +9,7 @@ const paths: InstalledShell = {
   mcpLauncher: undefined,
 }
 
-describe("NovaDeck's launchers in a shell", () => {
+describe("Novadeck's launchers in a shell", () => {
   it("names the hook's and, on Linux and macOS, the MCP server's, for every shell", () => {
     const posix: InstalledShell = {
       ...shellPaths("/data", "linux"),

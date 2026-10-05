@@ -72,7 +72,7 @@ const waitFor = async (origin: string, attempts = 100): Promise<void> => {
   return waitFor(origin, attempts - 1)
 }
 
-/** The relay agents start for NovaDeck's MCP server and hooks: shipped beside the UI, or built. */
+/** The relay agents start for Novadeck's MCP server and hooks: shipped beside the UI, or built. */
 const relayPath = (): string => {
   const name = process.platform === "win32" ? "novadeck-relay.exe" : "novadeck-relay"
   return app.isPackaged

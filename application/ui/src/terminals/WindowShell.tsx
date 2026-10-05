@@ -119,7 +119,7 @@ export const WindowShell = ({
   const planning = shell?.state === "running" && shell.agent?.planning === true
   const phase = shell ? terminalPhase(shell, unread !== undefined) : "idle"
   const failed = unread === "failed"
-  // What the agent waits on the person for, that NovaDeck can't hear from it, or that it
+  // What the agent waits on the person for, that Novadeck can't hear from it, or that it
   // finished with its reply unread.
   const note =
     shell &&

@@ -106,7 +106,7 @@ export type DeckTerminal = {
   /** Its messages and how its agent can take one now. */
   readonly messages: () => TerminalMessages
   /**
-   * What NovaDeck knows of its agent now, as a client's detail view reads it: the session
+   * What Novadeck knows of its agent now, as a client's detail view reads it: the session
    * bound, its activity, and the requests it waits on the person for.
    */
   readonly detail: () => Promise<AgentDetail>
@@ -131,9 +131,9 @@ export type Deck = {
   /** The store of the runner wired now: a restart opens it again. */
   readonly store: WorkspaceStore
   readonly sessionId: string
-  /** NovaDeck's shell files, as its shells read them: the same across restarts. */
+  /** Novadeck's shell files, as its shells read them: the same across restarts. */
   readonly shell: ShellPaths
-  /** Installs NovaDeck's plugin into the harness through its own commands, as Connect does. */
+  /** Installs Novadeck's plugin into the harness through its own commands, as Connect does. */
   readonly connect: (agent: AgentName) => Promise<void>
   /** Opens a terminal in the project that runs `command` at its shell's first prompt. */
   readonly open: (command?: string) => Promise<DeckTerminal>
@@ -157,8 +157,8 @@ export type Deck = {
    */
   readonly answerRequests: () => Requests
   /**
-   * Closes the runner as NovaDeck does when it quits, saving every terminal and ending
-   * its shells, then wires another, as NovaDeck starts again, on the same database, shell
+   * Closes the runner as Novadeck does when it quits, saving every terminal and ending
+   * its shells, then wires another, as Novadeck starts again, on the same database, shell
    * folder and environment. Between the two it looks for processes the first left behind
    * (`DeckOptions.leftovers`), and fails, as a leak, should it find any. Terminals of the
    * first runner are gone; their saved records stay for `restore`.
@@ -177,7 +177,7 @@ export type Requests = {
 }
 
 export type DeckOptions = {
-  /** The data folder: the workspace's database and NovaDeck's shell files. */
+  /** The data folder: the workspace's database and Novadeck's shell files. */
   readonly data: string
   /** The project folder terminals open in. */
   readonly project: string
@@ -455,7 +455,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     if ((await shellFiles) === undefined) {
       await terminals.shutdown()
       store.close()
-      throw new Error("NovaDeck's shell files could not be written")
+      throw new Error("Novadeck's shell files could not be written")
     }
     return { store, agents, terminals, closing: new AbortController() }
   }

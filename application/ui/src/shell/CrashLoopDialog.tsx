@@ -17,7 +17,7 @@ export const CrashLoopDialog = ({
     subject={crashes}
     title={() => "The runner keeps crashing"}
     description={(count) =>
-      `NovaDeck stopped restarting your terminals after ${count} crashes in a minute.`
+      `Novadeck stopped restarting your terminals after ${count} crashes in a minute.`
     }
     confirmLabel="Try again"
     cancelLabel="Not now"

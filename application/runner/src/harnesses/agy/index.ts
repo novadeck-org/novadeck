@@ -18,7 +18,7 @@ import { transcripts, typedEntry } from "./transcripts.js"
 const gemini = (home: string) => join(home, ".gemini")
 const cli = ({ home: user }: Install) => join(gemini(user), "antigravity-cli")
 
-// Antigravity reads every hook's answer as JSON, even outside NovaDeck's shells. It
+// Antigravity reads every hook's answer as JSON, even outside Novadeck's shells. It
 // denies a tool whose PreToolUse answer says nothing, so registering PreToolUse needs an
 // answer of "ask" here too, in a form cmd passes on intact; none is registered yet.
 const hook = (platform: NodeJS.Platform, event: string): string =>

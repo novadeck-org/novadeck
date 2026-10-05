@@ -20,12 +20,12 @@ import {
 
 const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPrefix))
 
-if (!argument) throw new Error("NovaDeck API URL was not provided by the desktop host")
+if (!argument) throw new Error("Novadeck API URL was not provided by the desktop host")
 
 const apiUrl = new URL(argument.slice(apiUrlArgumentPrefix.length))
 
 if (apiUrl.protocol !== "http:" || apiUrl.hostname !== "127.0.0.1" || !apiUrl.port) {
-  throw new Error("NovaDeck API URL must be an HTTP loopback URL with an explicit port")
+  throw new Error("Novadeck API URL must be an HTTP loopback URL with an explicit port")
 }
 
 // What the page finishes before its window closes or the app quits; a page without one

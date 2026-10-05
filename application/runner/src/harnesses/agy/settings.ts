@@ -5,9 +5,9 @@ import type { Install } from "../harness.js"
 
 /**
  * Antigravity takes its status line only from its user settings, so connecting it puts
- * NovaDeck's there: in NovaDeck's shells it hands the snapshot to NovaDeck's hook, and
+ * Novadeck's there: in Novadeck's shells it hands the snapshot to Novadeck's hook, and
  * everywhere it then runs the person's own, which it names. Disconnecting puts theirs back
- * from that name, so nothing beside the settings needs to survive, and another NovaDeck
+ * from that name, so nothing beside the settings needs to survive, and another Novadeck
  * disconnecting it restores it as well. Antigravity itself rewrites this file, so every
  * change reads it afresh and replaces it whole; one it cannot parse is left as it is.
  * Windows keeps the person's own until the command is proven there.
@@ -23,7 +23,7 @@ const handOff = `; printf '%s' "$novadeck_input" | sh -c `
 // A value sh reads back as the same string.
 const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 
-/** NovaDeck's status line, running `own` after it with the same input. */
+/** Novadeck's status line, running `own` after it with the same input. */
 export const statusLineCommand = (own: string | undefined): string =>
   own ? `${start}${handOff}${quote(own)}` : start
 
@@ -34,8 +34,8 @@ const line = (value: unknown): Line | undefined =>
   typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Line) : undefined
 
 /**
- * The person's own command a line of NovaDeck's runs: null for none, undefined when the
- * line is not NovaDeck's.
+ * The person's own command a line of Novadeck's runs: null for none, undefined when the
+ * line is not Novadeck's.
  */
 const ownOf = (value: unknown): string | null | undefined => {
   const command = line(value)?.command
@@ -47,7 +47,7 @@ const ownOf = (value: unknown): string | null | undefined => {
   return statusLineCommand(own) === command ? own : undefined
 }
 
-// What NovaDeck's line shows without the person's own.
+// What Novadeck's line shows without the person's own.
 const added: Record<string, unknown> = { enabled: true, stack_with_default: true }
 
 const settingsFile = (home: string): string => join(home, "settings.json")
@@ -88,7 +88,7 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
     // Antigravity runs a command whatever its type names, or none.
     const command = typeof own?.command === "string" ? own.command : ""
     // The person's display choices stay; without a status line of their own, Antigravity's
-    // default keeps showing above NovaDeck's, which prints nothing.
+    // default keeps showing above Novadeck's, which prints nothing.
     settings.statusLine = {
       ...(own ?? added),
       type: "command",
@@ -97,7 +97,7 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
     await write(file, settings)
   },
   // Keeps whatever the person changed of the line meanwhile, and a file it cannot read:
-  // NovaDeck's line still runs theirs.
+  // Novadeck's line still runs theirs.
   revert: async (install: Install): Promise<void> => {
     if (install.platform === "win32") return
     const file = settingsFile(home(install))
@@ -105,7 +105,7 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
     const own = settings && ownOf(settings.statusLine)
     if (!settings || own === undefined) return
     if (own === null) {
-      // Only what NovaDeck added goes; a line the person switched off stays so.
+      // Only what Novadeck added goes; a line the person switched off stays so.
       const { command: _command, type: _type, ...rest } = line(settings.statusLine) ?? {}
       if (Object.entries(rest).every(([key, value]) => value === added[key]))
         delete settings.statusLine

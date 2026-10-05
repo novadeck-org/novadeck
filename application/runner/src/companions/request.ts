@@ -2,7 +2,7 @@ import type { CompanionItem } from "@novadeck/protocol"
 import { z } from "zod"
 
 /**
- * What an agent asks to show, through NovaDeck's MCP server: a file by its path, absolute
+ * What an agent asks to show, through Novadeck's MCP server: a file by its path, absolute
  * or from the terminal's directory; for a text file, the lines it points at; a title in
  * place of the file's name; and `open` when the person asked to see it.
  */

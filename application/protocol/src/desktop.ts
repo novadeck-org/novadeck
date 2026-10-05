@@ -50,7 +50,7 @@ const request = (signal: AbortSignal) =>
   })
 
 /**
- * Reaches the runner bundled with the NovaDeck desktop app. Each connection asks the
+ * Reaches the runner bundled with the Novadeck desktop app. Each connection asks the
  * host for a fresh port, so reconnecting also works after the host restarts its runner.
  */
 export const desktop = (): Transport => messagePort(request)

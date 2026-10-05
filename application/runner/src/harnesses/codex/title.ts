@@ -5,9 +5,9 @@ import type { PromptShown } from "../events.js"
 import type { Install } from "../harness.js"
 
 /**
- * The items NovaDeck's shim gives Codex's terminal title, as one `-c` setting: its run
+ * The items Novadeck's shim gives Codex's terminal title, as one `-c` setting: its run
  * state, then the start of its thread's id, as "Ready | 01a0f932-a824-7c30-b713-b59ed...".
- * NovaDeck shows no terminal's own title, so the person never sees it.
+ * Novadeck shows no terminal's own title, so the person never sees it.
  */
 export const titleSetting = "tui.terminal_title=['status','thread-id']"
 

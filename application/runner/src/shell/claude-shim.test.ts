@@ -14,7 +14,7 @@ type Fixture = {
   remove: () => void
 }
 
-// The real claude is a stand-in that records the arguments it received. NovaDeck gives
+// The real claude is a stand-in that records the arguments it received. Novadeck gives
 // Windows no Claude Code shim yet.
 const it = base.extend<{ shim: Fixture }>({
   shim: async ({ resources }, use) => {
@@ -57,10 +57,10 @@ const it = base.extend<{ shim: Fixture }>({
 })
 
 describe.skipIf(process.platform === "win32")("claude shim", () => {
-  it("passes over another NovaDeck's shim on PATH, as a runner started in a NovaDeck terminal leaves", async ({
+  it("passes over another Novadeck's shim on PATH, as a runner started in a Novadeck terminal leaves", async ({
     shim,
   }) => {
-    // Another NovaDeck's shell files, whose shim would call this one back.
+    // Another Novadeck's shell files, whose shim would call this one back.
     const other = await installShellFiles(mkdtempSync(join(tmpdir(), "novadeck-other-")))
     const settings = expect.stringMatching(/statusline\.json$/)
     expect(
@@ -70,7 +70,7 @@ describe.skipIf(process.platform === "win32")("claude shim", () => {
     ).toEqual(["--settings", settings, "hi"])
   })
 
-  it("runs a session with NovaDeck's status line, passing every argument on", ({ shim }) => {
+  it("runs a session with Novadeck's status line, passing every argument on", ({ shim }) => {
     const settings = expect.stringMatching(/plugins\/claude\/statusline\.json$/)
     expect(shim.run([])).toEqual(["--settings", settings])
     expect(shim.run(["--model", "haiku", "fix a b", "$x"])).toEqual([
@@ -83,7 +83,7 @@ describe.skipIf(process.platform === "win32")("claude shim", () => {
     ])
   })
 
-  it("names the status line NovaDeck wrote", ({ shim }) => {
+  it("names the status line Novadeck wrote", ({ shim }) => {
     expect(JSON.parse(readFileSync(shim.settings, "utf8"))).toEqual({
       statusLine: {
         type: "command",
@@ -103,7 +103,7 @@ describe.skipIf(process.platform === "win32")("claude shim", () => {
     ])
   })
 
-  it("runs unchanged outside NovaDeck's shells, or while Claude Code is not connected", ({
+  it("runs unchanged outside Novadeck's shells, or while Claude Code is not connected", ({
     shim,
   }) => {
     expect(shim.run(["hi"], { NOVADECK_TERMINAL_ID: "" })).toEqual(["hi"])

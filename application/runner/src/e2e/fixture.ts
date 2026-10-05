@@ -138,8 +138,8 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
 }
 
 /**
- * A test of real harnesses in NovaDeck's terminals, against the fake model: each setup's
- * pinned harness installed, seeded in a fresh sandbox and connected to NovaDeck. The
+ * A test of real harnesses in Novadeck's terminals, against the fake model: each setup's
+ * pinned harness installed, seeded in a fresh sandbox and connected to Novadeck. The
  * harnesses are installed once, before the file's tests, so a download counts against
  * the hook timeout rather than a test's. Once the test ends and its deck has closed, with
  * the fake model still listening for whatever a harness sends on its way out, the test

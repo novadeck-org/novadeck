@@ -1,6 +1,6 @@
-//! NovaDeck's relay: what an agent starts for NovaDeck's MCP server and its hooks. It
+//! Novadeck's relay: what an agent starts for Novadeck's MCP server and its hooks. It
 //! carries the agent's messages to the runner of the terminal it runs in, and the
-//! runner's answers back, and answers by itself outside NovaDeck's terminals. The runner
+//! runner's answers back, and answers by itself outside Novadeck's terminals. The runner
 //! reads everything; the relay only carries it, so it stays small and starts at once,
 //! for as long as an agent runs and for every hook it runs.
 
@@ -49,7 +49,7 @@ fn main() -> ExitCode {
             );
             ExitCode::SUCCESS
         }
-        // A hook always succeeds, so its agent never treats NovaDeck as failing.
+        // A hook always succeeds, so its agent never treats Novadeck as failing.
         Some((mode, rest)) if mode == "hook" => {
             let (options, rest) = options(rest);
             // What the runner tells it of the agents, from the file its launcher names.

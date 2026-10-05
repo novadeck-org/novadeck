@@ -174,7 +174,7 @@ const count = (value: unknown): number | undefined =>
 const windows = { five_hour: 300, seven_day: 10_080 } as const
 
 /**
- * The status line Claude Code runs in NovaDeck's shells hands over what no other source
+ * The status line Claude Code runs in Novadeck's shells hands over what no other source
  * says: the context window's size beside what it holds, and the account's five-hour and
  * seven-day rate limits, used percentage and reset time in epoch seconds.
  */

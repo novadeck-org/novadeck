@@ -21,7 +21,7 @@ files:
 extraResources:
   - from: ../ui/dist
     to: ui
-  # The relay agents start for NovaDeck's MCP server and hooks; see application/relay.
+  # The relay agents start for Novadeck's MCP server and hooks; see application/relay.
   - from: ../relay/dist
     to: relay
     filter:

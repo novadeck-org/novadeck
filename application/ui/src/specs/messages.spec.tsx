@@ -162,13 +162,13 @@ describe("Who named a terminal", () => {
     expect(await tabTooltip("Tests")).toMatch(/\nNamed after its first prompt\n/)
   })
 
-  it("can be handed back to NovaDeck from the tab's menu when the person named it", async () => {
+  it("can be handed back to Novadeck from the tab's menu when the person named it", async () => {
     await openMessagesDemo()
     const menu = await tabMenu("Checkout implementation")
     await menu.getByRole("menuitem", { name: "Reset to automatic" }).click()
     await expect.element(terminalTab("Checkout flow")).toBeVisible()
     await expect.poll(() => tabTooltip("Checkout flow")).toMatch(/\nNamed by the agent in t1\n/)
-    // A name NovaDeck gave has nothing to hand back.
+    // A name Novadeck gave has nothing to hand back.
     const automatic = await tabMenu("Checkout flow")
     await expect.element(automatic.getByRole("menuitem", { name: "Rename" })).toBeVisible()
     await expectStaysAbsent(automatic.getByRole("menuitem", { name: "Reset to automatic" }))

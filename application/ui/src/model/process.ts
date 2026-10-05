@@ -71,7 +71,7 @@ export const runningProgram = (process: ForegroundProcess | null, agent: string 
 // Takes a name from `programName`.
 export const isShellProcess = (program: string): boolean => shells.has(program)
 
-// The agents NovaDeck hears from through their hooks, by program name.
+// The agents Novadeck hears from through their hooks, by program name.
 const agentPrograms = new Set(["claude", "codex", "agy"])
 
 // Takes a name from `programName`.

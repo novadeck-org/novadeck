@@ -81,7 +81,7 @@ export const launchCli = async (directory: string, resources: Resources) => {
     child.once("exit", () => reject(new Error(`Runner exited before listening: ${diagnostics}`)))
     child.stdout.on("data", (data: Buffer) => {
       output += data.toString()
-      const origin = /NovaDeck runner listening at (http:\/\/[^\s]+)/.exec(output)?.[1]
+      const origin = /Novadeck runner listening at (http:\/\/[^\s]+)/.exec(output)?.[1]
       if (origin !== undefined) resolve(origin)
     })
   })

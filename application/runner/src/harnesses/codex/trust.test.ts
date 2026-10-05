@@ -29,7 +29,7 @@ const hook = (
 const listed = (...hooks: object[]) => ({ data: [{ cwd: "/work", hooks }] })
 const ours = ["sessionStart", "userPromptSubmit", "stop"]
 
-describe("NovaDeck's Codex hooks", () => {
+describe("Novadeck's Codex hooks", () => {
   it("run once each one it needs is trusted", () => {
     expect(trustedIn(listed(...ours.map((event) => hook(event, "trusted"))))).toBe(true)
   })
@@ -44,7 +44,7 @@ describe("NovaDeck's Codex hooks", () => {
     expect(trustedIn(listed(hook("sessionStart", "trusted"), hook("stop", "trusted")))).toBe(false)
   })
 
-  it("count only NovaDeck's plugin's, and nothing Codex couldn't list", () => {
+  it("count only Novadeck's plugin's, and nothing Codex couldn't list", () => {
     expect(trustedIn(listed(...ours.map((event) => hook(event, "trusted", null))))).toBe(false)
     expect(trustedIn(undefined)).toBe(false)
     expect(trustedIn({ data: "x" })).toBe(false)
@@ -82,7 +82,7 @@ const standIn = (folder: string): string => {
   return program
 }
 
-describe.skipIf(process.platform === "win32")("asking Codex whether NovaDeck's hooks run", () => {
+describe.skipIf(process.platform === "win32")("asking Codex whether Novadeck's hooks run", () => {
   let folder: string
   let home: string
   let where: Parameters<typeof hooksTrusted>[0]
@@ -131,7 +131,7 @@ describe.skipIf(process.platform === "win32")("asking Codex whether NovaDeck's h
     expect(starts()).toBe(2)
   })
 
-  it("asks again once Codex's configuration or NovaDeck's hook definitions change", async () => {
+  it("asks again once Codex's configuration or Novadeck's hook definitions change", async () => {
     answer(trusted)
     await hooksTrusted(where, "/work")
     answer(listed(hook("sessionStart", "trusted")))

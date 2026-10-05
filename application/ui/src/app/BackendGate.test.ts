@@ -70,7 +70,7 @@ const failing = (kind: ConnectFailure["kind"], code: string) =>
       kind,
       message:
         kind === "incompatible"
-          ? "This runner is from a different NovaDeck version."
+          ? "This runner is from a different Novadeck version."
           : "The runner didn't start.",
       code,
       detail: `runner said ${code}`,
@@ -215,7 +215,7 @@ describe("backend gate", () => {
       const close = vi.spyOn(window, "close").mockImplementation(() => {})
       const page = await failed("incompatible", "INCOMPATIBLE_PROTOCOL")
       expect(page.alert()?.textContent).toContain(
-        "This runner is from a different NovaDeck version.",
+        "This runner is from a different Novadeck version.",
       )
       expect(page.alert()?.textContent).not.toContain("Retrying in")
       expect(page.button("Retry now") ?? page.button("Retry")).toBeUndefined()

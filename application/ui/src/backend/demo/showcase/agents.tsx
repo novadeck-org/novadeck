@@ -9,7 +9,7 @@ import type { PlanEdit } from "./revise"
 // it shows, how its terminal opens, and what it says back.
 export type SampleAgent = {
   // Its plan's item, by an id that stays the same; where the file is, the agent by the
-  // name the person knows it by, and whether NovaDeck's skill is installed for it.
+  // name the person knows it by, and whether Novadeck's skill is installed for it.
   readonly plan: {
     readonly id: string
     readonly path: string
@@ -25,7 +25,7 @@ export type SampleAgent = {
   readonly reply: (input: string) => string
 }
 
-// Codex with a structured plan and NovaDeck's skill: it re-reads the plan on its own.
+// Codex with a structured plan and Novadeck's skill: it re-reads the plan on its own.
 export const studioAgent: SampleAgent = {
   plan: { id: "studio-plan", path: "plans/studio.md", agent: "Codex", skill: true },
   text: studioV1,

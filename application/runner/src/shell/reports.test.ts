@@ -144,7 +144,7 @@ describe("relay sessions", () => {
     // Taken first, then answered.
     const answer = [
       JSON.stringify({ relay: 2, ok: true }),
-      JSON.stringify(told(1, "Showing a.md to the user in NovaDeck.", false)),
+      JSON.stringify(told(1, "Showing a.md to the user in Novadeck.", false)),
       "",
     ].join("\n")
     const lines = [hello(), tool(1, "show", { path: "a.md" })].join("\n")
@@ -183,7 +183,7 @@ describe("relay sessions", () => {
       expect.arrayContaining([
         told(1, "Opened a new terminal in /work.", false),
         told(2, unansweredCalls.open.reason, true),
-        told(3, "NovaDeck couldn't close the terminal.", true),
+        told(3, "Novadeck couldn't close the terminal.", true),
         told(4, unansweredCalls.present.reason, true),
       ]),
     )

@@ -453,7 +453,7 @@ describe("workspace commands", () => {
       app.commands.openRequested(asked)
       expect(app.allocated).toEqual([])
       expect(app.state().roster.terminals).toHaveLength(2)
-      expect(answers).toEqual([{ reason: "The terminal that asked isn't open in NovaDeck." }])
+      expect(answers).toEqual([{ reason: "The terminal that asked isn't open in Novadeck." }])
     })
   })
 

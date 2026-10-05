@@ -16,7 +16,7 @@ describe("compiled desktop host", () => {
       // Which folder a launch keeps its data in is covered in ./data-folder.test.ts.
       expect(main).toMatch(/app\.setPath\(\s*"userData"/)
       expect(main).toContain("dataFolderName({ packaged: app.isPackaged })")
-      expect(main).toContain('"NovaDeck-dev"')
+      expect(main).toContain('"novadeck-dev"')
       // A folder given by --user-data-dir, as the packaged smoke test gives, is kept.
       expect(main).toContain('app.commandLine.getSwitchValue("user-data-dir")')
       expect(main).toContain("startHttpServer")

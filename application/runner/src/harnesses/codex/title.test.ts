@@ -46,7 +46,7 @@ describe("Codex's terminal title", () => {
       expect(title(text, 9)).toBeUndefined()
   })
 
-  it("is the title NovaDeck's shim asks for: its state, then its thread's id", () => {
+  it("is the title Novadeck's shim asks for: its state, then its thread's id", () => {
     expect(titleSetting).toBe("tui.terminal_title=['status','thread-id']")
   })
 })

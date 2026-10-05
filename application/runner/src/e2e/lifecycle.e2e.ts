@@ -115,7 +115,7 @@ for (const setup of setups) {
 
       await t1.submit("/clear")
 
-      // The harness cleared: its own screen drops the conversation, and NovaDeck sees its
+      // The harness cleared: its own screen drops the conversation, and Novadeck sees its
       // agent at an empty prompt again, the old session no longer bound (a new one, or
       // none yet where the harness binds its next session only with its first prompt).
       await cleared(t1)
@@ -237,11 +237,11 @@ for (const setup of setups) {
         await t1.reached(holds("t2", "t1", "queued"), { after: mark })
       })
       const anew = redrawn(t1, setup)
-      // Awaited below, once NovaDeck has seen the new start; a failure before then is the test's.
+      // Awaited below, once Novadeck has seen the new start; a failure before then is the test's.
       anew.catch(() => {})
 
       // The agent left, and the message for its session won't arrive; then the new start is
-      // Ready. With no shell prompt between the two, NovaDeck notices the first's process is
+      // Ready. With no shell prompt between the two, Novadeck notices the first's process is
       // gone only as the next reports, in the same handling as the new session it binds, so
       // no Unbound need show between them ("Its harness announces a new session", in
       // docs/agent-messaging.md's transitions).

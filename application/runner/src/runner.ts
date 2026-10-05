@@ -25,7 +25,7 @@ export type RunnerOptions = {
    */
   uploads?: string
   /**
-   * The relay agents start for NovaDeck's MCP server and hooks, copied in beside the shell files;
+   * The relay agents start for Novadeck's MCP server and hooks, copied in beside the shell files;
    * the one `@novadeck/relay` built by default. The desktop app passes the one it ships.
    */
   relay?: string
@@ -59,13 +59,13 @@ export type Runner = {
 
 /**
  * The runner's parts, wired together: its metadata store, the shell files it writes once,
- * the agents that install NovaDeck's plugin, the terminals, which keep their records and
+ * the agents that install Novadeck's plugin, the terminals, which keep their records and
  * mailboxes in the store, and the items shown beside them. `createRunner` serves them; the end-to-end deck drives them
  * in process, so both run the same wiring. Internal: not exported from the package.
  */
 export const wire = (options: RunnerOptions) => {
   const store = new WorkspaceStore(options.database)
-  // Written once, for the shells and for the agents that install NovaDeck's plugin.
+  // Written once, for the shells and for the agents that install Novadeck's plugin.
   const shellFiles =
     options.shell === undefined
       ? Promise.resolve(undefined)
@@ -73,7 +73,7 @@ export const wire = (options: RunnerOptions) => {
           options.shell,
           options.relay === undefined ? {} : { relay: options.relay },
         ).catch((error: unknown) => {
-          console.error("NovaDeck shell integration is unavailable:", error)
+          console.error("Novadeck shell integration is unavailable:", error)
           return undefined
         })
   const agents = createHarnesses(() => shellFiles, options.agents)
@@ -87,7 +87,7 @@ export const wire = (options: RunnerOptions) => {
   const terminals = new Terminals({
     records: store,
     shellFiles,
-    // Codex runs through NovaDeck's shim while it is connected; see `posixCodexShim`.
+    // Codex runs through Novadeck's shim while it is connected; see `posixCodexShim`.
     shims: () => agents.shims(),
     connected: (agent) => agents.connected(agent),
     // Where each harness lives, which says how it may start with a task.

@@ -83,7 +83,7 @@ const session = (
     if (close) child.stdin.end()
   })
 
-// This environment without the variables of a NovaDeck terminal the tests run in.
+// This environment without the variables of a Novadeck terminal the tests run in.
 const outside = (): NodeJS.ProcessEnv => {
   const env = { ...process.env }
   delete env.NOVADECK_MCP
@@ -97,8 +97,8 @@ const initialize = { id: 1, method: "initialize", params: { protocolVersion: "20
 const initialized = { method: "notifications/initialized" }
 const list = { id: 2, method: "tools/list" }
 
-describe("NovaDeck's MCP server", () => {
-  describe("outside a NovaDeck terminal", () => {
+describe("Novadeck's MCP server", () => {
+  describe("outside a Novadeck terminal", () => {
     it("answers the handshake and offers no tools", async () => {
       const answers = await session({ PATH: process.env.PATH }, [initialize, initialized, list])
       expect(answers[0]).toMatchObject({
@@ -109,7 +109,7 @@ describe("NovaDeck's MCP server", () => {
     })
   })
 
-  describe("in a NovaDeck terminal", () => {
+  describe("in a Novadeck terminal", () => {
     let reports: Reports
     const calls: Call[] = []
     let answer: unknown = { ok: true, id: "abc", kind: "image", name: "hero.png", opened: true }
@@ -199,13 +199,13 @@ describe("NovaDeck's MCP server", () => {
         content: [{ type: "text", text: "Opened a new terminal in /work." }],
         isError: false,
       })
-      answer = { ok: false, reason: "NovaDeck isn't open to show a new terminal." }
+      answer = { ok: false, reason: "Novadeck isn't open to show a new terminal." }
       const [, refused] = await session(terminal(), [
         initialize,
         { id: 5, method: "tools/call", params: { name: "open_terminal", arguments: {} } },
       ])
       expect(refused?.result).toEqual({
-        content: [{ type: "text", text: "NovaDeck isn't open to show a new terminal." }],
+        content: [{ type: "text", text: "Novadeck isn't open to show a new terminal." }],
         isError: true,
       })
     })
@@ -217,7 +217,7 @@ describe("NovaDeck's MCP server", () => {
         terminalId: "t",
         handle: "t3",
         cwd: "/work",
-        command: 'codex "[NovaDeck: automatic notice, agent messages waiting, k3f9q2]"',
+        command: 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"',
         task: {
           ok: true,
           to: "t3",
@@ -307,12 +307,12 @@ describe("NovaDeck's MCP server", () => {
           "Closed t2, which ran Codex.",
           "Your message m-1 to t2 won't arrive, as that terminal is closed.",
           "Your earlier message m-0 to t3 won't arrive: the agent session it was for ended there.",
-          "2 messages other agents sent it won't arrive; NovaDeck tells their senders.",
+          "2 messages other agents sent it won't arrive; Novadeck tells their senders.",
         ].join("\n"),
       )
       const one = await said({ ok: true, handle: "t2", others: 1 })
       expect(one.content[0]?.text).toContain(
-        "1 message another agent sent it won't arrive; NovaDeck tells their senders.",
+        "1 message another agent sent it won't arrive; Novadeck tells their senders.",
       )
       await expect(said({ ok: false, reason: "t1 is your own terminal." })).resolves.toEqual({
         content: [{ type: "text", text: "t1 is your own terminal." }],
@@ -393,7 +393,7 @@ describe("NovaDeck's MCP server", () => {
         },
       ])
       expect(shown?.result).toEqual({
-        content: [{ type: "text", text: "Showing hero.png to the user in NovaDeck." }],
+        content: [{ type: "text", text: "Showing hero.png to the user in Novadeck." }],
         isError: false,
       })
     })
@@ -432,7 +432,7 @@ describe("NovaDeck's MCP server", () => {
         said({ ok: true, id: "a", kind: "file", name: "notes.md", opened: false, again: false }),
       ).resolves.toEqual({
         content: [
-          { type: "text", text: "notes.md is waiting for the user in NovaDeck, marked new." },
+          { type: "text", text: "notes.md is waiting for the user in Novadeck, marked new." },
         ],
         isError: false,
       })
@@ -449,7 +449,7 @@ describe("NovaDeck's MCP server", () => {
         content: [
           {
             type: "text",
-            text: "notes.md is updated and waiting for the user in NovaDeck, marked new.",
+            text: "notes.md is updated and waiting for the user in Novadeck, marked new.",
           },
         ],
       })
@@ -457,7 +457,7 @@ describe("NovaDeck's MCP server", () => {
         said({ ok: true, id: "a", kind: "file", name: "notes.md", opened: true, again: true }),
       ).resolves.toMatchObject({
         content: [
-          { type: "text", text: "Showing notes.md again, updated, to the user in NovaDeck." },
+          { type: "text", text: "Showing notes.md again, updated, to the user in Novadeck." },
         ],
       })
       // An image too large to preview is still listed.
@@ -468,8 +468,8 @@ describe("NovaDeck's MCP server", () => {
           {
             type: "text",
             text:
-              "Showing big.png to the user in NovaDeck. It's too large to preview, so " +
-              "NovaDeck lists it by its name only.",
+              "Showing big.png to the user in Novadeck. It's too large to preview, so " +
+              "Novadeck lists it by its name only.",
           },
         ],
       })
@@ -477,7 +477,7 @@ describe("NovaDeck's MCP server", () => {
 
     it("lists what is showing beside the terminal, as the runner renders it", async () => {
       calls.length = 0
-      answer = { ok: true, text: "Nothing is showing beside your terminal in NovaDeck." }
+      answer = { ok: true, text: "Nothing is showing beside your terminal in Novadeck." }
       const [, listed] = await session(terminal(), [
         initialize,
         { id: 3, method: "tools/call", params: { name: "showing", arguments: { extra: 1 } } },
@@ -491,7 +491,7 @@ describe("NovaDeck's MCP server", () => {
         },
       ])
       expect(listed?.result).toEqual({
-        content: [{ type: "text", text: "Nothing is showing beside your terminal in NovaDeck." }],
+        content: [{ type: "text", text: "Nothing is showing beside your terminal in Novadeck." }],
         isError: false,
       })
     })
@@ -623,7 +623,7 @@ describe("NovaDeck's MCP server", () => {
     it("lists the project's other terminals as the runner renders them", async () => {
       calls.length = 0
       const text =
-        "You are t1 in NovaDeck.\nThere are no other terminals in this project and session."
+        "You are t1 in Novadeck.\nThere are no other terminals in this project and session."
       answer = { ok: true, text }
       const [, listed] = await session(terminal(), [
         initialize,
@@ -683,7 +683,7 @@ describe("NovaDeck's MCP server", () => {
       }
       const inTerminal = () => ({ ...outside(), ...terminal(), PATH: process.env.PATH })
 
-      it("answers the handshake with no tools outside a NovaDeck terminal, promptly", async () => {
+      it("answers the handshake with no tools outside a Novadeck terminal, promptly", async () => {
         const start = await installed()
         const began = Date.now()
         const [hello, tools] = await session(outside(), [initialize, initialized, list], {
@@ -698,7 +698,7 @@ describe("NovaDeck's MCP server", () => {
         expect(tools?.result?.tools).toEqual([])
       }, 30_000)
 
-      it("runs the server in a NovaDeck terminal", async () => {
+      it("runs the server in a Novadeck terminal", async () => {
         calls.length = 0
         answer = { ok: true, id: "abc", kind: "image", name: "hero.png", opened: true }
         const start = await installed()
@@ -743,7 +743,7 @@ describe("NovaDeck's MCP server", () => {
       )
     })
 
-    it("answers itself, with no tools, when NovaDeck can't be reached", async () => {
+    it("answers itself, with no tools, when Novadeck can't be reached", async () => {
       calls.length = 0
       const [hello, tools, unreachable] = await session(
         { ...terminal(), NOVADECK_REPORT: join(folder, "gone.sock") },
@@ -842,7 +842,7 @@ describe("NovaDeck's MCP server", () => {
     expect(unknown?.result).toMatchObject({ protocolVersion: "2025-11-25" })
   })
 
-  it("starts the relay itself on Windows, with no cmd, PowerShell or NovaDeck's runtime", () => {
+  it("starts the relay itself on Windows, with no cmd, PowerShell or Novadeck's runtime", () => {
     const paths = shellPaths("C:\\data", "win32")
     const files = shellFiles(paths, "win32")
     const config = files.find((file) => file.path.endsWith(join("claude", "novadeck", ".mcp.json")))
@@ -854,7 +854,7 @@ describe("NovaDeck's MCP server", () => {
   })
 
   it("keeps the launcher Windows' agents connected before still start, starting the relay", () => {
-    // Agents keep their copy of NovaDeck's plugin, which names cmd and mcp.cmd.
+    // Agents keep their copy of Novadeck's plugin, which names cmd and mcp.cmd.
     const paths = shellPaths("C:\\data", "win32")
     const launcher = shellFiles(paths, "win32").find((file) => file.path === paths.mcp)
     expect(launcher?.content).toContain(

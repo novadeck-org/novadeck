@@ -16,7 +16,7 @@ const count = (value: unknown): number =>
  * - The person interrupted the turn. No hook fires for Esc or for a denied request, but
  *   the transcript records the interruption, which ends the turn and settles its requests.
  * - The turn's Stop hooks ran: Claude Code records a `stop_hook_summary` once they have
- *   (2.1.289), however NovaDeck's own fared, so the turn ends `recorded` should that
+ *   (2.1.289), however Novadeck's own fared, so the turn ends `recorded` should that
  *   hook's report never have come. It says nothing of what still runs in the background.
  * - How full the context is: each assistant record carries the usage of its request, whose
  *   input, cache writes and cache reads are what the context holds. The transcript does

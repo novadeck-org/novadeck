@@ -51,7 +51,7 @@ const typing = key("content")
 const enter = key("enter")
 
 const working = run(bound, person)
-// A Stop as the runner settles it: continued while NovaDeck still may.
+// A Stop as the runner settles it: continued while Novadeck still may.
 const continuous = (delivery: Delivery): DeliveryEvent => (continues(delivery) ? continued : stop)
 const settled = run(working, stop)
 const drafting = run(settled, typing)
@@ -296,7 +296,7 @@ describe("a terminal's delivery state", () => {
     expect(run(working, background, enter).box.enteredAt).toBe(at)
   })
 
-  it("keeps working through a Stop NovaDeck continued, counting it, up to its limit", () => {
+  it("keeps working through a Stop Novadeck continued, counting it, up to its limit", () => {
     const once = transition(working, continued)
     expect(once).toMatchObject({ state: "working", phase: "continuing", continued: 1 })
     expect(continues(once)).toBe(true)

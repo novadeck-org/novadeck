@@ -1,4 +1,4 @@
-# NovaDeck
+# Novadeck
 
 A terminal workspace for organizing projects, sessions, and parallel work.
 
@@ -102,7 +102,7 @@ name has no effect; use the header action to move between those views.
 A terminal tab's tooltip says who its name is from: you, the agent in another terminal
 (`t2`), your first prompt there, or the default. Right-click a tab for **Rename**,
 **Close**, and, for a name you gave, **Reset to automatic**, which hands the name back
-to NovaDeck.
+to Novadeck.
 
 A terminal's sidebar tab ends its name's line in a small icon for each icon on its
 taskbar, in the taskbar's order: its plan, images, files, pages and messages. What
@@ -116,11 +116,11 @@ at another window altogether, its terminal is marked done until you look: a smal
 "●" and "done · unread" on its tab, its name in bold, and on its window a solid green
 line under the header beside a "Done · reply unread" chip ("Done" on a compact one). A
 command it left running, such as a dev server, doesn't hold that back. The mark clears
-once that terminal is the selected one of the session on screen while NovaDeck's window
+once that terminal is the selected one of the session on screen while Novadeck's window
 has focus, or once its agent starts another turn. The desktop app also shows one system
 notification for each such finish, "t1 is done: <its name>", with the start of the
 agent's last reply (Claude Code's and Codex's Stop hooks name it; Antigravity's
-transcript records it); clicking it brings NovaDeck to the front with that terminal
+transcript records it); clicking it brings Novadeck to the front with that terminal
 selected. **Notify when an agent finishes** in Preferences turns the notification off;
 the mark stays. A turn that ended on an error is marked the same way in red, "error ·
 unread" and "Stopped with an error · reply unread", and its notification says "t1 stopped
@@ -162,17 +162,17 @@ answers leaves the project there, and it comes back.
 
 ## Restoring terminals
 
-After a reboot, NovaDeck opens each terminal where it was: in the directory its shell
+After a reboot, Novadeck opens each terminal where it was: in the directory its shell
 was last in, with its earlier output shown above a fresh prompt, and with Claude Code,
 Codex or Antigravity resumed in the session that was running once you connect that
 agent.
 
-- **Shell integration.** Each shell NovaDeck starts loads your own startup files first,
+- **Shell integration.** Each shell Novadeck starts loads your own startup files first,
   then reports its directory at every prompt: bash through `--init-file`, zsh through
   `ZDOTDIR`, fish through `--init-command`, PowerShell by dot-sourcing a script after
   your profile, and cmd through its `PROMPT`. Other shells start as they are. A new
   terminal and a restart open in the last reported directory. This comes from files in
-  NovaDeck's own data directory (a `shell` folder beside `workspace.sqlite`) and never
+  Novadeck's own data directory (a `shell` folder beside `workspace.sqlite`) and never
   touches your rc files.
 - **Connecting agents.** The first-run welcome dialog includes an interactive preview
   of Focus, Grid, and Canvas, which shows each layout once until you pick one (never with
@@ -181,13 +181,13 @@ agent.
   “Let’s build something” applies those choices; skipping, Escape, or clicking outside
   dismisses the dialog without connecting agents or changing transcripts. The preview is illustrative and
   starts no terminals. Preferences offers the same agents as immediate switches;
-  an agent that is not installed cannot be selected. Connecting installs a small NovaDeck plugin into
+  an agent that is not installed cannot be selected. Connecting installs a small Novadeck plugin into
   it with the agent's own plugin commands (`claude plugin`, `codex plugin`,
-  `agy plugin`, from a local marketplace or folder in NovaDeck's data directory);
-  turning it off uninstalls it. The plugin holds a single hook that tells the NovaDeck
+  `agy plugin`, from a local marketplace or folder in Novadeck's data directory);
+  turning it off uninstalls it. The plugin holds a single hook that tells the Novadeck
   terminal it runs in which session it is, and does nothing when the agent runs
   anywhere else. It adds nothing to the model's context but the messages other agents in
-  NovaDeck send it, wrapped as theirs (see [Agent messaging](docs/agent-messaging.md)).
+  Novadeck send it, wrapped as theirs (see [Agent messaging](docs/agent-messaging.md)).
   Agents address each other by terminal handle, `t3` for "Terminal 03", which stays
   the terminal's when you rename it.
   Without a connected agent
@@ -201,7 +201,7 @@ agent.
   that shell's prompt. Typing before it starts, as while a slow rc file runs, cancels
   it, so the shell gets what you typed. A terminal without a known session gets a
   plain shell, never "continue the last session", a session resumes in one terminal
-  only, never beside another running it, and a shell NovaDeck cannot integrate shows
+  only, never beside another running it, and a shell Novadeck cannot integrate shows
   its transcript instead. An rc file that replaces the shell, as with `exec fish` or
   `exec tmux`, resumes nothing. Terminals with an agent to resume start at once, in every session and
   hidden or not; the others start when their session is shown.
@@ -212,23 +212,23 @@ agent.
   printed: they live in `workspace.sqlite`, readable by your account only, with up to
   256 KiB kept per terminal.
 
-Codex may ask you to review NovaDeck's hook ("Hooks need review") and records the
-answer itself; it asks again only when NovaDeck changes how its hook is registered, as
+Codex may ask you to review Novadeck's hook ("Hooks need review") and records the
+answer itself; it asks again only when Novadeck changes how its hook is registered, as
 when the hook gained its time limit for agent messaging.
 Interactive Codex normally runs its sessions, hooks included, in a shared background
 server that cannot tell which terminal a session belongs to. So while Codex is
-connected, NovaDeck's shells run `codex` through a small shim that adds `--no-daemon`,
+connected, Novadeck's shells run `codex` through a small shim that adds `--no-daemon`,
 keeping the session in the terminal, and sets its terminal title's items to its state
-and thread, which tells NovaDeck when its prompt is up (NovaDeck shows no terminal's own
+and thread, which tells Novadeck when its prompt is up (Novadeck shows no terminal's own
 title); `codex agents` and `--remote`, which need that server, go unchanged, and Codex
 started by its full path bypasses the shim and does not resume. Sessions started this
 way do not show in `codex agents`.
 Antigravity runs the hook before each model call, and Codex with your first message,
 so their sessions are known from then on; before that, Codex's title and Antigravity's
-status line tell NovaDeck that their prompt is up, so other agents' messages can wake
+status line tell Novadeck that their prompt is up, so other agents' messages can wake
 them. On Windows, Claude Code runs the hook through PowerShell.
 
-Removing NovaDeck does not remove plugins you left connected, as packaged builds have
+Removing Novadeck does not remove plugins you left connected, as packaged builds have
 no uninstaller: switch agents off first, or remove the `novadeck` plugin with the
 agent's own `plugin` command. A plugin left behind does nothing.
 
@@ -295,7 +295,7 @@ Pasting an image, such as a screenshot, into a terminal pastes the path of a fil
 holding it, as a native terminal does for a dropped file. A paste with any text stays
 text, even with an image beside it, as cells copied from a spreadsheet come. On Linux
 and Windows, Ctrl+V pastes a clipboard that holds an image and no text the same way;
-with anything else on the clipboard, or one NovaDeck can't read, it sends Ctrl+V to the
+with anything else on the clipboard, or one Novadeck can't read, it sends Ctrl+V to the
 program as before, and what is typed meanwhile follows it, held for 2 seconds at most.
 In a browser, Ctrl+V looks for an image only once the page may read the clipboard, as
 after a first image pasted with Ctrl+Shift+V, so it never asks. On macOS ⌘V pastes and
@@ -303,7 +303,7 @@ Ctrl+V stays the program's. In the desktop app, a file or folder copied in a fil
 manager pastes its own path, whatever its size, so an agent edits the file itself; a
 Windows name with anything but letters, digits, spaces and `.`, `_`, `-`, such as
 `&`, `%` or the brackets of `Screenshot (1).png`, or with a space before a `-`, as in
-`Report - Final.pdf`, goes as a copy instead. If a folder in your user path has characters like `&`, NovaDeck puts quotes around a pasted upload's path so the shell reads it as one path; PowerShell can still split it when it passes the path to a `.cmd` program such as VS Code's `code`. On macOS that path may be in a folder the system protects, such as
+`Report - Final.pdf`, goes as a copy instead. If a folder in your user path has characters like `&`, Novadeck puts quotes around a pasted upload's path so the shell reads it as one path; PowerShell can still split it when it passes the path to a `.cmd` program such as VS Code's `code`. On macOS that path may be in a folder the system protects, such as
 Desktop, Documents or Downloads, so a program in the terminal may need macOS's
 permission to read it, where a copy needed none. The runner saves a copy of anything else (a screenshot, an image from a
 page, any file pasted in a browser) on its own machine, readable by its owner only, under a name of letters, digits and `.`, `_`, `-` or spaces, in an `uploads`
@@ -348,8 +348,8 @@ pnpm dev
 ```
 
 `pnpm dev` launches the Electron desktop application. Development launches keep their own
-data (database, settings, agent launchers) in `NovaDeck-dev`, beside and apart
-from an installed NovaDeck's `NovaDeck` folder. An agent's NovaDeck tools always come from the NovaDeck whose terminal it runs in, through the relay of the build that connected it. On Linux and macOS, once you disconnect and connect each agent after upgrading, an agent in any NovaDeck's terminal starts that NovaDeck's own relay (`NOVADECK_MCP`), so a build that changed or removed its relay doesn't affect the others; on Windows it starts the connecting build's relay. To run the UI and runner in a browser
+data (database, settings, agent launchers) in `novadeck-dev`, beside and apart
+from an installed Novadeck's `novadeck` folder. An agent's Novadeck tools always come from the Novadeck whose terminal it runs in, through the relay of the build that connected it. On Linux and macOS, once you disconnect and connect each agent after upgrading, an agent in any Novadeck's terminal starts that Novadeck's own relay (`NOVADECK_MCP`), so a build that changed or removed its relay doesn't affect the others; on Windows it starts the connecting build's relay. To run the UI and runner in a browser
 instead:
 
 ```sh
@@ -362,24 +362,24 @@ no notification when an agent finishes; its terminals are still marked done. For
 `pnpm --filter @novadeck/ui dev` with `VITE_NOVADECK_RUNNER_URL` and
 `VITE_NOVADECK_RUNNER_TOKEN` pointing at a runner you started.
 
-NovaDeck has no database migrations before its first release. A runner that opens a
+Novadeck has no database migrations before its first release. A runner that opens a
 `workspace.sqlite` an earlier build wrote, whose tables differ from its own, refuses to
 start and names the file: delete it (it holds your projects, sessions and kept
 terminals) and start again. A standalone runner keeps it at
 `~/.local/share/novadeck/workspace.sqlite` unless `NOVADECK_DATABASE` is set; the
-desktop app keeps it in its data folder, `NovaDeck` on every platform:
-`~/.config/NovaDeck/workspace.sqlite` on Linux, `~/Library/Application
-Support/NovaDeck/workspace.sqlite` on macOS and `%APPDATA%\NovaDeck\workspace.sqlite` on
-Windows (`NovaDeck-dev` in place of `NovaDeck` for `pnpm dev`). NovaDeck never
+desktop app keeps it in its data folder, `novadeck` on every platform:
+`~/.config/novadeck/workspace.sqlite` on Linux, `~/Library/Application
+Support/novadeck/workspace.sqlite` on macOS and `%APPDATA%\novadeck\workspace.sqlite` on
+Windows (`novadeck-dev` in place of `novadeck` for `pnpm dev`). Novadeck never
 deletes or rewrites it for you.
 
 ### Plan review design preview
 
 Run `pnpm dev:previews` and open <http://127.0.0.1:5181> for a UI-only study of
-how an agent's plan is reviewed in each view. NovaDeck hosts other agents, so it
+how an agent's plan is reviewed in each view. Novadeck hosts other agents, so it
 neither dictates how a plan is written nor answers the agent's approval prompt.
 The reader shows the Markdown as written, and the plan file is the only channel
-back: notes you leave are written into it, and a small NovaDeck skill tells the
+back: notes you leave are written into it, and a small Novadeck skill tells the
 agent to re-read the plan before acting on it, apply the notes, and remove each.
 
 Two samples show the range. “Build Studio” runs Codex with a structured plan
@@ -423,7 +423,7 @@ there is no limit to how many a bar holds. One that can't be shown stays on the 
 says why: the file is gone, can't be read or is no longer a file, it's too large to
 preview, it isn't text, or the plan it pointed at is gone. A file that may hold secrets,
 such as `.env` or a key, never opens by itself: it says so until you open it. The agent
-lists what is beside its terminal with NovaDeck's `showing` tool, and showing the same
+lists what is beside its terminal with Novadeck's `showing` tool, and showing the same
 file or page again updates it. Each gets an icon in the taskbar, as an OS taskbar has, with
 several of a kind (images, files, pages, or plans) stacked under one; only Messages
 never stack. A markdown file the agent shows reads as a document, formatted like a plan
@@ -535,7 +535,7 @@ This is a TypeScript monorepo using pnpm workspaces and Turborepo.
 | `application/runner`   | The runner: shells and metadata, served over WebSocket or port. |
 | `application/protocol` | Shared Zod contracts and the `connectRunner` client for UIs.    |
 | `application/host`     | Electron host that starts the runner and loads the packaged UI. |
-| `application/relay`    | Rust relay for agents' NovaDeck MCP server and hooks.           |
+| `application/relay`    | Rust relay for agents' Novadeck MCP server and hooks.           |
 | `scripts`              | Repository checks and automation.                               |
 
 The UI runs real shells through the runner. Projects, sessions and their terminals
@@ -842,7 +842,7 @@ Artifacts go to `application/host/release/`: a Linux x64 AppImage, a macOS
 universal ZIP, or a Windows x64 portable executable. Builds are unsigned, so
 Gatekeeper or SmartScreen may warn. The application ID is `dev.mzpk.novadeck`.
 
-Each package ships the relay agents start for NovaDeck's MCP server and hooks, built
+Each package ships the relay agents start for Novadeck's MCP server and hooks, built
 from source with the rest of the app.
 
 The [release workflow](.github/workflows/release.yml) publishes immutable GitHub

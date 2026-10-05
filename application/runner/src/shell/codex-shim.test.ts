@@ -67,7 +67,7 @@ describe("codex shim", () => {
     expect(shim.run([])).toEqual(ours)
   })
 
-  it("leaves alone what needs the shared server, and runs outside NovaDeck's shells", ({
+  it("leaves alone what needs the shared server, and runs outside Novadeck's shells", ({
     shim,
   }) => {
     expect(shim.run(["agents"])).toEqual(["agents"])

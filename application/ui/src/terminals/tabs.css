@@ -18,7 +18,7 @@
    Tokens, each optional (its fallback in brackets):
    --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
    shell starts. --tab-attention-fg (warning-fg): the glyph while an agent waits.
-   --tab-unheard-fg (muted): the glyph while NovaDeck can't hear from an agent.
+   --tab-unheard-fg (muted): the glyph while Novadeck can't hear from an agent.
    --tab-done-fg (success-fg): the glyph and the words while an agent's reply waits unread.
    --tab-failed-fg (danger-fg): the same, where its turn ended on an error.
    --tab-process-font (mono): the program and the glyph.
@@ -117,7 +117,7 @@
 .terminal-tab[data-terminal-phase="ended"] .terminal-glyph::before {
   content: "×";
 }
-/* An agent NovaDeck can't hear from: a hollow mark, as nothing tells whether it works. */
+/* An agent Novadeck can't hear from: a hollow mark, as nothing tells whether it works. */
 .terminal-tab[data-terminal-phase="unheard"] .terminal-glyph {
   color: var(--tab-unheard-fg, var(--color-muted));
 }

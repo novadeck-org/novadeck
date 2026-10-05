@@ -57,7 +57,7 @@ const maxText = 256
  * `idled` says an idle status line, not a Stop, ended the latest turn, at `turnAt`.
  * `background` is what the latest turn's end left running that wakes the agent once
  * done: the agent works on while subagents of it run (see `summary`). `continued` says
- * NovaDeck continued the turn at its latest Stop, at `turnAt`, and `skips` counts the
+ * Novadeck continued the turn at its latest Stop, at `turnAt`, and `skips` counts the
  * records of such Stops yet to come that name no turn: Claude Code records a Stop it
  * continued, once its hook answered, as it does any other, and that record ends nothing.
  * `lastTurn` says how the latest turn to end ended, the start of the agent's last reply
@@ -334,7 +334,7 @@ export const apply = (
       }
     }
   }
-  // The record of a Stop NovaDeck continued uses up its skip whenever it is read, even
+  // The record of a Stop Novadeck continued uses up its skip whenever it is read, even
   // once a later Stop has moved the fence past it, so no skip is left to eat a later end.
   if (event.type === "turn-ended" && event.recorded && !event.turn && activity.skips > 0)
     return { ...activity, skips: activity.skips - 1 }
@@ -418,7 +418,7 @@ export const apply = (
     case "turn-ended": {
       // Its records end only the turn still running, its own where they name one, and
       // leave its fence where it was, so the hook's own Stop, should it come after all,
-      // still says what the turn left. One naming no turn may be of a Stop NovaDeck
+      // still says what the turn left. One naming no turn may be of a Stop Novadeck
       // continued, whose continuation runs on: it is used up instead.
       const { recorded, turn: named } = event
       if (

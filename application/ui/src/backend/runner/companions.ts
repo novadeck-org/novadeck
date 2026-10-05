@@ -46,7 +46,7 @@ export const windowOf = ({
 })
 
 // What an item holds, as the pane shows it. A page loads live where the host can load
-// it; a plan can't be written, and NovaDeck can't tell yet whether its skill is there.
+// it; a plan can't be written, and Novadeck can't tell yet whether its skill is there.
 export const contentOf = (content: RunnerContent, livePages: boolean): ItemContent => {
   if (content.state === "unavailable") return content
   const { stamp } = content

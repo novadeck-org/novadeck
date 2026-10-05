@@ -3,7 +3,7 @@ import type { Store } from "./store"
 // Messages between the agents in a session's terminals, as a backend reports them: each
 // terminal's threads with the other terminals, the messages in each and where each is on
 // its way, and whether messaging is paused. The terminal's tab counts what waits for its
-// agent; its companion pane lists the threads. Agents write the text; NovaDeck shows it
+// agent; its companion pane lists the threads. Agents write the text; Novadeck shows it
 // as it is, never formatted or interpreted.
 
 // Where a message is on its way: waiting for its recipient's next hook (`queued`), handed

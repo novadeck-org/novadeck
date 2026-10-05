@@ -25,13 +25,13 @@ const commands = [
   "upgrade",
 ]
 
-// While Claude Code is connected, NovaDeck's shells run it through this shim, which adds
-// NovaDeck's settings: a status line that tells NovaDeck the session's rate limits and
+// While Claude Code is connected, Novadeck's shells run it through this shim, which adds
+// Novadeck's settings: a status line that tells Novadeck the session's rate limits and
 // context, then shows the person's own status line. Its other commands, and anything
-// outside NovaDeck's shells, run unchanged.
+// outside Novadeck's shells, run unchanged.
 export const posixShim = `#!/bin/sh
 ${header("#", "shim for claude")}
-# Runs the real claude with NovaDeck's status line, which passes on the person's own.
+# Runs the real claude with Novadeck's status line, which passes on the person's own.
 novadeck_real=
 novadeck_ifs=$IFS
 IFS=:
@@ -39,10 +39,10 @@ set -f
 for novadeck_dir in $PATH; do
   [ -n "$novadeck_dir" ] || continue
   novadeck_candidate=$novadeck_dir/claude
-  # Another NovaDeck's shim, as from a runner started in a NovaDeck terminal, would call
+  # Another Novadeck's shim, as from a runner started in a Novadeck terminal, would call
   # this one back: only the program itself counts.
   if [ -f "$novadeck_candidate" ] && [ -x "$novadeck_candidate" ] && ! [ "$novadeck_candidate" -ef "$0" ] &&
-    ! head -c 256 "$novadeck_candidate" 2>/dev/null | grep -q "NovaDeck shim for claude"; then
+    ! head -c 256 "$novadeck_candidate" 2>/dev/null | grep -qi "novadeck shim for claude"; then
     novadeck_real=$novadeck_candidate
     break
   fi

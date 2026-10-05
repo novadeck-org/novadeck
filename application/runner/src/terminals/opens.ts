@@ -13,7 +13,7 @@ import { DomainError } from "../errors.js"
 import type { SendAnswer } from "../messaging/messaging.js"
 
 /**
- * What an agent asks to open, through NovaDeck's MCP server: a new terminal beside its
+ * What an agent asks to open, through Novadeck's MCP server: a new terminal beside its
  * own, in a folder, absolute or from the terminal's directory, starting a command at its
  * first prompt, or an `agent` with a `message` as its task, with a name; and `focus` when
  * the person asked to see it.

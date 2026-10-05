@@ -42,7 +42,7 @@ const bash = "/bin/bash"
 
 type Fixture = {
   home: string
-  /** Where NovaDeck writes the plugins agents install when connected. */
+  /** Where Novadeck writes the plugins agents install when connected. */
   plugins: string
   store: WorkspaceStore
   sessionId: string
@@ -199,7 +199,7 @@ const create = (
   )
 
 // A stand-in agent in the foreground that sends the hook's reports as given, one after
-// another, as NovaDeck's relay does: each hears its answer, acknowledging a lease it
+// another, as Novadeck's relay does: each hears its answer, acknowledging a lease it
 // names, before the next goes. Then it waits.
 const reporter = (
   home: string,
@@ -258,7 +258,7 @@ const reporter = (
   return bin
 }
 
-// How a stand-in calls a tool of NovaDeck's MCP server, as NovaDeck's relay carries an
+// How a stand-in calls a tool of Novadeck's MCP server, as Novadeck's relay carries an
 // agent's session: its first line names the terminal and the token, and once the runner
 // takes the session, a `tools/call` names the tool for the runner's call of `type`. It hands `done` what the agent was
 // told: `{ ok: true, text }`, or `{ ok: false, reason }` with the failure's text, or null
@@ -287,7 +287,7 @@ const toolCall = [
   "}",
 ].join("\n")
 
-// A stand-in for an agent calling NovaDeck's tools: `present <name>` makes the calls in
+// A stand-in for an agent calling Novadeck's tools: `present <name>` makes the calls in
 // `<name>.json`, one after another, keeps what each told the agent in
 // `<name>.answers.json`, then says so. Each call is a `present` unless it names its type.
 const presenter = (home: string): string => {
@@ -339,7 +339,7 @@ const fakeAgent = (home: string, agent: AgentName): string => {
   return bin
 }
 
-// A stand-in for Claude Code with NovaDeck's plugin connected: it runs the plugin's
+// A stand-in for Claude Code with Novadeck's plugin connected: it runs the plugin's
 // SessionStart hook through sh with the session on stdin, then waits.
 const fakeClaude = (home: string, plugins: string, session: string): string => {
   const hooks = join(plugins, "claude", "novadeck", "hooks", "hooks.json")
@@ -419,7 +419,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         'export PATH="$HOME/bin:$PATH"',
         "PROMPT_COMMAND='export FROM_PROMPT=yes'",
         "HISTFILE=~/.bash_history",
-        // The user's own, which the command sees as typed, not shadowed by NovaDeck's.
+        // The user's own, which the command sees as typed, not shadowed by Novadeck's.
         "file=USERFILE resume=USERRESUME",
       ].join("\n"),
     )
@@ -443,7 +443,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
 
   it("refuses to start a terminal whose shell can't run its command", async ({ shell }) => {
     const refused = expect.objectContaining({ code: "SPAWN_FAILED" })
-    // Configured arguments, a shell NovaDeck doesn't integrate, and no integration at all.
+    // Configured arguments, a shell Novadeck doesn't integrate, and no integration at all.
     for (const options of [
       { shellArgs: [] },
       { shell: "/bin/sh" },
@@ -615,7 +615,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(manager.reportedSession(terminal.id, "claude")).toBe(session)
   })
 
-  it("runs a connected Codex through NovaDeck's shim, even after .bashrc moves PATH", async ({
+  it("runs a connected Codex through Novadeck's shim, even after .bashrc moves PATH", async ({
     shell,
   }) => {
     const bin = join(shell.home, "bin")
@@ -928,7 +928,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
   it("ends a Claude Code turn its transcript says its Stop hooks ran, its own report lost", async ({
     shell,
   }) => {
-    // As when NovaDeck's Stop hook failed to run: the transcript still records the hooks.
+    // As when Novadeck's Stop hook failed to run: the transcript still records the hooks.
     const transcript = join(shell.home, "session.jsonl")
     writeFileSync(transcript, "")
     const bin = reporter(shell.home, [
@@ -1300,7 +1300,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
   })
 
   it("keeps an agent session's own markers out of its shells", async ({ shell }) => {
-    // As when NovaDeck itself was started from inside Claude Code.
+    // As when Novadeck itself was started from inside Claude Code.
     const manager = shell.manager({
       env: {
         HOME: shell.home,
@@ -1323,7 +1323,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, terminal.id, "[|kept]")
   })
 
-  it("names this runner's own launchers, not those of a NovaDeck it was started from", async ({
+  it("names this runner's own launchers, not those of a Novadeck it was started from", async ({
     shell,
   }) => {
     const manager = shell.manager({
@@ -1634,7 +1634,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     ])
     second.rename({ terminalId: id, title: "API server" })
     expect(shell.store.terminal(id)?.naming.person).toBe("API server")
-    // Its title handed back to NovaDeck while kept: automatic again, the default here.
+    // Its title handed back to Novadeck while kept: automatic again, the default here.
     second.resetTitle({ terminalId: id })
     expect(second.list(shell.sessionId)).toMatchObject([
       { id, title: "Terminal 01", titleSource: { kind: "default" } },
@@ -1691,11 +1691,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
 // What showing `name` tells the agent, when it waits for the person.
 const awaits = (name: string) => ({
   ok: true,
-  text: `${name} is waiting for the user in NovaDeck, marked new.`,
+  text: `${name} is waiting for the user in Novadeck, marked new.`,
 })
 
 /**
- * Makes the calls from the terminal, as an agent calls NovaDeck's tools, and reads what
+ * Makes the calls from the terminal, as an agent calls Novadeck's tools, and reads what
  * each told it.
  */
 const present = async (
@@ -1753,7 +1753,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       ])
       expect(answers).toEqual([
         awaits("a.ts"),
-        { ok: true, text: "Showing w.txt to the user in NovaDeck." },
+        { ok: true, text: "Showing w.txt to the user in Novadeck." },
         awaits("The plan"),
         awaits("elsewhere.txt"),
         // Asked to open, but it may hold secrets: it waits for the person.
@@ -1761,9 +1761,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           ok: true,
           text:
             ".env may hold secrets, so it doesn't open by itself: it's waiting for the user " +
-            "in NovaDeck, marked new, to open if they choose.",
+            "in Novadeck, marked new, to open if they choose.",
         },
-        { ok: false, reason: "NovaDeck couldn't show it." },
+        { ok: false, reason: "Novadeck couldn't show it." },
         { ok: false, reason: 'The request\'s "lines" is not valid.' },
       ])
       expect(bar()).toMatchObject([
@@ -1832,7 +1832,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await moved((summary) => summary.id === terminal.id && summary.cwd === project)
       writeFileSync(join(project, "a.ts"), "const a = 2\n")
       expect(await present(shell, manager, terminal.id, [{ request: { path: "a.ts" } }])).toEqual([
-        { ok: true, text: "a.ts is updated and waiting for the user in NovaDeck, marked new." },
+        { ok: true, text: "a.ts is updated and waiting for the user in Novadeck, marked new." },
       ])
       expect(bar().find(({ name }) => name === "a.ts")?.id).toBe(first!.id)
       expect(bar().map(({ name, version }) => `${name} ${version}`)).toEqual([
@@ -1860,7 +1860,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const manager = shell.manager({
         env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
       })
-      // A project folder, not the home folder itself, which NovaDeck never shows from.
+      // A project folder, not the home folder itself, which Novadeck never shows from.
       const project = join(shell.home, "many")
       mkdirSync(project)
       const terminal = await create(manager, shell, { cwd: project })
@@ -1883,7 +1883,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   },
 )
 
-// A call to open a terminal, as NovaDeck's MCP server sends it.
+// A call to open a terminal, as Novadeck's MCP server sends it.
 const open = (request: object, token?: string) => ({
   type: "open" as const,
   request,
@@ -1910,7 +1910,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const terminal = await create(manager, shell)
       // Without a client to lay it out, nothing opens.
       await expect(present(shell, manager, terminal.id, [open({})])).resolves.toEqual([
-        { ok: false, reason: "NovaDeck isn't open to show a new terminal." },
+        { ok: false, reason: "Novadeck isn't open to show a new terminal." },
       ])
       // A client opens what it is asked to, as its "+" would, or says why not.
       const controller = new AbortController()
@@ -2081,7 +2081,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           // Too large once escaped where delivered: refused before anything starts.
           open({ agent: "codex", message: "&".repeat(4_000) }),
         ])) as { ok: boolean; text?: string }[]
-        const line = /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]$/
+        const line = /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]$/
         expect(requests.map(({ command }) => command)).toEqual([
           expect.stringMatching(quoted("claude")),
           expect.stringMatching(quoted("codex")),
@@ -2113,8 +2113,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           },
         ])
         // Each started with the line as one argument, which its harness submits.
-        await shell.until(manager, created[0]!, /claude args: \[NovaDeck: [^\n]*\]/)
-        const shown = await shell.until(manager, created[2]!, "agy args: -i [NovaDeck")
+        await shell.until(manager, created[0]!, /claude args: \[Novadeck: [^\n]*\]/)
+        const shown = await shell.until(manager, created[2]!, "agy args: -i [Novadeck")
         expect(shown.split("agy args: -i ")[1]?.split(" prompt=")[0]).toMatch(line)
         // The opener's peers say who opened it, with a task, before its agent starts.
         const [listed] = (await present(shell, manager, terminal.id, [
@@ -2146,13 +2146,13 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
 // A command starting an agent with a doorbell line as its prompt.
 const quoted = (start: string) =>
   new RegExp(
-    `^${start} "\\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\\]"$`,
+    `^${start} "\\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\\]"$`,
   )
 
-// A stand-in agent with NovaDeck's plugin connected: `agent <name> <session> <steps>` runs
+// A stand-in agent with Novadeck's plugin connected: `agent <name> <session> <steps>` runs
 // the real hook for its SessionStart, says it is ready, then runs each step written to its
 // `steps` folder, in order: a hook, as its harness would run it, keeping what the hook
-// printed; or a tool call, as NovaDeck's MCP server would send it, keeping the answer.
+// printed; or a tool call, as Novadeck's MCP server would send it, keeping the answer.
 // Each says when it is done. Steps come through a folder, not the terminal, since what is
 // typed there is the person's input.
 const standIn = (home: string): string => {
@@ -2311,7 +2311,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect
         .poll(() => manager.messages(claude.id).threads[0]?.messages.map(({ state }) => state))
         .toEqual(["delivered", "delivered"])
-      // The agent asked to list sees its peer as NovaDeck knows it: busy, the title the
+      // The agent asked to list sees its peer as Novadeck knows it: busy, the title the
       // person gave it, where it works, what it was asked and what it wrote; and nothing of
       // its own still waiting.
       manager.rename({ terminalId: claude.id, title: "API author" })
@@ -2324,7 +2324,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         .toEqual({
           ok: true,
           text: [
-            "You are t2 in NovaDeck.",
+            "You are t2 in Novadeck.",
             "Other terminals in this project and session:",
             "- t1: Claude Code, busy, last active just now",
             "  title: API author",
@@ -2474,7 +2474,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   },
 )
 
-// A call to close a terminal, as NovaDeck's MCP server sends it.
+// A call to close a terminal, as Novadeck's MCP server sends it.
 const close = (to: string) => ({ type: "close" as const, request: { to } })
 
 // What a close of the terminal `t<number>` tells the agent.
@@ -2594,7 +2594,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         text: [
           "Closed t2, which ran Codex.",
           `Your message ${messageId(mine)} to t2 won't arrive, as that terminal is closed.`,
-          "1 message another agent sent it won't arrive; NovaDeck tells their senders.",
+          "1 message another agent sent it won't arrive; Novadeck tells their senders.",
         ].join("\n"),
       })
       await viewing
@@ -2825,7 +2825,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // The next prompt with nothing else to carry asks for a description, in one line.
       const nudge = await prompt(codex.id, "and its tests")
       expect(nudge).toMatch(
-        /^NovaDeck: automatic notice, not from the user: this terminal has no description yet\./,
+        /^Novadeck: automatic notice, not from the user: this terminal has no description yet\./,
       )
       expect(nudge).not.toContain("\n")
       // Until anything better names it, the person's first prompt there is its title.
@@ -2881,7 +2881,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
       // A rename the person asked for is taken only when their own prompt, the one that
       // started the turn, gives the title: never in a turn the doorbell started.
-      await prompt(codex.id, "[NovaDeck: automatic notice, agent messages waiting, abc123]")
+      await prompt(codex.id, "[Novadeck: automatic notice, agent messages waiting, abc123]")
       await expect(
         describeAs(codex.id, { title: "Asked", summary: "Asked work.", asked: true }),
       ).resolves.toEqual(unasked)
@@ -2992,7 +2992,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       manager.rename({ terminalId: codex.id, title: "Mine" })
       const prompt = (text: string) =>
         step(codex.id, { hook: "UserPromptSubmit", payload: { prompt: text } })
-      await prompt("[NovaDeck: automatic notice, agent messages waiting, zz9]")
+      await prompt("[Novadeck: automatic notice, agent messages waiting, zz9]")
       // The person submits during that turn; Codex runs their prompt after it.
       manager.write({ terminalId: codex.id, data: "\r" }, "owner")
       await step(codex.id, { hook: "Stop", payload: {} })
@@ -3200,7 +3200,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         })
       expect(manager.get(terminal.id).title).toBe("Terminal 01")
       // A doorbell's line is never the person's prompt, so never a title.
-      await prompt("s-1", "[NovaDeck: automatic notice, agent messages waiting, abc123]")
+      await prompt("s-1", "[Novadeck: automatic notice, agent messages waiting, abc123]")
       expect(manager.get(terminal.id).title).toBe("Terminal 01")
       await expect(prompt("s-1", "Fix the login bug")).resolves.toContain("no description yet")
       await prompt("s-1", "Now its tests")
@@ -3438,7 +3438,7 @@ const turn = (prompt, typed = true) => {
   // doorbell's confirmation.
   const latehook = mode === "latehook" && turns === 2
   // With "slowkick", a turn it starts by itself reports a while after it began, as a
-  // loaded machine's hook does: it is busy, and ignores Enter, before NovaDeck knows.
+  // loaded machine's hook does: it is busy, and ignores Enter, before Novadeck knows.
   const late = mode === "slowkick" && !typed
   setTimeout(() => started(prompt, typed, (printed) => {
     fs.appendFileSync(received, JSON.stringify({ prompt, printed }) + "\n")
@@ -3450,12 +3450,12 @@ const turn = (prompt, typed = true) => {
         busy = false
         menu = mode === "menu"
         draw()
-        // Back at its prompt once its Stop hook returned, which may be well after NovaDeck
+        // Back at its prompt once its Stop hook returned, which may be well after Novadeck
         // heard the Stop: the turns it finished so, for the test to wait on.
         fs.writeFileSync(raw + ".finished", String(turns))
         // With "askafter", a call asks a permission after its first turn's Stop, as a
         // background task's may: its dialog draws nothing, and Enter allows it, so only the
-        // request's own resolution tells NovaDeck it no longer waits.
+        // request's own resolution tells Novadeck it no longer waits.
         if (mode === "askafter" && turns === 1) {
           ask({ tool_name: "Bash", tool_input: { command: "ls" } })
         }
@@ -3627,7 +3627,7 @@ const clear = () => {
   }
   hook("SessionStart", { source: "clear" }, () => {})
 }
-// With "shown", its prompt tells NovaDeck it shows, before any session: Codex's title says
+// With "shown", its prompt tells Novadeck it shows, before any session: Codex's title says
 // Ready, Antigravity's status line says idle with no conversation yet.
 if (showing && agent !== "claude") {
   ready()
@@ -3712,8 +3712,8 @@ const ringing = async (
   await shell.until(manager, idle.id, `${agent} ready`)
   const finished = () =>
     existsSync(`${raw}.finished`) ? Number(readFileSync(`${raw}.finished`, "utf8")) : 0
-  // NovaDeck hears a Stop as its hook starts, but the TUI takes keys again only once the
-  // hook returned, NovaDeck's answer printed, and a loaded machine may take a while for
+  // Novadeck hears a Stop as its hook starts, but the TUI takes keys again only once the
+  // hook returned, Novadeck's answer printed, and a loaded machine may take a while for
   // that: an Enter typed before then submits nothing.
   const back = (turns: number) =>
     vi.waitFor(() => expect(finished()).toBeGreaterThanOrEqual(turns), { timeout: 10_000 })
@@ -3753,7 +3753,7 @@ const ringing = async (
 }
 
 /**
- * Antigravity's first turn, one it started by itself: NovaDeck reads its transcript there,
+ * Antigravity's first turn, one it started by itself: Novadeck reads its transcript there,
  * so the person's next typed entry is told new by its step, not by its time.
  */
 const agyStarted = async (tui: Awaited<ReturnType<typeof ringing>>) => {
@@ -3829,7 +3829,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
       const [, rung] = tui.received()
       expect(rung!.prompt).toMatch(
-        /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+        /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
       )
       expect(rung!.printed).toContain(">Review a.ts</message>")
       await expect
@@ -3861,7 +3861,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(tui.raw().slice(before)).toEqual([
         expect.stringMatching(
           // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
-          /^\x1b\[200~\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]\x1b\[201~$/,
+          /^\x1b\[200~\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]\x1b\[201~$/,
         ),
         "\r",
       ])
@@ -3881,7 +3881,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
       const [rung] = tui.received()
       expect(rung!.prompt).toMatch(
-        /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+        /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
       )
       expect(rung!.printed).toContain(">Review a.ts</message>")
       await expect
@@ -4062,7 +4062,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
       const [rung] = tui.received()
       expect(rung!.prompt).toMatch(
-        /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+        /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
       )
       expect(rung!.printed).toContain(">Review a.ts</message>")
       await expect
@@ -4071,7 +4071,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect.poll(tui.delivery).toBe("settled")
     })
 
-    it("takes no Codex title as its prompt while NovaDeck's hooks aren't trusted there", async ({
+    it("takes no Codex title as its prompt while Novadeck's hooks aren't trusted there", async ({
       shell,
     }) => {
       const tui = await ringing(shell, "shown", "named", "codex", "01a0f932-a824", false)
@@ -4333,7 +4333,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     it("rings no prompt shown in a nested shell once its agent has left unseen", async ({
       shell,
     }) => {
-      // A nested shell without NovaDeck's integration tells no prompt of its own.
+      // A nested shell without Novadeck's integration tells no prompt of its own.
       const tui = await ringing(
         shell,
         "shown",
@@ -4534,7 +4534,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const raw = tui.raw().join("")
       // Their keys come after the doorbell's Enter, never into its line.
       expect(raw.indexOf("xyz")).toBeGreaterThan(raw.lastIndexOf("\r"))
-      expect(tui.received()[1]!.prompt).toMatch(/^\[NovaDeck: automatic notice/)
+      expect(tui.received()[1]!.prompt).toMatch(/^\[Novadeck: automatic notice/)
       // What they typed waits in the box.
       await expect.poll(tui.delivery).toBe("drafting")
     })
@@ -4550,7 +4550,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // A pane changing size mid-ring would redraw the screen the line is checked on.
       tui.manager.resize({ terminalId: tui.idle.id, cols: 70, rows: 20 }, "owner")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
-      expect(tui.received()[1]!.prompt).toMatch(/^\[NovaDeck: automatic notice/)
+      expect(tui.received()[1]!.prompt).toMatch(/^\[Novadeck: automatic notice/)
       expect(pastes(tui.raw())).toHaveLength(1)
       await expect.poll(() => tui.manager.get(tui.idle.id)).toMatchObject({ cols: 70, rows: 20 })
     })
@@ -4581,7 +4581,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect.poll(() => tui.manager.get(tui.idle.id)).toMatchObject({ cols: 70, rows: 20 })
     })
 
-    // The turn the TUI starts by itself may reach NovaDeck before the doorbell's Enter, or
+    // The turn the TUI starts by itself may reach Novadeck before the doorbell's Enter, or
     // after it, as on a loaded machine (macOS CI): either way the doorbell writes one
     // Enter at most, and its line is never submitted.
     for (const mode of ["", "slowkick"] as const)
@@ -4762,7 +4762,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
       // The doorbell's line alone: no report reached the box ahead of it.
       expect(tui.received()[1]!.prompt).toMatch(
-        /^\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
+        /^\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]+\]$/,
       )
       expect(tui.received()[1]!.printed).toContain(">Review a.ts</message>")
     })
@@ -4787,7 +4787,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await tui.first()
       await tui.send("Review a.ts")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
-      expect(tui.received()[2]!.prompt).toMatch(/^\[NovaDeck: automatic notice/)
+      expect(tui.received()[2]!.prompt).toMatch(/^\[Novadeck: automatic notice/)
       expect(tui.received()[2]!.printed).toContain(">Review a.ts</message>")
     })
 

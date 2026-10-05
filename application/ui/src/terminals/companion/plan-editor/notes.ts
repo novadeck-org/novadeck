@@ -5,7 +5,7 @@ import { noteClose, noteOpen, notePattern, noteSafe } from "../../../model/compa
 import type { Mark } from "../plan-doc"
 import { findTables } from "./tables"
 
-// Notes as NovaDeck writes them into the plan, and the control that adds one.
+// Notes as Novadeck writes them into the plan, and the control that adds one.
 
 export { noteClose, noteOpen, noteSafe }
 

@@ -250,7 +250,7 @@ describe("agent hook", () => {
     expect(second!.seq).toBeGreaterThan(first!.seq)
   })
 
-  it("exits quietly outside NovaDeck's terminals and on anything malformed", async ({
+  it("exits quietly outside Novadeck's terminals and on anything malformed", async ({
     fixture,
   }) => {
     expect(await fixture.hook("claude", start(), { NOVADECK_TERMINAL_ID: "" })).toBe(0)
@@ -260,7 +260,7 @@ describe("agent hook", () => {
     expect(fixture.reports).toEqual([])
   })
 
-  it("reads its agent's whole payload even outside NovaDeck, so the agent can write it", async () => {
+  it("reads its agent's whole payload even outside Novadeck, so the agent can write it", async () => {
     const written = await new Promise<Error | undefined>((resolve) => {
       const child = spawn(relayPath, ["hook", "--config", relayConfigFile, "claude", "Stop"], {
         env: { PATH: process.env.PATH },
@@ -373,7 +373,7 @@ describe("agent hook", () => {
     expect(fixture.reports.map(({ event }) => event)).toEqual(["PreInvocation", "PreToolUse"])
   })
 
-  // NovaDeck gives Windows no Claude Code status line yet.
+  // Novadeck gives Windows no Claude Code status line yet.
   it.skipIf(process.platform === "win32")(
     "shows the person's own Claude Code status line after forwarding its snapshot",
     async ({ fixture }) => {
@@ -454,9 +454,9 @@ describe("agent hook", () => {
     15_000,
   )
 
-  // A multiplexer can outlive NovaDeck, its terminals still naming the runner gone.
+  // A multiplexer can outlive Novadeck, its terminals still naming the runner gone.
   it.skipIf(process.platform === "win32")(
-    "shows the person's own status line even when NovaDeck can't be reached",
+    "shows the person's own status line even when Novadeck can't be reached",
     async ({ fixture, resources }) => {
       const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
       resources.defer(() => rmSync(home, { recursive: true, force: true }))
@@ -489,7 +489,7 @@ describe("agent hook", () => {
     expect(printed).toBe("")
   })
 
-  it("gives up without blocking the agent when NovaDeck is gone", async ({ fixture }) => {
+  it("gives up without blocking the agent when Novadeck is gone", async ({ fixture }) => {
     const code = await fixture.hook("claude", start(), {
       NOVADECK_REPORT: join(tmpdir(), "novadeck-missing", "reports.sock"),
     })
@@ -546,7 +546,7 @@ describe("agent hook asking", () => {
     expect(fixture.reports).toHaveLength(2)
   })
 
-  it("prints what it would without NovaDeck when the runner doesn't answer", async ({
+  it("prints what it would without Novadeck when the runner doesn't answer", async ({
     fixture,
   }) => {
     // Unheard: the runner failed, or was too slow.
@@ -554,7 +554,7 @@ describe("agent hook asking", () => {
     await expect(
       fixture.run("claude", { hook_event_name: "Stop", session_id: session }, {}, "Stop"),
     ).resolves.toBe("")
-    // NovaDeck gone: Antigravity still gets its JSON.
+    // Novadeck gone: Antigravity still gets its JSON.
     await expect(
       fixture.run(
         "agy",
@@ -618,7 +618,7 @@ describe("reading a relay's hook", () => {
     expect(relayHook(hook({ event: "Stop", seq: 1_000, deadline: "later" }))?.deadline).toBe(4_500)
   })
 
-  it("tells the relay what each agent prints without NovaDeck, as its harness does", () => {
+  it("tells the relay what each agent prints without Novadeck, as its harness does", () => {
     for (const agent of agents) {
       for (const [event, text] of Object.entries(harnesses[agent].messaging.silent)) {
         expect(relayConfig.fallbacks[agent]?.[event]).toBe(text.trimEnd())

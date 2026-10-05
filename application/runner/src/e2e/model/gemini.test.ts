@@ -28,7 +28,7 @@ send
 </mcp_servers>`
 
 // A turn of Antigravity's, trimmed: its prompt, the message its PreInvocation hook
-// injected as content of its own, a thought, its call to NovaDeck's `send` through
+// injected as content of its own, a thought, its call to Novadeck's `send` through
 // `call_mcp_tool`, and the tool's result, which it sends in a content of the model's.
 const conversation = {
   contents: [
@@ -125,7 +125,7 @@ describe("gemini", () => {
     })
   })
 
-  it("offers NovaDeck's lazy tools only where Antigravity can reach them", () => {
+  it("offers Novadeck's lazy tools only where Antigravity can reach them", () => {
     const reachable = parse("m", conversation)
     expect(tool(reachable, "send")).toBe("mcp_novadeck_novadeck_send")
     const unreachable = parse("m", { ...conversation, tools: [{ functionDeclarations: [] }] })

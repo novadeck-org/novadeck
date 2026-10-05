@@ -1,4 +1,4 @@
-//! In a NovaDeck terminal, the MCP server is the runner's: the relay names the terminal
+//! In a Novadeck terminal, the MCP server is the runner's: the relay names the terminal
 //! once, waits for the runner to take the session, then carries the agent's lines to the
 //! runner and its answers back unchanged. A runner that doesn't take it, as one that
 //! speaks another version of the protocol, leaves the relay to answer by itself, with no
@@ -37,13 +37,13 @@ pub fn run(server: &str, versions: &[String]) {
         "NOVADECK_REPORT_TOKEN",
     ]
     .map(|name| env::var(name).ok().filter(|value| !value.is_empty()));
-    // Outside NovaDeck's terminals there is nothing to say: no tools is what's meant.
+    // Outside Novadeck's terminals there is nothing to say: no tools is what's meant.
     let [Some(terminal), Some(endpoint), Some(token)] = terminal else {
         return idle::serve(server, versions);
     };
-    // In one, the agent's log says why NovaDeck's tools are missing.
+    // In one, the agent's log says why Novadeck's tools are missing.
     let idle = |why: &str| {
-        eprintln!("NovaDeck's relay offers no tools: {why}.");
+        eprintln!("Novadeck's relay offers no tools: {why}.");
         idle::serve(server, versions);
     };
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -71,18 +71,18 @@ type Session = (BufReader<endpoint::Reader>, endpoint::Writer);
 async fn open(endpoint: &str, hello: String) -> Result<Session, &'static str> {
     let (from_runner, mut to_runner) = endpoint::connect(endpoint)
         .await
-        .map_err(|_| "NovaDeck's runner can't be reached")?;
+        .map_err(|_| "Novadeck's runner can't be reached")?;
     to_runner
         .write_all(hello.as_bytes())
         .await
-        .map_err(|_| "NovaDeck's runner went away")?;
+        .map_err(|_| "Novadeck's runner went away")?;
     let mut from_runner = BufReader::new(from_runner);
     let mut line = String::new();
     let read = tokio::time::timeout(TAKEN_WITHIN, from_runner.read_line(&mut line)).await;
     match read {
         Ok(Ok(read)) if read > 0 && taken(&line) => Ok((from_runner, to_runner)),
-        Ok(_) => Err("NovaDeck's runner speaks another version of the relay's protocol"),
-        Err(_) => Err("NovaDeck's runner didn't answer"),
+        Ok(_) => Err("Novadeck's runner speaks another version of the relay's protocol"),
+        Err(_) => Err("Novadeck's runner didn't answer"),
     }
 }
 

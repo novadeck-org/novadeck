@@ -86,12 +86,12 @@ describe("the app's own page", () => {
   })
 
   context("packaged", () => {
-    const index = "file:///opt/NovaDeck/resources/ui/index.html"
+    const index = "file:///opt/novadeck/resources/ui/index.html"
 
     it("is the packaged page's file", () => {
       expect(ownPage(`${index}#/projects`, index)).toBe(true)
       expect(ownPage("file:///etc/passwd", index)).toBe(false)
-      expect(ownPage("https://example.com/opt/NovaDeck/resources/ui/index.html", index)).toBe(false)
+      expect(ownPage("https://example.com/opt/novadeck/resources/ui/index.html", index)).toBe(false)
     })
   })
 

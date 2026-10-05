@@ -58,7 +58,7 @@ const resultOf = (response: unknown): string => {
 }
 
 /**
- * Antigravity's tool for an MCP tool it loads lazily, as it does NovaDeck's: the model
+ * Antigravity's tool for an MCP tool it loads lazily, as it does Novadeck's: the model
  * reads the tool's schema from a file and calls it through this one, naming its server.
  */
 const lazy = "call_mcp_tool"
@@ -134,7 +134,7 @@ const conversation = (contents: readonly z.infer<typeof content>[]): Turn[] =>
 /**
  * The call a `generateContent` request makes for `model`. Its tools are those declared
  * and, when it offers `call_mcp_tool`, the MCP tools that reaches, by the names they
- * would have loaded eagerly, so a rule finds NovaDeck's `send` however it is loaded. One
+ * would have loaded eagerly, so a rule finds Novadeck's `send` however it is loaded. One
  * that offers no tools is the harness's own, as Antigravity's title call is: its agent's
  * turns always offer them.
  */

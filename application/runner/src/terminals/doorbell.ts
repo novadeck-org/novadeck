@@ -93,7 +93,7 @@ export class Doorbell {
   /** Looks at each terminal changed, once a tick. */
   private readonly schedule = coalesced(
     (terminalId) => this.check(terminalId),
-    "NovaDeck's doorbell failed:",
+    "Novadeck's doorbell failed:",
   )
   private readonly checking = new Set<string>()
   /** Each terminal's ring pressed and awaiting its prompt: its nonce, and its hold to settle. */

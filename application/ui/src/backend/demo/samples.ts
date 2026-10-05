@@ -185,7 +185,7 @@ export const projectTerminals = (project: Project, agents = false): TerminalMeta
           agent: { working: false, background: { agents: 0, tasks: 1 } },
         }
       : {}),
-    // Antigravity runs where NovaDeck hears nothing from it, as its hooks aren't connected.
+    // Antigravity runs where Novadeck hears nothing from it, as its hooks aren't connected.
     ...(agents && terminal.id === "05"
       ? { command: "agy", process: "agy", state: "running" as const }
       : {}),

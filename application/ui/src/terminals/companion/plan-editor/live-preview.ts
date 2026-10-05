@@ -40,7 +40,7 @@ import { tables } from "./table-widget"
 
 // Markdown shown as a document and edited in place. Formatting marks show, dimmed, only on
 // the lines being edited, where the text reads exactly as the file has it and typing
-// Markdown is how the plan gets formatted. Note wrappers never show: they're NovaDeck's
+// Markdown is how the plan gets formatted. Note wrappers never show: they're Novadeck's
 // own, not formatting. Nothing here changes the text on its own.
 
 class CheckboxWidget extends WidgetType {
@@ -196,7 +196,7 @@ const decorate = (view: EditorView): Rendered => {
         return undefined
       },
     })
-    // Notes are NovaDeck's own convention, not Markdown, so they're found in the text. Their
+    // Notes are Novadeck's own convention, not Markdown, so they're found in the text. Their
     // wrapper never shows: a note reads and edits the same, as a labelled line.
     const text = doc.sliceString(from, to)
     for (const match of text.matchAll(notePattern)) {

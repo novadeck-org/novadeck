@@ -54,7 +54,7 @@ import {
 } from "./peers.js"
 import { memoryMailbox, type MailboxRecords } from "./records.js"
 
-/** Which terminals see each other: those of one project and one NovaDeck session. */
+/** Which terminals see each other: those of one project and one Novadeck session. */
 export type Scope = { readonly projectId: string; readonly sessionId: string }
 
 /** A running terminal, as messaging knows it. */
@@ -77,7 +77,7 @@ type Live = Scope & {
   shown: { readonly agent: AgentName; readonly prefix: string | null } | null
   /**
    * The agent whose own prompt showed there with no session bound, but whose hooks
-   * NovaDeck found untrusted there (Codex's `/hooks`): nothing can deliver to it, so
+   * Novadeck found untrusted there (Codex's `/hooks`): nothing can deliver to it, so
    * `send` refuses. None once its prompt counts, a session binds, or it leaves.
    */
   untrusted: AgentName | null
@@ -158,11 +158,11 @@ export type MessagingChange =
 
 /** What a doorbell prompt's hook adds when its messages couldn't come now. */
 export const stillWaiting =
-  "NovaDeck: agent messages are still waiting for this session; they will come on a later turn, and this automatic notice can be ignored."
+  "Novadeck: agent messages are still waiting for this session; they will come on a later turn, and this automatic notice can be ignored."
 
 /** What a doorbell prompt's hook adds when nothing waits for it any more. */
 export const nothingWaiting =
-  "NovaDeck: no agent messages are waiting any more; this automatic notice can be ignored."
+  "Novadeck: no agent messages are waiting any more; this automatic notice can be ignored."
 
 /** Why a message's text, cleaned, can't be sent; undefined when it can. */
 const refusalOfText = (text: string): string | undefined => {
@@ -194,7 +194,7 @@ const sendRequest = z.strictObject({
 const refused = (reason: string) => ({ ok: false, reason }) as const
 
 // Closed, messaging keeps nothing more, so a message then would be lost, not queued.
-const stopping = "NovaDeck is stopping and couldn't keep the message; send it again once it's back."
+const stopping = "Novadeck is stopping and couldn't keep the message; send it again once it's back."
 
 /** When a thread's latest message was sent. */
 const latest = (thread: MessageThread): number => thread.messages.at(-1)?.sentAt ?? 0
@@ -211,7 +211,7 @@ const deliveredBytes = (message: Message): number => {
 }
 
 /**
- * Messages between the agents in NovaDeck's terminals (see docs/agent-messaging.md): the
+ * Messages between the agents in Novadeck's terminals (see docs/agent-messaging.md): the
  * mailbox, which keeps every message and thread; each terminal's delivery state; and its
  * leases (`leases.ts`) and descriptions of peers (`peers.ts`). The terminal manager owns
  * the terminals, their handles, roots and work, tells it what their agents and people
@@ -280,7 +280,7 @@ export class Messaging {
 
   /**
    * A terminal starts, or starts again, with the handle its record keeps. It sees, and is
-   * seen by, the terminals of its project and NovaDeck session.
+   * seen by, the terminals of its project and Novadeck session.
    */
   register(terminalId: string, scope: Scope, handle: string): void {
     if (this.live.has(terminalId)) return
@@ -382,7 +382,7 @@ export class Messaging {
   }
 
   /**
-   * The agent's own prompt shows in the terminal with no session bound, but NovaDeck's
+   * The agent's own prompt shows in the terminal with no session bound, but Novadeck's
    * hooks aren't trusted for it there, as Codex's app-server says: until its prompt counts,
    * a session binds or it leaves, `send` refuses it, as nothing could deliver.
    */
@@ -648,7 +648,7 @@ export class Messaging {
    */
   peer(terminalId: string, to: string, about: About = () => undefined): PeerAnswer {
     const live = this.live.get(terminalId)
-    if (!live) return refused("NovaDeck couldn't find the terminals here.")
+    if (!live) return refused("Novadeck couldn't find the terminals here.")
     const found = this.scoped(live).find((peer) => peer.handle === to)
     if (found)
       return {
@@ -690,7 +690,7 @@ export class Messaging {
    */
   send(terminalId: string, request: unknown, about: About = () => undefined): SendAnswer {
     const live = this.live.get(terminalId)
-    if (!live) return refused("NovaDeck couldn't send the message.")
+    if (!live) return refused("Novadeck couldn't send the message.")
     if (this.closed) return refused(stopping)
     const answer = this.sendFrom(live, request, about)
     // Refused too, a sender whose own session never bound learns replies can't reach it.
@@ -713,12 +713,12 @@ export class Messaging {
     const root = recipient.root
     if (!root && !recipient.shown && recipient.untrusted)
       return refused(
-        `${recipient.handle} has no agent NovaDeck can deliver to: ` +
+        `${recipient.handle} has no agent Novadeck can deliver to: ` +
           `${untrustedNote(recipient.untrusted)}.`,
       )
     const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
     if (!agent)
-      return refused(`${recipient.handle} has no agent running there that NovaDeck can deliver to.`)
+      return refused(`${recipient.handle} has no agent running there that Novadeck can deliver to.`)
     const now = this.now()
     const same = duplicateOf(this.messages.values(), terminalId, recipient.terminalId, text, now)
     if (same) return { ...this.answer(same, recipient), ...this.extras(live) }
@@ -768,7 +768,7 @@ export class Messaging {
    */
   refusal(terminalId: string, text: string, agent: AgentName): string | undefined {
     const live = this.live.get(terminalId)
-    if (!live) return "NovaDeck couldn't send the message."
+    if (!live) return "Novadeck couldn't send the message."
     if (this.closed) return stopping
     const clean = cleanText(text)
     const textRefusal = refusalOfText(clean)
@@ -850,19 +850,19 @@ export class Messaging {
       )
     if (!byAll)
       return refused(
-        "Agents in NovaDeck have sent as many messages as they may this minute; try again shortly.",
+        "Agents in Novadeck have sent as many messages as they may this minute; try again shortly.",
       )
     return { ok: true, pair, bySender, byPair, byAll }
   }
 
   /**
    * The other terminals in the caller's project and session, each described by what
-   * NovaDeck knows of it, and the caller's own messages not yet delivered or gone, as one
+   * Novadeck knows of it, and the caller's own messages not yet delivered or gone, as one
    * text agents read.
    */
   agents(terminalId: string, about: About = () => undefined): AgentsAnswer {
     const live = this.live.get(terminalId)
-    if (!live) return refused("NovaDeck couldn't list the terminals.")
+    if (!live) return refused("Novadeck couldn't list the terminals.")
     const mine = [...this.messages.values()]
       .filter(
         (message) =>
@@ -1069,7 +1069,7 @@ export class Messaging {
       ...base,
       route: agent
         ? route(recipient.delivery, harnesses[agent].messaging.silentOnFailure)
-        : "when its agent starts: rung once NovaDeck sees it at its prompt, else at its first turn",
+        : "when its agent starts: rung once Novadeck sees it at its prompt, else at its first turn",
     }
   }
 
@@ -1165,7 +1165,7 @@ export class Messaging {
   }
 
   /**
-   * Whether a Stop NovaDeck continued lapsed since this was last asked, as an event for
+   * Whether a Stop Novadeck continued lapsed since this was last asked, as an event for
    * the bound session's activity, so both tell the turn ended there. Told once.
    */
   lapsed(terminalId: string, binding: Binding, turnAt: number): ActivityEvent | undefined {
@@ -1356,7 +1356,7 @@ export class Messaging {
         listener(change)
       } catch (error) {
         // One listener failing never stops messaging, nor the others hearing.
-        console.error("NovaDeck could not follow its messages:", error)
+        console.error("Novadeck could not follow its messages:", error)
       }
   }
 
@@ -1371,7 +1371,7 @@ export class Messaging {
     try {
       return work()
     } catch (error) {
-      console.error("NovaDeck could not read its messages:", error)
+      console.error("Novadeck could not read its messages:", error)
       return fallback
     }
   }
@@ -1381,7 +1381,7 @@ export class Messaging {
     try {
       work()
     } catch (error) {
-      console.error("NovaDeck could not save its messages:", error)
+      console.error("Novadeck could not save its messages:", error)
     }
   }
 }

@@ -64,11 +64,11 @@ const calm = async (terminal: DeckTerminal, forMs = 1000): Promise<void> => {
   }, `its screen to stay unchanged for ${forMs} ms`)
 }
 
-/** Waits until NovaDeck sees the terminal's agent waiting on the person for a request. */
+/** Waits until Novadeck sees the terminal's agent waiting on the person for a request. */
 const requested = (terminal: DeckTerminal) =>
   terminal.poll(
     async () => ((await terminal.detail()).requests.length > 0 ? true : undefined),
-    "NovaDeck to see the tool's request",
+    "Novadeck to see the tool's request",
   )
 
 /**
@@ -230,7 +230,7 @@ for (const setup of setups) {
         await calm(t1)
 
         // The person opens it with two Escapes inside the harness's Esc-Esc window, keys
-        // neutral to NovaDeck, so t1 stays Settled.
+        // neutral to Novadeck, so t1 stays Settled.
         const mark = t1.mark()
         t1.press("\x1b")
         await sleep(doubleEscapeMs)

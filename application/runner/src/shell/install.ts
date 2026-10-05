@@ -8,7 +8,7 @@ import { relayPath } from "@novadeck/relay"
 import { shellFiles, shellPaths, staleShellFiles, type ShellPaths } from "./scripts.js"
 
 /**
- * The shell files as written, with the launchers as NovaDeck's shells name them: the
+ * The shell files as written, with the launchers as Novadeck's shells name them: the
  * hook's in NOVADECK_HOOK, on Windows by its short name, which holds no spaces or
  * brackets, so cmd runs it unquoted; and on Linux and macOS the MCP server's in
  * NOVADECK_MCP, which agents' plugins start in its place (see `mcpStart`), only once the
@@ -26,7 +26,7 @@ export type InstallOptions = {
 }
 
 /**
- * Writes the shell integration, hook, relay and agent plugins into NovaDeck's own
+ * Writes the shell integration, hook, relay and agent plugins into Novadeck's own
  * directory, each only when it changed, replacing it whole so a shell starting at that
  * moment reads the old or the new file.
  */
@@ -41,7 +41,7 @@ export const installShellFiles = async (
   const relayed = await installRelay(relay, paths.relay).then(
     () => true,
     (error: unknown) => {
-      console.error("NovaDeck's relay is unavailable:", error)
+      console.error("Novadeck's relay is unavailable:", error)
       return false
     },
   )

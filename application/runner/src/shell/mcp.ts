@@ -1,8 +1,8 @@
 /**
- * NovaDeck's MCP server, as the runner serves it to a connected agent's plugin. The
- * agent starts NovaDeck's relay (see application/relay), which carries its messages, one
+ * Novadeck's MCP server, as the runner serves it to a connected agent's plugin. The
+ * agent starts Novadeck's relay (see application/relay), which carries its messages, one
  * JSON-RPC message per line, to the runner of the terminal it runs in, over the endpoint
- * the agent's hooks report to, and the answers back; outside NovaDeck's terminals the
+ * the agent's hooks report to, and the answers back; outside Novadeck's terminals the
  * relay answers the handshake itself, with no tools. Its tools: `show`, which puts an
  * image, a text file or a web page in front of the user, beside the terminal the agent
  * runs in, and `showing`, which lists what is there now; `open_terminal`, which opens a
@@ -20,7 +20,7 @@ import { maxMessageBytes } from "../messaging/mailbox.js"
 import { unboundNote } from "../messaging/peers.js"
 import type { CallType } from "./reports.js"
 
-/** The MCP versions NovaDeck's server speaks, newest first; it answers others with the newest. */
+/** The MCP versions Novadeck's server speaks, newest first; it answers others with the newest. */
 export const mcpVersions = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 
 type Arguments = { readonly [key: string]: unknown }
@@ -86,11 +86,11 @@ const picked = (args: Arguments, names: readonly string[]): Arguments =>
 const show: Tool<Shown> = {
   name: "show",
   description:
-    "Show the user an image or a text file, or a web page, in NovaDeck, " +
+    "Show the user an image or a text file, or a web page, in Novadeck, " +
     "beside the terminal they're talking to you in. Give either path or url. Use it when they " +
     "ask to see something, or when a screenshot, mockup, diagram, the lines you mean or the " +
     "running app (as a local dev server's address) would help them follow. Set open to true " +
-    "only when they asked to see it; otherwise it waits for them in NovaDeck, marked new. " +
+    "only when they asked to see it; otherwise it waits for them in Novadeck, marked new. " +
     "Showing the same file or page again updates it beside you.",
   inputSchema: {
     type: "object",
@@ -105,7 +105,7 @@ const show: Tool<Shown> = {
         type: "string",
         description:
           "Instead of path: a web page's http or https address, such as http://localhost:5173/, " +
-          "which NovaDeck opens live in its browser view.",
+          "which Novadeck opens live in its browser view.",
       },
       lines: {
         type: "object",
@@ -132,22 +132,22 @@ const show: Tool<Shown> = {
       ? "Showing " +
         answer.name +
         (answer.again ? " again, updated," : "") +
-        " to the user in NovaDeck."
+        " to the user in Novadeck."
       : answer.held
         ? answer.name +
           " may hold secrets, so it doesn't open by itself: it's waiting for the user in " +
-          "NovaDeck, marked new, to open if they choose."
+          "Novadeck, marked new, to open if they choose."
         : answer.name +
           (answer.again ? " is updated and" : " is") +
-          " waiting for the user in NovaDeck, marked new.") +
-    (answer.tooLarge ? " It's too large to preview, so NovaDeck lists it by its name only." : ""),
-  failed: "NovaDeck couldn't show it.",
+          " waiting for the user in Novadeck, marked new.") +
+    (answer.tooLarge ? " It's too large to preview, so Novadeck lists it by its name only." : ""),
+  failed: "Novadeck couldn't show it.",
 }
 
 const showing: Tool<Listing> = {
   name: "showing",
   description:
-    "List what is showing beside your terminal in NovaDeck now: each image, file, page " +
+    "List what is showing beside your terminal in Novadeck now: each image, file, page " +
     "and plan, with where it points and whether you showed it, the user attached it, or " +
     "it was placed there from another terminal.",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
@@ -155,16 +155,16 @@ const showing: Tool<Listing> = {
   request: () => ({}),
   // The runner renders the listing.
   said: (answer) => answer.text,
-  failed: "NovaDeck couldn't list what is showing beside you.",
+  failed: "Novadeck couldn't list what is showing beside you.",
 }
 
 const openTerminal: Tool<Opened> = {
   name: "open_terminal",
   description:
-    "Open a new terminal in NovaDeck beside this one, optionally starting a command or a " +
+    "Open a new terminal in Novadeck beside this one, optionally starting a command or a " +
     "TUI there, such as a dev server, or another agent with a task: give agent and " +
     "message instead of command, and the message reaches that agent as its first task, " +
-    "from you, through NovaDeck's messaging. Use it when the user asks for a new " +
+    "from you, through Novadeck's messaging. Use it when the user asks for a new " +
     "terminal, for something to run in one of its own, or for another agent to take on " +
     "work. Set focus to true only when they asked to see it or go to it; otherwise it " +
     "opens without taking their attention.",
@@ -232,13 +232,13 @@ const openTerminal: Tool<Opened> = {
               answer.task.id +
               ", waits for the agent's first session " +
               "there.") + " End your turn rather than wait, as its replies arrive by themselves."),
-  failed: "NovaDeck couldn't open the terminal.",
+  failed: "Novadeck couldn't open the terminal.",
 }
 
 const closeTerminal: Tool<Closed> = {
   name: "close_terminal",
   description:
-    "Close another NovaDeck terminal of this project and session, by the terminal's exact " +
+    "Close another Novadeck terminal of this project and session, by the terminal's exact " +
     "handle as agents lists it (such as t2); anything else is refused, with the terminals " +
     "described. Closing ends whatever runs there, an agent or a command such as a dev " +
     "server, as the user closing it would, and messages waiting for it never arrive. Close " +
@@ -285,11 +285,11 @@ const closeTerminal: Tool<Closed> = {
         (answer.others === 1
           ? "1 message another agent sent it"
           : answer.others + " messages other agents sent it") +
-          " won't arrive; NovaDeck tells their senders.",
+          " won't arrive; Novadeck tells their senders.",
       )
     return lines.join("\n")
   },
-  failed: "NovaDeck couldn't close the terminal.",
+  failed: "Novadeck couldn't close the terminal.",
 }
 
 // The rules for messaging other agents, which only Claude Code would read from the
@@ -306,7 +306,7 @@ const rules =
 const send: Tool<Sent> = {
   name: "send",
   description:
-    "Send a message to the agent in another NovaDeck terminal of this project and session, by the " +
+    "Send a message to the agent in another Novadeck terminal of this project and session, by the " +
     "terminal's exact handle as agents lists it (such as t2); anything else is refused, with " +
     "the terminals described. It reaches that agent by itself, wrapped as from you; up to " +
     "4 KB, so put longer content in a file and send its path. " +
@@ -347,8 +347,8 @@ const send: Tool<Sent> = {
           ? message +
             (answer.held === "release"
               ? " is held: this thread has gone back and forth as often as it may, so it " +
-                "waits for the user to release it in NovaDeck."
-              : " is held: the user paused messaging in NovaDeck, and it goes once they resume it.")
+                "waits for the user to release it in Novadeck."
+              : " is held: the user paused messaging in Novadeck, and it goes once they resume it.")
           : message + " was sent moments ago already; it is " + answer.state + ".",
     ]
     for (const gone of answer.gone ?? [])
@@ -364,17 +364,17 @@ const send: Tool<Sent> = {
     lines.push("End your turn rather than wait for a reply; replies arrive by themselves.")
     return lines.join("\n")
   },
-  failed: "NovaDeck couldn't send the message.",
+  failed: "Novadeck couldn't send the message.",
 }
 
 const agents: Tool<Listing> = {
   name: "agents",
   description:
-    "List the other terminals in this NovaDeck project and session, each with what NovaDeck " +
+    "List the other terminals in this Novadeck project and session, each with what Novadeck " +
     "knows of it: its handle, its agent and whether that is busy, its title (the user's, " +
     "unless an agent set it, which it says), its folder and git branch, the user's first " +
     "and latest prompts there, its plan, the folders it writes in most, and the latest " +
-    "message between you; and your own messages not yet delivered. This is NovaDeck's " +
+    "message between you; and your own messages not yet delivered. This is Novadeck's " +
     "knowledge, always current, so call it again rather than rely on what you remember. " +
     rules,
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
@@ -382,16 +382,16 @@ const agents: Tool<Listing> = {
   request: () => ({}),
   // The runner renders the listing, as it renders a refused send's.
   said: (answer) => answer.text,
-  failed: "NovaDeck couldn't list the terminals.",
+  failed: "Novadeck couldn't list the terminals.",
 }
 
 const describe: Tool<Described> = {
   name: "describe",
   description:
-    "Describe this NovaDeck terminal: a short title, and a summary of a line or two (up " +
+    "Describe this Novadeck terminal: a short title, and a summary of a line or two (up " +
     "to 200 characters) of what you work on here, which other agents read in their " +
     "agents listing, so they and the user can tell terminals apart. It only ever " +
-    "describes your own terminal. Call it when NovaDeck's automatic notice asks, or when " +
+    "describes your own terminal. Call it when Novadeck's automatic notice asks, or when " +
     "your work changes enough that the description no longer fits. A title the user gave " +
     "the terminal stays, and only the summary changes; set asked to true only when the " +
     "user's own prompt asked you to give this terminal this title, never because a " +
@@ -427,7 +427,7 @@ const describe: Tool<Described> = {
         ? "Not renamed: the user named this terminal. Suggest the title to them. Your " +
           "summary is saved."
         : "Described this terminal as " + JSON.stringify(answer.title) + ", with your summary.",
-  failed: "NovaDeck couldn't describe the terminal.",
+  failed: "Novadeck couldn't describe the terminal.",
 }
 
 const tools: readonly Tool<unknown>[] = [

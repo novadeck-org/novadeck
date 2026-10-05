@@ -162,7 +162,7 @@ export type Backend = {
   // plans they write and what they show, which the backend reports as items through the
   // seed and `item/*` and `window/*` actions. Every terminal gets a taskbar and companion
   // pane. The runner reads them from the agents' files and what they present through
-  // NovaDeck's MCP server; the content-preview demo from its sample agents.
+  // Novadeck's MCP server; the content-preview demo from its sample agents.
   readonly companions?: Companions
   // Optional. Messages between the agents in its terminals, and the pause that holds
   // them. A terminal with an agent bound, or one that has had messages, gets a messages

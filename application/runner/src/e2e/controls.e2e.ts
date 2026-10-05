@@ -89,13 +89,13 @@ for (const setup of setups) {
         const calls = run.model.mark()
         const mark = t1.mark()
 
-        // Enter answers the question only once it shows, and NovaDeck sees it waiting on
+        // Enter answers the question only once it shows, and Novadeck sees it waiting on
         // the person.
         await t1.confirm(approval!.shows, async () => {
           await t1.submit("Make the file")
           await t1.poll(
             async () => ((await t1.detail()).requests.length > 0 ? true : undefined),
-            "NovaDeck to see the tool's request",
+            "Novadeck to see the tool's request",
           )
         })
 
@@ -129,7 +129,7 @@ for (const setup of setups) {
         await t1.until(approval!.shows)
         await t1.poll(
           async () => ((await t1.detail()).requests.length > 0 ? true : undefined),
-          "NovaDeck to see the tool's request",
+          "Novadeck to see the tool's request",
         )
         const calls = run.model.mark()
         t1.press(approval!.deny)
@@ -437,7 +437,7 @@ for (const setup of setups) {
     it("ends a turn whose Stop hook's report never came, as its own records tell", async ({
       e2e: run,
     }) => {
-      // As when NovaDeck's hook failed to run: the turn ends all the same, from Claude Code's
+      // As when Novadeck's hook failed to run: the turn ends all the same, from Claude Code's
       // transcript, Codex's rollout, or Antigravity's idle status line.
       const harness = harnesses[setup.agent] as { decode: Harness["decode"] }
       const { decode } = harness
@@ -493,7 +493,7 @@ for (const setup of setups) {
     gated(it, lacking(setup, "trust.hooks"))(
       "binds no session, yet sends, told replies can't reach it, and can't be sent to",
       async ({ e2e: run }) => {
-        // t1's agent lists the terminals until NovaDeck has found t2's hooks untrusted, which
+        // t1's agent lists the terminals until Novadeck has found t2's hooks untrusted, which
         // it asks once t2's prompt shows past its review, and only then sends: a send while
         // t2's review is still open waits, as the person may yet trust its hooks there.
         let looks = 0
@@ -505,7 +505,7 @@ for (const setup of setups) {
             if (asked(call, "Tell t2 hello")) return { calls: [{ name: agents, input: {} }] }
             const listing = result(call)
             if (calledLast(call) !== agents || listing === undefined) return undefined
-            if (/- t2: no agent NovaDeck can deliver to: .*\/hooks/.test(listing))
+            if (/- t2: no agent Novadeck can deliver to: .*\/hooks/.test(listing))
               return { calls: [{ name: send, input: { to: "t2", text: "Hello." } }] }
             looks += 1
             if (looks > 60) return { text: "Gave up." }
@@ -516,7 +516,7 @@ for (const setup of setups) {
         )
         const t1 = await run.deck.open(setup.agent)
         const t2 = await run.deck.open(setup.agent)
-        // The person leaves each review without trusting NovaDeck's hooks. Escape may skip
+        // The person leaves each review without trusting Novadeck's hooks. Escape may skip
         // it, so the keys go as `escape` sends them, apart from what is typed next.
         for (const one of [t1, t2]) {
           // eslint-disable-next-line no-await-in-loop -- One review at a time.
@@ -529,7 +529,7 @@ for (const setup of setups) {
 
         await t1.submit("Tell t2 hello")
 
-        // One send, both ways: t2 has no agent NovaDeck can deliver to, and t1 is told that
+        // One send, both ways: t2 has no agent Novadeck can deliver to, and t1 is told that
         // replies can't reach it.
         const answer = await run.model.waitFor(
           (call) =>
@@ -538,7 +538,7 @@ for (const setup of setups) {
         )
         const said = result(answer) ?? ""
         expect(said).not.toMatch(/is queued/)
-        expect(said).toMatch(/no agent NovaDeck can deliver to: .*\/hooks/)
+        expect(said).toMatch(/no agent Novadeck can deliver to: .*\/hooks/)
         expect(said).toMatch(/replies can't reach you/)
         await t1.until("Tried.")
         expect(messages(t1)).toEqual([])

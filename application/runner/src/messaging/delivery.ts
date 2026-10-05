@@ -10,7 +10,7 @@
  * shows its prompt is up), Drafting (person busy) or Unknown one waits for its next root
  * prompt.
  *
- * Working has three phases: a root `turn` running; `continuing`, after a Stop NovaDeck
+ * Working has three phases: a root `turn` running; `continuing`, after a Stop Novadeck
  * continued, until the continuation's first prompt; and `background`, when only work a
  * turn started still runs after its Stop: subagents (Claude Code's, Antigravity's, which
  * its Stop says only that something runs until its status line counts them), never a
@@ -49,7 +49,7 @@ export type Delivery = Counts &
     | {
         readonly state: "working"
         readonly phase: "continuing"
-        /** When the hook of the Stop NovaDeck continued started, where it was told. */
+        /** When the hook of the Stop Novadeck continued started, where it was told. */
         readonly stoppedAt?: number
       }
     | { readonly state: "working"; readonly phase: "background" }
@@ -63,7 +63,7 @@ export type Delivery = Counts &
   )
 
 /**
- * What NovaDeck knows of the agent's input box, from the person's keys (see
+ * What Novadeck knows of the agent's input box, from the person's keys (see
  * docs/agent-messaging.md, "What counts"). It errs toward a draft.
  */
 export type Box = {
@@ -120,7 +120,7 @@ type Counts = {
    * one, and a later call of a turn finds what its first was given.
    */
   readonly epoch: number
-  /** How many of the current turn's Stops NovaDeck continued with messages. */
+  /** How many of the current turn's Stops Novadeck continued with messages. */
   readonly continued: number
   /**
    * Whether the person's own submission started the current root turn, as told below;
@@ -132,7 +132,7 @@ type Counts = {
 
 export type DeliveryState = Delivery["state"]
 
-/** NovaDeck continues a root turn at most this often, by its own count, then lets it end. */
+/** Novadeck continues a root turn at most this often, by its own count, then lets it end. */
 export const maxContinuations = 2
 
 /** How soon after the person's bare Enter a root turn must start to be their submission. */
@@ -159,12 +159,12 @@ export type KeyKind = "enter" | "queue" | "neutral" | "escape" | "accept" | "con
  *   their bare Enter came shortly before with nothing typed since, or they queued it),
  *   one the `harness` started, a later model `call` of a running turn, or a `doorbell`
  *   prompt with its nonce, its hook started at `startedAt`;
- * - `stop`: a normal root Stop, which NovaDeck `continued` or not, with work the turn
+ * - `stop`: a normal root Stop, which Novadeck `continued` or not, with work the turn
  *   started still running in the `background`;
  * - `ended`: a root turn ended abnormally: an Esc, a denial, a failure;
  * - either `recorded`: told by the session's own records where its hook's report never
  *   came, which ends only a turn still running or continuing, as the agent's activity
- *   took it (never the record of a Stop NovaDeck continued), never one already ended;
+ *   took it (never the record of a Stop Novadeck continued), never one already ended;
  * - `idle`: the agent shows idle however its turn ended, with work still running in the
  *   `background` or not, as Antigravity's status line does, its hook started at `startedAt`;
  * - `working`: the agent shows working, as Antigravity's status line does, which resumes
@@ -303,7 +303,7 @@ const typed = (box: Box): Box => ({
 
 /**
  * What a new session there starts from: no turn yet, and the person's keys after their last
- * Enter, or a ring's line, as a draft, as keys typed once an agent's TUI reads input, before NovaDeck has taken
+ * Enter, or a ring's line, as a draft, as keys typed once an agent's TUI reads input, before Novadeck has taken
  * its binding, reach its box (the probe's earlier ones were dropped). Any doubt is a draft.
  */
 const arrived = (delivery: Delivery): Counts => {
@@ -348,7 +348,7 @@ const atPrompt = (delivery: Delivery, at: number): Delivery => {
 /** The delivery after an event; the same delivery when it changes nothing. */
 export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery => {
   // Left, Home and End move a caret only through a draft the person typed since their last
-  // Enter. Anywhere else the harness's box may be empty, even where NovaDeck doesn't know
+  // Enter. Anywhere else the harness's box may be empty, even where Novadeck doesn't know
   // it so (a ring's line its Enter just submitted, the person's Enter whose hook hasn't
   // come, a prompt queued mid-turn), and what they do there is the harness's own (Claude
   // Code's Left opens its agents view, whose field would take a ring's line and its
@@ -448,7 +448,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
         })
       }
       // A later model call of the running turn only moves its fence, as its activity's
-      // does; nor does it end the wait for the continuation of a Stop NovaDeck continued:
+      // does; nor does it end the wait for the continuation of a Stop Novadeck continued:
       // only the continuation's first call starts it.
       if (event.by === "call" && delivery.state === "working" && delivery.phase === "turn")
         return event.startedAt > delivery.turnAt
@@ -488,7 +488,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
               }),
             }
           : box
-      // A prompt right after a Stop NovaDeck continued is that continuation: the same
+      // A prompt right after a Stop Novadeck continued is that continuation: the same
       // turn, with its count, as Antigravity starts its model calls again from the first.
       if (phase === "continuing") return turn(delivery, event.startedAt, { box: after })
       // A call while no turn ran (as Antigravity's PreInvocation past the turn's first,
@@ -583,7 +583,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
       if (event.asked)
         return event.key === "content" || event.key === "accept" ? asked(delivery) : delivery
       // A bare Enter on a box known empty (no draft typed while asked either) while a root
-      // turn runs queues nothing in any harness: it answered something NovaDeck didn't see
+      // turn runs queues nothing in any harness: it answered something Novadeck didn't see
       // (a confirmation between two of Antigravity's status lines), or did nothing. At the
       // agent's prompt it keeps its meaning, as it may take a suggestion there.
       if (
@@ -653,7 +653,7 @@ const keyed = (delivery: Delivery, submits: boolean, at: number | null): Deliver
 
 /**
  * Whether a root Stop's hook may continue the turn with messages: the turn runs, the
- * person queued no prompt of their own during it, and NovaDeck has not yet continued it
+ * person queued no prompt of their own during it, and Novadeck has not yet continued it
  * as often as it may.
  */
 export const continues = (delivery: Delivery): boolean =>

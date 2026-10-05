@@ -40,7 +40,7 @@ export type Showcase = Companions & {
 type Holder = { readonly key: CompanionKey; readonly handle: string }
 
 // Where the agent's plan prompt stands. Approval happens in the agent's own terminal;
-// NovaDeck can't see it, so only the simulation keeps it.
+// Novadeck can't see it, so only the simulation keeps it.
 type Phase = "planning" | "revising" | "working"
 
 type Running = Holder & {

@@ -277,7 +277,7 @@ const archiveRelease = async (
 
 /**
  * Installs a harness published as an archive: downloads the release, checks it against
- * its SHA-512 before anything of it runs, and keeps only its program, named as NovaDeck
+ * its SHA-512 before anything of it runs, and keeps only its program, named as Novadeck
  * runs it. Only Linux on x86-64 is pinned.
  */
 const installArchive = async (

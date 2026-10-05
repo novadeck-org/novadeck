@@ -16,7 +16,7 @@ export const ownPage = (url: string, own: string): boolean => {
   return page.protocol === "file:" && page.pathname === expected.pathname
 }
 
-// What NovaDeck's own page may use: the clipboard, so an image pasted into a terminal
+// What Novadeck's own page may use: the clipboard, so an image pasted into a terminal
 // reaches it and the page's copy buttons work.
 const clipboard = new Set(["clipboard-read", "clipboard-sanitized-write"])
 

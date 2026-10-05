@@ -171,7 +171,7 @@ describe("requests for a terminal through the runner backend", () => {
       expect(answer).toEqual({
         requestId: sent.requestId,
         reason: expect.stringMatching(
-          /^NovaDeck couldn't start the command in a new terminal\. .*can't start a command/,
+          /^Novadeck couldn't start the command in a new terminal\. .*can't start a command/,
         ),
       })
       const closed = app.received.find((action) => action.type === "terminal/close")

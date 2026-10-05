@@ -5,7 +5,7 @@ import type { AgentTurnEnd, TerminalMetadata } from "./types"
 // person. `reply` is the start of its last reply, where its harness tells it.
 export type AgentFinish = { readonly failed: boolean; readonly reply?: string }
 
-// The turn end of a terminal's agent NovaDeck last took in, by its `at`: null when it
+// The turn end of a terminal's agent Novadeck last took in, by its `at`: null when it
 // showed none. Undefined before the terminal was first seen.
 export type SeenEnd = number | null
 

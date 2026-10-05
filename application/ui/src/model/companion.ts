@@ -4,7 +4,7 @@ import type { WorkspaceTarget } from "./types"
 // and images, project files and preview-browser pages they show. A backend reports
 // them; each terminal's companion pane presents them. The content-preview demo
 // implements this with sample agents; a runner reports the same from the agents' own
-// files and hooks, and from what they present through NovaDeck's MCP server.
+// files and hooks, and from what they present through Novadeck's MCP server.
 
 // A terminal, as the backend port knows it: terminal IDs repeat across sessions.
 export type CompanionKey = WorkspaceTarget & { readonly terminalId: string }
@@ -138,7 +138,7 @@ export type ShownContent = ImageContent | FileContent | PageContent
 
 // A plan's text as it stands. `writable` when `save` can write it: a plan that lives only
 // in the agent's messages, or a backend that can't write plans yet, leaves it read-only.
-// `skill` when NovaDeck's skill is installed for its agent, which tells the agent to
+// `skill` when Novadeck's skill is installed for its agent, which tells the agent to
 // re-read the plan before acting on it and apply the notes left in it.
 export type PlanContent = {
   readonly kind: "plan"
@@ -219,7 +219,7 @@ export const emptyCompanions = (): Companions => ({
   save: () => Promise.reject(new Error("There are no plans")),
 })
 
-// A note as NovaDeck writes it into the plan: an HTML comment, invisible once rendered,
+// A note as Novadeck writes it into the plan: an HTML comment, invisible once rendered,
 // marked for the agent's skill to find.
 export const noteOpen = "<!-- novadeck: "
 export const noteClose = " -->"

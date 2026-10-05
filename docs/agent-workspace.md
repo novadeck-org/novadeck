@@ -1,6 +1,6 @@
-# Agent operations in NovaDeck
+# Agent operations in Novadeck
 
-Design proposal paired with [harness adapters](harness-adapters.md). NovaDeck is
+Design proposal paired with [harness adapters](harness-adapters.md). Novadeck is
 an agent-aware terminal workspace: agents can observe their work, communicate,
 create other terminals, and deliberately invoke workspace features through a
 local MCP server. The UI and MCP use shared application operations; harness
@@ -39,7 +39,7 @@ for presentation so Electron and remote browser clients share the same behavior.
 
 ## Caller and operation contracts
 
-Connection credentials identify a NovaDeck principal, terminal run and actor
+Connection credentials identify a Novadeck principal, terminal run and actor
 when verified. Native subagents inheriting their parent's MCP credentials remain
 that principal unless there is separate verified attribution. Actor metadata from
 an arbitrary tool argument does not establish authority. A restarted/resumed
@@ -280,7 +280,7 @@ port's optional `companions` capability (`application/ui/src/model/companion.ts`
 Unlike the read-only `document` presentation, a plan opens editable. The user's
 edits, and the notes they leave (`<!-- novadeck: … -->` comments), are written into
 the plan file itself: the file is the channel back to the agent, which re-reads it
-(NovaDeck's skill tells it to) and removes each note it applies. Closing the pane
+(Novadeck's skill tells it to) and removes each note it applies. Closing the pane
 never approves anything; approval stays in the agent's own prompt.
 
 Every plan text carries a `stamp`. The UI saves an edit with the stamp it was made
@@ -315,20 +315,20 @@ with every safety check again at that time:
   that terminal still runs the session, its live activity is read first. No plan text
   is copied into the database. When another agent session binds the terminal, the
   plans its own bar mirrored of the earlier one go; moved ones stay.
-- **Other items** come from NovaDeck's MCP server, which ships inside the agent plugin
-  NovaDeck already installs: `.mcp.json` for Claude Code, `mcpServers` in Codex's
+- **Other items** come from Novadeck's MCP server, which ships inside the agent plugin
+  Novadeck already installs: `.mcp.json` for Claude Code, `mcpServers` in Codex's
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
   MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
   Its first tool, `show`, takes a path and optional lines, or a page's `url`, plus a
   title and `open`, which the agent sets when the user asked to see it (`asked`). The server finds its terminal
   from `NOVADECK_TERMINAL_ID`, `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`. Like
-  the hooks, it is installed for every session, but outside NovaDeck's terminals it
+  the hooks, it is installed for every session, but outside Novadeck's terminals it
   lists no tools, so the agent never sees `show`, and a call anyway does nothing.
-  The plugin starts NovaDeck's relay (`application/relay`), a small native program
-  NovaDeck copies into its own data folder, so it stays when a packaged NovaDeck's
+  The plugin starts Novadeck's relay (`application/relay`), a small native program
+  Novadeck copies into its own data folder, so it stays when a packaged Novadeck's
   runtime folder goes as it quits. On Linux and macOS a launcher starts it; on Windows agents
   start it directly, as a launcher there would keep `cmd.exe` running beside it.
-  Outside NovaDeck's terminals, or when the runner can't be reached, the relay answers
+  Outside Novadeck's terminals, or when the runner can't be reached, the relay answers
   the handshake itself, with no tools. In a terminal it carries the agent's messages
   over the terminal's report endpoint to the runner, which serves the MCP session
   itself (`runner/src/shell/mcp.ts`): it checks the token on each call and puts the
@@ -348,7 +348,7 @@ with every safety check again at that time:
   what the agent's bar holds now, with where each item points and who put it there.
   The UI follows each item with `companions.content`, never by path.
 - **New terminals** come from the same server's second tool, `open_terminal`, listed
-  only inside NovaDeck's terminals like `show`. It opens a terminal beside the agent's,
+  only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,
   in `cwd` (absolute, or from the terminal's directory, which is the default), named
   `title`, and can start `command` at the new shell's first prompt, one line as the
   person would type it, such as `claude` or `npm run dev`; `focus` brings it into view
@@ -368,7 +368,7 @@ with every safety check again at that time:
   history entry; a shell without the integration, or with configured arguments, can't
   run one, and the terminal does not open rather than start a plain shell.
 - **Closing terminals** comes from the same server's `close_terminal`, listed only
-  inside NovaDeck's terminals like the others. An agent closes another terminal of its
+  inside Novadeck's terminals like the others. An agent closes another terminal of its
   project and session, an agent's or a plain shell, by its exact handle, as `send`
   names its recipient; any other `to` is refused with the terminals there described, as
   `send` refuses one, and so is its own terminal, with a pointer to its harness's own
@@ -388,7 +388,7 @@ with every safety check again at that time:
   runner's own shutdown overtakes answers that it failed, the terminal kept as
   shutdown keeps every terminal.
 - **Messages** between agents come from the same server's `send` and `agents` tools,
-  listed only inside NovaDeck's terminals like the others: an agent messages another
+  listed only inside Novadeck's terminals like the others: an agent messages another
   terminal of its project and session by its handle, such as `t3`, which `open_terminal` also
   answers with, and the message reaches that agent through its own hooks. The runner
   keeps the mailbox with the workspace and lists, pauses and releases it through
@@ -397,7 +397,7 @@ with every safety check again at that time:
   [Agent messaging](agent-messaging.md).
 - **Pages** are any http(s) address; an address with a user name or password is
   refused. The desktop app loads them live in the pane, in Electron's `<webview>`,
-  which lays out with the pane, keeps NovaDeck's menus and cards above it, and lets a
+  which lays out with the pane, keeps Novadeck's menus and cards above it, and lets a
   later highlight mode reach into the page. Whatever the element asks for, the host
   gives each one no preload or Node, a sandbox, and the `novadeck-pages` session, in
   memory, where every permission and download is refused and no file loads. Its own
@@ -446,7 +446,7 @@ Deadline expiry is not an implicit negative answer.
 Request/operation retention is coordinated. Companion items keep no bytes of their
 own: each points at a file, page or plan and is read when it loads, so content that is
 deleted or changes produces an explicit unavailable result (`missing`, `gone`) or the
-current version, never a stale copy. Project documents are never retained by NovaDeck.
+current version, never a stale copy. Project documents are never retained by Novadeck.
 
 ## Walkthrough: Claude starts Codex
 
@@ -464,7 +464,7 @@ receive an initial task depends on the selected supported delivery mechanism;
 it does not follow solely from PTY creation. A startup failure returns the existing
 operation and failed terminal identity rather than spawning another one on retry.
 
-The initial task is a message: the new agent starts with NovaDeck's doorbell as its
+The initial task is a message: the new agent starts with Novadeck's doorbell as its
 command-line prompt, and its prompt-time hook delivers the task, wrapped as from its
 opener, once; see [Starting a task](agent-messaging.md#starting-a-task), which also
 covers a harness without a command-line prompt.

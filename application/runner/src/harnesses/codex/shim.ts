@@ -3,14 +3,14 @@ import { titleSetting } from "./title.js"
 
 // Interactive Codex runs its sessions, and their hooks, in a shared background server
 // that knows nothing of the terminal it was started from. While Codex is connected,
-// NovaDeck's shells run it through this shim, which adds --no-daemon so the session and
+// Novadeck's shells run it through this shim, which adds --no-daemon so the session and
 // its hook run in the terminal. `codex agents` and --remote need the server, so they go
-// unchanged, as does anything outside NovaDeck's shells. It also names its terminal
-// title's items, so the title tells NovaDeck once its prompt shows (`title.ts`).
+// unchanged, as does anything outside Novadeck's shells. It also names its terminal
+// title's items, so the title tells Novadeck once its prompt shows (`title.ts`).
 export const posixShim = `#!/bin/sh
 ${header("#", "shim for codex")}
-# Runs the real codex with --no-daemon, so its hooks can tell NovaDeck which session runs
-# in this terminal, and with a title that tells NovaDeck once its prompt shows.
+# Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session runs
+# in this terminal, and with a title that tells Novadeck once its prompt shows.
 novadeck_real=
 novadeck_ifs=$IFS
 IFS=:
@@ -18,10 +18,10 @@ set -f
 for novadeck_dir in $PATH; do
   [ -n "$novadeck_dir" ] || continue
   novadeck_candidate=$novadeck_dir/codex
-  # Another NovaDeck's shim, as from a runner started in a NovaDeck terminal, would call
+  # Another Novadeck's shim, as from a runner started in a Novadeck terminal, would call
   # this one back: only the program itself counts.
   if [ -f "$novadeck_candidate" ] && [ -x "$novadeck_candidate" ] && ! [ "$novadeck_candidate" -ef "$0" ] &&
-    ! head -c 256 "$novadeck_candidate" 2>/dev/null | grep -q "NovaDeck shim for codex"; then
+    ! head -c 256 "$novadeck_candidate" 2>/dev/null | grep -qi "novadeck shim for codex"; then
     novadeck_real=$novadeck_candidate
     break
   fi
@@ -33,7 +33,7 @@ if [ -z "$novadeck_real" ]; then
   exit 127
 fi
 [ -n "\${NOVADECK_TERMINAL_ID:-}" ] || exec "$novadeck_real" "$@"
-# Only while Codex is connected: NovaDeck's shells name the harnesses whose shims apply.
+# Only while Codex is connected: Novadeck's shells name the harnesses whose shims apply.
 case " \${NOVADECK_SHIMS:-} " in *" codex "*) ;; *) exec "$novadeck_real" "$@" ;; esac
 novadeck_daemon=--no-daemon
 for novadeck_arg in "$@"; do
@@ -50,8 +50,8 @@ exec "$novadeck_real" \${novadeck_daemon:+"$novadeck_daemon"} -c "${titleSetting
 // extensionless script that only other shells run; the first other runnable one wins.
 export const cmdShim = `@echo off
 ${header("rem", "shim for codex")}
-rem Runs the real codex with --no-daemon, so its hooks can tell NovaDeck which session
-rem runs in this terminal, and with a title that tells NovaDeck once its prompt shows.
+rem Runs the real codex with --no-daemon, so its hooks can tell Novadeck which session
+rem runs in this terminal, and with a title that tells Novadeck once its prompt shows.
 setlocal
 set "novadeck_real="
 for /f "delims=" %%i in ('where codex 2^>nul') do call :consider "%%~fi"
@@ -60,7 +60,7 @@ if not defined novadeck_real (
   exit /b 9009
 )
 if not defined NOVADECK_TERMINAL_ID goto plain
-rem Only while Codex is connected: NovaDeck's shells name the harnesses whose shims apply.
+rem Only while Codex is connected: Novadeck's shells name the harnesses whose shims apply.
 echo " %NOVADECK_SHIMS% " | findstr /c:" codex " >nul || goto plain
 for %%a in (%*) do (
   if /i "%%~a"=="agents" goto plain
@@ -79,8 +79,8 @@ exit /b %ERRORLEVEL%
 :consider
 if defined novadeck_real exit /b
 if /i "%~dp1"=="%~dp0" exit /b
-rem Another NovaDeck's shim would call this one back: only the program itself counts.
-if /i "%~x1"==".cmd" findstr /b /c:"rem NovaDeck shim for codex" "%~1" >nul && exit /b
+rem Another Novadeck's shim would call this one back: only the program itself counts.
+if /i "%~x1"==".cmd" findstr /b /i /c:"rem novadeck shim for codex" "%~1" >nul && exit /b
 if /i "%~x1"==".exe" set "novadeck_real=%~1"
 if /i "%~x1"==".cmd" set "novadeck_real=%~1"
 if /i "%~x1"==".bat" set "novadeck_real=%~1"

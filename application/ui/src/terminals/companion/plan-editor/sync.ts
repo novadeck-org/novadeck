@@ -87,7 +87,7 @@ export const merge = (
   return { text, marks, changes }
 }
 
-// The agent read NovaDeck's notes, applied them, and removed each one, with the line it
+// The agent read Novadeck's notes, applied them, and removed each one, with the line it
 // sat on when the note had a line to itself.
 export const resolveNotes = (
   text: string,

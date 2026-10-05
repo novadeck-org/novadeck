@@ -55,7 +55,7 @@ export class TerminalPeers {
   constructor(private readonly options: PeersOptions) {}
 
   /**
-   * Sends another terminal's agent a message, as an agent asked through NovaDeck's MCP
+   * Sends another terminal's agent a message, as an agent asked through Novadeck's MCP
    * server: from the terminal and its agent session, never a name the model passes. A
    * call without the shell's own token learns nothing more.
    */
@@ -72,7 +72,7 @@ export class TerminalPeers {
 
   /**
    * The other terminals in the caller's project and session, each described by what
-   * NovaDeck knows of it, and the caller's messages yet to arrive.
+   * Novadeck knows of it, and the caller's messages yet to arrive.
    */
   async agents(call: Call): Promise<AgentsAnswer> {
     const caller = this.options.caller(call.terminalId, call.token)
@@ -122,7 +122,7 @@ export class TerminalPeers {
   }
 
   /**
-   * What NovaDeck knows of each running terminal in a session beyond its agent's hooks:
+   * What Novadeck knows of each running terminal in a session beyond its agent's hooks:
    * its title and who gave it; its folder, relative to the project when inside it; its
    * git branch; its agent's current plan's title; what its root session worked on; and
    * how to shorten the paths it wrote in.

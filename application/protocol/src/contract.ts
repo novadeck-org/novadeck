@@ -110,7 +110,7 @@ export const contract = {
     // session it last reported in this terminal, instead of showing the transcript.
     // A session resumes in one terminal only, never beside another terminal running it.
     // `command` runs once at the new shell's first prompt, as if typed there; a shell
-    // that can't run one, as without NovaDeck's shell integration, is SPAWN_FAILED. A
+    // that can't run one, as without Novadeck's shell integration, is SPAWN_FAILED. A
     // command goes with neither `restore` nor `resume`.
     create: procedure
       .input(
@@ -136,7 +136,7 @@ export const contract = {
           }),
       )
       .output(terminalSummary),
-    // Agents' requests for a new terminal, made through NovaDeck's MCP server, for the
+    // Agents' requests for a new terminal, made through Novadeck's MCP server, for the
     // client to open where it lays terminals out. The runner sends each to the client
     // that subscribed last and waits a few seconds for its `answerRequest`.
     requests: procedure.input(z.void()).output(eventIterator(terminalRequest)),
@@ -171,7 +171,7 @@ export const contract = {
     rename: procedure
       .input(z.strictObject({ terminalId: id, title: terminalTitle }))
       .output(z.void()),
-    // Hands a terminal's title back to NovaDeck: the title the person gave it goes, and it
+    // Hands a terminal's title back to Novadeck: the title the person gave it goes, and it
     // takes the one an agent gave it last, the person's first prompt there, or its
     // default, as `rename` does announcing it. TERMINAL_NOT_FOUND as for `rename`.
     resetTitle: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
@@ -202,7 +202,7 @@ export const contract = {
       .input(z.strictObject({ terminalId: id, cols: columns, rows, resume: agentName.optional() }))
       .output(terminalSummary),
   },
-  // Agents whose sessions resume once NovaDeck's plugin is installed into them.
+  // Agents whose sessions resume once Novadeck's plugin is installed into them.
   agents: {
     list: procedure.input(z.void()).output(z.array(agentIntegration)),
     // What the agent in a terminal does, in more detail than its summary: a snapshot, then
@@ -211,7 +211,7 @@ export const contract = {
     detail: procedure.input(z.strictObject({ terminalId: id })).output(eventIterator(agentDetail)),
     // An actor's conversation, as its harness recorded it: every item so far, then each
     // later one, while the terminal's agent runs the session the actor belongs to. An
-    // actor it does not have, or one whose harness keeps no transcript NovaDeck reads, is
+    // actor it does not have, or one whose harness keeps no transcript Novadeck reads, is
     // NOT_FOUND; the stream ends when the terminal's agent moves to another session.
     transcript: procedure
       .input(z.strictObject({ terminalId: id, actor: agentRef }))
@@ -272,7 +272,7 @@ export const contract = {
     // Gives a window its item's name again, as `renameWindow` does.
     resetWindowTitle: procedure.input(z.strictObject({ windowId: id })).output(z.void()),
   },
-  // Messages between agents in NovaDeck's terminals (see docs/agent-messaging.md).
+  // Messages between agents in Novadeck's terminals (see docs/agent-messaging.md).
   messages: {
     // A terminal's threads and messages with their states. An unknown terminal is
     // TERMINAL_NOT_FOUND.

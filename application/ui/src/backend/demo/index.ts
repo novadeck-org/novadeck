@@ -105,7 +105,7 @@ export const windowReset = (
   ]
 }
 
-// Who named each sample terminal, and the name NovaDeck gives it back on a reset.
+// Who named each sample terminal, and the name Novadeck gives it back on a reset.
 const namings: Readonly<
   Record<string, { readonly source: TitleSource; readonly automatic: string }>
 > = {

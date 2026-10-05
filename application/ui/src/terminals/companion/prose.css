@@ -186,7 +186,7 @@
   visibility: hidden;
 }
 
-/* A note is a warm speech bubble: apricot, apart from NovaDeck's cool greys and from the
+/* A note is a warm speech bubble: apricot, apart from Novadeck's cool greys and from the
    butter amber that marks the agent's changes, with a tail up at what it's about. */
 .cm-plan-note-label {
   display: inline-flex;

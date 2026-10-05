@@ -38,7 +38,7 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
 // idle at its prompt, running a program, waiting on the person, unheard, or ended. An
 // agent that reports through its hooks reads as running only while it works, its turn
 // or what that left running, and as waiting while it asks for permission or a question.
-// An agent NovaDeck hears nothing from, as its hooks aren't connected or trusted, is
+// An agent Novadeck hears nothing from, as its hooks aren't connected or trusted, is
 // unheard: whether it works or waits, nothing tells. A clean exit closes the terminal, so
 // a finished one reads as idle for the moment it remains. One idle whose agent finished
 // while the person looked elsewhere, its reply `unread`, is done until they look.
@@ -67,10 +67,10 @@ export const doneText = (failed = false): string =>
   failed ? "Stopped with an error · reply unread" : "Done · reply unread"
 
 // What the terminal's phase leaves unsaid at a glance, in words for its tooltip and
-// assistive technology: that NovaDeck can't hear from its agent. Undefined otherwise.
+// assistive technology: that Novadeck can't hear from its agent. Undefined otherwise.
 export const unheardText = (terminal: TerminalMetadata): string | undefined =>
   terminalPhase(terminal) === "unheard"
-    ? "Not reporting · NovaDeck can't hear from this agent"
+    ? "Not reporting · Novadeck can't hear from this agent"
     : undefined
 
 // What the agent in a terminal waits on the person for, in a few words; undefined when

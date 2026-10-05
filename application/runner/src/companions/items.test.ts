@@ -177,7 +177,7 @@ describe("what an agent shows", () => {
     const t1 = fixture.terminal("t1")
     const t2 = fixture.terminal("t2")
     expect(fixture.items.listing(t1.terminalId)).toBe(
-      "Nothing is showing beside your terminal in NovaDeck.",
+      "Nothing is showing beside your terminal in Novadeck.",
     )
     mkdirSync(join(fixture.directory, "src"))
     writeFileSync(join(fixture.directory, "hero.png"), "png")
@@ -194,7 +194,7 @@ describe("what an agent shows", () => {
     fixture.items.move(page.ok ? page.id : "", t1.terminalId)
     expect(fixture.items.listing(t1.terminalId)).toBe(
       [
-        "Showing beside your terminal in NovaDeck (4):",
+        "Showing beside your terminal in Novadeck (4):",
         `- image "hero.png": ${join(fixture.directory, "hero.png")} (shown by you)`,
         `- file "store.ts" lines 40–80: ${join(fixture.directory, "src", "store.ts")} (attached by the user)`,
         `- file ".env": ${join(fixture.directory, ".env")} (attached by the user; may hold secrets)`,
@@ -319,7 +319,7 @@ describe("moving items", () => {
     ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
     await expect(fixture.items.show(gone, { path: "a.ts" })).resolves.toEqual({
       ok: false,
-      reason: "NovaDeck couldn't show it.",
+      reason: "Novadeck couldn't show it.",
     })
   })
 
@@ -457,7 +457,7 @@ describe("plans beside their terminal", () => {
     ])
     expect(fixture.items.listing(t1.terminalId)).toBe(
       [
-        "Showing beside your terminal in NovaDeck (1):",
+        "Showing beside your terminal in Novadeck (1):",
         `- plan "Fix the redirect, take two": ${path} (your plan)`,
       ].join("\n"),
     )

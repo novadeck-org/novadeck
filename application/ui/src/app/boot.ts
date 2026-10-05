@@ -57,7 +57,7 @@ export const failureOf = (error: unknown): ConnectFailure => {
   if (failure) return failure
   return {
     kind: "unknown",
-    message: "Something went wrong starting NovaDeck.",
+    message: "Something went wrong starting Novadeck.",
     code: "UNKNOWN",
     detail: error instanceof Error ? error.message : String(error),
   }

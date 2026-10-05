@@ -87,7 +87,7 @@ export const TerminalTab = ({
   const failed = unread === "failed"
   const ending = shell && terminalEnding(shell)
   const ended = ending ? endingText(ending) : undefined
-  // What the agent waits on the person for, or that NovaDeck can't hear from it, said like
+  // What the agent waits on the person for, or that Novadeck can't hear from it, said like
   // an ending: in the tooltip and to assistive technology.
   const waiting = shell && (attentionText(shell) ?? unheardText(shell))
   const note = ended ?? waiting ?? (phase === "done" ? doneText(failed) : undefined)

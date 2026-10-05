@@ -9,7 +9,7 @@ export type ServerOptions = HttpOptions &
     shell?: string
     /** Where pasted files go; see `RunnerOptions.uploads`. */
     uploads?: string
-    /** The relay agents start for NovaDeck's MCP server and hooks; see `RunnerOptions.relay`. */
+    /** The relay agents start for Novadeck's MCP server and hooks; see `RunnerOptions.relay`. */
     relay?: string
     terminals?: TerminalOptions
     maxConnections?: number

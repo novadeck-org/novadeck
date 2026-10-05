@@ -11,7 +11,7 @@ import type { AgentSetup } from "./agent.js"
 const key = "NOVADECK_E2E_CODEX_KEY"
 
 const config = (sandbox: Sandbox, url: string, trusted: boolean): string =>
-  `# Codex against NovaDeck's fake model, for end-to-end tests.
+  `# Codex against Novadeck's fake model, for end-to-end tests.
 model = "fake-model"
 model_provider = "novadeck-e2e"
 # Its ChatGPT backend, which it asks for featured plugins on the way to its prompt.
@@ -30,7 +30,7 @@ enabled = false
 metrics_exporter = "none"
 
 [model_providers.novadeck-e2e]
-name = "NovaDeck e2e"
+name = "Novadeck e2e"
 base_url = ${JSON.stringify(`${url}/v1`)}
 env_key = "${key}"
 wire_api = "responses"
@@ -41,9 +41,9 @@ ${trusted ? `\n[projects.${JSON.stringify(sandbox.project)}]\ntrust_level = "tru
  * its own speaking the Responses API to the fake model, its update check off and the
  * project trusted. Without an OpenAI login it shows no sign-in screen for such a provider.
  * Seeded with `folderTrusted: false`, it trusts no folder and shows "Trust this folder?";
- * with `hooksTrusted: false`, NovaDeck's hooks are left for its "Hooks need review" screen,
+ * with `hooksTrusted: false`, Novadeck's hooks are left for its "Hooks need review" screen,
  * which comes a few seconds after its prompt drew (probed 2026-10-02, 0.159.3). Behind
- * either, NovaDeck sees no prompt: its title says nothing, or its hooks don't run.
+ * either, Novadeck sees no prompt: its title says nothing, or its hooks don't run.
  */
 export const codex: AgentSetup = {
   agent: "codex",
@@ -57,7 +57,7 @@ export const codex: AgentSetup = {
   watch: {
     searched: [".codex/config.toml"],
     listed: [],
-    // Its login, and NovaDeck's copy among its installed plugins. Not the plugins' folder
+    // Its login, and Novadeck's copy among its installed plugins. Not the plugins' folder
     // itself: the developer's own Codex refreshes its bundled plugins there whenever it
     // likes, which would trip it with nothing leaked.
     stamped: [".codex/auth.json", ".codex/plugins/cache/novadeck"],
@@ -120,7 +120,7 @@ export const codex: AgentSetup = {
   // and `collaboration` with `features.multi_agent_v2`) and a command `exec_command` left
   // running (a "background terminal") each finished with the root idle and no model call
   // for 20 s after. A v1 subagent's `<subagent_notification>` only goes with the person's
-  // next prompt, and a v2 one's end with none. NovaDeck rightly calls such a root Settled.
+  // next prompt, and a v2 one's end with none. Novadeck rightly calls such a root Settled.
   absent: {
     background: "nothing it starts wakes it once its turn has ended (probed 2026-10-02, 0.159.3)",
     "background.command":
@@ -136,7 +136,7 @@ export const codex: AgentSetup = {
     },
     hooks: { shows: /Hooks need review/, skip: "\x1b" },
   },
-  // Its hooks can be trusted only once NovaDeck's plugin is in.
+  // Its hooks can be trusted only once Novadeck's plugin is in.
   connected: (sandbox, _model, seed) =>
     trustHooks(sandbox, { hooks: seed?.hooksTrusted !== false }),
   prepare: async (sandbox, model, _installed, seed) => {
@@ -169,7 +169,7 @@ export const codex: AgentSetup = {
 type Message = { readonly id?: unknown; readonly result?: unknown; readonly error?: unknown }
 
 /**
- * A session with Codex's app-server over stdio, as its TUI and NovaDeck talk to it: each
+ * A session with Codex's app-server over stdio, as its TUI and Novadeck talk to it: each
  * request resolves to its result, or fails with its error, after `timeoutMs`, or as soon
  * as the app-server can't answer, as it failed to start or exited.
  */
@@ -252,11 +252,11 @@ type Listed = {
 }
 
 /**
- * Trusts NovaDeck's hooks in the project as a person does in Codex's "Hooks need review"
+ * Trusts Novadeck's hooks in the project as a person does in Codex's "Hooks need review"
  * screen, and lets its MCP tools run without asking, through the same app-server calls
  * that screen makes: `hooks/list` for each hook's current hash, then `config/batchWrite`
- * recording it as trusted. Codex runs a plugin's hooks only once trusted, and NovaDeck
- * counts its prompt only then, asking the same `hooks/list`. Run once NovaDeck's plugin
+ * recording it as trusted. Codex runs a plugin's hooks only once trusted, and Novadeck
+ * counts its prompt only then, asking the same `hooks/list`. Run once Novadeck's plugin
  * is connected, as the hashes are of the hooks it installed. With `hooks` false only the
  * MCP tools are let run, and the hooks wait for review, as a person who never trusted
  * them leaves them.
@@ -273,7 +273,7 @@ export const trustHooks = async (
     const ours = (listed.data ?? [])
       .flatMap((entry) => entry.hooks ?? [])
       .filter((hook) => hook.pluginId === "novadeck@novadeck")
-    if (ours.length === 0) throw new Error("Codex lists none of NovaDeck's hooks")
+    if (ours.length === 0) throw new Error("Codex lists none of Novadeck's hooks")
     await server.request("config/batchWrite", {
       edits: [
         ...(hooks
@@ -297,7 +297,7 @@ export const trustHooks = async (
     const after = await list()
     if (trustedIn(after) !== hooks)
       throw new Error(
-        `Codex ${hooks ? "still doesn't trust" : "trusts"} NovaDeck's hooks: ${JSON.stringify(after)}`,
+        `Codex ${hooks ? "still doesn't trust" : "trusts"} Novadeck's hooks: ${JSON.stringify(after)}`,
       )
   } finally {
     server.close()

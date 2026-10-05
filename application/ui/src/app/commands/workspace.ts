@@ -333,7 +333,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const snapshot = workspace.getSnapshot()
       const found = holding(snapshot, request.from)
       if (!found)
-        return request.answer({ reason: "The terminal that asked isn't open in NovaDeck." })
+        return request.answer({ reason: "The terminal that asked isn't open in Novadeck." })
       const { project, session } = found
       const target = { projectId: project.id, workspaceSessionId: session.id }
       const { roster, layout } = session.state

@@ -128,7 +128,7 @@ describe("the doorbell", () => {
     await vi.waitFor(() => expect(enters(written)).toBe(1))
     expect(written[0]).toMatch(
       // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
-      /^\x1b\[200~\[NovaDeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]\x1b\[201~$/,
+      /^\x1b\[200~\[Novadeck: automatic notice, agent messages waiting, [A-Za-z0-9]{6}\]\x1b\[201~$/,
     )
     expect(state()).toMatchObject({ holds: 1, held: false })
     confirm()

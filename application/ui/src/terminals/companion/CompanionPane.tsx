@@ -139,15 +139,15 @@ const PlanBody = ({
           </span>
         )}
         {!plan.writable && (
-          <span className="plan-meta-hint">Read-only: NovaDeck can't write this plan yet.</span>
+          <span className="plan-meta-hint">Read-only: Novadeck can't write this plan yet.</span>
         )}
         {plan.truncated && (
           <span className="plan-meta-hint">It's long, so only its start is shown.</span>
         )}
-        {/* Without NovaDeck's skill, notes wait for the person to point the agent at them. */}
+        {/* Without Novadeck's skill, notes wait for the person to point the agent at them. */}
         {plan.writable && !plan.skill && notesIn(plan.text) > 0 && (
           <span className="plan-meta-hint">
-            {agent} doesn't have NovaDeck's skill. Ask it to re-read the plan.
+            {agent} doesn't have Novadeck's skill. Ask it to re-read the plan.
           </span>
         )}
         {actions && <span className="artifact-meta-push" />}

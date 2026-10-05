@@ -1,6 +1,6 @@
 import { agentName, type AgentName } from "@novadeck/protocol"
 
-// Programs NovaDeck resumes in a fresh shell: the agents the runner integrates, by the
+// Programs Novadeck resumes in a fresh shell: the agents the runner integrates, by the
 // same names. The runner decides whether each one can resume, and resumes only the
 // session the agent last reported there.
 export type ResumableProgram = AgentName

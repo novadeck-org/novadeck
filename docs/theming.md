@@ -1,6 +1,6 @@
 # Theming
 
-NovaDeck's look is a theme. Components give the interface its shape; a theme decides
+Novadeck's look is a theme. Components give the interface its shape; a theme decides
 how that shape is drawn: colours, borders, depth, corners, type, and the texture of the
 workspace. Graphite, the app's own look, is a theme like any other, with a light and a
 dark scheme; Sandstone, warm, flat and rounded, has a light scheme only and draws its

@@ -163,7 +163,7 @@ export class CompanionItems {
    * person asked, unless it may hold secrets.
    */
   async show(place: TerminalPlace, request: PresentRequest): Promise<PresentAnswer> {
-    if (this.stopping) return failure("NovaDeck is closing.")
+    if (this.stopping) return failure("Novadeck is closing.")
     const pointed = await this.pointer(place, request)
     if (!pointed.ok) return pointed
     const { pointer, tooLarge } = pointed
@@ -174,10 +174,10 @@ export class CompanionItems {
     } catch (error) {
       // Its terminal went while the file was looked at; anything else is worth a word.
       if (!(error instanceof DomainError && error.code === "TERMINAL_NOT_FOUND"))
-        console.error("NovaDeck could not keep an item beside its terminal:", error)
+        console.error("Novadeck could not keep an item beside its terminal:", error)
       kept = undefined
     }
-    if (!kept) return failure("NovaDeck couldn't show it.")
+    if (!kept) return failure("Novadeck couldn't show it.")
     return {
       ok: true,
       id: kept.item.id,
@@ -223,7 +223,7 @@ export class CompanionItems {
    */
   listing(terminalId: string): string {
     const items = this.records.barItems(terminalId)
-    if (items.length === 0) return "Nothing is showing beside your terminal in NovaDeck."
+    if (items.length === 0) return "Nothing is showing beside your terminal in Novadeck."
     const lines = items.map((item) => {
       const own = item.from.terminalId === terminalId
       const range = item.lines ? ` lines ${item.lines.from}–${item.lines.to}` : ""
@@ -246,7 +246,7 @@ export class CompanionItems {
       if (own && item.plan?.format === "text") return `- ${name} (in your conversation)`
       return `- ${name}: ${where} (${notes}${secrets})`
     })
-    return [`Showing beside your terminal in NovaDeck (${items.length}):`, ...lines].join("\n")
+    return [`Showing beside your terminal in Novadeck (${items.length}):`, ...lines].join("\n")
   }
 
   /**
@@ -423,7 +423,7 @@ export class CompanionItems {
   ): Promise<void> {
     const observed = this.observing.then(() => this.observe(place, slot, plan, at))
     this.observing = observed.catch((error: unknown) => {
-      console.error("NovaDeck could not keep a plan beside its terminal:", error)
+      console.error("Novadeck could not keep a plan beside its terminal:", error)
     })
     return this.observing
   }

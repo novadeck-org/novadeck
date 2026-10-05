@@ -63,7 +63,7 @@ export type PromptShown = {
  * plan. A turn starts
  * with a `prompt` submitted at the root (the person's, as far as anything tells), one
  * the harness started by itself (a background task's result), a later model `call` of a
- * turn already running, or NovaDeck's `doorbell`: a prompt that is exactly its line. It ends `completed` only when its harness says so (a root
+ * turn already running, or Novadeck's `doorbell`: a prompt that is exactly its line. It ends `completed` only when its harness says so (a root
  * Stop, which may leave work it started running in the `background`, or the session's
  * own records of that Stop, `recorded`, should its hook not have come); `turn-idle` says
  * the agent shows idle however its turn ended, which without such a Stop was an Esc or a
@@ -122,13 +122,13 @@ export type ActivityEvent = {
     }
   | { readonly type: "turn-working" }
   /**
-   * NovaDeck continued the root turn its Stop, started at `startedAt`, would have ended,
+   * Novadeck continued the root turn its Stop, started at `startedAt`, would have ended,
    * delivering messages with the hook's answer: the turn goes on until the continuation's
    * own Stop, as Claude Code and Codex fire no prompt hook for it.
    */
   | { readonly type: "turn-continued" }
   /**
-   * The Stop NovaDeck continued, started at the turn's latest `turnAt`, was never
+   * The Stop Novadeck continued, started at the turn's latest `turnAt`, was never
    * continued after all: its hook never acknowledged its messages, which wait again.
    */
   | { readonly type: "turn-lapsed" }

@@ -79,7 +79,7 @@ describe("an agent finishing", () => {
       expect(sightTurnEnd(null, agent({ working: false }))).toEqual({ seen: null })
     })
 
-    it("never finishes when NovaDeck can't hear from it, or it went away", () => {
+    it("never finishes when Novadeck can't hear from it, or it went away", () => {
       expect(sightTurnEnd(null, { ...base, state: "running" })).toEqual({ seen: null })
       expect(sightTurnEnd(10, { ...base, state: "idle", process: "zsh" })).toEqual({ seen: 10 })
     })

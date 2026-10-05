@@ -88,7 +88,7 @@ export const connectFailure = (error: unknown): ConnectFailure => {
   if (!(error instanceof RunnerError))
     return {
       kind: "unknown",
-      message: "Something went wrong starting NovaDeck.",
+      message: "Something went wrong starting Novadeck.",
       code: "UNKNOWN",
       detail: error instanceof Error ? error.message : String(error),
     }
@@ -99,13 +99,13 @@ export const connectFailure = (error: unknown): ConnectFailure => {
   if (code === "INCOMPATIBLE_PROTOCOL")
     return {
       kind: "incompatible",
-      message: "This runner is from a different NovaDeck version.",
+      message: "This runner is from a different Novadeck version.",
       code,
       detail,
     }
   if (code === "UNAUTHORIZED")
     return { kind: "unauthorized", message: "The runner didn't accept this app.", code, detail }
-  return { kind: "unknown", message: "Something went wrong starting NovaDeck.", code, detail }
+  return { kind: "unknown", message: "Something went wrong starting Novadeck.", code, detail }
 }
 
 const unavailable = (error: unknown): Error => {

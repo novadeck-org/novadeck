@@ -12,7 +12,7 @@ import { absolute, sessionId, text } from "../harness.js"
  * turn already running. Stop ends the turn, as failed when it names an error, and says
  * whether background work, as a subagent, still runs (`fullyIdle`). Only a completed turn
  * fires Stop: its confirmations fire no hook, and an Esc or a denial fires nothing. Its
- * status line, which NovaDeck's settings hand to the hook as StatusLine, tells both, but
+ * status line, which Novadeck's settings hand to the hook as StatusLine, tells both, but
  * reads the same idle after them as after a completed turn: so idle there only ends a
  * turn no Stop ended, and never as completed. It never starts a turn: only PreInvocation
  * starts one. Saying working, it resumes only a turn an older idle of its own ended, never

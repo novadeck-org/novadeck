@@ -1,6 +1,6 @@
 export const apiUrlArgumentPrefix = "--novadeck-api-url="
 export const databaseArgumentPrefix = "--novadeck-database="
-/** The relay agents start for NovaDeck's MCP server and hooks, as the app ships it. */
+/** The relay agents start for Novadeck's MCP server and hooks, as the app ships it. */
 export const relayArgumentPrefix = "--novadeck-relay="
 
 /** Renderer-to-main request for a runner port; the answer arrives on the same channel. */

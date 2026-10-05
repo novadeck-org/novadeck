@@ -20,7 +20,7 @@ describe("connection failure", () => {
     it("says so and sorts them apart", () => {
       expect(connectFailure(new RunnerError("INCOMPATIBLE_PROTOCOL"))).toMatchObject({
         kind: "incompatible",
-        message: "This runner is from a different NovaDeck version.",
+        message: "This runner is from a different Novadeck version.",
       })
       expect(connectFailure(new RunnerError("UNAUTHORIZED"))).toMatchObject({
         kind: "unauthorized",
@@ -33,7 +33,7 @@ describe("connection failure", () => {
     it("says something went wrong and keeps the details", () => {
       expect(connectFailure(new RunnerError("INTERNAL_SERVER_ERROR", "boom"))).toEqual({
         kind: "unknown",
-        message: "Something went wrong starting NovaDeck.",
+        message: "Something went wrong starting Novadeck.",
         code: "INTERNAL_SERVER_ERROR",
         detail: "boom",
       })

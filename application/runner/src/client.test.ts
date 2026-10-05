@@ -826,7 +826,7 @@ describe("runner client terminal requests", () => {
     await expect(
       client.terminals.answerRequest({ requestId: crypto.randomUUID(), reason: "No." }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" })
-    // These shells start without NovaDeck's integration, so they run no command.
+    // These shells start without Novadeck's integration, so they run no command.
     await expect(
       client.terminals.create({ ...shell(sessionId), command: "echo hi" }),
     ).rejects.toMatchObject({ code: "SPAWN_FAILED" })

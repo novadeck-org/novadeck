@@ -119,7 +119,7 @@ export const claude = {
         ),
       }),
     },
-    // The settings NovaDeck's shim adds: its hook as the status line, which passes on the
+    // The settings Novadeck's shim adds: its hook as the status line, which passes on the
     // person's own (see shell/hook.ts).
     ...(platform === "win32"
       ? []
@@ -132,7 +132,7 @@ export const claude = {
           },
         ]),
   ],
-  // The status line NovaDeck's shim adds, where its shells run Claude Code; Windows keeps
+  // The status line Novadeck's shim adds, where its shells run Claude Code; Windows keeps
   // the person's own until the shim and its status line are proven there.
   shims: (platform) =>
     platform === "win32" ? [] : [{ path: "claude", content: posixShim, mode: 0o700 }],

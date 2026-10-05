@@ -160,7 +160,7 @@ export type Runner = {
       readonly requestId?: string
     }): Promise<TerminalSummary>
     /**
-     * Follows agents' requests for a new terminal, made through NovaDeck's MCP server,
+     * Follows agents' requests for a new terminal, made through Novadeck's MCP server,
      * across reconnections. The runner sends each to the client that subscribed last and
      * waits a few seconds for `answerRequest`; iteration ends when the runner closes or on
      * `return()`.
@@ -247,7 +247,7 @@ export type Runner = {
       actor: string,
     ): AsyncIterableIterator<TranscriptChange, undefined>
     /**
-     * Installs or removes NovaDeck's plugin in the agent through its own commands;
+     * Installs or removes Novadeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
      */
     set(agent: AgentName, connected: boolean): Promise<AgentIntegration>

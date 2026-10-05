@@ -133,8 +133,8 @@ describe("a pasted path", () => {
     })
 
     it("quotes it when its folders hold a character cmd or PowerShell acts on", () => {
-      expect(shellPath("C:\\R&D\\NovaDeck\\uploads\\0b6e\\shot.png")).toBe(
-        '"C:\\R&D\\NovaDeck\\uploads\\0b6e\\shot.png"',
+      expect(shellPath("C:\\R&D\\novadeck\\uploads\\0b6e\\shot.png")).toBe(
+        '"C:\\R&D\\novadeck\\uploads\\0b6e\\shot.png"',
       )
       expect(shellPath("C:\\Users\\a(b);c\\uploads\\shot.png")).toBe(
         '"C:\\Users\\a(b);c\\uploads\\shot.png"',
@@ -232,7 +232,7 @@ describe("a file's own path", () => {
 
 describe("a failed paste's notice", () => {
   it("says the clipboard could not be read", () => {
-    expect(pasteNotice("clipboard")).toBe("NovaDeck can't read the clipboard")
+    expect(pasteNotice("clipboard")).toBe("Novadeck can't read the clipboard")
   })
 
   it("says an image or a file was too large, as the runner or the client found", () => {
@@ -438,7 +438,7 @@ describe("pasting into a runner terminal", () => {
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: { read } })
       const page = terminal()
       page.field.dispatchEvent(pasteEvent({}))
-      await vi.waitFor(() => expect(page.notices).toEqual(["NovaDeck can't read the clipboard"]))
+      await vi.waitFor(() => expect(page.notices).toEqual(["Novadeck can't read the clipboard"]))
       expect(page.uploads).toEqual([])
       expect(page.pasted).toEqual([""])
     })
@@ -446,7 +446,7 @@ describe("pasting into a runner terminal", () => {
     it("says so where there is no clipboard API", async () => {
       const page = terminal()
       page.field.dispatchEvent(pasteEvent({}))
-      await vi.waitFor(() => expect(page.notices).toEqual(["NovaDeck can't read the clipboard"]))
+      await vi.waitFor(() => expect(page.notices).toEqual(["Novadeck can't read the clipboard"]))
     })
   })
 

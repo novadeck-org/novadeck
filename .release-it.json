@@ -11,7 +11,7 @@
     "assets": ["release-assets/*"],
     "preRelease": true,
     "release": true,
-    "releaseName": "NovaDeck v${version}"
+    "releaseName": "Novadeck v${version}"
   },
   "hooks": {
     "before:github:release": "git push origin v${version}"

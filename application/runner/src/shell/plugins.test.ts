@@ -82,7 +82,7 @@ const events = { claude: "SessionStart", codex: "SessionStart", agy: "PreInvocat
 
 describe("agent plugin hook commands", () => {
   // Codex and Antigravity trust a hook by its definition, so a change asks whoever
-  // connected them to review NovaDeck's hook again: change these on purpose only.
+  // connected them to review Novadeck's hook again: change these on purpose only.
   it("change only on purpose", () => {
     expect(harnesses.claude.hook("linux", "SessionStart")).toBe(
       '[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude SessionStart || true',
@@ -106,7 +106,7 @@ describe("agent plugin hook commands", () => {
 
   for (const agent of ["claude", "codex", "agy"] as const) {
     it(
-      `do nothing outside NovaDeck's shells for ${agent}`,
+      `do nothing outside Novadeck's shells for ${agent}`,
       ({ plugins }) => {
         const result = runHook(agent, events[agent], undefined, "{}")
         // A shell that ran past hookMs says so here, not as a missing status. Other errors
@@ -121,7 +121,7 @@ describe("agent plugin hook commands", () => {
     )
 
     it(
-      `hand the agent's payload to NovaDeck's hook for ${agent}`,
+      `hand the agent's payload to Novadeck's hook for ${agent}`,
       ({ plugins }) => {
         const payload = JSON.stringify({ session_id: "abc", conversationId: "abc" })
         const result = runHook(agent, events[agent], plugins.launcher, payload)
@@ -197,7 +197,7 @@ describe.runIf(windows)("the hook launcher on Windows", () => {
   })
 })
 
-// NovaDeck's MCP server, as a plugin's MCP configuration declares it.
+// Novadeck's MCP server, as a plugin's MCP configuration declares it.
 const server = (root: string, path: string) =>
   (
     JSON.parse(readFileSync(join(root, path), "utf8")) as {
@@ -205,7 +205,7 @@ const server = (root: string, path: string) =>
     }
   ).mcpServers.novadeck
 
-// The MCP server each agent's plugin declares on this platform for NovaDeck's folder.
+// The MCP server each agent's plugin declares on this platform for Novadeck's folder.
 const declared = (platform: NodeJS.Platform, directory: string) =>
   [
     ["claude", join("novadeck", ".mcp.json")],
@@ -223,11 +223,11 @@ const declared = (platform: NodeJS.Platform, directory: string) =>
 // How sh starts the terminal's own launcher, else the one after it, on Linux and macOS.
 const sh = ["-c", 'if [ -x "$NOVADECK_MCP" ]; then exec "$NOVADECK_MCP"; fi; exec "$0" "$@"']
 
-// This environment without the variables of a NovaDeck terminal the tests may run in.
+// This environment without the variables of a Novadeck terminal the tests may run in.
 const outside = (): NodeJS.ProcessEnv =>
   Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("NOVADECK_")))
 
-describe("NovaDeck's MCP server in each agent's plugin", () => {
+describe("Novadeck's MCP server in each agent's plugin", () => {
   it("starts the terminal's MCP launcher, else this one's, with the terminal's variables for Codex", ({
     plugins: { paths },
   }) => {
@@ -267,9 +267,9 @@ describe("NovaDeck's MCP server in each agent's plugin", () => {
             shellPaths("/home/jo doe/it's $HOME/shell", platform).mcp,
           ],
         })
-    for (const each of declared("win32", "C:\\Users\\Jo Doe\\AppData\\Roaming\\NovaDeck\\shell"))
+    for (const each of declared("win32", "C:\\Users\\Jo Doe\\AppData\\Roaming\\novadeck\\shell"))
       expect(each).toEqual({
-        command: join("C:\\Users\\Jo Doe\\AppData\\Roaming\\NovaDeck\\shell", "novadeck-relay.exe"),
+        command: join("C:\\Users\\Jo Doe\\AppData\\Roaming\\novadeck\\shell", "novadeck-relay.exe"),
         args: ["mcp", plugin.version, ...mcpVersions],
       })
   })
@@ -325,7 +325,7 @@ describe("NovaDeck's MCP server in each agent's plugin", () => {
         timeout: hookMs,
       })
       expect(result.status).toBe(0)
-      // Outside NovaDeck's terminals the relay answers the handshake itself.
+      // Outside Novadeck's terminals the relay answers the handshake itself.
       expect(JSON.parse(result.stdout)).toMatchObject({
         id: 1,
         result: { serverInfo: { name: "novadeck" } },

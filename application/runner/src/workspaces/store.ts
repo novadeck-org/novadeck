@@ -237,7 +237,7 @@ const schemaDifference = (database: DatabaseSync): string | undefined => {
 
 /**
  * Creates the schema in a new database, and refuses one written by a newer runner, or by
- * an earlier build whose tables differ: NovaDeck has no migrations before its first
+ * an earlier build whose tables differ: Novadeck has no migrations before its first
  * release, so such a database is to be deleted, never changed here.
  */
 const prepareSchema = (database: DatabaseSync, path: string): void => {
@@ -252,8 +252,8 @@ const prepareSchema = (database: DatabaseSync, path: string): void => {
     const difference = schemaDifference(database)
     if (difference)
       throw new Error(
-        `NovaDeck's workspace database at ${path} was written by an earlier build: ` +
-          `${difference}. NovaDeck has no migrations before its first release, so delete ` +
+        `Novadeck's workspace database at ${path} was written by an earlier build: ` +
+          `${difference}. Novadeck has no migrations before its first release, so delete ` +
           "that file (it holds your projects, sessions and kept terminals) and start again.",
       )
     database.exec("COMMIT")

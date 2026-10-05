@@ -2,7 +2,7 @@
   "name": "@novadeck/runner",
   "version": "0.0.0",
   "private": true,
-  "description": "The NovaDeck runner: shells and workspace metadata, served over WebSocket or MessagePort.",
+  "description": "The Novadeck runner: shells and workspace metadata, served over WebSocket or MessagePort.",
   "author": "mzpkdev",
   "type": "module",
   "sideEffects": false,

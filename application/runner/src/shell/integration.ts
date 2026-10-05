@@ -4,7 +4,7 @@ import type { InstalledShell } from "./install.js"
 import { fishQuote, psQuote } from "./scripts.js"
 
 /**
- * How to start a shell so it loads NovaDeck's integration after the user's own setup;
+ * How to start a shell so it loads Novadeck's integration after the user's own setup;
  * `integrated` when it will report its prompts, and `resumes` when it runs the startup
  * command. `resumeFile` is where the caller writes that command for the shell to read.
  */
@@ -27,7 +27,7 @@ const shellName = (shell: string): string =>
 // The shells whose integration runs a startup command.
 const startingShells = new Set(["bash", "zsh", "fish", "pwsh", "powershell", "cmd"])
 
-/** Whether NovaDeck's integration for `shell` runs a startup command; see `shellLaunch`. */
+/** Whether Novadeck's integration for `shell` runs a startup command; see `shellLaunch`. */
 export const startsCommands = (shell: string): boolean => startingShells.has(shellName(shell))
 
 // Windows keeps PATH as "Path"; whichever spelling the environment uses is the one to set.
@@ -35,7 +35,7 @@ const pathKey = (env: NodeJS.ProcessEnv): string =>
   Object.keys(env).find((name) => name.toUpperCase() === "PATH") ?? "PATH"
 
 /**
- * Arguments and environment that load the integration for shells NovaDeck knows, the
+ * Arguments and environment that load the integration for shells Novadeck knows, the
  * way VS Code does: bash reads it as its rc file, zsh finds it through ZDOTDIR, fish
  * runs it as an init command, PowerShell dot-sources it after the profile, and cmd
  * reports through its PROMPT. Each first loads the user's own startup files. Other

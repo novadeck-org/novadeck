@@ -16,7 +16,7 @@ import {
   turn,
 } from "./scenarios.js"
 
-// NovaDeck restarting under its agents, the same for every harness (see messaging.e2e.ts
+// Novadeck restarting under its agents, the same for every harness (see messaging.e2e.ts
 // for the rule on parity).
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {

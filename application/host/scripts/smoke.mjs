@@ -53,8 +53,8 @@ if (process.platform === "win32") {
   }
 }
 
-// The relay agents start for NovaDeck's MCP server and hooks ships beside the UI, and answers the
-// handshake by itself outside NovaDeck's terminals.
+// The relay agents start for Novadeck's MCP server and hooks ships beside the UI, and answers the
+// handshake by itself outside Novadeck's terminals.
 const relay = join(
   resources,
   "relay",
@@ -64,7 +64,7 @@ if (!existsSync(relay)) fail(`The relay is missing: ${relay}`)
 try {
   const hello = execFileSync(relay, ["mcp", "0.0.0", "2025-06-18"], {
     input: `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n`,
-    // Outside a NovaDeck terminal, even when the smoke test runs in one.
+    // Outside a Novadeck terminal, even when the smoke test runs in one.
     env: Object.fromEntries(
       Object.entries(process.env).filter(([name]) => !name.startsWith("NOVADECK_")),
     ),
@@ -72,7 +72,7 @@ try {
   })
   const answer = JSON.parse(hello.toString())
   if (answer?.result?.protocolVersion !== "2025-06-18") throw new Error(hello.toString())
-  // A hook outside NovaDeck still gives Antigravity the answer that lets its tools run,
+  // A hook outside Novadeck still gives Antigravity the answer that lets its tools run,
   // as the runner's relay.json names it.
   const config = join(mkdtempSync(join(tmpdir(), "novadeck-smoke-relay-")), "relay.json")
   writeFileSync(
@@ -100,11 +100,11 @@ const bundle = await esbuild.build({
   entryPoints: [join(host, "..", "protocol", "dist", "client.js")],
   bundle: true,
   format: "iife",
-  globalName: "NovaDeck",
+  globalName: "novadeckClient",
   platform: "browser",
   write: false,
 })
-const client = `${bundle.outputFiles[0].text};globalThis.NovaDeck = NovaDeck`
+const client = `${bundle.outputFiles[0].text};globalThis.novadeckClient = novadeckClient`
 
 const userData = mkdtempSync(join(tmpdir(), "novadeck-smoke-data-"))
 const work = mkdtempSync(join(tmpdir(), "novadeck-smoke-work-"))
@@ -122,7 +122,7 @@ try {
   const input = process.platform === "win32" ? "echo NOVADECK_4^2\r" : 'echo NOVADECK_4""2\r'
   const result = await page.evaluate(
     async ({ cwd, typed }) => {
-      const { connectRunner, desktop } = globalThis.NovaDeck
+      const { connectRunner, desktop } = globalThis.novadeckClient
       const runner = await connectRunner(desktop())
       globalThis.smoke = runner
       const project = await runner.projects.create({ id: crypto.randomUUID(), name: "Smoke", cwd })

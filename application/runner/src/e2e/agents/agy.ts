@@ -38,7 +38,7 @@ export const agy: AgentSetup = {
     searched: [".gemini/antigravity-cli/settings.json"],
     // Its MCP servers' folder, which it rewrites each time it starts.
     listed: [".gemini/antigravity-cli/mcp"],
-    // Where NovaDeck installs its plugin, and its own plugin data and programs.
+    // Where Novadeck installs its plugin, and its own plugin data and programs.
     stamped: [
       ".gemini/config/plugins",
       ".gemini/antigravity-cli/plugin_data",
@@ -166,7 +166,7 @@ export const agy: AgentSetup = {
         onboardingComplete: true,
         trustedWorkspaces: seed?.folderTrusted === false ? [] : [sandbox.project],
         modelProvider: "gemini",
-        // NovaDeck's MCP tools run without asking, so a `send` needs no approval (its
+        // Novadeck's MCP tools run without asking, so a `send` needs no approval (its
         // plugin's server is namespaced after the plugin).
         // Its own print mode too, so `shell` runs a nested Antigravity unasked.
         permissions: { allow: ["mcp(novadeck_novadeck/*)", "command(agy -p)"] },

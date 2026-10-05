@@ -137,7 +137,7 @@ const run = (
     })
   })
 
-/** The harnesses NovaDeck can connect, and connecting or disconnecting each one. */
+/** The harnesses Novadeck can connect, and connecting or disconnecting each one. */
 export const createHarnesses = (
   paths: () => Promise<ShellPaths | undefined>,
   options: HarnessesOptions = {},
@@ -176,12 +176,12 @@ export const createHarnesses = (
   return {
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
-    /** Whether NovaDeck's plugin is installed into the agent. */
+    /** Whether Novadeck's plugin is installed into the agent. */
     connected: async (agent: AgentName): Promise<boolean> => {
       const install = await installs()
       return install ? harnesses[agent].connected(install(agent)) : false
     },
-    /** The connected harnesses whose shims NovaDeck's shells put first on PATH. */
+    /** The connected harnesses whose shims Novadeck's shells put first on PATH. */
     shims: async (): Promise<AgentName[]> => {
       const install = await installs()
       if (!install) return []
@@ -198,7 +198,7 @@ export const createHarnesses = (
       if (!install) return agents.map((agent) => ({ agent, available: false, connected: false }))
       return Promise.all(agents.map((agent) => state(harnesses[agent], install(agent))))
     },
-    /** Installs or removes NovaDeck's plugin in the agent; resolves to where it stands after. */
+    /** Installs or removes Novadeck's plugin in the agent; resolves to where it stands after. */
     set: (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
       const change = queue.then(async () => {
         const install = await installs(true)
@@ -241,7 +241,7 @@ export const createHarnesses = (
         if (after.connected !== connected)
           throw new DomainError(
             "AGENT_SETUP_FAILED",
-            `${agent} did not ${connected ? "install" : "remove"} NovaDeck's plugin.`,
+            `${agent} did not ${connected ? "install" : "remove"} Novadeck's plugin.`,
           )
         if (connected) await settle("apply")
         return after

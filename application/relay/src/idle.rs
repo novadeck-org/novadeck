@@ -1,4 +1,4 @@
-//! The MCP server as it answers outside NovaDeck's terminals, or once their runner is
+//! The MCP server as it answers outside Novadeck's terminals, or once their runner is
 //! gone: the handshake, and no tools. Agents start the server in every session, so the
 //! agent sees a working server it has nothing to call.
 

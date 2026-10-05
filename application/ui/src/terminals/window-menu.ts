@@ -9,7 +9,7 @@ export type DockTarget = {
 }
 
 // A window's own actions, the same in its sidebar tab's menu and its header's: rename,
-// hand a name the person gave back to NovaDeck, dock an undocked window back in its
+// hand a name the person gave back to Novadeck, dock an undocked window back in its
 // terminal, and close.
 export const windowMenu = ({
   terminal,

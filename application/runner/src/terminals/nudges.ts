@@ -1,7 +1,7 @@
 import { shorten } from "./work.js"
 
 /**
- * When NovaDeck nudges a terminal's agent to describe its work (see
+ * When Novadeck nudges a terminal's agent to describe its work (see
  * docs/agent-messaging.md, "Self-description"): a new root session; a compaction, where
  * the harness reports one; the work drifting from where it was at the last `describe`
  * (its plan's title, the folder it writes in most, or its branch); and, as a backstop,
@@ -100,17 +100,17 @@ export const atPrompt = (
 }
 
 /**
- * The nudge, one line worded as NovaDeck's automatic notice: asking for a description
+ * The nudge, one line worded as Novadeck's automatic notice: asking for a description
  * while there is none, else showing the current one, to update only if it no longer fits.
  */
 export const nudgeText = (current: { readonly title: string; readonly summary: string | null }) =>
   current.summary === null
-    ? "NovaDeck: automatic notice, not from the user: this terminal has no description yet. " +
-      "When it suits, call NovaDeck's describe tool with a short title and a line or two on " +
+    ? "Novadeck: automatic notice, not from the user: this terminal has no description yet. " +
+      "When it suits, call Novadeck's describe tool with a short title and a line or two on " +
       "what you work on here, so the user and other agents can tell terminals apart; this " +
       "notice needs no reply."
-    : `NovaDeck: automatic notice, not from the user: this terminal is described as ` +
+    : `Novadeck: automatic notice, not from the user: this terminal is described as ` +
       `${JSON.stringify(shorten(current.title, 200))}, with the summary ` +
       `${JSON.stringify(shorten(current.summary, 200))}; ` +
-      "if that no longer fits your work, update it with NovaDeck's describe tool, and " +
+      "if that no longer fits your work, update it with Novadeck's describe tool, and " +
       "otherwise this notice can be ignored."

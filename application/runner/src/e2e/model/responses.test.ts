@@ -6,7 +6,7 @@ import { parse, responses } from "./responses.js"
 import { latest, tool, type Call, type Reply } from "./script.js"
 
 // Requests Codex 0.159.3 made to a loopback provider, its long texts and tool definitions
-// cut short: a turn after NovaDeck's prompt hook added a delivery, the model called
+// cut short: a turn after Novadeck's prompt hook added a delivery, the model called
 // `send` and a Stop hook continued it; and the title it asks for itself.
 const fixture = (name: string): Request =>
   JSON.parse(readFileSync(new URL(`fixtures/codex-${name}.json`, import.meta.url), "utf8"))

@@ -18,14 +18,14 @@ export type Install = {
   readonly env: NodeJS.ProcessEnv
   readonly home: string
   readonly platform: NodeJS.Platform
-  /** NovaDeck's directory holding this harness's plugin files. */
+  /** Novadeck's directory holding this harness's plugin files. */
   readonly plugin: string
 }
 
 /** One of a harness's plugin commands; a failing one marked `optional` is skipped. */
 export type Command = { readonly argv: readonly string[]; readonly optional?: boolean }
 
-/** A file NovaDeck writes for a harness, relative to the directory that holds it. */
+/** A file Novadeck writes for a harness, relative to the directory that holds it. */
 export type File = { readonly path: string; readonly content: string; readonly mode?: number }
 
 /**
@@ -35,19 +35,19 @@ export type File = { readonly path: string; readonly content: string; readonly m
 export type Continuity = "startup" | "native-switch" | "conversation-observed"
 
 /**
- * One harness, as its own files and commands describe it. NovaDeck only reads its
+ * One harness, as its own files and commands describe it. Novadeck only reads its
  * configuration; installing and removing its plugin goes through its own commands,
  * which own that configuration. A feature it lacks is a field it leaves out.
  */
 export type Harness = {
   readonly id: AgentName
-  /** Where NovaDeck keeps its plugin, under the plugins directory. */
+  /** Where Novadeck keeps its plugin, under the plugins directory. */
   readonly plugin: string
   /** Where its installer puts the program when it is not on PATH. */
   readonly fallback?: (home: string) => string
   /** Its own home, whose presence says it is installed. */
   readonly home: (install: Install) => string
-  /** Whether its own configuration lists NovaDeck's plugin as installed. */
+  /** Whether its own configuration lists Novadeck's plugin as installed. */
   readonly connected: (install: Install) => Promise<boolean>
   /** Its plugin commands, run in order. */
   readonly connect: (install: Install) => readonly Command[]
@@ -67,7 +67,7 @@ export type Harness = {
     readonly apply: (install: Install) => Promise<void>
     readonly revert: (install: Install) => Promise<void>
   }
-  /** Programs NovaDeck's shells put first on PATH while it is connected. */
+  /** Programs Novadeck's shells put first on PATH while it is connected. */
   readonly shims?: (platform: NodeJS.Platform) => readonly File[]
   /** The words that continue its session by id, which a shell runs as they are. */
   readonly resume?: (session: string) => readonly string[]
@@ -91,7 +91,7 @@ export type Harness = {
    * of its own holds, is read back once its hooks and activity are gone.
    */
   readonly plans?: (line: string) => readonly WrittenPlan[]
-  /** How much of each feature NovaDeck tells of it, from the sources its adapter reads. */
+  /** How much of each feature Novadeck tells of it, from the sources its adapter reads. */
   readonly coverage: AgentCoverage
   /**
    * Whether work a turn leaves running, as a background subagent or command, wakes the
@@ -109,7 +109,7 @@ export type Harness = {
    */
   readonly shown?: (report: Report) => PromptShown | undefined
   /**
-   * Whether the terminal title it sets, as NovaDeck's shells start it (Codex's shim names
+   * Whether the terminal title it sets, as Novadeck's shells start it (Codex's shim names
    * the title's items), says its prompt shows. It counts only while the terminal's
    * foreground runs a process of the harness's name.
    */
@@ -117,7 +117,7 @@ export type Harness = {
   /** Whether the terminal title it sets says a turn runs, as Codex's Working does. */
   readonly titleWorking?: (title: string) => boolean
   /**
-   * Whether NovaDeck's hooks run for it in `cwd`, where it runs them only once the person
+   * Whether Novadeck's hooks run for it in `cwd`, where it runs them only once the person
    * trusts them (Codex): a prompt it shows counts only then, as nothing could deliver a
    * message, or confirm a ring, without them. `where` holds the terminal's own program
    * and environment where the runner can tell them. Undefined when the harness couldn't
@@ -160,7 +160,7 @@ export type Harness = {
    * Follows one of a bound session's subagents, by its id, in its own sources, for what
    * ends its turn that no hook reports, as Codex's rollout records a request dismissed
    * with Esc: from `since`, when its oldest request still waiting was asked, until
-   * `signal` aborts. NovaDeck follows it only while that subagent's request waits.
+   * `signal` aborts. Novadeck follows it only while that subagent's request waits.
    */
   readonly watchActor?: (
     run: Run,
@@ -173,7 +173,7 @@ export type Harness = {
 
 /**
  * What a harness knows of agents' messaging (see docs/agent-messaging.md): what its hooks
- * print when they ask NovaDeck, each a whole line of the JSON it reads, and how it
+ * print when they ask Novadeck, each a whole line of the JSON it reads, and how it
  * behaves, so shared code never asks which harness it is. Nothing here says how it draws
  * its screen: the doorbell's checks are the same for every TUI.
  */
@@ -181,8 +181,8 @@ export type MessagingProfile = {
   /** The hook events that ask, and when each fires: as a turn ends, or as a prompt starts it. */
   readonly asks: { readonly [event: string]: "stop" | "prompt" }
   /**
-   * What a hook prints with nothing to deliver, as it does without NovaDeck: by event, and
-   * for any other (`*`). The relay prints the same when NovaDeck can't answer.
+   * What a hook prints with nothing to deliver, as it does without Novadeck: by event, and
+   * for any other (`*`). The relay prints the same when Novadeck can't answer.
    */
   readonly silent: { readonly "*": string; readonly [event: string]: string }
   /** A Stop's answer that continues the turn with a delivery. */
@@ -234,31 +234,31 @@ export type UserEntry = {
 }
 
 /**
- * How long a harness lets one of NovaDeck's hooks run, in seconds; one slower is dropped
+ * How long a harness lets one of Novadeck's hooks run, in seconds; one slower is dropped
  * silently. Well above the hook's own limit, so the hook always ends by itself.
  */
 export const hookSeconds = 10
 
 export const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
 
-/** Where the plugin's commands start from, as NovaDeck wrote them for this run. */
+/** Where the plugin's commands start from, as Novadeck wrote them for this run. */
 /** What `profile`'s hook prints for `event` with nothing to deliver. */
 export const silentFor = (profile: MessagingProfile, event: string): string =>
   profile.silent[event] ?? profile.silent["*"]
 
-/** How an agent starts a program of NovaDeck's: a file, by its absolute path, and arguments. */
+/** How an agent starts a program of Novadeck's: a file, by its absolute path, and arguments. */
 export type Start = { readonly command: string; readonly args?: readonly string[] }
 
 /**
- * How agents start what NovaDeck installs for them: its MCP server, which they start
+ * How agents start what Novadeck installs for them: its MCP server, which they start
  * without a shell that could expand a variable.
  */
 export type Launchers = { readonly mcp: Start }
 
-/** How an agent starts NovaDeck's MCP server, as its plugin names it. */
+/** How an agent starts Novadeck's MCP server, as its plugin names it. */
 export const mcpServer = (launchers: Launchers): Start => launchers.mcp
 
-/** The terminal's variables NovaDeck's MCP server is started and finds its runner by. */
+/** The terminal's variables Novadeck's MCP server is started and finds its runner by. */
 export const mcpVariables = [
   "NOVADECK_MCP",
   "NOVADECK_TERMINAL_ID",
@@ -266,18 +266,18 @@ export const mcpVariables = [
   "NOVADECK_REPORT_TOKEN",
 ] as const
 
-/** NovaDeck's plugin, as every harness's manifest names it. */
+/** Novadeck's plugin, as every harness's manifest names it. */
 export const plugin = {
   name: "novadeck",
   version: "1.2.0",
   description:
-    "Tells NovaDeck which session runs in its terminal, so it can resume it, lets the agent show you files beside it, and lets agents in NovaDeck message each other.",
+    "Tells Novadeck which session runs in its terminal, so it can resume it, lets the agent show you files beside it, and lets agents in Novadeck message each other.",
 }
 
-/** The local marketplace Claude Code and Codex both install NovaDeck's plugin from. */
+/** The local marketplace Claude Code and Codex both install Novadeck's plugin from. */
 export const marketplace = json({
   name: "novadeck",
-  owner: { name: "NovaDeck" },
+  owner: { name: "Novadeck" },
   plugins: [{ name: "novadeck", source: "./novadeck", description: plugin.description }],
 })
 
@@ -328,16 +328,16 @@ export const callId = (actor: string | null, toolName: string, input: unknown): 
   return `${actor ?? ""}:${toolName}:${digest.slice(0, 16)}`
 }
 
-/** The line NovaDeck's doorbell types, with its nonce (see docs/agent-messaging.md). */
+/** The line Novadeck's doorbell types, with its nonce (see docs/agent-messaging.md). */
 export const doorbellLine = (nonce: string): string =>
-  `[NovaDeck: automatic notice, agent messages waiting, ${nonce}]`
+  `[Novadeck: automatic notice, agent messages waiting, ${nonce}]`
 
 /** Any doorbell line, wherever it is. */
-export const doorbell = /\[NovaDeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]/g
+export const doorbell = /\[Novadeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]/g
 
 /** The nonce of a prompt that is exactly a doorbell line, as typed or started with; else undefined. */
 export const doorbellNonce = (prompt: string): string | undefined =>
-  /^\[NovaDeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]$/.exec(
+  /^\[Novadeck: automatic notice, agent messages waiting, ([A-Za-z0-9]+)\]$/.exec(
     prompt.trim(),
   )?.[1]
 
@@ -360,7 +360,7 @@ export const continuationPrompt = (prompt: string): boolean =>
   /^\s*<hook_prompt\b/.test(prompt) || prompt.includes("<novadeck-messages")
 
 /**
- * The turn a root prompt starts, from its text: NovaDeck's doorbell, a hook's
+ * The turn a root prompt starts, from its text: Novadeck's doorbell, a hook's
  * continuation (or `harness` by the harness's own reckoning), or a prompt with the
  * person's text, any doorbell line removed.
  */
@@ -384,7 +384,7 @@ export const promptStart = (
   return { type: "turn-started", ...base, cause: "prompt", ...(own && { prompt: own }) }
 }
 
-/** Quotes a doorbell line for any shell NovaDeck starts: it holds no character they expand. */
+/** Quotes a doorbell line for any shell Novadeck starts: it holds no character they expand. */
 export const quotedLine = (line: string): string => `"${line}"`
 
 /** A payload's string field, or undefined. */

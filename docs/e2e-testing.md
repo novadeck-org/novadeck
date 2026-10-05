@@ -1,9 +1,9 @@
 # End-to-end tests
 
 The end-to-end suite runs the real Claude Code, Codex and Antigravity TUIs in
-NovaDeck's terminals, with NovaDeck's real plugin, hooks and MCP server, against a
+Novadeck's terminals, with Novadeck's real plugin, hooks and MCP server, against a
 scripted fake model. It checks agent messaging the way people use it, with real
-harnesses: an agent calls `send`, NovaDeck rings the idle recipient, and the reply comes
+harnesses: an agent calls `send`, Novadeck rings the idle recipient, and the reply comes
 back. The model is the one part replaced, so runs need no credentials, cost nothing and
 give the same result every time.
 
@@ -22,7 +22,7 @@ NOVADECK_E2E_AGENTS=claude pnpm --filter @novadeck/runner test:e2e   # one harne
 ```
 
 The runner's own script doesn't build `@novadeck/protocol` or `@novadeck/relay`, which
-agents start for NovaDeck's MCP server and hooks, so build them first when running the suite
+agents start for Novadeck's MCP server and hooks, so build them first when running the suite
 from `application/runner`, as the root script does.
 
 The first run installs the pinned harnesses (a few hundred MB). Later runs reuse them.
@@ -110,7 +110,7 @@ network:
     so a Codex with the sandbox's home looks up names the developer's Codex never wrote.
     MCP OAuth tokens are named only after the server's address
     (`Codex MCP Credentials`), but only HTTP MCP servers have them, and the sandbox
-    configures none: NovaDeck's server runs over stdio.
+    configures none: Novadeck's server runs over stdio.
   - Antigravity 1.2.14 uses `zalando/go-keyring`, which on Linux only talks to the
     secret service over D-Bus. Its program has no `keyctl` call.
 - **No network.** The fake model is also every process's `HTTP(S)_PROXY`, with
@@ -175,9 +175,9 @@ network:
   - Paths that change only when a plugin is installed or removed, or the person signs in,
     have their modification time and size compared before and after, never their
     contents: `~/.codex/auth.json`, which is never read, `~/.codex/plugins/cache/novadeck`
-    (NovaDeck's copy among Codex's installed plugins; not the folder itself, where the
+    (Novadeck's copy among Codex's installed plugins; not the folder itself, where the
     developer's own Codex refreshes its bundled plugins whenever it likes),
-    `~/.gemini/config/plugins` (where NovaDeck installs Antigravity's plugin), and
+    `~/.gemini/config/plugins` (where Novadeck installs Antigravity's plugin), and
     `~/.gemini/antigravity-cli/plugin_data` and `bin`.
 
   Busy files such as histories, sessions, session indexes, sockets, logs and state
@@ -273,7 +273,7 @@ for (const setup of setups) {
   `absent`, with what a probe of the pinned version found, as Codex's `background` does:
   `absent: { background: "nothing it starts wakes it once its turn has ended (probed
 2026-10-02, 0.159.3)" }`. `lacking` fails on a missing trait with no reason there. A
-  missing trait never stands in for a gap: a behaviour the harness has that NovaDeck
+  missing trait never stands in for a gap: a behaviour the harness has that Novadeck
   doesn't yet support the same way is a gap, recorded in `known-gaps.ts` and raised as a
   blocker (see [Known gaps](#known-gaps)).
 
@@ -288,7 +288,7 @@ for (const setup of setups) {
   - `approval`: `request(call)` is a reply calling a tool the harness asks about first,
     as seeded; `shows` matches its question with the allowing option selected, for
     `confirm`; `deny` is the keys that refuse it, pressed without Enter, other than
-    Escape where the harness has such a key, so NovaDeck learns of the refusal from the
+    Escape where the harness has such a key, so Novadeck learns of the refusal from the
     harness rather than the keystroke; `denied` is what the screen then shows of it.
   - `interrupted(prompt)`: what the screen shows once Escape interrupted the turn of
     `prompt` before its reply came, the harness's own account; required, as the Escape
@@ -301,7 +301,7 @@ for (const setup of setups) {
     select the trusting option (`""` when the question shows it selected), and that
     option as shown selected, for `confirm`.
   - `trust.hooks`: `{ shows, skip }`, its hooks-review screen and the keys that leave it
-    without trusting NovaDeck's hooks, as `hooksTrusted: false` shows it.
+    without trusting Novadeck's hooks, as `hooksTrusted: false` shows it.
   - `rewind`: `{ shows, swallows }`, what Esc-Esc (two Escapes about 300 ms apart, sent
     with `press`) opens at its idle prompt, a picker or mode for going back to an earlier
     prompt, and whether it swallows a paste (`true`: the ring fails) or is left by it, the
@@ -314,7 +314,7 @@ for (const setup of setups) {
     `command` through its shell tool, and the command running the harness itself once,
     non-interactively, on `prompt` (`claude -p`, `codex exec`, `agy -p`), which its seed
     lets run without asking, unlike `approval`'s. The nested run inherits the agent's
-    environment, so it reaches the fake model, and its own hooks report to NovaDeck.
+    environment, so it reaches the fake model, and its own hooks report to Novadeck.
   - `fork.picker`: `{ command, picked(prompt) }`, the command that, in a new terminal,
     shows a picker of the project's sessions, latest first and selected, Down selecting
     the next, and forks the one picked; `picked` matches the row of the session whose
@@ -326,14 +326,14 @@ for (const setup of setups) {
   `e2e.seeded(seed, ...setups)` seeds every setup of the test otherwise, through
   `prepare(sandbox, model, installed, seed)` and `connected(sandbox, model, seed)`:
   `{ folderTrusted: false }` leaves the project folder untrusted, so the harness asks
-  first, and `{ hooksTrusted: false }` leaves NovaDeck's hooks untrusted where the
+  first, and `{ hooksTrusted: false }` leaves Novadeck's hooks untrusted where the
   harness has that step (Codex), so they don't run. `{ popup: true }` seeds the account
   as one the harness's `popup` shows for, where it shows it only for some (Claude Code's
   cost warning, only for a billing admin); no other test gets that account. A seed holds
   for every terminal of the test, as both are settings of the project; a harness with no such step ignores it.
   A seeded test goes in its own `describe`, as `e2e.seeded` gives its own `it`.
 - `e2e(...setups)` gives each test a fake model, a sandbox and a deck, with each
-  setup's harness installed (once, before its tests), seeded and connected to NovaDeck
+  setup's harness installed (once, before its tests), seeded and connected to Novadeck
   through its own plugin commands. With several setups, as for a scenario across
   harnesses, their dialects share one fake model, and the tests run only when every one
   of their harnesses is selected. Such scenarios go in files ending in `.mixed.e2e.ts`,
@@ -373,7 +373,7 @@ for (const setup of setups) {
   watches a terminal for a ring that mustn't come, past the doorbell's settle window;
   `handing(run, first, then)` opens a terminal whose command runs `first`, then `then`
   once it exits (`claude ; codex`), and waits until the first is at its prompt.
-- **NovaDeck's state** is recorded as it changes, not polled: each deck terminal keeps
+- **Novadeck's state** is recorded as it changes, not polled: each deck terminal keeps
   the history of its delivery state and its messages' states from the moment it opens.
   `t.mark()` and `t.reached(state or predicate, { after })` wait for a transition after
   a point, and `through(t, steps, { after })` for several in order, such as
@@ -391,13 +391,13 @@ for (const setup of setups) {
 - **Holding a turn** pins down how something travels. The round trip holds t2's answer
   at a `gate()` until t1's turn has ended Settled, and asserts t1 is then rung, rather
   than reached by its Stop continuation.
-- **What NovaDeck knows of an agent**, as a client's detail view reads it, is
+- **What Novadeck knows of an agent**, as a client's detail view reads it, is
   `await t.detail()`: the session bound, its activity, and the requests it waits on the
   person for. The boot scenario reads there that nothing waits on the person and whether
   a session bound at Ready; Ready itself says the agent's own prompt shows, past its
   startup screens.
-- **Restarting the runner.** `deck.restart()` closes the runner as NovaDeck does when it
-  quits, saving every terminal and ending its shells, and wires another, as NovaDeck
+- **Restarting the runner.** `deck.restart()` closes the runner as Novadeck does when it
+  quits, saving every terminal and ending its shells, and wires another, as Novadeck
   starts again, on the same database, shell folder and sandbox, with the same fake
   model. Between the two, `reap.ts` looks for processes the first runner left in the
   sandbox, and any it finds fails the restart as a leak. The first runner's deck
@@ -413,11 +413,11 @@ for (const setup of setups) {
   connect again to acknowledge it. The restart scenario does so: the new runner's first
   listing of the terminal, restored, holds the message queued, and the resumed session
   is rung for it again.
-- **NovaDeck's shell files.** `deck.shell` is where NovaDeck's shells read their files,
+- **Novadeck's shell files.** `deck.shell` is where Novadeck's shells read their files,
   the same across restarts. A scenario reads it only as a readiness signal for the
   person's _while it starts_ scenario, a peek at the shell's resume files
   (`deck.shell.resume` empty once the shell has taken the command starting the agent),
-  never to drive or assert NovaDeck's state.
+  never to drive or assert Novadeck's state.
 - **Agents' requests for a terminal.** Without a client answering them, an agent's
   `open_terminal` opens nothing. `deck.answerRequests()` answers them as the app does,
   from the call on and across restarts: it opens a terminal in the request's folder,
@@ -426,7 +426,7 @@ for (const setup of setups) {
   opened, in order, as a deck terminal.
 - **The controls' scenarios** (`controls.e2e.ts`), one smoke test per framework piece,
   asserting what docs/agent-messaging.md says ("What counts", "States"):
-  - _Approval allowed_: the tool's question shows and NovaDeck sees a request waiting;
+  - _Approval allowed_: the tool's question shows and Novadeck sees a request waiting;
     `confirm` allows it; the model reads the tool's result, the turn goes Working then
     Settled, never Unknown, and no request waits.
   - _Approval denied_: pressing `deny` refuses it; the turn ends Unknown, never Settled,
@@ -435,7 +435,7 @@ for (const setup of setups) {
   - _Escape_: with the first model call held at a `gate()`, `escape()` interrupts the
     turn; it ends Unknown, the screen shows `interrupted(prompt)`, and once the held
     reply is given, three seconds pass without it showing or the turn going Settled;
-    the next prompt's turn settles. Delivery goes Unknown as NovaDeck sees the key, so
+    the next prompt's turn settles. Delivery goes Unknown as Novadeck sees the key, so
     only the harness's own account shows that it interrupted.
   - _Empty Enter_: with the turn's model call held, `enterEmpty()` presses Enter on the
     empty box; the turn works on and ends Settled, no other turn starts, and a message
@@ -471,7 +471,7 @@ for (const setup of setups) {
   - _Ready_: the person types at the agent's first prompt; Drafting, never rung; their
     prompt carries the message.
   - _While it starts_: the person types once the shell has taken the command starting
-    the agent (its file in `deck.shell.resume` gone), and NovaDeck, taking the keys in
+    the agent (its file in `deck.shell.resume` gone), and Novadeck, taking the keys in
     the write itself, still sees it Unbound. Whether the harness had drawn its first
     screen by then is a race a fast harness wins, so the scenario doesn't ask. Its first
     state past Unbound is Drafting, never Ready nor rung, whatever of the keys reached
@@ -507,7 +507,7 @@ for (const setup of setups) {
   scenarios", "Messages" and "Message states" for them. Each starts with a turn, so a
   session is bound:
   - _`/clear`, then a message_: the clear drops the conversation from the screen, and
-    NovaDeck sees the agent Ready with the old session no longer bound (a new one, or
+    Novadeck sees the agent Ready with the old session no longer bound (a new one, or
     none yet where the harness binds only at its next prompt). t2's message rings it; the
     new session's hook delivers it, the call holding nothing of the conversation before
     the clear, and the session bound then is neither none nor the old one.
@@ -517,13 +517,13 @@ for (const setup of setups) {
     for that second message alone.
   - _Another agent in the terminal_: the terminal opens with `claude ; claude` (its
     harness twice), so the person leaving the first starts the second with no key
-    pressed at the shell's prompt; NovaDeck expects the first, by the command's first
+    pressed at the shell's prompt; Novadeck expects the first, by the command's first
     word. With `/exit` typed and submitted as above, the message is `gone` and the second
     start is Ready, another session, and draws its `banner` anew: once more than the
     fewest times the screen showed it since the Enter, as Claude Code and Codex clear
     their screen as they exit and Antigravity leaves its own, so the first's banner
     can't pass for the second's. No Unbound need show between them: with no shell
-    prompt in between, NovaDeck notices the first process gone only as the next reports,
+    prompt in between, Novadeck notices the first process gone only as the next reports,
     in the same handling as the session it binds. t2's next `send` says the first won't
     arrive, and the new session gets only the second. `lifecycle.mixed.e2e.ts` does the
     same with a different harness second, each harness's terminal starting the next's.
@@ -563,17 +563,17 @@ for (const setup of setups) {
   - _A spawned agent's dialog dismissed with Esc_: t1's root spawns an agent
     (`spawn_agent`, `multi_agent_v1`) and its turn ends; the agent's escalated
     `exec_command` asks (its `approval` request), the dialog showing in the root's screen
-    as "Thread: Agent (<id>)". NovaDeck sees the request waiting (`detail().requests`,
+    as "Thread: Agent (<id>)". Novadeck sees the request waiting (`detail().requests`,
     `activity.attention`) from a subagent it lists as running. t2's message waits queued
     past the settle window, t1 never rung and no call holding the doorbell's line. The
     person presses Esc on the dialog (`escape()`, never Enter), which fires no hook:
-    NovaDeck's request goes to none by following the agent's own rollout, the subagent
+    Novadeck's request goes to none by following the agent's own rollout, the subagent
     still listed as running, and t1 is then rung and its hook delivers. Codex's own
     evidence that it aborted: the dialog's thread line leaves the screen, the agent's
     rollout (`rollout-<time>-<agent id>.jsonl` under `CODEX_HOME/sessions`) holds
     `turn_aborted`, and no call of its conversation ever looks at the command's result.
-    It pins the undocumented rollout naming and record NovaDeck relies on there.
-- Prefer asserting on what the model received and on NovaDeck's state over reading the
+    It pins the undocumented rollout naming and record Novadeck relies on there.
+- Prefer asserting on what the model received and on Novadeck's state over reading the
   screen; read the screen for what only it shows, such as a reply rendered, or the
   harness's own first screen (`banner`).
 
@@ -591,7 +591,7 @@ for (const setup of setups) {
    - `prepare(sandbox, model, installed, seed)` seeds its configuration in the sandbox so
      it starts at its own prompt with no screen in between, for the version actually
      installed, and returns the environment that points it at the fake model with the
-     fake credential. `connected(sandbox, model, seed)`, when given, runs once NovaDeck's
+     fake credential. `connected(sandbox, model, seed)`, when given, runs once Novadeck's
      plugin is connected and before any harness starts, for setup only the plugin's files
      make possible. Both honour the test's `Seed` (`folderTrusted: false`,
      `hooksTrusted: false`, `popup: true`) for each step the harness has, and ignore the
@@ -637,7 +637,7 @@ for (const setup of setups) {
   characters), and trusts the project unless seeded `folderTrusted: false`. Seeded
   `popup: true`, it also names an account (`oauthAccount`) with a billing admin's roles,
   for whom Claude Code warns of a session's cost.
-  `settings.json` allows NovaDeck's MCP tools (`mcp__plugin_novadeck_novadeck`) and its
+  `settings.json` allows Novadeck's MCP tools (`mcp__plugin_novadeck_novadeck`) and its
   own print mode (`Bash(claude -p:*)`, for `shell`), and sets the manual permission mode with auto mode off (`defaultMode: "default"`,
   `disableAutoMode: "disable"`): 2.1.287 defaults to auto mode, where a classifier
   decides what asks, and shows a notice about its billing through a gateway, or with
@@ -647,7 +647,7 @@ for (const setup of setups) {
     asking. Its dialog, "Do you want to proceed?", shows `❯ 1. Yes` selected, then
     "2. Yes, and always allow…" and "3. No", with "Esc to cancel". "3" refuses (`deny`),
     and so does Esc; either interrupts the turn ("Interrupted · What should Claude do
-    instead?", `denied`), which NovaDeck sees through its transcript, so the turn ends
+    instead?", `denied`), which Novadeck sees through its transcript, so the turn ends
     Unknown.
   - _Background_: its `Agent` tool with `run_in_background: true` and a
     `general-purpose` subagent whose prompt holds a marker; the subagent's calls are
@@ -673,7 +673,7 @@ for (const setup of setups) {
     nothing compacts.
   - _Shell_: its Bash tool running `claude -p '<prompt>'`, which prints the nested
     session's answer. The nested Claude Code reports its own `CLAUDE_PID` and session
-    to NovaDeck's hooks, a `SessionStart` (`startup`), its prompt and its Stop.
+    to Novadeck's hooks, a `SessionStart` (`startup`), its prompt and its Stop.
   - _Fork_: `claude --resume --fork-session` shows its "Resume session" picker, latest
     first, each session by its first prompt, the first selected (`❯`), with no
     `SessionStart` until one is picked; picked, the fork starts at its prompt with a
@@ -704,12 +704,12 @@ for (const setup of setups) {
   `prefix_rule(pattern = ["codex", "exec"], decision = "allow")`) lets `codex exec` run
   unasked, for `shell`; so allowed, the nested Codex reached the fake model and wrote its
   rollout in its home.
-- **Hook trust.** Codex runs a plugin's hooks only once trusted, and NovaDeck counts
+- **Hook trust.** Codex runs a plugin's hooks only once trusted, and Novadeck counts
   its prompt only then. Once the plugin is connected, `connected` starts the pinned
   `codex app-server` and makes the calls its "Hooks need review" screen makes:
   `hooks/list` for each hook's current hash, then `config/batchWrite` to record them
-  as trusted, and to let NovaDeck's MCP tools run without asking. It copies the hashes
-  rather than computing them, so it holds as long as that protocol does, which NovaDeck's
+  as trusted, and to let Novadeck's MCP tools run without asking. It copies the hashes
+  rather than computing them, so it holds as long as that protocol does, which Novadeck's
   own trust check relies on too.
 - **What it calls.** 0.159.3 sends its model calls to `POST /v1/responses`, and asks
   `GET /backend-api/plugins/featured`, which the dialect answers with none. MCP tools
@@ -756,7 +756,7 @@ for (const setup of setups) {
   route stays untested.
 - **Seeding.** `~/.gemini/antigravity-cli/settings.json` in the sandbox marks
   onboarding complete, trusts the project, picks the Gemini provider and allows
-  NovaDeck's MCP tools (`mcp(novadeck_novadeck/*)`) and its own print mode
+  Novadeck's MCP tools (`mcp(novadeck_novadeck/*)`) and its own print mode
   (`command(agy -p)`, for `shell`) to run without asking. Its shell tool, `run_command`,
   runs `agy -p '<prompt>'`, waiting up to 30 s before leaving it to run on; the nested
   Antigravity's hooks report a conversation of its own. `/fork` at its prompt says
@@ -768,7 +768,7 @@ for (const setup of setups) {
 - **What it calls.** 1.2.14 streams each model call from
   `POST /v1beta/models/<model>:streamGenerateContent?alt=sse`; its session's title is a
   call with no tools, so `side`. MCP tools are lazy: it offers one `call_mcp_tool` and
-  lists NovaDeck's tools in its system prompt, so the dialect offers them by the names
+  lists Novadeck's tools in its system prompt, so the dialect offers them by the names
   Antigravity gives tools it loads (`mcp_novadeck_novadeck_send`), and encodes a call to
   one as `call_mcp_tool`. A `PreInvocation` hook's message arrives as a user content just
   after the prompt.
@@ -786,7 +786,7 @@ for (const setup of setups) {
 ## Known gaps
 
 None stands today. A known gap is a difference between harnesses the suite works around
-until NovaDeck closes it, and is raised with the person first (see AGENTS.md, "Harness
+until Novadeck closes it, and is raised with the person first (see AGENTS.md, "Harness
 Parity"): never a reason to leave a harness out.
 
 `known-gaps.ts` names each one as a `Gap`, with the harnesses it affects, documented

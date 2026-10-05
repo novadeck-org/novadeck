@@ -1,16 +1,16 @@
-//! An agent hook, run by a connected agent's NovaDeck plugin: the relay sends what the
+//! An agent hook, run by a connected agent's Novadeck plugin: the relay sends what the
 //! hook knows to the runner of the terminal it runs in, unread, and prints what the
 //! runner answers, exactly as the agent expects. A Stop or prompt-time hook's answer may
 //! deliver agents' messages under a lease, which the relay acknowledges once printed.
 //! Claude Code's status line runs through the hook too: the relay runs the person's own,
-//! as their settings name it, beside the report, and prints it. Outside NovaDeck's
+//! as their settings name it, beside the report, and prints it. Outside Novadeck's
 //! terminals, or when the runner can't be reached, it prints only what its agent needs,
 //! as the runner's configuration names it: Antigravity's JSON, where a PreToolUse answer
 //! must say "ask" or Antigravity denies the tool.
 //!
 //! What it knows of the agents comes from that configuration, `relay.json` beside it,
 //! which the runner writes: which events ask, which variables tell agents apart, and what
-//! each agent needs printed without NovaDeck. Nothing here names an agent but Claude Code,
+//! each agent needs printed without Novadeck. Nothing here names an agent but Claude Code,
 //! whose status line only the relay can run.
 
 use std::env;
@@ -25,7 +25,7 @@ use crate::{PROTOCOL, ancestors, endpoint, status_line};
 
 /// What the runner tells the relay about the agents, from `relay.json`. Missing or
 /// unreadable, it is empty: every hook reports, forwards nothing of its environment, and
-/// prints nothing without NovaDeck.
+/// prints nothing without Novadeck.
 #[derive(Default, Debug, PartialEq)]
 pub struct Config {
     asks: Value,

@@ -78,10 +78,10 @@ Without a token, the runner exposes only the existing HTTP status behavior.
 With a token, the RPC WebSocket endpoint is `/api/rpc`. The CLI persists metadata
 at `~/.local/share/novadeck/workspace.sqlite` unless `NOVADECK_DATABASE` is set, and
 writes its [shell integration](#shell-integration-and-restoring-terminals) to a `shell`
-folder beside it, with its own copy of the relay agents start for NovaDeck's MCP server and hooks.
+folder beside it, with its own copy of the relay agents start for Novadeck's MCP server and hooks.
 The build compiles the relay, on Linux linked statically, so the binary runs on any
 distribution, x64 or ARM64; set `NOVADECK_RELAY` to use another build. Without it, shells and hooks still work, and
-agents there start without NovaDeck's tools.
+agents there start without Novadeck's tools.
 Programmatic `startServer` from `@novadeck/runner/server` and `createRunner` use
 an in-memory database when no path is supplied. `@novadeck/runner/http` stays free
 of native terminal code, so the Electron main process can serve the status endpoint
@@ -107,7 +107,7 @@ import { connectRunner, desktop, messagePort, websocket } from "@novadeck/protoc
 // Deployed separately: a token-authenticated WebSocket (use wss:// remotely).
 const runner = await connectRunner(websocket("ws://127.0.0.1:8787/api/rpc", { token }))
 
-// Bundled in the NovaDeck desktop app: a port from the host to its runner process.
+// Bundled in the Novadeck desktop app: a port from the host to its runner process.
 const runner = await connectRunner(desktop())
 
 // Any other host that hands the page a MessagePort to a runner.
@@ -454,7 +454,7 @@ changed. Only connecting an agent (below) installs anything elsewhere:
 - `plugins/claude` and `plugins/codex`, a local marketplace holding the `novadeck`
   plugin for each, and `plugins/agy/novadeck`, the plugin for Antigravity. Each holds
   one hook: Claude Code's and Codex's `SessionStart`, Antigravity's `PreInvocation`. Its
-  command does nothing where `NOVADECK_HOOK` is unset, that is outside NovaDeck's
+  command does nothing where `NOVADECK_HOOK` is unset, that is outside Novadeck's
   shells, and otherwise runs `"$NOVADECK_HOOK" <agent>` (see `hookCommand` for the
   exact, frozen strings: Codex and Antigravity trust a hook by its definition). On
   Windows, Claude Code's hook runs in PowerShell and the others in cmd.
@@ -462,9 +462,9 @@ changed. Only connecting an agent (below) installs anything elsewhere:
   while Codex is connected: it runs the next `codex` on `PATH` with `--no-daemon`, since
   interactive Codex otherwise runs sessions and their hooks in a shared background
   server without the terminal's environment. It leaves `codex agents`, `--remote` and
-  runs outside NovaDeck's shells unchanged. The integration puts `NOVADECK_BIN` back in
+  runs outside Novadeck's shells unchanged. The integration puts `NOVADECK_BIN` back in
   front after the user's startup files.
-- `hook` (`hook.cmd`), a launcher that starts NovaDeck's relay (`novadeck-relay`, a
+- `hook` (`hook.cmd`), a launcher that starts Novadeck's relay (`novadeck-relay`, a
   small native program copied in beside it; see `application/relay`), so the hook needs
   no bash, python3 or JavaScript runtime and starts in about a millisecond. The relay
   sends the agent's payload, unread, with when it started and the processes it runs
@@ -478,7 +478,7 @@ Each shell the runner starts gets `NOVADECK_TERMINAL_ID`, and with the integrati
 `NOVADECK_HOOK` (and on Linux and macOS `NOVADECK_MCP`, the runner's own MCP launcher),
 and `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`:
 a Unix socket in a private temporary directory, or a named pipe on Windows, and a random
-token for that shell. Agents' hooks and NovaDeck's MCP server reach it through the
+token for that shell. Agents' hooks and Novadeck's MCP server reach it through the
 relay, as the [relay protocol](#relay-protocol) below describes. From each hook's report
 the runner records the agent's session for the terminal whose token matches, keeping the
 report with the largest `seq` (the hook's start time) per agent, so `/clear`, a fork, or another agent
@@ -500,13 +500,13 @@ the connection carries; the endpoint ends a connection whose first line is anyth
 or a version it doesn't speak, without an answer, and logs that once.
 
 **Versions.** An agent's plugin starts the relay of whichever install connected it last,
-on Windows or outside NovaDeck's terminals (on Linux and macOS a terminal's agents start
+on Windows or outside Novadeck's terminals (on Linux and macOS a terminal's agents start
 its own runner's relay, through `NOVADECK_MCP`), as the desktop app and a standalone
 runner can share a machine, so a runner can meet an older or newer relay than its own. When the protocol changes incompatibly, the version
 goes up, and the runner keeps taking the one before for a release (`relayVersions`).
 That holds from version 2, the relay's first: the scripts agents ran before it, on
-NovaDeck's own runtime, aren't served, so an agent connected by an install from before
-the relay gets NovaDeck's tools once it is connected again.
+Novadeck's own runtime, aren't served, so an agent connected by an install from before
+the relay gets Novadeck's tools once it is connected again.
 `novadeck-relay --version` names a copy's crate version and protocol.
 
 **MCP session**, started by the `mcp` launcher (on Windows, by the plugin itself) as
@@ -527,14 +527,14 @@ the relay gets NovaDeck's tools once it is connected again.
    under way, then closes, and the relay exits.
 
 A line over 1 MiB is answered with error `-32600`, carrying the id that closes the line
-or else the first its start names, and skipped; the session goes on. Outside NovaDeck's
+or else the first its start names, and skipped; the session goes on. Outside Novadeck's
 terminals the relay answers by itself: `initialize`, `ping`, an empty `tools/list`, and
 `-32602` for any tool.
 
 **Hook**, run by the `hook` launcher as `novadeck-relay hook --config <relay.json> <agent>
 [event]`. `relay.json`, which the runner writes beside the relay, holds what the relay
 knows of the agents: the events that ask, by agent; the variables it forwards; and what
-each agent prints without NovaDeck, by event and for any other (`*`), from each harness's
+each agent prints without Novadeck, by event and for any other (`*`), from each harness's
 `messaging.silent`. Options come before the agent, as `--name value`, and every option
 takes a value: a relay passes over the options it doesn't know, so a later launcher's
 work with it, and an option without a value would be read as the agent.
@@ -553,7 +553,7 @@ work with it, and an option without a value would be read as the agent.
    report at once, an ask by the relay's deadline (at most four seconds after `seq`),
    leaving half a second to print and acknowledge.
 3. The relay prints `stdout`, or else what `relay.json` says the agent needs without
-   NovaDeck (Antigravity's `{"decision":"ask"}` before a tool, `{}` otherwise). When a
+   Novadeck (Antigravity's `{"decision":"ask"}` before a tool, `{}` otherwise). When a
    lease came and printing succeeded, it sends `{"ack":"<leaseId>"}` on the same
    connection.
 
@@ -593,7 +593,7 @@ forgets it, including one from an earlier runner.
   has not closed, and a shell without the integration.
 - `agents.list()` answers, for `claude`, `codex` and `agy`, whether the agent is
   installed where the runner runs (its home: `CLAUDE_CONFIG_DIR` or `~/.claude`,
-  `CODEX_HOME` or `~/.codex`, `~/.gemini/antigravity-cli`) and whether NovaDeck's plugin
+  `CODEX_HOME` or `~/.codex`, `~/.gemini/antigravity-cli`) and whether Novadeck's plugin
   is installed into it, read from the agent's own configuration.
   `agents.set({ agent, connected })` installs or removes the plugin with the agent's
   own commands (`claude plugin marketplace add` + `plugin install`, `codex plugin
@@ -636,7 +636,7 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   path (`/root`, `/root/<name>`). The runner reads no further ahead than it has sent, but a remote client's own
   pace is not tracked: a large record on a slow link fills the socket's buffer like any
   other output.
-  An actor the terminal's session does not have, or without a transcript NovaDeck reads,
+  An actor the terminal's session does not have, or without a transcript Novadeck reads,
   is `NOT_FOUND`; the stream ends when the terminal's agent leaves that session. The
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
@@ -690,7 +690,7 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
     `companions.resetWindowTitle({ windowId })` give a window the person's title or its
     item's name again.
 
-  An agent shows things with NovaDeck's MCP `show` tool, which puts each on its own
+  An agent shows things with Novadeck's MCP `show` tool, which puts each on its own
   terminal's bar; showing the same file or page there again updates it, with a later
   version, while one moved elsewhere is never touched. `showing` lists what its bar holds.
   Plans come from the agents' own records: Claude Code's are the Markdown files plan mode

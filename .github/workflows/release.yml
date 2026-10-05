@@ -82,7 +82,7 @@ jobs:
             exit 0
           fi
 
-          # TODO: Replace this command with version="$recommended_version" once NovaDeck has an early working product.
+          # TODO: Replace this command with version="$recommended_version" once Novadeck has an early working product.
           version="$(pnpm exec release-it patch --release-version --no-github.release)"
           {
             echo "package=true"
@@ -285,7 +285,7 @@ jobs:
       - name: Upload Packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: NovaDeck-${{ matrix.target }}
+          name: novadeck-${{ matrix.target }}
           path: ${{ matrix.files }}
           if-no-files-found: error
           compression-level: 0
@@ -316,7 +316,7 @@ jobs:
       - name: Download Packages
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: NovaDeck-*
+          pattern: novadeck-*
           path: release-assets
           merge-multiple: true
 

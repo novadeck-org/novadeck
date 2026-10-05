@@ -18,7 +18,7 @@ import { createWebview, type WebviewElement } from "./webview"
 
 // Viewers for what an agent shows beside its terminal, as it loads from the file or page
 // it points at now, or why it can't show. Files show as plain text at
-// once, then highlighted when their language is one NovaDeck knows (see ./highlight.ts);
+// once, then highlighted when their language is one Novadeck knows (see ./highlight.ts);
 // a markdown file reads as a document instead, formatted as a plan is.
 // A page loads live where the backend's host allows, in Electron's <webview>, which the
 // desktop app locks down (no Node, its own session, http(s) only; see ./webview.ts);
@@ -75,7 +75,7 @@ const pointedLines = (file: FileContent): readonly string[] =>
   file.lines.slice(file.from - file.firstLine, file.to - file.firstLine + 1)
 
 // The file's lines highlighted, once its parser has loaded; null until then, or for a
-// language NovaDeck doesn't highlight.
+// language Novadeck doesn't highlight.
 const useHighlighted = (file: FileContent): readonly HighlightedLine[] | null => {
   const [highlighted, setHighlighted] = useState<{
     readonly of: FileContent
@@ -258,7 +258,7 @@ const reasonText = (reason: UnavailableReason, name: string, size: number | null
     case "missing":
       return `${name} isn't there any more.`
     case "unreadable":
-      return `NovaDeck can't read ${name}.`
+      return `Novadeck can't read ${name}.`
     case "not-a-file":
       return `${name} is no longer a file.`
     case "too-large":

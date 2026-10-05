@@ -86,7 +86,7 @@ const opened = (firstByPerson: boolean, first = true) =>
   })
 
 describe("a peer as agents read it", () => {
-  it("is one short block of what NovaDeck knows, each fact left out when unknown", () => {
+  it("is one short block of what Novadeck knows, each fact left out when unknown", () => {
     expect(renderPeer(peer, now)).toEqual([
       "- t2: Codex, busy, last active 2 h ago",
       "  title: API author (set by t1, not the user)",
@@ -107,7 +107,7 @@ describe("a peer as agents read it", () => {
       where: undefined,
       withYou: null,
     })
-    expect(renderPeer(bare, now)).toEqual(["- t3: no agent NovaDeck can deliver to"])
+    expect(renderPeer(bare, now)).toEqual(["- t3: no agent Novadeck can deliver to"])
     // Opened to run an agent that hasn't started: messages to it are taken.
     const starting = peerOf({
       terminalId: "D",
@@ -119,7 +119,7 @@ describe("a peer as agents read it", () => {
       withYou: null,
     })
     expect(renderPeer(starting, now)).toEqual(["- t4: expecting Codex, not started yet"])
-    // Its agent at its prompt, whose hooks NovaDeck can't run there until the user trusts them.
+    // Its agent at its prompt, whose hooks Novadeck can't run there until the user trusts them.
     const untrusted = peerOf({
       terminalId: "F",
       handle: "t6",
@@ -132,7 +132,7 @@ describe("a peer as agents read it", () => {
     })
     expect(untrusted).toMatchObject({ expecting: null, untrusted: "codex" })
     expect(renderPeer(untrusted, now)).toEqual([
-      "- t6: no agent NovaDeck can deliver to: Codex runs there, but NovaDeck's hooks " +
+      "- t6: no agent Novadeck can deliver to: Codex runs there, but Novadeck's hooks " +
         "aren't trusted for it yet (the user can trust them with /hooks)",
     ])
     // Opened by another terminal's agent with a task, before its session said anything.
@@ -259,7 +259,7 @@ describe("what agents and a refused send say", () => {
       now,
     })
     expect(text.split("\n").slice(0, 4)).toEqual([
-      "You are t1 in NovaDeck.",
+      "You are t1 in Novadeck.",
       "There are no other terminals in this project and session.",
       "Your messages not yet delivered:",
       expect.stringMatching(

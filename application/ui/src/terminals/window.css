@@ -27,7 +27,7 @@
    (muted), --window-phase-attention-border-color (warning-fg),
    --window-phase-ended-border-color (strong): the phase line in each phase.
    --window-phase-attention-border-width (2px): its weight while an agent waits.
-   --window-phase-unheard-border-color (muted): the line while NovaDeck can't hear from an
+   --window-phase-unheard-border-color (muted): the line while Novadeck can't hear from an
    agent.
    --window-phase-done-border-color (success-fg), --window-phase-done-border-width (2px):
    the line while an agent's reply waits unread. --window-done-bg (success),
@@ -114,7 +114,7 @@
 }
 /* A terminal's phase. Its tab reads it as text (see tabs.css); its window reads it from
    a line under the header, legible at any Canvas zoom: a sweep while a program runs,
-   dots while the shell starts, dashes once it has ended, muted dashes while NovaDeck
+   dots while the shell starts, dashes once it has ended, muted dashes while Novadeck
    can't hear from its agent, and nothing while idle.
    Reduced motion holds the sweep still. */
 /* An ended terminal is hatched across its window; the hatch lies over its output, which

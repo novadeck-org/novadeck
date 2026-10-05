@@ -380,7 +380,7 @@ describe("terminal watch API", () => {
 })
 
 describe("terminal title API", () => {
-  it("renames a terminal as the person's, then hands its title back to NovaDeck", async ({
+  it("renames a terminal as the person's, then hands its title back to Novadeck", async ({
     resources,
   }) => {
     const app = await fixture(resources)

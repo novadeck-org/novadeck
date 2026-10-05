@@ -1,4 +1,4 @@
-# The relay runs on machines with nothing installed beside NovaDeck: on Windows, the C
+# The relay runs on machines with nothing installed beside Novadeck: on Windows, the C
 # runtime is linked in, rather than needing the Visual C++ redistributable's DLLs.
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]

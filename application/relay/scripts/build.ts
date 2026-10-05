@@ -32,7 +32,7 @@ let rust = false
 const pinnedRust = (): void => {
   if (rust) return
   if (!has("cargo")) {
-    throw new Error("Building NovaDeck needs Rust: install it from https://rustup.rs.")
+    throw new Error("Building Novadeck needs Rust: install it from https://rustup.rs.")
   }
   rust = true
   if (has("rustup")) run("rustup", ["toolchain", "install", "--no-self-update"])

@@ -11,7 +11,7 @@ try {
 
 const server = await startServer(readConfig())
 
-console.log(`NovaDeck runner listening at ${server.origin}`)
+console.log(`Novadeck runner listening at ${server.origin}`)
 if (!process.env.NOVADECK_TOKEN) {
   console.log("Terminal API disabled. Set NOVADECK_TOKEN to enable authenticated access.")
 }

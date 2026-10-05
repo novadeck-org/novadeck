@@ -1,8 +1,8 @@
-//! The person's own Claude Code status line, which NovaDeck's status line shows: their
+//! The person's own Claude Code status line, which Novadeck's status line shows: their
 //! command, as Claude Code's settings name it, run as Claude Code runs it, with the same
 //! input, in a process group of its own, so a deadline ends everything it started. The
 //! relay finds and runs it itself, beside reporting to the runner, so it shows even when
-//! the runner can't be reached, as from a terminal multiplexer that outlived NovaDeck.
+//! the runner can't be reached, as from a terminal multiplexer that outlived Novadeck.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -17,7 +17,7 @@ fn text(value: Option<&Value>) -> Option<&str> {
 }
 
 /// The person's own status line command: the project's local settings, the project's,
-/// then the person's (`config_dir`, or `~/.claude`). NovaDeck's own, which names the
+/// then the person's (`config_dir`, or `~/.claude`). Novadeck's own, which names the
 /// hook, never counts.
 pub fn own_command(
     payload: &str,
@@ -157,7 +157,7 @@ mod lookup {
         assert_eq!(found().as_deref(), Some("theirs"));
         settings(&project.join(".claude"), "settings.json", "project's");
         assert_eq!(found().as_deref(), Some("project's"));
-        // NovaDeck's own never counts.
+        // Novadeck's own never counts.
         settings(
             &project.join(".claude"),
             "settings.local.json",

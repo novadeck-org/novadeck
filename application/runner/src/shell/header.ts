@@ -1,7 +1,7 @@
-/** The comment that opens each file NovaDeck writes. */
+/** The comment that opens each file Novadeck writes. */
 export const header = (comment: string, what: string): string =>
   [
-    `${comment} NovaDeck ${what}.`,
-    `${comment} Written by NovaDeck into its own data directory, and overwritten on each start.`,
-    `${comment} Only NovaDeck's shells, and agents you connected, use it.`,
+    `${comment} Novadeck ${what}.`,
+    `${comment} Written by Novadeck into its own data directory, and overwritten on each start.`,
+    `${comment} Only Novadeck's shells, and agents you connected, use it.`,
   ].join("\n")

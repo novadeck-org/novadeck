@@ -22,7 +22,7 @@ import {
 } from "./scenarios.js"
 
 // The person typing around messages, the same for every harness (see messaging.e2e.ts for
-// the rule on parity). What NovaDeck must do is docs/agent-messaging.md's ("What counts",
+// the rule on parity). What Novadeck must do is docs/agent-messaging.md's ("What counts",
 // "States", "Acceptance scenarios"): while the box may hold the person's text it never
 // rings, and their next prompt's hook carries what waits.
 
@@ -302,8 +302,8 @@ for (const setup of setups) {
       const t2 = await run.deck.open(setup.agent)
 
       // The person types once the shell has taken the command that starts the agent, from
-      // the file NovaDeck left it in its shell folder (keys before then cancel the start,
-      // and reach the shell instead): before any session binds. NovaDeck takes keys in the
+      // the file Novadeck left it in its shell folder (keys before then cancel the start,
+      // and reach the shell instead): before any session binds. Novadeck takes keys in the
       // write itself, so the state read right after is what they met: Unbound. Whether the
       // harness had drawn its first screen by then is a race a fast one wins, and what it
       // takes of the keys is its own either way.

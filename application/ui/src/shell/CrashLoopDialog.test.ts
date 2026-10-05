@@ -31,7 +31,7 @@ describe("crash loop dialog", () => {
       await settle()
       expect(dialog()?.textContent).toContain("The runner keeps crashing")
       expect(dialog()?.textContent).toContain(
-        "NovaDeck stopped restarting your terminals after 4 crashes in a minute.",
+        "Novadeck stopped restarting your terminals after 4 crashes in a minute.",
       )
     })
   })

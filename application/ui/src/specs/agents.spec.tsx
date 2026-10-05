@@ -19,7 +19,7 @@ const agentSwitch = (scope: Locator, name: "Claude Code" | "Codex" | "Antigravit
 const agentChoice = (scope: Locator, name: "Claude Code" | "Codex" | "Antigravity"): Locator =>
   scope.getByRole("checkbox", { name })
 
-const welcome = (): Locator => page.getByRole("dialog", { name: "Welcome to NovaDeck" })
+const welcome = (): Locator => page.getByRole("dialog", { name: "Welcome to Novadeck" })
 
 const openPreferences = async (): Promise<void> => {
   await page.getByRole("button", { name: "Workspace preferences" }).click()
@@ -99,13 +99,13 @@ describe("An agent whose turn left work running", () => {
   })
 })
 
-describe("An agent NovaDeck can't hear from", () => {
+describe("An agent Novadeck can't hear from", () => {
   it("says so on its terminal's tab and window, never as running", async () => {
-    // The demo's Antigravity runs with nothing reaching NovaDeck from its hooks.
+    // The demo's Antigravity runs with nothing reaching Novadeck from its hooks.
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
-    const said = "Not reporting · NovaDeck can't hear from this agent"
+    const said = "Not reporting · Novadeck can't hear from this agent"
     await expect.poll(() => tabDescription("Runtime")).toBe(said)
     await page.getByRole("button", { name: "Select Runtime" }).click()
     const window = page.getByRole("region", { name: "Runtime terminal" })
