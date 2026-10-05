@@ -33,6 +33,8 @@ export const command = (
     | { type: "stopNoise" }
     | { type: "styled"; cols: number; lines: number; checkpoint?: string }
     | { type: "exit"; code?: number; data?: string }
+    /** Starts a program that shares the terminal and runs until ended, reporting its id. */
+    | { type: "spawn" }
     /** Renames the child, which Linux then reports as the terminal's foreground process. */
     | { type: "title"; value: string },
 ): string => `${Buffer.from(JSON.stringify(value)).toString("base64")}\n`

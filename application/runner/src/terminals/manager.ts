@@ -1,8 +1,10 @@
+import { execFile } from "node:child_process"
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
 import { homedir, constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
+import { promisify } from "node:util"
 
 import type {
   AgentDetail,
@@ -482,6 +484,40 @@ const sameProcess = (a: ForegroundProcess | null, b: ForegroundProcess | null): 
     a.name === b.name &&
     a.argv?.length === b.argv?.length &&
     (a.argv ?? []).every((arg, index) => arg === b.argv?.[index]))
+
+/** Ends a Windows process and every program it started, which could keep its console open. */
+const endTree = async (pid: number): Promise<void> => {
+  const windows = process.env.SystemRoot ?? "C:\\Windows"
+  await promisify(execFile)(
+    join(windows, "System32", "taskkill.exe"),
+    ["/T", "/F", "/PID", String(pid)],
+    { windowsHide: true, timeout: 5000 },
+  )
+}
+
+/**
+ * Terminals that have drawn. node-pty on Windows queues a kill until then; after, its kill
+ * ends the shell at once and closes the console, which ends the programs still attached.
+ */
+const drawnTerminals = new WeakSet<pty.IPty>()
+
+/**
+ * Ends a terminal's program that its first kill left running. On Windows, which has no
+ * signals, node-pty throws on one, and later still when it queued the kill until the
+ * terminal first drew: its process and every program it started are ended by its id
+ * instead. Until its output connects, node-pty names that id 0, which would end the runner
+ * itself, so it rejects, and the terminal is taken as ended while node-pty's queued kill
+ * closes its console later.
+ */
+export const forceKill = async (
+  child: Pick<pty.IPty, "pid" | "kill">,
+  platform: NodeJS.Platform = process.platform,
+  end: (pid: number) => Promise<void> | void = endTree,
+): Promise<void> => {
+  if (platform !== "win32") return child.kill("SIGKILL")
+  if (!(child.pid > 0)) throw new Error("The terminal's program has no process id yet.")
+  await end(child.pid)
+}
 
 /** A signal number's name, such as `SIGKILL`; Windows has no signals. */
 const signalName = (signal: number | undefined): string | null => {
@@ -2391,7 +2427,10 @@ export class Terminals {
       record.resolveExit = resolve
     })
     record.listeners = [
-      child.onData((data) => this.output(record, child, data)),
+      child.onData((data) => {
+        drawnTerminals.add(child)
+        this.output(record, child, data)
+      }),
       // node-pty can report an exit before it learns the code, e.g. after ending a
       // Windows terminal whose input failed.
       child.onExit(({ exitCode, signal }) =>
@@ -3432,17 +3471,25 @@ export class Terminals {
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const group = await this.hangUp(record.process)
+      const child = record.process
       try {
-        record.process.kill()
+        child.kill()
       } catch {
         this.exit(record, { code: null, signal: null })
       }
       timer = setTimeout(() => {
-        try {
-          record.process.kill("SIGKILL")
-        } catch {
-          this.exit(record, { code: null, signal: null })
-        }
+        // A Windows terminal that has drawn ran node-pty's kill, which ended its shell, whose
+        // id may already name another process.
+        const ended = process.platform === "win32" && drawnTerminals.has(child)
+        const forced = ended ? Promise.resolve() : forceKill(child)
+        forced.then(
+          // node-pty on Windows reports an exit only once the console closes, which a program
+          // the kill could not end can still keep open.
+          () => {
+            if (process.platform === "win32") this.exit(record, { code: null, signal: null })
+          },
+          () => this.exit(record, { code: null, signal: null }),
+        )
       }, 1000)
       await record.exited
       if (group !== undefined) resumeGroup(group)

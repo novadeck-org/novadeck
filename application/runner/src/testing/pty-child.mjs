@@ -1,6 +1,7 @@
 // A controllable program running inside a real PTY. Base64 JSON lines ensure
 // startup input echoed by the OS cannot masquerade as the program's output.
 // Raw input keeps the protocol independent of shell syntax and line discipline.
+import { spawn } from "node:child_process"
 import { appendFileSync } from "node:fs"
 
 // Records what reached the child and what it finished writing, so a test that times
@@ -83,6 +84,12 @@ process.stdin.on("data", (data) => {
       )
     }
     if (command.type === "title") process.title = command.value
+    if (command.type === "spawn") {
+      const started = spawn(process.execPath, ["-e", "setInterval(() => {}, 1e6)"], {
+        stdio: ["ignore", "inherit", "inherit"],
+      })
+      process.stdout.write(`STARTED_PID=${started.pid}\r\n`)
+    }
     if (command.type === "exit") {
       process.stdout.write(command.data ?? "", () => process.exit(command.code ?? 0))
     }
