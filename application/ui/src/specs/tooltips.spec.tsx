@@ -1,65 +1,37 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { openShowcase, taskbarIcon } from "./support/companions"
-import { openWorkspace } from "./support/workspace"
+import { expectStaysAbsent, openWorkspace } from "./support/workspace"
 
-const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
-
-// Moves the pointer about over `target` for `duration` milliseconds, never resting on
-// purpose, and says the longest it paused between two moves, which a busy machine can
-// stretch.
-const sweep = async (target: Locator, duration: number): Promise<number> => {
+// Moves the pointer about over `target` for `duration` milliseconds, a move every 50,
+// never resting. The page's timers run on a clock the test moves, so a busy machine can't
+// stretch a gap between two moves into a rest.
+const sweep = (target: Locator, duration: number): void => {
   const element = target.element()
   const box = element.getBoundingClientRect()
-  // The pointer arrives, as a mouse's would, then keeps moving; like a mouse's, its
-  // events can be cancelled.
-  element.dispatchEvent(
-    new PointerEvent("pointerover", { bubbles: true, cancelable: true, pointerType: "mouse" }),
-  )
-  let longest = 0
-  let last = performance.now()
-  for (let move = 0; move * 50 < duration; move++) {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+  try {
+    // The pointer arrives, as a mouse's would, then keeps moving; like a mouse's, its
+    // events can be cancelled.
     element.dispatchEvent(
-      new PointerEvent("pointermove", {
-        bubbles: true,
-        cancelable: true,
-        pointerType: "mouse",
-        clientX: box.left + box.width * (0.25 + (move % 2) * 0.5),
-        clientY: box.top + box.height / 2,
-      }),
+      new PointerEvent("pointerover", { bubbles: true, cancelable: true, pointerType: "mouse" }),
     )
-    const now = performance.now()
-    longest = Math.max(longest, now - last)
-    last = now
-    // eslint-disable-next-line no-await-in-loop -- Each move waits for the one before.
-    await wait(50)
+    for (let move = 0; move * 50 < duration; move++) {
+      element.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          cancelable: true,
+          pointerType: "mouse",
+          clientX: box.left + box.width * (0.25 + (move % 2) * 0.5),
+          clientY: box.top + box.height / 2,
+        }),
+      )
+      vi.advanceTimersByTime(50)
+    }
+  } finally {
+    vi.useRealTimers()
   }
-  return longest
-}
-
-// Sweeps over `target` until a sweep never paused as long as `rest`, so nothing had time
-// to open, leaving between tries so what a stalled try opened closes.
-const sweepWithoutResting = async (
-  target: Locator,
-  duration: number,
-  rest: number,
-): Promise<void> => {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    // eslint-disable-next-line no-await-in-loop -- Each try follows the last.
-    if ((await sweep(target, duration)) < rest / 2) return
-    // React hears the pointer leave from `pointerout`, as a mouse's leaving sends it.
-    target.element().dispatchEvent(
-      new PointerEvent("pointerout", {
-        bubbles: true,
-        pointerType: "mouse",
-        relatedTarget: document.body,
-      }),
-    )
-    // eslint-disable-next-line no-await-in-loop -- What a stalled try opened closes first.
-    await wait(400)
-  }
-  throw new Error("The machine was too busy to move the pointer without pausing")
 }
 
 describe("A tooltip", () => {
@@ -70,8 +42,8 @@ describe("A tooltip", () => {
 
     const tooltip = page.getByText(/^Zen · /)
 
-    await sweepWithoutResting(zen, 1000, 400)
-    expect(tooltip.query()).toBeNull()
+    sweep(zen, 1000)
+    await expectStaysAbsent(tooltip)
 
     await userEvent.hover(zen)
     await expect.element(tooltip).toBeVisible()
@@ -84,13 +56,20 @@ describe("A tooltip for keyboard focus", () => {
     const zen = page.getByRole("button", { name: "Enter Zen mode" })
     await expect.element(zen).toBeVisible()
 
-    // Tab through the header until the focus reaches it, as a keyboard user would.
-    for (let presses = 0; presses < 20 && document.activeElement !== zen.element(); presses++)
-      // eslint-disable-next-line no-await-in-loop -- Each Tab moves on from the last.
-      await userEvent.keyboard("{Tab}")
-    expect(document.activeElement).toBe(zen.element())
+    // The page's timers stand still, so it opens with no time passing for it, however long
+    // a busy machine takes to show it.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    try {
+      // Tab through the header until the focus reaches it, as a keyboard user would.
+      for (let presses = 0; presses < 20 && document.activeElement !== zen.element(); presses++)
+        // eslint-disable-next-line no-await-in-loop -- Each Tab moves on from the last.
+        await userEvent.keyboard("{Tab}")
+      expect(document.activeElement).toBe(zen.element())
 
-    await expect.element(page.getByText(/^Zen · /), { timeout: 300 }).toBeVisible()
+      await expect.element(page.getByText(/^Zen · /)).toBeVisible()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -102,9 +81,9 @@ describe("A tooltip beside one that shows", () => {
     await userEvent.hover(zen)
     await expect.element(page.getByText(/^Zen · /)).toBeVisible()
 
-    await sweepWithoutResting(preferences, 600, 400)
+    sweep(preferences, 600)
 
-    expect(page.getByText(/^Preferences · /).query()).toBeNull()
+    await expectStaysAbsent(page.getByText(/^Preferences · /))
   })
 })
 
@@ -115,8 +94,8 @@ describe("A peek", () => {
     await expect.element(icon).toBeVisible()
     const card = page.getByRole("button", { name: /^about\.png/ })
 
-    await sweepWithoutResting(icon, 800, 250)
-    expect(card.query()).toBeNull()
+    sweep(icon, 800)
+    await expectStaysAbsent(card)
 
     await userEvent.hover(icon)
     await expect.element(card).toBeVisible()

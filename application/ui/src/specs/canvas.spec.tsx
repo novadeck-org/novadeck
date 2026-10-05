@@ -22,6 +22,7 @@ import {
   viewBox,
   type Box,
 } from "./support/canvas"
+import { escapeFrom } from "./support/keyboard"
 import { overlaps } from "./support/layouts"
 import {
   chooseView,
@@ -434,8 +435,7 @@ describe("Canvas", () => {
     it("does not offer the canvas actions", async () => {
       await openCanvas()
       await rightClickBackground({ x: 100, y: 120 })
-      await expect.element(canvasMenu()).toBeVisible()
-      await press("{Escape}")
+      await escapeFrom(canvasMenu())
       await expect.element(canvasMenu()).not.toBeInTheDocument()
 
       await terminal("Checkout implementation").click({

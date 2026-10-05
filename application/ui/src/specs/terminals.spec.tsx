@@ -1,6 +1,7 @@
 import { describe as context, describe, expect, it } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
+import { escapeFrom } from "./support/keyboard"
 import { currentRoute, pressNewSession } from "./support/sessions"
 import {
   anyRenameField,
@@ -368,8 +369,7 @@ describe("closing terminals", () => {
       await openWorkspace()
 
       await headerAction("Checkout implementation", "Close Checkout implementation").click()
-      await expect.element(closeConfirmation()).toBeVisible()
-      await userEvent.keyboard("{Escape}")
+      await escapeFrom(closeConfirmation())
 
       await expect.element(closeConfirmation()).not.toBeInTheDocument()
       await expect.element(terminalTab("Checkout implementation")).toBeInTheDocument()

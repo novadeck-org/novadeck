@@ -79,6 +79,26 @@ export const expectStaysAbsent = async (locator: Locator, frames = 10): Promise<
     .toBe(true)
 }
 
+/**
+ * Notes how `read` sees `target` each time its `attribute` changes, from now on, and gives
+ * back the notes when asked, which stops the noting: a state that passes quicker than a
+ * check can poll for it, such as a change on its way, is still there to check after.
+ */
+export const recordChanges = <T,>(
+  target: Locator,
+  attribute: string,
+  read: (element: Element) => T,
+): (() => T[]) => {
+  const element = target.element()
+  const notes: T[] = []
+  const observer = new MutationObserver(() => notes.push(read(element)))
+  observer.observe(element, { attributes: true, attributeFilter: [attribute] })
+  return () => {
+    observer.disconnect()
+    return notes
+  }
+}
+
 /** Reloads the app at its current address: in-memory work starts over, stored preferences stay. */
 export const reloadWorkspace = async (): Promise<void> => {
   const route = window.location.hash.replace(/^#/, "")

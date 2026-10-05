@@ -43,6 +43,16 @@ export const expectFocusWithin = async (dialog: Locator): Promise<void> => {
   await expect.poll(() => dialog.element().contains(document.activeElement)).toBe(true)
 }
 
+/**
+ * Presses Escape in `layer`, a dialog, menu or popover or a field being edited, once it
+ * hears keys. A layer shows a frame or more before it listens for Escape, as it takes the
+ * focus; a key pressed between the two goes nowhere.
+ */
+export const escapeFrom = async (layer: Locator): Promise<void> => {
+  await expectFocusWithin(layer)
+  await press("{Escape}")
+}
+
 /** The region holding the current Focus, Grid, or Canvas view. */
 export const viewRegion = (name: "focus" | "grid" | "canvas"): Locator =>
   page.getByRole("region", { name: `${name} view` })

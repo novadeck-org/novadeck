@@ -1172,9 +1172,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         return true
       },
     })
+    const next = shell.watch(manager)
     const terminal = await create(manager, shell)
     manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
-    await shell.until(manager, terminal.id, "reports sent")
     const details = manager.detail(terminal.id)
     let root: string | undefined
     while (!root) {
@@ -1183,26 +1183,13 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       root = value?.actors[0]?.ref
     }
     await details.return(undefined)
+    // The later report, whose model call starts a turn, names the transcript as it is
+    // handled; a slower machine takes longer to get there, never a different way.
+    await next((summary) => summary.activity?.state === "working")
     const texts: string[] = []
-    // The transcript is not found until the later report is handled, so the reader asks again.
     const reading = (async () => {
-      for (let tries = 0; ; tries++) {
-        try {
-          // eslint-disable-next-line no-await-in-loop -- Reads the transcript once it is attached.
-          for await (const change of manager.transcript(terminal.id, root))
-            if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
-          return
-        } catch (error) {
-          if (
-            tries === 100 ||
-            texts.length > 0 ||
-            (error as { code?: string }).code !== "NOT_FOUND"
-          )
-            throw error
-        }
-        // eslint-disable-next-line no-await-in-loop -- Waits before asking again.
-        await new Promise((resolve) => setTimeout(resolve, 20))
-      }
+      for await (const change of manager.transcript(terminal.id, root))
+        if (change.type === "items") texts.push(...change.items.map(({ text }) => text))
     })()
     await expect.poll(() => texts).toEqual(["hi"])
     manager.forgetAgent("agy")
@@ -3359,7 +3346,8 @@ describe.runIf(process.platform === "win32")("Windows shell integration", () => 
  * [mode]`: an input box that takes typing (even while it works, as real TUIs keep
  * type-ahead) and bracketed pastes, submits on Enter when idle, and fires its hooks as a
  * harness does. It writes each prompt and what its prompt-time hook printed to
- * `received`, and every input it got to `raw` (one JSON line each). A signal starts a
+ * `received`, and every input it got to `raw` (one JSON line each); once a turn's Stop hook
+ * returned, how many turns it finished to `<raw>.finished`. A signal starts a
  * turn by itself, as a background task's result does. `menu` opens a menu after its
  * first turn that swallows pastes; `perm` asks a permission in its second turn, then runs
  * the tool for a while; `bg` runs it in the background, starting a turn by itself;
@@ -3462,6 +3450,9 @@ const turn = (prompt, typed = true) => {
         busy = false
         menu = mode === "menu"
         draw()
+        // Back at its prompt once its Stop hook returned, which may be well after NovaDeck
+        // heard the Stop: the turns it finished so, for the test to wait on.
+        fs.writeFileSync(raw + ".finished", String(turns))
         // With "askafter", a call asks a permission after its first turn's Stop, as a
         // background task's may: its dialog draws nothing, and Enter allows it, so only the
         // request's own resolution tells NovaDeck it no longer waits.
@@ -3719,6 +3710,13 @@ const ringing = async (
     `${program} ${agent} ${session} '${received}' '${raw}' ${mode}${mode === "bg" ? " &" : ""}\r`,
   )
   await shell.until(manager, idle.id, `${agent} ready`)
+  const finished = () =>
+    existsSync(`${raw}.finished`) ? Number(readFileSync(`${raw}.finished`, "utf8")) : 0
+  // NovaDeck hears a Stop as its hook starts, but the TUI takes keys again only once the
+  // hook returned, NovaDeck's answer printed, and a loaded machine may take a while for
+  // that: an Enter typed before then submits nothing.
+  const back = (turns: number) =>
+    vi.waitFor(() => expect(finished()).toBeGreaterThanOrEqual(turns), { timeout: 10_000 })
   return {
     manager,
     idle,
@@ -3735,10 +3733,13 @@ const ringing = async (
     kick: () => process.kill(Number(readFileSync(`${raw}.pid`, "utf8")), "SIGUSR1"),
     // It exits by itself.
     leave: () => process.kill(Number(readFileSync(`${raw}.pid`, "utf8")), "SIGUSR2"),
+    // Waits until it is back at its prompt, `turns` turns finished in all.
+    back,
     // It shows another thread it just started, as a spawned agent's.
     spawn: () => process.kill(Number(readFileSync(`${raw}.pid`, "utf8")), "SIGURG"),
     // The person's own first prompt, which settles it.
     first: async () => {
+      const turns = finished()
       type("hello")
       await shell.until(manager, idle.id, "> hello")
       type("\r")
@@ -3746,6 +3747,7 @@ const ringing = async (
       await expect
         .poll(() => manager.messages(idle.id).delivery, { timeout: 10_000 })
         .toBe("settled")
+      await back(turns + 1)
     },
   }
 }
@@ -3757,7 +3759,8 @@ const ringing = async (
 const agyStarted = async (tui: Awaited<ReturnType<typeof ringing>>) => {
   tui.kick()
   await vi.waitFor(() => expect(tui.received()).toHaveLength(1), { timeout: 10_000 })
-  await expect.poll(tui.delivery).toBe("settled")
+  await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("settled")
+  await tui.back(1)
 }
 
 /**
@@ -3832,6 +3835,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect
         .poll(() => tui.manager.messages(tui.idle.id).threads[0]?.messages[0]?.state)
         .toBe("delivered")
+      await tui.back(2)
       await expect.poll(tui.delivery).toBe("settled")
       // Rung once: nothing more is typed.
       await quiet()
@@ -3892,7 +3896,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const tui = await ringing(shell, "subabort")
       await tui.first()
       const pending = () => tui.manager.get(tui.idle.id).activity?.attention.pending
-      await expect.poll(pending).toBe(1)
+      // Asked after its Stop, by hooks that may take a while on a loaded machine.
+      await expect.poll(pending, { timeout: 10_000 }).toBe(1)
       expect(tui.delivery()).toBe("settled")
       expect(await tui.send("Review a.ts")).toMatchObject({ ok: true })
       await quiet()
@@ -3938,7 +3943,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await tui.first()
       const activity = () => tui.manager.get(tui.idle.id).activity
       const pending = () => activity()?.attention.pending
-      await expect.poll(pending).toBe(1)
+      // Asked after its Stop, by hooks that may take a while on a loaded machine.
+      await expect.poll(pending, { timeout: 10_000 }).toBe(1)
       const own = join(
         shell.home,
         "received.jsonl.sessions/2026/10/03/rollout-2026-10-03T00-00-01-a1.jsonl",
@@ -3970,7 +3976,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         const signals = () => watch.mock.calls.map((call) => call[3])
         const pending = () => tui.manager.get(tui.idle.id).activity?.attention.pending
         await tui.first()
-        await expect.poll(pending).toBe(1)
+        // Asked after its Stop, by hooks that may take a while on a loaded machine.
+        await expect.poll(pending, { timeout: 10_000 }).toBe(1)
         await expect.poll(() => signals().length).toBe(1)
         expect(signals()[0]!.aborted).toBe(false)
         // Esc on it, as its rollout records: settled, no longer followed.
@@ -4012,7 +4019,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const tui = await ringing(shell, "askafter")
       await tui.first()
       const pending = () => tui.manager.get(tui.idle.id).activity?.attention.pending
-      await expect.poll(pending).toBe(1)
+      // Asked after its Stop, by hooks that may take a while on a loaded machine.
+      await expect.poll(pending, { timeout: 10_000 }).toBe(1)
       // Settled by its Stop, yet the request waits on the person: no ring.
       expect(tui.delivery()).toBe("settled")
       expect(await tui.send("Review a.ts")).toMatchObject({ ok: true })
@@ -4021,7 +4029,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(tui.received()).toHaveLength(1)
       // The person allows it; its dialog drew nothing, so the screen stays as it was.
       tui.type("\r")
-      await expect.poll(pending).toBe(0)
+      await expect.poll(pending, { timeout: 5_000 }).toBe(0)
       await vi.waitFor(() => expect(tui.received()).toHaveLength(2), { timeout: 10_000 })
       expect(tui.received()[1]!.printed).toContain(">Review a.ts</message>")
       expect(pastes(tui.raw())).toHaveLength(1)
@@ -4044,7 +4052,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     }) => {
       const thread = "01a0f932-a824-7c30-b713-b59ed562f00b"
       const tui = await ringing(shell, "shown", "named", "codex", thread)
-      await expect.poll(tui.delivery).toBe("ready")
+      // Told once its prompt's title or hook is checked against the terminal's foreground,
+      // which macOS reads through ps, slow on a loaded machine.
+      await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("ready")
       expect(await tui.send("Review a.ts")).toMatchObject({
         ok: true,
         text: reaches("ringing it now"),
@@ -4083,7 +4093,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       shell,
     }) => {
       const tui = await ringing(shell, "shown", "named-agy", "agy")
-      await expect.poll(tui.delivery).toBe("ready")
+      // Told once its prompt's title or hook is checked against the terminal's foreground,
+      // which macOS reads through ps, slow on a loaded machine.
+      await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("ready")
       expect(await tui.send("Review a.ts")).toMatchObject({
         ok: true,
         text: reaches("ringing it now"),
@@ -4137,7 +4149,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           agent,
           "01a0f932-a824-7c30-b713-b59ed562f00b",
         )
-        await expect.poll(tui.delivery).toBe("ready")
+        // Told once its prompt's title or hook is checked against the terminal's foreground,
+        // which macOS reads through ps, slow on a loaded machine.
+        await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("ready")
         expect(await tui.send("Review a.ts")).toMatchObject({
           ok: true,
           text: reaches("ringing it now"),
@@ -4205,7 +4219,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       tui.type("next")
       await shell.until(tui.manager, tui.idle.id, "> next")
       tui.type("\r")
-      await expect.poll(tui.delivery).toBe("working")
+      // Its prompt hook reports the turn, which may take a while on a loaded machine.
+      await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("working")
       answer(true)
       await quiet()
       expect(tui.delivery()).toBe("working")
@@ -4328,7 +4343,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         true,
         "PS1='nested$ ' bash --norc --noprofile",
       )
-      await expect.poll(tui.delivery).toBe("ready")
+      // Told once its prompt's title or hook is checked against the terminal's foreground,
+      // which macOS reads through ps, slow on a loaded machine.
+      await expect.poll(tui.delivery, { timeout: 10_000 }).toBe("ready")
       tui.leave()
       await shell.until(tui.manager, tui.idle.id, /> nested\$/)
       // Still Ready, as nothing told it the agent left: the ring's foreground check does.
@@ -4493,6 +4510,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // The person keeps typing at once, before the prompt hook reports.
       tui.type("\r")
       tui.type("my half-typed next thought")
+      await tui.back(1)
       await expect.poll(tui.delivery).toBe("drafting")
       await tui.send("Review a.ts")
       await quiet()
@@ -4787,6 +4805,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       tui.type("\r")
       tui.kick()
       await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
+      await tui.back(3)
       await expect.poll(tui.delivery).toBe("drafting")
       await tui.send("Review a.ts")
       await quiet()
@@ -4802,6 +4821,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       tui.type("\r")
       tui.type("and more")
       await vi.waitFor(() => expect(tui.received()).toHaveLength(3), { timeout: 10_000 })
+      await tui.back(3)
       await expect.poll(tui.delivery).toBe("drafting")
       await tui.send("Review a.ts")
       await quiet()

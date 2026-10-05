@@ -1,7 +1,9 @@
 import { describe as context, describe, expect, it } from "vitest"
 import { page } from "vitest/browser"
 
+import { escapeFrom } from "./support/keyboard"
 import { emptyWorkspace, pressNewSession } from "./support/sessions"
+import { headerRenameField } from "./support/terminals"
 import {
   chooseView,
   commandInput,
@@ -434,7 +436,7 @@ describe("leaving Zen", () => {
       await enterZen().click()
       await dock().getByRole("button", { name: "New terminal" }).click()
       await expect.element(terminal("Terminal 07")).toBeVisible()
-      await press("{Escape}")
+      await escapeFrom(headerRenameField("Terminal 07"))
 
       await showControls().click()
       await exitZen().click()

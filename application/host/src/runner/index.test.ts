@@ -15,10 +15,15 @@ import { context, describe, expect, it } from "../test"
 const entry = pathToFileURL(join(process.cwd(), "out", "main", "runner.js")).href
 
 // Stands in for Electron's utility process: `process.parentPort` relays worker messages.
+// The runner listens once it has started, and the test hears of it, so the time it takes
+// to start, long on a busy Windows machine, isn't charged to the connection's handshake.
 const utility = `
 const { parentPort, workerData } = require("node:worker_threads")
 process.parentPort = {
-  on: (_type, listener) => parentPort.on("message", ({ data, ports }) => listener({ data, ports })),
+  on: (_type, listener) => {
+    parentPort.on("message", ({ data, ports }) => listener({ data, ports }))
+    parentPort.postMessage("listening")
+  },
 }
 import(workerData.entry)
 `
@@ -34,7 +39,10 @@ const start = (database: string) => {
     argv: [`${databaseArgumentPrefix}${database}`, `${relayArgumentPrefix}${relayPath}`],
     workerData: { entry },
   })
+  // Rejects if the runner fails to start, rather than leaving the handshake to time out.
+  const listening = once(worker, "message")
   const connect = async () => {
+    await listening
     const { port1, port2 } = new MessageChannel()
     // eslint-disable-next-line unicorn/require-post-message-target-origin -- A Node worker, not a window.
     worker.postMessage({ data: { type: "connect" }, ports: [port1] }, [port1])

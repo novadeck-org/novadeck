@@ -12,7 +12,7 @@ import {
   thread,
 } from "./support/messages"
 import { confirmClose, sidebarRenameField, tabAction } from "./support/terminals"
-import { expectStaysAbsent, tabDescription, terminalTab } from "./support/workspace"
+import { expectStaysAbsent, recordChanges, tabDescription, terminalTab } from "./support/workspace"
 
 const textOf = (locator: Locator) => locator.element().textContent
 
@@ -126,13 +126,17 @@ describe("Pausing messaging", () => {
     const pane = await openMessages("Checkout review")
     const pause = pauseSwitch(pane)
     await expect.element(pause).toHaveAttribute("aria-checked", "false")
+    // On its way, it takes no clicks, and keeps focus. The demo's runner hears it in less
+    // time than a poll may take to look, so how it went is checked once it's there.
+    const onItsWay = recordChanges(pause, "aria-disabled", (element) => ({
+      disabled: element.getAttribute("aria-disabled"),
+      focused: element === document.activeElement,
+    }))
     await pause.click()
-    // On its way, it takes no clicks, and keeps focus.
-    await expect.element(pause).toHaveAttribute("aria-disabled", "true")
-    await expect.element(pause).toHaveFocus()
     await expect.element(pause).toHaveAttribute("aria-checked", "true")
     await expect.element(pause).not.toHaveAttribute("aria-disabled")
     await expect.element(pause).toHaveFocus()
+    expect(onItsWay()).toContainEqual({ disabled: "true", focused: true })
     await expect.poll(() => textOf(pane.getByRole("status"))).toMatch(/Messaging is paused/)
     // Codex's queued message is held; the one already being delivered goes on.
     const items = messageItems(thread(pane, "Checkout implementation", "t1"))

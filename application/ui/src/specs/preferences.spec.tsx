@@ -2,15 +2,8 @@ import { afterEach, describe as context, describe, expect, it, vi } from "vitest
 import { page, type Locator } from "vitest/browser"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "./support/appearance"
-import { expectFocusWithin, preferencesDialog } from "./support/keyboard"
-import {
-  openWorkspace,
-  press,
-  reloadWorkspace,
-  terminal,
-  view,
-  viewSwitcher,
-} from "./support/workspace"
+import { escapeFrom, expectFocusWithin, preferencesDialog } from "./support/keyboard"
+import { openWorkspace, reloadWorkspace, terminal, view, viewSwitcher } from "./support/workspace"
 
 const openPreferences = async (): Promise<void> => {
   await page.getByRole("button", { name: "Workspace preferences" }).click()
@@ -122,7 +115,7 @@ describe("Preferences", () => {
   })
 
   for (const [label, dismiss] of [
-    ["Escape", () => press("{Escape}")],
+    ["Escape", () => escapeFrom(preferencesDialog())],
     ["Close preferences", () => closePreferences()],
   ] as const) {
     context(`when dismissed with ${label}`, () => {

@@ -1,7 +1,7 @@
 import { afterEach, describe as context, describe, expect, it } from "vitest"
 import { page } from "vitest/browser"
 
-import { pressShortcut } from "./support/keyboard"
+import { escapeFrom, pressShortcut } from "./support/keyboard"
 import {
   currentSessionName,
   emptyWorkspace,
@@ -14,6 +14,7 @@ import {
   switchProject,
   workspaceSwitcher,
 } from "./support/sessions"
+import { sidebarRenameField } from "./support/terminals"
 import {
   chooseView,
   commandInput,
@@ -21,7 +22,6 @@ import {
   expectStaysAbsent,
   isMac,
   openWorkspace,
-  press,
   sidebar,
   sidebarPanel,
   terminal,
@@ -60,7 +60,7 @@ describe("projects", () => {
         .toBeGreaterThanOrEqual(button.bottom)
       expect(Math.abs(menu.element().getBoundingClientRect().left - button.left)).toBeLessThan(2)
 
-      await press("{Escape}")
+      await escapeFrom(menu)
 
       await expect.element(menu).not.toBeInTheDocument()
       await expect.element(trigger).toHaveFocus()
@@ -207,7 +207,7 @@ describe("sessions sidebar", () => {
       await expect.element(emptyWorkspace()).toBeVisible()
       const fresh = await newSessionName(original)
       await page.getByRole("button", { name: "New terminal" }).click()
-      await press("{Escape}")
+      await escapeFrom(sidebarRenameField("Terminal 01"))
       await commandInput("Terminal 01").fill("new draft")
 
       await sidebarPanel("Sessions").click()

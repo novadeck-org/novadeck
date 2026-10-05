@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process"
+import { spawnSync, type SpawnSyncReturns } from "node:child_process"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -74,6 +74,9 @@ const runHook = (agent: AgentName, event: string, hook: string | undefined, stdi
 // cold on a busy CI runner; a hook that hangs still fails.
 const hookMs = 45_000
 
+const timedOut = (result: SpawnSyncReturns<string>) =>
+  (result.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT"
+
 // The event each plugin registers today.
 const events = { claude: "SessionStart", codex: "SessionStart", agy: "PreInvocation" } as const
 
@@ -106,6 +109,9 @@ describe("agent plugin hook commands", () => {
       `do nothing outside NovaDeck's shells for ${agent}`,
       ({ plugins }) => {
         const result = runHook(agent, events[agent], undefined, "{}")
+        // A shell that ran past hookMs says so here, not as a missing status. Other errors
+        // can stand: a hook that never reads its input leaves the agent's write unread.
+        expect(timedOut(result)).toBe(false)
         expect(result.status).toBe(0)
         // Antigravity reads a hook's answer as JSON.
         expect(result.stdout.trim()).toBe(agent === "agy" ? "{}" : "")
@@ -118,7 +124,9 @@ describe("agent plugin hook commands", () => {
       `hand the agent's payload to NovaDeck's hook for ${agent}`,
       ({ plugins }) => {
         const payload = JSON.stringify({ session_id: "abc", conversationId: "abc" })
-        expect(runHook(agent, events[agent], plugins.launcher, payload).status).toBe(0)
+        const result = runHook(agent, events[agent], plugins.launcher, payload)
+        expect(timedOut(result)).toBe(false)
+        expect(result.status).toBe(0)
         expect(plugins.recorded()).toEqual({
           args: [agent, events[agent]],
           stdin: expect.stringContaining(payload),

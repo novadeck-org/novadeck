@@ -51,6 +51,8 @@ const requests = () => {
 const open = (app: (request: TerminalRequest, add: (command?: string) => string) => void) => {
   const asked = requests()
   const answers: TerminalRequestAnswer[] = []
+  // Wakes `answered` as each answer arrives.
+  let heard: (() => void) | undefined
   // What the backend asked the runner to create.
   const creates: Parameters<RunnerApi["terminals"]["create"]>[0][] = []
   const api: RunnerApi = {
@@ -62,7 +64,10 @@ const open = (app: (request: TerminalRequest, add: (command?: string) => string)
         return runner.client.terminals.create(input)
       },
       requests: () => asked.iterator,
-      answerRequest: async (answer) => void answers.push(answer),
+      answerRequest: async (answer) => {
+        answers.push(answer)
+        heard?.()
+      },
     },
   }
   const { backend, idle } = runnerBackend(api, runner.listing, { saveDelay: 10 })
@@ -104,9 +109,12 @@ const open = (app: (request: TerminalRequest, add: (command?: string) => string)
     focus: false,
     ...fields,
   })
-  // Waits for every answer the backend owes so far.
+  // Waits for every answer the backend owes so far. An answer to a terminal comes only
+  // once the runner has started its shell, which can take seconds on a busy Windows
+  // machine, so this waits for the answers themselves rather than polling for a while.
   const answered = async (count: number) => {
-    await vi.waitFor(() => expect(answers.length).toBeGreaterThanOrEqual(count))
+    // eslint-disable-next-line no-await-in-loop -- Waits for the next answer.
+    while (answers.length < count) await new Promise<void>((resolve) => (heard = resolve))
     await idle()
     return answers
   }

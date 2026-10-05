@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { relayPath } from "@novadeck/relay"
-import { afterAll, beforeAll } from "vitest"
+import { afterAll, beforeAll, onTestFinished } from "vitest"
 
 import { plugin } from "../harnesses/harness.js"
 import { unboundNote } from "../messaging/peers.js"
@@ -52,6 +52,12 @@ const session = (
   new Promise<Answer[]>((resolve, reject) => {
     const { command, args = [] } = start ?? relay
     const child = spawn(command, args, { env, stdio: ["pipe", "pipe", "inherit"] })
+    // A server still running when its test ends, as one that timed out, goes with it, its
+    // input closed so nothing holds the pipe open.
+    onTestFinished(() => {
+      child.stdin.destroy()
+      child.kill()
+    })
     const expected = messages.filter((message) => Array.isArray(message) || "id" in message).length
     const answers: Answer[] = []
     let buffer = ""

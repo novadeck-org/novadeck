@@ -1,7 +1,7 @@
 import { describe as context, describe, expect, it } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { expectFocusWithin, preferencesDialog } from "./support/keyboard"
+import { escapeFrom, expectFocusWithin, preferencesDialog } from "./support/keyboard"
 import {
   chooseView,
   commandInput,
@@ -264,7 +264,7 @@ describe("Connecting agents", () => {
       await openWorkspace("/?demo=welcome")
       await expect.element(welcome()).toBeVisible()
       await expect.element(agentChoice(welcome(), "Codex")).toBeChecked()
-      await userEvent.keyboard("{Escape}")
+      await escapeFrom(welcome())
       await expect.element(welcome()).not.toBeInTheDocument()
       await openPreferences()
       await expect

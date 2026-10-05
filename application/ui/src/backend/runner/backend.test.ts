@@ -973,11 +973,18 @@ describe("runner backend", () => {
           0,
         ),
       })
-      await typeInto(runner.client, done.id, "exit 0\r")
-      await vi.waitFor(async () => {
-        const [listed] = await runner.client.terminals.list({ sessionId: id })
-        expect(listed?.exit).toBeTruthy()
-      }, eventually)
+      // The shell starts, takes the input and exits in its own time, which can take
+      // seconds on a busy Windows machine: this waits for the runner's exit itself rather
+      // than polling for a while.
+      const attached = await runner.client.terminals.attach(done.id)
+      try {
+        await attached.write("exit 0\r")
+        for await (const event of attached) if (event.type === "exited") break
+      } finally {
+        await attached.detach()
+      }
+      const [listed] = await runner.client.terminals.list({ sessionId: id })
+      expect(listed?.exit).toBeTruthy()
       const app = open(await runner.reload())
       const session = app
         .workspace()
