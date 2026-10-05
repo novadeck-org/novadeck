@@ -32,7 +32,7 @@
     "concurrently": "^10.0.5",
     "conventional-changelog-conventionalcommits": "10.4.0",
     "msw": "^2.15.0",
-    "oxfmt": "^0.68.0",
+    "oxfmt": "^0.71.0",
     "oxlint": "^1.83.0",
     "release-it": "21.1.0",
     "turbo": "^2.11.2",
