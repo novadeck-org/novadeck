@@ -11,8 +11,9 @@ import { shellFiles, shellPaths, staleShellFiles, type ShellPaths } from "./scri
  * The shell files as written, with the launchers as NovaDeck's shells name them: the
  * hook's in NOVADECK_HOOK, on Windows by its short name, which holds no spaces or
  * brackets, so cmd runs it unquoted; and on Linux and macOS the MCP server's in
- * NOVADECK_MCP, which agents' plugins start in its place (see `mcpStart`). Windows'
- * plugins start the relay itself, without a shell to read the variable, so it is unset.
+ * NOVADECK_MCP, which agents' plugins start in its place (see `mcpStart`), only once the
+ * relay it starts is installed. Windows' plugins start the relay itself, without a shell
+ * to read the variable, so it is unset.
  */
 export type InstalledShell = ShellPaths & {
   readonly launcher: string
@@ -35,10 +36,15 @@ export const installShellFiles = async (
 ): Promise<InstalledShell> => {
   const paths = shellPaths(directory)
   await mkdir(directory, { recursive: true, mode: 0o700 })
-  // Without its relay an agent's hooks and MCP server can't start; shells still work.
-  await installRelay(relay, paths.relay).catch((error: unknown) => {
-    console.error("NovaDeck's relay is unavailable:", error)
-  })
+  // Without its relay an agent's hooks and MCP server can't start; shells still work, and
+  // their agents' MCP server is the connecting build's, as NOVADECK_MCP is left unset.
+  const relayed = await installRelay(relay, paths.relay).then(
+    () => true,
+    (error: unknown) => {
+      console.error("NovaDeck's relay is unavailable:", error)
+      return false
+    },
+  )
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
   for (const file of shellFiles(paths, process.platform)) {
     // eslint-disable-next-line no-await-in-loop -- A few small files, one after another.
@@ -62,7 +68,7 @@ export const installShellFiles = async (
   return {
     ...paths,
     launcher: await shortName(paths.hook),
-    mcpLauncher: process.platform === "win32" ? undefined : paths.mcp,
+    mcpLauncher: process.platform !== "win32" && relayed ? paths.mcp : undefined,
   }
 }
 

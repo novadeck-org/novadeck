@@ -1028,7 +1028,9 @@ names in `NOVADECK_MCP`, so it speaks its runner's relay protocol and is there f
 long as that NovaDeck is. Only where the variable names no runnable file, as when it is
 unset for an agent started outside NovaDeck or names a build since removed, does the
 command fall back to the connecting build's launcher by its absolute path (`mcpStart` in
-`shell/scripts.ts`). Agents start the command without a shell, so it is one:
+`shell/scripts.ts`). A runner whose relay failed to install leaves the variable unset
+in its terminals, so their agents fall back too instead of starting a launcher with no
+relay behind it. Agents start the command without a shell, so it is one:
 `/bin/sh -c 'if [ -x "$NOVADECK_MCP" ]; then exec "$NOVADECK_MCP"; fi; exec "$0" "$@"' <launcher>`,
 which takes the launcher as `$0` and any arguments as `$@` and never parses them, and
 holds no `${...}`, which Claude Code would expand itself. sh and the launcher each

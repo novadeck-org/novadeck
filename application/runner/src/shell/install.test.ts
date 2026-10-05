@@ -2,8 +2,10 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { vi } from "vitest"
+
 import { describe, expect, it } from "../test.js"
-import { installRelay } from "./install.js"
+import { installRelay, installShellFiles } from "./install.js"
 
 const missing = () => Object.assign(new Error("missing"), { code: "ENOENT" })
 
@@ -71,5 +73,30 @@ describe("installing the relay", () => {
     await installRelay(relay, path)
     expect(readFileSync(path, "utf8")).toBe("relay")
     expect(statSync(path).ino).toBe(first.ino)
+  })
+})
+
+// Windows' plugins start the relay itself, so NOVADECK_MCP is never set there.
+describe.skipIf(process.platform === "win32")("the MCP server's launcher", () => {
+  it("is named once the relay it starts is installed", async ({ resources }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-mcp-launcher-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const relay = join(folder, "built")
+    writeFileSync(relay, "relay")
+    const paths = await installShellFiles(join(folder, "shell"), { relay })
+    expect(paths.mcpLauncher).toBe(paths.mcp)
+    expect(statSync(paths.relay).mode & 0o100).not.toBe(0)
+  })
+
+  it("is left out when the relay can't be installed, so plugins start the connecting build's", async ({
+    resources,
+  }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-mcp-launcher-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+    resources.defer(() => logged.mockRestore())
+    const paths = await installShellFiles(join(folder, "shell"), { relay: join(folder, "gone") })
+    expect(paths.mcpLauncher).toBeUndefined()
+    expect(logged).toHaveBeenCalledWith("NovaDeck's relay is unavailable:", expect.anything())
   })
 })
