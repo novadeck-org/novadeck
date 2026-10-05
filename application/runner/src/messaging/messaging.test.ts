@@ -4,6 +4,7 @@ import { afterEach, beforeEach, vi } from "vitest"
 import {
   apply as applyActivity,
   started as freshActivity,
+  summary,
   type Activity,
 } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
@@ -51,7 +52,7 @@ const stopped = (bound: Binding, background = false): HarnessEvent => ({
   type: "turn-ended",
   ...fact(bound),
   outcome: "completed",
-  background,
+  background: { agents: background ? 1 : 0, tasks: 0 },
 })
 
 const observed = (bound: Binding, root = false): HarnessEvent => ({
@@ -762,6 +763,9 @@ describe("delivery through hooks", () => {
     vi.advanceTimersByTime(1)
     expect(messages(messaging, "B")[0]?.state).toBe("queued")
     expect(messaging.delivery("B")?.state).toBe("settled")
+    // The agent's activity hears of it, once, at the turn's Stop.
+    expect(messaging.lapsed("B", codex, 7)).toMatchObject({ type: "turn-lapsed", startedAt: 7 })
+    expect(messaging.lapsed("B", codex, 7)).toBeUndefined()
     // A late acknowledgement is ignored; the message arrives again, by id, later.
     messaging.acknowledge("B", answer.leaseId!)
     expect(messages(messaging, "B")[0]?.state).toBe("queued")
@@ -1187,7 +1191,7 @@ describe("Antigravity's root conversation", () => {
       type: "turn-idle",
       ...fact(root),
       startedAt: asHeard,
-      background: false,
+      background: { agents: 0, tasks: 0 },
     }
     observe("G", root, [idle], true)
     expect(messaging.delivery("G")?.state).toBe("unknown")
@@ -1275,7 +1279,7 @@ describe("Antigravity's root conversation", () => {
     expect(messaging.delivery("G")?.state).toBe("settled")
   })
 
-  it("settles when its subagents finish, though its status line said working after the Stop", () => {
+  it("settles when its status line lists no subagent running, a command left to run", () => {
     const { messaging, ask, observe, root } = agyTerminal()
     observe("G", root, agyStatus(root, "idle"), true)
     ask("G", root, "PreInvocation", hook(root, "PreInvocation", { invocationNum: 0 }))
@@ -1373,14 +1377,23 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
     }
     // Whether a turn runs, as each tells it. Activity has two states, working or idle.
     // Delivery runs a turn only in its `turn` or `continuing` phase: its `background` phase,
-    // after a Stop while subagents run, is idle to activity, which tells subagents apart;
-    // and Settled, Unknown, Ready, Ringing and Drafting are all idle there.
+    // after a Stop while subagents run, is idle to activity's turn; and Settled, Unknown,
+    // Ready, Ringing and Drafting are all idle there. Whether the agent works, as its
+    // terminal shows it, and whether delivery is Working, agree too, its `background` phase
+    // being working's wait on what the turn left running.
     const told = () => ({
       activity: activity.state === "working",
       delivery: running(setup.messaging.delivery("G")!),
+      shown: summary(activity).state === "working",
+      busy: setup.messaging.delivery("G")!.state === "working",
     })
-    const turn = (expected: boolean) => {
-      expect(told()).toEqual({ activity: expected, delivery: expected })
+    const turn = (expected: boolean, working = expected) => {
+      expect(told()).toEqual({
+        activity: expected,
+        delivery: expected,
+        shown: working,
+        busy: working,
+      })
     }
     // How many requests activity has waiting on the person, which the person's keys
     // meanwhile are answers to.
@@ -1583,19 +1596,36 @@ describe("Antigravity's turn, as activity and delivery both tell it", () => {
     expect(messaging.delivery("G")?.state).toBe("drafting")
   })
 
-  it("agrees no turn runs after a Stop with subagents running, once they finish, then a working", () => {
+  it("agrees the agent works on after a Stop only while its subagents run", () => {
+    const listing = { subagents: [{ name: "self", status: "running" }] }
+    const { messaging, hook, status, turn } = agyTerminal()
+    status("idle", 1)
+    hook("PreInvocation", 2, { invocationNum: 0 })
+    // Its Stop says only that something runs: a subagent, until its status line says.
+    hook("Stop", 3, { fullyIdle: false })
+    turn(false, true)
+    expect(messaging.delivery("G")).toMatchObject({ state: "working", phase: "background" })
+    status("idle", 4, listing)
+    turn(false, true)
+    // Its end wakes the agent, whose Stop says nothing runs any more.
+    hook("PreInvocation", 5, { invocationNum: 0 })
+    turn(true)
+    hook("Stop", 6, { fullyIdle: true })
+    turn(false)
+    expect(messaging.delivery("G")?.state).toBe("settled")
+  })
+
+  it("agrees a command left running, its status line listing no subagent, keeps nothing working", () => {
     const { messaging, hook, status, turn } = agyTerminal()
     status("idle", 1)
     hook("PreInvocation", 2, { invocationNum: 0 })
     hook("Stop", 3, { fullyIdle: false })
-    turn(false)
-    expect(messaging.delivery("G")).toMatchObject({ state: "working", phase: "background" })
+    turn(false, true)
     status("idle", 4)
     turn(false)
     expect(messaging.delivery("G")?.state).toBe("settled")
     status("working", 5)
     turn(false)
-    expect(messaging.delivery("G")?.state).toBe("settled")
   })
 })
 
@@ -1617,6 +1647,7 @@ const about = (terminalId: string): Whereabouts | undefined =>
           activeAt: 1_000_000,
         },
         openedBy: null,
+        working: false,
         place: (path: string) => path.replace(/^\/w\//, ""),
       }
     : terminalId === "D"
@@ -1629,6 +1660,7 @@ const about = (terminalId: string): Whereabouts | undefined =>
           plan: null,
           work: null,
           openedBy: null,
+          working: false,
           place: (path) => path,
         }
       : undefined
@@ -1666,6 +1698,21 @@ describe("listing", () => {
       ok: true,
       text: expect.stringMatching(/^You are t3 in NovaDeck\.\n[\s\S]*replies can't reach you/),
     })
+  })
+
+  it("calls an agent busy while its terminal shows it working past its turn's end", () => {
+    // Codex's turn is over, but its terminal still shows it working, as on what an
+    // interrupted Claude Code turn left running, which no delivery phase holds.
+    const { messaging, prompt, stop, codex } = create()
+    prompt("B", codex)
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("settled")
+    const line = (where: Whereabouts | undefined) => {
+      const listed = messaging.agents("A", () => where)
+      return listed.ok ? listed.text.split("\n").find((each) => each.startsWith("- t2")) : undefined
+    }
+    expect(line(about("B"))).toMatch(/^- t2: Codex, idle/)
+    expect(line({ ...about("B")!, working: true })).toMatch(/^- t2: Codex, busy/)
   })
 
   it("lets only terminals of one project and NovaDeck session see each other", () => {

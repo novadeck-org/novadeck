@@ -17,7 +17,11 @@ export type Project = { id: string; name: string; directory: string }
 // on the person, by the kind of the oldest: permission for a tool, a question, or a plan
 // to review, and the subagents it runs, oldest first.
 export type AgentStatus = {
+  // Working on its turn, or after it while subagents it started run on (`background`).
   readonly working: boolean
+  // What its ended turn left running that wakes it once done, counted: subagents, and
+  // other tasks such as commands. Both zero where its harness says only that work runs.
+  readonly background?: { readonly agents: number; readonly tasks: number }
   readonly planning?: true
   readonly attention?: {
     readonly kind: "permission" | "question" | "plan"

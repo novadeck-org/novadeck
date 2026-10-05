@@ -7,7 +7,7 @@ import { brotliDecompress, gunzip, inflate, zstdDecompress } from "node:zlib"
 import { ZodError } from "zod"
 
 import type { Dialect, Request } from "./dialect.js"
-import { answer, latest, type Call, type Rule } from "./script.js"
+import { answer, latest, Refusal, type Call, type Rule } from "./script.js"
 
 /**
  * The fake model: one loopback HTTP server that answers every harness's API, and also
@@ -217,6 +217,19 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
 
   const server = createServer((incoming, outgoing) => {
     respond(incoming, outgoing).catch((error: unknown) => {
+      // A rule's refusal: the error each API answers a bad request with, as far as its
+      // harness reads one.
+      if (error instanceof Refusal && !outgoing.headersSent) {
+        outgoing.writeHead(error.status, { "content-type": "application/json" })
+        const message = "The fake model refused the request."
+        outgoing.end(
+          JSON.stringify({
+            type: "error",
+            error: { type: "invalid_request_error", message, code: error.status },
+          }),
+        )
+        return
+      }
       const what = failure(error)
       errors.push(`${incoming.method ?? "GET"} ${(incoming.url ?? "/").split("?")[0]}: ${what}`)
       if (outgoing.headersSent) return outgoing.destroy()

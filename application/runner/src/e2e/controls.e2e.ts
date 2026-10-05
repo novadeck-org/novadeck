@@ -1,10 +1,12 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { Harness } from "../harnesses/harness.js"
+import { harnesses } from "../harnesses/registry.js"
 import type { FolderQuestion } from "./agents/agent.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
-import { asked, gate, latest, tool, type Call } from "./model/script.js"
+import { asked, gate, latest, Refusal, tool, type Call } from "./model/script.js"
 import {
   answers,
   delivered,
@@ -35,6 +37,10 @@ const calledLast = (call: Call): string | undefined =>
 
 // How long a terminal is watched for what a held reply, once let go, would show.
 const quiet = 3000
+
+// What the nested run a background command starts is asked, which only its own
+// conversation holds as a user's words.
+const leftRunning = "novadeck-e2e-background command: say done"
 
 // How long the option trusting the folder must stay selected before Enter answers the
 // question: Claude Code 2.1.287 draws its question again about 130 ms after the first,
@@ -252,50 +258,146 @@ for (const setup of setups) {
       await t1.until("No news.")
     })
 
-    gated(it, lacking(setup, "background"))(
-      "stays Working while its background work runs past its turn, and settles once it ends",
-      async ({ e2e: run }) => {
-        const finishing = gate()
-        run.model.use(
-          own(async (call) => {
-            if (!background!.owns(call)) return undefined
-            await finishing.opened
-            return { text: "Background work done." }
-          }),
-          answers("Start the work", (call) => background!.start(call)),
-          own((call) => (result(call) !== undefined ? { text: "Started the work." } : undefined)),
-        )
+    // The work a turn leaves running, which wakes the agent once done: a subagent, or a
+    // command its shell tool runs in the background, a nested run of the harness whose
+    // model call the test holds. Its end wakes the agent, whose turn then settles.
+    for (const work of ["subagent", "command"] as const) {
+      const traits =
+        work === "subagent" ? (["background"] as const) : (["background.command", "shell"] as const)
+      gated(it, lacking(setup, ...traits))(
+        work === "subagent"
+          ? "stays Working while a subagent it left running runs past its turn, and settles once it ends"
+          : "shows a command it left running without working on, and settles again once it ends",
+        async ({ e2e: run }) => {
+          const finishing = gate()
+          const owns =
+            work === "subagent"
+              ? background!.owns
+              : (call: Call) =>
+                  !call.side &&
+                  call.turns.some((one) => one.role === "user" && one.text.includes(leftRunning))
+          run.model.use(
+            own(async (call) => {
+              if (!owns(call)) return undefined
+              await finishing.opened
+              return { text: "Background work done." }
+            }),
+            answers("Start the work", (call) =>
+              work === "subagent"
+                ? background!.start(call)
+                : background!.command!(call, setup.shell!.nested(leftRunning)),
+            ),
+            own((call) =>
+              result(call) !== undefined && !owns(call) ? { text: "Started the work." } : undefined,
+            ),
+          )
+          const t1 = await start(run, setup)
+          const calls = run.model.mark()
+          const mark = t1.mark()
+
+          await t1.submit("Start the work")
+          await run.model.waitFor(owns, { after: calls })
+          await t1.reached("working", { after: mark })
+          await t1.until("Started the work.")
+          if (work === "subagent") {
+            // Its turn ends while the subagent runs: the agent works on, waiting on it, as
+            // its terminal shows and delivery holds it. Antigravity's Stop says only that
+            // something runs; its status line counts it.
+            await t1.poll(
+              () => (t1.summary().activity?.background?.agents === 1 ? true : undefined),
+              "the agent's turn to end, its subagent counted",
+            )
+            expect(t1.summary().activity?.state).toBe("working")
+            expect(t1.history().at(-1)?.delivery).toBe("working")
+            // Still so a moment on, past any status line drawn after the Stop.
+            await sleep(quiet)
+            expect(t1.summary().activity).toMatchObject({ state: "working" })
+            expect(
+              t1
+                .history()
+                .slice(mark)
+                .map((one) => one.delivery),
+            ).not.toContain("settled")
+          } else {
+            // Its turn ends while the command runs, which may run for ever, as a dev server
+            // does: it shows as left running, but the agent is idle, and Settled.
+            const left = await t1.poll(() => {
+              const activity = t1.summary().activity
+              return activity?.state === "idle" ? (activity.background ?? undefined) : undefined
+            }, "the agent idle, its command still running")
+            expect(left.agents).toBe(0)
+            await t1.reached("settled", { after: mark })
+            await sleep(quiet)
+            expect(t1.summary().activity).toMatchObject({ state: "idle", background: left })
+          }
+
+          // The work ends and wakes the agent, whose turn then settles, with nothing running.
+          const woken = run.model.mark()
+          const before = t1.mark()
+          finishing.open()
+          await run.model.waitFor((call) => !call.side && !owns(call), { after: woken })
+          await t1.reached("settled", { after: before })
+          await t1.poll(
+            () =>
+              t1.summary().activity?.state === "idle" && t1.summary().activity?.background === null
+                ? true
+                : undefined,
+            "the agent idle, nothing left running",
+          )
+        },
+      )
+    }
+
+    it("ends a turn whose Stop hook's report never came, as its own records tell", async ({
+      e2e: run,
+    }) => {
+      // As when NovaDeck's hook failed to run: the turn ends all the same, from Claude Code's
+      // transcript, Codex's rollout, or Antigravity's idle status line.
+      const harness = harnesses[setup.agent] as { decode: Harness["decode"] }
+      const { decode } = harness
+      harness.decode = (report) => (report.event === "Stop" ? [] : decode(report))
+      try {
+        run.model.use(replies("Say the word", "Plover-3 says hello."))
         const t1 = await start(run, setup)
-        const calls = run.model.mark()
         const mark = t1.mark()
 
-        await t1.submit("Start the work")
-        await run.model.waitFor(background!.owns, { after: calls })
+        await t1.submit("Say the word")
         await t1.reached("working", { after: mark })
-        await t1.until("Started the work.")
-        // Its turn ends while the work runs: the agent idles, but something it started
-        // still runs, so NovaDeck holds it Working.
+        await t1.until("Plover-3 says hello.")
         await t1.poll(
-          async () => ((await t1.detail()).activity?.state === "idle" ? true : undefined),
-          "the agent's turn to end",
+          () => (t1.summary().activity?.state === "idle" ? true : undefined),
+          "the turn to end",
         )
-        expect(t1.history().at(-1)?.delivery).toBe("working")
-        expect(
-          t1
-            .history()
-            .slice(mark)
-            .map((one) => one.delivery),
-        ).not.toContain("settled")
+        // Delivery takes it as over too: Settled where the records say it completed,
+        // Unknown where only an idle status line says it ended.
+        expect(t1.history().at(-1)?.delivery).not.toBe("working")
+      } finally {
+        harness.decode = decode
+      }
+    })
 
-        // The work ends and wakes the agent, whose turn then settles.
-        const woken = run.model.mark()
-        finishing.open()
-        await run.model.waitFor((call) => !call.side && !background!.owns(call), {
-          after: woken,
-        })
-        await t1.reached("settled", { after: mark })
-      },
-    )
+    it("ends a turn its model refused, and settles", async ({ e2e: run }) => {
+      // An API rejecting the request fails the turn: Claude Code's StopFailure and
+      // Antigravity's Stop say so; Codex fires no hook, and its rollout records the failed
+      // turn's end (see docs/harness-coverage.md, "Activity").
+      run.model.use(
+        own((call) => {
+          if (!call.side && asked(call, "Refuse this")) throw new Refusal(400)
+          return undefined
+        }),
+      )
+      const t1 = await start(run, setup)
+      const mark = t1.mark()
+
+      await t1.submit("Refuse this")
+      await t1.reached("working", { after: mark })
+      await t1.poll(
+        () => (t1.summary().activity?.state === "idle" ? true : undefined),
+        "the failed turn to end",
+        60_000,
+      )
+      expect(t1.history().at(-1)?.delivery).not.toBe("working")
+    })
   })
 
   describe.skipIf(!supported)(`${setup.name}, its hooks untrusted`, () => {

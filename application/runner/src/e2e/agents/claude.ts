@@ -23,6 +23,7 @@ export const claude: AgentSetup = {
   // The name its first screen's header gives, beside its version.
   banner: "Claude Code",
   bindsAtReady: true,
+  idleCommand: "/status",
   refused: [],
   watch: {
     searched: [
@@ -89,6 +90,16 @@ export const claude: AgentSetup = {
     owns: (call: Call) =>
       !call.side &&
       (call.turns.find((turn) => turn.role === "user")?.text.includes(marker) ?? false),
+    // Its Bash tool's own background run, which its Stop lists as a running `shell` task,
+    // and whose end starts a turn with a task notification too (probed 2026-10-04, 2.1.289).
+    command: (_call, command) => ({
+      calls: [
+        {
+          name: "Bash",
+          input: { command, description: "Run a command", run_in_background: true },
+        },
+      ],
+    }),
   },
   // Its Bash tool, running its own print mode, which its settings allow (`Bash(claude -p:*)`).
   shell: {

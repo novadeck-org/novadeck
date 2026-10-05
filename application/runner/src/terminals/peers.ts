@@ -151,6 +151,7 @@ export class TerminalPeers {
           plan,
           work: terminal.work,
           openedBy: terminal.openedBy,
+          working: terminal.summary.activity?.state === "working",
           place: (path) => {
             const shown = place(path)
             return shown.length > 80 ? `…${shown.slice(-79)}` : shown

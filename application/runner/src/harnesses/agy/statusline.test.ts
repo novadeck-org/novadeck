@@ -105,7 +105,7 @@ describe("Antigravity's status line, as captured", () => {
     // Denied: the turn ends, and no hook says so; idle reads the same after a completed
     // turn, so it is never taken for one.
     expect(activity(idle!)).toEqual([
-      { type: "turn-idle", ...conversation, startedAt: 5, background: false },
+      { type: "turn-idle", ...conversation, startedAt: 5, background: { agents: 0, tasks: 0 } },
     ])
   })
 
@@ -188,7 +188,12 @@ describe("Antigravity's status line, as captured", () => {
           )
           .reduce((state, event) => applyActivity(state, binding, event) ?? state, started(0)),
       )
-    const quiet = { attention: { pending: 0, kind: null }, subagents: [], planning: false }
+    const quiet = {
+      attention: { pending: 0, kind: null },
+      subagents: [],
+      planning: false,
+      background: null,
+    }
     // Its status line may still say working just after the Stop: the turn stays over.
     expect(run([preInvocation(1), stop(2), report(working!, 3)])).toEqual({
       state: "idle",
@@ -199,6 +204,7 @@ describe("Antigravity's status line, as captured", () => {
       attention: { pending: 1, kind: "permission" },
       subagents: [],
       planning: false,
+      background: null,
     })
     // Drawn just after the Stop, a snapshot still showing the turn's confirmation asks
     // nothing: only a turn running, or one a working resumed, waits on one.
@@ -211,6 +217,7 @@ describe("Antigravity's status line, as captured", () => {
       attention: { pending: 1, kind: "permission" },
       subagents: [],
       planning: false,
+      background: null,
     })
     // Working again: the confirmation was answered, and the turn goes on.
     expect(run([preInvocation(1), report(confirming!, 2), report(working!, 3)])).toEqual({

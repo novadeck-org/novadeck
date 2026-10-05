@@ -3,7 +3,7 @@
    it.
 
    Hooks on `.terminal-tab`: data-terminal-phase="idle" | "running" | "starting" |
-   "attention" | "ended", data-terminal-attention="question" | "permission",
+   "attention" | "unheard" | "ended", data-terminal-attention="question" | "permission",
    data-terminal-hidden="true" | "false". Parts: `.terminal-glyph`,
    `.terminal-tab-process`, `.terminal-tab-starting`, `.terminal-tab-action` (an
    `.icon-button.small.dim.quiet`, pressed while it hides the tab but looking as it does
@@ -16,6 +16,7 @@
    Tokens, each optional (its fallback in brackets):
    --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
    shell starts. --tab-attention-fg (warning-fg): the glyph while an agent waits.
+   --tab-unheard-fg (muted): the glyph while NovaDeck can't hear from an agent.
    --tab-process-font (mono): the program and the glyph.
    --tab-active-process-fg (ink): the program while it runs or waits.
    --tab-ended-image (the window's --window-ended-image, a faint ink hatch),
@@ -111,6 +112,13 @@
 }
 .terminal-tab[data-terminal-phase="ended"] .terminal-glyph::before {
   content: "×";
+}
+/* An agent NovaDeck can't hear from: a hollow mark, as nothing tells whether it works. */
+.terminal-tab[data-terminal-phase="unheard"] .terminal-glyph {
+  color: var(--tab-unheard-fg, var(--color-muted));
+}
+.terminal-tab[data-terminal-phase="unheard"] .terminal-glyph::before {
+  content: "○";
 }
 /* An agent waiting on the person is marked in the warning colour: "?" for a question,
    "!" for a permission. */

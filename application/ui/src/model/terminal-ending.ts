@@ -1,3 +1,4 @@
+import { isAgentProgram } from "./process"
 import type { TerminalMetadata } from "./types"
 
 // How a terminal's session ended, in words for its end-of-session bar and its sidebar
@@ -34,19 +35,29 @@ export const endingText = ({ status, reason }: TerminalEnding): string =>
   reason ? `${status} · ${reason}` : status
 
 // What a terminal shows at a glance, in its tab and on its window: a shell starting,
-// idle at its prompt, running a program, waiting on the person, or ended. An agent that
-// reports through its hooks reads as running only while it works, and as waiting while
-// it asks for permission or a question. A clean exit closes the terminal, so a finished
-// one reads as idle for the moment it remains.
-export type TerminalPhase = "starting" | "idle" | "running" | "attention" | "ended"
+// idle at its prompt, running a program, waiting on the person, unheard, or ended. An
+// agent that reports through its hooks reads as running only while it works, its turn
+// or what that left running, and as waiting while it asks for permission or a question.
+// An agent NovaDeck hears nothing from, as its hooks aren't connected or trusted, is
+// unheard: whether it works or waits, nothing tells. A clean exit closes the terminal, so
+// a finished one reads as idle for the moment it remains.
+export type TerminalPhase = "starting" | "idle" | "running" | "attention" | "unheard" | "ended"
 
 export const terminalPhase = (terminal: TerminalMetadata): TerminalPhase => {
   if (terminal.state === "exited" || terminal.state === "failed") return "ended"
   if (terminal.state === "starting") return "starting"
   if (terminal.state !== "running") return "idle"
   if (terminal.agent?.attention) return "attention"
+  if (!terminal.agent && isAgentProgram(terminal.process)) return "unheard"
   return terminal.agent && !terminal.agent.working ? "idle" : "running"
 }
+
+// What the terminal's phase leaves unsaid at a glance, in words for its tooltip and
+// assistive technology: that NovaDeck can't hear from its agent. Undefined otherwise.
+export const unheardText = (terminal: TerminalMetadata): string | undefined =>
+  terminalPhase(terminal) === "unheard"
+    ? "Not reporting · NovaDeck can't hear from this agent"
+    : undefined
 
 // What the agent in a terminal waits on the person for, in a few words; undefined when
 // nothing waits.

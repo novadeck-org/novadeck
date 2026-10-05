@@ -83,6 +83,7 @@ export const keptSummary = (
   exit: null,
   process: null,
   agent: null,
+  ready: null,
   activity: null,
   telemetry: null,
   ...change,

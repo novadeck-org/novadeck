@@ -28,6 +28,9 @@ const line = (text: string): unknown => {
   return JSON.parse(text)
 }
 
+// What a turn left running, as its decoder counts it.
+const counted = (agents: number, tasks: number) => [{ background: { agents, tasks } }]
+
 describe("each harness's hook answers", () => {
   it("continue a Claude Code or Codex Stop with a block, and add prompt-time context", () => {
     for (const agent of ["claude", "codex"] as const) {
@@ -248,8 +251,15 @@ describe("root turns, as each harness reports them", () => {
       .events.filter(({ event }) => event === "Stop")
       .map(({ event, payload }) => turns(decode("agy", event, payload)))
     expect(stops).toMatchObject([
-      [{ type: "turn-ended", outcome: "completed", background: false }],
-      [{ type: "turn-ended", outcome: "completed", background: true }],
+      [{ type: "turn-ended", outcome: "completed", background: { agents: 0, tasks: 0 } }],
+      // It says only that something runs on, uncounted.
+      [
+        {
+          type: "turn-ended",
+          outcome: "completed",
+          background: { agents: 0, tasks: 0, more: true },
+        },
+      ],
     ])
     expect(
       turns(decode("agy", "Stop", { conversationId: "c", error: "quota", fullyIdle: true })),
@@ -265,16 +275,22 @@ describe("root turns, as each harness reports them", () => {
         sessionId: "c",
         instance: "7",
         startedAt: 1,
-        background: false,
+        background: { agents: 0, tasks: 0 },
       },
     ])
-    // Its subagents still running keep the turn's work going.
+    // Its subagents still running keep the turn's work going, each counted.
     const running = (subagents: unknown) =>
       turns(decode("agy", "StatusLine", { conversation_id: "c", agent_state: "idle", subagents }))
-    expect(running([{ id: "s1" }])).toMatchObject([{ background: true }])
-    expect(running([{ id: "s1", status: "running" }])).toMatchObject([{ background: true }])
-    expect(running([{ id: "s1", status: "completed" }])).toMatchObject([{ background: false }])
-    expect(running([])).toMatchObject([{ background: false }])
+    expect(running([{ id: "s1" }])).toMatchObject(counted(1, 0))
+    expect(
+      running([
+        { name: "self", status: "running" },
+        { name: "self", status: "running" },
+        { name: "self", status: "completed" },
+      ]),
+    ).toMatchObject(counted(2, 0))
+    expect(running([{ id: "s1", status: "completed" }])).toMatchObject(counted(0, 0))
+    expect(running([])).toMatchObject(counted(0, 0))
     expect(idle[0]).toMatchObject({ type: "session-observed", root: true })
     // Its hooks name subagents' conversations alike, so none of theirs is the root's word.
     expect(decode("agy", "PreInvocation", { conversationId: "c" })[0]).not.toHaveProperty("root")
@@ -291,13 +307,19 @@ describe("root turns, as each harness reports them", () => {
     ])
     const stop = (tasks: unknown) =>
       turns(decode("claude", "Stop", { session_id: "s", background_tasks: tasks }))
-    expect(stop([{ id: "b1", status: "running" }])).toMatchObject([{ background: true }])
-    // Only a running one counts.
-    expect(stop([{ id: "b1", status: "completed" }, { id: "b2" }])).toMatchObject([
-      { background: false },
-    ])
-    expect(stop([])).toMatchObject([{ background: false }])
-    expect(stop(undefined)).toMatchObject([{ background: false }])
+    expect(stop([{ id: "b1", type: "shell", status: "running" }])).toMatchObject(counted(0, 1))
+    // Its subagents apart from the rest, and only a running one counts.
+    expect(
+      stop([
+        { id: "a1", type: "subagent", status: "running" },
+        { id: "a2", type: "subagent", status: "running" },
+        { id: "b1", type: "shell", status: "running" },
+        { id: "b2", type: "shell", status: "completed" },
+        { id: "b3" },
+      ]),
+    ).toMatchObject(counted(2, 1))
+    expect(stop([])).toMatchObject(counted(0, 0))
+    expect(stop(undefined)).toMatchObject(counted(0, 0))
   })
 
   it("never take a Stop hook's continuation for the person's prompt", () => {

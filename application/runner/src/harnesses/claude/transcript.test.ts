@@ -83,3 +83,42 @@ describe("a transcript line", () => {
     expect(line({ ...interrupt, message: { role: "user", content: typed } })).toEqual([])
   })
 })
+
+describe("a transcript's record of the turn's Stop hooks", () => {
+  // As Claude Code 2.1.289 writes it once a root turn's Stop hooks ran, failing or not.
+  const summary = {
+    parentUuid: "dd97cd0c-ea4f-4d9e-82eb-71a9ad1679bc",
+    isSidechain: false,
+    type: "system",
+    subtype: "stop_hook_summary",
+    hookCount: 1,
+    hookInfos: [{ command: '"$NOVADECK_HOOK" claude Stop', durationMs: 9 }],
+    hookErrors: ["Failed to run: Plugin directory does not exist"],
+    hookAdditionalContext: [],
+    preventedContinuation: false,
+    stopReason: "",
+    hasOutput: true,
+    level: "suggestion",
+    timestamp: "2026-10-03T09:17:02.662Z",
+    sessionId: "s",
+  }
+  const line = (record: object) => transcriptEvents(JSON.stringify(record), session)
+
+  it("ends the turn as recorded, dated by the record, saying nothing of what still runs", () => {
+    expect(line(summary)).toEqual([
+      {
+        type: "turn-ended",
+        agent: "claude",
+        sessionId: "s",
+        instance: "7",
+        startedAt: Date.parse(summary.timestamp),
+        outcome: "completed",
+        recorded: true,
+      },
+    ])
+  })
+
+  it("ignores a subagent's", () => {
+    expect(line({ ...summary, isSidechain: true })).toEqual([])
+  })
+})

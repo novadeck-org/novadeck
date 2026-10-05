@@ -6,7 +6,7 @@ import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../../test.js"
 import type { Install } from "../harness.js"
-import { confirmingPrefix, startedSession, title, titleSetting } from "./title.js"
+import { confirmingPrefix, startedSession, title, titleSetting, titleWorking } from "./title.js"
 
 describe("Codex's terminal title", () => {
   it("shows its prompt once it says Ready, with the start of its thread's id", () => {
@@ -110,5 +110,15 @@ describe("a thread Codex just started", () => {
       150,
     )
     expect(await startedSession(where, shown, now, undefined, 2_000)).toBe(true)
+  })
+})
+
+describe("Codex's title saying a turn runs", () => {
+  it("tells a run state past Ready and Starting", () => {
+    expect(titleWorking("Working | 01a0f932-a824...")).toBe(true)
+    expect(titleWorking("Thinking | 01a0f932-a824...")).toBe(true)
+    expect(titleWorking("Ready | 01a0f932-a824...")).toBe(false)
+    expect(titleWorking("Starting | 01a0f932-a824...")).toBe(false)
+    expect(titleWorking("my own title")).toBe(false)
   })
 })

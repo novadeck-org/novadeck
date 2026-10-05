@@ -69,11 +69,54 @@ describe("Codex's rollout, as captured", () => {
     ])
   })
 
+  it("ends the turn it names, as recorded, should its hook's report not have come", () => {
+    const complete = records.find(({ payload }) => payload.type === "task_complete")!
+    expect(rolloutEvents(JSON.stringify(complete), session)).toEqual([
+      {
+        type: "turn-ended",
+        agent: "codex",
+        sessionId: "s",
+        instance: "7",
+        startedAt: Date.parse(complete.timestamp),
+        outcome: "completed",
+        recorded: true,
+        turn: complete.payload.turn_id,
+      },
+    ])
+  })
+
   it("says nothing of other records", () => {
+    const told = new Set(["task_started", "task_complete"])
     for (const record of records.filter(
-      (each) => each !== count && (each.payload as { type?: string }).type !== "task_started",
+      (each) => each !== count && !told.has((each.payload as { type?: string }).type ?? ""),
     ))
       expect(rolloutEvents(JSON.stringify(record), session)).toEqual([])
+  })
+})
+
+describe("a Codex turn's end, as its rollout records it", () => {
+  // As recorded by 0.159.3: a failed turn, which fires no hook, and an aborted one.
+  const ended = (payload: object) =>
+    rolloutEvents(
+      JSON.stringify({ timestamp: "2026-10-02T08:51:54.403Z", type: "event_msg", payload }),
+      session,
+    )
+
+  it("tells a failed turn by its error, and an aborted one as interrupted", () => {
+    expect(
+      ended({
+        type: "task_complete",
+        turn_id: "t1",
+        last_agent_message: null,
+        error: { message: "Selected model is at capacity.", codex_error_info: "server_overloaded" },
+      }),
+    ).toMatchObject([{ type: "turn-ended", outcome: "failed", recorded: true, turn: "t1" }])
+    expect(ended({ type: "turn_aborted", turn_id: "t2", reason: "interrupted" })).toMatchObject([
+      { type: "turn-ended", outcome: "interrupted", recorded: true, turn: "t2" },
+    ])
+    expect(ended({ type: "task_complete", error: null })).toEqual([
+      expect.not.objectContaining({ turn: expect.anything() }),
+    ])
   })
 })
 

@@ -32,6 +32,11 @@ export type Facts = {
   readonly submitted: boolean
   /** Whether the observing harness is connected; a disconnected one's reports are ignored. */
   readonly connected: boolean
+  /**
+   * Whether the bound session's agent works on a turn, or has work its turn left running:
+   * another conversation it observes then is that work's own, as an Antigravity subagent's.
+   */
+  readonly busy?: boolean
   readonly platform: NodeJS.Platform
 }
 
@@ -44,10 +49,20 @@ export type Facts = {
  * the platform hides the process, the harness alone has to do. A report that can't tell
  * its process while the bound one is known, as from a hook outliving its agent, refreshes
  * the bound session at most: it may be a nested run's that just ended, as a nested
- * `agy -p`'s status line drawn as it exits.
+ * `agy -p`'s status line drawn as it exits. While the bound agent is busy, a conversation
+ * it observes that its harness doesn't name the root is a subagent's (Antigravity's hooks
+ * name a subagent's conversation as they name the root's, probed 2026-10-04, 1.2.14): only
+ * a switch it announced, or its status line naming the root, replaces the bound one then.
  */
-const replaces = (binding: Binding, event: SessionObserved): boolean => {
+const replaces = (binding: Binding, event: SessionObserved, busy: boolean): boolean => {
   if (binding.agent !== event.agent) return false
+  if (
+    busy &&
+    event.evidence === "conversation-observed" &&
+    event.root !== true &&
+    binding.sessionId !== event.sessionId
+  )
+    return false
   if (binding.instance !== null && event.instance !== null && binding.instance !== event.instance)
     return false
   if (binding.instance !== null && event.instance === null)
@@ -72,7 +87,7 @@ export const observe = (
   if (!facts.connected) return undefined
   if (facts.shellInForeground) return undefined
   if (facts.platform === "win32" && !facts.submitted) return undefined
-  if (state.binding && !replaces(state.binding, event)) return undefined
+  if (state.binding && !replaces(state.binding, event, facts.busy === true)) return undefined
   const known = state.sessions[event.agent]
   if (known && known.seq >= event.startedAt) return undefined
   const sessions = {

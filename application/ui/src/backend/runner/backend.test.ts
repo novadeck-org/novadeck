@@ -1118,6 +1118,7 @@ describe("runner backend", () => {
                   run: 1,
                   process: { name: "zsh", argv: null },
                   agent: null,
+                  ready: null,
                   activity: null,
                   telemetry: null,
                 },

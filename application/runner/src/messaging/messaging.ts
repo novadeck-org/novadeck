@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { DomainError } from "../errors.js"
 import type { Binding } from "../harnesses/bindings.js"
-import type { ActivityEvent, HarnessEvent } from "../harnesses/events.js"
+import type { ActivityEvent, Background, HarnessEvent } from "../harnesses/events.js"
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import type { HookAnswer } from "../shell/reports.js"
@@ -82,6 +82,8 @@ type Live = Scope & {
   untrusted: AgentName | null
   /** The Escape `escaped` last told the agent's activity of, so it tells each one once. */
   escapeTold: number | null
+  /** Whether a Stop it would have continued lapsed, its turn ended there, yet untold. */
+  lapsed: boolean
   /** The prompt that started the current root turn, by its delivery epoch; null before any. */
   prompt: { readonly epoch: number; readonly text: string } | null
 }
@@ -174,6 +176,14 @@ const refusalOfText = (text: string): string | undefined => {
 
 /** A lease is given only with this long left before its hook's deadline, in milliseconds. */
 export const leaseMargin = 300
+
+/**
+ * Whether subagents a turn left running run on, to wake its agent: delivery's
+ * `background`. Work its harness doesn't count may be one, until its status line counts
+ * it (Antigravity's); a command alone never holds delivery, as one may run for ever.
+ */
+const runsOn = (background: Background | undefined): boolean =>
+  background !== undefined && (background.agents > 0 || background.more === true)
 
 const sendRequest = z.strictObject({
   to: z.string().min(1).max(64),
@@ -283,6 +293,7 @@ export class Messaging {
       shown: null,
       untrusted: null,
       escapeTold: null,
+      lapsed: false,
       prompt: null,
     })
   }
@@ -453,9 +464,15 @@ export class Messaging {
     if (!root) return silent
     const time = report.deadline - this.now() >= leaseMargin
     if (stop) {
-      const background = stop.background === true
+      const background = runsOn(stop.background)
       const lease = time && continues(live.delivery) && this.lease(live, root, "stop", background)
-      this.step(live, { type: "stop", continued: Boolean(lease), background, at: this.now() })
+      this.step(live, {
+        type: "stop",
+        continued: Boolean(lease),
+        background,
+        at: this.now(),
+        startedAt: stop.startedAt,
+      })
       return lease ? { leaseId: lease.id, stdout: profile.stop(lease.text) } : silent
     }
     if (kind !== "prompt") return silent
@@ -1029,7 +1046,9 @@ export class Messaging {
         agent: peer.root?.agent ?? peer.shown?.agent ?? null,
         expecting: peer.root || peer.shown ? null : peer.expecting,
         untrusted: peer.root || peer.shown ? null : peer.untrusted,
-        busy: peer.delivery.state === "working",
+        // Working as its terminal shows it too: waiting on subagents its turn left
+        // running, as after an Esc, is no delivery phase.
+        busy: peer.delivery.state === "working" || about(peer.terminalId)?.working === true,
         where: about(peer.terminalId),
         withYou: lastBetween(this.messages.values(), live.terminalId, peer),
       }),
@@ -1133,13 +1152,27 @@ export class Messaging {
     const live = this.live.get(lease.terminalId)
     if (!live || lease.kind !== "stop") return
     const { delivery } = live
-    if (delivery.epoch === lease.epoch && phaseOf(delivery) === "continuing")
+    if (delivery.epoch === lease.epoch && phaseOf(delivery) === "continuing") {
+      live.lapsed = true
       this.step(live, {
         type: "stop",
         continued: false,
         background: lease.background,
         at: this.now(),
       })
+    }
+  }
+
+  /**
+   * Whether a Stop NovaDeck continued lapsed since this was last asked, as an event for
+   * the bound session's activity, so both tell the turn ended there. Told once.
+   */
+  lapsed(terminalId: string, binding: Binding, turnAt: number): ActivityEvent | undefined {
+    const live = this.live.get(terminalId)
+    if (!live?.lapsed) return undefined
+    live.lapsed = false
+    const { agent, sessionId, instance } = binding
+    return { type: "turn-lapsed", agent, sessionId, instance, startedAt: turnAt }
   }
 
   /** Applies the root's changes to the terminal's messages and delivery, in order. */
@@ -1260,15 +1293,16 @@ export class Messaging {
           this.step(live, {
             type: "stop",
             continued: false,
-            background: event.background === true,
+            background: runsOn(event.background),
             at: this.now(),
+            ...(event.recorded && { recorded: true }),
           })
-        else this.step(live, { type: "ended" })
+        else this.step(live, { type: "ended", ...(event.recorded && { recorded: true }) })
         return
       case "turn-idle":
         this.step(live, {
           type: "idle",
-          background: event.background,
+          background: runsOn(event.background),
           at: this.now(),
           startedAt: event.startedAt,
         })

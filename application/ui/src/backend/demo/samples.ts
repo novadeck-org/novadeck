@@ -158,6 +158,37 @@ export const projectTerminals = (project: Project, agents = false): TerminalMeta
           },
         }
       : {}),
+    // Claude Code's turn is over, but the subagents it started in the background, which
+    // wake it once done, still run, beside a command: it works on.
+    ...(agents && terminal.id === "03"
+      ? {
+          command: "claude",
+          process: "claude",
+          state: "running" as const,
+          agent: {
+            working: true,
+            background: { agents: 2, tasks: 1 },
+            subagents: [
+              { id: "demo-tester-1", type: "general-purpose" },
+              { id: "demo-tester-2", type: "general-purpose" },
+            ],
+          },
+        }
+      : {}),
+    // Claude Code's turn is over, a command it started still running, as a dev server
+    // may for ever: it shows, but keeps nothing working.
+    ...(agents && terminal.id === "06"
+      ? {
+          command: "claude",
+          process: "claude",
+          state: "running" as const,
+          agent: { working: false, background: { agents: 0, tasks: 1 } },
+        }
+      : {}),
+    // Antigravity runs where NovaDeck hears nothing from it, as its hooks aren't connected.
+    ...(agents && terminal.id === "05"
+      ? { command: "agy", process: "agy", state: "running" as const }
+      : {}),
   }))
 
 // Each sample project opens one session with the stable ID "initial".

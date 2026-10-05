@@ -110,6 +110,30 @@ describe("observing a harness session", () => {
     expect(observe(hidden, { ...next, instance: null }, facts)?.binding?.sessionId).toBe("two")
   })
 
+  it("takes another conversation for a subagent's while the bound agent is busy, unless named the root", () => {
+    // Antigravity's subagent's hooks name its own conversation as the root's do (probed
+    // 2026-10-04, 1.2.14), from the same process.
+    const agy: Sessions = {
+      sessions: { agy: { sessionId: "root", seq: 2_000 } },
+      binding: { agent: "agy", sessionId: "root", instance: "40" },
+      cwd: "/",
+    }
+    const subagent = seen({
+      agent: "agy",
+      sessionId: "child",
+      startedAt: 3_000,
+      evidence: "conversation-observed",
+      instance: "40",
+    })
+    const busy = { ...facts, busy: true }
+    expect(observe(agy, subagent, busy)).toBeUndefined()
+    // Its status line naming another conversation the root, as after /clear, does switch.
+    expect(observe(agy, { ...subagent, root: true }, busy)?.binding?.sessionId).toBe("child")
+    // As does a switch announced, or the root's own conversation reporting.
+    expect(observe(agy, { ...subagent, evidence: "native-switch" }, busy)).toBeDefined()
+    expect(observe(agy, { ...subagent, sessionId: "root" }, busy)).toBeDefined()
+  })
+
   it("switches to no other session on a report that can't tell its process, while the bound one is known", () => {
     // As a nested `agy -p`'s status line drawn as it exits, inside the root's turn: its hook
     // outlives it and finds no Antigravity above it. Unknown may be that nested run's.

@@ -54,6 +54,8 @@ export type FolderQuestion = {
 export type Trait =
   | "approval"
   | "background"
+  | "background.command"
+  | "idleCommand"
   | "trust.folder"
   | "trust.hooks"
   | "shell"
@@ -89,6 +91,11 @@ export type Background = {
   readonly start: (call: Call) => Reply
   /** Whether a call is the background work's own, rather than the agent's turn. */
   readonly owns: (call: Call) => boolean
+  /**
+   * A reply that has the agent run `command` through its shell tool in the background,
+   * without asking, its turn going on and ending while it runs, given the call it answers.
+   */
+  readonly command?: (call: Call, command: string) => Reply
 }
 
 /**
@@ -214,6 +221,8 @@ export type AgentSetup = {
   readonly background?: Background
   /** How its agent runs a command, a nested run of the harness, without asking. */
   readonly shell?: Shell
+  /** A command its prompt runs that submits nothing to the model, as `/status`. */
+  readonly idleCommand?: string
   /** How the person forks a session, in a new terminal or in place. */
   readonly fork?: Fork
   /** What Esc-Esc opens at its idle prompt, and what it does with a paste. */

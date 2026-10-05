@@ -23,6 +23,7 @@ const exited = (terminalId: string): TerminalSummary => ({
   exit: { code: null, signal: "SIGKILL", ranMs: 9_000 },
   process: null,
   agent: null,
+  ready: null,
   activity: null,
   telemetry: null,
 })

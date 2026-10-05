@@ -67,6 +67,50 @@ describe("An agent's subagents", () => {
   })
 })
 
+describe("An agent whose turn left work running", () => {
+  it("works on, counting that work beside a focused window's name", async () => {
+    // The demo's Claude Code waits on two subagents and a command it started.
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    await page.getByRole("button", { name: "Select Tests" }).click()
+    const window = page.getByRole("region", { name: "Tests terminal" })
+    await expect.element(window).toHaveAttribute("data-terminal-phase", "running")
+    expect(await tooltipOf(window.getByText("2 agents · 1 task"))).toBe(
+      "Its turn is over, but subagents it started still run: it works on until they finish",
+    )
+    await expect.element(window.getByText("2 subagents")).not.toBeInTheDocument()
+  })
+
+  it("is idle beside a command it left running, which shows but never keeps it working", async () => {
+    // The demo's other Claude Code left a command running.
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    await page.getByRole("button", { name: "Select Build" }).click()
+    const window = page.getByRole("region", { name: "Build terminal" })
+    await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
+    expect(await tooltipOf(window.getByText("1 task"))).toBe(
+      "Its turn is over; work it started runs on in the background",
+    )
+  })
+})
+
+describe("An agent NovaDeck can't hear from", () => {
+  it("says so on its terminal's tab and window, never as running", async () => {
+    // The demo's Antigravity runs with nothing reaching NovaDeck from its hooks.
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    const said = "Not reporting · NovaDeck can't hear from this agent"
+    await expect.poll(() => tabDescription("Runtime")).toBe(said)
+    await page.getByRole("button", { name: "Select Runtime" }).click()
+    const window = page.getByRole("region", { name: "Runtime terminal" })
+    await expect.element(window).toHaveAttribute("aria-description", said)
+    await expect.element(window).toHaveAttribute("data-terminal-phase", "unheard")
+  })
+})
+
 describe("An agent's usage", () => {
   it("shows beside a focused window's name, and leaves compact windows their name", async () => {
     // The demo's Codex reports its context and a five-hour window.

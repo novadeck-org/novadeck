@@ -1,6 +1,12 @@
 import { describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
-import { attentionText, endingText, terminalEnding, terminalPhase } from "./terminal-ending"
+import {
+  attentionText,
+  endingText,
+  terminalEnding,
+  terminalPhase,
+  unheardText,
+} from "./terminal-ending"
 
 const terminal = terminalFixture(1, "~/project")
 
@@ -61,6 +67,22 @@ describe("terminal ending", () => {
     expect(agent(true)).toBe("running")
     expect(agent(false)).toBe("idle")
     expect(agent(true, "permission")).toBe("attention")
+  })
+
+  it("reads an agent NovaDeck hears nothing from as unheard, any other program as running", () => {
+    const running = (process: string) => ({ ...terminal, state: "running" as const, process })
+    for (const agent of ["claude", "codex", "agy"])
+      expect(terminalPhase(running(agent)), agent).toBe("unheard")
+    expect(terminalPhase(running("vim"))).toBe("running")
+    expect(terminalPhase({ ...running("claude"), agent: { working: false } })).toBe("idle")
+    expect(unheardText(running("codex"))).toBe(
+      "Not reporting · NovaDeck can't hear from this agent",
+    )
+    expect(unheardText(running("vim"))).toBeUndefined()
+    // Once it has exited, it has ended, whatever it was.
+    expect(
+      terminalPhase({ ...terminal, process: "claude", state: "exited", exitCode: 1, signal: null }),
+    ).toBe("ended")
   })
 
   it("says what an agent waits on the person for", () => {

@@ -4,7 +4,7 @@ import { z } from "zod"
 
 import { describe, expect, it as base } from "../../test.js"
 import type { Dialect } from "./dialect.js"
-import { gate } from "./script.js"
+import { gate, Refusal } from "./script.js"
 import { startFakeModel, type FakeModel } from "./server.js"
 
 // A dialect that takes every request to /chat as a call of its body's text, and answers
@@ -76,6 +76,22 @@ describe("startFakeModel", () => {
     expect(status).toBe(200)
     expect(JSON.parse(body)).toMatchObject({ text: "first" })
     expect(model.calls.map((call) => call.turns)).toEqual([[{ role: "user", text: "hello" }]])
+  })
+
+  it("refuses a call a rule refuses with its status, recording the call but no failure", async ({
+    model,
+  }) => {
+    model.use((call) => {
+      if (call.turns[0]?.text === "refuse") throw new Refusal(400)
+      return undefined
+    })
+
+    const { status, body } = await chat(model, "refuse")
+
+    expect(status).toBe(400)
+    expect(JSON.parse(body)).toMatchObject({ error: { type: "invalid_request_error" } })
+    expect(model.calls).toHaveLength(1)
+    expect(model.errors).toEqual([])
   })
 
   it("asks rules added later first", async ({ model }) => {

@@ -15,7 +15,7 @@ import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { nextReset, usageBadge, usageDetail } from "../model/agent-usage"
 import { isWindow } from "../model/roster"
-import { attentionText, terminalPhase } from "../model/terminal-ending"
+import { attentionText, terminalPhase, unheardText } from "../model/terminal-ending"
 import type { Tile, WindowedView } from "../model/types"
 import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
 import { Tooltip } from "../ui-toolkit/Tooltip"
@@ -113,6 +113,8 @@ export const WindowShell = ({
   const usage = shell && usageBadge(shell)
   const subagents = shell && subagentsBadge(shell)
   const planning = shell?.state === "running" && shell.agent?.planning === true
+  // What the agent waits on the person for, or that NovaDeck can't hear from it.
+  const note = shell && (attentionText(shell) ?? unheardText(shell))
   const headerDoubleAction = onFlyTo
   const header = (
     <header
@@ -341,7 +343,7 @@ export const WindowShell = ({
       aria-label={`${terminal.name} terminal`}
       data-terminal={terminal.id}
       data-terminal-phase={shell ? terminalPhase(shell) : "idle"}
-      {...(shell && attentionText(shell) ? { "aria-description": attentionText(shell) } : {})}
+      {...(note ? { "aria-description": note } : {})}
       data-process-window={processWindow}
       data-new={fresh}
     >

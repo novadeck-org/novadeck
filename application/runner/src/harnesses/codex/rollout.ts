@@ -36,13 +36,19 @@ const limit = (window: unknown): Limit | undefined => {
  * What one line of Codex's rollout says that its hooks do not: its `token_count` events
  * carry the latest response's usage with the model's context window, and the account's
  * rate-limit windows; each turn's `task_started` names its collaboration mode, `plan` in
- * Plan Mode, whose hooks still say `default`; and a Plan item is the plan it proposes.
+ * Plan Mode, whose hooks still say `default`; a Plan item is the plan it proposes; and
+ * each turn's end, by the turn's id: `task_complete`, with an `error` where it failed,
+ * which fires no hook (0.159.3), or `turn_aborted`. Those end the turn `recorded`, should
+ * its hook's report never come. Codex may write a turn's records long after the turn
+ * (the failed turns before a session's first good one came together), so only its id
+ * says which turn ended.
  */
 export const rolloutEvents = (
   line: string,
   { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
 ): readonly HarnessEvent[] => {
-  if (!/"(token_count|task_started|item_completed)"/.test(line)) return []
+  if (!/"(token_count|task_started|item_completed|task_complete|turn_aborted)"/.test(line))
+    return []
   let record: unknown
   try {
     record = JSON.parse(line)
@@ -63,6 +69,17 @@ export const rolloutEvents = (
       return typeof fields.collaboration_mode_kind === "string"
         ? [{ type: "mode-observed", ...base, planning: fields.collaboration_mode_kind === "plan" }]
         : []
+    case "task_complete":
+    case "turn_aborted": {
+      const turn = typeof fields.turn_id === "string" ? fields.turn_id : undefined
+      const outcome =
+        fields.type === "turn_aborted"
+          ? "interrupted"
+          : fields.error !== undefined && fields.error !== null
+            ? "failed"
+            : "completed"
+      return [{ type: "turn-ended", ...base, outcome, recorded: true, ...(turn && { turn }) }]
+    }
     case "item_completed": {
       const { type: kind, text } = (fields.item ?? {}) as { type?: unknown; text?: unknown }
       if (kind !== "Plan" || typeof text !== "string" || !text) return []

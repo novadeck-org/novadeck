@@ -19,6 +19,7 @@ const has = (setup: AgentSetup, trait: Trait): boolean => {
   if (trait === "trust.hooks") return setup.trust?.hooks !== undefined
   if (trait === "fork.picker") return setup.fork?.picker !== undefined
   if (trait === "fork.inPlace") return setup.fork?.inPlace !== undefined
+  if (trait === "background.command") return setup.background?.command !== undefined
   return setup[trait] !== undefined
 }
 

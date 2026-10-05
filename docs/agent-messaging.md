@@ -93,7 +93,7 @@ All three harnesses get every path. Where one falls short, the design accepts it
 | Codex         | Its `SessionStart` fires only with the first prompt, so nothing binds while it idles at its prompt        | Its terminal title says when its prompt shows: NovaDeck's shim names the title's items (`status`, `thread-id`), and a title of the person's own with both reads the same. Ready, messages waiting for the session it starts there. A title counts only while a `codex` process holds the terminal's foreground, checked again as the ring starts, and only once Codex's app-server says NovaDeck's hooks are trusted there; one naming another thread ends a bound one only once a new root is confirmed: no root turn ran as the title came, and a writer lock for that thread (its id's start at least 23 characters) was made around the title and is held in the terminal's foreground group (a `/clear`, not a `/side` fork nor a spawned agent's thread) |
 | Antigravity   | No `SessionStart`, and no conversation until its first prompt                                             | Its status line saying idle tells that its prompt shows: with no conversation, Ready, messages waiting for the conversation it starts there; naming one (a resume, a `/clear`), that conversation is Ready                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Claude Code   | Esc and `StopFailure` end a turn without a normal Stop                                                    | Unknown until the next prompt; no doorbell meanwhile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| Codex         | A failed turn sends nothing, nor does a prompt it drops as its turn ends (0.159.3)                        | Stays Working until its next turn event; `send`'s route says so                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Codex         | A failed turn sends nothing, nor does a prompt it drops as its turn ends (0.159.3)                        | Its rollout records the failed turn's end, by its id, which ends it as Unknown; a dropped prompt stays Working until its next turn event; `send`'s route says so                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Codex         | A `/side` conversation's hooks fire as its own session's, from its first prompt                           | Its thread is ephemeral, so its hooks name no transcript: its `SessionStart` (`fork`) binds nothing, its turns are no root turn, and the root stays bound                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Codex         | Its hooks run only once trusted in its "Hooks need review" screen                                         | Until then no session binds: it looks like no agent is there, it can send but not receive, and a task started there reaches the model as a bare notice                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Antigravity   | Its hooks can't tell the person's prompt from a subagent's message waking it                              | Its transcript can: a typed prompt is a `USER_EXPLICIT` `USER_INPUT` step, while a subagent's message, a Stop hook's continuation or a notice is a `SYSTEM_MESSAGE` step. A turn after the person's bare Enter is theirs only when a new typed step, no doorbell line, is there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -494,23 +494,34 @@ facts above, so the prompt's emptiness is known before any message arrives:
   Drafting instead.
 - **Working**: a root turn is running (its `turn` phase); NovaDeck continued its Stop and
   waits for the continuation (`continuing`); or after its Stop only work it started
-  still runs (`background`), when a message waits for its next turn. At a root Stop, if the person didn't submit during the turn,
+  still runs (`background`: subagents, which wake it once done, never a command alone),
+  when a message waits for its next turn. At a root Stop, if the person didn't submit during the turn,
   the Stop hook's ask gets a lease (below) and the turn continues, still Working.
   NovaDeck continues a root turn at most twice, by its own count, then lets it end. A
   prompt right after a Stop NovaDeck continued is that continuation, keeping the count,
   as Antigravity starts its model calls from the first again. If the person did submit
   during the turn, their prompt's hook delivers instead.
-  Codex sends nothing when a turn fails, so such a turn stays Working until the next
-  root turn event; `send`'s route then says "at its turn's end or its next prompt".
+  Codex sends nothing when a turn fails, but its rollout records the failed turn's end,
+  for that turn's id, which ends it as Unknown; `send`'s route still says "at its turn's
+  end or its next prompt". Where a turn's Stop hook never reported, as when NovaDeck's
+  hook failed to run, the session's own records end the turn the same way, only while
+  it still runs: Claude Code's transcript records that the turn's Stop hooks ran, and
+  Codex's rollout the turn's end (see [Harness coverage](harness-coverage.md#working-past-a-turns-end)).
 - **Settled**: the last root turn ended normally, nothing it started still runs, no
   request is pending, and the prompt is known empty. The doorbell may ring once the
   screen is quiet. "Nothing still runs" matters because an agent can wake itself after
   its Stop: Claude Code starts a turn when a background task finishes (its Stop lists
   `background_tasks`), and Antigravity's root wakes when a subagent messages it (its
   Stop says `fullyIdle: false` while one runs, and its status line lists `subagents`).
-  Until they are done the terminal stays Working: Claude Code's next turn, or
-  Antigravity's status line saying idle with no subagent running, ends it as Settled
-  or Drafting. Only background tasks whose status is running count.
+  While subagents of it run the terminal stays Working: the turn their end starts, or
+  the person's, ends the wait, and that turn's own end, with nothing running, ends it as
+  Settled or Drafting; so does Antigravity's status line saying idle with no subagent
+  running (its Stop says only that something runs). A command left running alone, as a
+  dev server, never holds it: the turn ends Settled, and the doorbell may ring it. Only
+  background tasks whose status is running count. Codex never waits: nothing it starts
+  wakes it once its turn has ended. The agent's activity tells the same, and an agent
+  `agents` lists as busy is one Working here, or one whose terminal shows it working
+  past an abnormal end, as on a background subagent an Esc left running.
 - **Ringing**: the doorbell is being rung (below), from its test paste until its
   confirmation or failure.
 - **Drafting**: the person is busy: the prompt isn't known empty, or they queued a prompt Codex
@@ -558,7 +569,9 @@ Transitions:
 | Working                                  | An abnormal end                                                                  | Unknown               |
 | Working, a root turn running             | The person's Escape                                                              | Unknown               |
 | Unknown, from an idle status line        | A status line saying working, its hook started after the idle's                  | Working               |
-| Working, only background work            | It finishes (Antigravity's idle, no subagent running)                            | Settled or Drafting   |
+| Working, only background work            | A root prompt: the turn its end starts, or the person's                          | Working               |
+| Working, only background work            | Its subagents finish (Antigravity's idle, no subagent running)                   | Settled or Drafting   |
+| Working, a root turn running             | Its records tell it ended, its hook's report never having come                   | As its Stop or end    |
 | Settled, Ready                           | The person's input, but Escape                                                   | Drafting              |
 | Settled, Ready                           | Messages waiting and the gate passes                                             | Ringing               |
 | Ringing                                  | Confirmed: a doorbell prompt with its nonce                                      | Working               |

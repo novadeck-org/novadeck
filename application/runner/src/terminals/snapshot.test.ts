@@ -23,6 +23,7 @@ const summary: TerminalSummary = {
   exit: null,
   process: null,
   agent: null,
+  ready: null,
   activity: null,
   telemetry: null,
   run: 1,

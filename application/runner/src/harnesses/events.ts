@@ -64,7 +64,8 @@ export type PromptShown = {
  * with a `prompt` submitted at the root (the person's, as far as anything tells), one
  * the harness started by itself (a background task's result), a later model `call` of a
  * turn already running, or NovaDeck's `doorbell`: a prompt that is exactly its line. It ends `completed` only when its harness says so (a root
- * Stop, which may leave work it started running in the `background`); `turn-idle` says
+ * Stop, which may leave work it started running in the `background`, or the session's
+ * own records of that Stop, `recorded`, should its hook not have come); `turn-idle` says
  * the agent shows idle however its turn ended, which without such a Stop was an Esc or a
  * denial. `turn-working` says it shows working, which starts no turn: it only resumes one
  * a `turn-idle` older than it ended, never one a Stop did. A request asked `midTurn`
@@ -88,19 +89,44 @@ export type ActivityEvent = {
       readonly prompt?: string
       /** A doorbell prompt's nonce. */
       readonly nonce?: string
+      /** The turn's id, where the harness names one, as Codex does. */
+      readonly turn?: string
     }
   | {
       readonly type: "turn-ended"
       readonly outcome: "completed" | "interrupted" | "failed"
-      /** Whether work the turn started still runs, and may start another turn by itself. */
-      readonly background?: boolean
+      /**
+       * What the turn left running that wakes the agent once done, where its harness says;
+       * unsaid, its subagents still running count, where their end wakes it.
+       */
+      readonly background?: Background
+      /**
+       * Told by the session's own records, not a hook: Claude Code's transcript or Codex's
+       * rollout, in case the hook's report never came. It ends only the turn still running,
+       * its `turn` where both name one, and leaves the fence for that hook's Stop, which
+       * may say more of what runs.
+       */
+      readonly recorded?: true
+      /** The turn's id, where the records name one. */
+      readonly turn?: string
     }
   | {
       readonly type: "turn-idle"
-      /** Whether work the turn started, as a subagent, still runs. */
-      readonly background: boolean
+      /** What the turn started that still runs, as its subagents. */
+      readonly background: Background
     }
   | { readonly type: "turn-working" }
+  /**
+   * NovaDeck continued the root turn its Stop, started at `startedAt`, would have ended,
+   * delivering messages with the hook's answer: the turn goes on until the continuation's
+   * own Stop, as Claude Code and Codex fire no prompt hook for it.
+   */
+  | { readonly type: "turn-continued" }
+  /**
+   * The Stop NovaDeck continued, started at the turn's latest `turnAt`, was never
+   * continued after all: its hook never acknowledged its messages, which wait again.
+   */
+  | { readonly type: "turn-lapsed" }
   /**
    * The person pressed Escape while the root turn ran, as their keys tell delivery (see
    * docs/agent-messaging.md, "States"): it may have cancelled the turn, which no hook
@@ -161,6 +187,18 @@ export type TelemetryObserved = {
   readonly startedAt: number
   readonly context?: AgentTelemetry["context"]
   readonly limits?: AgentTelemetry["limits"]
+}
+
+/**
+ * Work an ended turn left running that wakes the agent once done, counted: subagents, and
+ * other tasks, as commands run in the background; and whether `more` runs that it doesn't
+ * count, as Antigravity's Stop says only that something does. None is both zero, with no
+ * more.
+ */
+export type Background = {
+  readonly agents: number
+  readonly tasks: number
+  readonly more?: true
 }
 
 /** Where a plan is: a file the harness wrote it to, or its text when it named no file. */

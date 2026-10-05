@@ -31,6 +31,7 @@ import { CompanionItems } from "../companions/items.js"
 import { codex as codexHarness } from "../harnesses/codex/index.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
 import { Latest } from "../terminals/latest.js"
+import { readyReturnMs } from "../terminals/manager.js"
 import type { TerminalRecords } from "../terminals/records.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
@@ -822,9 +823,61 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       attention: { pending: 0, kind: null },
       subagents: [],
       planning: false,
+      background: null,
     })
     // Messaging hears it too: the turn ended without a Stop.
     expect(manager.messages(terminal.id).delivery).toBe("unknown")
+  })
+
+  it("ends a Claude Code turn its transcript says its Stop hooks ran, its own report lost", async ({
+    shell,
+  }) => {
+    // As when NovaDeck's Stop hook failed to run: the transcript still records the hooks.
+    const transcript = join(shell.home, "session.jsonl")
+    writeFileSync(transcript, "")
+    const bin = reporter(shell.home, [
+      {
+        agent: "claude",
+        sessionId: "s",
+        seq: 1,
+        source: "startup",
+        fields: { transcript_path: transcript },
+      },
+      { agent: "claude", sessionId: "s", seq: 2, source: "", event: "UserPromptSubmit" },
+      {
+        agent: "claude",
+        sessionId: "s",
+        seq: 3,
+        source: "",
+        event: "SubagentStart",
+        fields: { agent_id: "a1", agent_type: "general-purpose" },
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    const activity = () => manager.list(terminal.sessionId)[0]?.activity
+    await expect
+      .poll(activity, { timeout: 10_000 })
+      .toMatchObject({ subagents: [{ type: "general-purpose" }] })
+    expect(activity()).toMatchObject({ state: "working", background: null })
+    appendFileSync(
+      transcript,
+      `${JSON.stringify({
+        isSidechain: false,
+        type: "system",
+        subtype: "stop_hook_summary",
+        hookErrors: ["Failed to run"],
+        timestamp: new Date(Date.now() + 1_000).toISOString(),
+      })}\n`,
+    )
+    // Nothing says what runs on but its hooks: its subagent, which wakes it once done.
+    await expect
+      .poll(activity, { timeout: 10_000 })
+      .toMatchObject({ state: "working", background: { agents: 1, tasks: 0 } })
+    expect(manager.messages(terminal.id).delivery).toBe("working")
   })
 
   it("shows a Codex session's context and rate limits from its rollout", async ({ shell }) => {
@@ -899,6 +952,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         attention: { pending: 0, kind: null },
         subagents: [],
         planning: false,
+        background: null,
       })
     expect(manager.reportedSession(terminal.id, "claude")).toBe("s2")
   })
@@ -3857,6 +3911,33 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect
         .poll(() => tui.manager.messages(tui.idle.id).threads[0]?.messages[0]?.state)
         .toBe("delivered")
+    })
+
+    it("names an agent ready at its prompt until the person presses Enter there", async ({
+      shell,
+    }) => {
+      const tui = await ringing(shell, "shown", "named-agy", "agy")
+      const summary = () =>
+        tui.manager.list(tui.idle.sessionId).find(({ id }) => id === tui.idle.id)
+      await expect.poll(() => summary()?.ready).toBe("agy")
+      // Only its first prompt's hooks bind it: until then nothing says it is idle.
+      tui.manager.write({ terminalId: tui.idle.id, data: "\r" }, "owner")
+      expect(summary()?.ready).toBeNull()
+    })
+
+    it("names a Codex ready again once an Enter at its prompt started nothing", async ({
+      shell,
+    }) => {
+      const thread = "01a0f932-a824-7c30-b713-b59ed562f00b"
+      const tui = await ringing(shell, "shown", "named", "codex", thread)
+      const summary = () =>
+        tui.manager.list(tui.idle.sessionId).find(({ id }) => id === tui.idle.id)
+      await expect.poll(() => summary()?.ready).toBe("codex")
+      // An empty box: Enter submits nothing, binds nothing, and retitles nothing.
+      tui.manager.write({ terminalId: tui.idle.id, data: "\r" }, "owner")
+      expect(summary()?.ready).toBeNull()
+      await expect.poll(() => summary()?.ready, { timeout: readyReturnMs + 3_000 }).toBe("codex")
+      expect(summary()?.agent).toBeNull()
     })
 
     // Each harness tells of a resumed session its own way: Claude Code's SessionStart,

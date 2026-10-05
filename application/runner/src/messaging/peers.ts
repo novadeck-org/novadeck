@@ -19,6 +19,8 @@ export type Whereabouts = {
   readonly work: Work | null
   /** The handle of the terminal whose agent opened it, if one did. */
   readonly openedBy: string | null
+  /** Whether its agent works, as its terminal shows: its turn, or what that left running. */
+  readonly working: boolean
   readonly place: (path: string) => string
 }
 

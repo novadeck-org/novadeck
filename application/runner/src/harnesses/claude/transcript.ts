@@ -15,6 +15,9 @@ const count = (value: unknown): number =>
  *
  * - The person interrupted the turn. No hook fires for Esc or for a denied request, but
  *   the transcript records the interruption, which ends the turn and settles its requests.
+ * - The turn's Stop hooks ran: Claude Code records a `stop_hook_summary` once they have
+ *   (2.1.289), however NovaDeck's own fared, so the turn ends `recorded` should that
+ *   hook's report never have come. It says nothing of what still runs in the background.
  * - How full the context is: each assistant record carries the usage of its request, whose
  *   input, cache writes and cache reads are what the context holds. The transcript does
  *   not say the model's capacity.
@@ -25,9 +28,10 @@ export const transcriptEvents = (
   line: string,
   { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
 ): readonly (ActivityEvent | TelemetryObserved)[] => {
-  // Most lines are long tool results; only these two kinds need parsing.
+  // Most lines are long tool results; only these three kinds need parsing.
   const interrupting = line.includes(marker)
-  if (!interrupting && !line.includes('"usage"')) return []
+  const stopped = line.includes('"stop_hook_summary"')
+  if (!interrupting && !stopped && !line.includes('"usage"')) return []
   let record: unknown
   try {
     record = JSON.parse(line)
@@ -35,11 +39,13 @@ export const transcriptEvents = (
     return []
   }
   if (typeof record !== "object" || record === null) return []
-  const { type, isSidechain, timestamp, message } = record as Record<string, unknown>
+  const { type, subtype, isSidechain, timestamp, message } = record as Record<string, unknown>
   if (isSidechain === true || typeof timestamp !== "string") return []
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
   const base = { agent: "claude", sessionId, instance, startedAt } as const
+  if (type === "system" && subtype === "stop_hook_summary")
+    return [{ type: "turn-ended", ...base, outcome: "completed", recorded: true }]
   const { content, usage } = (message ?? {}) as { content?: unknown; usage?: unknown }
   if (type === "assistant" && typeof usage === "object" && usage !== null) {
     const {

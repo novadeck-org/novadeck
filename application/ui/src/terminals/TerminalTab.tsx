@@ -7,7 +7,13 @@ import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { nextReset, usageDetail } from "../model/agent-usage"
 import { mailBadgeLabel, type MailBadge } from "../model/messages"
 import { isWindow } from "../model/roster"
-import { attentionText, endingText, terminalEnding, terminalPhase } from "../model/terminal-ending"
+import {
+  attentionText,
+  endingText,
+  terminalEnding,
+  terminalPhase,
+  unheardText,
+} from "../model/terminal-ending"
 import { titleSourceText } from "../model/title-source"
 import type { Tile } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
@@ -75,9 +81,9 @@ export const TerminalTab = ({
   const phase = shell ? terminalPhase(shell) : "idle"
   const ending = shell && terminalEnding(shell)
   const ended = ending ? endingText(ending) : undefined
-  // What the agent waits on the person for, said like an ending: in the tooltip and to
-  // assistive technology.
-  const waiting = shell && attentionText(shell)
+  // What the agent waits on the person for, or that NovaDeck can't hear from it, said like
+  // an ending: in the tooltip and to assistive technology.
+  const waiting = shell && (attentionText(shell) ?? unheardText(shell))
   const note = ended ?? waiting
   const named = terminal.titleSource ? titleSourceText(terminal.titleSource) : undefined
   const messages = mail ? mailBadgeLabel(mail) : undefined

@@ -95,6 +95,7 @@ describe("stated", () => {
     attention: { pending: 1, kind: "permission" as const },
     planning: false,
     subagents: [],
+    background: null,
   }
 
   it("says what the agent does and what waits on the person", () => {

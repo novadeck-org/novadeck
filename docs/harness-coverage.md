@@ -25,7 +25,7 @@ Evidence:
 | Feature     | Claude Code                                                                                          | Codex                                                                                                      | Antigravity                                                                               |
 | ----------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | session     | partial: `SessionStart` sources, `SessionEnd` reasons, `CLAUDE_PID` (probed); no signal on a crash   | partial: `SessionStart` sources, `SessionEnd`, thread id, parent `codex` (probed); normal end only         | partial: `conversationId` on every hook, parent `agy` (probed); no end event              |
-| activity    | partial: an Esc interrupt or denial fires nothing; the transcript records it (probed)                | partial: `Interrupt` on Esc and on denial (probed); a failed turn fires nothing                            | partial: `PreInvocation`, `Stop` (probed); a denial or Esc fires nothing (probed)         |
+| activity    | partial: an Esc interrupt or denial fires nothing; the transcript records it (probed)                | partial: `Interrupt` on Esc and on denial (probed); a failed turn fires nothing; the rollout records it    | partial: `PreInvocation`, `Stop` (probed); a denial or Esc fires nothing (probed)         |
 | attention   | partial: `PermissionRequest`, also for questions; no id; a denial fires nothing (probed)             | partial: `PermissionRequest` without id; approval `PostToolUse`, denial `Interrupt` (probed)               | partial: `PreToolUse` then `PostToolUse` by `stepIdx`; a denial fires nothing (probed)    |
 | actors      | partial: `SubagentStart`/`SubagentStop` and `agent_id` on tool hooks (probed)                        | partial: `SubagentStart`/`SubagentStop` and `agent_id` on tool hooks (probed)                              | unsupported by hooks; parent id only in `conversation_summaries.db`                       |
 | transcripts | partial: session JSONL plus a file per subagent; undocumented records                                | partial: rollout JSONL, with `agent_message` from other agents; items appear only when completed (probed)  | partial: `transcriptPath` JSONL of steps; calls pair with results by step (probed)        |
@@ -64,6 +64,9 @@ Evidence:
 - `claude agents --json` reports `busy`, `waiting` or `idle` per session and is documented as the supported way to read state from outside. It is a polled command, not a stream.
 
 In the probe, a background subagent's result began a second turn with its own `UserPromptSubmit` and `Stop`. So a turn does not always start with the person typing.
+
+- `Stop` lists `background_tasks`, each with its `type` (`subagent`, `shell` for a Bash command run in the background) and `status`. Once a running one finishes, Claude Code starts a turn by itself with a `<task-notification>` prompt, whose `Stop` lists what still runs; a background subagent and a background command each did (probed 2026-10-04, 2.1.289). A task that finishes while the turn still runs is handed back in a turn after its `Stop` too.
+- Each time a root turn's Stop hooks run, the transcript gets a `{"type":"system","subtype":"stop_hook_summary"}` record, with `hookErrors` and `isSidechain: false`, whether NovaDeck's hook ran or failed to (seen in 2.1.286 to 2.1.289 transcripts; one held "Failed to run: Plugin directory does not exist"). It is written once the hooks have finished, so after NovaDeck's hook was answered. A Stop hook that blocks writes a `hook_blocking_error` attachment before it, and the turn goes on.
 
 **Attention.**
 
@@ -135,7 +138,8 @@ In the probe, a background subagent's result began a second turn with its own `U
 
 - `UserPromptSubmit` starts a user turn; the rollout's `task_started` covers every turn.
 - `Stop` ends a turn. `Interrupt` fires with the turn's `turn_id` when Esc interrupts a running tool, with no `PostToolUse` or `Stop` after it (probed); the rollout records `turn_aborted`.
-- A failed turn (usage limit, context exceeded) fires no hook and leaves no rollout record, so activity becomes unknown there.
+- A failed turn fires no hook. The rollout records its end as `task_complete` with an `error` (`{message, codex_error_info}`, as `server_overloaded`), and an aborted one as `turn_aborted` with a `reason`, each with the turn's `turn_id`, which `UserPromptSubmit` names too (probed 2026-10-04, 0.159.3: the fake model refusing the request, and answering 500 until Codex gave up after about 25 s of retries). Codex may write a turn's records long after it ended: three failed turns' records, before the session's first good turn, all came with one later timestamp. In a turn that completes, the rollout's `task_complete` is written after the `Stop` hook was answered.
+- Nothing a turn starts wakes it once the turn has ended: a spawned subagent or a command left running (a "background terminal") finishes with the root idle (probed 2026-10-02, 0.159.3).
 
 **Attention.**
 
@@ -199,7 +203,8 @@ Other facts:
 - A completed tool fires `PostToolUse` with the `stepIdx` of its `PreToolUse` (probed). A failed or denied one fires no `PostToolUse`.
 - Denying a confirmation fires nothing more for that turn: no `PostToolUse`, `PostInvocation` or `Stop` (probed).
 - Esc fires nothing: pressed during a reply, no `PostInvocation` or `Stop` followed; pressed while an approved command ran in the foreground, no `PostToolUse` or `Stop` followed (probed). The transcript drops the cancelled steps.
-- An approved command still running after about 2 s moves to the background: the turn ends with `Stop` and `fullyIdle: false` while it runs (probed).
+- An approved command still running after about 2 s moves to the background: the turn ends with `Stop` and `fullyIdle: false` while it runs (probed). `run_command`'s `WaitMsBeforeAsync` sets how long it waits first, from 500 ms. The command's end wakes the agent with a message, starting a turn of its own (probed 2026-10-04, 1.2.14).
+- A subagent from `invoke_subagent` runs on after the root's `Stop` (`fullyIdle: false`), and its end wakes the root the same way. The status line lists it under `subagents` (`{name, role, status}`, `running` then `completed`), but never lists a command it backgrounded (probed 2026-10-04, 1.2.14).
 
 **Attention.**
 
@@ -255,10 +260,49 @@ It also carries the account's `email`, which must not leave the adapter.
 6. **Limits are percentages, not token counts.** Every harness reports windows as a used or remaining fraction with an absolute reset instant: Claude Code and Codex in epoch seconds, Antigravity as a time. None reports the limit itself, so the telemetry model stores fractions and never derives token amounts.
 7. **Codex hook trust is a separate readiness state.** A connected Codex with untrusted hooks reports nothing. Detecting that needs the app-server's `hooks/list`, not a hook.
 
+## Working past a turn's end
+
+An agent works, as NovaDeck shows it, while its turn runs, and after the turn while
+subagents it started run on, which wake it once done: Working ends only once its own
+turn has ended and no subagent of it still runs. Other work a turn leaves running, as a
+command run in the background, shows as left running (a badge, "1 task"), but keeps
+nothing working: a dev server, a watcher or `tail -f` may run for ever. `wakes` on each
+harness says whether anything wakes it.
+
+| Harness     | What a turn leaves running                                                                                       | How NovaDeck counts it                                                                                                                                                      |
+| ----------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code | Background subagents and commands, listed by `Stop`, each waking it once done                                    | `Stop`'s running `background_tasks`: `subagent` ones as agents, which keep it working, the rest as tasks, which don't; where no `Stop` says, its running subagents          |
+| Codex       | Nothing that wakes it: its subagents and commands finish with the root idle                                      | Never waits: its turn's end is the end of Working                                                                                                                           |
+| Antigravity | Subagents and backgrounded commands, which `Stop` says only exist (`fullyIdle: false`), each waking it once done | Working until its next idle status line counts its running `subagents`, then only while it counts one; what else `Stop` said runs shows as background work, keeping nothing |
+
+The wait ends with the turn the work's end starts, at that turn's own end with nothing
+running, or with any later turn, as the person's. Antigravity's idle status line
+listing no subagent running ends it too, leaving any command it backgrounded shown but
+not waited on. Codex's parity gap is the harness's own: nothing there wakes, so nothing
+is waited on. Delivery waits the same way, so the doorbell may ring an agent with only a
+command left running, and `agents` calls it busy only while it works.
+
+A Stop NovaDeck continues with messages keeps the turn running until the continuation's
+own Stop, as Claude Code and Codex start the continuation with no prompt hook. Should its
+hook never acknowledge the messages, the lease lapses and the turn ends at that Stop
+after all.
+
+A turn's end its hook never reported (NovaDeck's hook failed to run, or a Codex turn
+failed, which fires none) comes from the session's own records: Claude Code's
+`stop_hook_summary`, Codex's `task_complete` or `turn_aborted` for the running turn's id,
+and Antigravity's idle status line. Such a record ends only the turn still running, its
+continuation included, and leaves the hook's own `Stop`, should it arrive after all, to
+say what still runs. Claude Code writes one for a Stop NovaDeck continued too, once its
+hook answered (probed 2026-10-04, 2.1.289): each continued Stop uses up the next record
+that names no turn, which ends nothing. Codex writes none for a continued Stop, and its
+records name their turn. Antigravity's continuation's model calls after the continued
+Stop are that continuation's own, so an idle status line after them ends it. Claude
+Code's record says nothing of the background, so its running subagents count.
+
 ## Still to probe
 
-- Claude Code: plan mode entered with Shift+Tab mid-session, a failed turn (`StopFailure`), subagent interruption, and the `agent_type` internal agents report.
-- Codex: a failed turn, `request_user_input`, and whether internal threads fire `SubagentStart`.
+- Claude Code: plan mode entered with Shift+Tab mid-session, which of `StopFailure` and the transcript ends a failed turn (one the API refused ended, 2026-10-04), subagent interruption, and the `agent_type` internal agents report.
+- Codex: `request_user_input`, and whether internal threads fire `SubagentStart`.
 - Antigravity: `ask_question`, subagent hooks, the status line after an Esc, and compaction's rewrite of the transcript.
 - The status line bridge in a live NovaDeck terminal, for Claude Code and Antigravity.
 - macOS and Windows: the hook's process ancestry, and every probe above.

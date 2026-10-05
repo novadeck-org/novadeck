@@ -15,7 +15,7 @@ import {
 import { decode } from "./decode.js"
 import { followRollout, followSubagent, rolloutPlans } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
-import { startedSession, title } from "./title.js"
+import { startedSession, title, titleWorking } from "./title.js"
 import { transcripts } from "./transcripts.js"
 import { hooksTrusted } from "./trust.js"
 
@@ -120,6 +120,9 @@ export const codex = {
   transcripts,
   plans: rolloutPlans,
   // Its hooks and rollout; see docs/harness-coverage.md.
+  // Nothing it starts wakes it once its turn has ended (probed 2026-10-02, 0.159.3): a
+  // subagent or a command left running finishes with the root idle.
+  wakes: false,
   coverage: {
     session: "partial",
     activity: "partial",
@@ -133,6 +136,7 @@ export const codex = {
   },
   decode,
   title,
+  titleWorking,
   startedSession,
   hooksTrusted,
   // Where it keeps its threads' locks and its configuration, and how it is found.

@@ -19,6 +19,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   run: 1,
   process: { name: "zsh", argv: null },
   agent: null,
+  ready: null,
   activity: null,
   telemetry: null,
   ...change,
@@ -68,6 +69,7 @@ describe("terminal activity", () => {
         attention: { pending: 0, kind: null },
         subagents: [],
         planning: false,
+        background: null,
       }
       expect(claude(idle).status).toEqual({ state: "running", agent: { working: false } })
       expect(claude({ ...idle, state: "unknown" }).status).toEqual({
@@ -82,6 +84,7 @@ describe("terminal activity", () => {
         attention: { pending: 2, kind: "question" as const },
         subagents: [],
         planning: false,
+        background: null,
       }
       expect(claude(asking).status).toEqual({
         state: "running",
@@ -96,6 +99,7 @@ describe("terminal activity", () => {
           attention: { pending: 1, kind: "plan" },
           subagents: [],
           planning: true,
+          background: null,
         }).status,
       ).toEqual({
         state: "running",
@@ -111,6 +115,7 @@ describe("terminal activity", () => {
           attention: { pending: 0, kind: null },
           subagents,
           planning: false,
+          background: null,
         }).status,
       ).toEqual({ state: "running", agent: { working: true, subagents } })
     })
@@ -121,6 +126,7 @@ describe("terminal activity", () => {
         attention: { pending: 0, kind: null },
         subagents: [],
         planning: false,
+        background: null,
       }
       const telemetry = {
         context: { occupied: 1_000, capacity: 200_000 },
@@ -137,8 +143,41 @@ describe("terminal activity", () => {
       expect(status).toEqual({ state: "running", agent: { working: false, usage: telemetry } })
     })
 
+    it("works on while what its turn left running runs, counting it", () => {
+      const waiting = {
+        state: "working" as const,
+        attention: { pending: 0, kind: null },
+        subagents: [{ id: "a1", type: "explorer" }],
+        planning: false,
+        background: { agents: 1, tasks: 2 },
+      }
+      expect(claude(waiting).status).toEqual({
+        state: "running",
+        agent: {
+          working: true,
+          background: { agents: 1, tasks: 2 },
+          subagents: [{ id: "a1", type: "explorer" }],
+        },
+      })
+    })
+
     it("runs as before for an agent whose hooks said nothing", () => {
       expect(claude(null).status).toEqual({ state: "running" })
+    })
+  })
+
+  context("while an agent shows its own prompt before its first, its hooks running", () => {
+    it("is idle at that prompt", () => {
+      const ready = summary({ process: { name: "codex", argv: null }, ready: "codex" })
+      expect(terminalActivity(ready).status).toEqual({
+        state: "running",
+        agent: { working: false },
+      })
+    })
+
+    it("says nothing for another program that holds the foreground", () => {
+      const other = summary({ process: { name: "vim", argv: null }, ready: "codex" })
+      expect(terminalActivity(other).status).toEqual({ state: "running" })
     })
   })
 

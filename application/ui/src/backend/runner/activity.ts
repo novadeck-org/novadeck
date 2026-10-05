@@ -33,10 +33,11 @@ export type TerminalActivity = {
 
 // What an agent's hooks and records say it does, for its terminal's status.
 const agentStatus = (
-  { state, attention, subagents, planning }: AgentActivity,
+  { state, attention, subagents, planning, background }: AgentActivity,
   telemetry: AgentTelemetry | null,
 ): AgentStatus => ({
   working: state !== "idle",
+  ...(background ? { background } : {}),
   ...(planning ? { planning: true as const } : {}),
   ...(attention.pending > 0 && attention.kind
     ? { attention: { kind: attention.kind, count: attention.pending } }
@@ -49,8 +50,9 @@ const agentStatus = (
 
 // What the UI shows for a terminal the runner reports: which program it runs, and
 // whether it is busy (a program runs in the foreground) or idle (the shell waits for
-// input). An agent in the foreground adds what its hooks say it does. A terminal
-// without an exit is running; one with an exit ends as `exitStatus` says.
+// input). An agent in the foreground adds what its hooks say it does; one at its own
+// prompt before its first, which its hooks reach, is idle there. A terminal without an
+// exit is running; one with an exit ends as `exitStatus` says.
 export const terminalActivity = (
   summary: TerminalSummary,
   quickExitMs = defaultQuickExitMs,
@@ -59,7 +61,11 @@ export const terminalActivity = (
   const program = runningProgram(summary.process, summary.agent)
   if (!program || isShellProcess(program)) return { status: { state: "idle" }, process: program }
   const agent =
-    summary.agent && summary.activity ? agentStatus(summary.activity, summary.telemetry) : undefined
+    summary.agent && summary.activity
+      ? agentStatus(summary.activity, summary.telemetry)
+      : !summary.agent && summary.ready === program
+        ? { working: false }
+        : undefined
   return { status: { state: "running", ...(agent ? { agent } : {}) }, process: program }
 }
 

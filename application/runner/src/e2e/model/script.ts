@@ -67,6 +67,16 @@ export type Rule = (call: Call) => Reply | undefined | Promise<Reply | undefined
 /** The answer when no rule takes a call. */
 export const fallback: Reply = { text: "OK." }
 
+/**
+ * Thrown by a rule, the model refuses the call with an HTTP `status`, as an API rejecting
+ * a request does: an answer in its own right, never a failure of the fake model's.
+ */
+export class Refusal extends Error {
+  constructor(readonly status: number) {
+    super(`refused with ${status}`)
+  }
+}
+
 /** The first reply a rule gives, or the fallback. */
 export const answer = async (rules: readonly Rule[], call: Call): Promise<Reply> => {
   for (const rule of rules) {

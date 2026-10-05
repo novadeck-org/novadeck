@@ -39,6 +39,12 @@ export const title = (text: string, at: number): PromptShown | undefined => {
   }
 }
 
+/** Whether Codex's title says a turn runs: its one run state is past Ready and Starting. */
+export const titleWorking = (text: string): boolean => {
+  const said = text.split(" | ").filter((part) => states.has(part))
+  return said.length === 1 && said[0] !== "Ready" && said[0] !== "Starting"
+}
+
 /**
  * The shortest start of a thread's id that may confirm a new thread. Codex's ids are
  * UUIDv7: 12 hex digits of milliseconds, then the version digit and 3 random ones, then a

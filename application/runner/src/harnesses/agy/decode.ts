@@ -51,7 +51,10 @@ export const decode = ({ event, seq, instance, payload }: Report): readonly Harn
           type: "turn-ended",
           ...base,
           outcome: text(payload.error) ? "failed" : "completed",
-          background: payload.fullyIdle === false,
+          // It says only that something runs on: its status line, drawn just after,
+          // counts the subagents among it, but never a command it backgrounded, whose end
+          // wakes it too (probed 2026-10-04, 1.2.14).
+          background: { agents: 0, tasks: 0, ...(payload.fullyIdle === false && { more: true }) },
         },
       ]
     case "PostToolUse":
@@ -100,17 +103,19 @@ const written = (
 const finished = new Set(["done", "completed", "finished", "idle", "failed", "cancelled", "error"])
 
 /**
- * Whether the status line lists a subagent still running. It lists them while they run;
- * one that names its state counts only while that is not a finished one.
+ * How many subagents the status line lists still running. It lists them while they run,
+ * and after, as `completed` (probed 2026-10-04, 1.2.14); one that names its state counts
+ * only while that is not a finished one.
  */
-const subagentsRunning = (subagents: unknown): boolean =>
-  Array.isArray(subagents) &&
-  subagents.some((subagent) => {
-    if (typeof subagent !== "object" || subagent === null) return true
-    const { status, state } = subagent as { status?: unknown; state?: unknown }
-    const named = text(status) ?? text(state)
-    return named === undefined || !finished.has(named.toLowerCase())
-  })
+const subagentsRunning = (subagents: unknown): number =>
+  Array.isArray(subagents)
+    ? subagents.filter((subagent) => {
+        if (typeof subagent !== "object" || subagent === null) return true
+        const { status, state } = subagent as { status?: unknown; state?: unknown }
+        const named = text(status) ?? text(state)
+        return named === undefined || !finished.has(named.toLowerCase())
+      }).length
+    : 0
 
 const count = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
@@ -163,7 +168,11 @@ const statusLine = ({ seq, instance, payload }: Pick<Report, "seq" | "instance" 
   const working = payload.agent_state === "working" || payload.agent_state === "tool_use"
   if (working) events.push({ type: "turn-working", ...base })
   if (payload.agent_state === "idle")
-    events.push({ type: "turn-idle", ...base, background: subagentsRunning(payload.subagents) })
+    events.push({
+      type: "turn-idle",
+      ...base,
+      background: { agents: subagentsRunning(payload.subagents), tasks: 0 },
+    })
   else if (payload.tool_confirmation_pending === true)
     events.push({
       type: "attention-requested",

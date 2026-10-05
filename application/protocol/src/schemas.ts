@@ -59,10 +59,21 @@ export const agentName = z.enum(["claude", "codex", "agy"])
 export const agentSessionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
 
 // What the agent holding a terminal's foreground is doing, as its own hooks report it:
-// working on a turn, idle between turns, or unknown when they have not said. `attention`
+// working on a turn, or with its turn over while subagents it started run on, which will
+// wake the agent (`background`); idle otherwise; or unknown when they have not said. `attention`
 // counts the requests waiting on the person, and names the kind of the oldest one.
 export const agentActivity = z.strictObject({
   state: z.enum(["working", "idle", "unknown"]),
+  // What its ended turn left running that wakes it once done: subagents, which keep it
+  // working, and other tasks such as commands, which don't, as one may run for ever,
+  // counted; both zero where its harness says only that something runs. Null while its
+  // turn runs, and once nothing it started runs.
+  background: z
+    .strictObject({
+      agents: z.number().int().nonnegative(),
+      tasks: z.number().int().nonnegative(),
+    })
+    .nullable(),
   attention: z.strictObject({
     pending: z.number().int().nonnegative(),
     kind: z.enum(["permission", "question", "plan"]).nullable(),
@@ -256,6 +267,10 @@ export const terminalSummary = z.strictObject({
   // The agent that reported a session in this shell since its last prompt, so a client
   // can name the program where the process alone cannot, as on Windows. Null otherwise.
   agent: agentName.nullable(),
+  // The agent whose own empty prompt shows there, with NovaDeck's hooks running for it,
+  // before it reported a session, as Codex and Antigravity do only with their first
+  // prompt. Null otherwise, and once a session is reported.
+  ready: agentName.nullable(),
   // What that agent is doing; null without one.
   activity: agentActivity.nullable(),
   // Its tokens and quotas, once its records named any; null otherwise.
