@@ -32,7 +32,35 @@ export type DesktopBridge = {
    * Absent from hosts that came before it.
    */
   pathForFile?(file: File): string
+  /**
+   * Shows a desktop notification that the agent in a terminal finished: `title` and
+   * `body` one line each, without control characters, at most `noticeTitleLength` and
+   * `noticeBodyLength` long, and the terminal's `id`. A newer notice for the same terminal
+   * replaces the one still showing. The host drops a notice that breaks these rules.
+   * Absent from hosts that came before it.
+   */
+  showNotice?(notice: DesktopNotice): void
+  /**
+   * Calls `listener` with the terminal id of each notice the person clicks, once the host
+   * has brought its window to the front. Returns a function that stops listening. Absent
+   * from hosts that came before it.
+   */
+  onNoticeClick?(listener: (id: string) => void): () => void
 }
+
+/** A desktop notification about one terminal; see `DesktopBridge.showNotice`. */
+export type DesktopNotice = {
+  readonly id: string
+  readonly title: string
+  readonly body: string
+}
+
+/** The longest notice title the host shows: a handle, a few words and a terminal's title. */
+export const noticeTitleLength = 256
+/** The longest notice body the host shows: the start of a reply, as the runner previews it. */
+export const noticeBodyLength = 120
+/** What a notice's terminal id may be: a terminal's id, as the runner and the demo name them. */
+export const noticeIdPattern = /^[A-Za-z0-9_-]{1,64}$/
 
 /** Present only when the host enables its debug panel for this launch. */
 export type DesktopDebugBridge = {

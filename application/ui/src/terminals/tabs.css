@@ -2,10 +2,12 @@
    companion bar holds. A tab is a sidebar item; this draws only what a terminal adds to
    it.
 
-   Hooks on `.terminal-tab`: data-terminal-phase="idle" | "running" | "starting" |
+   Hooks on `.terminal-tab`: data-terminal-phase="idle" | "done" | "running" | "starting" |
    "attention" | "unheard" | "ended", data-terminal-attention="question" | "permission",
-   data-terminal-hidden="true" | "false". Parts: `.terminal-glyph`,
-   `.terminal-tab-process`, `.terminal-tab-starting`, `.terminal-tab-action` (an
+   data-terminal-hidden="true" | "false", data-terminal-failed="true" (a done tab whose turn
+   ended on an error). Parts: `.terminal-glyph`,
+   `.terminal-tab-process`, `.terminal-tab-starting`, `.terminal-tab-done` (what a done
+   tab says in its program's place), `.terminal-tab-action` (an
    `.icon-button.small.dim.quiet`, pressed while it hides the tab but looking as it does
    at rest, so a hidden tab doesn't draw the eye; `.terminal-tab-revealed` on Hide and
    Rename, which show under the pointer or with keyboard focus), `.terminal-tab-kinds`
@@ -17,6 +19,8 @@
    --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
    shell starts. --tab-attention-fg (warning-fg): the glyph while an agent waits.
    --tab-unheard-fg (muted): the glyph while NovaDeck can't hear from an agent.
+   --tab-done-fg (success-fg): the glyph and the words while an agent's reply waits unread.
+   --tab-failed-fg (danger-fg): the same, where its turn ended on an error.
    --tab-process-font (mono): the program and the glyph.
    --tab-active-process-fg (ink): the program while it runs or waits.
    --tab-ended-image (the window's --window-ended-image, a faint ink hatch),
@@ -119,6 +123,23 @@
 }
 .terminal-tab[data-terminal-phase="unheard"] .terminal-glyph::before {
   content: "○";
+}
+/* An agent that finished while the person looked elsewhere: a small dot in the success
+   colour and its words where the program was, its name bold (TerminalTab.tsx), until
+   they look. */
+.terminal-tab[data-terminal-phase="done"] :is(.terminal-glyph, .terminal-tab-done) {
+  color: var(--tab-done-fg, var(--color-success-fg));
+}
+.terminal-tab[data-terminal-phase="done"][data-terminal-failed="true"]
+  :is(.terminal-glyph, .terminal-tab-done) {
+  color: var(--tab-failed-fg, var(--color-danger-fg));
+}
+.terminal-tab[data-terminal-phase="done"] .terminal-tab-done {
+  font-weight: 600;
+}
+.terminal-tab[data-terminal-phase="done"] .terminal-glyph::before {
+  content: "●";
+  font-size: 0.75em;
 }
 /* An agent waiting on the person is marked in the warning colour: "?" for a question,
    "!" for a permission. */

@@ -180,6 +180,15 @@ export type Backend = {
   // Optional. Tells the window around the page how the page looks, so its native parts
   // match; absent where nothing surrounds the page, as in a browser.
   readonly showAppearance?: (appearance: WindowAppearance) => void
+  // Optional. Desktop notifications about terminals, as when an agent finishes while the
+  // person looks elsewhere: `show` shows one, a newer one for the same terminal replacing
+  // it, and `onClick` hears the terminal id of each the person clicks, once the window
+  // around the page has come to the front; it returns the stop. Absent where nothing
+  // surrounds the page, as in a browser.
+  readonly notices?: {
+    readonly show: (notice: Notice) => void
+    readonly onClick: (listener: (terminalId: string) => void) => () => void
+  }
   // Optional. The debug panel, where this launch offers it: it triggers the states
   // the backend can be in. See README "Debug panel".
   readonly DebugPanel?: ComponentType<DebugPanelProps>
@@ -194,6 +203,13 @@ export type AgentId = "claude" | "codex" | "agy"
 export type WindowAppearance = {
   readonly scheme: "system" | "light" | "dark"
   readonly ground: string
+}
+
+// A desktop notification about a terminal, by its id: a title and a body, one line each.
+export type Notice = {
+  readonly id: string
+  readonly title: string
+  readonly body: string
 }
 
 // An agent the backend can connect, as the Preferences switches show it.

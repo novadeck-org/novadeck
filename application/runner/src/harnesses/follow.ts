@@ -8,6 +8,30 @@ const maxLine = 4 * 1024 * 1024
 const chunk = 1024 * 1024
 
 /**
+ * The lines at the end of `path`, its last `bytes` of it, oldest first; the first may be
+ * cut short. Undefined when it can't be read.
+ */
+export const tailLines = async (
+  path: string,
+  bytes = 256 * 1024,
+): Promise<readonly string[] | undefined> => {
+  try {
+    const file = await open(path, "r")
+    try {
+      const { size } = await file.stat()
+      const start = Math.max(0, size - bytes)
+      const buffer = Buffer.alloc(size - start)
+      await file.read(buffer, 0, buffer.length, start)
+      return buffer.toString("utf8").split("\n")
+    } finally {
+      await file.close()
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Calls `onLine` with each line appended to `path` until `signal` aborts, polling every
  * `intervalMs`. A file that already exists is followed from its end: only what is
  * written from now on counts, unless `fromStart` reads it whole first. One that does not

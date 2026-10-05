@@ -230,6 +230,9 @@ const withStatus = (terminal: TerminalMetadata, status: TerminalStatus): Termina
     command: terminal.command,
     process: terminal.process,
     ...(restoredProcess ? { restoredProcess } : {}),
+    // Who it is and who named it outlive any status.
+    ...(terminal.handle !== undefined ? { handle: terminal.handle } : {}),
+    ...(terminal.titleSource ? { titleSource: terminal.titleSource } : {}),
     ...statusFields(status),
   }
 }

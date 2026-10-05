@@ -7,6 +7,7 @@ import {
   bounded,
   callId,
   promptStart,
+  replied,
   sessionId,
   sessionStart,
   subjectOf,
@@ -85,6 +86,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
               ...base,
               outcome: "completed",
               background: running(payload.background_tasks),
+              ...replied(payload.last_assistant_message),
             },
           ]
     case "StopFailure":

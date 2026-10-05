@@ -10,6 +10,7 @@ const preferences: PreferencesValue = {
   fontSize: 13,
   enabledViews: ["focus", "grid", "canvas"],
   appearance,
+  notifyFinished: true,
 }
 const base = "/projects/project/sessions/initial/grid"
 

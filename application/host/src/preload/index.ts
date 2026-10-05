@@ -12,6 +12,8 @@ import {
   debugArgument,
   debugKillRunnerChannel,
   directoryPickerChannel,
+  noticeChannel,
+  noticeClickChannel,
   runnerPortChannel,
   saveBeforeQuitChannel,
 } from "../bridge.js"
@@ -53,6 +55,20 @@ const bridge = {
     beforeQuit = save
     return () => {
       if (beforeQuit === save) beforeQuit = undefined
+    }
+  },
+  // Only the three fields cross; the main process checks them.
+  showNotice: (notice) => {
+    ipcRenderer.send(noticeChannel, { id: notice?.id, title: notice?.title, body: notice?.body })
+  },
+  // Only a terminal id comes back.
+  onNoticeClick: (listener) => {
+    const relay = (_event: unknown, id: unknown): void => {
+      if (typeof id === "string") listener(id)
+    }
+    ipcRenderer.on(noticeClickChannel, relay)
+    return () => {
+      ipcRenderer.removeListener(noticeClickChannel, relay)
     }
   },
   pathForFile: (file) => {

@@ -15,7 +15,7 @@ import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { nextReset, usageBadge, usageDetail } from "../model/agent-usage"
 import { isWindow } from "../model/roster"
-import { attentionText, terminalPhase, unheardText } from "../model/terminal-ending"
+import { attentionText, doneText, terminalPhase, unheardText } from "../model/terminal-ending"
 import type { Tile, WindowedView } from "../model/types"
 import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
 import { Tooltip } from "../ui-toolkit/Tooltip"
@@ -59,6 +59,9 @@ export type WindowShellProps = {
   compact?: boolean
   active?: boolean
   fresh?: boolean
+  // Its agent finished while the person looked elsewhere, on its own or on an error: the
+  // window says so until they look.
+  unread?: "done" | "failed" | undefined
   rename: TerminalRename | null
   onBeginRename: () => void
   onRenameDraft: (value: string) => void
@@ -86,6 +89,7 @@ export const WindowShell = ({
   compact = false,
   active = false,
   fresh = false,
+  unread,
   rename,
   onBeginRename,
   onRenameDraft,
@@ -113,8 +117,15 @@ export const WindowShell = ({
   const usage = shell && usageBadge(shell)
   const subagents = shell && subagentsBadge(shell)
   const planning = shell?.state === "running" && shell.agent?.planning === true
-  // What the agent waits on the person for, or that NovaDeck can't hear from it.
-  const note = shell && (attentionText(shell) ?? unheardText(shell))
+  const phase = shell ? terminalPhase(shell, unread !== undefined) : "idle"
+  const failed = unread === "failed"
+  // What the agent waits on the person for, that NovaDeck can't hear from it, or that it
+  // finished with its reply unread.
+  const note =
+    shell &&
+    (attentionText(shell) ??
+      unheardText(shell) ??
+      (phase === "done" ? doneText(failed) : undefined))
   const headerDoubleAction = onFlyTo
   const header = (
     <header
@@ -196,7 +207,9 @@ export const WindowShell = ({
         else headerDoubleAction?.()
       }}
     >
-      <div className="terminal-title flex min-w-0 items-center [&>h1]:truncate [&>h1]:font-medium [&>h2]:truncate [&>h2]:font-medium">
+      <div
+        className={`terminal-title flex min-w-0 items-center [&>h1]:truncate [&>h2]:truncate ${phase === "done" ? "[&>h1]:font-bold [&>h2]:font-bold" : "[&>h1]:font-medium [&>h2]:font-medium"}`}
+      >
         {switcher ? (
           <Tooltip content="Switch terminal">
             <button
@@ -232,6 +245,12 @@ export const WindowShell = ({
           )}
         </>
       </div>
+      {phase === "done" && (
+        // Said in full as the window's description; a compact window keeps its name.
+        <span className="terminal-done ml-auto shrink-0 text-[10px]" aria-hidden>
+          {compact ? (failed ? "Error" : "Done") : doneText(failed)}
+        </span>
+      )}
       {(planning || usage || subagents) && !compact && (
         // Whether the agent plans, its subagents, context and busiest rate limit, in
         // full on hover. Only a focused window has room beside its name; a compact one
@@ -342,7 +361,8 @@ export const WindowShell = ({
       className={`terminal-window flex h-full min-h-0 min-w-0 flex-col overflow-hidden ${compact ? "terminal-compact" : "terminal-focused"}`}
       aria-label={`${terminal.name} terminal`}
       data-terminal={terminal.id}
-      data-terminal-phase={shell ? terminalPhase(shell) : "idle"}
+      data-terminal-phase={phase}
+      {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
       {...(note ? { "aria-description": note } : {})}
       data-process-window={processWindow}
       data-new={fresh}

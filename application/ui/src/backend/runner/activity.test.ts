@@ -70,6 +70,7 @@ describe("terminal activity", () => {
         subagents: [],
         planning: false,
         background: null,
+        lastTurn: null,
       }
       expect(claude(idle).status).toEqual({ state: "running", agent: { working: false } })
       expect(claude({ ...idle, state: "unknown" }).status).toEqual({
@@ -85,6 +86,7 @@ describe("terminal activity", () => {
         subagents: [],
         planning: false,
         background: null,
+        lastTurn: null,
       }
       expect(claude(asking).status).toEqual({
         state: "running",
@@ -100,6 +102,7 @@ describe("terminal activity", () => {
           subagents: [],
           planning: true,
           background: null,
+          lastTurn: null,
         }).status,
       ).toEqual({
         state: "running",
@@ -116,8 +119,30 @@ describe("terminal activity", () => {
           subagents,
           planning: false,
           background: null,
+          lastTurn: null,
         }).status,
       ).toEqual({ state: "running", agent: { working: true, subagents } })
+    })
+
+    it("carries how its latest turn ended, with the start of its reply", () => {
+      const ended = {
+        state: "idle" as const,
+        attention: { pending: 0, kind: null },
+        subagents: [],
+        planning: false,
+        background: null,
+        lastTurn: { outcome: "completed" as const, reply: "All green.", at: 7 },
+      }
+      expect(claude(ended).status).toEqual({
+        state: "running",
+        agent: { working: false, lastTurn: { outcome: "completed", reply: "All green.", at: 7 } },
+      })
+      expect(
+        claude({ ...ended, lastTurn: { outcome: "interrupted", reply: null, at: 8 } }).status,
+      ).toEqual({
+        state: "running",
+        agent: { working: false, lastTurn: { outcome: "interrupted", at: 8 } },
+      })
     })
 
     it("carries the tokens and quotas its records name", () => {
@@ -127,6 +152,7 @@ describe("terminal activity", () => {
         subagents: [],
         planning: false,
         background: null,
+        lastTurn: null,
       }
       const telemetry = {
         context: { occupied: 1_000, capacity: 200_000 },
@@ -150,6 +176,7 @@ describe("terminal activity", () => {
         subagents: [{ id: "a1", type: "explorer" }],
         planning: false,
         background: { agents: 1, tasks: 2 },
+        lastTurn: null,
       }
       expect(claude(waiting).status).toEqual({
         state: "running",

@@ -10,6 +10,7 @@ const preferences: PreferencesValue = {
   fontSize: 13,
   enabledViews: ["focus", "grid", "canvas"],
   appearance,
+  notifyFinished: true,
 }
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const fixture = (): Workspace => ({

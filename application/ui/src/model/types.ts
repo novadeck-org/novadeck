@@ -9,6 +9,9 @@ export type PreferencesValue = {
   enabledViews: ViewMode[]
   // The theme and the scheme chosen for it; see docs/theming.md.
   appearance: { readonly theme: ThemeId; readonly scheme: SchemePreference }
+  // Whether the desktop app notifies the person when an agent finishes while they look
+  // elsewhere.
+  notifyFinished: boolean
 }
 export type Project = { id: string; name: string; directory: string }
 
@@ -29,6 +32,19 @@ export type AgentStatus = {
   }
   readonly subagents?: readonly { readonly id: string; readonly type: string | null }[]
   readonly usage?: AgentUsage
+  // How its latest turn ended, once none runs, with the start of its last reply where its
+  // harness tells it (see `AgentTurnEnd`).
+  readonly lastTurn?: AgentTurnEnd
+}
+
+// How an agent's turn ended: `completed` or `failed` on its own, `interrupted` by the
+// person (Escape, or a request they refused), or `unknown` when it only went idle, as an
+// Escape shows in Antigravity. `reply` is the start of its last reply, one line of plain
+// text; `at` tells this end from any other.
+export type AgentTurnEnd = {
+  readonly outcome: "completed" | "failed" | "interrupted" | "unknown"
+  readonly reply?: string
+  readonly at: number
 }
 
 // What an agent's own records say of its tokens and quotas: how many tokens its context

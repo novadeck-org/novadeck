@@ -70,6 +70,8 @@ export type RunnerBackendOptions = {
   readonly pickDirectory?: () => Promise<string | null>
   // Where the host's window follows the page's appearance.
   readonly showAppearance?: Backend["showAppearance"]
+  // Where the host shows desktop notifications.
+  readonly notices?: Backend["notices"]
   // Where the host lets the page finish its saves before its window closes or the app
   // quits; returns the undo.
   readonly beforeQuit?: (save: () => Promise<void>) => () => void
@@ -1282,6 +1284,7 @@ export const runnerBackend = (
       : {}),
     ...(options.pickDirectory ? { pickDirectory: options.pickDirectory } : {}),
     ...(options.showAppearance ? { showAppearance: options.showAppearance } : {}),
+    ...(options.notices ? { notices: options.notices } : {}),
     ...(options.debug
       ? {
           DebugPanel: createDebugPanel(options.debug, {

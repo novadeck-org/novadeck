@@ -348,6 +348,92 @@ for (const setup of setups) {
       )
     }
 
+    it("tells the start of the agent's last reply once its turn ends", async ({ e2e: run }) => {
+      // Claude Code's and Codex's Stop name the reply; Antigravity's transcript records it.
+      run.model.use(
+        replies("Sum it up", "## Summary\n\nPlover-7 finished: **all green**, nothing left."),
+      )
+      const t1 = await start(run, setup)
+      const mark = t1.mark()
+
+      await t1.submit("Sum it up")
+      await t1.reached("working", { after: mark })
+      await t1.poll(() => (t1.summary().activity?.lastTurn ? true : undefined), "the turn to end")
+      expect(t1.summary().activity).toMatchObject({
+        state: "idle",
+        lastTurn: {
+          outcome: "completed",
+          reply: "Summary Plover-7 finished: all green, nothing left.",
+        },
+      })
+    })
+
+    it("reads the agent's last reply from its own records when its Stop names none", async ({
+      e2e: run,
+    }) => {
+      // As Claude Code's StopFailure, or a Stop whose reply the hook dropped: the runner
+      // reads the session's transcript or rollout instead. Antigravity's Stop never names one.
+      const harness = harnesses[setup.agent] as { decode: Harness["decode"] }
+      const { decode } = harness
+      harness.decode = (report) => {
+        if (report.event !== "Stop") return decode(report)
+        const { last_assistant_message: _dropped, ...payload } = report.payload
+        return decode({ ...report, payload })
+      }
+      try {
+        run.model.use(replies("Sum it up", "Plover-9 finished: nothing left."))
+        const t1 = await start(run, setup)
+        const mark = t1.mark()
+
+        await t1.submit("Sum it up")
+        await t1.reached("working", { after: mark })
+        await t1.poll(() => (t1.summary().activity?.lastTurn ? true : undefined), "the turn to end")
+        expect(t1.summary().activity?.lastTurn).toMatchObject({
+          outcome: "completed",
+          reply: "Plover-9 finished: nothing left.",
+        })
+      } finally {
+        harness.decode = decode
+      }
+    })
+
+    it("reads the agent's final words, not those before a tool call, when its Stop names none", async ({
+      e2e: run,
+    }) => {
+      // The final words land in the records a moment after the Stop hook starts, so a read
+      // then finds only the words before the turn's tool call, which aren't its reply.
+      const harness = harnesses[setup.agent] as { decode: Harness["decode"] }
+      const { decode } = harness
+      harness.decode = (report) => {
+        if (report.event !== "Stop") return decode(report)
+        const { last_assistant_message: _dropped, ...payload } = report.payload
+        return decode({ ...report, payload })
+      }
+      try {
+        run.model.use(
+          own((call) => {
+            const agents = tool(call, "agents")
+            if (agents && asked(call, "Look around"))
+              return { text: "Plover-5 is looking first.", calls: [{ name: agents, input: {} }] }
+            if (result(call) !== undefined) return { text: "Plover-5 found nothing new." }
+            return undefined
+          }),
+        )
+        const t1 = await start(run, setup)
+        const mark = t1.mark()
+
+        await t1.submit("Look around")
+        await t1.reached("working", { after: mark })
+        await t1.poll(() => (t1.summary().activity?.lastTurn ? true : undefined), "the turn to end")
+        expect(t1.summary().activity?.lastTurn).toMatchObject({
+          outcome: "completed",
+          reply: "Plover-5 found nothing new.",
+        })
+      } finally {
+        harness.decode = decode
+      }
+    })
+
     it("ends a turn whose Stop hook's report never came, as its own records tell", async ({
       e2e: run,
     }) => {

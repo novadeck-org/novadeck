@@ -4,7 +4,7 @@ import type { AgentTelemetry } from "@novadeck/protocol"
 
 import type { HarnessEvent } from "../events.js"
 import { followLines } from "../follow.js"
-import { bounded, type Harness, type Run, type WrittenPlan } from "../harness.js"
+import { bounded, replied, type Harness, type Run, type WrittenPlan } from "../harness.js"
 import { transcripts } from "./transcripts.js"
 
 type Limit = AgentTelemetry["limits"][number]
@@ -78,7 +78,16 @@ export const rolloutEvents = (
           : fields.error !== undefined && fields.error !== null
             ? "failed"
             : "completed"
-      return [{ type: "turn-ended", ...base, outcome, recorded: true, ...(turn && { turn }) }]
+      return [
+        {
+          type: "turn-ended",
+          ...base,
+          outcome,
+          recorded: true,
+          ...(turn && { turn }),
+          ...replied(fields.last_agent_message),
+        },
+      ]
     }
     case "item_completed": {
       const { type: kind, text } = (fields.item ?? {}) as { type?: unknown; text?: unknown }

@@ -42,6 +42,40 @@ launch reads that file back through the same check before it sets `themeSource` 
 opens windows on the kept colour. A compromised UI can change no more through this
 channel than the app's colour scheme and its windows' background colour.
 
+## Desktop Notifications
+
+The page asks the desktop host for a notification when an agent finishes, on the
+`novadeck:notice` channel (the preload bridge's `showNotice`), and hears which one the
+person clicked on `novadeck:notice-click` (`onNoticeClick`). The host acts only on a
+notice from the main frame of one of its own windows showing the app's own UI, as for
+appearance reports; it drops notices from any other sender, such as a page in the
+companion pane, which has no preload. A notice passes (`desktopNoticeOf` in
+`application/host/src/main/notices.ts`) as a terminal id of letters, digits, `_` and `-`,
+at most 64 long, a title of at most 256 characters and a body of at most 120, neither
+holding a control character or a bidirectional mark, override or isolate; nothing else of it,
+such as an icon or a sound, crosses, and any other value is dropped. The preload sends
+only those three fields, and the page cuts and cleans its text the same way before it
+asks (`desktopNotices` in `application/ui/src/backend/runner/desktop-host.ts`). On Linux,
+Electron hands the body to the desktop's notification server as it is, and that server
+may read it as markup (it advertised `body-markup` and `body-hyperlinks` when probed with
+Electron 44), so the host escapes `&`, `<` and `>` in the body there
+(`notificationText`), and it shows as the text it was given, never as bold text, a link
+or an image; the title, the notification's summary, is plain text on every platform, as
+the body is on macOS and Windows. The host shows at most one notification per terminal id
+at a time. A click brings the window the
+notice came from to the front and sends that page only the terminal id, which the page
+checks against the same pattern and uses only to select a terminal it already has.
+
+What a notification shows is the start of the agent's last reply, which the runner reads
+from the agent's own Stop hook payload or its transcript or rollout, strips of terminal
+escapes, control characters and bidirectional marks and overrides, and cuts to 120 characters
+before it reaches any client (`replyPreview` in
+`application/runner/src/harnesses/harness.ts`). It is the agent's words, so it may echo
+what the agent read, a secret included, onto the system's notification centre, which
+other applications and the lock screen may show; turn **Notify when an agent finishes**
+off in Preferences where that matters. A compromised UI can show no more through this
+channel than notifications with text of its choosing, under the app's name.
+
 ## Pasted Files
 
 The desktop preload's `pathForFile` hands the page the path of a `File` it already

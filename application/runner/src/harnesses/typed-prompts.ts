@@ -1,12 +1,9 @@
-import { open } from "node:fs/promises"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { HarnessEvent } from "./events.js"
+import { tailLines } from "./follow.js"
 import { doorbellNonce, promptStart, type UserEntry } from "./harness.js"
 import { rootedIn, type Root } from "./roots.js"
-
-/** How much of a transcript's end is read for its last typed entry, in bytes. */
-const tailBytes = 256 * 1024
 
 /**
  * The last thing a transcript records as typed into the agent's box (by the person, or
@@ -17,24 +14,11 @@ export const lastUserInput = async (
   path: string,
   typed: (line: string) => UserEntry | undefined,
 ): Promise<UserEntry | null | undefined> => {
-  let text: string
-  try {
-    const file = await open(path, "r")
-    try {
-      const { size } = await file.stat()
-      const start = Math.max(0, size - tailBytes)
-      const buffer = Buffer.alloc(size - start)
-      await file.read(buffer, 0, buffer.length, start)
-      text = buffer.toString("utf8")
-    } finally {
-      await file.close()
-    }
-  } catch {
-    return undefined
-  }
+  const lines = await tailLines(path)
+  if (!lines) return undefined
   // Its first line may be cut, which reads as nothing.
   let last: UserEntry | null = null
-  for (const line of text.split("\n")) last = typed(line) ?? last
+  for (const line of lines) last = typed(line) ?? last
   return last
 }
 

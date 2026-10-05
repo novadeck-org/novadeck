@@ -6,6 +6,7 @@ import {
   absolute,
   callId,
   promptStart,
+  replied,
   sessionId,
   sessionStart,
   subjectOf,
@@ -68,7 +69,16 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
     }
     case "Stop":
       // A subagent's stop ends its own work, not the turn.
-      return actor ? [] : [{ type: "turn-ended", ...base, outcome: "completed" }]
+      return actor
+        ? []
+        : [
+            {
+              type: "turn-ended",
+              ...base,
+              outcome: "completed",
+              ...replied(payload.last_assistant_message),
+            },
+          ]
     case "Interrupt":
       // A subagent's own interrupt ends its work, not the turn.
       return actor ? [] : [{ type: "turn-ended", ...base, outcome: "interrupted" }]

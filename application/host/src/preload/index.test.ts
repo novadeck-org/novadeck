@@ -3,7 +3,13 @@ import type { EventEmitter } from "node:events"
 import type { DesktopHost } from "@novadeck/protocol/bridge"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { apiUrlArgumentPrefix, appearanceChannel, saveBeforeQuitChannel } from "../bridge.js"
+import {
+  apiUrlArgumentPrefix,
+  appearanceChannel,
+  noticeChannel,
+  noticeClickChannel,
+  saveBeforeQuitChannel,
+} from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
 // Electron as the preload sees it: what it exposes to the page, and what it sends.
@@ -119,5 +125,25 @@ describe("a pasted file's path", () => {
 
   it("is empty for anything Electron can't take as a file", () => {
     expect(electron.exposed.pathForFile?.({} as unknown as File)).toBe("")
+  })
+})
+
+describe("a notice about a terminal", () => {
+  it("goes to the main process as its id, title and body only", () => {
+    const notice = { id: "01", title: "t1 is done: Tests", body: "All green.", icon: "x" }
+    electron.exposed.showNotice?.(notice)
+    expect(electron.messages).toEqual([
+      [noticeChannel, { id: "01", title: "t1 is done: Tests", body: "All green." }],
+    ])
+  })
+
+  it("comes back once clicked as the terminal's id, and only that, until the page stops", () => {
+    const clicks: string[] = []
+    const stop = electron.exposed.onNoticeClick!((id) => clicks.push(id))
+    electron.renderer.emit(noticeClickChannel, {}, "01")
+    electron.renderer.emit(noticeClickChannel, {}, { id: "02" })
+    stop()
+    electron.renderer.emit(noticeClickChannel, {}, "03")
+    expect(clicks).toEqual(["01"])
   })
 })

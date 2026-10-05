@@ -4,9 +4,12 @@ import { page, userEvent, type Locator } from "vitest/browser"
 import { expectFocusWithin, preferencesDialog } from "./support/keyboard"
 import {
   chooseView,
+  commandInput,
   expectStaysAbsent,
   openWorkspace,
   tabDescription,
+  terminal,
+  terminalTab,
   tooltipOf,
 } from "./support/workspace"
 
@@ -108,6 +111,70 @@ describe("An agent NovaDeck can't hear from", () => {
     const window = page.getByRole("region", { name: "Runtime terminal" })
     await expect.element(window).toHaveAttribute("aria-description", said)
     await expect.element(window).toHaveAttribute("data-terminal-phase", "unheard")
+  })
+})
+
+// The demo's Claude Code in Build is idle at its prompt; a prompt there works a moment,
+// then finishes with a reply, the command it left running still running.
+const promptBuild = async (): Promise<void> => {
+  await openWorkspace("/?demo=agents")
+  const skip = page.getByRole("button", { name: "Skip for now" })
+  if (await skip.query()) await skip.click()
+  await terminalTab("Build").click()
+  await commandInput("Build").fill("Ship the docs")
+  await userEvent.keyboard("{Enter}")
+  await expect.element(terminal("Build")).toHaveAttribute("data-terminal-phase", "running")
+}
+
+describe("An agent that finishes", () => {
+  context("while the person looks elsewhere", () => {
+    it("marks its terminal done, reply unread, until they look at it", async () => {
+      await promptBuild()
+      await terminalTab("Tests").click()
+      await expect
+        .poll(() => tabDescription("Build"), { timeout: 5000 })
+        .toBe("Done · reply unread")
+      await expect.element(terminalTab("Build").getByText("done · unread")).toBeVisible()
+      await terminalTab("Build").click()
+      const window = terminal("Build")
+      await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
+      await expect.element(window.getByText("Done · reply unread")).not.toBeInTheDocument()
+      expect(tabDescription("Build")).toBeNull()
+    })
+
+    it("shows it on a window in view, and clears once the person selects it", async () => {
+      await promptBuild()
+      await chooseView("Grid")
+      await terminalTab("Tests").click()
+      const window = terminal("Build")
+      await expect.element(window, { timeout: 5000 }).toHaveAttribute("data-terminal-phase", "done")
+      await expect.element(window).toHaveAttribute("aria-description", "Done · reply unread")
+      // A compact window keeps room for its name: its chip says only that it's done.
+      await expect.element(window.getByText("Done", { exact: true })).toBeVisible()
+      await terminalTab("Build").click()
+      await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
+    })
+  })
+
+  it("offers a notification only in the desktop app, on unless turned off", async () => {
+    await openWorkspace()
+    await openPreferences()
+    const toggle = preferencesDialog().getByRole("switch", {
+      name: "Notify when an agent finishes",
+    })
+    await expect.element(toggle).toHaveAttribute("aria-checked", "true")
+    await expect.element(toggle).toBeDisabled()
+    await expect.element(toggle).toHaveAccessibleDescription("Only in the desktop app.")
+  })
+
+  context("while the person looks at it", () => {
+    it("leaves it as it was", async () => {
+      await promptBuild()
+      const window = terminal("Build")
+      await expect.element(window, { timeout: 5000 }).toHaveAttribute("data-terminal-phase", "idle")
+      await expectStaysAbsent(window.getByText("Done · reply unread"))
+      expect(tabDescription("Build")).toBeNull()
+    })
   })
 })
 

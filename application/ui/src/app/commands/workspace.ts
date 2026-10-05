@@ -59,6 +59,9 @@ export type WorkspaceCommands = ShellCommands &
     // Adds the terminal an agent asked for beside its own, in that terminal's session,
     // and answers the request; it comes into view only when the request asks.
     readonly openRequested: (request: TerminalRequest) => void
+    // Brings a terminal into view wherever it is, as a click on a notification about it
+    // asks: its project and session to the front, the terminal selected.
+    readonly reveal: (terminalId: string) => void
     // Closes the terminal, or asks first while a program runs in it.
     readonly close: (terminalId: string) => void
     // Answers the pending close confirmation.
@@ -374,6 +377,40 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       if (here || request.focus)
         markCreated({ context: `${project.id}/${session.id}`, id: terminal.id })
       request.answer({ terminalId: terminal.id })
+    },
+    reveal: (terminalId) => {
+      const snapshot = workspace.getSnapshot()
+      const found = holding(snapshot, terminalId)
+      if (!found) return
+      const { project, session } = found
+      const target = { projectId: project.id, workspaceSessionId: session.id }
+      recent.setSwitcher(null)
+      // Out from behind any dialog, as the session's front comes from another one.
+      if (sameTarget(target, currentTarget(snapshot))) {
+        go({ terminal: terminalId, dialog: null })
+        pulse()
+        set("sidebar", false)
+        return
+      }
+      const { enabledViews } = preferences()
+      const now = effects.now()
+      navigateWorkspace(
+        [
+          {
+            type: "session/select",
+            projectId: project.id,
+            workspaceSessionId: session.id,
+            now,
+            enabledViews,
+          },
+          ...(project.id === snapshot.activeProjectId
+            ? []
+            : [{ type: "project/select" as const, projectId: project.id, now, enabledViews }]),
+        ],
+        { terminal: terminalId, dialog: null },
+      )
+      pulse()
+      set("sidebar", false)
     },
     close: (terminalId) => {
       const snapshot = workspace.getSnapshot()

@@ -1,12 +1,28 @@
+import {
+  agentWorking,
+  finishNotice,
+  sightTurnEnd,
+  type AgentFinish,
+  type SeenEnd,
+} from "../model/agent-finish"
 import { orderedTiles } from "../model/roster"
 import { activeProject } from "../model/state"
 import { createStore, type MutableStore, type Store } from "../model/store"
-import type { PreferencesValue, Workspace } from "../model/types"
+import type { PreferencesValue, TerminalMetadata, Workspace } from "../model/types"
 import { writePreferences } from "../preferences/preferences-storage"
 import { initialShell, resetPresentation, type ShellState } from "../shell/shell-state"
 import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage"
 import { nextRecent, visibleSwitcher, type RecentSwitcher } from "../terminals/recent"
 import type { RenameSession } from "../terminals/rename-state"
+import {
+  clearUnread,
+  keepUnread,
+  markUnread,
+  noUnread,
+  viewUnread,
+  type Unread,
+  type Viewing,
+} from "../terminals/unread-state"
 import type { WorkspaceRoute } from "./routing"
 import { currentContext, currentState } from "./selectors"
 
@@ -31,6 +47,10 @@ export type UiState = {
   readonly crashLoopDismissed: boolean
   // How many crashes the backend reports while its far side keeps crashing; 0 otherwise.
   readonly crashLoop: number
+  // Whether the page has the person's focus: its window focused and showing.
+  readonly pageFocused: boolean
+  // The terminals whose agent finished while the person looked elsewhere.
+  readonly unread: Unread
 }
 
 export type UiLocation = {
@@ -63,6 +83,8 @@ export const initialUi = ({
   closing: null,
   crashLoopDismissed: false,
   crashLoop: 0,
+  pageFocused: true,
+  unread: noUnread,
 })
 
 export const updateShell = (ui: UiStore, change: (shell: ShellState) => ShellState): void =>
@@ -181,3 +203,102 @@ export const watchClosing = (workspace: Store<Workspace>, ui: UiStore): (() => v
     )
       ui.update((state) => ({ ...state, closing: null }))
   })
+
+// The terminal the person looks at: the selected one of the session on screen, while the
+// page has their focus.
+export const viewing = (workspace: Workspace, ui: Pick<UiState, "pageFocused">): Viewing => {
+  const { selected } = currentState(workspace)
+  return ui.pageFocused && selected ? { context: currentContext(workspace), id: selected } : null
+}
+
+// Every terminal of every session, by `${context}/${terminalId}`.
+const terminalsOf = (workspace: Workspace): Map<string, TerminalMetadata> =>
+  new Map(
+    workspace.projects.flatMap((project) =>
+      project.history.flatMap((session) =>
+        session.state.roster.terminals.map(
+          (terminal) => [`${project.id}/${session.id}/${terminal.id}`, terminal] as const,
+        ),
+      ),
+    ),
+  )
+
+// The session context of a terminal's key in `terminalsOf`.
+const contextOf = (key: string, terminal: TerminalMetadata): string =>
+  key.slice(0, key.length - terminal.id.length - 1)
+
+// A desktop notification about one terminal, as a backend shows it.
+export type FinishNotify = (notice: {
+  readonly id: string
+  readonly title: string
+  readonly body: string
+}) => void
+
+// Follows agents finishing (see `sightTurnEnd`): a terminal the person isn't looking at as
+// its agent finishes is marked unread, and `notify`, where given and the person wants it,
+// shows them one notification for it. The mark clears once they look at that terminal,
+// its agent works again, or the terminal goes. What each terminal showed when this started
+// is taken in as seen.
+export const watchFinishes = (
+  workspace: Store<Workspace>,
+  ui: UiStore,
+  notify?: FinishNotify,
+): (() => void) => {
+  let previous = workspace.getSnapshot()
+  let terminals = new Map<string, TerminalMetadata>()
+  const seen = new Map<string, SeenEnd>()
+  const setUnread = (change: (unread: Unread) => Unread): void =>
+    void ui.update((state) => {
+      const unread = change(state.unread)
+      return unread === state.unread ? state : { ...state, unread }
+    })
+  const look = (): void =>
+    setUnread((unread) => viewUnread(unread, viewing(workspace.getSnapshot(), ui.getSnapshot())))
+  // What changed since the last look: the finishes, and the terminals whose agent works.
+  const sight = () => {
+    const before = terminals
+    terminals = terminalsOf(previous)
+    const finished: { key: string; terminal: TerminalMetadata; finish: AgentFinish }[] = []
+    const working: string[] = []
+    for (const [key, terminal] of terminals) {
+      if (before.get(key) === terminal) continue
+      const { seen: next, finish } = sightTurnEnd(seen.get(key), terminal)
+      seen.set(key, next)
+      if (finish) finished.push({ key, terminal, finish })
+      if (agentWorking(terminal)) working.push(key)
+    }
+    for (const key of seen.keys()) if (!terminals.has(key)) seen.delete(key)
+    return { finished, working }
+  }
+  sight()
+  const follow = (): void => {
+    const snapshot = workspace.getSnapshot()
+    if (snapshot.projects === previous.projects) return look()
+    previous = snapshot
+    const { finished, working } = sight()
+    const looking = viewing(snapshot, ui.getSnapshot())
+    setUnread((current) => {
+      let unread = keepUnread(current, (context, id) => terminals.has(`${context}/${id}`))
+      for (const key of working) {
+        const terminal = terminals.get(key)!
+        unread = clearUnread(unread, contextOf(key, terminal), terminal.id)
+      }
+      for (const { key, terminal, finish } of finished)
+        unread = markUnread(
+          unread,
+          contextOf(key, terminal),
+          terminal.id,
+          finish.failed ? "failed" : "done",
+          looking,
+        )
+      return viewUnread(unread, looking)
+    })
+    if (!notify || !ui.getSnapshot().preferences.notifyFinished) return
+    for (const { key, terminal, finish } of finished) {
+      const seenNow = looking?.context === contextOf(key, terminal) && looking.id === terminal.id
+      if (!seenNow) notify({ id: terminal.id, ...finishNotice(terminal, finish) })
+    }
+  }
+  const stops = [workspace.subscribe(follow), ui.subscribe(look)]
+  return () => stops.forEach((stop) => stop())
+}

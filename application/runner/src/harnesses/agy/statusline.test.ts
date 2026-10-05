@@ -198,6 +198,7 @@ describe("Antigravity's status line, as captured", () => {
     expect(run([preInvocation(1), stop(2), report(working!, 3)])).toEqual({
       state: "idle",
       ...quiet,
+      lastTurn: { outcome: "completed", reply: null, at: expect.any(Number) },
     })
     expect(run([preInvocation(1), report(confirming!, 2)])).toEqual({
       state: "working",
@@ -205,12 +206,14 @@ describe("Antigravity's status line, as captured", () => {
       subagents: [],
       planning: false,
       background: null,
+      lastTurn: null,
     })
     // Drawn just after the Stop, a snapshot still showing the turn's confirmation asks
     // nothing: only a turn running, or one a working resumed, waits on one.
     expect(run([preInvocation(1), stop(2), report(confirming!, 3)])).toEqual({
       state: "idle",
       ...quiet,
+      lastTurn: { outcome: "completed", reply: null, at: expect.any(Number) },
     })
     expect(run([preInvocation(1), report(idle!, 2), report(confirming!, 3)])).toEqual({
       state: "working",
@@ -218,11 +221,13 @@ describe("Antigravity's status line, as captured", () => {
       subagents: [],
       planning: false,
       background: null,
+      lastTurn: null,
     })
     // Working again: the confirmation was answered, and the turn goes on.
     expect(run([preInvocation(1), report(confirming!, 2), report(working!, 3)])).toEqual({
       state: "working",
       ...quiet,
+      lastTurn: null,
     })
     // An idle snapshot whose hook started before the turn's does not end it.
     expect(run([report(idle!, 1), preInvocation(2)])).toMatchObject({ state: "working" })
@@ -231,6 +236,7 @@ describe("Antigravity's status line, as captured", () => {
     expect(run([preInvocation(1), report(idle!, 2), report(working!, 3)])).toEqual({
       state: "working",
       ...quiet,
+      lastTurn: null,
     })
     // As after a Stop, working after an idle that followed the Stop resumes nothing.
     expect(run([preInvocation(1), stop(2), report(idle!, 3), report(working!, 4)])).toMatchObject({

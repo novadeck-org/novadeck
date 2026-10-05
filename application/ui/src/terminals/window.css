@@ -1,13 +1,14 @@
 /* The window recipe: the terminal window, its header, selection bar and phase line, and
    the content area the backends draw into.
 
-   Hooks: data-terminal-phase="idle" | "running" | "starting" | "attention" | "unheard" |
-   "ended" and
+   Hooks: data-terminal-phase="idle" | "done" | "running" | "starting" | "attention" |
+   "unheard" | "ended", data-terminal-failed="true" (done on an error) and
    data-new="true" on `.terminal-window`; `.terminal-focused` (Focus) and
    `.terminal-compact` (Grid, Canvas); a selected window is `.terminal-focused`, or sits
    in a `.grid-terminal.selected` or `.canvas-node.selected`. Parts: `.terminal-header`,
    `.terminal-heading` (whose ::before is the selection bar and ::after the phase line),
-   `.terminal-title`, `.terminal-metadata`, `.terminal-actions`, `.terminal-rename-input`.
+   `.terminal-title`, `.terminal-metadata`, `.terminal-done` (the chip a done window shows
+   beside its name), `.terminal-actions`, `.terminal-rename-input`.
 
    Tokens, each optional (its fallback in brackets):
    --window-bg (paper), --window-fg (ink), --window-border-color (line),
@@ -28,6 +29,11 @@
    --window-phase-attention-border-width (2px): its weight while an agent waits.
    --window-phase-unheard-border-color (muted): the line while NovaDeck can't hear from an
    agent.
+   --window-phase-done-border-color (success-fg), --window-phase-done-border-width (2px):
+   the line while an agent's reply waits unread. --window-done-bg (success),
+   --window-done-fg (success-fg): the chip that says so.
+   --window-phase-failed-border-color (danger-fg), --window-failed-bg (danger),
+   --window-failed-fg (danger-fg): the line and chip where its turn ended on an error.
    --window-ended-image (a faint ink hatch): laid over an ended window.
    --window-ended-border-style (solid): an ended window's outline.
    --window-ended-content-opacity (0.55): an ended terminal's output.
@@ -179,6 +185,26 @@
 .terminal-window[data-terminal-phase="ended"] .terminal-heading::after {
   border-top-style: dashed;
   border-top-color: var(--window-phase-ended-border-color, var(--color-strong));
+}
+/* An agent that finished while the person looked elsewhere: a solid line in the success
+   colour, and a chip beside its name, bold (WindowShell.tsx), until they look. */
+.terminal-window[data-terminal-phase="done"] .terminal-heading::after {
+  border-top: var(--window-phase-done-border-width, 2px) solid
+    var(--window-phase-done-border-color, var(--color-success-fg));
+}
+.terminal-done {
+  border-radius: 999px;
+  padding: 1px 8px;
+  background-color: var(--window-done-bg, var(--color-success));
+  color: var(--window-done-fg, var(--color-success-fg));
+  font-weight: 600;
+}
+.terminal-window[data-terminal-failed="true"] .terminal-heading::after {
+  border-top-color: var(--window-phase-failed-border-color, var(--color-danger-fg));
+}
+.terminal-window[data-terminal-failed="true"] .terminal-done {
+  background-color: var(--window-failed-bg, var(--color-danger));
+  color: var(--window-failed-fg, var(--color-danger-fg));
 }
 .terminal-window[data-terminal-phase="unheard"] .terminal-heading::after {
   border-top-style: dashed;

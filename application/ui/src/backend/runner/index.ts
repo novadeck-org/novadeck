@@ -14,7 +14,7 @@ import type { BootRehearsals } from "../boot-rehearsal"
 import type { BackendConnection, ConnectFailure } from "../port"
 import { runnerBackend, type RunnerBackend } from "./backend"
 import { createRunnerDebug } from "./debug"
-import { desktopHost } from "./desktop-host"
+import { desktopHost, desktopNotices } from "./desktop-host"
 import { pause } from "./pause"
 import type { RunnerListing } from "./seed"
 
@@ -141,6 +141,7 @@ export const connectRunnerBackend = async (
     const pick = desktopHost()?.pickDirectory
     const beforeQuit = desktopHost()?.beforeQuit
     const showAppearance = desktopHost()?.showAppearance
+    const notices = desktopNotices(desktopHost())
     const kill = desktopHost()?.debugKillRunner
     const debug = rehearsals
       ? createRunnerDebug({ rehearsals, killRunner: kill && (() => kill()) })
@@ -155,6 +156,7 @@ export const connectRunnerBackend = async (
           ...(pick ? { pickDirectory: () => pick() } : {}),
           ...(beforeQuit ? { beforeQuit: (save) => beforeQuit(save) } : {}),
           ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
+          ...(notices ? { notices } : {}),
           livePages: desktopHost()?.livePages === true,
           debug,
           transcripts,

@@ -5,7 +5,7 @@ import type { AgentName } from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
-import { sessionStart } from "./harness.js"
+import { replyPreview, sessionStart } from "./harness.js"
 import { harnesses } from "./registry.js"
 
 describe("a SessionStart source", () => {
@@ -20,6 +20,36 @@ describe("a SessionStart source", () => {
 
   it("only observes the conversation when there is none", () => {
     expect(sessionStart(undefined)).toBe("conversation-observed")
+  })
+})
+
+describe("the start of an agent's reply", () => {
+  it("is one line of plain text", () => {
+    expect(
+      replyPreview("## Done\n\n- Fixed **the** `spec`\n- See [the PR](https://x.test/1)"),
+    ).toBe("Done Fixed the spec See the PR")
+  })
+
+  it("drops terminal escapes, control characters and reordering marks", () => {
+    expect(replyPreview("\x1b[31mred\x1b[0m \x1b]0;title\x07ok\x00\u202eevil\tend")).toBe(
+      "red ok evil end",
+    )
+    expect(replyPreview(`arabic\u061cmark`)).toBe("arabic mark")
+  })
+
+  it("is cut to the preview length with an ellipsis, never inside a character", () => {
+    const long = replyPreview("word ".repeat(100))!
+    expect(long.length).toBeLessThanOrEqual(120)
+    expect(long.endsWith("…")).toBe(true)
+    const emoji = replyPreview(`${"a".repeat(118)}😀😀`)!
+    expect(emoji.length).toBeLessThanOrEqual(120)
+    expect(emoji).toBe(`${"a".repeat(118)}…`)
+  })
+
+  it("is nothing for an empty reply or one that is not text", () => {
+    expect(replyPreview("  \n\x1b[0m ")).toBeUndefined()
+    expect(replyPreview(undefined)).toBeUndefined()
+    expect(replyPreview(42)).toBeUndefined()
   })
 })
 

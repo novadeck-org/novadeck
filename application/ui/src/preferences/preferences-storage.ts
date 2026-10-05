@@ -10,6 +10,7 @@ export const readPreferences = (): PreferencesValue => {
     fontSize: 13,
     enabledViews: [...viewModes],
     appearance: defaultPreference(themes),
+    notifyFinished: true,
   }
   try {
     const saved = JSON.parse(
@@ -22,6 +23,8 @@ export const readPreferences = (): PreferencesValue => {
       enabledViews: enabledViews.length ? enabledViews : defaults.enabledViews,
       fontSize: [12, 13, 15].includes(saved?.fontSize ?? 0) ? saved!.fontSize! : defaults.fontSize,
       appearance: appearancePreferenceOf(saved?.appearance, themes),
+      notifyFinished:
+        typeof saved?.notifyFinished === "boolean" ? saved.notifyFinished : defaults.notifyFinished,
     }
   } catch {
     return defaults

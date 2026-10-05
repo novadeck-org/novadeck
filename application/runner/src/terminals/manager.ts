@@ -45,6 +45,7 @@ import type {
 } from "../harnesses/events.js"
 import { doorbellLine, quotedLine, type Install } from "../harnesses/harness.js"
 import { agents, harnesses } from "../harnesses/registry.js"
+import { unreplied, withReplies } from "../harnesses/replies.js"
 import { followRoot, rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import { observeTelemetry, telemetrySummary, type Telemetry } from "../harnesses/telemetry.js"
 import { typedPromptStart } from "../harnesses/typed-prompts.js"
@@ -2485,7 +2486,19 @@ export class Terminals {
     const silent = { leaseId: null, stdout: harnesses[report.agent].messaging.silent(report.event) }
     const record = this.records.get(report.terminalId)
     if (!record || record.exitQueued || !sameToken(record.token, report.token)) return silent
-    const events = harnesses[report.agent].decode(report)
+    const decoded = harnesses[report.agent].decode(report)
+    // A turn's end its hook named no reply for reads the reply from the agent's
+    // transcript; any other report goes on at once.
+    const events =
+      unreplied(decoded) < 0
+        ? decoded
+        : await withReplies(
+            decoded,
+            harnesses[report.agent].transcripts?.items,
+            record.binding?.agent === report.agent
+              ? { sessionId: record.binding.sessionId, transcript: record.transcript }
+              : undefined,
+          )
     // Its prompt shows before any session of its binds, as Antigravity's status line says.
     const shown = harnesses[report.agent].shown?.(report)
     if (events.length === 0 && !shown) return silent

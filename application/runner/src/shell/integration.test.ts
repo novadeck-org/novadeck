@@ -824,9 +824,66 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       subagents: [],
       planning: false,
       background: null,
+      lastTurn: { outcome: "interrupted", reply: null, at: expect.any(Number) },
     })
     // Messaging hears it too: the turn ended without a Stop.
     expect(manager.messages(terminal.id).delivery).toBe("unknown")
+  })
+
+  it("tells how a Claude Code turn ended, with the start of the agent's last reply", async ({
+    shell,
+  }) => {
+    const bin = reporter(shell.home, [
+      { agent: "claude", sessionId: "s", seq: 1, source: "startup" },
+      { agent: "claude", sessionId: "s", seq: 2, source: "", event: "UserPromptSubmit" },
+      {
+        agent: "claude",
+        sessionId: "s",
+        seq: 3,
+        source: "",
+        event: "Stop",
+        fields: { last_assistant_message: "## Done\n\nAll **green**:\u001b[31m 42 specs" },
+      },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await expect
+      .poll(() => manager.list(terminal.sessionId)[0]?.activity, { timeout: 10_000 })
+      .toMatchObject({
+        state: "idle",
+        lastTurn: { outcome: "completed", reply: "Done All green: 42 specs" },
+      })
+  })
+
+  it("reads an Antigravity agent's last reply from its transcript, as its Stop names none", async ({
+    shell,
+  }) => {
+    const transcript = join(shell.home, "transcript.jsonl")
+    writeFileSync(
+      transcript,
+      `${[
+        { source: "USER_EXPLICIT", type: "USER_INPUT", step_index: 0, content: "Make it" },
+        { source: "MODEL", type: "PLANNER_RESPONSE", step_index: 1, content: "Made it." },
+      ]
+        .map((step) => JSON.stringify(step))
+        .join("\n")}\n`,
+    )
+    const fields = { transcriptPath: transcript }
+    const bin = reporter(shell.home, [
+      { agent: "agy", sessionId: "c", seq: 1, source: "", fields: { ...fields, invocationNum: 0 } },
+      { agent: "agy", sessionId: "c", seq: 2, source: "", event: "Stop", fields },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await expect
+      .poll(() => manager.list(terminal.sessionId)[0]?.activity, { timeout: 10_000 })
+      .toMatchObject({ state: "idle", lastTurn: { outcome: "completed", reply: "Made it." } })
   })
 
   it("ends a Claude Code turn its transcript says its Stop hooks ran, its own report lost", async ({
@@ -953,6 +1010,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         subagents: [],
         planning: false,
         background: null,
+        lastTurn: null,
       })
     expect(manager.reportedSession(terminal.id, "claude")).toBe("s2")
   })

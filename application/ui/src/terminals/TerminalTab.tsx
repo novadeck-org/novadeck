@@ -9,6 +9,7 @@ import { mailBadgeLabel, type MailBadge } from "../model/messages"
 import { isWindow } from "../model/roster"
 import {
   attentionText,
+  doneText,
   endingText,
   terminalEnding,
   terminalPhase,
@@ -34,6 +35,7 @@ export const TerminalTab = ({
   index,
   selected,
   hidden,
+  unread,
   rename,
   mail = null,
   companion,
@@ -54,6 +56,9 @@ export const TerminalTab = ({
   index: number
   selected: boolean
   hidden: boolean
+  // Its agent finished while the person looked elsewhere, on its own or on an error: the
+  // tab says so until they look.
+  unread?: "done" | "failed" | undefined
   rename: TerminalRename | null
   // What waits for its agent, when anything does: the tab says it in words.
   mail?: MailBadge | null
@@ -78,13 +83,14 @@ export const TerminalTab = ({
   // The detail line shows the phase: a glyph (a spinner while a program runs) beside
   // the program, or a note while the shell starts. A tab that has ended is hatched (styles.css); the
   // tooltip and assistive technology say how it ended.
-  const phase = shell ? terminalPhase(shell) : "idle"
+  const phase = shell ? terminalPhase(shell, unread !== undefined) : "idle"
+  const failed = unread === "failed"
   const ending = shell && terminalEnding(shell)
   const ended = ending ? endingText(ending) : undefined
   // What the agent waits on the person for, or that NovaDeck can't hear from it, said like
   // an ending: in the tooltip and to assistive technology.
   const waiting = shell && (attentionText(shell) ?? unheardText(shell))
-  const note = ended ?? waiting
+  const note = ended ?? waiting ?? (phase === "done" ? doneText(failed) : undefined)
   const named = terminal.titleSource ? titleSourceText(terminal.titleSource) : undefined
   const messages = mail ? mailBadgeLabel(mail) : undefined
   const description = [note, messages].filter(Boolean).join(", ")
@@ -125,12 +131,19 @@ export const TerminalTab = ({
             />
             {phase === "starting" ? (
               <span className="terminal-tab-starting truncate italic">starting…</span>
+            ) : phase === "done" ? (
+              // The tab's line is short beside its actions: the words in full are its
+              // description's.
+              <span className="terminal-tab-done truncate">
+                {failed ? "error · unread" : "done · unread"}
+              </span>
             ) : (
               <span className="terminal-tab-process truncate">{process}</span>
             )}
           </>
         }
         selected={selected}
+        emphasized={phase === "done"}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
         tooltip={`${terminal.name}${named ? `\n${named}` : ""}\n${place}${note ? `\n${note}` : ""}${messages ? `\n${messages}` : ""}${planning ? `\n${planning}` : ""}${subagentKinds ? `\n${subagentKinds}` : ""}${usage ? `\n${usage}` : ""}`}
         {...(description ? { description } : {})}
@@ -139,6 +152,7 @@ export const TerminalTab = ({
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
         data-terminal-phase={phase}
+        {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
         {...(phase === "attention" && shell?.state === "running" && shell.agent?.attention
           ? { "data-terminal-attention": shell.agent.attention.kind }
           : {})}

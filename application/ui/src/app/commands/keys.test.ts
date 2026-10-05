@@ -222,7 +222,12 @@ describe("key commands", () => {
   context("when pressing Left and Right", () => {
     it("steps through the enabled views, wrapping and skipping disabled ones", () => {
       const app = openKeys({
-        preferences: { fontSize: 13, enabledViews: ["focus", "canvas"], appearance },
+        preferences: {
+          fontSize: 13,
+          enabledViews: ["focus", "canvas"],
+          appearance,
+          notifyFinished: true,
+        },
         workspace: workspaceFixture({ view: "canvas" }),
         url: "/projects/project/sessions/initial/canvas?terminal=01",
       })
@@ -236,7 +241,12 @@ describe("key commands", () => {
   context("when toggling Focus", () => {
     it("lets the key through when the destination view is disabled", () => {
       const app = openKeys({
-        preferences: { fontSize: 13, enabledViews: ["grid", "canvas"], appearance },
+        preferences: {
+          fontSize: 13,
+          enabledViews: ["grid", "canvas"],
+          appearance,
+          notifyFinished: true,
+        },
       })
       expect(app.keydown({ key: "f" })).toBe("passed")
       expect(app.keydown({ key: "Enter", ctrlKey: true, shiftKey: true })).toBe("passed")

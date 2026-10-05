@@ -9,6 +9,7 @@ import {
   dialog,
   ipcMain,
   nativeTheme,
+  Notification,
   powerMonitor,
   session,
   shell,
@@ -20,10 +21,12 @@ import {
   apiUrlArgumentPrefix,
   debugArgument,
   directoryPickerChannel,
+  noticeClickChannel,
   runnerPortChannel,
 } from "../bridge.js"
 import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
 import { debugEnabled, registerDebugIpc } from "./debug.js"
+import { notificationText, registerNoticeIpc, showNotices } from "./notices.js"
 import { attachPage, guardPage, lockPagesSession, pagesPartition, webAddress } from "./pages.js"
 import { limitPermissions, ownPage } from "./permissions.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
@@ -186,6 +189,23 @@ const launch = async (): Promise<void> => {
       window.setBackgroundColor(next.ground)
       void appearance.save(next)
     },
+  })
+  // The page's notices about its terminals, as the system's notifications; a click brings
+  // the window to the front and tells its page which terminal to show.
+  registerNoticeIpc(ipcMain, {
+    window: appWindow,
+    show: showNotices({
+      supported: Notification.isSupported(),
+      create: (notice) => new Notification(notificationText(notice, process.platform)),
+      clicked: (window: BrowserWindow, id) => {
+        if (window.isDestroyed()) return
+        if (window.isMinimized()) window.restore()
+        window.show()
+        if (process.platform === "darwin") app.focus({ steal: true })
+        window.focus()
+        window.webContents.send(noticeClickChannel, id)
+      },
+    }),
   })
   ipcMain.handle(directoryPickerChannel, async (event) => {
     const window = appWindow(event)

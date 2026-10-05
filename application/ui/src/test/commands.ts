@@ -41,7 +41,12 @@ export type CommandsOptions = {
 export const openCommands = ({
   workspace = workspaceFixture(),
   url = "/projects/project/sessions/initial/grid?terminal=01",
-  preferences = { fontSize: 13, enabledViews: ["focus", "grid", "canvas"], appearance },
+  preferences = {
+    fontSize: 13,
+    enabledViews: ["focus", "grid", "canvas"],
+    appearance,
+    notifyFinished: true,
+  },
   desktop = true,
   canvas,
   pickDirectory,

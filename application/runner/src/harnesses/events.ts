@@ -109,6 +109,11 @@ export type ActivityEvent = {
       readonly recorded?: true
       /** The turn's id, where the records name one. */
       readonly turn?: string
+      /**
+       * The start of the agent's last reply in the turn, as `replyPreview` makes it, where
+       * its hook, its records or its transcript tell it.
+       */
+      readonly reply?: string
     }
   | {
       readonly type: "turn-idle"

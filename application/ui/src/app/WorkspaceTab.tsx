@@ -8,6 +8,7 @@ import { TabKinds } from "../terminals/companion/TabKinds"
 import { terminalProfile, windowProfile } from "../terminals/processes/profiles"
 import { renameView } from "../terminals/rename-state"
 import { TerminalTab } from "../terminals/TerminalTab"
+import { unreadEnd } from "../terminals/unread-state"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useDockTarget } from "./dock-target"
 import { currentContext, currentState, currentTarget, sameTarget, shallowEqual } from "./selectors"
@@ -38,6 +39,7 @@ export const WorkspaceTab = ({
       state.rename?.context === context && state.rename.id === id ? renameView(state.rename) : null,
     shallowEqual,
   )
+  const unread = useUiState((state) => unreadEnd(state.unread, context, id))
   // What a window shows, which its icon says.
   const itemId = isWindow(terminal) ? terminal.itemId : undefined
   const item = useWorkspaceState((workspace) =>
@@ -62,6 +64,7 @@ export const WorkspaceTab = ({
       index={index}
       selected={selected}
       hidden={hidden}
+      unread={unread}
       rename={rename}
       mail={badge}
       companion={<TabKinds slots={slots} mail={badge !== null} />}

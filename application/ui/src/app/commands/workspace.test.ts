@@ -457,6 +457,41 @@ describe("workspace commands", () => {
     })
   })
 
+  context("when the person clicks a notification about a terminal", () => {
+    it("selects it in the session on screen", () => {
+      const app = openCommands({ url: "/projects/project/sessions/initial/grid?terminal=01" })
+      app.commands.reveal("02")
+      expect(app.state().selected).toBe("02")
+      expect(app.ui.getSnapshot().location.route.terminal).toBe("02")
+    })
+
+    it("closes a dialog open over it", () => {
+      const app = openCommands({
+        url: "/projects/project/sessions/initial/grid?terminal=01&dialog=preferences",
+      })
+      app.commands.reveal("02")
+      expect(app.ui.getSnapshot().location.route).toMatchObject({ terminal: "02", dialog: null })
+      expect(app.state().selected).toBe("02")
+    })
+
+    it("brings its session to the front and selects it there", () => {
+      const app = openCommands({ workspace: twoSessions() })
+      app.commands.reveal("09")
+      expect(app.ui.getSnapshot().location.route).toMatchObject({
+        sessionId: "other",
+        terminal: "09",
+      })
+      expect(app.state().selected).toBe("09")
+    })
+
+    it("does nothing for a terminal that is gone", () => {
+      const app = openCommands()
+      const urls = app.urls.length
+      app.commands.reveal("gone")
+      expect(app.urls).toHaveLength(urls)
+    })
+  })
+
   context("when disabling the view on screen", () => {
     it("moves to an enabled view and closes the reveal and drawer", () => {
       const app = openCommands()
@@ -465,6 +500,7 @@ describe("workspace commands", () => {
         fontSize: 13,
         enabledViews: ["focus", "canvas"],
         appearance,
+        notifyFinished: true,
       })
       expect(app.state().view).not.toBe("grid")
       expect(app.shell().revealCanvas).toBe(false)

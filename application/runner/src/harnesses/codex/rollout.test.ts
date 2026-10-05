@@ -81,6 +81,8 @@ describe("Codex's rollout, as captured", () => {
         outcome: "completed",
         recorded: true,
         turn: complete.payload.turn_id,
+        // The start of its last reply, as the rollout records it.
+        reply: "<text>",
       },
     ])
   })

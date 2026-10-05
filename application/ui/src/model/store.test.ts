@@ -217,6 +217,28 @@ describe("terminal status", () => {
     })
   })
 
+  it("keeps the terminal's handle and who named it", () => {
+    const store = createWorkspaceStore(initial())
+    store.dispatch({
+      type: "terminal/update",
+      target,
+      terminalId: "01",
+      handle: "t1",
+      titleSource: { kind: "person" },
+    })
+    store.dispatch({
+      type: "terminal/status",
+      target,
+      terminalId: "01",
+      status: { state: "running", agent: { working: true } },
+    })
+    expect(statusOf(store.getSnapshot())).toMatchObject({
+      handle: "t1",
+      titleSource: { kind: "person" },
+      state: "running",
+    })
+  })
+
   it("ignores a status that is already current or names a missing terminal", () => {
     const store = createWorkspaceStore(initial())
     let notifications = 0

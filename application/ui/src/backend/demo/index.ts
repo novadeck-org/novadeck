@@ -16,6 +16,7 @@ import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
 import { createMockTerminal, demoSeed } from "./samples"
+import { demoTurns } from "./turns"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
 const sampleAgents: readonly AgentConnection[] = [
@@ -183,12 +184,14 @@ export const withMessages = (backend: Backend, now: number): Backend => {
 export const createDemoBackend: CreateBackend = () => {
   const demo = new URLSearchParams(window.location.hash.split("?")[1]).get("demo")
   const agents = demo === "agents"
-  const engine = createDemoEngine()
+  // The agents demo's idle agents take a prompt, work a moment, and finish.
+  const turns = agents ? demoTurns() : undefined
+  const engine = createDemoEngine(turns?.reply)
   const backend = demoBackend(
     engine,
     demo === "welcome" || (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
   )
   if (demo === "messages")
     return withMessages({ ...backend, seed: demoSeed(Date.now(), true) }, Date.now())
-  return agents ? { ...backend, seed: demoSeed(Date.now(), true) } : backend
+  return turns ? { ...backend, seed: demoSeed(Date.now(), true), start: turns.start } : backend
 }

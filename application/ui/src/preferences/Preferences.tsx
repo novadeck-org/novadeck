@@ -90,6 +90,7 @@ export const Preferences = ({
   onTabChange,
   transcripts,
   agents,
+  notices = false,
 }: {
   open: boolean
   tab: "general" | "shortcuts"
@@ -101,6 +102,8 @@ export const Preferences = ({
   // Whether terminals' screens are kept to show again when they restore; absent where
   // the backend keeps none.
   transcripts?: { readonly enabled: boolean; readonly onChange: (enabled: boolean) => void }
+  // Whether the page can show desktop notifications, as the desktop app can.
+  notices?: boolean
   // Agents whose sessions resume once connected; absent where the backend has none.
   agents?: {
     readonly list: readonly AgentSwitch[]
@@ -291,6 +294,25 @@ export const Preferences = ({
                     />
                   </div>
                 )}
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <SettingText
+                    id="notify-finished-label"
+                    label="Notify when an agent finishes"
+                    description={
+                      notices
+                        ? "A desktop notification with the start of its reply, when you're looking elsewhere."
+                        : "Only in the desktop app."
+                    }
+                    descriptionId="notify-finished-description"
+                  />
+                  <Switch
+                    checked={value.notifyFinished}
+                    onChange={(notifyFinished) => onChange({ ...value, notifyFinished })}
+                    labelledBy="notify-finished-label"
+                    describedBy="notify-finished-description"
+                    disabled={!notices}
+                  />
+                </div>
               </div>
             </Section>
             {agents && (

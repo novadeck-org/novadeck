@@ -16,6 +16,7 @@ import { connectBackend } from "./controller/backend-connection"
 import { WorkspaceServicesContext, type WorkspaceServices } from "./controller/context"
 import { domEffects } from "./controller/effects"
 import { dialogDepthOf, useRouteSync } from "./controller/useRouteSync"
+import { watchPageFocus } from "./page-focus"
 import { resolveRoute } from "./routing"
 import {
   createUiStore,
@@ -25,6 +26,7 @@ import {
   watchPresentation,
   watchClosing,
   watchCrashLoop,
+  watchFinishes,
   watchSwitcher,
   type UiLocation,
 } from "./ui-store"
@@ -121,6 +123,12 @@ export const WorkspaceProvider = ({
   useEffect(() => watchSwitcher(services.workspace, services.ui), [services])
   useEffect(() => watchCrashLoop(services.backend.crashLoop?.crashes, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
+  useEffect(() => watchPageFocus(services.ui, window), [services])
+  useEffect(
+    () => watchFinishes(services.workspace, services.ui, services.backend.notices?.show),
+    [services],
+  )
+  useEffect(() => services.backend.notices?.onClick(services.commands.reveal), [services])
   useRouteSync(sync, { location, navigationType, navigate })
   return (
     <WorkspaceServicesContext value={services}>

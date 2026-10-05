@@ -17,6 +17,15 @@ export const saveBeforeQuitChannel = "novadeck:save-before-quit"
  */
 export const appearanceChannel = "novadeck:appearance"
 
+/**
+ * Renderer-to-main request to show a desktop notification about a terminal,
+ * `{ id, title, body }`; see main/notices.ts.
+ */
+export const noticeChannel = "novadeck:notice"
+
+/** Main-to-renderer report of the terminal id of a notification the person clicked. */
+export const noticeClickChannel = "novadeck:notice-click"
+
 /** Renderer-to-main request for a folder picker; answers the chosen path or null. */
 export const directoryPickerChannel = "novadeck:pick-directory"
 

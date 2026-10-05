@@ -60,6 +60,9 @@ const maxText = 256
  * NovaDeck continued the turn at its latest Stop, at `turnAt`, and `skips` counts the
  * records of such Stops yet to come that name no turn: Claude Code records a Stop it
  * continued, once its hook answered, as it does any other, and that record ends nothing.
+ * `lastTurn` says how the latest turn to end ended, the start of the agent's last reply
+ * in it, and when it ended; a turn's start clears it, and a continued Stop keeps it,
+ * should the continuation lapse.
  */
 export type Activity = {
   readonly state: "working" | "idle"
@@ -89,6 +92,19 @@ export type Activity = {
    * end left running since: until then, work its Stop said only exists may be one.
    */
   readonly listed: boolean
+  readonly lastTurn: LastTurn | null
+}
+
+/**
+ * How a turn ended, the start of the agent's last reply in it where told, and `at`, when
+ * that end was reported, which tells it from any other. `recorded` says only the
+ * session's records told it, whose hook may yet come and say more of the same end.
+ */
+export type LastTurn = {
+  readonly outcome: "completed" | "failed" | "interrupted" | "unknown"
+  readonly reply: string | null
+  readonly at: number
+  readonly recorded: boolean
 }
 
 /** A freshly bound agent waits for its first prompt. */
@@ -109,6 +125,7 @@ export const started = (at: number, wakes = true): Activity => ({
   continued: false,
   skips: 0,
   listed: false,
+  lastTurn: null,
 })
 
 /**
@@ -334,6 +351,7 @@ export const apply = (
         turn: event.turn ?? null,
         continued: false,
         skips: 0,
+        lastTurn: null,
       }
     case "turn-continued":
       // Only the Stop that just ended the turn; never one after a later fact. What it said
@@ -373,6 +391,8 @@ export const apply = (
         idled: true,
         background: waiting(activity, activity.subagents, event.background),
         listed: true,
+        // An Escape or a refusal, which only an idle status line tells.
+        lastTurn: { outcome: "unknown", reply: null, at: event.startedAt, recorded: false },
       }
     }
     case "turn-escaped":
@@ -386,6 +406,7 @@ export const apply = (
         turnAt: event.startedAt,
         idled: false,
         background: waiting(activity, activity.subagents),
+        lastTurn: { outcome: "interrupted", reply: null, at: event.startedAt, recorded: false },
       }
     case "turn-working":
       // Working after the idle that ended its turn, and newer than it: that idle was stale,
@@ -411,6 +432,16 @@ export const apply = (
         idled: false,
         continued: false,
         listed: false,
+        lastTurn: {
+          outcome: event.outcome,
+          reply: event.reply ?? null,
+          // The hook's own Stop after its records ended the turn says more of that end.
+          at:
+            activity.state === "idle" && activity.lastTurn?.recorded && !recorded
+              ? activity.lastTurn.at
+              : event.startedAt,
+          recorded: recorded === true,
+        },
       } as const
       if (event.outcome !== "interrupted")
         return {
@@ -490,7 +521,7 @@ const asked = (
  * subagents it left running, which wake it once done, run on: work its Stop says only
  * exists counts as one until a status line has counted them. Other work it left running,
  * as a command, shows in `background`, but never keeps it working: a dev server may run
- * for ever.
+ * for ever. How its latest turn ended shows once none runs, a continued one included.
  */
 export const summary = ({
   state,
@@ -499,6 +530,7 @@ export const summary = ({
   planning,
   background,
   listed,
+  lastTurn,
 }: Activity): AgentActivity => ({
   state:
     state === "working" ||
@@ -512,4 +544,8 @@ export const summary = ({
   planning,
   attention: { pending: pending.length, kind: pending[0]?.kind ?? null },
   subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
+  lastTurn:
+    state === "working" || !lastTurn
+      ? null
+      : { outcome: lastTurn.outcome, reply: lastTurn.reply, at: lastTurn.at },
 })
