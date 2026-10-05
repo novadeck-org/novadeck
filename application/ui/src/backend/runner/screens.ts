@@ -114,17 +114,20 @@ type Entry = {
   timer?: ReturnType<typeof setTimeout> | undefined
 }
 
-// How long a screen nobody shows waits before it checks whether to go: long enough
-// for the next view to take it, or for a view whose code is loading to arrive.
-const releaseDelayMs = 1000
+// How often a screen nobody shows checks whether to go: often enough for the next view
+// to take it, or for a view whose code is loading to arrive, to find it ready.
+const releaseCheckMs = 1000
+// How long a screen stays once its session leaves the screen, so going back to a session or
+// a project within a working break finds its output in place instead of a screen to reopen.
+const retainMs = 30 * 60 * 1000
 
 const id = ({ projectId, workspaceSessionId, terminalId }: TerminalKey): string =>
   `${projectId}\u0000${workspaceSessionId}\u0000${terminalId}`
 
 // The screens of one backend's terminals. A surface acquires its terminal's screen
-// while it shows it and releases it after. A released screen stays while its session is
-// on screen and the terminal exists, so the other views find it ready; otherwise it
-// closes once nobody took it back.
+// while it shows it and releases it after. A released screen stays while its terminal
+// exists, so the other views, and later the other sessions and projects, find it ready; it
+// closes once its terminal does, or its session has stayed off screen for `retainMs`.
 export const createScreens = (runtime: SurfaceRuntime) => {
   const entries = new Map<string, Entry>()
   // Whether Ctrl+V may read the clipboard, the same for every terminal.
@@ -309,15 +312,20 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     entries.delete(id(key))
     entry.dispose?.()
   }
-  // A screen nobody shows goes once its session leaves the screen or the terminal
-  // closes; until then it waits, checking again now and then.
-  const settle = (key: TerminalKey, entry: Entry): void => {
+  // A screen nobody shows goes once its terminal closes, or once its session has been off
+  // screen for `retainMs` of the clock's time, which timers falling behind in a hidden
+  // window or a sleeping machine do not stretch; until then it waits, checking now and then.
+  const settle = (key: TerminalKey, entry: Entry, offSince?: number): void => {
     entry.timer = setTimeout(() => {
       entry.timer = undefined
       if (entry.users > 0) return
-      if (runtime.shown(key)) settle(key, entry)
-      else close(key, entry)
-    }, releaseDelayMs)
+      const terminal = runtime.entry(key)
+      if (!terminal || terminal.closed) return close(key, entry)
+      if (runtime.shown(key)) return settle(key, entry)
+      const since = offSince ?? Date.now()
+      if (Date.now() - since >= retainMs) close(key, entry)
+      else settle(key, entry, since)
+    }, releaseCheckMs)
   }
 
   return {

@@ -62,8 +62,9 @@ that, so a program change swaps the body without restarting the terminal; the ru
 surface moves its one xterm host into the new body, keeping output, selection and focus.
 Switching between Focus, Grid and Canvas mounts a new surface, which takes the same
 xterm and attachment from `backend/runner/screens.ts` instead of opening and attaching
-again. A terminal no view shows keeps them while its session is on screen and lets them
-go a moment after its session leaves the screen or the terminal closes.
+again. A terminal no view shows keeps them while its session is on screen, and for 30
+minutes after its session leaves the screen, so going back to a session or project finds
+its output in place; they go when that time passes or the terminal closes.
 
 The runner owns every terminal: which terminals a session has, their names (the ones
 you give them; else one an agent gave, or your first prompt to its agent, shortened;

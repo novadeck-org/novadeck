@@ -19,6 +19,8 @@ import { createScreens, type RunnerScreen, type ScreenStream } from "./screens"
 // failed paste says why in the same notice.
 const lockNotices = {
   connected: "Starting shell…",
+  // A shell already running, whose screen is on its way.
+  attaching: "Loading output…",
   reconnecting: "Reconnecting…",
   unavailable: "Runner offline",
 } as const
@@ -265,7 +267,11 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
                 <LockNotice
                   notice={
                     lockNotices[
-                      connection === "connected" && resuming ? "reconnecting" : connection
+                      connection === "connected" && resuming
+                        ? "reconnecting"
+                        : connection === "connected" && terminal.state !== "starting"
+                          ? "attaching"
+                          : connection
                     ]
                   }
                 />

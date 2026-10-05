@@ -176,7 +176,7 @@ export type SurfaceRuntime = {
   // The surface's screen for boot progress: mounted, first screen drawn, or gone.
   readonly screen: (key: TerminalKey, state: "mounted" | "shown" | "gone") => void
   // Whether the terminal still exists and its session is the one on screen, so a screen
-  // no view shows right now is worth keeping for the next.
+  // no view shows right now is kept for the next; one off screen is kept for a while.
   readonly shown: (key: TerminalKey) => boolean
 }
 
