@@ -3,25 +3,26 @@ import { dirname, join } from "node:path"
 import { createRunner, servePort } from "@novadeck/runner"
 import type { MessagePortMain } from "electron"
 
-import { databaseArgumentPrefix, type RunnerCommand } from "../bridge.js"
+import { databaseArgumentPrefix, relayArgumentPrefix, type RunnerCommand } from "../bridge.js"
+
+const argument = (prefix: string): string | undefined =>
+  process.argv.find((value) => value.startsWith(prefix))?.slice(prefix.length)
 
 // Runs in an Electron utility process, so PTYs live outside the main process.
-const database = process.argv
-  .find((value) => value.startsWith(databaseArgumentPrefix))
-  ?.slice(databaseArgumentPrefix.length)
+const database = argument(databaseArgumentPrefix)
+const relay = argument(relayArgumentPrefix)
 
 // Without `maxTerminals`, the desktop runner starts as many terminals as the user opens.
 // Its shell integration and pasted files live beside the database, in the app's own data
 // directory.
-const runner = createRunner(
-  database === undefined
-    ? {}
-    : {
-        database,
-        shell: join(dirname(database), "shell"),
-        uploads: join(dirname(database), "uploads"),
-      },
-)
+const runner = createRunner({
+  ...(database !== undefined && {
+    database,
+    shell: join(dirname(database), "shell"),
+    uploads: join(dirname(database), "uploads"),
+  }),
+  ...(relay !== undefined && { relay }),
+})
 
 process.parentPort.on(
   "message",

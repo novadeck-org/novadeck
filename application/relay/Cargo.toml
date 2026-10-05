@@ -1,0 +1,29 @@
+[package]
+name = "novadeck-relay"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Carries an agent's MCP messages and hooks between it and its NovaDeck terminal's runner."
+publish = false
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", default-features = false, features = [
+  "rt",
+  "io-util",
+  "io-std",
+  "net",
+  "time",
+  "macros",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Small and quick to start: the relay runs once per agent, for its whole session.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

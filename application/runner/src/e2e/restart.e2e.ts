@@ -115,9 +115,11 @@ for (const setup of setups) {
       await through(resumed, ["ready", "ringing", "working", holds("t1", "t2", "delivered")], {
         timeoutMs: 60_000,
       })
-      // At least once: the ring's hook may have printed it before the runner stopped.
+      // At least once: the ring's hook may have printed it before the runner stopped, its
+      // acknowledgement lost, and the agent then holds it twice, as the same message.
       const rung = await run.model.waitFor((call) => delivered(call, "t1"), { after: calls })
-      expect(deliveries(rung)).toEqual([{ from: "t1", text: "What is your colour?" }])
+      const once = { from: "t1", text: "What is your colour?" }
+      expect([[once], [once, once]]).toContainEqual(deliveries(rung))
       await resumed.until("Mine is teal.")
       expect((await resumed.detail()).sessionId).toBe(sessionId)
     })

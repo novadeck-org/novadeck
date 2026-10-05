@@ -975,18 +975,26 @@ outstanding operations before their late results can change state.
 
 ## Hook distribution
 
-The hook runs in a short-lived process on NovaDeck's own runtime, through a
-launcher in NovaDeck's integration directory, so it needs no install inside the
-person's project. It is one script for every harness, written on each start.
+The hook runs in a short-lived process, NovaDeck's relay (`application/relay`), through
+a launcher in NovaDeck's integration directory, so it needs no install inside the
+person's project. It is one program for every harness, copied in on each start.
 Each plugin's hook command passes the harness and the event.
 
-The shared hook does the following:
+The relay does the following:
 
 - bounds stdin,
-- keeps a two-second deadline,
+- keeps each hook's deadline: two seconds to report, which the runner answers at once,
+  four to ask, as the launcher names the asking events, and five for Claude Code's
+  status line,
 - checks it runs in a NovaDeck terminal,
-- frames and sends the report,
-- answers the harness.
+- sends the payload unread, with its start time and the processes it runs under,
+- for Claude Code's status line, runs the person's own, as their settings name it,
+  beside the report, so it shows even when the runner can't be reached,
+- prints the runner's answer, or what the harness needs without NovaDeck.
+
+The runner prunes the payload, finds the agent process and decides whether the hook asks
+(`shell/hook.ts`). Without the relay, as when NovaDeck couldn't put it in place, the
+launcher still prints what Antigravity needs.
 
 Everything harness-specific happens in the runner (see
 [Hook decoders](#hook-decoders)).

@@ -43,7 +43,7 @@ import type {
   PromptShown,
   SessionObserved,
 } from "../harnesses/events.js"
-import { doorbellLine, quotedLine, type Install } from "../harnesses/harness.js"
+import { doorbellLine, quotedLine, silentFor, type Install } from "../harnesses/harness.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { unreplied, withReplies } from "../harnesses/replies.js"
 import { followRoot, rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
@@ -2472,7 +2472,10 @@ export class Terminals {
 
   /** A Stop or prompt-time hook's ask: its report, then what it prints (see `Messaging.ask`). */
   private queueAsk(report: Report, deadline: number): Promise<HookAnswer> {
-    const silent = { leaseId: null, stdout: harnesses[report.agent].messaging.silent(report.event) }
+    const silent = {
+      leaseId: null,
+      stdout: silentFor(harnesses[report.agent].messaging, report.event),
+    }
     return this.queue(report.terminalId, () => this.report(report, deadline), silent)
   }
 
@@ -2483,7 +2486,10 @@ export class Terminals {
    * ask, with its hook's `deadline`, then hears what its hook prints.
    */
   private async report(report: Report, deadline?: number): Promise<HookAnswer> {
-    const silent = { leaseId: null, stdout: harnesses[report.agent].messaging.silent(report.event) }
+    const silent = {
+      leaseId: null,
+      stdout: silentFor(harnesses[report.agent].messaging, report.event),
+    }
     const record = this.records.get(report.terminalId)
     if (!record || record.exitQueued || !sameToken(record.token, report.token)) return silent
     const decoded = harnesses[report.agent].decode(report)
@@ -2691,7 +2697,7 @@ export class Terminals {
         event.type === "turn-started" && event.cause === "prompt" && rootedIn(record.root, event),
     )
     if (!prompt) return answer
-    const silent = answer.leaseId === null && answer.stdout === messaging.silent(report.event)
+    const silent = answer.leaseId === null && answer.stdout === silentFor(messaging, report.event)
     const inTime = (ms: number) => deadline - Date.now() >= ms
     // Read only for an answer that has nothing else to say, so a delivery never waits on
     // it, and only with time to spare.

@@ -388,9 +388,9 @@ the opener's, and `describe` names the caller's own terminal (see
   before that hook started, and the turn's decoder says a prompt started it. Left, Home
   and End there break no submission: the prompt stays theirs, and the box after its
   turn a draft (see below). A hook
-  reports when its process started (Node's `performance.timeOrigin`), before Node
-  booted: on a loaded machine that boot takes seconds, so the window is measured to the
-  hook's start, never to when the runner heard it. Keys the person typed after the hook
+  reports when it started, as the relay's first act: on a loaded machine the runner may
+  hear it much later, so the window is measured to the hook's start, never to when the
+  runner heard it. Keys the person typed after the hook
   started don't undo it: the prompt is theirs, and what they typed is a new draft, so
   the turn's Stop leaves Drafting. NovaDeck never takes a turn the harness started for
   the person's, whatever they typed before: a background task's result in Claude Code,
@@ -602,11 +602,11 @@ the runner, over the same endpoint and token `show` uses, and print what it retu
 
 1. **Ask, then acknowledge.** The hook sends its report as an ask, with its own deadline
    (it may already have spent time finding its process), and the runner answers one
-   line, `{leaseId, stdout}`, and closes, as the endpoint does today. Once it has
-   printed `stdout`, the hook acknowledges on a second short connection: one line with
-   the terminal's token and the lease id. Two connections, because Windows' pipes can't
-   be half-closed. Lease ids are unguessable and tied to their terminal; an ack for an
-   expired or reissued lease is ignored.
+   line, `{leaseId, stdout}`. Once it has printed `stdout`, the hook acknowledges on the
+   same connection, which it kept open: one more line, `{ack}`, naming the lease the
+   answer gave. The relay never half-closes, as Windows' pipes can't be. Lease ids are
+   unguessable and tied to their terminal; an ack for an expired or reissued lease, or
+   another than the answer gave, is ignored.
 2. **Ordering.** Reports and asks are processed in order per terminal, replacing
    today's single queue for all terminals: an ask waits only for its own terminal's
    earlier reports (the `SessionStart` that binds the session just before it, or for

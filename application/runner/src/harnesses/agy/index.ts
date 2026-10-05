@@ -31,7 +31,7 @@ const hook = (platform: NodeJS.Platform, event: string): string =>
 // of its later calls. Every other answer is an empty object.
 const messaging: MessagingProfile = {
   asks: { Stop: "stop", PreInvocation: "prompt" },
-  silent: (event) => (event === "PreToolUse" ? '{"decision":"ask"}\n' : "{}\n"),
+  silent: { PreToolUse: '{"decision":"ask"}\n', "*": "{}\n" },
   stop: (delivery) => `${JSON.stringify({ decision: "continue", reason: delivery })}\n`,
   prompt: (delivery) => `${JSON.stringify({ injectSteps: [{ ephemeralMessage: delivery }] })}\n`,
   reinjectPerCall: true,
@@ -80,7 +80,7 @@ export const agy = {
     // terminal's environment.
     {
       path: "mcp_config.json",
-      content: json({ mcpServers: { novadeck: mcpServer(platform, launchers) } }),
+      content: json({ mcpServers: { novadeck: mcpServer(launchers) } }),
     },
     {
       path: "hooks.json",

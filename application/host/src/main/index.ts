@@ -67,6 +67,14 @@ const waitFor = async (origin: string, attempts = 100): Promise<void> => {
   return waitFor(origin, attempts - 1)
 }
 
+/** The relay agents start for NovaDeck's MCP server and hooks: shipped beside the UI, or built. */
+const relayPath = (): string => {
+  const name = process.platform === "win32" ? "novadeck-relay.exe" : "novadeck-relay"
+  return app.isPackaged
+    ? join(process.resourcesPath, "relay", name)
+    : join(app.getAppPath(), "..", "relay", "dist", name)
+}
+
 /** Whether a frame shows this app's own UI: the packaged page or the dev server. */
 const isAppPage = (url: string): boolean =>
   ownPage(
@@ -168,6 +176,7 @@ const launch = async (): Promise<void> => {
   runner = startRunner({
     entry: join(currentDirectory, "runner.js"),
     database: join(app.getPath("userData"), "workspace.sqlite"),
+    relay: relayPath(),
   })
   // A port is shell access: only the main frame of this app's own window showing its
   // own UI may ask for one.

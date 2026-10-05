@@ -15,14 +15,15 @@ On anything else the fixture fails each test, saying so; a scenario file can ski
 instead with `describe.skipIf(!supported)`, `supported` coming from `fixture.ts`.
 
 ```sh
-npm run test:e2e                  # from the repository root; builds the protocol first
-pnpm --filter @novadeck/protocol build
+npm run test:e2e                  # from the repository root; builds the protocol and relay first
+pnpm --filter @novadeck/protocol --filter @novadeck/relay build
 pnpm --filter @novadeck/runner test:e2e
 NOVADECK_E2E_AGENTS=claude pnpm --filter @novadeck/runner test:e2e   # one harness
 ```
 
-The runner's own script doesn't build `@novadeck/protocol`, so build it first when
-running the suite from `application/runner`, as the root script does.
+The runner's own script doesn't build `@novadeck/protocol` or `@novadeck/relay`, which
+agents start for NovaDeck's MCP server and hooks, so build them first when running the suite
+from `application/runner`, as the root script does.
 
 The first run installs the pinned harnesses (a few hundred MB). Later runs reuse them.
 Each `e2e(...)` installs its harnesses once, before its tests, so a download counts

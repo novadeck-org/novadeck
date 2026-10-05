@@ -324,10 +324,14 @@ with every safety check again at that time:
   from `NOVADECK_TERMINAL_ID`, `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`. Like
   the hooks, it is installed for every session, but outside NovaDeck's terminals it
   lists no tools, so the agent never sees `show`, and a call anyway does nothing.
-  There its launcher answers itself (sh, or Windows Script Host's JScript on Windows,
-  which agents reach through `cmd.exe`) without starting NovaDeck's runtime, which a packaged NovaDeck
-  can unpack into a folder that goes when it quits. In a terminal it forwards the call
-  over the terminal's report endpoint, where the runner checks the token and puts the
+  The plugin starts NovaDeck's relay (`application/relay`), a small native program
+  NovaDeck copies into its own data folder, so it stays when a packaged NovaDeck's
+  runtime folder goes as it quits. On Linux and macOS a launcher starts it; on Windows agents
+  start it directly, as a launcher there would keep `cmd.exe` running beside it.
+  Outside NovaDeck's terminals, or when the runner can't be reached, the relay answers
+  the handshake itself, with no tools. In a terminal it carries the agent's messages
+  over the terminal's report endpoint to the runner, which serves the MCP session
+  itself (`runner/src/shell/mcp.ts`): it checks the token on each call and puts the
   item on the agent's own bar: any file the person can read, as a viewer would, or an
   http(s) page. Showing a file puts it on their screen and sends it nowhere, and the
   agent could read it anyway. `show` refuses only what can't be an item: a missing

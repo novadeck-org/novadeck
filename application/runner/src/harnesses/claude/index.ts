@@ -45,7 +45,7 @@ const hook = (platform: NodeJS.Platform, event: string): string =>
 // a prompt's context is an attachment beside the prompt, never the prompt itself.
 const messaging: MessagingProfile = {
   asks: { Stop: "stop", UserPromptSubmit: "prompt" },
-  silent: () => "",
+  silent: { "*": "" },
   stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
   prompt: (delivery) =>
     `${JSON.stringify({
@@ -95,7 +95,7 @@ export const claude = {
     // terminal's environment.
     {
       path: join("novadeck", ".mcp.json"),
-      content: json({ mcpServers: { novadeck: mcpServer(platform, launchers) } }),
+      content: json({ mcpServers: { novadeck: mcpServer(launchers) } }),
     },
     {
       path: join("novadeck", "hooks", "hooks.json"),

@@ -9,6 +9,8 @@ dist/
 build/
 out/
 release/
+# Rust
+target/
 storybook-static/
 *.tsbuildinfo
 

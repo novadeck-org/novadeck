@@ -22,6 +22,14 @@ describe("server configuration", () => {
     expect(config.uploads).toBe(join(resolve("data"), "uploads"))
   })
 
+  it("takes another build of the relay, as an absolute path, or leaves it to the package", () => {
+    expect(readConfig({ NOVADECK_RELAY: "bin/novadeck-relay" }).relay).toBe(
+      resolve("bin/novadeck-relay"),
+    )
+    expect(readConfig({ NOVADECK_RELAY: " " })).not.toHaveProperty("relay")
+    expect(readConfig({})).not.toHaveProperty("relay")
+  })
+
   it("rejects empty, short, and oversized credentials", () => {
     for (const token of ["", " ", "short", "x".repeat(513)]) {
       expect(() => readConfig({ NOVADECK_TOKEN: token })).toThrow("NOVADECK_TOKEN")

@@ -1,0 +1,26 @@
+{
+  "name": "@novadeck/relay",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The small native relay agents start for NovaDeck's MCP server and hooks.",
+  "author": "mzpkdev",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "test": "node scripts/build.ts --test",
+    "lint": "node scripts/build.ts --lint",
+    "format": "node scripts/build.ts --format",
+    "format:check": "node scripts/build.ts --format-check",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2"
+  }
+}

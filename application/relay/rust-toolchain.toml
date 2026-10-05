@@ -1,0 +1,6 @@
+# The Rust every build of the relay uses, so the same source gives the same binary and
+# the same lints, with the tools Quality checks it with.
+[toolchain]
+channel = "1.99.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]

@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@novadeck/protocol": "workspace:*",
+    "@novadeck/relay": "workspace:*",
     "@novadeck/runner": "workspace:*",
     "@novadeck/ui": "workspace:*",
     "@types/node": "^26.6.2",

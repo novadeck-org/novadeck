@@ -104,8 +104,9 @@ jobs:
             !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
           key: e2e-harnesses-${{ runner.os }}-agy-${{ steps.pins.outputs.agy }}-${{ hashFiles('application/runner/src/e2e/install.ts') }}
 
-      - name: Build Protocol
-        run: pnpm --filter @novadeck/protocol build
+      # With the network, as the relay's build may install the Rust it names.
+      - name: Build Protocol and Relay
+        run: pnpm --filter @novadeck/protocol --filter @novadeck/relay build
 
       # Installed here, with the network; the tests then run without any.
       - name: Install Harnesses

@@ -5,9 +5,11 @@ import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
 
+import { plugin } from "../harnesses/harness.js"
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
+import { mcpVersions } from "./mcp.js"
 import type { ShellPaths } from "./scripts.js"
 
 const windows = process.platform === "win32"
@@ -202,14 +204,16 @@ describe("NovaDeck's MCP server in each agent's plugin", () => {
     const claude = server(paths.plugins.claude, join("novadeck", ".mcp.json"))
     const codex = server(paths.plugins.codex, join("novadeck", ".mcp.json"))
     const agy = server(paths.plugins.agy, "mcp_config.json")
-    // Agents start it without a shell; a .cmd file needs cmd, and is named by its short
-    // name there.
+    // Agents start it without a shell: on Windows the relay itself, as a launcher there
+    // would keep cmd running beside it.
     for (const each of [claude, codex, agy])
       if (process.platform === "win32") {
-        expect(each.command).toBe("cmd.exe")
-        expect(each.args?.slice(0, 2)).toEqual(["/d", "/c"])
-        expect(each.args?.[2]).toMatch(/^[\w.:\\~-]+\\mcp\.cmd$/i)
-      } else expect(each).toMatchObject({ command: paths.mcp })
+        expect(each.command).toBe(paths.relay)
+        expect(each.args).toEqual(["mcp", plugin.version, ...mcpVersions])
+      } else {
+        expect(each.command).toBe(paths.mcp)
+        expect(each.args).toBeUndefined()
+      }
     expect(codex.env_vars).toEqual([
       "NOVADECK_TERMINAL_ID",
       "NOVADECK_REPORT",

@@ -1,5 +1,5 @@
 import { once } from "node:events"
-import { mkdtemp, readdir, rm, stat } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -7,8 +7,9 @@ import { pathToFileURL } from "node:url"
 import { MessageChannel, Worker } from "node:worker_threads"
 
 import { connectRunner, messagePort } from "@novadeck/protocol/client"
+import { relayName, relayPath } from "@novadeck/relay"
 
-import { databaseArgumentPrefix } from "../bridge"
+import { databaseArgumentPrefix, relayArgumentPrefix } from "../bridge"
 import { context, describe, expect, it } from "../test"
 
 const entry = pathToFileURL(join(process.cwd(), "out", "main", "runner.js")).href
@@ -30,7 +31,7 @@ const title = /\u001b\][012];[^\u0007\u001b]*(?:\u0007|\u001b\\|\u001b?$)/g
 const start = (database: string) => {
   const worker = new Worker(utility, {
     eval: true,
-    argv: [`${databaseArgumentPrefix}${database}`],
+    argv: [`${databaseArgumentPrefix}${database}`, `${relayArgumentPrefix}${relayPath}`],
     workerData: { entry },
   })
   const connect = async () => {
@@ -122,6 +123,10 @@ describe("compiled desktop runner", () => {
           "claude",
           "codex",
         ])
+        // With its own copy of the relay the host gave it, which agents start.
+        expect(await readFile(join(directory, "shell", relayName))).toEqual(
+          await readFile(relayPath),
+        )
       } finally {
         await runner.close()
         await rm(directory, { recursive: true, force: true })

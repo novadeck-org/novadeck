@@ -1,46 +1,89 @@
 /**
- * NovaDeck's MCP server, run by a connected agent's plugin through the launcher on
- * NovaDeck's own runtime, so it needs no dependencies. It speaks MCP over stdio, one
- * JSON message per line, just enough for its tools: `show`, which puts an image, a text
- * file or a web page in front of the user, beside the terminal the agent runs in, and
- * `showing`, which lists what is there now; `open_terminal`, which opens a new terminal
- * beside it, optionally starting a command there; `close_terminal`, which closes another
- * of the project's terminals by its handle; `send` and `agents`, which message the agents
- * in the project's other terminals and list them; and `describe`, which names the agent's
- * own terminal and says what it works on (see docs/agent-messaging.md). It forwards each call to that
- * terminal's runner over the endpoint the agent's hooks report to, with the terminal's
- * own token, and returns the runner's answer. Only Claude Code reads a server's own
- * instructions, so each tool's description carries its rules. Outside NovaDeck's
- * terminals it offers no tools, so agents there aren't pointed at it.
+ * NovaDeck's MCP server, as the runner serves it to a connected agent's plugin. The
+ * agent starts NovaDeck's relay (see application/relay), which carries its messages, one
+ * JSON-RPC message per line, to the runner of the terminal it runs in, over the endpoint
+ * the agent's hooks report to, and the answers back; outside NovaDeck's terminals the
+ * relay answers the handshake itself, with no tools. Its tools: `show`, which puts an
+ * image, a text file or a web page in front of the user, beside the terminal the agent
+ * runs in, and `showing`, which lists what is there now; `open_terminal`, which opens a
+ * new terminal beside it, optionally starting a command there; `close_terminal`, which
+ * closes another of the project's terminals by its handle; `send` and `agents`, which
+ * message the agents in the project's other terminals and list them; and `describe`,
+ * which names the agent's own terminal and says what it works on (see
+ * docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
+ * own token, as the relay named them, and the runner's answer is told back as text.
+ * Only Claude Code reads a server's own instructions, so each tool's description carries
+ * its rules.
  */
 import { plugin } from "../harnesses/harness.js"
 import { maxMessageBytes } from "../messaging/mailbox.js"
 import { unboundNote } from "../messaging/peers.js"
+import type { CallType } from "./reports.js"
 
 /** The MCP versions NovaDeck's server speaks, newest first; it answers others with the newest. */
 export const mcpVersions = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]
 
-export const mcpScript = `// NovaDeck MCP server. Written by NovaDeck into its own data directory, and
-// overwritten on each start. Only agents started from NovaDeck's terminals get its tools.
-import { connect } from "node:net"
+type Arguments = { readonly [key: string]: unknown }
 
-const env = process.env
-const terminalId = env.NOVADECK_TERMINAL_ID
-const endpoint = env.NOVADECK_REPORT
-const token = env.NOVADECK_REPORT_TOKEN
-const inTerminal = Boolean(terminalId && endpoint && token)
-
-// Only what a tool takes goes on; the runner checks it all again.
-const picked = (args, names) => {
-  const input = typeof args === "object" && args !== null ? args : {}
-  return Object.fromEntries(
-    names.filter((name) => input[name] !== undefined).map((name) => [name, input[name]]),
-  )
+/**
+ * A tool, with the type of call it makes to the runner, what of its arguments it sends,
+ * and how it tells the agent what happened from the runner's answer, `A`.
+ */
+type Tool<A> = {
+  readonly name: string
+  readonly description: string
+  readonly inputSchema: object
+  readonly call: CallType
+  request(args: Arguments): Arguments
+  /** Why the call can't go at all, said before anything goes to the runner. */
+  refuse?(args: Arguments): string | undefined
+  said(answer: A): string
+  readonly failed: string
 }
 
-// Each tool, with the type of call it makes to the runner, what of its arguments it
-// sends, and how it tells the agent what happened.
-const show = {
+// What the runner answers each call with, as far as the tools read it.
+type Shown = {
+  readonly name: string
+  readonly opened?: boolean
+  readonly again?: boolean
+  readonly held?: boolean
+  readonly tooLarge?: boolean
+}
+type Listing = { readonly text: string }
+type Opened = {
+  readonly handle?: string
+  readonly command?: string
+  readonly cwd: string
+  readonly task?:
+    | { readonly ok: true; readonly id: string }
+    | { readonly ok: false; readonly reason: string }
+  readonly taskWaits?: boolean
+}
+type Gone = { readonly id: string; readonly to: string }
+type Closed = {
+  readonly handle: string
+  readonly ran?: string
+  readonly gone?: readonly Gone[]
+  readonly others?: number
+}
+type Sent = {
+  readonly id: string
+  readonly to: string
+  readonly state: string
+  readonly route?: string
+  readonly held?: string
+  readonly gone?: readonly Gone[]
+  readonly unbound?: boolean
+}
+type Described = { readonly kept?: "person" | "unasked"; readonly title: string }
+
+// Only what a tool takes goes on; the runner checks it all again.
+const picked = (args: Arguments, names: readonly string[]): Arguments =>
+  Object.fromEntries(
+    names.filter((name) => args[name] !== undefined).map((name) => [name, args[name]]),
+  )
+
+const show: Tool<Shown> = {
   name: "show",
   description:
     "Show the user an image or a text file, or a web page, in NovaDeck, " +
@@ -86,21 +129,22 @@ const show = {
   request: (args) => picked(args, ["path", "url", "lines", "title", "open"]),
   said: (answer) =>
     (answer.opened
-      ? "Showing " + answer.name + (answer.again ? " again, updated," : "") +
+      ? "Showing " +
+        answer.name +
+        (answer.again ? " again, updated," : "") +
         " to the user in NovaDeck."
       : answer.held
         ? answer.name +
           " may hold secrets, so it doesn't open by itself: it's waiting for the user in " +
           "NovaDeck, marked new, to open if they choose."
-        : answer.name + (answer.again ? " is updated and" : " is") +
+        : answer.name +
+          (answer.again ? " is updated and" : " is") +
           " waiting for the user in NovaDeck, marked new.") +
-    (answer.tooLarge
-      ? " It's too large to preview, so NovaDeck lists it by its name only."
-      : ""),
+    (answer.tooLarge ? " It's too large to preview, so NovaDeck lists it by its name only." : ""),
   failed: "NovaDeck couldn't show it.",
 }
 
-const showing = {
+const showing: Tool<Listing> = {
   name: "showing",
   description:
     "List what is showing beside your terminal in NovaDeck now: each image, file, page " +
@@ -114,7 +158,7 @@ const showing = {
   failed: "NovaDeck couldn't list what is showing beside you.",
 }
 
-const openTerminal = {
+const openTerminal: Tool<Opened> = {
   name: "open_terminal",
   description:
     "Open a new terminal in NovaDeck beside this one, optionally starting a command or a " +
@@ -180,15 +224,18 @@ const openTerminal = {
         ? " Its task wasn't sent: " + answer.task.reason
         : (answer.taskWaits
             ? " The agent there doesn't trust this folder yet, so it started without its " +
-              "task: message " + answer.task.id + " reaches it once the user trusts the folder " +
+              "task: message " +
+              answer.task.id +
+              " reaches it once the user trusts the folder " +
               "and its prompt shows."
-            : " Its task, message " + answer.task.id + ", waits for the agent's first session " +
-              "there.") +
-          " End your turn rather than wait, as its replies arrive by themselves."),
+            : " Its task, message " +
+              answer.task.id +
+              ", waits for the agent's first session " +
+              "there.") + " End your turn rather than wait, as its replies arrive by themselves."),
   failed: "NovaDeck couldn't open the terminal.",
 }
 
-const closeTerminal = {
+const closeTerminal: Tool<Closed> = {
   name: "close_terminal",
   description:
     "Close another NovaDeck terminal of this project and session, by the terminal's exact " +
@@ -220,9 +267,17 @@ const closeTerminal = {
     for (const gone of answer.gone ?? [])
       lines.push(
         gone.to === answer.handle
-          ? "Your message " + gone.id + " to " + gone.to + " won't arrive, as that terminal " +
+          ? "Your message " +
+              gone.id +
+              " to " +
+              gone.to +
+              " won't arrive, as that terminal " +
               "is closed."
-          : "Your earlier message " + gone.id + " to " + gone.to + " won't arrive: the agent " +
+          : "Your earlier message " +
+              gone.id +
+              " to " +
+              gone.to +
+              " won't arrive: the agent " +
               "session it was for ended there.",
       )
     if (answer.others)
@@ -232,7 +287,7 @@ const closeTerminal = {
           : answer.others + " messages other agents sent it") +
           " won't arrive; NovaDeck tells their senders.",
       )
-    return lines.join("\\n")
+    return lines.join("\n")
   },
   failed: "NovaDeck couldn't close the terminal.",
 }
@@ -248,10 +303,7 @@ const rules =
   "work and files; if more than one could match, ask the user rather than guess. After " +
   "sending, end your turn rather than wait or poll: replies arrive by themselves."
 
-// The most a message's text may hold, in UTF-8 bytes, as the runner takes it.
-const maxMessageBytes = ${maxMessageBytes}
-
-const send = {
+const send: Tool<Sent> = {
   name: "send",
   description:
     "Send a message to the agent in another NovaDeck terminal of this project and session, by the " +
@@ -275,10 +327,14 @@ const send = {
   request: (args) => picked(args, ["to", "text"]),
   // Too long to send at all: said before anything goes to the runner.
   refuse: (args) => {
-    const text = typeof args?.text === "string" ? args.text : ""
+    const text = typeof args.text === "string" ? args.text : ""
     const bytes = Buffer.byteLength(text, "utf8")
     return bytes > maxMessageBytes
-      ? "The message is " + bytes + " bytes, over the " + maxMessageBytes + " a message may " +
+      ? "The message is " +
+          bytes +
+          " bytes, over the " +
+          maxMessageBytes +
+          " a message may " +
           "hold; put longer content in a file the recipient can open, and send its path."
       : undefined
   },
@@ -297,17 +353,21 @@ const send = {
     ]
     for (const gone of answer.gone ?? [])
       lines.push(
-        "Your earlier message " + gone.id + " to " + gone.to + " won't arrive: the agent " +
+        "Your earlier message " +
+          gone.id +
+          " to " +
+          gone.to +
+          " won't arrive: the agent " +
           "session it was for ended there.",
       )
-    if (answer.unbound) lines.push(${JSON.stringify(unboundNote)})
+    if (answer.unbound) lines.push(unboundNote)
     lines.push("End your turn rather than wait for a reply; replies arrive by themselves.")
-    return lines.join("\\n")
+    return lines.join("\n")
   },
   failed: "NovaDeck couldn't send the message.",
 }
 
-const agents = {
+const agents: Tool<Listing> = {
   name: "agents",
   description:
     "List the other terminals in this NovaDeck project and session, each with what NovaDeck " +
@@ -325,7 +385,7 @@ const agents = {
   failed: "NovaDeck couldn't list the terminals.",
 }
 
-const describe = {
+const describe: Tool<Described> = {
   name: "describe",
   description:
     "Describe this NovaDeck terminal: a short title, and a summary of a line or two (up " +
@@ -359,7 +419,9 @@ const describe = {
   request: (args) => picked(args, ["title", "summary", "asked"]),
   said: (answer) =>
     answer.kept === "person"
-      ? "The user named this terminal " + JSON.stringify(answer.title) + ", so that title " +
+      ? "The user named this terminal " +
+        JSON.stringify(answer.title) +
+        ", so that title " +
         "stays; your summary is saved."
       : answer.kept === "unasked"
         ? "Not renamed: the user named this terminal. Suggest the title to them. Your " +
@@ -368,116 +430,112 @@ const describe = {
   failed: "NovaDeck couldn't describe the terminal.",
 }
 
-const tools = [show, showing, openTerminal, closeTerminal, send, agents, describe]
+const tools: readonly Tool<unknown>[] = [
+  show,
+  showing,
+  openTerminal,
+  closeTerminal,
+  send,
+  agents,
+  describe,
+]
 
-// The MCP versions this server speaks, newest first; it answers others with the newest.
-const versions = ${JSON.stringify(mcpVersions)}
+/** A JSON-RPC message the server sends, without its `jsonrpc`. */
+type Reply = { readonly id: unknown } & Outcome
+type Outcome =
+  | { readonly result: unknown }
+  | { readonly error: { readonly code: number; readonly message: string } }
 
-const reply = (message) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\\n")
+const object = (value: unknown): value is Arguments =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
 
-// One call to the terminal's runner, answered with one line; it gives up within 10 s.
-const ask = (type, request) =>
-  new Promise((resolve) => {
-    let text = ""
-    let settled = false
-    const socket = connect(endpoint)
-    const done = (answer) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      socket.destroy()
-      resolve(answer)
-    }
-    const timer = setTimeout(() => done({ ok: false, reason: "NovaDeck didn't answer." }), 10_000)
-    socket.setEncoding("utf8")
-    socket.on("connect", () =>
-      socket.write(JSON.stringify({ type, terminalId, token, request }) + "\\n"),
-    )
-    socket.on("data", (chunk) => {
-      text += chunk
-      const end = text.indexOf("\\n")
-      if (end < 0) return
-      try {
-        done(JSON.parse(text.slice(0, end)))
-      } catch {
-        done({ ok: false, reason: "NovaDeck's answer was unreadable." })
-      }
-    })
-    socket.on("error", () => done({ ok: false, reason: "NovaDeck isn't reachable." }))
-    socket.on("close", () => done({ ok: false, reason: "NovaDeck didn't answer." }))
-  })
+/**
+ * One call to the terminal's runner: the call's type, with the request's arguments; it
+ * resolves the runner's answer, an `{ ok }` object, whatever happens.
+ */
+export type McpCall = (type: CallType, request: Arguments) => Promise<unknown>
 
-const call = async (id, params) => {
-  const tool = inTerminal && tools.find((each) => each.name === params?.name)
-  if (!tool) {
-    reply({ id, error: { code: -32602, message: "Unknown tool: " + params?.name } })
-    return
-  }
-  const refusal = tool.refuse?.(params.arguments)
-  if (refusal) {
-    reply({ id, result: { content: [{ type: "text", text: refusal }], isError: true } })
-    return
-  }
-  const answer = await ask(tool.call, tool.request(params.arguments))
-  // Refused, a terminal whose own session never bound still learns replies can't reach it.
-  const text = answer?.ok
-    ? tool.said(answer)
-    : (answer?.reason || tool.failed) + (answer?.unbound ? "\\n" + ${JSON.stringify(unboundNote)} : "")
-  reply({ id, result: { content: [{ type: "text", text }], isError: !answer?.ok } })
+/**
+ * What the server answers one line from the agent with, as a line, or undefined when it
+ * needs none. `call` reaches the terminal's runner, or is absent outside a terminal,
+ * where the server offers no tools.
+ */
+export const mcpAnswer = async (line: string, call?: McpCall): Promise<string | undefined> => {
+  const reply = await respond(line, call)
+  return reply && JSON.stringify({ jsonrpc: "2.0", ...reply })
 }
 
-const handle = (message) => {
+const respond = async (line: string, call?: McpCall): Promise<Reply | undefined> => {
+  if (line.trim() === "") return undefined
+  let message: unknown
+  try {
+    message = JSON.parse(line)
+  } catch {
+    return { id: null, error: { code: -32700, message: "Parse error" } }
+  }
   // One request per line: a batch, or anything but an object, is refused.
-  if (typeof message !== "object" || message === null || Array.isArray(message))
-    return reply({ id: null, error: { code: -32600, message: "Invalid Request" } })
+  if (!object(message)) return { id: null, error: { code: -32600, message: "Invalid Request" } }
   const { id, method, params } = message
   // Notifications, such as notifications/initialized, need no answer; nor do answers,
   // since this server asks nothing.
-  if (id === undefined || id === null || typeof method !== "string") return
-  if (method === "initialize")
-    return reply({
+  if (id === undefined || id === null || typeof method !== "string") return undefined
+  if (method === "initialize") {
+    const asked = object(params) ? params.protocolVersion : undefined
+    return {
       id,
       result: {
-        protocolVersion: versions.includes(params?.protocolVersion)
-          ? params.protocolVersion
-          : versions[0],
+        protocolVersion: mcpVersions.find((version) => version === asked) ?? mcpVersions[0],
         capabilities: { tools: {} },
-        serverInfo: { name: "novadeck", version: "${plugin.version}" },
+        serverInfo: { name: "novadeck", version: plugin.version },
       },
-    })
-  if (method === "ping") return reply({ id, result: {} })
+    }
+  }
+  if (method === "ping") return { id, result: {} }
   if (method === "tools/list")
-    return reply({
+    return {
       id,
       result: {
-        tools: inTerminal
+        tools: call
           ? tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema }))
           : [],
       },
-    })
-  if (method === "tools/call") return void call(id, params)
-  reply({ id, error: { code: -32601, message: "Method not found: " + method } })
+    }
+  if (method === "tools/call") {
+    const outcome = await toolCall(object(params) ? params : {}, call)
+    return { id, ...outcome }
+  }
+  return { id, error: { code: -32601, message: `Method not found: ${method}` } }
 }
 
-let buffer = ""
-process.stdin.setEncoding("utf8")
-process.stdin.on("data", (chunk) => {
-  buffer += chunk
-  let end
-  while ((end = buffer.indexOf("\\n")) >= 0) {
-    const line = buffer.slice(0, end).trim()
-    buffer = buffer.slice(end + 1)
-    if (!line) continue
-    let message
-    try {
-      message = JSON.parse(line)
-    } catch {
-      reply({ id: null, error: { code: -32700, message: "Parse error" } })
-      continue
-    }
-    handle(message)
+const toolCall = async (params: Arguments, call: McpCall | undefined): Promise<Outcome> => {
+  const tool = call && tools.find((each) => each.name === params.name)
+  if (!tool) {
+    return { error: { code: -32602, message: `Unknown tool: ${String(params.name)}` } }
   }
-})
-// No exit when the agent closes its side: calls under way still answer, then the server
-// ends by itself.
-`
+  const args = object(params.arguments) ? params.arguments : {}
+  const refusal = tool.refuse?.(args)
+  if (refusal) return { result: { content: [{ type: "text", text: refusal }], isError: true } }
+  const answer = await call(tool.call, tool.request(args))
+  const ok = object(answer) && answer.ok === true
+  const text = ok ? said(tool, answer) : failure(tool, answer)
+  return { result: { content: [{ type: "text", text }], isError: !ok } }
+}
+
+// The runner's answer as the tool tells it, or the tool's failure when the answer isn't
+// one it can read.
+const said = (tool: Tool<unknown>, answer: unknown): string => {
+  try {
+    return tool.said(answer)
+  } catch {
+    return tool.failed
+  }
+}
+
+// Refused, a terminal whose own session never bound still learns replies can't reach it.
+const failure = (tool: Tool<unknown>, answer: unknown): string => {
+  const { reason, unbound } = object(answer) ? answer : {}
+  return (
+    (typeof reason === "string" && reason !== "" ? reason : tool.failed) +
+    (unbound === true ? `\n${unboundNote}` : "")
+  )
+}

@@ -4,6 +4,7 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import type { Binding } from "../harnesses/bindings.js"
 import type { ActivityEvent, Background, HarnessEvent } from "../harnesses/events.js"
+import { silentFor } from "../harnesses/harness.js"
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import type { HookAnswer } from "../shell/reports.js"
@@ -443,7 +444,7 @@ export class Messaging {
     },
   ): HookAnswer {
     const profile = harnesses[report.agent].messaging
-    const silent = { leaseId: null, stdout: profile.silent(report.event) }
+    const silent = { leaseId: null, stdout: silentFor(profile, report.event) }
     const kind = profile.asks[report.event]
     const live = this.live.get(terminalId)
     if (!live) return silent

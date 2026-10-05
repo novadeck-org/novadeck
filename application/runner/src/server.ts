@@ -9,6 +9,8 @@ export type ServerOptions = HttpOptions &
     shell?: string
     /** Where pasted files go; see `RunnerOptions.uploads`. */
     uploads?: string
+    /** The relay agents start for NovaDeck's MCP server and hooks; see `RunnerOptions.relay`. */
+    relay?: string
     terminals?: TerminalOptions
     maxConnections?: number
     heartbeatMs?: number
@@ -24,6 +26,7 @@ export const startServer = async (options: ServerOptions = {}): Promise<HttpServ
     ...(options.database !== undefined && { database: options.database }),
     ...(options.shell !== undefined && { shell: options.shell }),
     ...(options.uploads !== undefined && { uploads: options.uploads }),
+    ...(options.relay !== undefined && { relay: options.relay }),
     // A shared, network-reachable runner keeps a cap; the desktop runner has none.
     terminals: { maxTerminals: 32, ...options.terminals },
   })

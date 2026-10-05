@@ -55,6 +55,21 @@ jobs:
           cache: true
           require-lockfile: true
 
+      # The Rust the relay's rust-toolchain.toml names, with rustfmt and clippy.
+      - name: Set Up Rust
+        shell: bash
+        working-directory: application/relay
+        run: rustup toolchain install
+
+      - name: Cache Rust Builds
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            application/relay/target
+          key: relay-${{ runner.os }}-${{ hashFiles('application/relay/Cargo.lock', 'application/relay/rust-toolchain.toml') }}
+
       - name: Locate Test Browser
         if: matrix.browser
         id: playwright

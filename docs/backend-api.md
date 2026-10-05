@@ -7,7 +7,8 @@ in `application/ui/src/backend/runner/`.
 
 ## Run and test
 
-Use the repository's Node.js 26 and pnpm versions. `node-pty` is a native dependency;
+Use the repository's Node.js 26 and pnpm versions, and Rust (rustup), which builds the
+relay. `node-pty` is a native dependency;
 installation can require Python and a C/C++ toolchain for your platform.
 `node-pty` is pinned exactly to `1.2.0-beta.14` for its native cleanup fixes and
 correct macOS spawn-helper permissions. One local patch
@@ -77,13 +78,18 @@ Without a token, the runner exposes only the existing HTTP status behavior.
 With a token, the RPC WebSocket endpoint is `/api/rpc`. The CLI persists metadata
 at `~/.local/share/novadeck/workspace.sqlite` unless `NOVADECK_DATABASE` is set, and
 writes its [shell integration](#shell-integration-and-restoring-terminals) to a `shell`
-folder beside it.
+folder beside it, with its own copy of the relay agents start for NovaDeck's MCP server and hooks.
+The build compiles the relay, on Linux linked statically, so the binary runs on any
+distribution, x64 or ARM64; set `NOVADECK_RELAY` to use another build. Without it, shells and hooks still work, and
+agents there start without NovaDeck's tools.
 Programmatic `startServer` from `@novadeck/runner/server` and `createRunner` use
 an in-memory database when no path is supplied. `@novadeck/runner/http` stays free
 of native terminal code, so the Electron main process can serve the status endpoint
 without it.
 
 For a VPS, terminate TLS at a trusted reverse proxy and forward WebSocket upgrades.
+Agents run beside the runner on the server, and their relays reach it over a private
+local socket, so a UI elsewhere needs nothing more than the WebSocket.
 Set `CORS_ORIGINS` to the exact trusted frontend origins. A static UI can later
 connect directly over WSS; it does not need a terminal backend on Cloudflare.
 Follow the [runner trust boundary](../SECURITY.md#terminal-runner) before exposing
@@ -458,9 +464,11 @@ changed. Only connecting an agent (below) installs anything elsewhere:
   server without the terminal's environment. It leaves `codex agents`, `--remote` and
   runs outside NovaDeck's shells unchanged. The integration puts `NOVADECK_BIN` back in
   front after the user's startup files.
-- `hook` (`hook.cmd`), a launcher that runs `hook.mjs` on the runner's own runtime
-  (Electron with `ELECTRON_RUN_AS_NODE=1`, or Node), so the hook needs no bash or
-  python3. It reads the agent's payload (`session_id`, or Antigravity's
+- `hook` (`hook.cmd`), a launcher that starts NovaDeck's relay (`novadeck-relay`, a
+  small native program copied in beside it; see `application/relay`), so the hook needs
+  no bash, python3 or JavaScript runtime and starts in about a millisecond. The relay
+  sends the agent's payload, unread, with when it started and the processes it runs
+  under, and prints what the runner answers. The runner reads the payload (`session_id`, or Antigravity's
   `conversationId`), drops Claude Code subagents (`agent_id`), Claude Code inside Cursor
   (`cursor_version`, `CURSOR_VERSION`) and a Codex started by another Codex
   (`CODEX_THREAD_ID` other than the session), prints nothing but the `{}` Antigravity
@@ -469,10 +477,10 @@ changed. Only connecting an agent (below) installs anything elsewhere:
 Each shell the runner starts gets `NOVADECK_TERMINAL_ID`, and with the integration
 `NOVADECK_HOOK`, and `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`:
 a Unix socket in a private temporary directory, or a named pipe on Windows, and a random
-token for that shell. The endpoint takes one JSON line,
-`{ terminalId, token, agent, sessionId, source, seq }`, and nothing else: it records the
-agent's session for the terminal whose token matches, keeping the report with the
-largest `seq` (the hook's start time) per agent, so `/clear`, a fork, or another agent
+token for that shell. Agents' hooks and NovaDeck's MCP server reach it through the
+relay, as the [relay protocol](#relay-protocol) below describes. From each hook's report
+the runner records the agent's session for the terminal whose token matches, keeping the
+report with the largest `seq` (the hook's start time) per agent, so `/clear`, a fork, or another agent
 run in between never replaces a later session with an earlier one. Processes that only
 inherited a shell's environment report too, so the runner ignores a report while the
 shell itself holds the foreground (Linux and macOS tell; as from a tmux server or an
@@ -481,6 +489,77 @@ entered since the last prompt, and a new `startup` session while another agent s
 holds the foreground (an agent run by that agent). A session switch such as `/clear`
 reports its own source and is kept, as is a new conversation of the same agent reported
 without a source (Antigravity).
+
+### Relay protocol
+
+The relay (`application/relay`) and the runner's endpoint (`shell/reports.ts`) speak
+JSON, one message per line, over `NOVADECK_REPORT`. The endpoint speaks only this
+protocol. A relay's first line starts `{"relay":<version>,`, currently 2, and names what
+the connection carries; the endpoint ends a connection whose first line is anything else,
+or a version it doesn't speak, without an answer, and logs that once.
+
+**Versions.** An agent's plugin starts the relay of whichever install connected it last,
+as the desktop app and a standalone runner can share a machine, so a runner can meet an
+older or newer relay than its own. When the protocol changes incompatibly, the version
+goes up, and the runner keeps taking the one before for a release (`relayVersions`).
+That holds from version 2, the relay's first: the scripts agents ran before it, on
+NovaDeck's own runtime, aren't served, so an agent connected by an install from before
+the relay gets NovaDeck's tools once it is connected again.
+`novadeck-relay --version` names a copy's crate version and protocol.
+
+**MCP session**, started by the `mcp` launcher (on Windows, by the plugin itself) as
+`novadeck-relay mcp <plugin version> <MCP versions, newest first>`:
+
+1. The relay sends `{"relay":2,"kind":"mcp","terminalId":…,"token":…}`.
+2. The runner takes the session with `{"relay":2,"ok":true}`, in the relay's version.
+   Until then the relay reads nothing of the agent's, so when the runner refuses it, or
+   doesn't take it within 8 s, as a busy runner may not, within the 10 s an agent gives a
+   server to start, or can't be reached, the relay answers the whole session itself, with
+   no tools, and says why on stderr, which agents keep in their logs.
+3. Then it carries the agent's JSON-RPC lines to the runner unchanged, and the runner's
+   answers back, each as soon as it is ready. The runner serves the MCP server itself
+   (`shell/mcp.ts`), and checks the token on every tool call. A token that can't be a
+   runner's gets the handshake with no tools.
+4. When the agent closes its input, the relay sends `{"relay":"eof"}` on a line of its
+   own, rather than half-closing, which Windows' pipes can't. The runner answers what is
+   under way, then closes, and the relay exits.
+
+A line over 1 MiB is answered with error `-32600`, carrying the id that closes the line
+or else the first its start names, and skipped; the session goes on. Outside NovaDeck's
+terminals the relay answers by itself: `initialize`, `ping`, an empty `tools/list`, and
+`-32602` for any tool.
+
+**Hook**, run by the `hook` launcher as `novadeck-relay hook --config <relay.json> <agent>
+[event]`. `relay.json`, which the runner writes beside the relay, holds what the relay
+knows of the agents: the events that ask, by agent; the variables it forwards; and what
+each agent prints without NovaDeck, by event and for any other (`*`), from each harness's
+`messaging.silent`. Options come before the agent, as `--name value`, and every option
+takes a value: a relay passes over the options it doesn't know, so a later launcher's
+work with it, and an option without a value would be read as the agent.
+
+1. The relay reads the agent's payload, up to 1,000,000 bytes, and sends
+   `{"relay":2,"kind":"hook","terminalId","token","agent","event","seq","deadline","ancestors","env","payload"}`.
+   - `seq` is when the hook started, and `deadline` when it gives up, in epoch
+     milliseconds with a fraction.
+   - `ancestors` is up to eight `{ pid, name }`, nearest first. They come from `/proc`
+     on Linux and the kernel on macOS, named by the path each was started by; Windows
+     sends none.
+   - `env` holds the variables `relay.json` names, by name, as the hook found them:
+     `CLAUDE_PID`, `CURSOR_VERSION` and `CODEX_THREAD_ID`.
+   - `payload` is the agent's JSON as text, unread. The runner prunes it.
+2. The runner answers one line, `{"stdout": string | null, "leaseId": string | null}`: a
+   report at once, an ask by the relay's deadline (at most four seconds after `seq`),
+   leaving half a second to print and acknowledge.
+3. The relay prints `stdout`, or else what `relay.json` says the agent needs without
+   NovaDeck (Antigravity's `{"decision":"ask"}` before a tool, `{}` otherwise). When a
+   lease came and printing succeeded, it sends `{"ack":"<leaseId>"}` on the same
+   connection.
+
+A hook gives up two seconds after it starts when it reports, four when it asks, and five
+for Claude Code's status line. For the status line, the relay also runs the person's own
+command, as their Claude Code settings name it, beside the report, and prints it. Without
+the relay, the hook launcher prints what `relay.json` would, as it is written from the
+same tables.
 
 The runner saves, per terminal, in a `terminals` table next to the sessions: its
 session, last directory, latest session per agent, when it last showed a prompt, and

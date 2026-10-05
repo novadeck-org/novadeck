@@ -1,260 +1,143 @@
-import { agents, harnesses } from "../harnesses/registry.js"
+import { agentName } from "@novadeck/protocol"
 
-// The hook events that ask the runner what to print, by agent.
-const asking = Object.fromEntries(
-  agents.map((agent) => [agent, Object.keys(harnesses[agent].messaging.asks)]),
-)
+import { harnesses } from "../harnesses/registry.js"
+import type { Report } from "./reports.js"
 
 /**
- * The agent hook, run by the NovaDeck plugin of a connected agent through the launcher
- * on NovaDeck's own runtime, so it needs no bash or python3. It forwards the event its
- * agent reported, a bounded copy of the agent's payload, and which agent process ran it,
- * to the NovaDeck terminal it was started from; the runner decodes it (see
- * `harnesses/<id>/decode.ts`). A Stop or prompt-time hook asks instead, with its own
- * deadline: the runner answers one line, `{leaseId, stdout}`, the hook prints `stdout`,
- * which may deliver agents' messages, and then acknowledges the lease on a second short
- * connection, since Windows' pipes can't be half-closed (see docs/agent-messaging.md).
- * Otherwise it prints nothing, since Claude Code shows some hooks' output to the model,
- * except the JSON Antigravity expects: a PreToolUse answer must say "ask" there, or
- * Antigravity denies the tool, which it prints on any failure too. It exits at once
- * outside NovaDeck's terminals and gives up within two seconds, or four as it asks.
+ * An agent hook, as the runner takes it from NovaDeck's relay (see application/relay).
+ * A connected agent's NovaDeck plugin runs the hook launcher, which starts the relay; the
+ * relay sends what the hook knows, unread: the event its agent reported, the agent's
+ * payload as it came, when the hook started, the processes it runs under, and what of
+ * its environment tells agents apart. The runner reads it here into a report, which the
+ * agent's harness decodes (see `harnesses/<id>/decode.ts`). A Stop or prompt-time hook
+ * asks instead, with a deadline: the runner answers what to print, which may deliver
+ * agents' messages (see docs/agent-messaging.md). Claude Code's status line runs through
+ * the hook in NovaDeck's shells, which then shows the person's own, as the relay finds
+ * and runs it beside the report.
  */
-export const hookScript = `// NovaDeck agent hook. Written by NovaDeck into its own data directory, and
-// overwritten on each start. Only agents started from NovaDeck's terminals run it.
-import { spawn, spawnSync } from "node:child_process"
-import { readFileSync } from "node:fs"
-import { connect } from "node:net"
-import { homedir } from "node:os"
-import { basename, join } from "node:path"
-
-const [agent, event = ""] = process.argv.slice(2)
-const env = process.env
-const terminalId = env.NOVADECK_TERMINAL_ID
-const endpoint = env.NOVADECK_REPORT
-const token = env.NOVADECK_REPORT_TOKEN
-// Claude Code's status line runs through this hook in NovaDeck's shells, which then shows
-// the person's own status line: its output is what this hook prints.
-const statusLine = agent === "claude" && event === "StatusLine"
-// Whether this hook asks the runner what to print, as it may deliver agents' messages.
-const asks = (${JSON.stringify(asking)}[agent] ?? []).includes(event)
-// How long it has before it gives up, in milliseconds.
-const limit = statusLine ? 5000 : asks ? 4000 : 2000
-let output = ""
-// Whether the runner answered the ask, and the lease its answer delivers.
-let answered = false
-let lease
-// The person's own status line, what it has printed so far, and whether its output ended.
-let own
-let printed = ""
-let ownEnded = false
-let finished = false
-const exit = () => process.exit(0)
-// Tells the runner the lease it answered with was printed, on a connection of its own.
-const acknowledge = () => {
-  const socket = connect(endpoint)
-  socket.setTimeout(500, () => socket.destroy())
-  socket.on("error", exit)
-  socket.on("close", exit)
-  socket.end(JSON.stringify({ ack: lease, terminalId, token }) + "\\n")
+export type RelayHook = {
+  readonly report: Omit<Report, "terminalId" | "token">
+  /** An ask's deadline, in epoch milliseconds; absent for a report. */
+  readonly deadline?: number
 }
-const done = () => {
-  if (finished) return
-  finished = true
-  if (own && !ownEnded) {
-    // Out of time, or a process it started still holds its output: show what it printed,
-    // and end it with whatever it started.
-    output = printed.slice(0, 65_536)
-    try {
-      process.kill(-own.pid, "SIGTERM")
-    } catch {}
-  }
-  // The runner's answer is exactly what the agent expects, Antigravity's JSON included.
-  if (answered) return process.stdout.write(output, () => (lease ? acknowledge() : exit()))
-  if (agent !== "agy") {
-    if (!output) return exit()
-    return process.stdout.write(output, exit)
-  }
-  const answer = event === "PreToolUse" ? { decision: "ask" } : {}
-  process.stdout.write(JSON.stringify(answer) + "\\n", exit)
+
+/**
+ * The most an ask has from its hook's start. The relay names its own deadline, which the
+ * runner keeps to, and this bounds it.
+ */
+export const askMs = 4_000
+
+/**
+ * What of a hook's environment the relay forwards, by name: Claude Code's own pid, and
+ * what tells nested agents apart. The relay reads the names from its configuration.
+ */
+export const hookVariables = ["CLAUDE_PID", "CURSOR_VERSION", "CODEX_THREAD_ID"] as const
+
+/**
+ * The margin an ask leaves before its hook's limit, for the hook to print what a lease
+ * delivers and acknowledge it.
+ */
+const printMs = 500
+
+type Fields = { readonly [key: string]: unknown }
+
+const object = (value: unknown): value is Fields =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+const text = (value: unknown, max: number): string | undefined =>
+  typeof value === "string" && value !== "" && value.length <= max ? value : undefined
+
+/** A copy small enough to keep: text past a path's length cut short, deep or wide values dropped. */
+export const prune = (value: unknown, depth: number, limit: number): unknown => {
+  if (typeof value === "string") return value.length > limit ? value.slice(0, limit) : value
+  if (typeof value !== "object" || value === null) return value
+  if (depth > 6) return null
+  if (Array.isArray(value)) return value.slice(0, 50).map((each) => prune(each, depth + 1, limit))
+  return Object.fromEntries(
+    Object.entries(value)
+      .slice(0, 100)
+      .map(([key, each]) => [key, prune(each, depth + 1, limit)]),
+  )
 }
-if (!terminalId || !endpoint || !token || !["claude", "codex", "agy"].includes(agent)) {
-  done()
-} else {
-  setTimeout(done, limit).unref()
-  // When this process started, in wall-clock time with sub-millisecond precision, before
-  // Node booted: a loaded machine may take seconds to reach this line. A later hook
-  // reports a larger one.
-  const seq = performance.timeOrigin
 
-  // A copy small enough to send: text past a path's length cut short, deep or wide values
-  // dropped.
-  const prune = (value, depth, limit) => {
-    if (typeof value === "string") return value.length > limit ? value.slice(0, limit) : value
-    if (typeof value !== "object" || value === null) return value
-    if (depth > 6) return null
-    if (Array.isArray(value)) return value.slice(0, 50).map((each) => prune(each, depth + 1, limit))
-    const copy = {}
-    for (const [key, each] of Object.entries(value).slice(0, 100)) copy[key] = prune(each, depth + 1, limit)
-    return copy
-  }
+// The most a report may hold once pruned: enough for any decoder, as hooks always sent.
+const maxReport = 60_000
 
-  // A process's name and parent, where the platform tells.
-  const parent = (pid) => {
-    try {
-      if (process.platform === "linux") {
-        const stat = readFileSync("/proc/" + pid + "/stat", "utf8")
-        const name = stat.slice(stat.indexOf("(") + 1, stat.lastIndexOf(")"))
-        return { name, ppid: Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]) }
-      }
-      if (process.platform === "darwin") {
-        const out = spawnSync("ps", ["-o", "ppid=,comm=", "-p", String(pid)], { encoding: "utf8", timeout: 500 })
-        const match = /^\\s*(\\d+)\\s+(.+)$/.exec(out.stdout.trim())
-        return match ? { name: basename(match[2]), ppid: Number(match[1]) } : undefined
-      }
-    } catch {}
+/** A process the hook runs under, nearest first, where the platform tells. */
+type Ancestor = { readonly pid: number; readonly name: string }
+
+const ancestorsOf = (value: unknown): Ancestor[] =>
+  (Array.isArray(value) ? value : [])
+    .slice(0, 8)
+    .filter(
+      (each): each is Ancestor =>
+        object(each) &&
+        Number.isSafeInteger(each.pid) &&
+        (each.pid as number) > 0 &&
+        typeof each.name === "string",
+    )
+
+/**
+ * The agent process that ran the hook: Claude Code names itself; the others are the
+ * nearest ancestor with the agent's own name. Unknown where the platform hides it.
+ */
+const instanceOf = (agent: string, claudePid: string | undefined, ancestors: Ancestor[]) => {
+  if (agent === "claude" && claudePid !== undefined) return claudePid
+  const found = ancestors.find((each) => each.name === agent)
+  return found ? String(found.pid) : null
+}
+
+/**
+ * Reads a relay's hook, without its sender, which the endpoint checks: undefined for one
+ * that isn't a hook of a known agent, or whose payload isn't the JSON object agents send,
+ * as the hook then reports nothing.
+ */
+export const relayHook = (value: Fields): RelayHook | undefined => {
+  const agent = agentName.safeParse(value.agent)
+  const { seq, payload: sent } = value
+  if (!agent.success || typeof seq !== "number" || !Number.isFinite(seq)) return undefined
+  if (typeof sent !== "string" || sent.length > 1_000_000) return undefined
+  let payload: unknown
+  try {
+    payload = JSON.parse(sent)
+  } catch {
     return undefined
   }
-
-  // The agent process that ran this hook: Claude Code names itself; the others are the
-  // nearest ancestor with the agent's own name. Unknown where the platform hides it.
-  const instance = () => {
-    if (agent === "claude" && env.CLAUDE_PID) return env.CLAUDE_PID
-    let pid = process.ppid
-    for (let step = 0; step < 8 && pid > 1; step += 1) {
-      const found = parent(pid)
-      if (!found) return null
-      if (found.name === agent) return String(pid)
-      pid = found.ppid
-    }
-    return null
+  if (!object(payload)) return undefined
+  const env = object(value.env) ? value.env : {}
+  const event =
+    text(value.event, 64) ??
+    (typeof payload.hook_event_name === "string" && payload.hook_event_name.length <= 64
+      ? payload.hook_event_name
+      : "")
+  const claudePid = text(env.CLAUDE_PID, 10)
+  const instance = instanceOf(agent.data, claudePid, ancestorsOf(value.ancestors))
+  const codexThread = text(env.CODEX_THREAD_ID, 128)
+  const report = {
+    agent: agent.data,
+    event,
+    seq,
+    instance: instance !== null && /^\d{1,10}$/.test(instance) ? instance : null,
+    // Only what tells nested agents apart; nothing else of the environment is kept.
+    env: {
+      cursor: text(env.CURSOR_VERSION, 128) !== undefined,
+      ...(codexThread !== undefined && { codexThread }),
+    },
+    payload: prune(payload, 0, 4096) as Fields,
   }
-
-  // The person's own status line command, as Claude Code's settings name it: the project's
-  // local settings, the project's, then the person's. NovaDeck's own settings, which name
-  // this hook, never count.
-  const ownStatusLine = (payload) => {
-    const home = env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude")
-    const project = payload.workspace?.project_dir || payload.cwd
-    const files = [join(home, "settings.json")]
-    if (typeof project === "string")
-      files.unshift(join(project, ".claude", "settings.local.json"), join(project, ".claude", "settings.json"))
-    for (const file of files) {
-      try {
-        const line = JSON.parse(readFileSync(file, "utf8")).statusLine
-        if (line?.type === "command" && typeof line.command === "string" && line.command && !line.command.includes("NOVADECK_HOOK"))
-          return line.command
-      } catch {}
-    }
-    return undefined
-  }
-
-  // Runs the person's status line with the same input, keeping at most 64 KiB it prints.
-  // It runs in its own process group, as Claude Code runs a status line, so a deadline
-  // ends everything it started.
-  const runStatusLine = (command, input, finish) => {
-    try {
-      const child = spawn(command, {
-        shell: true,
-        detached: process.platform !== "win32",
-        stdio: ["pipe", "pipe", "ignore"],
-      })
-      own = child
-      child.stdout.setEncoding("utf8")
-      child.stdout.on("data", (chunk) => {
-        if (printed.length < 65_536) printed += chunk
-      })
-      child.on("error", () => {
-        ownEnded = true
-        finish("")
-      })
-      child.on("close", () => {
-        ownEnded = true
-        finish(printed.slice(0, 65_536))
-      })
-      child.stdin.on("error", () => {})
-      child.stdin.end(input)
-    } catch {
-      finish("")
-    }
-  }
-
-  let text = ""
-  process.stdin.setEncoding("utf8")
-  process.stdin.on("data", (chunk) => {
-    text += chunk
-    if (text.length > 1_000_000) done()
-  })
-  process.stdin.on("error", done)
-  process.stdin.on("end", () => {
-    let payload
-    try {
-      payload = JSON.parse(text)
-    } catch {
-      return done()
-    }
-    if (typeof payload !== "object" || payload === null) return done()
-    // The report and the person's own status line both finish before the hook does.
-    let pending = 1
-    const settle = () => {
-      pending -= 1
-      if (pending === 0) done()
-    }
-    const command = statusLine ? ownStatusLine(payload) : undefined
-    if (command) {
-      pending += 1
-      runStatusLine(command, text, (printed) => {
-        output = printed
-        settle()
-      })
-    }
-    const report = {
-      terminalId,
-      token,
-      agent,
-      event: event || (typeof payload.hook_event_name === "string" ? payload.hook_event_name : ""),
-      seq,
-      instance: instance(),
-      // Only what tells nested agents apart; nothing else of the environment leaves.
-      env: { cursor: Boolean(env.CURSOR_VERSION), codexThread: env.CODEX_THREAD_ID || undefined },
-      payload: prune(payload, 0, 4096),
-      // An ask's deadline, in epoch milliseconds: the runner leases messages only with time
-      // left before it to print them and acknowledge the lease.
-      ...(asks && { deadline: Math.round(seq) + limit - 500 }),
-    }
-    let line = JSON.stringify(report)
-    if (line.length > 60_000) line = JSON.stringify({ ...report, payload: prune(payload, 0, 200) })
-    let sent = false
-    const delivered = () => {
-      if (sent) return
-      sent = true
-      settle()
-    }
-    if (line.length > 60_000) return delivered()
-    const socket = connect(endpoint)
-    socket.on("error", delivered)
-    socket.on("close", delivered)
-    if (!asks) return void socket.end(line + "\\n")
-    // An ask keeps its side open for the answer: one line, after which the runner closes.
-    let reply = ""
-    socket.setEncoding("utf8")
-    socket.on("data", (chunk) => {
-      reply += chunk
-      const end = reply.indexOf("\\n")
-      if (end < 0) {
-        if (reply.length > 1_000_000) socket.destroy()
-        return
-      }
-      try {
-        const answer = JSON.parse(reply.slice(0, end))
-        if (typeof answer?.stdout === "string") {
-          output = answer.stdout
-          answered = true
-          if (typeof answer.leaseId === "string") lease = answer.leaseId
-        }
-      } catch {}
-      socket.destroy()
-    })
-    socket.write(line + "\\n")
-  })
+  const sized =
+    JSON.stringify(report).length <= maxReport
+      ? report
+      : { ...report, payload: prune(payload, 0, 200) as Fields }
+  if (JSON.stringify(sized).length > maxReport) return undefined
+  // The runner leases messages only with time left before the relay gives up to print
+  // them and acknowledge the lease.
+  const { deadline } = value
+  const relayGivesUp =
+    typeof deadline === "number" && Number.isFinite(deadline)
+      ? Math.min(deadline, seq + askMs)
+      : seq + askMs
+  return event in harnesses[agent.data].messaging.asks
+    ? { report: sized, deadline: Math.round(relayGivesUp) - printMs }
+    : { report: sized }
 }
-`

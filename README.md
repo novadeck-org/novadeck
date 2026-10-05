@@ -337,7 +337,9 @@ background, `+`/`−` zoom and `0` fits all terminals.
 
 ## Development
 
-Requires Node.js 26 and pnpm 11.22.0. Run commands from the repository root.
+Requires Node.js 26, pnpm 11.22.0 and Rust ([rustup](https://rustup.rs)), which builds
+the relay in `application/relay`; its `rust-toolchain.toml` names the version, which
+rustup installs. Run commands from the repository root.
 
 ```sh
 pnpm install
@@ -530,6 +532,7 @@ This is a TypeScript monorepo using pnpm workspaces and Turborepo.
 | `application/runner`   | The runner: shells and metadata, served over WebSocket or port. |
 | `application/protocol` | Shared Zod contracts and the `connectRunner` client for UIs.    |
 | `application/host`     | Electron host that starts the runner and loads the packaged UI. |
+| `application/relay`    | Rust relay for agents' NovaDeck MCP server and hooks.           |
 | `scripts`              | Repository checks and automation.                               |
 
 The UI runs real shells through the runner. Projects, sessions and their terminals
@@ -835,6 +838,9 @@ pnpm package:win
 Artifacts go to `application/host/release/`: a Linux x64 AppImage, a macOS
 universal ZIP, or a Windows x64 portable executable. Builds are unsigned, so
 Gatekeeper or SmartScreen may warn. The application ID is `dev.mzpk.novadeck`.
+
+Each package ships the relay agents start for NovaDeck's MCP server and hooks, built
+from source with the rest of the app.
 
 The [release workflow](.github/workflows/release.yml) publishes immutable GitHub
 prereleases from qualifying changes on `main`, with notes, checksums, and native

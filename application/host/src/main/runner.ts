@@ -6,7 +6,12 @@ import {
   type WebContents,
 } from "electron"
 
-import { databaseArgumentPrefix, runnerPortChannel, type RunnerCommand } from "../bridge.js"
+import {
+  databaseArgumentPrefix,
+  relayArgumentPrefix,
+  runnerPortChannel,
+  type RunnerCommand,
+} from "../bridge.js"
 
 export type RunnerHost = {
   /** Gives a renderer a fresh port to the runner, starting the runner again if it stopped. */
@@ -26,13 +31,17 @@ const send = (worker: UtilityProcess, command: RunnerCommand, ports: MessagePort
   worker.postMessage(command, ports)
 
 /** Starts the runner in a utility process and hands out one MessagePort per connection. */
-export const startRunner = (options: { entry: string; database: string }): RunnerHost => {
+export const startRunner = (options: {
+  entry: string
+  database: string
+  relay: string
+}): RunnerHost => {
   let child: UtilityProcess | undefined
   let closing: Promise<void> | undefined
   const spawn = () => {
     const worker = utilityProcess.fork(
       options.entry,
-      [`${databaseArgumentPrefix}${options.database}`],
+      [`${databaseArgumentPrefix}${options.database}`, `${relayArgumentPrefix}${options.relay}`],
       { serviceName: "NovaDeck Runner" },
     )
     worker.once("exit", (code) => {

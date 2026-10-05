@@ -15,6 +15,7 @@ import {
   promptStart,
   withoutDoorbell,
   type Launchers,
+  silentFor,
 } from "./harness.js"
 import { harnesses } from "./registry.js"
 
@@ -41,8 +42,8 @@ describe("each harness's hook answers", () => {
         hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
       })
       // With nothing to deliver they print nothing, as without NovaDeck.
-      expect(answers.silent("Stop")).toBe("")
-      expect(answers.silent("UserPromptSubmit")).toBe("")
+      expect(silentFor(answers, "Stop")).toBe("")
+      expect(silentFor(answers, "UserPromptSubmit")).toBe("")
     }
   })
 
@@ -53,10 +54,10 @@ describe("each harness's hook answers", () => {
     expect(line(answers.prompt(delivery))).toEqual({
       injectSteps: [{ ephemeralMessage: delivery }],
     })
-    expect(line(answers.silent("Stop"))).toEqual({})
-    expect(line(answers.silent("PreInvocation"))).toEqual({})
+    expect(line(silentFor(answers, "Stop"))).toEqual({})
+    expect(line(silentFor(answers, "PreInvocation"))).toEqual({})
     // An answer without a decision denies the tool.
-    expect(line(answers.silent("PreToolUse"))).toEqual({ decision: "ask" })
+    expect(line(silentFor(answers, "PreToolUse"))).toEqual({ decision: "ask" })
   })
 })
 
@@ -163,7 +164,7 @@ describe("a doorbell prompt", () => {
   })
 })
 
-const launchers: Launchers = { mcp: "/data/shell/mcp" }
+const launchers: Launchers = { mcp: { command: "/data/shell/mcp" } }
 const file = (agent: AgentName, path: string) =>
   JSON.parse(
     harnesses[agent].files("linux", launchers).find((each) => each.path === path)!.content,

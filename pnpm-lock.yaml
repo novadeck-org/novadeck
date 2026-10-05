@@ -54,6 +54,9 @@ importers:
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@novadeck/relay':
+        specifier: workspace:*
+        version: link:../relay
       '@novadeck/runner':
         specifier: workspace:*
         version: link:../runner
@@ -110,6 +113,15 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
+  application/relay:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.2
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   application/runner:
     dependencies:
       '@hono/node-server':
@@ -118,6 +130,9 @@ importers:
       '@novadeck/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@novadeck/relay':
+        specifier: workspace:*
+        version: link:../relay
       '@orpc/server':
         specifier: 1.15.4
         version: 1.15.4(ws@8.21.3)

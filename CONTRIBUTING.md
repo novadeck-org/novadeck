@@ -22,6 +22,9 @@ for code and tests, and [SECURITY.md](SECURITY.md) for sensitive work. Run the
 relevant project checks; report results and anything you could not run. Update
 documentation when behavior changes.
 
+`pnpm format` and `pnpm lint` cover the relay's Rust in `application/relay` too, as CI
+does.
+
 ## Pull Requests
 
 Use the [PR template](.github/pull_request_template.md), even when submitting

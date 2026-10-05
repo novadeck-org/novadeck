@@ -38,6 +38,7 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
     environment.NOVADECK_DATABASE?.trim() ||
       join(homedir(), ".local", "share", "novadeck", "workspace.sqlite"),
   )
+  const relay = environment.NOVADECK_RELAY?.trim()
   return {
     hostname: environment.HOST?.trim() || "127.0.0.1",
     port: readPort(environment.PORT),
@@ -49,5 +50,7 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
       shell: join(dirname(database), "shell"),
       uploads: join(dirname(database), "uploads"),
     }),
+    // Another build of the relay than `@novadeck/relay`'s, as a packaged one.
+    ...(relay ? { relay: resolve(relay) } : {}),
   }
 }

@@ -1,26 +1,25 @@
 import { spawn } from "node:child_process"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll } from "vitest"
 
 import { plugin } from "../harnesses/harness.js"
 import { unboundNote } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
 import { installShellFiles } from "./install.js"
-import { mcpScript } from "./mcp.js"
+import { mcpVersions } from "./mcp.js"
 import { listenForReports, unheard, type Call, type Reports } from "./reports.js"
-import { shellFiles, shellPaths } from "./scripts.js"
+import { shellFiles, shellPaths, staleShellFiles } from "./scripts.js"
 
 const token = "0123456789abcdef".repeat(3)
 let folder: string
-let script: string
 
 beforeAll(async () => {
   folder = await mkdtemp(join(tmpdir(), "novadeck-mcp-test-"))
-  script = join(folder, "mcp.mjs")
-  await writeFile(script, mcpScript)
 })
 
 afterAll(async () => {
@@ -37,8 +36,9 @@ type Answer = {
   readonly error?: { readonly code: number }
 }
 
-// How the server starts: its script on this Node, or as a plugin names it.
+// How the server starts: the relay as the launcher starts it, or as a plugin names it.
 type Start = { readonly command: string; readonly args?: readonly string[] }
+const relay: Start = { command: relayPath, args: ["mcp", plugin.version, ...mcpVersions] }
 
 // Runs the server as an agent would, without a shell, sends it these messages, and
 // collects its answers until it has answered every one with an id, and every batch. With
@@ -50,7 +50,7 @@ const session = (
   { start, close = false }: { readonly start?: Start; readonly close?: boolean } = {},
 ) =>
   new Promise<Answer[]>((resolve, reject) => {
-    const { command, args = [] } = start ?? { command: process.execPath, args: [script] }
+    const { command, args = [] } = start ?? relay
     const child = spawn(command, args, { env, stdio: ["pipe", "pipe", "inherit"] })
     const expected = messages.filter((message) => Array.isArray(message) || "id" in message).length
     const answers: Answer[] = []
@@ -667,8 +667,8 @@ describe("NovaDeck's MCP server", () => {
 
     describe("through its launcher, as the agents' plugins start it", () => {
       // The server as Claude Code's plugin names it; the others name it alike.
-      const installed = async (runtime?: string): Promise<Start> => {
-        const paths = await installShellFiles(join(folder, runtime ? "gone" : "launcher"), runtime)
+      const installed = async (): Promise<Start> => {
+        const paths = await installShellFiles(join(folder, "launcher"))
         const config = JSON.parse(
           await readFile(join(paths.plugins.claude, "novadeck", ".mcp.json"), "utf8"),
         ) as { mcpServers: { novadeck: Start } }
@@ -682,9 +682,8 @@ describe("NovaDeck's MCP server", () => {
         const [hello, tools] = await session(outside(), [initialize, initialized, list], {
           start,
         })
-        // Not PowerShell's 20 s and more on a CI runner: cscript starts in about one, and
-        // under 10 even on a busy one, as Codex gives an MCP server 10 s.
-        expect(Date.now() - began).toBeLessThan(15_000)
+        // Well within the 10 s Codex gives an MCP server to start.
+        expect(Date.now() - began).toBeLessThan(5_000)
         expect(hello?.result).toMatchObject({
           protocolVersion: "2025-06-18",
           serverInfo: { name: "novadeck", version: plugin.version },
@@ -722,30 +721,102 @@ describe("NovaDeck's MCP server", () => {
         expect(calls).toHaveLength(1)
       }, 30_000)
 
-      it("answers itself, with no tools, once NovaDeck's runtime is gone", async () => {
-        const start = await installed(join(folder, "no-such-runtime"))
-        const [hello, tools] = await session(
-          inTerminal(),
-          [initialize, list, { id: 3, method: "ping" }],
-          {
-            start,
-          },
-        )
-        expect(hello?.result).toMatchObject({ protocolVersion: "2025-06-18" })
-        expect(tools?.result?.tools).toEqual([])
-      }, 30_000)
+      // On Windows, cmd starts the launcher; its content is checked below.
+      it.skipIf(process.platform === "win32")(
+        "starts its own copy of the relay, which stays when the app's folder goes",
+        async () => {
+          const start = await installed()
+          const launcher = await readFile(start.command, "utf8")
+          expect(launcher).toContain(`'${join(folder, "launcher", "novadeck-relay")}' mcp`)
+          expect(launcher).not.toContain(relayPath)
+          expect(launcher).not.toContain("ELECTRON_RUN_AS_NODE")
+        },
+      )
     })
 
-    it("says so when NovaDeck can't be reached", async () => {
-      const [, unreachable] = await session(
+    it("answers itself, with no tools, when NovaDeck can't be reached", async () => {
+      calls.length = 0
+      const [hello, tools, unreachable] = await session(
         { ...terminal(), NOVADECK_REPORT: join(folder, "gone.sock") },
         [
           initialize,
+          list,
           { id: 5, method: "tools/call", params: { name: "show", arguments: { path: "a" } } },
         ],
       )
-      expect(unreachable?.result).toMatchObject({ isError: true })
+      expect(hello?.result).toMatchObject({ protocolVersion: "2025-06-18" })
+      expect(tools?.result?.tools).toEqual([])
+      expect(unreachable?.error).toMatchObject({ code: -32602 })
+      expect(calls).toEqual([])
     })
+
+    it("refuses a batch and answers methods it doesn't know, as outside", async () => {
+      const [refused, unknown] = await session(terminal(), [
+        [initialize, list],
+        { id: 6, method: "resources/list" },
+      ])
+      expect(refused).toEqual({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32600, message: "Invalid Request" },
+      })
+      expect(unknown?.error).toEqual({ code: -32601, message: "Method not found: resources/list" })
+    })
+  })
+
+  describe("with a runner that doesn't take the session", () => {
+    // A runner that reads the relay's first line and answers as `answer` says, or never.
+    const runner = async (answer: string | undefined) => {
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-mcp-runner-"))
+      const endpoint =
+        process.platform === "win32"
+          ? `\\\\.\\pipe\\novadeck-mcp-runner-${process.pid}-${Date.now()}`
+          : join(directory, "reports.sock")
+      const server = createServer((socket) => {
+        socket.once("data", () => {
+          if (answer !== undefined) socket.write(answer)
+        })
+        socket.resume()
+      })
+      await new Promise<void>((resolve) => server.listen(endpoint, resolve))
+      return {
+        env: {
+          PATH: process.env.PATH,
+          NOVADECK_TERMINAL_ID: "3f1c2b1e-0000-4000-8000-000000000001",
+          NOVADECK_REPORT: endpoint,
+          NOVADECK_REPORT_TOKEN: token,
+        },
+        close: async () => {
+          server.close()
+          await rm(directory, { recursive: true, force: true })
+        },
+      }
+    }
+
+    it("answers by itself, with no tools, when the runner speaks another version", async () => {
+      const newer = await runner(`${JSON.stringify({ relay: 3, ok: true })}\n`)
+      try {
+        const [hello, tools] = await session(newer.env, [initialize, list])
+        expect(hello?.result).toMatchObject({ protocolVersion: "2025-06-18" })
+        expect(tools?.result?.tools).toEqual([])
+      } finally {
+        await newer.close()
+      }
+    })
+
+    it("answers by itself, with no tools, when the runner doesn't answer in time", async () => {
+      const silent = await runner(undefined)
+      try {
+        const began = Date.now()
+        const [, tools] = await session(silent.env, [initialize, list])
+        expect(tools?.result?.tools).toEqual([])
+        // It waits for a busy runner, within the ten seconds an agent gives it to start.
+        expect(Date.now() - began).toBeGreaterThan(7_000)
+        expect(Date.now() - began).toBeLessThan(10_000)
+      } finally {
+        await silent.close()
+      }
+    }, 20_000)
   })
 
   it("names its version, and answers a version it doesn't know with the newest it does", async () => {
@@ -762,13 +833,27 @@ describe("NovaDeck's MCP server", () => {
     expect(unknown?.result).toMatchObject({ protocolVersion: "2025-11-25" })
   })
 
-  it("answers outside NovaDeck's terminals through cscript on Windows, never PowerShell", () => {
+  it("starts the relay itself on Windows, with no cmd, PowerShell or NovaDeck's runtime", () => {
     const paths = shellPaths("C:\\data", "win32")
-    const launcher = shellFiles(paths, "C:\\app\\novadeck.exe", "", mcpScript, "win32").find(
-      (file) => file.path === paths.mcp,
+    const files = shellFiles(paths, "win32")
+    const config = files.find((file) => file.path.endsWith(join("claude", "novadeck", ".mcp.json")))
+    expect(JSON.parse(config?.content ?? "{}")).toEqual({
+      mcpServers: {
+        novadeck: { command: paths.relay, args: ["mcp", plugin.version, ...mcpVersions] },
+      },
+    })
+  })
+
+  it("keeps the launcher Windows' agents connected before still start, starting the relay", () => {
+    // Agents keep their copy of NovaDeck's plugin, which names cmd and mcp.cmd.
+    const paths = shellPaths("C:\\data", "win32")
+    const launcher = shellFiles(paths, "win32").find((file) => file.path === paths.mcp)
+    expect(launcher?.content).toContain(
+      `${paths.relay}" mcp ${plugin.version} ${mcpVersions.join(" ")} %*`,
     )
-    expect(launcher?.content).toContain("cscript.exe //nologo //E:jscript")
     expect(launcher?.content.toLowerCase()).not.toContain("powershell")
+    expect(launcher?.content).not.toContain("ELECTRON_RUN_AS_NODE")
+    expect(staleShellFiles("C:\\data")).not.toContain(paths.mcp)
   })
 
   it("refuses a batch", async () => {

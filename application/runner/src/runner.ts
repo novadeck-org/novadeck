@@ -24,6 +24,11 @@ export type RunnerOptions = {
    * database; a fresh temporary folder when omitted.
    */
   uploads?: string
+  /**
+   * The relay agents start for NovaDeck's MCP server and hooks, copied in beside the shell files;
+   * the one `@novadeck/relay` built by default. The desktop app passes the one it ships.
+   */
+  relay?: string
   /** Where agents are looked for and how their plugin commands run; for tests. */
   agents?: HarnessesOptions
 }
@@ -64,7 +69,10 @@ export const wire = (options: RunnerOptions) => {
   const shellFiles =
     options.shell === undefined
       ? Promise.resolve(undefined)
-      : installShellFiles(options.shell).catch((error: unknown) => {
+      : installShellFiles(
+          options.shell,
+          options.relay === undefined ? {} : { relay: options.relay },
+        ).catch((error: unknown) => {
           console.error("NovaDeck shell integration is unavailable:", error)
           return undefined
         })

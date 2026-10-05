@@ -2,9 +2,10 @@ import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
 
-import { plugin, type Launchers } from "../harnesses/harness.js"
+import { plugin, type Launchers, type Start } from "../harnesses/harness.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { header } from "./header.js"
+import { hookVariables } from "./hook.js"
 import { mcpVersions } from "./mcp.js"
 
 // The files NovaDeck puts in shells it starts, and the plugins agents install when the
@@ -24,14 +25,14 @@ export type ShellPaths = {
   readonly plugins: { readonly [agent in AgentName]: string }
   /** Where a fresh shell finds the command that resumes its agent, one file per shell. */
   readonly resume: string
-  /** The hook's launcher. */
+  /** The hook's launcher, which connected agents' plugins run. */
   readonly hook: string
-  readonly hookScript: string
   /** The MCP server's launcher, which connected agents' plugins start. */
   readonly mcp: string
-  readonly mcpScript: string
-  /** On Windows, what answers for the MCP server outside NovaDeck's terminals. */
-  readonly mcpIdle: string
+  /** NovaDeck's copy of the relay the launchers start (see application/relay). */
+  readonly relay: string
+  /** What the runner tells the relay about the agents, which the hook launcher names. */
+  readonly relayConfig: string
 }
 
 export const shellPaths = (directory: string, platform = process.platform): ShellPaths => ({
@@ -45,11 +46,17 @@ export const shellPaths = (directory: string, platform = process.platform): Shel
   ) as ShellPaths["plugins"],
   resume: join(directory, "resume"),
   hook: join(directory, platform === "win32" ? "hook.cmd" : "hook"),
-  hookScript: join(directory, "hook.mjs"),
   mcp: join(directory, platform === "win32" ? "mcp.cmd" : "mcp"),
-  mcpScript: join(directory, "mcp.mjs"),
-  mcpIdle: join(directory, "mcp-idle.js"),
+  relay: join(directory, platform === "win32" ? "novadeck-relay.exe" : "novadeck-relay"),
+  relayConfig: join(directory, "relay.json"),
 })
+
+/** What older versions wrote beside these files and nothing reads any more. */
+export const staleShellFiles = (directory: string): string[] => [
+  join(directory, "hook.mjs"),
+  join(directory, "mcp.mjs"),
+  join(directory, "mcp-idle.js"),
+]
 
 // Quoting for each language a path is written into.
 const shQuote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`
@@ -250,114 +257,129 @@ if ($env:NOVADECK_RESUME) {
 }
 `
 
-// A launcher runs a script on NovaDeck's own runtime: Electron acting as Node, or Node
-// itself for a standalone runner. It is rewritten on each start, as that path moves.
-const posixLauncher = (runtime: string, script: string, what: string): string => `#!/bin/sh
+// The launchers start NovaDeck's relay (see application/relay), which carries an agent's
+// hooks and MCP messages to the runner of the terminal it runs in, or, outside NovaDeck's
+// terminals, answers itself: for the MCP server, the handshake with no tools. Its copy
+// lives here, beside them, so it stays when the app's own folder goes (an AppImage's
+// mount, a portable build's unpacked copy). The MCP server answers as this version of
+// it: its plugin's version, then the MCP versions it speaks, newest first.
+
+// What a hook prints with nothing from NovaDeck, by agent and event, as each harness's
+// messaging names it, without the line's end.
+const silentAnswers = Object.fromEntries(
+  agents.map((agent) => [
+    agent,
+    Object.fromEntries(
+      Object.entries(harnesses[agent].messaging.silent).map(([event, text]) => [
+        event,
+        text.trimEnd(),
+      ]),
+    ),
+  ]),
+)
+
+/**
+ * What the relay knows of the agents, as `relay.json` holds it: which events ask, as
+ * each waits longer for its answer, what of a hook's environment it forwards, and what
+ * each prints without NovaDeck.
+ */
+export const relayConfig = {
+  asks: Object.fromEntries(
+    agents.map((agent) => [agent, Object.keys(harnesses[agent].messaging.asks)]),
+  ),
+  env: [...hookVariables],
+  fallbacks: silentAnswers,
+}
+
+const relayArguments = (paths: ShellPaths) =>
+  ({
+    hook: ["hook", "--config", paths.relayConfig],
+    mcp: ["mcp", plugin.version, ...mcpVersions],
+  }) as const
+
+type Mode = keyof ReturnType<typeof relayArguments>
+
+// Each argument as it is, or quoted where the shell would read more into it.
+const relayLine = (paths: ShellPaths, mode: Mode, quote: (value: string) => string) => {
+  const args: readonly string[] = relayArguments(paths)[mode]
+  return args.map((each) => (/^[\w.-]+$/.test(each) ? each : quote(each))).join(" ")
+}
+
+// Each agent's answers without NovaDeck, events of their own first: as sh's cases, and as
+// cmd's lines, which hold none of cmd's own special characters.
+const silentCases = (each: (agent: string, event: string, text: string) => string) =>
+  agents.flatMap((agent) =>
+    Object.entries(silentAnswers[agent] ?? {})
+      .filter(([, text]) => text !== "")
+      .toSorted(([one], [other]) => Number(one === "*") - Number(other === "*"))
+      .map(([event, text]) => {
+        if (/[&|<>^%]/.test(text)) throw new Error(`cmd can't print ${text} as it is`)
+        return each(agent, event, text)
+      }),
+  )
+
+const posixLauncher = (paths: ShellPaths, mode: Mode, what: string) =>
+  mode === "mcp"
+    ? `#!/bin/sh
 ${header("#", what)}
-ELECTRON_RUN_AS_NODE=1
-export ELECTRON_RUN_AS_NODE
-exec ${shQuote(runtime)} ${shQuote(script)} "$@"
-`
-
-const cmdLauncher = (runtime: string, script: string, what: string): string => `@echo off
-${header("rem", what)}
-set ELECTRON_RUN_AS_NODE=1
-${cmdQuote(runtime)} ${cmdQuote(script)} %*
-`
-
-// The MCP server's launcher runs the server on NovaDeck's runtime only in NovaDeck's
-// terminals, while that runtime is there. Agents start it in every session, and a
-// packaged NovaDeck's runtime can live in a folder that goes when it quits (an AppImage's
-// mount, a portable build's unpacked copy), so otherwise the launcher answers itself:
-// the handshake, and no tools. The agent sees a working server it has nothing to call.
-const posixMcpLauncher = (runtime: string, script: string): string => `#!/bin/sh
-${header("#", "MCP server launcher")}
-if [ -n "\${NOVADECK_TERMINAL_ID:-}" ] && [ -n "\${NOVADECK_REPORT:-}" ] &&
-  [ -n "\${NOVADECK_REPORT_TOKEN:-}" ] && [ -x ${shQuote(runtime)} ]; then
-  ELECTRON_RUN_AS_NODE=1
-  export ELECTRON_RUN_AS_NODE
-  exec ${shQuote(runtime)} ${shQuote(script)} "$@"
+if [ ! -x ${shQuote(paths.relay)} ]; then
+  printf '%s\\n' ${shQuote(`NovaDeck's relay is missing at ${paths.relay}; restarting NovaDeck puts it back.`)} >&2
+  exit 1
 fi
-# One request per line. Agents write the id last or before the params, and none of these
-# requests' params holds an "id", so the last "id" is the request's.
-while IFS= read -r novadeck_line || [ -n "$novadeck_line" ]; do
-  novadeck_id=$(printf '%s\\n' "$novadeck_line" |
-    sed -nE 's/.*"id"[[:space:]]*:[[:space:]]*(-?[0-9]+|"[^"\\\\]*").*/\\1/p')
-  novadeck_method=$(printf '%s\\n' "$novadeck_line" |
-    sed -nE 's/.*"method"[[:space:]]*:[[:space:]]*"([^"]*)".*/\\1/p')
-  # Notifications, and anything but a request, need no answer.
-  [ -n "$novadeck_id" ] && [ -n "$novadeck_method" ] || continue
-  case $novadeck_method in
-    initialize)
-      novadeck_version=$(printf '%s\\n' "$novadeck_line" |
-        sed -nE 's/.*"protocolVersion"[[:space:]]*:[[:space:]]*"([^"]*)".*/\\1/p')
-      case $novadeck_version in
-        ${mcpVersions.join(" | ")}) ;;
-        *) novadeck_version=${mcpVersions[0]} ;;
-      esac
-      printf '{"jsonrpc":"2.0","id":%s,"result":{"protocolVersion":"%s","capabilities":{"tools":{}},"serverInfo":{"name":"novadeck","version":"${plugin.version}"}}}\\n' \\
-        "$novadeck_id" "$novadeck_version"
-      ;;
-    ping) printf '{"jsonrpc":"2.0","id":%s,"result":{}}\\n' "$novadeck_id" ;;
-    tools/list) printf '{"jsonrpc":"2.0","id":%s,"result":{"tools":[]}}\\n' "$novadeck_id" ;;
-    *)
-      printf '{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"Method not found"}}\\n' \\
-        "$novadeck_id"
-      ;;
-  esac
-done
+exec ${shQuote(paths.relay)} ${relayLine(paths, mode, shQuote)} "$@"
+`
+    : `#!/bin/sh
+${header("#", what)}
+if [ -x ${shQuote(paths.relay)} ] && [ -r ${shQuote(paths.relayConfig)} ]; then
+  exec ${shQuote(paths.relay)} ${relayLine(paths, mode, shQuote)} "$@"
+fi
+# Without its relay or what it reads, as when NovaDeck couldn't put them in place: the
+# hook takes the agent's input and prints what the agent needs, as Antigravity denies a
+# tool otherwise.
+cat >/dev/null
+case "$1 $2" in
+${silentCases(
+  (agent, event, text) =>
+    `  ${event === "*" ? `"${agent} "*` : `"${agent} ${event}"`}) printf '%s\\n' ${shQuote(text)} ;;`,
+).join("\n")}
+esac
 `
 
-// cmd reads a batch file's labels reliably only with CRLF line endings.
+// cmd reads a batch file's blocks reliably only with CRLF line endings.
 const crlf = (text: string): string => text.replaceAll("\n", "\r\n")
 
-const cmdMcpLauncher = (runtime: string, script: string, idle: string): string =>
-  crlf(`@echo off
-${header("rem", "MCP server launcher")}
-if not defined NOVADECK_TERMINAL_ID goto idle
-if not defined NOVADECK_REPORT goto idle
-if not defined NOVADECK_REPORT_TOKEN goto idle
-if not exist ${cmdQuote(runtime)} goto idle
-set ELECTRON_RUN_AS_NODE=1
-${cmdQuote(runtime)} ${cmdQuote(script)} %*
-exit /b %ERRORLEVEL%
-:idle
-cscript.exe //nologo //E:jscript ${cmdQuote(idle)}
-`)
-
-// Windows Script Host's JScript, which starts at once where PowerShell can take seconds.
-// Like the sh loop, it reads each request by pattern: agents write the id last or before
-// the params, and none of these requests' params holds an "id".
-const mcpIdle = `${header("//", "MCP server, as it answers outside NovaDeck's terminals")}
-var versions = ${JSON.stringify(mcpVersions)}
-var input = WScript.StdIn
-var output = WScript.StdOut
-function field(line, pattern) {
-  var found = pattern.exec(line)
-  return found ? found[1] : null
-}
-function known(version) {
-  for (var i = 0; i < versions.length; i++) if (versions[i] === version) return true
-  return false
-}
-while (!input.AtEndOfStream) {
-  var line = input.ReadLine()
-  var id = field(line, /^.*"id"\\s*:\\s*(-?\\d+|"[^"\\\\]*")/)
-  var method = field(line, /"method"\\s*:\\s*"([^"]*)"/)
-  // Notifications, and anything but a request, need no answer.
-  if (id === null || method === null) continue
-  var answer
-  if (method === "initialize") {
-    var version = field(line, /"protocolVersion"\\s*:\\s*"([^"]*)"/)
-    if (!known(version)) version = versions[0]
-    answer = '"result":{"protocolVersion":"' + version + '","capabilities":{"tools":{}},' +
-      '"serverInfo":{"name":"novadeck","version":"${plugin.version}"}}'
-  } else if (method === "ping") answer = '"result":{}'
-  else if (method === "tools/list") answer = '"result":{"tools":[]}'
-  else answer = '"error":{"code":-32601,"message":"Method not found"}'
-  output.Write('{"jsonrpc":"2.0","id":' + id + "," + answer + "}\\n")
-}
+const cmdLauncher = (paths: ShellPaths, mode: Mode, what: string) =>
+  crlf(
+    mode === "mcp"
+      ? `@echo off
+${header("rem", what)}
+${cmdQuote(paths.relay)} ${relayLine(paths, mode, cmdQuote)} %*
 `
+      : `@echo off
+${header("rem", what)}
+if exist ${cmdQuote(paths.relay)} if exist ${cmdQuote(paths.relayConfig)} (
+  ${cmdQuote(paths.relay)} ${relayLine(paths, mode, cmdQuote)} %*
+  exit /b 0
+)
+rem Without its relay or what it reads: the agent's input taken, as it may not write into a
+rem closed pipe, and what the agent needs printed, as Antigravity denies a tool otherwise.
+findstr "^" >nul 2>nul
+${silentCases(
+  (agent, event, text) =>
+    `if /i "%~1"=="${agent}" ${event === "*" ? "" : `if /i "%~2"=="${event}" `}(echo ${text}&exit /b 0)`,
+).join("\n")}
+`,
+  )
+
+/**
+ * How agents start NovaDeck's MCP server: on Linux and macOS its launcher, which the
+ * relay replaces, as it is started; on Windows the relay itself, as a launcher there
+ * needs cmd, which stays running beside it, costing each agent several megabytes.
+ */
+export const mcpStart = (paths: ShellPaths, platform = process.platform): Start =>
+  platform === "win32"
+    ? { command: paths.relay, args: [...relayArguments(paths).mcp] }
+    : { command: paths.mcp }
 
 export type ShellFile = { readonly path: string; readonly content: string; readonly mode: number }
 
@@ -365,17 +387,15 @@ const file = (path: string, content: string, mode = 0o600): ShellFile => ({ path
 
 /**
  * Every file for this platform, with the permissions each needs. Plugins start the MCP
- * launcher by `launchers.mcp`, which on Windows can be its short name.
+ * server as `launchers.mcp` says.
  */
 export const shellFiles = (
   paths: ShellPaths,
-  runtime: string,
-  hookScript: string,
-  mcpScript: string,
   platform = process.platform,
-  launchers: Launchers = { mcp: paths.mcp },
+  launchers: Launchers = { mcp: mcpStart(paths, platform) },
 ): ShellFile[] => {
   const common = [
+    file(paths.relayConfig, `${JSON.stringify(relayConfig, null, 2)}\n`),
     file(paths.bash, bash),
     file(join(paths.zsh, ".zshenv"), zshenv),
     file(join(paths.zsh, ".zprofile"), zprofile),
@@ -387,8 +407,6 @@ export const shellFiles = (
         .files(platform, launchers)
         .map((each) => file(join(paths.plugins[agent], each.path), each.content, each.mode)),
     ),
-    file(paths.hookScript, hookScript),
-    file(paths.mcpScript, mcpScript),
   ]
   // Every harness's shims, which the shells put first on PATH only while one is connected.
   const shims = agents.flatMap((agent) => harnesses[agent].shims?.(platform) ?? [])
@@ -396,15 +414,16 @@ export const shellFiles = (
   return platform === "win32"
     ? [
         ...common,
-        file(paths.hook, cmdLauncher(runtime, paths.hookScript, "agent hook launcher")),
-        file(paths.mcp, cmdMcpLauncher(runtime, paths.mcpScript, paths.mcpIdle)),
-        file(paths.mcpIdle, mcpIdle),
+        file(paths.hook, cmdLauncher(paths, "hook", "agent hook launcher")),
+        // Agents connected before NovaDeck started the relay itself on Windows keep their
+        // plugin's copy, which starts the MCP server through cmd and this launcher.
+        file(paths.mcp, cmdLauncher(paths, "mcp", "MCP server launcher")),
         ...bin,
       ]
     : [
         ...common,
-        file(paths.hook, posixLauncher(runtime, paths.hookScript, "agent hook launcher"), 0o700),
-        file(paths.mcp, posixMcpLauncher(runtime, paths.mcpScript), 0o700),
+        file(paths.hook, posixLauncher(paths, "hook", "agent hook launcher"), 0o700),
+        file(paths.mcp, posixLauncher(paths, "mcp", "MCP server launcher"), 0o700),
         ...bin,
       ]
 }

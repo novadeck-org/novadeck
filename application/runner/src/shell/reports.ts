@@ -5,7 +5,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { agentName, type AgentName } from "@novadeck/protocol"
+import type { AgentName } from "@novadeck/protocol"
+
+import { relayHook } from "./hook.js"
+import { mcpAnswer, type McpCall } from "./mcp.js"
 
 /**
  * What an agent hook forwards: the event its agent reported in a terminal, with a
@@ -87,66 +90,166 @@ const sender = (value: {
   return { terminalId, token }
 }
 
-const parse = (value: { readonly [key: string]: unknown }): Report | undefined => {
-  const { agent, event, seq, instance, env, payload } = value
-  const from = sender(value)
-  if (!from) return undefined
-  if (typeof seq !== "number" || !Number.isFinite(seq)) return undefined
-  if (typeof event !== "string" || event.length > 64) return undefined
-  const name = agentName.safeParse(agent)
-  if (!name.success) return undefined
-  if (!object(payload)) return undefined
-  const { cursor, codexThread } = object(env) ? env : {}
-  return {
-    ...from,
-    agent: name.data,
-    event,
-    seq,
-    instance: typeof instance === "string" && /^\d{1,10}$/.test(instance) ? instance : null,
-    env: {
-      cursor: cursor === true,
-      ...(typeof codexThread === "string" && codexThread.length <= 128 && { codexThread }),
-    },
-    payload,
-  }
-}
-
-/** An ask: a report with the hook's deadline, in epoch milliseconds. */
-const parseAsk = (value: {
-  readonly [key: string]: unknown
-}): { report: Report; deadline: number } | undefined => {
-  const { deadline } = value
-  const report = parse(value)
-  if (!report || typeof deadline !== "number" || !Number.isFinite(deadline)) return undefined
-  return { report, deadline }
-}
-
-const parseAck = (value: { readonly [key: string]: unknown }): Ack | undefined => {
-  const { ack } = value
-  const from = sender(value)
-  if (!from || typeof ack !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(ack)) return undefined
-  return { ...from, leaseId: ack }
-}
-
-const callType = (type: unknown): type is CallType => callTypes.some((known) => known === type)
-
-const parseCall = (value: { readonly [key: string]: unknown }): Call | undefined => {
-  const { type, request } = value
-  const from = sender(value)
-  if (!callType(type) || !from || !object(request)) return undefined
-  return { type, ...from, request }
-}
-
-// A hook sends at most 60,000 characters; a little more allows for the frame. A call's
-// request is a path or a command and a few words, well within it.
+// A relay's first line, but for a hook's, and its acknowledgement are short: a terminal,
+// a token and a few words, well within this.
 const maxBytes = 65_536
+
+/** What a relay sends once its agent closed its side: answer what's under way, then close. */
+const relayEnd = JSON.stringify({ relay: "eof" })
+
+// A relay's hook: its agent's payload, up to a million characters, escaped as JSON text,
+// which may double it, with room for the rest.
+const maxRelayHook = 2_100_000
+
+/** How a relay's first line starts, naming the version of what it carries. */
+const relayStart = '{"relay":'
+
+/**
+ * The versions of the relay protocol the runner speaks (see docs/backend-api.md, "Relay
+ * protocol"). An agent's plugin starts whichever relay the install that connected it
+ * last copied in, so a runner can meet a relay older or newer than its own: when the
+ * protocol changes, the runner keeps taking the version before it for a release. A
+ * relay the runner doesn't take answers by itself, with no tools.
+ */
+export const relayVersions: ReadonlySet<number> = new Set([2])
+
+// What the endpoint turned away, said once each, so a mismatch shows in the runner's log
+// without filling it.
+const refused = new Set<string>()
+const refuse = (value: unknown): void => {
+  const relay =
+    typeof value === "object" && value !== null && "relay" in value ? value.relay : undefined
+  const why =
+    relay === undefined
+      ? "a connection that isn't a relay's"
+      : `a relay speaking version ${JSON.stringify(relay)} of its protocol`
+  if (refused.has(why)) return
+  refused.add(why)
+  console.error(`NovaDeck's report endpoint turned away ${why}.`)
+}
+
+// One line of an agent's MCP session may hold more than a hook's report, as a message's
+// text, but not without end.
+const maxSessionLine = 1_048_576
+
+// How much of a line too long to take is kept, at each end, to find its id.
+const idWindow = 4096
+
+/**
+ * The answer to a line too long to take, with the id it was sent with, so the call it was
+ * gets an answer and the session goes on. A client writes the id first or last: last when
+ * it closes the line, as the MCP SDK writes it, or else the first the line's start names.
+ */
+const tooLong = (head: string, tail: string): string => {
+  const value = '(-?\\d+|"(?:[^"\\\\]|\\\\.)*")'
+  const named =
+    new RegExp(`"id"\\s*:\\s*${value}\\s*}\\s*$`).exec(tail)?.[1] ??
+    new RegExp(`"id"\\s*:\\s*${value}`).exec(head)?.[1]
+  let id: unknown = null
+  try {
+    id = named === undefined ? null : JSON.parse(named)
+  } catch {
+    // Unreadable: answered without one.
+  }
+  const message =
+    "The request is over 1 MiB, more than NovaDeck takes; put long content in a file and pass its path."
+  return JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32600, message } })
+}
+
+/**
+ * Serves one agent's MCP session over a relay's connection, from `rest`, what came after
+ * the relay's first line, once it has told the relay it takes the session, in the
+ * relay's own version: each line the agent sent is answered with a line, as it is
+ * done, so a slow call holds up no other. Once the relay sends its end, the session
+ * answers what is under way and closes. Calls carry the terminal and token the relay
+ * named; outside a terminal it named, the server offers no tools.
+ */
+const serveSession = (
+  socket: Socket,
+  rest: string,
+  call: McpCall | undefined,
+  version: number,
+): void => {
+  // The session is taken: the relay carries the agent's lines from here on.
+  socket.write(`${JSON.stringify({ relay: version, ok: true })}\n`)
+  let buffer = ""
+  let pending = 0
+  let ended = false
+  const settle = () => {
+    if (ended && pending === 0) socket.end()
+  }
+  const take = (line: string) => {
+    if (line === relayEnd) {
+      ended = true
+      settle()
+      return
+    }
+    pending += 1
+    mcpAnswer(line, call)
+      .then((reply) => {
+        if (reply !== undefined && socket.writable) socket.write(`${reply}\n`)
+      })
+      .catch(() => {})
+      .finally(() => {
+        pending -= 1
+        settle()
+      })
+  }
+  // Whether the line under way was too long to take, and what is left of it goes unread.
+  // Its start and, as it goes, its end: answered once it ends.
+  let skipping: { head: string; tail: string } | undefined
+  const read = (chunk: string) => {
+    buffer += chunk
+    let end
+    while ((end = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, end)
+      buffer = buffer.slice(end + 1)
+      if (ended) return
+      // However it arrived, whole or in pieces, a line over the limit isn't taken.
+      if (!skipping && line.length <= maxSessionLine) {
+        take(line.trim())
+        continue
+      }
+      const head = skipping?.head ?? line.slice(0, idWindow)
+      const tail = ((skipping?.tail ?? "") + line).slice(-idWindow)
+      if (socket.writable) socket.write(`${tooLong(head, tail.trimEnd())}\n`)
+      skipping = undefined
+    }
+    if (!skipping && buffer.length > maxSessionLine) {
+      skipping = { head: buffer.slice(0, idWindow), tail: "" }
+    }
+    if (skipping) {
+      skipping.tail = (skipping.tail + buffer).slice(-idWindow)
+      buffer = ""
+    }
+  }
+  socket.on("data", read)
+  // A relay that went away without its end has nothing more to answer.
+  socket.on("end", () => {
+    ended = true
+    settle()
+  })
+  read(rest)
+}
+
+/** An answer, or `failed` once it fails or `ms` pass. */
+const within = async <T>(answer: Promise<T>, ms: number, failed: T): Promise<T> => {
+  const timeout = new AbortController()
+  const result = await Promise.race([
+    answer.catch(() => failed),
+    sleep(Math.max(0, ms), failed, { signal: timeout.signal }).catch(() => failed),
+  ])
+  timeout.abort()
+  return result
+}
 
 export type ReportsOptions = {
   readonly platform?: NodeJS.Platform
   /** How long a sender has to send its line, in milliseconds. */
   readonly readMs?: number
   /**
-   * How long a call waits for its answer before it gets `unanswered`, in milliseconds:
+   * How long a call waits for its answer before it gets its type's `unansweredCalls`, in
+   * milliseconds:
    * by default 8 s, as opening a terminal waits for NovaDeck's window, and within the
    * 10 s NovaDeck's MCP server waits.
    */
@@ -155,7 +258,7 @@ export type ReportsOptions = {
 
 /** What the endpoint hands on, each to the runner, which checks its token. */
 export type ReportHandlers = {
-  /** A hook's report, which gets no answer. */
+  /** A hook's report; its relay hears `unheard` back. */
   readonly report: (report: Report) => void
   /** A hook's ask, answered by `deadline` or as `unheard`. */
   readonly ask: (report: Report, deadline: number) => Promise<HookAnswer>
@@ -172,14 +275,14 @@ export type Reports = {
 }
 
 /**
- * Listens for agent hook reports, asks and acknowledgements, and calls. Each connection
- * sends one JSON line: an agent hook's report, handed on and closed without a reply; an
- * ask, a report with its hook's `deadline`, which gets one JSON line, a `HookAnswer`,
- * before it is closed, or `unheard` once that deadline passes; a hook's `ack` of a lease,
- * closed without a reply; or a call, one that names its `type`, which gets one JSON line
- * before it is closed. A call that cannot be read gets `unanswered`; one that fails or
- * takes longer than `answerMs`, the same for its type.
- * None is checked against the terminal's own token here; the handlers do.
+ * Listens for NovaDeck's relays (see application/relay), which speak only the relay
+ * protocol (docs/backend-api.md, "Relay protocol"). Each connection's first line names
+ * the relay's version and what it carries: an agent's hook, a report or an ask, answered
+ * with one line, a `HookAnswer`, and then perhaps acknowledged (see `serveHook`); or an
+ * agent's MCP session, which stays open for as long as the agent runs, its tool calls
+ * handed on as calls (see `serveSession`). A connection whose first line is anything
+ * else is ended without an answer. None is checked against the terminal's own token
+ * here; the handlers do.
  */
 export const listenForReports = async (
   handlers: ReportHandlers,
@@ -192,29 +295,83 @@ export const listenForReports = async (
     directory === undefined
       ? `\\\\.\\pipe\\novadeck-reports-${randomUUID()}`
       : join(directory, "reports.sock")
-  const respond = async <T>(socket: Socket, answer: Promise<T>, ms: number, failed: T) => {
-    const timeout = new AbortController()
-    const result = await Promise.race([
-      answer.catch(() => failed),
-      sleep(Math.max(0, ms), failed, { signal: timeout.signal }),
-    ])
-    timeout.abort()
-    let line: string | undefined
-    try {
-      line = JSON.stringify(result)
-    } catch {
-      // Not JSON; answered as a failure below.
+  // A relay's call: the terminal and token it named, answered within `answerMs`.
+  const relayCall =
+    (from: { terminalId: string; token: string }): McpCall =>
+    (type, request) =>
+      within(handlers.call({ type, ...from, request }), answerMs, unansweredCalls[type])
+  /**
+   * Answers a relay's hook with one line, a `HookAnswer`: a report at once, an ask by
+   * its deadline or as `unheard`. The relay then prints what it delivers and, holding a
+   * lease, acknowledges it with one more line, `{ ack }`, on the same connection.
+   */
+  const serveHook = async (
+    socket: Socket,
+    value: { readonly [key: string]: unknown },
+    rest: string,
+  ) => {
+    // What the relay sends after its hook, read from the start: its acknowledgement,
+    // which counts once its answer named the lease it acknowledges.
+    let text = rest
+    let lease: string | undefined
+    // Whether the acknowledgement was taken, or none can come; nothing more is read.
+    let done = false
+    const take = (from: { terminalId: string; token: string }) => {
+      if (lease === undefined) return
+      const end = text.indexOf("\n")
+      if (end < 0) return
+      done = true
+      socket.end()
+      let ack: unknown
+      try {
+        ack = JSON.parse(text.slice(0, end))
+      } catch {
+        return
+      }
+      if (object(ack) && ack.ack === lease) handlers.ack({ ...from, leaseId: lease })
+      lease = undefined
     }
-    socket.end(`${line ?? JSON.stringify(failed)}\n`)
-    // A caller that never closes its side is let go after a while.
-    socket.setTimeout(readMs)
+    const from = sender(value)
+    socket.on("data", (chunk: string) => {
+      if (done) return
+      text += chunk
+      // An acknowledgement is one short line.
+      if (text.length > maxBytes) return socket.destroy()
+      if (from) take(from)
+    })
+    const hook = from && relayHook(value)
+    let answer = unheard
+    if (from && hook) {
+      const report = { ...from, ...hook.report }
+      if (hook.deadline === undefined) {
+        handlers.report(report)
+      } else {
+        const ms = Math.min(answerMs, hook.deadline - Date.now())
+        answer = await within(handlers.ask(report, hook.deadline), ms, unheard)
+      }
+    }
+    if (!socket.writable) return
+    socket.write(`${JSON.stringify(answer)}\n`)
+    if (!from || answer.leaseId === null) {
+      done = true
+      socket.end()
+      return
+    }
+    // The relay acknowledges the lease once it has printed what it delivers.
+    lease = answer.leaseId
+    socket.setTimeout(readMs, () => socket.destroy())
+    take(from)
   }
-  // Half open: a sender that ends its side after its line still reads the answer, where
-  // the platform keeps a half-closed connection. Windows' named pipes don't, so a caller
-  // there, as NovaDeck's MCP server everywhere, keeps its side open until the answer.
+  // Every connection, so closing ends the sessions that stay open.
+  const sockets = new Set<Socket>()
+  // Half open: a relay that ends its side after its hook still reads the answer, where the
+  // platform keeps a half-closed connection. Windows' named pipes don't, so a relay keeps
+  // its side open until the answer everywhere.
   const server: Server = createServer({ allowHalfOpen: true }, (socket: Socket) => {
     let text = ""
     let taken = false
+    sockets.add(socket)
+    socket.on("close", () => sockets.delete(socket))
     socket.setEncoding("utf8")
     socket.setTimeout(readMs, () => socket.destroy())
     socket.on("error", () => socket.destroy())
@@ -222,10 +379,14 @@ export const listenForReports = async (
     socket.on("end", () => {
       if (!taken) socket.end()
     })
-    socket.on("data", (chunk: string) => {
+    const first = (chunk: string) => {
       if (taken) return
       text += chunk
-      if (text.length > maxBytes) return socket.destroy()
+      // A relay's hook carries its agent's payload whole, which the runner prunes; the
+      // relay names itself first.
+      if (text.length > (text.startsWith(relayStart) ? maxRelayHook : maxBytes)) {
+        return socket.destroy()
+      }
       const end = text.indexOf("\n")
       if (end < 0) return
       taken = true
@@ -235,33 +396,31 @@ export const listenForReports = async (
       } catch {
         value = undefined
       }
-      if (object(value) && "type" in value) {
-        // The answer's own deadline bounds the wait.
+      const version =
+        object(value) && typeof value.relay === "number" && relayVersions.has(value.relay)
+          ? value.relay
+          : undefined
+      if (object(value) && version !== undefined && value.kind === "hook") {
+        // The ask's own deadline bounds the wait.
         socket.setTimeout(0)
-        const call = parseCall(value)
-        const failed = call ? unansweredCalls[call.type] : unanswered
-        const answer = call ? handlers.call(call) : Promise.resolve(failed)
-        respond(socket, answer, answerMs, failed).catch(() => socket.destroy())
+        socket.off("data", first)
+        serveHook(socket, value, text.slice(end + 1)).catch(() => socket.destroy())
         return
       }
-      if (object(value) && "deadline" in value) {
-        // As for a call; the hook's own deadline bounds the wait.
+      if (object(value) && version !== undefined && value.kind === "mcp") {
+        // An agent's MCP session lasts as long as the agent, and holds no runner open.
         socket.setTimeout(0)
-        const ask = parseAsk(value)
-        const answer = ask ? handlers.ask(ask.report, ask.deadline) : Promise.resolve(unheard)
-        const ms = ask ? Math.min(answerMs, ask.deadline - Date.now()) : 0
-        respond(socket, answer, ms, unheard).catch(() => socket.destroy())
+        socket.unref()
+        socket.off("data", first)
+        const from = sender(value)
+        serveSession(socket, text.slice(end + 1), from && relayCall(from), version)
         return
       }
+      // Not a relay's this runner speaks with: nothing to take or answer.
+      refuse(value)
       socket.end()
-      if (object(value) && "ack" in value) {
-        const ack = parseAck(value)
-        if (ack) handlers.ack(ack)
-        return
-      }
-      const parsed = object(value) ? parse(value) : undefined
-      if (parsed) handlers.report(parsed)
-    })
+    }
+    socket.on("data", first)
   })
   try {
     await new Promise<void>((resolve, reject) => {
@@ -279,7 +438,9 @@ export const listenForReports = async (
   return {
     endpoint,
     close: async () => {
-      await new Promise<void>((resolve) => server.close(() => resolve()))
+      const closed = new Promise<void>((resolve) => server.close(() => resolve()))
+      for (const socket of sockets) socket.destroy()
+      await closed
       if (directory) await rm(directory, { recursive: true, force: true })
     },
   }

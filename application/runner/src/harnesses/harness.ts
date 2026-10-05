@@ -180,8 +180,11 @@ export type Harness = {
 export type MessagingProfile = {
   /** The hook events that ask, and when each fires: as a turn ends, or as a prompt starts it. */
   readonly asks: { readonly [event: string]: "stop" | "prompt" }
-  /** What a hook prints with nothing to deliver, as it does without NovaDeck. */
-  readonly silent: (event: string) => string
+  /**
+   * What a hook prints with nothing to deliver, as it does without NovaDeck: by event, and
+   * for any other (`*`). The relay prints the same when NovaDeck can't answer.
+   */
+  readonly silent: { readonly "*": string; readonly [event: string]: string }
   /** A Stop's answer that continues the turn with a delivery. */
   readonly stop: (delivery: string) => string
   /** A prompt's answer that adds a delivery to what the model sees, apart from the prompt. */
@@ -239,20 +242,21 @@ export const hookSeconds = 10
 export const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
 
 /** Where the plugin's commands start from, as NovaDeck wrote them for this run. */
-export type Launchers = { readonly mcp: string }
+/** What `profile`'s hook prints for `event` with nothing to deliver. */
+export const silentFor = (profile: MessagingProfile, event: string): string =>
+  profile.silent[event] ?? profile.silent["*"]
+
+/** How an agent starts a program of NovaDeck's: a file, by its absolute path, and arguments. */
+export type Start = { readonly command: string; readonly args?: readonly string[] }
 
 /**
- * How an agent starts NovaDeck's MCP server: the launcher, by its absolute path, since an
- * agent starts it without a shell that could expand a variable. On Windows that is cmd,
- * which a .cmd file needs.
+ * How agents start what NovaDeck installs for them: its MCP server, which they start
+ * without a shell that could expand a variable.
  */
-export const mcpServer = (
-  platform: NodeJS.Platform,
-  launchers: Launchers,
-): { readonly command: string; readonly args?: readonly string[] } =>
-  platform === "win32"
-    ? { command: "cmd.exe", args: ["/d", "/c", launchers.mcp] }
-    : { command: launchers.mcp }
+export type Launchers = { readonly mcp: Start }
+
+/** How an agent starts NovaDeck's MCP server, as its plugin names it. */
+export const mcpServer = (launchers: Launchers): Start => launchers.mcp
 
 /** The terminal's variables NovaDeck's MCP server finds its terminal and runner by. */
 export const mcpVariables = [

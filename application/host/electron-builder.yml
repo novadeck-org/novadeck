@@ -21,11 +21,17 @@ files:
 extraResources:
   - from: ../ui/dist
     to: ui
+  # The relay agents start for NovaDeck's MCP server and hooks; see application/relay.
+  - from: ../relay/dist
+    to: relay
+    filter:
+      - novadeck-relay*
 artifactName: novadeck-${version}-${os}-${arch}.${ext}
 mac:
-  # node-pty ships prebuilds for both architectures; the universal merge sees them
-  # unchanged in the x64 and arm64 copies, and node-pty loads the one for the host.
-  x64ArchFiles: Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/*
+  # node-pty ships prebuilds for both architectures, and the relay is built universal; the
+  # universal merge sees them unchanged in the x64 and arm64 copies, and each runs the
+  # architecture of the host.
+  x64ArchFiles: "{Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/*,Contents/Resources/relay/*}"
   # Electron resolves helpers from CFBundleName; builder strips the branding's trailing dot.
   extendInfo:
     CFBundleName: novadeck
