@@ -372,14 +372,35 @@ ${silentCases(
   )
 
 /**
- * How agents start NovaDeck's MCP server: on Linux and macOS its launcher, which the
- * relay replaces, as it is started; on Windows the relay itself, as a launcher there
- * needs cmd, which stays running beside it, costing each agent several megabytes.
+ * How agents start NovaDeck's MCP server: on Linux and macOS the launcher the terminal
+ * names in NOVADECK_MCP, else this NovaDeck's, either replaced by sh and then by the
+ * relay; on Windows the relay itself, as a launcher there needs cmd, which stays running
+ * beside it, costing each agent several megabytes.
  */
 export const mcpStart = (paths: ShellPaths, platform = process.platform): Start =>
   platform === "win32"
     ? { command: paths.relay, args: [...relayArguments(paths).mcp] }
-    : { command: paths.mcp }
+    : terminalsOwn({ command: paths.mcp })
+
+/**
+ * `start`, unless the terminal names its own NovaDeck's MCP launcher in NOVADECK_MCP.
+ * An agent's plugin comes from whichever NovaDeck connected it last, while several builds
+ * (an installed app and a development one, say) may run side by side; so an agent in a
+ * terminal of any of them starts that one's relay, which speaks its runner's protocol
+ * and is there for as long as it runs. A variable that names no runnable file, as unset
+ * outside NovaDeck or left from a build since removed, starts `start`. sh takes `start`
+ * as `$0` and its arguments as `$@`, so it never parses them, and the script holds no
+ * `${...}`, which Claude Code expands itself.
+ */
+const terminalsOwn = (start: Start): Start => ({
+  command: "/bin/sh",
+  args: [
+    "-c",
+    'if [ -x "$NOVADECK_MCP" ]; then exec "$NOVADECK_MCP"; fi; exec "$0" "$@"',
+    start.command,
+    ...(start.args ?? []),
+  ],
+})
 
 export type ShellFile = { readonly path: string; readonly content: string; readonly mode: number }
 

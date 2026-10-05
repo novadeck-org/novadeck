@@ -54,14 +54,6 @@ export const uploadName = (file: { readonly name: string; readonly type: string 
 // Whether a path is a Windows one: on a drive, or a share.
 const windowsPath = (path: string): boolean => /^(?:[A-Za-z]:[\\/]|\\\\)/.test(path)
 
-// A path as a shell reads it as one word: backslashes before its special characters,
-// `^` among them for zsh's extended globs, or on Windows, where a backslash separates
-// folders, in double quotes when it has a space.
-export const shellPath = (path: string): string => {
-  if (windowsPath(path)) return /\s/.test(path) ? `"${path}"` : path
-  return path.replace(/([ \t"'`\\()&;|<>$!*?[\]{}#~^])/g, "\\$1")
-}
-
 // What a Windows path may hold to go in as itself: letters, marks and digits, spaces, and
 // `.`, `_`, `-`, `\`, `:`, which mean nothing to cmd or PowerShell wherever the quotes
 // end up: PowerShell drops them around a word without a space as it runs a `.cmd`, and
@@ -69,6 +61,18 @@ export const shellPath = (path: string): string => {
 // (U+02B0 to U+02FF) or the combining diacritics (U+0300 to U+036F), some of which a
 // conversion to the system's code page turns into a quote.
 const windowsSafe = /^(?:(?![\u02b0-\u036f])[\p{L}\p{M}\p{N} ._\-\\:])+$/u
+
+// A path as a shell reads it as one word: backslashes before its special characters,
+// `^` among them for zsh's extended globs, or on Windows, where a backslash separates
+// folders, in double quotes when it has a space or anything `windowsSafe` leaves out, as
+// an upload's under a user folder such as `C:\R&D` has. Quotes keep cmd and PowerShell
+// from acting on `&` and the like, though not every shell from expanding `%`, `!`, `$`
+// or PowerShell's backtick, and PowerShell drops them as it runs a `.cmd`, whose cmd
+// then splits the path.
+export const shellPath = (path: string): string => {
+  if (windowsPath(path)) return windowsSafe.test(path) && !/\s/.test(path) ? path : `"${path}"`
+  return path.replace(/([ \t"'`\\()&;|<>$!*?[\]{}#~^])/g, "\\$1")
+}
 
 // A file's own path as a shell reads it as one word, or undefined where it can't go in
 // safely, and a copy goes instead: one with a control character, and on Windows, whose

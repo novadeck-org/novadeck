@@ -97,6 +97,10 @@ path that fails these rules is uploaded instead, under the runner's own safe nam
 which keeps to the same letters (`safeName` in
 `application/runner/src/terminals/uploads.ts`).
 
+An upload's path goes in double-quoted when the person's own folders above it hold a
+space or any character outside those letters, as `C:\R&D\...` does (`shellPath`);
+PowerShell running a `.cmd` program drops those quotes, so cmd can still split it there.
+
 ## Terminal Runner
 
 The standalone terminal API is a personal/self-hosted shell capability, not a
@@ -156,4 +160,4 @@ The shell integration and hook live in the runner's own `shell` folder; the runn
 never writes to the user's rc files or dotfiles. Only when the person connects an agent
 does it install NovaDeck's plugin into that agent, through the agent's own plugin
 commands, and disconnecting removes it. The plugin's hook does nothing outside
-NovaDeck's shells.
+NovaDeck's shells. On Linux and macOS its MCP server starts the launcher the terminal names in `NOVADECK_MCP`, as its hook starts `NOVADECK_HOOK`'s, and otherwise the launcher of the NovaDeck that connected the agent; both are the user's own environment, so a process that changes them runs nothing it couldn't run already.

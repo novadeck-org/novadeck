@@ -258,8 +258,9 @@ export type Launchers = { readonly mcp: Start }
 /** How an agent starts NovaDeck's MCP server, as its plugin names it. */
 export const mcpServer = (launchers: Launchers): Start => launchers.mcp
 
-/** The terminal's variables NovaDeck's MCP server finds its terminal and runner by. */
+/** The terminal's variables NovaDeck's MCP server is started and finds its runner by. */
 export const mcpVariables = [
+  "NOVADECK_MCP",
   "NOVADECK_TERMINAL_ID",
   "NOVADECK_REPORT",
   "NOVADECK_REPORT_TOKEN",

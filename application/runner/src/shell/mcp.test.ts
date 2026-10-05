@@ -80,6 +80,7 @@ const session = (
 // This environment without the variables of a NovaDeck terminal the tests run in.
 const outside = (): NodeJS.ProcessEnv => {
   const env = { ...process.env }
+  delete env.NOVADECK_MCP
   delete env.NOVADECK_TERMINAL_ID
   delete env.NOVADECK_REPORT
   delete env.NOVADECK_REPORT_TOKEN
@@ -726,7 +727,9 @@ describe("NovaDeck's MCP server", () => {
         "starts its own copy of the relay, which stays when the app's folder goes",
         async () => {
           const start = await installed()
-          const launcher = await readFile(start.command, "utf8")
+          // sh starts the terminal's launcher, else this one, which it takes as `$0`.
+          expect(start.command).toBe("/bin/sh")
+          const launcher = await readFile(start.args?.[2] ?? "", "utf8")
           expect(launcher).toContain(`'${join(folder, "launcher", "novadeck-relay")}' mcp`)
           expect(launcher).not.toContain(relayPath)
           expect(launcher).not.toContain("ELECTRON_RUN_AS_NODE")

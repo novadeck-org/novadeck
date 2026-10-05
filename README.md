@@ -302,7 +302,7 @@ Ctrl+V stays the program's. In the desktop app, a file or folder copied in a fil
 manager pastes its own path, whatever its size, so an agent edits the file itself; a
 Windows name with anything but letters, digits, spaces and `.`, `_`, `-`, such as
 `&`, `%` or the brackets of `Screenshot (1).png`, or with a space before a `-`, as in
-`Report - Final.pdf`, goes as a copy instead. On macOS that path may be in a folder the system protects, such as
+`Report - Final.pdf`, goes as a copy instead. If a folder in your user path has characters like `&`, NovaDeck puts quotes around a pasted upload's path so the shell reads it as one path; PowerShell can still split it when it passes the path to a `.cmd` program such as VS Code's `code`. On macOS that path may be in a folder the system protects, such as
 Desktop, Documents or Downloads, so a program in the terminal may need macOS's
 permission to read it, where a copy needed none. The runner saves a copy of anything else (a screenshot, an image from a
 page, any file pasted in a browser) on its own machine, readable by its owner only, under a name of letters, digits and `.`, `_`, `-` or spaces, in an `uploads`
@@ -346,8 +346,10 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` launches the Electron desktop application. To run the UI and runner
-in a browser instead:
+`pnpm dev` launches the Electron desktop application. Development launches keep their own
+data (database, settings, agent launchers) in `NovaDeck-dev`, beside and apart
+from an installed NovaDeck's `NovaDeck` folder. An agent's NovaDeck tools always come from the NovaDeck whose terminal it runs in, through the relay of the build that connected it. On Linux and macOS, once you disconnect and connect each agent after upgrading, an agent in any NovaDeck's terminal starts that NovaDeck's own relay (`NOVADECK_MCP`), so a build that changed or removed its relay doesn't affect the others; on Windows it starts the connecting build's relay. To run the UI and runner in a browser
+instead:
 
 ```sh
 pnpm dev:web
@@ -367,8 +369,8 @@ terminals) and start again. A standalone runner keeps it at
 desktop app keeps it in its data folder, `NovaDeck` on every platform:
 `~/.config/NovaDeck/workspace.sqlite` on Linux, `~/Library/Application
 Support/NovaDeck/workspace.sqlite` on macOS and `%APPDATA%\NovaDeck\workspace.sqlite` on
-Windows. NovaDeck never deletes or rewrites it
-for you.
+Windows (`NovaDeck-dev` in place of `NovaDeck` for `pnpm dev`). NovaDeck never
+deletes or rewrites it for you.
 
 ### Plan review design preview
 

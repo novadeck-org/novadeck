@@ -8,11 +8,16 @@ import { relayPath } from "@novadeck/relay"
 import { shellFiles, shellPaths, staleShellFiles, type ShellPaths } from "./scripts.js"
 
 /**
- * The shell files as written, with the launcher as NovaDeck's shells name it in
- * NOVADECK_HOOK: on Windows its short name, which holds no spaces or brackets, so cmd
- * runs it unquoted.
+ * The shell files as written, with the launchers as NovaDeck's shells name them: the
+ * hook's in NOVADECK_HOOK, on Windows by its short name, which holds no spaces or
+ * brackets, so cmd runs it unquoted; and on Linux and macOS the MCP server's in
+ * NOVADECK_MCP, which agents' plugins start in its place (see `mcpStart`). Windows'
+ * plugins start the relay itself, without a shell to read the variable, so it is unset.
  */
-export type InstalledShell = ShellPaths & { readonly launcher: string }
+export type InstalledShell = ShellPaths & {
+  readonly launcher: string
+  readonly mcpLauncher: string | undefined
+}
 
 export type InstallOptions = {
   /** The relay to copy in for the launchers; the one `@novadeck/relay` built by default. */
@@ -54,7 +59,11 @@ export const installShellFiles = async (
   // A resume command left by a runner that stopped before its shell took it is stale.
   await rm(paths.resume, { recursive: true, force: true })
   await mkdir(paths.resume, { recursive: true, mode: 0o700 })
-  return { ...paths, launcher: await shortName(paths.hook) }
+  return {
+    ...paths,
+    launcher: await shortName(paths.hook),
+    mcpLauncher: process.platform === "win32" ? undefined : paths.mcp,
+  }
 }
 
 /**

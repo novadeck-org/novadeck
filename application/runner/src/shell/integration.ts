@@ -39,8 +39,9 @@ const pathKey = (env: NodeJS.ProcessEnv): string =>
  * way VS Code does: bash reads it as its rc file, zsh finds it through ZDOTDIR, fish
  * runs it as an init command, PowerShell dot-sources it after the profile, and cmd
  * reports through its PROMPT. Each first loads the user's own startup files. Other
- * shells start as they are. Every shell gets the hook's launcher in NOVADECK_HOOK, and
- * with `shims` the connected harnesses whose shims, as Codex's, go first on PATH.
+ * shells start as they are. Every shell gets the hook's launcher in NOVADECK_HOOK, the
+ * MCP server's in NOVADECK_MCP (on Linux and macOS, as `installShellFiles` gives it), and with `shims`
+ * the connected harnesses whose shims, as Codex's, go first on PATH.
  *
  * A `startup` command runs once as the shell starts, as if typed at its first prompt:
  * an agent's resume, plain words from the harness's `resume`, or the command line a new
@@ -64,12 +65,15 @@ export const shellLaunch = (
   const key = pathKey(env)
   const path = env[key]
   // Connected agents' hooks name the launcher through NOVADECK_HOOK; see `hookCommand`.
+  // On Linux and macOS their MCP server starts from NOVADECK_MCP, so it is this
+  // runner's relay whichever build connected them; see `mcpStart`.
   // With shims, their folder goes first on PATH, and the integration puts it back
   // there after the user's startup files. NOVADECK_SHIMS names the harnesses whose shims
   // apply; any other shim there runs its program unchanged.
   const withHook = {
     ...env,
     NOVADECK_HOOK: paths.launcher,
+    ...(paths.mcpLauncher !== undefined && { NOVADECK_MCP: paths.mcpLauncher }),
     ...(shims.length > 0 && {
       [key]: path ? `${paths.bin}${delimiter}${path}` : paths.bin,
       NOVADECK_BIN: paths.bin,

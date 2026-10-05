@@ -25,6 +25,7 @@ import {
   runnerPortChannel,
 } from "../bridge.js"
 import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
+import { dataFolderName } from "./data-folder.js"
 import { debugEnabled, registerDebugIpc } from "./debug.js"
 import { notificationText, registerNoticeIpc, showNotices } from "./notices.js"
 import { attachPage, guardPage, lockPagesSession, pagesPartition, webAddress } from "./pages.js"
@@ -33,10 +34,14 @@ import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./
 import { startRunner, type RunnerHost } from "./runner.js"
 
 const appId = "dev.mzpk.novadeck"
-// Where the app keeps its data (the workspace database, the shell files, Chromium's own),
-// named alike on every platform. Electron would name it after the product, "novadeck.",
-// whose trailing dot Windows drops from folder names, or keeps under some paths.
-app.setPath("userData", join(app.getPath("appData"), "NovaDeck"))
+// Where the app keeps its data; a development launch keeps its own (see ./data-folder.ts).
+// One given by --user-data-dir, as the packaged smoke test gives, is kept; the switch
+// without a folder names none.
+if (!app.commandLine.getSwitchValue("user-data-dir"))
+  app.setPath(
+    "userData",
+    join(app.getPath("appData"), dataFolderName({ packaged: app.isPackaged })),
+  )
 // Whether this launch offers the debug panel: always in development, and in a
 // packaged app only with --debug-panel or NOVADECK_DEBUG=1.
 const debugging = debugEnabled({ argv: process.argv, env: process.env, packaged: app.isPackaged })

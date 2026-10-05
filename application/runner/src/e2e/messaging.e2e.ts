@@ -1,3 +1,12 @@
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  type Dirent,
+} from "node:fs"
+import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { Harness } from "../harnesses/harness.js"
@@ -21,6 +30,34 @@ import {
   through,
   turn,
 } from "./scenarios.js"
+
+// The JSON files under `folder`, passing over a folder a harness removes meanwhile, as
+// Codex does its own temporary ones.
+const jsonFiles = (folder: string): string[] => {
+  let entries: Dirent[]
+  try {
+    entries = readdirSync(folder, { withFileTypes: true })
+  } catch {
+    return []
+  }
+  return entries.flatMap((entry) => {
+    const path = join(folder, entry.name)
+    if (entry.isDirectory()) return jsonFiles(path)
+    return entry.isFile() && entry.name.endsWith(".json") ? [path] : []
+  })
+}
+
+// Rewrites every JSON file under `root` that names the MCP launcher `from` to name `to`,
+// as a plugin installed by another build would, and returns the files it rewrote.
+const renamePlugins = (root: string, from: string, to: string): string[] => {
+  const [named, renamed] = [JSON.stringify(from).slice(1, -1), JSON.stringify(to).slice(1, -1)]
+  return jsonFiles(root).filter((path) => {
+    const text = existsSync(path) ? readFileSync(path, "utf8") : ""
+    if (!text.includes(named)) return false
+    writeFileSync(path, text.replaceAll(named, renamed))
+    return true
+  })
+}
 
 // How long a terminal is watched for what a stale record, read late, would change.
 const quiet = 3000
@@ -69,6 +106,32 @@ for (const setup of setups) {
       expect(tool(call, "send")).toBeDefined()
       // By its first prompt, every harness has bound its session.
       expect(t1.summary().agent).toBe(setup.agent)
+    })
+
+    it("reaches its own NovaDeck's MCP server when another build connected it last", async ({
+      e2e: run,
+    }) => {
+      // Another NovaDeck, as a development build beside the installed app, connecting the
+      // agent after this one: every plugin copy names that build's launcher instead.
+      const other = join(run.sandbox.root, "other build", "shell")
+      const marker = join(run.sandbox.root, "other build", "started")
+      mkdirSync(other, { recursive: true })
+      const decoy = join(other, "mcp")
+      writeFileSync(decoy, `#!/bin/sh\ntouch '${marker}'\nexit 1\n`, { mode: 0o755 })
+      // The copy the harness installed, not only NovaDeck's own source of it.
+      const rewritten = renamePlugins(run.sandbox.root, run.deck.shell.mcp, decoy)
+      expect(rewritten.some((path) => path.startsWith(run.sandbox.home))).toBe(true)
+      run.model.use(replies("Say the word", "Pelican-7 says hello."))
+      const t1 = await start(run, setup)
+
+      await turn(t1, "Say the word", "Pelican-7 says hello.")
+
+      // The terminal's NOVADECK_MCP started this NovaDeck's server, which offers its tools.
+      const call = await run.model.waitFor(
+        (one) => !one.side && latest(one).includes("Say the word"),
+      )
+      expect(tool(call, "send")).toBeDefined()
+      expect(existsSync(marker)).toBe(false)
     })
 
     it("rings an idle agent for a message, and its answer reaches the sender", async ({

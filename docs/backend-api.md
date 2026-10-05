@@ -475,7 +475,8 @@ changed. Only connecting an agent (below) installs anything elsewhere:
   expects, and reports within two seconds or gives up.
 
 Each shell the runner starts gets `NOVADECK_TERMINAL_ID`, and with the integration
-`NOVADECK_HOOK`, and `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`:
+`NOVADECK_HOOK` (and on Linux and macOS `NOVADECK_MCP`, the runner's own MCP launcher),
+and `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`:
 a Unix socket in a private temporary directory, or a named pipe on Windows, and a random
 token for that shell. Agents' hooks and NovaDeck's MCP server reach it through the
 relay, as the [relay protocol](#relay-protocol) below describes. From each hook's report
@@ -499,8 +500,9 @@ the connection carries; the endpoint ends a connection whose first line is anyth
 or a version it doesn't speak, without an answer, and logs that once.
 
 **Versions.** An agent's plugin starts the relay of whichever install connected it last,
-as the desktop app and a standalone runner can share a machine, so a runner can meet an
-older or newer relay than its own. When the protocol changes incompatibly, the version
+on Windows or outside NovaDeck's terminals (on Linux and macOS a terminal's agents start
+its own runner's relay, through `NOVADECK_MCP`), as the desktop app and a standalone
+runner can share a machine, so a runner can meet an older or newer relay than its own. When the protocol changes incompatibly, the version
 goes up, and the runner keeps taking the one before for a release (`relayVersions`).
 That holds from version 2, the relay's first: the scripts agents ran before it, on
 NovaDeck's own runtime, aren't served, so an agent connected by an install from before

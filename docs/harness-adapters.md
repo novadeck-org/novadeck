@@ -1018,6 +1018,27 @@ saved into a global manifest), and, for [Agent messaging](agent-messaging.md), t
 encoding of messages into their Stop and prompt-time hook answers. Installed MCP
 configuration and a live authenticated connection are separate readiness facts.
 
+An agent's plugin is installed once per user, by whichever NovaDeck connected it last,
+while several NovaDeck builds (an installed app and a development build, say) may run
+side by side. The MCP server it starts is the relay, which carries the agent's messages
+to the runner of the terminal it runs in, so the tools are always that runner's. On
+Linux and macOS the relay is also that NovaDeck's own: as hooks run the launcher the
+terminal names in `NOVADECK_HOOK`, the MCP server starts from the launcher the terminal
+names in `NOVADECK_MCP`, so it speaks its runner's relay protocol and is there for as
+long as that NovaDeck is. Only where the variable names no runnable file, as when it is
+unset for an agent started outside NovaDeck or names a build since removed, does the
+command fall back to the connecting build's launcher by its absolute path (`mcpStart` in
+`shell/scripts.ts`). Agents start the command without a shell, so it is one:
+`/bin/sh -c 'if [ -x "$NOVADECK_MCP" ]; then exec "$NOVADECK_MCP"; fi; exec "$0" "$@"' <launcher>`,
+which takes the launcher as `$0` and any arguments as `$@` and never parses them, and
+holds no `${...}`, which Claude Code would expand itself. sh and the launcher each
+`exec`, so the relay alone keeps running. On Windows the plugin starts the connecting
+build's relay itself, by its absolute path: a command there that read the variable
+would need cmd, which stays running beside the relay for as long as the agent does, so
+the variable is unset there. Codex passes an MCP server only the variables its
+`env_vars` lists, which name `NOVADECK_MCP` too. A plugin installed by a NovaDeck before
+this names only its own launcher; connecting the agent again installs the new command.
+
 ## Growing the interface
 
 Add optional `Harness` fields when a concrete product feature needs them:

@@ -5,12 +5,12 @@ import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
 
-import { plugin } from "../harnesses/harness.js"
+import { plugin, type Start } from "../harnesses/harness.js"
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
 import { mcpVersions } from "./mcp.js"
-import type { ShellPaths } from "./scripts.js"
+import { mcpStart, shellPaths, type ShellPaths } from "./scripts.js"
 
 const windows = process.platform === "win32"
 
@@ -197,8 +197,30 @@ const server = (root: string, path: string) =>
     }
   ).mcpServers.novadeck
 
+// The MCP server each agent's plugin declares on this platform for NovaDeck's folder.
+const declared = (platform: NodeJS.Platform, directory: string) =>
+  [
+    ["claude", join("novadeck", ".mcp.json")],
+    ["codex", join("novadeck", ".mcp.json")],
+    ["agy", "mcp_config.json"],
+  ].map(([agent, path]) => {
+    const file = harnesses[agent as AgentName]
+      .files(platform, { mcp: mcpStart(shellPaths(directory, platform), platform) })
+      .find((each) => each.path === path)!
+    const { command, args } = (JSON.parse(file.content) as { mcpServers: { novadeck: Start } })
+      .mcpServers.novadeck
+    return { command, args }
+  })
+
+// How sh starts the terminal's own launcher, else the one after it, on Linux and macOS.
+const sh = ["-c", 'if [ -x "$NOVADECK_MCP" ]; then exec "$NOVADECK_MCP"; fi; exec "$0" "$@"']
+
+// This environment without the variables of a NovaDeck terminal the tests may run in.
+const outside = (): NodeJS.ProcessEnv =>
+  Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("NOVADECK_")))
+
 describe("NovaDeck's MCP server in each agent's plugin", () => {
-  it("starts through NovaDeck's MCP launcher, with the terminal's variables for Codex", ({
+  it("starts the terminal's MCP launcher, else this one's, with the terminal's variables for Codex", ({
     plugins: { paths },
   }) => {
     const claude = server(paths.plugins.claude, join("novadeck", ".mcp.json"))
@@ -210,11 +232,9 @@ describe("NovaDeck's MCP server in each agent's plugin", () => {
       if (process.platform === "win32") {
         expect(each.command).toBe(paths.relay)
         expect(each.args).toEqual(["mcp", plugin.version, ...mcpVersions])
-      } else {
-        expect(each.command).toBe(paths.mcp)
-        expect(each.args).toBeUndefined()
-      }
+      } else expect(each).toMatchObject({ command: "/bin/sh", args: [...sh, paths.mcp] })
     expect(codex.env_vars).toEqual([
+      "NOVADECK_MCP",
       "NOVADECK_TERMINAL_ID",
       "NOVADECK_REPORT",
       "NOVADECK_REPORT_TOKEN",
@@ -224,4 +244,86 @@ describe("NovaDeck's MCP server in each agent's plugin", () => {
     ) as { mcpServers?: string }
     expect(manifest.mcpServers).toBe("./.mcp.json")
   })
+
+  // Agents read this command from a plugin installed by whichever build connected them
+  // last: change it on purpose only.
+  it("changes only on purpose", () => {
+    for (const platform of ["linux", "darwin"] as const)
+      for (const each of declared(platform, "/home/jo doe/it's $HOME/shell"))
+        expect(each).toEqual({
+          command: "/bin/sh",
+          args: [
+            "-c",
+            'if [ -x "$NOVADECK_MCP" ]; then exec "$NOVADECK_MCP"; fi; exec "$0" "$@"',
+            // Joined as the runner joins it, so on a Windows host with its separator.
+            shellPaths("/home/jo doe/it's $HOME/shell", platform).mcp,
+          ],
+        })
+    for (const each of declared("win32", "C:\\Users\\Jo Doe\\AppData\\Roaming\\NovaDeck\\shell"))
+      expect(each).toEqual({
+        command: join("C:\\Users\\Jo Doe\\AppData\\Roaming\\NovaDeck\\shell", "novadeck-relay.exe"),
+        args: ["mcp", plugin.version, ...mcpVersions],
+      })
+  })
+
+  // Windows' plugins start the relay itself, which reads no NOVADECK_MCP.
+  it.skipIf(windows)(
+    "starts the launcher NOVADECK_MCP names, as in another build's terminal",
+    ({ plugins }) => {
+      const { command, args } = server(plugins.paths.plugins.claude, join("novadeck", ".mcp.json"))
+      const result = spawnSync(command, args ?? [], {
+        env: { ...outside(), NOVADECK_MCP: plugins.launcher },
+        input: "hello",
+        encoding: "utf8",
+        timeout: hookMs,
+      })
+      expect(result.status).toBe(0)
+      expect(plugins.recorded()).toEqual({ args: [], stdin: "hello" })
+    },
+  )
+
+  it.skipIf(windows)(
+    "starts its own launcher when NOVADECK_MCP names one that is gone, as a stale copy of its terminal's",
+    ({ plugins }) => {
+      const { command, args } = server(plugins.paths.plugins.claude, join("novadeck", ".mcp.json"))
+      const gone = join(tmpdir(), "novadeck-gone", "mcp")
+      const result = spawnSync(command, args ?? [], {
+        env: { ...outside(), NOVADECK_MCP: gone },
+        input: `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n`,
+        encoding: "utf8",
+        timeout: hookMs,
+      })
+      expect(result.status).toBe(0)
+      expect(JSON.parse(String(result.stdout))).toMatchObject({
+        id: 1,
+        result: { serverInfo: { name: "novadeck" } },
+      })
+    },
+  )
+
+  it(
+    "starts its own launcher without NOVADECK_MCP, from a folder whose name needs quoting",
+    async ({ resources, plugins }) => {
+      const root = mkdtempSync(
+        join(tmpdir(), windows ? "novadeck Jo Doe (x) " : `novadeck it's "$x" `),
+      )
+      resources.defer(() => rmSync(root, { recursive: true, force: true }))
+      const paths = await installShellFiles(join(root, "shell"))
+      const { command, args } = server(paths.plugins.claude, join("novadeck", ".mcp.json"))
+      const result = spawnSync(command, args ?? [], {
+        env: outside(),
+        input: `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n`,
+        encoding: "utf8",
+        timeout: hookMs,
+      })
+      expect(result.status).toBe(0)
+      // Outside NovaDeck's terminals the relay answers the handshake itself.
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        id: 1,
+        result: { serverInfo: { name: "novadeck" } },
+      })
+      expect(plugins.recorded()).toBeUndefined()
+    },
+    hookMs + 5_000,
+  )
 })

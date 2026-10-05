@@ -131,6 +131,30 @@ describe("a pasted path", () => {
         '"C:\\Users\\Jo Doe\\uploads\\shot.png"',
       )
     })
+
+    it("quotes it when its folders hold a character cmd or PowerShell acts on", () => {
+      expect(shellPath("C:\\R&D\\NovaDeck\\uploads\\0b6e\\shot.png")).toBe(
+        '"C:\\R&D\\NovaDeck\\uploads\\0b6e\\shot.png"',
+      )
+      expect(shellPath("C:\\Users\\a(b);c\\uploads\\shot.png")).toBe(
+        '"C:\\Users\\a(b);c\\uploads\\shot.png"',
+      )
+    })
+
+    // Quotes don't keep cmd from expanding `%VAR%`, cmd with delayed expansion `!`, or
+    // PowerShell `$`, but these folders are the person's own, not chosen by an attacker,
+    // and the upload's own name keeps to safe characters.
+    it("quotes it when its folders hold %, ! or $", () => {
+      expect(shellPath("C:\\Users\\100%\\uploads\\shot.png")).toBe(
+        '"C:\\Users\\100%\\uploads\\shot.png"',
+      )
+      expect(shellPath("C:\\Users\\hey!\\uploads\\shot.png")).toBe(
+        '"C:\\Users\\hey!\\uploads\\shot.png"',
+      )
+      expect(shellPath("C:\\Users\\$me\\uploads\\shot.png")).toBe(
+        '"C:\\Users\\$me\\uploads\\shot.png"',
+      )
+    })
   })
 })
 

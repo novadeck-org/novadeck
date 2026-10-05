@@ -1336,6 +1336,30 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, terminal.id, "[|kept]")
   })
 
+  it("names this runner's own launchers, not those of a NovaDeck it was started from", async ({
+    shell,
+  }) => {
+    const manager = shell.manager({
+      env: {
+        HOME: shell.home,
+        PS1: "$ ",
+        NOVADECK_HOOK: "/other/shell/hook",
+        NOVADECK_MCP: "/other/shell/mcp",
+      },
+    })
+    const terminal = await create(manager, shell)
+    manager.write(
+      { terminalId: terminal.id, data: 'echo "[$NOVADECK_HOOK|$NOVADECK_MCP]"\r' },
+      "owner",
+    )
+    const shellFolder = dirname(shell.plugins)
+    await shell.until(
+      manager,
+      terminal.id,
+      `[${join(shellFolder, "hook")}|${join(shellFolder, "mcp")}]`,
+    )
+  })
+
   it("ignores a switch announced by another agent than the one in the foreground", async ({
     shell,
   }) => {

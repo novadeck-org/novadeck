@@ -259,6 +259,7 @@ It also carries the account's `email`, which must not leave the adapter.
 
 6. **Limits are percentages, not token counts.** Every harness reports windows as a used or remaining fraction with an absolute reset instant: Claude Code and Codex in epoch seconds, Antigravity as a time. None reports the limit itself, so the telemetry model stores fractions and never derives token amounts.
 7. **Codex hook trust is a separate readiness state.** A connected Codex with untrusted hooks reports nothing. Detecting that needs the app-server's `hooks/list`, not a hook.
+8. **One installed plugin serves every NovaDeck build.** Each harness keeps one copy of NovaDeck's plugin per user, from whichever build connected it last, so a terminal's own runner names what it starts. Hooks run `$NOVADECK_HOOK`, and on Linux and macOS the MCP server the launcher in `NOVADECK_MCP`, both set by the terminal's own runner, with the connecting build's launcher as the MCP server's fallback outside NovaDeck; on Windows it is the connecting build's relay, which still carries the agent's messages to the terminal's own runner (see [harness adapters](harness-adapters.md#local-mcp)). Each harness starts an MCP server's command without a shell. Claude Code and Antigravity give it the agent's environment, and Codex only the variables `env_vars` lists (probed in the e2e suite, `messaging.e2e.ts`). Claude Code expands `${VAR}` and `${VAR:-default}` in an MCP configuration itself (documented), so the command holds neither.
 
 ## Working past a turn's end
 

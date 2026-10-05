@@ -13,8 +13,12 @@ describe("compiled desktop host", () => {
       const preload = await read("preload/index.cjs")
 
       expect(main).toContain('const appId = "dev.mzpk.novadeck"')
-      // One data folder name on every platform, without the product name's trailing dot.
-      expect(main).toContain('app.setPath("userData", join(app.getPath("appData"), "NovaDeck"))')
+      // Which folder a launch keeps its data in is covered in ./data-folder.test.ts.
+      expect(main).toMatch(/app\.setPath\(\s*"userData"/)
+      expect(main).toContain("dataFolderName({ packaged: app.isPackaged })")
+      expect(main).toContain('"NovaDeck-dev"')
+      // A folder given by --user-data-dir, as the packaged smoke test gives, is kept.
+      expect(main).toContain('app.commandLine.getSwitchValue("user-data-dir")')
       expect(main).toContain("startHttpServer")
       expect(main).toContain("port: 0")
       expect(main).toContain('join(process.resourcesPath, "ui", "index.html")')
