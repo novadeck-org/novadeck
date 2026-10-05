@@ -35,7 +35,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.4",
     "@types/ws": "8.18.1",
     "fast-check": "4.10.2",
     "tsx": "^4.20.6",
