@@ -132,6 +132,54 @@ export const terminal = (name: string): Locator =>
 export const terminalTab = (name: string): Locator =>
   page.getByRole("button", { name: `Select ${name}`, exact: true })
 
+/**
+ * Puts keyboard focus on a terminal's sidebar tab, as Tab or a screen reader would. A mouse
+ * click on a tab sends keyboard focus into the terminal, so this waits for that to settle
+ * and then moves focus back onto the tab.
+ */
+export const focusTab = async (name: string): Promise<void> => {
+  await terminalTab(name).click()
+  await expect.element(commandInput(name)).toHaveFocus()
+  terminalTab(name).element().focus()
+  await expect.element(terminalTab(name)).toHaveFocus()
+}
+
+/** Puts keyboard focus on the checked view choice, as Tab does; a mouse click sends it to the terminal. */
+export const focusViewChoice = async (): Promise<void> => {
+  const choice = viewSwitcher()
+    .getByRole("radio")
+    .elements()
+    .find((radio) => (radio as HTMLInputElement).checked)!
+  ;(choice as HTMLElement).focus()
+  await expect.poll(() => document.activeElement === choice).toBe(true)
+}
+
+/** Puts keyboard focus on the empty stage, outside every terminal and without navigating. */
+export const focusStage = async (): Promise<void> => {
+  const stage = document.querySelector<HTMLElement>("[data-workspace-viewport]")!
+  stage.focus()
+  await expect.poll(() => document.activeElement === stage).toBe(true)
+}
+
+/** The footer's note while navigating. */
+export const navigateChip = (): Locator =>
+  page.getByRole("status").filter({ hasText: "Navigating" })
+
+/** Presses Shift+Esc, the way a person starts navigating the workspace. */
+export const enterNavigateMode = async (): Promise<void> => {
+  // A mouse click hands keyboard focus to the terminal a frame later, which would end the mode.
+  await nextFrame()
+  await nextFrame()
+  await press("{Shift>}{Escape}{/Shift}")
+  await expect.element(navigateChip()).toBeVisible()
+}
+
+/** Enter or Esc while navigating: the chip goes and typing focus returns to `name`. */
+export const expectTypingIn = async (name: string): Promise<void> => {
+  await expect.element(commandInput(name)).toHaveFocus()
+  await expect.element(navigateChip()).not.toBeInTheDocument()
+}
+
 export const commandInput = (name: string): Locator =>
   page.getByRole("textbox", { name: `Command for ${name}` })
 

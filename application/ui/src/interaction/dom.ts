@@ -29,6 +29,10 @@ export const insideTerminalRename = (target: EventTarget | null): boolean =>
   within(target, 'input[aria-label^="Rename "]')
 export const insideSwitcherClose = (target: EventTarget | null): boolean =>
   within(target, '[aria-label="Close terminal switcher"]')
+// Where keys move around the workspace while navigating: a view itself, or a Canvas node.
+export const navigateHome = (target: EventTarget | null): boolean =>
+  target instanceof Element &&
+  target.matches("[data-workspace-viewport], [data-workspace-canvas-node], .react-flow__node")
 // A terminal's companion pane and its taskbar close themselves on Escape.
 export const insideCompanion = (target: EventTarget | null): boolean =>
   within(target, "[data-workspace-companion]")
@@ -81,6 +85,25 @@ export const focusZenCreate = (): void =>
   document.querySelector<HTMLElement>("[data-workspace-zen-create]")?.focus({ preventScroll: true })
 export const focusZenEnter = (): void =>
   document.querySelector<HTMLElement>("[data-workspace-zen-enter]")?.focus({ preventScroll: true })
+
+export const focusTerminalInput = (id: string): boolean => {
+  const input = terminalElement(id)?.querySelector<HTMLElement>("[data-terminal-input]")
+  input?.focus({ preventScroll: true })
+  return Boolean(input) && document.activeElement === input
+}
+
+// Each shown tile's frame, once, leaving out tiles hidden while they animate away.
+export const tileRects = (): { id: string; rect: DOMRect }[] => {
+  const seen = new Set<string>()
+  return [...(workspaceArea()?.querySelectorAll<HTMLElement>("[data-terminal]") ?? [])].flatMap(
+    (element) => {
+      const id = element.dataset.terminal
+      if (!id || seen.has(id) || element.closest("[inert]")) return []
+      seen.add(id)
+      return [{ id, rect: element.getBoundingClientRect() }]
+    },
+  )
+}
 
 export const workspaceArea = (): HTMLElement | null =>
   document.querySelector<HTMLElement>("[data-workspace-area]")

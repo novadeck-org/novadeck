@@ -1,13 +1,15 @@
 import type { KeyTarget } from "./dom"
 import {
+  jumpShortcut,
   matchesShortcut,
   shortcutBindings,
   workspaceShortcutBindings,
+  type Arrow,
   type Platform,
   type Shortcut,
 } from "./shortcuts"
 
-export type { KeyTarget }
+export type { Arrow, KeyTarget }
 
 // Everything routing reads from a key event, so it can run without a DOM.
 export type KeyInput = Pick<
@@ -16,6 +18,8 @@ export type KeyInput = Pick<
 > & {
   // An IME is composing text, which keeps every key.
   readonly composing: boolean
+  // AltGr is held, which types characters, as Ctrl+Alt on Windows reports.
+  readonly altGraph: boolean
   readonly defaultPrevented: boolean
   readonly target: KeyTarget
 }
@@ -30,15 +34,18 @@ export type CommandId =
   | "recent.previous"
   | "view.toggleFocus"
   | "terminal.new"
+  | "terminal.type"
   | "zen.toggle"
   | "terminal.rename"
   | "terminal.close"
   | "canvas.returnToOrigin"
-  | "selection.clear"
+  | "navigate.enter"
+  | "navigate.exit"
   | "switcher.close"
   | "switcher.choose"
   | "switcher.move"
   | "terminal.step"
+  | "terminal.jump"
   | "view.step"
   | "recent.commitHeld"
   | "recent.cancelHeld"
@@ -48,9 +55,11 @@ export type KeyLayer =
   | "switcher-nav"
   | "escape"
   | "navigation"
+  | "jump"
   | "switcher"
   | "anywhere"
   | "app"
+  | "navigate"
   | "workspace"
   | "release"
 
@@ -58,8 +67,10 @@ export type KeyPhase = "capture" | "bubble" | "keyup" | "blur"
 
 export type KeyPattern =
   | { readonly shortcut: Shortcut }
-  // `none` requires no modifiers at all; `any` ignores them.
-  | { readonly key: string; readonly modifiers: "none" | "any" }
+  // `none` requires no modifiers at all, `shift` exactly Shift; `any` ignores them.
+  | { readonly key: string; readonly modifiers: "none" | "shift" | "any" }
+  // A key that types a character, such as a letter, digit or punctuation, but not Space.
+  | { readonly typed: true }
   // The window losing focus.
   | { readonly blur: true }
 
@@ -84,6 +95,8 @@ export type KeyState = {
   readonly switcher: "held" | "click" | null
   // A held switcher exists, even one that no longer shows.
   readonly held: boolean
+  // The person is navigating the workspace, after Shift+Esc.
+  readonly navigate: boolean
 }
 
 // DOM facts routing asks for only when a layer needs them.
@@ -93,8 +106,9 @@ export type KeyEnvironment = {
 }
 
 const phaseLayers: Record<KeyPhase, readonly KeyLayer[]> = {
-  capture: ["switcher-nav", "escape", "navigation"],
-  bubble: ["switcher", "anywhere", "app", "workspace"],
+  // Jumps run in capture, before a terminal's input takes its modified arrows.
+  capture: ["switcher-nav", "escape", "navigation", "jump"],
+  bubble: ["switcher", "anywhere", "app", "navigate", "workspace"],
   keyup: ["release"],
   blur: ["release"],
 }
@@ -102,11 +116,23 @@ const phaseLayers: Record<KeyPhase, readonly KeyLayer[]> = {
 const modified = (input: KeyInput): boolean =>
   input.ctrlKey || input.metaKey || input.altKey || input.shiftKey
 
+// One character without Ctrl or ⌘; Option and AltGr, which Windows reports as Ctrl+Alt,
+// may type one. Space stays with the button it would press.
+const typed = (input: KeyInput): boolean =>
+  [...input.key].length === 1 &&
+  input.key !== " " &&
+  !input.metaKey &&
+  (!input.ctrlKey || input.altGraph)
+
 const matches = (pattern: KeyPattern, input: KeyInput, phase: KeyPhase): boolean => {
   if ("blur" in pattern) return phase === "blur"
   if (phase === "blur") return false
   if ("shortcut" in pattern) return matchesShortcut(input, pattern.shortcut)
-  return input.key === pattern.key && (pattern.modifiers === "any" || !modified(input))
+  if ("typed" in pattern) return typed(input)
+  if (input.key !== pattern.key) return false
+  if (pattern.modifiers === "shift")
+    return input.shiftKey && !input.ctrlKey && !input.metaKey && !input.altKey
+  return pattern.modifiers === "any" || !modified(input)
 }
 
 const gates: Record<
@@ -125,18 +151,36 @@ const gates: Record<
     !input.target.companion &&
     !environment.overlayOpen() &&
     !environment.tabInteraction(),
-  // Arrows move through terminals and views, except where a control or a companion pane
-  // (which scrolls, and moves through its own buttons) uses them itself.
+  // While navigating, arrows move between terminals and Shift+arrows between views, except
+  // where a control or a companion pane (which scrolls, and moves through its own buttons)
+  // uses them itself. Otherwise only the sidebar's list and the view switch take them.
   navigation: (input, state) =>
-    !modified(input) &&
+    !input.ctrlKey &&
+    !input.metaKey &&
+    !input.altKey &&
     !state.dialog &&
     !state.switcher &&
     (input.target.viewSwitch ||
-      (!input.target.editing && !input.target.navigationControl && !input.target.companion)),
+      (input.target.terminalTab && !input.target.editing) ||
+      (state.navigate &&
+        !input.target.editing &&
+        !input.target.navigationControl &&
+        !input.target.companion)),
+  // From terminal input or the workspace; text fields and editors keep them to select.
+  jump: (input, state) =>
+    !state.dialog && !state.switcher && (!input.target.editing || input.target.terminalInput),
   switcher: (_input, state) => Boolean(state.switcher),
   anywhere: (_input, state) => !state.alert,
   app: (_input, state) => !state.dialog,
-  // Single keys work only while navigating the workspace itself.
+  // Unmodified keys act on the workspace only while navigating it.
+  navigate: (input, state, environment) =>
+    state.navigate &&
+    !input.repeat &&
+    !state.dialog &&
+    !state.switcher &&
+    !input.target.editing &&
+    !environment.overlayOpen(),
+  // Typing anywhere but a terminal, field or dialog.
   workspace: (input, state, environment) =>
     !input.repeat &&
     !state.dialog &&
@@ -170,7 +214,10 @@ export const routeKey = (
   })
 }
 
-const key = (value: string, modifiers: "none" | "any" = "none"): KeyPattern => ({
+// Arrow commands carry their direction as an index into this list.
+export const arrowDirections: readonly Arrow[] = ["up", "right", "down", "left"]
+
+const key = (value: string, modifiers: "none" | "shift" | "any" = "none"): KeyPattern => ({
   key: value,
   modifiers,
 })
@@ -193,25 +240,43 @@ export const keymapFor = (platform: Platform): readonly KeyBinding[] => {
       args: 1,
       repeat: "run",
     },
-    // Canvas returns to its origin first; otherwise Escape clears the selection, then the sidebar.
+    // Canvas returns to its origin first; otherwise Escape goes back into the terminal.
     { layer: "escape", keys: key("Escape"), command: "canvas.returnToOrigin", repeat: "run" },
-    { layer: "escape", keys: key("Escape"), command: "selection.clear", repeat: "swallow" },
+    { layer: "escape", keys: key("Escape"), command: "navigate.exit", repeat: "swallow" },
+    // Arrows move to the terminal on that side in Grid and Canvas, and through sidebar
+    // order in Focus and the sidebar's list; Shift+Left and Right change the view.
+    ...(["ArrowUp", "ArrowRight", "ArrowDown", "ArrowLeft"] as const).map(
+      (arrow, args): KeyBinding => ({
+        layer: "navigation",
+        keys: key(arrow),
+        command: "terminal.step",
+        args,
+        repeat: "run",
+      }),
+    ),
     {
       layer: "navigation",
-      keys: key("ArrowUp"),
-      command: "terminal.step",
+      keys: key("ArrowLeft", "shift"),
+      command: "view.step",
       args: -1,
       repeat: "run",
     },
     {
       layer: "navigation",
-      keys: key("ArrowDown"),
-      command: "terminal.step",
+      keys: key("ArrowRight", "shift"),
+      command: "view.step",
       args: 1,
       repeat: "run",
     },
-    { layer: "navigation", keys: key("ArrowLeft"), command: "view.step", args: -1, repeat: "run" },
-    { layer: "navigation", keys: key("ArrowRight"), command: "view.step", args: 1, repeat: "run" },
+    // Shift+Esc, from a terminal too: the one way into navigating.
+    { layer: "jump", keys: { shortcut: chord.navigate }, command: "navigate.enter", repeat: "run" },
+    ...arrowDirections.map((arrow, args): KeyBinding => ({
+      layer: "jump",
+      keys: { shortcut: jumpShortcut(arrow, platform) },
+      command: "terminal.jump",
+      args,
+      repeat: "run",
+    })),
     { layer: "switcher", keys: key("Escape", "any"), command: "switcher.close", repeat: "run" },
     {
       layer: "switcher",
@@ -261,33 +326,17 @@ export const keymapFor = (platform: Platform): readonly KeyBinding[] => {
       command: "terminal.new",
       repeat: "swallow",
     },
-    { layer: "workspace", keys: { shortcut: single.find }, command: "search.open", repeat: "run" },
+    { layer: "app", keys: { shortcut: chord.zen }, command: "zen.toggle", repeat: "swallow" },
+    { layer: "navigate", keys: key("Enter"), command: "navigate.exit", repeat: "run" },
+    { layer: "navigate", keys: key("Delete"), command: "terminal.close", repeat: "run" },
     {
-      layer: "workspace",
-      keys: { shortcut: single.focus },
-      command: "view.toggleFocus",
-      repeat: "run",
-    },
-    {
-      layer: "workspace",
-      keys: { shortcut: single.newTerminal },
-      command: "terminal.new",
-      repeat: "run",
-    },
-    { layer: "workspace", keys: { shortcut: single.zen }, command: "zen.toggle", repeat: "run" },
-    {
-      layer: "workspace",
-      keys: { shortcut: single.terminals },
-      command: "sidebar.terminals",
-      repeat: "run",
-    },
-    { layer: "workspace", keys: key("Delete"), command: "terminal.close", repeat: "run" },
-    {
-      layer: "workspace",
+      layer: "navigate",
       keys: { shortcut: single.rename },
       command: "terminal.rename",
       repeat: "run",
     },
+    // Typing outside a terminal goes into the selected one.
+    { layer: "workspace", keys: { typed: true }, command: "terminal.type", repeat: "run" },
     { layer: "release", keys: key("Control", "any"), command: "recent.commitHeld", repeat: "run" },
     { layer: "release", keys: { blur: true }, command: "recent.cancelHeld", repeat: "run" },
   ]
@@ -300,16 +349,17 @@ export type ShortcutGroup = {
 }
 
 // The shortcut table Preferences shows. Canvas zoom keys stay in Canvas's own handler
-// and appear here only as rows; Delete works but is not listed.
+// and appear here only as rows.
 export const shortcutGroups = (platform: Platform): readonly ShortcutGroup[] => [
   {
-    title: "Workspace",
-    description: "When you’re not typing in a terminal, field, or dialog.",
+    title: "Navigating",
+    description: "After Shift+Esc, until you type, press Enter or Esc, or click.",
     items: [
+      { label: "Terminal in that direction", display: ["↑", "↓", "←", "→"] },
+      { label: "Previous / next view", display: ["Shift", "←", "→"] },
+      { label: "Back into the terminal", display: ["Enter", "Esc"] },
       ...Object.values(workspaceShortcutBindings()),
-      { label: "Previous / next terminal", display: ["↑", "↓"] },
-      { label: "Previous / next view", display: ["←", "→"] },
-      { label: "Deselect, then hide sidebar", display: ["Esc"] },
+      { label: "Close active terminal", display: ["Delete"] },
       { label: "Zoom canvas in / out", display: ["+", "−"] },
       { label: "Fit canvas to all terminals", display: ["0"] },
     ],
@@ -317,6 +367,12 @@ export const shortcutGroups = (platform: Platform): readonly ShortcutGroup[] => 
   {
     title: "Anywhere",
     description: "These also work while typing in a terminal.",
-    items: Object.values(shortcutBindings(platform)),
+    items: [
+      ...Object.values(shortcutBindings(platform)),
+      {
+        label: jumpShortcut("up", platform).label,
+        display: [...jumpShortcut("up", platform).display.slice(0, -1), "↑", "↓", "←", "→"],
+      },
+    ],
   },
 ]

@@ -23,21 +23,19 @@ import {
 } from "./support/workspace"
 
 describe("finding a terminal", () => {
-  for (const { label, keys } of [shortcut.find(), { label: "/", keys: "/" }]) {
-    context(`when pressing ${label}`, () => {
-      it("opens search with the field focused and every terminal listed", async () => {
-        await openWorkspace()
+  context(`when pressing ${shortcut.find().label}`, () => {
+    it("opens search with the field focused and every terminal listed", async () => {
+      await openWorkspace()
 
-        await press(keys)
+      await pressShortcut("find")
 
-        await expect.element(findDialog()).toBeVisible()
-        await expect.element(searchField()).toHaveFocus()
-        await expect.element(findDialog().getByRole("option")).toHaveLength(6)
-        await expect.element(searchResult("Checkout implementation")).toBeVisible()
-        await expect.element(searchResult("Build")).toBeVisible()
-      })
+      await expect.element(findDialog()).toBeVisible()
+      await expect.element(searchField()).toHaveFocus()
+      await expect.element(findDialog().getByRole("option")).toHaveLength(6)
+      await expect.element(searchResult("Checkout implementation")).toBeVisible()
+      await expect.element(searchResult("Build")).toBeVisible()
     })
-  }
+  })
 
   context("when clicking the Find a terminal button", () => {
     it("opens search", async () => {
@@ -67,7 +65,7 @@ describe("finding a terminal", () => {
   context("when typing a query", () => {
     it("lists only matching terminals", async () => {
       await openWorkspace()
-      await press("/")
+      await pressShortcut("find")
       await expectSearchReady()
 
       await searchField().fill("checkout")
@@ -80,7 +78,7 @@ describe("finding a terminal", () => {
 
     it("matches the working directory too", async () => {
       await openWorkspace()
-      await press("/")
+      await pressShortcut("find")
       await expectSearchReady()
 
       await searchField().fill("storefront/runtime")
@@ -91,7 +89,7 @@ describe("finding a terminal", () => {
 
     it("says so when nothing matches", async () => {
       await openWorkspace()
-      await press("/")
+      await pressShortcut("find")
       await expectSearchReady()
 
       await searchField().fill("nothing here")
@@ -106,7 +104,7 @@ describe("finding a terminal", () => {
   context("when clicking a result", () => {
     it("closes search and shows that terminal in Focus", async () => {
       await openWorkspace()
-      await press("/")
+      await pressShortcut("find")
       await expectSearchReady()
       await expect.element(findDialog().getByText("Open in Focus")).toBeVisible()
 
@@ -122,7 +120,7 @@ describe("finding a terminal", () => {
   context("when choosing a result with the keyboard", () => {
     it("opens the highlighted result on Enter", async () => {
       await openWorkspace()
-      await press("/")
+      await pressShortcut("find")
       await expectSearchReady()
       await searchField().fill("storefront/ui")
       await expect.element(findDialog().getByRole("option")).toHaveLength(2)
@@ -136,7 +134,7 @@ describe("finding a terminal", () => {
 
     it("opens the last result after End", async () => {
       await openWorkspace()
-      await press("/")
+      await pressShortcut("find")
       await expectSearchReady()
 
       await press("{End}{Enter}")
@@ -167,7 +165,7 @@ describe("finding a terminal", () => {
     it("closes search and keeps the current terminal", async () => {
       await openWorkspace()
       await terminalTab("Dev server").click()
-      await press("/")
+      await pressShortcut("find")
       await expectSearchReady()
       await expect.element(findDialog()).toBeVisible()
 
@@ -182,7 +180,7 @@ describe("finding a terminal", () => {
   context("when clicking Close search", () => {
     it("closes search", async () => {
       await openWorkspace()
-      await press("/")
+      await pressShortcut("find")
       await expectSearchReady()
 
       await findDialog().getByRole("button", { name: "Close search" }).click()
@@ -194,7 +192,7 @@ describe("finding a terminal", () => {
   context("when pressing arrows while search is open", () => {
     it("keeps the workspace view and selection", async () => {
       await openWorkspace()
-      await press("/")
+      await pressShortcut("find")
       await expectSearchReady()
 
       await press("{ArrowRight}{ArrowDown}")

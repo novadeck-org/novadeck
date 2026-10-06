@@ -1,6 +1,6 @@
 import { History, Terminal as TerminalIcon } from "lucide-react"
 
-import { workspaceShortcutBindings } from "../interaction/shortcuts"
+import { shortcutBindings } from "../interaction/shortcuts"
 import { ToggleGroup, ToggleGroupItem } from "../ui-toolkit/ToggleGroup"
 
 export const SidebarRail = ({
@@ -42,7 +42,7 @@ export const SidebarRail = ({
           key={id}
           tooltip={
             id === "terminals"
-              ? `Terminals · ${workspaceShortcutBindings().terminals.display.join(" ")}`
+              ? `Terminals · ${shortcutBindings().terminals.display.join(" ")}`
               : label
           }
           value={id}

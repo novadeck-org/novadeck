@@ -31,7 +31,10 @@
    --workspace-ghost-border-color (strong at 40%), --workspace-ghost-shadow
    (shadow-floating): the ghost of a window a drop would open.
    --workspace-note-fg (muted): a `.stage-note` on the stage, such as while a view
-   loads or when every terminal is hidden. */
+   loads or when every terminal is hidden.
+   --workspace-navigate-ring-color (strong): the ring around the selected window while
+   the person navigates the workspace (data-navigate="true" on [data-workspace-area]);
+   the footer says so too. */
 .workspace-background {
   --_dots-opacity: var(--canvas-dots-opacity);
   --_spotlight-opacity: var(--workspace-spotlight-opacity, 0.48);
@@ -153,6 +156,14 @@
 }
 .stage-note {
   color: var(--workspace-note-fg, var(--color-muted));
+}
+/* While navigating, keys go to the workspace rather than into a terminal: the selected
+   window wears a ring, as a focused control would. */
+[data-navigate="true"] .terminal-focused,
+[data-navigate="true"] .grid-terminal.selected .terminal-window,
+[data-navigate="true"] .canvas-node.selected .terminal-window {
+  outline: 2px solid var(--workspace-navigate-ring-color, var(--color-strong));
+  outline-offset: 2px;
 }
 /* Where a window dragged in Grid will land. */
 .terminal-grid .react-grid-placeholder {

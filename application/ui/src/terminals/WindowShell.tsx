@@ -11,7 +11,7 @@ import {
 } from "lucide-react"
 import { useRef, type ReactNode } from "react"
 
-import { workspaceShortcutBindings } from "../interaction/shortcuts"
+import { shortcutBindings } from "../interaction/shortcuts"
 import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { nextReset, usageBadge, usageDetail } from "../model/agent-usage"
 import { isWindow } from "../model/roster"
@@ -107,7 +107,7 @@ export const WindowShell = ({
   const ResizeIcon =
     resizeView === "grid" ? (large ? FoldHorizontal : UnfoldHorizontal) : large ? Shrink : Scaling
   const Heading = compact ? "h2" : "h1"
-  const focusHint = active ? ` · ${workspaceShortcutBindings().focus.display.join(" ")}` : ""
+  const focusHint = active ? ` · ${shortcutBindings().focus.display.join(" ")}` : ""
   const headerPress = useRef<{ x: number; y: number; time: number; rename: boolean } | null>(null)
   const headerTap = useRef<{ x: number; y: number; time: number; rename: boolean } | null>(null)
   const ignoreDoubleClickUntil = useRef(0)

@@ -2,6 +2,7 @@ import { useEffect } from "react"
 
 import {
   classifyKeyTarget,
+  navigateHome,
   terminalTabInteractionActive,
   workspaceOverlayOpen,
 } from "../../interaction/dom"
@@ -14,6 +15,7 @@ import {
 } from "../../interaction/keymap"
 import { currentPlatform } from "../../interaction/shortcuts"
 import { createKeyCommands, keyState, runKey } from "../commands/keys"
+import { currentState } from "../selectors"
 import { useWorkspaceServices } from "./context"
 import { domEffects } from "./effects"
 
@@ -31,6 +33,7 @@ const keyInput = (event: KeyboardEvent): KeyInput => ({
   altKey: event.altKey,
   repeat: event.repeat,
   composing: event.isComposing || event.keyCode === 229,
+  altGraph: event.getModifierState("AltGraph"),
   defaultPrevented: event.defaultPrevented,
   target: classifyKeyTarget(event.target),
 })
@@ -45,12 +48,16 @@ const blurInput: KeyInput = {
   altKey: false,
   repeat: false,
   composing: false,
+  altGraph: false,
   defaultPrevented: false,
   target: classifyKeyTarget(null),
 }
 
 // Routes window keyboard events through the keymap to the key commands: a capture
-// and a bubble keydown listener, plus keyup and blur, all on window.
+// and a bubble keydown listener, plus keyup and blur, all on window. It also keeps the
+// keyboard's home in the selected terminal: navigating ends once focus moves into a
+// field or a terminal, or the mouse goes down, and a mouse click on the workspace's
+// chrome hands typing back to the selected terminal.
 export const useKeyboard = (): void => {
   const services = useWorkspaceServices()
   useEffect(() => {
@@ -74,15 +81,45 @@ export const useKeyboard = (): void => {
     const bubble = (event: KeyboardEvent): void => dispatch("bubble", event, keyInput(event))
     const keyup = (event: KeyboardEvent): void => dispatch("keyup", event, keyInput(event))
     const blur = (event: FocusEvent): void => dispatch("blur", event, blurInput)
+    // Navigating holds only while focus is on a view or a Canvas node: a control reached
+    // with Tab keeps its own Enter.
+    const focusin = (event: FocusEvent): void => {
+      if (!navigateHome(event.target)) commands.setNavigate(false)
+    }
+    const pointerdown = (): void => commands.setNavigate(false)
+    // Only a mouse: a tap that focused a terminal would raise a phone's keyboard. A click
+    // whose control moves focus itself, as Zen's do, keeps where it put it.
+    const click = (event: MouseEvent): void => {
+      if (!(event instanceof PointerEvent) || event.pointerType !== "mouse") return
+      const clicked = document.activeElement
+      const on = classifyKeyTarget(event.target)
+      if (on.companion || on.zenDock) return
+      requestAnimationFrame(() => {
+        const now = document.activeElement
+        if (now !== clicked && now !== document.body) return
+        const target = classifyKeyTarget(now)
+        if (target.editing || target.companion || target.zenDock) return
+        if (keyState(services, commands).dialog || environment.overlayOpen()) return
+        if (environment.tabInteraction() || ui.getSnapshot().shell.navigate) return
+        const { selected, view } = currentState(workspace.getSnapshot())
+        if (selected) commands.setKeyboardFocus({ id: selected, view })
+      })
+    }
     window.addEventListener("keydown", capture, true)
     window.addEventListener("keydown", bubble)
     window.addEventListener("keyup", keyup)
     window.addEventListener("blur", blur)
+    window.addEventListener("focusin", focusin)
+    window.addEventListener("pointerdown", pointerdown, true)
+    window.addEventListener("click", click)
     return () => {
       window.removeEventListener("keydown", capture, true)
       window.removeEventListener("keydown", bubble)
       window.removeEventListener("keyup", keyup)
       window.removeEventListener("blur", blur)
+      window.removeEventListener("focusin", focusin)
+      window.removeEventListener("pointerdown", pointerdown, true)
+      window.removeEventListener("click", click)
     }
   }, [services])
 }

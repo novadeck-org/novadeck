@@ -4,8 +4,10 @@ import { page } from "vitest/browser"
 import {
   chooseView,
   commandInput,
-  expectNothingSelected,
   expectSelected,
+  expectStaysAbsent,
+  focusStage,
+  navigateChip,
   openWorkspace,
   press,
   sidebar,
@@ -44,21 +46,17 @@ describe("workspace views", () => {
 
   for (const name of ["Focus", "Grid", "Canvas"] as const) {
     context(`when pressing Escape in ${name}`, () => {
-      it("deselects the terminal first, then hides the sidebar, then does nothing", async () => {
+      it("does nothing outside navigate mode: it keeps the selection and the sidebar", async () => {
         await openWorkspace()
         await chooseView(name)
         await terminalTab("Dev server").click()
+        await focusStage()
 
         await press("{Escape}")
-        await expectNothingSelected()
+
+        await expectSelected("Dev server")
         await expect.element(sidebar()).toBeVisible()
-
-        await press("{Escape}")
-        await expect.element(sidebar()).not.toBeInTheDocument()
-
-        await press("{Escape}")
-        await expect.element(sidebar()).not.toBeInTheDocument()
-        await expectNothingSelected()
+        await expectStaysAbsent(navigateChip())
       })
 
       it("leaves Escape to a focused terminal input", async () => {

@@ -9,7 +9,7 @@ import {
 import { useSyncExternalStore } from "react"
 import { Link } from "react-router"
 
-import { shortcutBindings, workspaceShortcutBindings } from "../interaction/shortcuts"
+import { shortcutBindings } from "../interaction/shortcuts"
 import type { Project, ViewMode } from "../model/types"
 import { WorkspaceSwitcher } from "../projects/WorkspaceSwitcher"
 import { DeckMark, DeckWordmark } from "../ui-toolkit/DeckLogo"
@@ -61,12 +61,12 @@ export const WorkspaceHeader = ({
   onZen: () => void
 }): React.JSX.Element => {
   const iconOnly = useSyncExternalStore(subscribe, isIconOnly)
-  const searchShortcut = workspaceShortcutBindings().find.display.join(" ")
+  const searchShortcut = shortcutBindings().find.display.join(" ")
   // With one view left there's nothing to switch to: the switch goes, and Zen joins the
   // actions on the right.
   const switchable = enabledViews.length > 1
   const zen = (
-    <Tooltip content={`Zen · ${workspaceShortcutBindings().zen.display.join(" ")}`}>
+    <Tooltip content={`Zen · ${shortcutBindings().zen.display.join(" ")}`}>
       <button
         data-workspace-zen-enter
         className="icon-button zen-enter"

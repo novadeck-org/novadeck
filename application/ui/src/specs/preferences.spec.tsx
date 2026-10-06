@@ -22,7 +22,7 @@ const viewModeChoice = (name: "Focus" | "Grid" | "Canvas"): Locator =>
   preferencesDialog().getByRole("group", { name: "View modes" }).getByRole("checkbox", { name })
 
 /** The shortcuts listed in a group, as "action: keys" in the order shown. */
-const shortcutList = (group: "Anywhere" | "Workspace"): string[] => {
+const shortcutList = (group: "Anywhere" | "Navigating"): string[] => {
   const section = preferencesDialog().getByRole("region", { name: `${group} shortcuts` })
   const keys = section.getByRole("definition").elements()
   return section
@@ -106,7 +106,7 @@ describe("Preferences", () => {
       await showShortcuts()
 
       const shortcuts = preferencesDialog().getByRole("tabpanel", { name: "Shortcuts" })
-      await expect.element(shortcuts.getByRole("heading", { name: "Workspace" })).toBeVisible()
+      await expect.element(shortcuts.getByRole("heading", { name: "Navigating" })).toBeVisible()
       await expect.element(shortcuts.getByRole("heading", { name: "Anywhere" })).toBeVisible()
       await expect
         .element(preferencesDialog().getByRole("tabpanel", { name: "General" }))
@@ -145,32 +145,38 @@ describe("shortcut list", () => {
         "Recent terminals: CtrlTab",
         "Previous recent terminal: CtrlShiftTab",
         "Toggle Focus view: CtrlShiftEnter",
+        "Toggle Zen mode: CtrlShiftZ",
         "New terminal: CtrlShiftT",
         "New session: CtrlShiftN",
         "Toggle terminal sidebar: CtrlShift1",
         "Toggle session sidebar: CtrlShift2",
         "Open preferences: Ctrl,",
+        "Navigate the workspace: ShiftEsc",
+        "Terminal in that direction: CtrlShift↑↓←→",
       ])
     })
 
-    it("groups single keys under Workspace", async () => {
+    it("lists the keys that work after Shift+Esc under Navigating", async () => {
       await openWorkspace()
 
       await showShortcuts()
 
-      expect(shortcutList("Workspace")).toEqual(
-        expect.arrayContaining([
-          "Find a terminal: /",
-          "Toggle Focus view: F",
-          "New terminal: T",
-          "Toggle Zen mode: Z",
-          "Toggle terminal sidebar: B",
-          "Rename active terminal: F2",
-          "Previous / next terminal: ↑↓",
-          "Previous / next view: ←→",
-          "Deselect, then hide sidebar: Esc",
-        ]),
-      )
+      expect(shortcutList("Navigating")).toEqual([
+        "Terminal in that direction: ↑↓←→",
+        "Previous / next view: Shift←→",
+        "Back into the terminal: EnterEsc",
+        "Rename active terminal: F2",
+        "Close active terminal: Delete",
+        "Zoom canvas in / out: +−",
+        "Fit canvas to all terminals: 0",
+      ])
+      await expect
+        .element(
+          preferencesDialog().getByText(
+            "After Shift+Esc, until you type, press Enter or Esc, or click.",
+          ),
+        )
+        .toBeVisible()
     })
   })
 
@@ -187,11 +193,14 @@ describe("shortcut list", () => {
         "Recent terminals: CtrlTab",
         "Previous recent terminal: CtrlShiftTab",
         "Toggle Focus view: ⌘Enter",
+        "Toggle Zen mode: ⌘ShiftZ",
         "New terminal: ⌘T",
         "New session: ⌘ShiftN",
         "Toggle terminal sidebar: ⌘Shift1",
         "Toggle session sidebar: ⌘Shift2",
         "Open preferences: ⌘,",
+        "Navigate the workspace: ShiftEsc",
+        "Terminal in that direction: ⌘⌥↑↓←→",
       ])
     })
   })

@@ -53,16 +53,18 @@ export const WorkspaceStage = memo(
       sizePresets,
       hidden,
     } = layout
-    const { zen, revealCanvas, canvasKeyboardFocus, shellNavigation, focusPreview } = useUiState(
-      ({ shell }) => ({
-        zen: Boolean(shell.zen),
-        revealCanvas: shell.revealCanvas,
-        canvasKeyboardFocus: shell.canvasKeyboardFocus,
-        shellNavigation: shell.navigation,
-        focusPreview: shell.focusPreview,
-      }),
-      shallowEqual,
-    )
+    const { zen, revealCanvas, canvasKeyboardFocus, shellNavigation, focusPreview, navigate } =
+      useUiState(
+        ({ shell }) => ({
+          zen: Boolean(shell.zen),
+          navigate: shell.navigate,
+          revealCanvas: shell.revealCanvas,
+          canvasKeyboardFocus: shell.canvasKeyboardFocus,
+          shellNavigation: shell.navigation,
+          focusPreview: shell.focusPreview,
+        }),
+        shallowEqual,
+      )
     // The terminal Focus shows: the selection, a kept preview, or the first terminal.
     const displayed = activeTerminal(terminals, selected, context, focusPreview)?.id
     const {
@@ -91,6 +93,7 @@ export const WorkspaceStage = memo(
       <section
         key={context}
         data-workspace-area
+        data-navigate={navigate}
         className={`main-area relative flex min-w-0 flex-1 flex-col ${view}`}
         aria-label={`${view} view`}
       >
@@ -130,7 +133,7 @@ export const WorkspaceStage = memo(
               minimized={gridMinimized}
               onMinimize={(terminalId) => toggleGridMinimized(target, terminalId)}
               onCreate={() => {
-                add({ beginRename: false })
+                add()
               }}
               render={renderTerminal}
             />
@@ -158,7 +161,7 @@ export const WorkspaceStage = memo(
               }
               navigation={shellNavigation.count}
               onSelect={setSelected}
-              onCreate={() => add({ beginRename: false })}
+              onCreate={() => add()}
               render={renderTerminal}
             />
           )}

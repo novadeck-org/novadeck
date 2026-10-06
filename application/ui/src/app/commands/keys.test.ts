@@ -43,6 +43,7 @@ const openKeys = (options?: CommandsOptions) => {
       altKey: false,
       repeat: false,
       composing: false,
+      altGraph: false,
       defaultPrevented: false,
       ...press,
       target: { ...nowhere, ...target },
@@ -68,43 +69,94 @@ const openKeys = (options?: CommandsOptions) => {
   }
 }
 
+// A 100px tile at a place on screen.
+const tile = (id: string, left: number, top: number) => ({
+  id,
+  rect: { left, top, width: 100, height: 100 },
+})
+
+// The same, after Shift+Esc: navigating the workspace.
+const navigating = (options?: CommandsOptions) => {
+  const app = openKeys(options)
+  app.commands.setNavigate(true)
+  return app
+}
+
 afterEach(() => void vi.useRealTimers())
 
 describe("key commands", () => {
   context("when pressing Escape", () => {
-    it("returns Canvas to its origin before touching the selection, but not on repeat", () => {
+    it("returns Canvas to its origin before going back into the terminal, but not on repeat", () => {
       let returns = 0
       const canvas: CanvasHandle = { returnToOrigin: () => (returns++, true) }
-      const app = openKeys({
+      const app = navigating({
         workspace: workspaceFixture({ view: "canvas" }),
         url: "/projects/project/sessions/initial/canvas?terminal=01",
         canvas,
       })
       expect(app.keydown({ key: "Escape" })).toBe("handled")
       expect(returns).toBe(1)
-      expect(app.state().selected).toBe("01")
+      expect(app.shell().navigate).toBe(true)
       expect(app.keydown({ key: "Escape", repeat: true })).toBe("handled")
       expect(returns).toBe(1)
       expect(app.state().selected).toBe("01")
     })
 
-    it("clears the selection, keeping it as the Focus preview, then hides the sidebar", () => {
-      const app = openKeys({
+    it("goes back into the selected terminal, then lets Escape through", () => {
+      const app = navigating({
         workspace: workspaceFixture({ view: "focus" }),
         url: "/projects/project/sessions/initial/focus?terminal=02",
       })
-      app.commands.setKeyboardFocus({ id: "02", view: "focus" })
       expect(app.keydown({ key: "Escape" })).toBe("handled")
-      expect(app.state().selected).toBe("")
       expect(app.shell()).toMatchObject({
-        focusPreview: { context: "project/initial", id: "02" },
-        keyboardFocus: null,
+        navigate: false,
+        keyboardFocus: { id: "02", view: "focus" },
       })
-      expect(app.effects).toContain("focus viewport")
-      expect(app.keydown({ key: "Escape" })).toBe("handled")
-      expect(app.shell().sidebarCollapsed).toBe(true)
-      expect(app.effects.at(-1)).toBe("focus terminals toggle")
+      expect(app.state().selected).toBe("02")
       expect(app.keydown({ key: "Escape" })).toBe("passed")
+    })
+
+    it("navigates with Shift, moving keyboard focus to the view", () => {
+      const app = openKeys()
+      const shiftEscape = {
+        key: "Escape",
+        shiftKey: true,
+        target: { editing: true, terminalInput: true },
+      }
+      expect(app.keydown(shiftEscape)).toBe("handled")
+      expect(app.shell().navigate).toBe(true)
+      expect(app.effects.at(-1)).toBe("focus viewport")
+    })
+  })
+
+  context("when pressing Shift+Esc with no terminals", () => {
+    it("lets it through without navigating, since there is no view", () => {
+      const app = openKeys({ workspace: workspaceFixture({ terminals: 0 }) })
+      expect(app.keydown({ key: "Escape", shiftKey: true })).toBe("passed")
+      expect(app.shell().navigate).toBe(false)
+    })
+  })
+
+  context("when pressing Enter while navigating on an undocked window", () => {
+    it("keeps navigating, since a window takes no typing", () => {
+      const app = navigating({
+        workspace: workspaceWithWindow(),
+        url: "/projects/project/sessions/initial/grid?terminal=w1",
+      })
+      expect(app.keydown({ key: "Enter" })).toBe("passed")
+      expect(app.shell().navigate).toBe(true)
+    })
+  })
+
+  context("when pressing Enter while navigating", () => {
+    it("goes back into the terminal Focus shows, selecting it", () => {
+      const app = navigating({
+        workspace: workspaceFixture({ view: "focus" }),
+        url: "/projects/project/sessions/initial/focus?terminal=",
+      })
+      expect(app.keydown({ key: "Enter" })).toBe("handled")
+      expect(app.state().selected).toBe("01")
+      expect(app.shell()).toMatchObject({ navigate: false, keyboardFocus: { id: "01" } })
     })
   })
 
@@ -165,7 +217,7 @@ describe("key commands", () => {
 
   context("when pressing Up and Down", () => {
     it("wraps around and starts from either end with nothing selected", () => {
-      const app = openKeys({ workspace: workspaceFixture({ terminals: 3 }) })
+      const app = navigating({ workspace: workspaceFixture({ terminals: 3 }) })
       app.keydown({ key: "ArrowUp" })
       expect(app.state().selected).toBe("03")
       app.keydown({ key: "ArrowDown" })
@@ -194,7 +246,7 @@ describe("key commands", () => {
     })
 
     it("asks Canvas to focus the next node when pressed on a node", () => {
-      const app = openKeys({
+      const app = navigating({
         workspace: workspaceFixture({ view: "canvas" }),
         url: "/projects/project/sessions/initial/canvas?terminal=01",
       })
@@ -203,7 +255,7 @@ describe("key commands", () => {
     })
 
     it("steps through undocked windows as through terminals", () => {
-      const app = openKeys({
+      const app = navigating({
         workspace: workspaceWithWindow(),
         url: "/projects/project/sessions/initial/grid?terminal=02",
       })
@@ -214,14 +266,14 @@ describe("key commands", () => {
     })
 
     it("keeps arrows even when there are no terminals", () => {
-      const app = openKeys({ workspace: workspaceFixture({ terminals: 0 }) })
+      const app = navigating({ workspace: workspaceFixture({ terminals: 0 }) })
       expect(app.keydown({ key: "ArrowDown" })).toBe("handled")
     })
   })
 
-  context("when pressing Left and Right", () => {
+  context("when pressing Shift with Left and Right", () => {
     it("steps through the enabled views, wrapping and skipping disabled ones", () => {
-      const app = openKeys({
+      const app = navigating({
         preferences: {
           fontSize: 13,
           enabledViews: ["focus", "canvas"],
@@ -231,10 +283,132 @@ describe("key commands", () => {
         workspace: workspaceFixture({ view: "canvas" }),
         url: "/projects/project/sessions/initial/canvas?terminal=01",
       })
-      app.keydown({ key: "ArrowRight" })
+      app.keydown({ key: "ArrowRight", shiftKey: true })
       expect(app.state().view).toBe("focus")
-      app.keydown({ key: "ArrowLeft" })
+      app.keydown({ key: "ArrowLeft", shiftKey: true })
       expect(app.state().view).toBe("canvas")
+    })
+
+    it("steps through views with plain Left and Right on the view switch", () => {
+      const app = navigating({
+        workspace: workspaceFixture({ view: "grid" }),
+        url: "/projects/project/sessions/initial/grid?terminal=01",
+      })
+      app.keydown({ key: "ArrowRight", target: { viewSwitch: true, navigationControl: true } })
+      expect(app.state().view).toBe("canvas")
+      expect(app.state().selected).toBe("01")
+    })
+  })
+
+  context("when pressing arrows in Grid or Canvas", () => {
+    // Three tiles in a row and one under the first:
+    //   01 02 03
+    //   04
+    const laidOut = (view: "grid" | "canvas") => {
+      const app = navigating({
+        workspace: workspaceFixture({ view, terminals: 4 }),
+        url: `/projects/project/sessions/initial/${view}?terminal=01`,
+      })
+      app.screen.tiles = [
+        tile("01", 0, 0),
+        tile("02", 110, 0),
+        tile("03", 220, 0),
+        tile("04", 0, 110),
+      ]
+      return app
+    }
+
+    for (const view of ["grid", "canvas"] as const) {
+      it(`moves to the nearest tile on that side in ${view}`, () => {
+        const app = laidOut(view)
+        app.keydown({ key: "ArrowRight" })
+        expect(app.state().selected).toBe("02")
+        app.keydown({ key: "ArrowRight" })
+        expect(app.state().selected).toBe("03")
+        app.keydown({ key: "ArrowLeft" })
+        app.keydown({ key: "ArrowLeft" })
+        app.keydown({ key: "ArrowDown" })
+        expect(app.state().selected).toBe("04")
+        app.keydown({ key: "ArrowUp" })
+        expect(app.state().selected).toBe("01")
+      })
+
+      it(`stops at the edge in ${view}`, () => {
+        const app = laidOut(view)
+        expect(app.keydown({ key: "ArrowLeft" })).toBe("handled")
+        expect(app.keydown({ key: "ArrowUp" })).toBe("handled")
+        expect(app.state().selected).toBe("01")
+      })
+    }
+
+    it("follows sidebar order from the sidebar's list, and leaves Left and Right to it", () => {
+      const app = laidOut("grid")
+      app.keydown({ key: "ArrowDown", target: { terminalTab: true } })
+      expect(app.state().selected).toBe("02")
+      expect(app.keydown({ key: "ArrowRight", target: { terminalTab: true } })).toBe("passed")
+      expect(app.state().selected).toBe("02")
+    })
+  })
+
+  context("when jumping with Ctrl+Shift and an arrow", () => {
+    it("selects the tile on that side and keeps typing there", () => {
+      const app = openKeys({
+        workspace: workspaceFixture({ view: "grid", terminals: 2 }),
+        url: "/projects/project/sessions/initial/grid?terminal=01",
+      })
+      app.screen.tiles = [tile("01", 0, 0), tile("02", 110, 0)]
+      const jump = { ctrlKey: true, shiftKey: true, target: { editing: true, terminalInput: true } }
+      expect(app.keydown({ key: "ArrowRight", ...jump })).toBe("handled")
+      expect(app.state().selected).toBe("02")
+      expect(app.shell().keyboardFocus).toEqual({ id: "02", view: "grid" })
+    })
+
+    it("passes over an undocked window, which takes no typing", () => {
+      const app = openKeys({
+        workspace: workspaceWithWindow(),
+        url: "/projects/project/sessions/initial/grid?terminal=02",
+      })
+      app.screen.tiles = [tile("01", 0, 0), tile("02", 110, 0), tile("w1", 220, 0)]
+      expect(app.keydown({ key: "ArrowRight", ctrlKey: true, shiftKey: true })).toBe("handled")
+      expect(app.state().selected).toBe("02")
+      expect(app.keydown({ key: "ArrowLeft", ctrlKey: true, shiftKey: true })).toBe("handled")
+      expect(app.state().selected).toBe("01")
+    })
+
+    it("swallows the chord at the edge rather than send it to the terminal", () => {
+      const app = openKeys({
+        workspace: workspaceFixture({ view: "grid", terminals: 2 }),
+        url: "/projects/project/sessions/initial/grid?terminal=01",
+      })
+      app.screen.tiles = [tile("01", 0, 0), tile("02", 110, 0)]
+      expect(app.keydown({ key: "ArrowLeft", ctrlKey: true, shiftKey: true })).toBe("handled")
+      expect(app.state().selected).toBe("01")
+    })
+  })
+
+  context("when pressing arrows in Focus", () => {
+    it("steps through sidebar order with every arrow, from the terminal Focus shows", () => {
+      const app = navigating({
+        workspace: workspaceFixture({ view: "focus", terminals: 3 }),
+        url: "/projects/project/sessions/initial/focus?terminal=02",
+      })
+      app.keydown({ key: "ArrowRight" })
+      expect(app.state().selected).toBe("03")
+      app.keydown({ key: "ArrowLeft" })
+      expect(app.state().selected).toBe("02")
+      app.keydown({ key: "ArrowUp" })
+      expect(app.state().selected).toBe("01")
+      app.keydown({ key: "ArrowUp" })
+      expect(app.state().selected).toBe("03")
+    })
+
+    it("starts from the terminal Focus shows when none is selected", () => {
+      const app = navigating({
+        workspace: workspaceFixture({ view: "focus", terminals: 3 }),
+        url: "/projects/project/sessions/initial/focus?terminal=",
+      })
+      app.keydown({ key: "ArrowDown" })
+      expect(app.state().selected).toBe("02")
     })
   })
 
@@ -248,7 +422,6 @@ describe("key commands", () => {
           notifyFinished: true,
         },
       })
-      expect(app.keydown({ key: "f" })).toBe("passed")
       expect(app.keydown({ key: "Enter", ctrlKey: true, shiftKey: true })).toBe("passed")
     })
 
@@ -272,7 +445,7 @@ describe("key commands", () => {
     })
 
     it("falls back to the terminal Focus shows", () => {
-      const app = openKeys({
+      const app = navigating({
         workspace: workspaceFixture({ view: "focus" }),
         url: "/projects/project/sessions/initial/focus?terminal=",
       })
@@ -286,14 +459,30 @@ describe("key commands", () => {
   context("when using sidebar shortcuts in Zen", () => {
     it("leaves Zen and shows the requested panel", () => {
       const app = openKeys()
-      app.keydown({ key: "z" })
+      const zen = { key: "Z", ctrlKey: true, shiftKey: true }
+      app.keydown(zen)
       expect(app.shell().zen).not.toBeNull()
-      app.keydown({ key: "b" })
+      app.keydown({ key: "!", code: "Digit1", ctrlKey: true, shiftKey: true })
       expect(app.shell().zen).toBeNull()
-      app.keydown({ key: "z" })
+      app.keydown(zen)
       app.keydown({ key: "@", code: "Digit2", ctrlKey: true, shiftKey: true })
       expect(app.shell().zen).toBeNull()
       expect(app.ui.getSnapshot().location.route.panel).toBe("sessions")
+    })
+  })
+
+  context("when typing with focus outside a terminal", () => {
+    it("moves focus into the selected terminal and lets the key through to it", () => {
+      const app = openKeys({ url: "/projects/project/sessions/initial/grid?terminal=02" })
+      expect(app.keydown({ key: "l" })).toBe("passed")
+      expect(app.effects).toContain("focus input 02")
+    })
+
+    it("does nothing with no terminal selected", () => {
+      const app = openKeys({ url: "/projects/project/sessions/initial/grid" })
+      app.commands.setSelected("")
+      expect(app.keydown({ key: "l" })).toBe("passed")
+      expect(app.effects.filter((effect) => effect.startsWith("focus input"))).toEqual([])
     })
   })
 

@@ -49,7 +49,7 @@ const DebugSection = (): React.JSX.Element | null => {
   return (
     <Panel
       addTerminal={() => {
-        const terminalId = commands.add({ beginRename: false })
+        const terminalId = commands.add()
         return { ...currentTarget(workspace.getSnapshot()), terminalId }
       }}
       startFresh={commands.startFresh}

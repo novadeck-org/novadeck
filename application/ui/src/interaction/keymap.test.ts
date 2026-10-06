@@ -47,11 +47,12 @@ const route = (
       altKey: false,
       repeat: false,
       composing: false,
+      altGraph: false,
       defaultPrevented: false,
       ...press,
       target: { ...nowhere, ...target },
     },
-    { dialog: false, alert: false, switcher: null, held: false, ...state },
+    { dialog: false, alert: false, switcher: null, held: false, navigate: false, ...state },
     { overlayOpen: () => false, tabInteraction: () => false, ...environment },
   ).map((binding) =>
     binding.args === undefined ? binding.command : `${binding.command} ${binding.args}`,
@@ -67,6 +68,9 @@ const keydown = (platform: Platform, press: Press, situation?: Situation): strin
 ]
 
 const platforms: Platform[] = ["mac", "other"]
+
+// After Shift+Esc, while the person navigates the workspace.
+const navigating: Situation = { state: { navigate: true } }
 
 // Preferences rows as "label: keys", under each group title.
 const rows = (platform: Platform) =>
@@ -135,11 +139,24 @@ describe("keymap", () => {
       })
 
       context("when pressing Escape", () => {
-        it("returns Canvas to its origin first, then clears the selection or sidebar", () => {
-          expect(keydown(platform, { key: "Escape" })).toEqual([
+        it("returns Canvas to its origin first, then goes back into the terminal", () => {
+          expect(keydown(platform, { key: "Escape" }, navigating)).toEqual([
             "canvas.returnToOrigin",
-            "selection.clear",
+            "navigate.exit",
           ])
+        })
+
+        it("enters navigating with Shift, from terminal input too but not from fields", () => {
+          expect(keydown(platform, { key: "Escape", shiftKey: true })).toEqual(["navigate.enter"])
+          expect(
+            route(platform, "capture", { key: "Escape", shiftKey: true, target: terminalInput }),
+          ).toEqual(["navigate.enter"])
+          expect(
+            keydown(platform, { key: "Escape", shiftKey: true, target: { editing: true } }),
+          ).toEqual([])
+          expect(
+            keydown(platform, { key: "Escape", shiftKey: true }, { state: { dialog: true } }),
+          ).toEqual([])
         })
 
         it("leaves it to dialogs, the Zen dock, companion panes, overlays, editors and tab editing", () => {
@@ -151,21 +168,52 @@ describe("keymap", () => {
             [{ key: "Escape", target: terminalInput }, {}],
             [{ key: "Escape" }, { environment: { overlayOpen: () => true } }],
             [{ key: "Escape" }, { environment: { tabInteraction: () => true } }],
-            [{ key: "Escape", shiftKey: true }, {}],
           ]
           for (const [press, situation] of cases)
-            expect(keydown(platform, press, situation)).toEqual([])
+            expect(
+              keydown(platform, press, {
+                ...situation,
+                state: { navigate: true, ...situation.state },
+              }),
+            ).toEqual([])
         })
       })
 
       context("when pressing arrows", () => {
-        it("steps through terminals and views", () => {
-          expect(route(platform, "capture", { key: "ArrowUp" })).toEqual(["terminal.step -1"])
-          expect(route(platform, "capture", { key: "ArrowDown", repeat: true })).toEqual([
-            "terminal.step 1",
+        it("steps between terminals in each direction, and between views with Shift, while navigating", () => {
+          const step = (press: Press) => route(platform, "capture", press, navigating)
+          expect(step({ key: "ArrowUp" })).toEqual(["terminal.step 0"])
+          expect(step({ key: "ArrowRight" })).toEqual(["terminal.step 1"])
+          expect(step({ key: "ArrowDown", repeat: true })).toEqual(["terminal.step 2"])
+          expect(step({ key: "ArrowLeft" })).toEqual(["terminal.step 3"])
+          expect(step({ key: "ArrowLeft", shiftKey: true })).toEqual(["view.step -1"])
+          expect(step({ key: "ArrowRight", shiftKey: true })).toEqual(["view.step 1"])
+          expect(step({ key: "ArrowDown", shiftKey: true })).toEqual([])
+        })
+
+        it("leaves them alone on the stage when not navigating, but not in the sidebar's list", () => {
+          expect(keydown(platform, { key: "ArrowUp" })).toEqual([])
+          expect(keydown(platform, { key: "ArrowRight", shiftKey: true })).toEqual([])
+          expect(
+            route(platform, "capture", { key: "ArrowDown", target: { terminalTab: true } }),
+          ).toEqual(["terminal.step 2"])
+        })
+
+        it("jumps with the chord from terminal input and the workspace, not from fields", () => {
+          const jump =
+            platform === "mac" ? { metaKey: true, altKey: true } : { ctrlKey: true, shiftKey: true }
+          expect(route(platform, "capture", { key: "ArrowLeft", ...jump })).toEqual([
+            "terminal.jump 3",
           ])
-          expect(route(platform, "capture", { key: "ArrowLeft" })).toEqual(["view.step -1"])
-          expect(route(platform, "capture", { key: "ArrowRight" })).toEqual(["view.step 1"])
+          expect(
+            route(platform, "capture", { key: "ArrowUp", ...jump, target: terminalInput }),
+          ).toEqual(["terminal.jump 0"])
+          expect(
+            route(platform, "capture", { key: "ArrowUp", ...jump, target: { editing: true } }),
+          ).toEqual([])
+          expect(
+            route(platform, "capture", { key: "ArrowUp", ...jump }, { state: { dialog: true } }),
+          ).toEqual([])
         })
 
         it("takes them over from the view switch but leaves other radio groups and the resizer", () => {
@@ -174,18 +222,27 @@ describe("keymap", () => {
               key: "ArrowRight",
               target: { viewSwitch: true, navigationControl: true },
             }),
-          ).toEqual(["view.step 1"])
+          ).toEqual(["terminal.step 1"])
           expect(
             route(platform, "capture", { key: "ArrowRight", target: { navigationControl: true } }),
           ).toEqual([])
         })
 
+        it("leaves them to a rename field in the sidebar's list", () => {
+          const renaming = { terminalTab: true, editing: true, rename: true }
+          for (const press of [{ key: "ArrowDown" }, { key: "ArrowLeft", shiftKey: true }])
+            expect(keydown(platform, { ...press, target: renaming }, navigating)).toEqual([])
+        })
+
         it("leaves them to inputs, companion panes, dialogs and modified presses", () => {
-          expect(keydown(platform, { key: "ArrowDown", target: terminalInput })).toEqual([])
-          expect(keydown(platform, { key: "ArrowDown", target: { companion: true } })).toEqual([])
-          expect(keydown(platform, { key: "ArrowDown" }, { state: { dialog: true } })).toEqual([])
-          expect(keydown(platform, { key: "ArrowDown", ctrlKey: true })).toEqual([])
-          expect(keydown(platform, { key: "ArrowDown", shiftKey: true })).toEqual([])
+          const press = (key: Press, state = {}) =>
+            keydown(platform, key, { state: { navigate: true, ...state } })
+          expect(press({ key: "ArrowDown", target: terminalInput })).toEqual([])
+          expect(press({ key: "ArrowDown", target: { companion: true } })).toEqual([])
+          expect(press({ key: "ArrowDown" }, { dialog: true })).toEqual([])
+          expect(press({ key: "ArrowDown", ctrlKey: true })).toEqual([])
+          expect(press({ key: "ArrowLeft", shiftKey: true, altKey: true })).toEqual([])
+          expect(press({ key: "ArrowLeft", shiftKey: true, metaKey: true })).toEqual([])
         })
       })
 
@@ -232,16 +289,19 @@ describe("keymap", () => {
           const preferences = { ctrlKey: platform !== "mac", metaKey: platform === "mac", key: "," }
           expect(keydown(platform, preferences, dialog)).toEqual(["preferences.open"])
           expect(keydown(platform, { ...command(platform), key: "t" }, dialog)).toEqual([])
-          expect(keydown(platform, { key: "/" }, dialog)).toEqual([])
-          expect(keydown(platform, { key: "z" }, dialog)).toEqual([])
+          const zen = { ...command(platform), shiftKey: true, key: "Z" }
+          expect(keydown(platform, zen, dialog)).toEqual([])
         })
       })
 
       context("when matching chords", () => {
-        it("uses Shift for new sessions and sidebars and matches sidebar digits by code", () => {
+        it("uses Shift for new sessions, Zen and sidebars and matches sidebar digits by code", () => {
           const modifier = platform === "mac" ? { metaKey: true } : { ctrlKey: true }
           expect(keydown(platform, { ...modifier, shiftKey: true, key: "N" })).toEqual([
             "session.new",
+          ])
+          expect(keydown(platform, { ...modifier, shiftKey: true, key: "Z" })).toEqual([
+            "zen.toggle",
           ])
           expect(
             keydown(platform, { ...modifier, shiftKey: true, key: "!", code: "Digit1" }),
@@ -256,34 +316,71 @@ describe("keymap", () => {
           expect(keydown(platform, { ...find, altKey: true })).toEqual([])
           const other = platform === "mac" ? { ctrlKey: true, shiftKey: true } : { metaKey: true }
           expect(keydown(platform, { ...other, key: "k" })).toEqual([])
-          expect(keydown(platform, { key: "/" })).toEqual(["search.open"])
-          expect(keydown(platform, { key: "/", shiftKey: true })).toEqual([])
           expect(keydown(platform, { key: "Delete", shiftKey: true })).toEqual([])
         })
       })
 
       context("when pressing workspace keys", () => {
-        it("routes each key and ignores repeats, overlays and an open switcher", () => {
-          const keys = {
-            "/": "search.open",
-            f: "view.toggleFocus",
-            t: "terminal.new",
-            z: "zen.toggle",
-          }
-          for (const [key, id] of Object.entries(keys))
-            expect(keydown(platform, { key })).toEqual([id])
-          expect(keydown(platform, { key: "b" })).toEqual(["sidebar.terminals"])
-          expect(keydown(platform, { key: "Delete" })).toEqual(["terminal.close"])
-          expect(keydown(platform, { key: "F2" })).toEqual(["terminal.rename"])
-          expect(keydown(platform, { key: "t", repeat: true })).toEqual([])
+        it("routes each key while navigating and ignores repeats, overlays and an open switcher", () => {
+          expect(keydown(platform, { key: "Delete" }, navigating)).toEqual(["terminal.close"])
+          expect(keydown(platform, { key: "F2" }, navigating)).toEqual(["terminal.rename"])
+          expect(keydown(platform, { key: "Enter" }, navigating)).toEqual(["navigate.exit"])
+          expect(keydown(platform, { key: "F2", repeat: true }, navigating)).toEqual([])
           expect(
-            keydown(platform, { key: "t" }, { environment: { overlayOpen: () => true } }),
+            keydown(
+              platform,
+              { key: "F2" },
+              { ...navigating, environment: { overlayOpen: () => true } },
+            ),
           ).toEqual([])
-          expect(keydown(platform, { key: "t" }, { state: { switcher: "click" } })).toEqual([])
+          expect(
+            keydown(platform, { key: "F2" }, { state: { navigate: true, switcher: "click" } }),
+          ).toEqual([])
         })
 
+        it("routes none of them when not navigating", () => {
+          for (const key of ["Delete", "F2", "Enter", "Escape"])
+            expect(keydown(platform, { key })).toEqual(
+              key === "Escape" ? ["canvas.returnToOrigin", "navigate.exit"] : [],
+            )
+        })
+
+        // Typing meant for a terminal that isn't focused goes to it, never to a workspace action.
+        it("routes typed characters only into the selected terminal", () => {
+          for (const key of "abcdefghijklmnopqrstuvwxyz0123456789/?.,;'[]-=`ąé€") {
+            expect(keydown(platform, { key })).toEqual(["terminal.type"])
+            expect(keydown(platform, { key: key.toUpperCase(), shiftKey: true })).toEqual([
+              "terminal.type",
+            ])
+          }
+          // Option on a Mac and AltGr (Ctrl+Alt) on Windows type characters too.
+          expect(keydown(platform, { key: "@", altKey: true })).toEqual(["terminal.type"])
+          const altGraph = { ctrlKey: true, altKey: true, altGraph: true }
+          expect(keydown(platform, { key: "ł", ...altGraph })).toEqual(["terminal.type"])
+          expect(keydown(platform, { key: "l", ctrlKey: true, altKey: true })).toEqual([])
+        })
+
+        it("leaves Space, named keys and chords alone", () => {
+          for (const key of [" ", "Enter", "Tab", "Backspace", "Dead", "Shift"])
+            expect(keydown(platform, { key })).not.toContain("terminal.type")
+          expect(keydown(platform, { key: "a", ctrlKey: true })).toEqual([])
+          expect(keydown(platform, { key: "a", metaKey: true })).toEqual([])
+        })
+
+        it("leaves typing to inputs, dialogs, overlays and the switcher", () => {
+          expect(keydown(platform, { key: "a", target: terminalInput })).toEqual([])
+          expect(keydown(platform, { key: "a", target: { editing: true } })).toEqual([])
+          expect(keydown(platform, { key: "a" }, { state: { dialog: true } })).toEqual([])
+          expect(
+            keydown(platform, { key: "a" }, { environment: { overlayOpen: () => true } }),
+          ).toEqual([])
+          expect(keydown(platform, { key: "a" }, { state: { switcher: "click" } })).toEqual([])
+        })
+
+        // Canvas zooms on its own element and prevents the key before routing sees it.
         it("leaves Canvas zoom keys to Canvas", () => {
-          for (const key of ["+", "-", "=", "0"]) expect(keydown(platform, { key })).toEqual([])
+          for (const key of ["+", "-", "=", "0"])
+            expect(keydown(platform, { key, defaultPrevented: true })).toEqual([])
         })
       })
 
@@ -294,12 +391,13 @@ describe("keymap", () => {
             .filter((binding) => binding.repeat === "swallow")
             .map((binding) => binding.command)
           expect(once).toEqual([
-            "selection.clear",
+            "navigate.exit",
             "session.new",
             "sidebar.terminals",
             "sidebar.sessions",
             "view.toggleFocus",
             "terminal.new",
+            "zen.toggle",
           ])
         })
       })
@@ -307,18 +405,14 @@ describe("keymap", () => {
   }
 
   context("when listing shortcuts for Preferences", () => {
-    it("shows the same rows as before, in the same order", () => {
+    it("lists the bare keys under Navigating and every chord under Anywhere", () => {
       const workspace = [
-        "Workspace",
-        "Find a terminal: /",
-        "Toggle Focus view: F",
-        "New terminal: T",
-        "Toggle Zen mode: Z",
-        "Toggle terminal sidebar: B",
+        "Navigating",
+        "Terminal in that direction: ↑ ↓ ← →",
+        "Previous / next view: Shift ← →",
+        "Back into the terminal: Enter Esc",
         "Rename active terminal: F2",
-        "Previous / next terminal: ↑ ↓",
-        "Previous / next view: ← →",
-        "Deselect, then hide sidebar: Esc",
+        "Close active terminal: Delete",
         "Zoom canvas in / out: + −",
         "Fit canvas to all terminals: 0",
       ]
@@ -330,11 +424,14 @@ describe("keymap", () => {
           "Recent terminals: Ctrl Tab",
           "Previous recent terminal: Ctrl Shift Tab",
           "Toggle Focus view: Ctrl Shift Enter",
+          "Toggle Zen mode: Ctrl Shift Z",
           "New terminal: Ctrl Shift T",
           "New session: Ctrl Shift N",
           "Toggle terminal sidebar: Ctrl Shift 1",
           "Toggle session sidebar: Ctrl Shift 2",
           "Open preferences: Ctrl ,",
+          "Navigate the workspace: Shift Esc",
+          "Terminal in that direction: Ctrl Shift ↑ ↓ ← →",
         ],
       ])
       expect(rows("mac")).toEqual([
@@ -345,15 +442,18 @@ describe("keymap", () => {
           "Recent terminals: Ctrl Tab",
           "Previous recent terminal: Ctrl Shift Tab",
           "Toggle Focus view: ⌘ Enter",
+          "Toggle Zen mode: ⌘ Shift Z",
           "New terminal: ⌘ T",
           "New session: ⌘ Shift N",
           "Toggle terminal sidebar: ⌘ Shift 1",
           "Toggle session sidebar: ⌘ Shift 2",
           "Open preferences: ⌘ ,",
+          "Navigate the workspace: Shift Esc",
+          "Terminal in that direction: ⌘ ⌥ ↑ ↓ ← →",
         ],
       ])
       expect(shortcutGroups("mac").map(({ description }) => description)).toEqual([
-        "When you’re not typing in a terminal, field, or dialog.",
+        "After Shift+Esc, until you type, press Enter or Esc, or click.",
         "These also work while typing in a terminal.",
       ])
     })

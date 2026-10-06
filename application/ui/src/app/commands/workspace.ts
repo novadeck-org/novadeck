@@ -26,7 +26,7 @@ import { createRenameCommands, type RenameCommands } from "./rename"
 import { folderProject, newWorkspaceSession } from "./sessions"
 import { createShellCommands, shellEdits, type ShellCommands } from "./shell"
 
-export type AddTerminalOptions = { fromKeyboard?: boolean; beginRename?: boolean }
+export type AddTerminalOptions = { fromKeyboard?: boolean }
 
 // Workspace operations shared by the pointer UI and keyboard shortcuts. Each reads the
 // latest stores when it runs, so several in one event keep one another's changes.
@@ -54,7 +54,7 @@ export type WorkspaceCommands = ShellCommands &
     readonly openSearchResult: (id: string) => void
     // Chooses a terminal from the recent switcher.
     readonly chooseRecent: (id: string) => void
-    // Returns the new terminal's ID.
+    // Saves a rename in progress and puts typing focus in the new terminal. Returns its ID.
     readonly add: (options?: AddTerminalOptions) => string
     // Adds the terminal an agent asked for beside its own, in that terminal's session,
     // and answers the request; it comes into view only when the request asks.
@@ -301,20 +301,17 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         shell.setKeyboardFocus({ id, view: currentState(workspace.getSnapshot()).view })
       select(id)
     },
-    add: ({ fromKeyboard = false, beginRename = true } = {}) => {
+    add: ({ fromKeyboard = false } = {}) => {
       recent.setSwitcher(null)
       const snapshot = workspace.getSnapshot()
       const project = activeProject(snapshot)!
-      const { roster, layout } = currentState(snapshot)
+      const { roster, layout, view } = currentState(snapshot)
       const target = currentTarget(snapshot)
-      const { zen, sidebarCollapsed } = ui.getSnapshot().shell
       const terminal = newTerminal({ target, directory: project.directory })
       const active = rename.activeRename()
-      if (!beginRename && active) rename.finishRename(active, true)
-      const origin =
-        !zen && effects.desktop() && (fromKeyboard || !sidebarCollapsed) ? "sidebar" : "header"
+      if (active) rename.finishRename(active, true)
       markCreated({ context: currentContext(snapshot), id: terminal.id })
-      if (beginRename) rename.startRename(terminal, origin)
+      shell.setKeyboardFocus({ id: terminal.id, view })
       const actions: WorkspaceAction[] = [
         {
           type: "terminal/add",

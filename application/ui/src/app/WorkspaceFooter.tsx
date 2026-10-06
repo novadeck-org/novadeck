@@ -19,6 +19,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
   const connection = useConnection(backend.connection)
   const crashes = useUiState((state) => state.crashLoop)
   const zen = useUiState((state) => Boolean(state.shell.zen))
+  const navigate = useUiState((state) => state.shell.navigate)
   const { count, running } = useWorkspaceState((workspace) => {
     const { terminals } = currentState(workspace).roster
     return {
@@ -38,6 +39,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       count={count}
       running={running}
       status={status}
+      navigate={navigate}
       onRetry={backend.crashLoop ? commands.retryAfterCrashLoop : undefined}
     />
   )

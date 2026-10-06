@@ -27,6 +27,7 @@ export type ShellCommands = {
   readonly dropCanvasFocus: (request: number) => void
   readonly setKeyboardFocus: (focus: KeyboardFocus | null) => void
   readonly setFocusPreview: (preview: FocusPreview | null) => void
+  readonly setNavigate: (navigate: boolean) => void
 }
 
 // Shell changes shared by the workspace commands.
@@ -95,5 +96,6 @@ export const createShellCommands = (ctx: CommandContext): ShellCommands => {
       ),
     setKeyboardFocus: (focus) => set("keyboardFocus", focus),
     setFocusPreview: (preview) => set("focusPreview", preview),
+    setNavigate: (navigate) => set("navigate", navigate),
   }
 }

@@ -1,5 +1,6 @@
 import type { Backend } from "../../backend/port"
 import type { CanvasHandle } from "../../layouts/canvas/types"
+import type { Rect } from "../../model/layout/spatial"
 import type { WorkspaceStore } from "../../model/store"
 import type { SidebarPanel } from "../../shell/shell-state"
 import type { Panes } from "../../terminals/companion/state"
@@ -24,6 +25,10 @@ export type CommandEffects = {
   readonly focusZenEnter: () => void
   readonly focusWorkspaceViewport: () => void
   readonly focusTerminalTab: (id: string) => void
+  // Focuses the terminal's input now; false when it has none that can take focus.
+  readonly focusTerminalInput: (id: string) => boolean
+  // Where each terminal and window the current view shows is on screen.
+  readonly tileRects: () => readonly { readonly id: string; readonly rect: Rect }[]
   // Focuses the element again if it is still on the page.
   readonly refocus: (element: FocusTarget) => void
   readonly afterFrame: (run: () => void) => void

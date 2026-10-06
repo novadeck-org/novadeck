@@ -21,9 +21,12 @@ export const WorkspaceFooter = ({
   count,
   running,
   status,
+  navigate = false,
   onRetry,
 }: {
   readonly hidden: boolean
+  // The person is navigating the workspace rather than typing in a terminal.
+  readonly navigate?: boolean
   readonly count: number
   readonly running: number
   readonly status: FooterStatus
@@ -58,6 +61,12 @@ export const WorkspaceFooter = ({
           {count} {count === 1 ? "terminal" : "terminals"}
         </span>
         <span className="footer-running max-[701px]:hidden ml-2 pl-3">{running} running</span>
+        {navigate && (
+          <span role="status" className="footer-navigate ml-2 flex items-center gap-1.5 pl-3">
+            <span className="font-bold">Navigating</span>
+            <span className="max-[701px]:hidden">· arrows move · Enter to type</span>
+          </span>
+        )}
       </span>
       <span className="footer-status flex items-center gap-1.5 font-bold">
         <span role="status" aria-live={current?.tone === "danger" ? "assertive" : "polite"}>

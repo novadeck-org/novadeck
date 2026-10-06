@@ -1,9 +1,9 @@
 import { describe as context, describe, expect, it } from "vitest"
-import { page } from "vitest/browser"
+import { page, type Locator } from "vitest/browser"
 
-import { escapeFrom } from "./support/keyboard"
+import { findDialog, pressShortcut, shortcut } from "./support/keyboard"
 import { emptyWorkspace, pressNewSession } from "./support/sessions"
-import { headerRenameField } from "./support/terminals"
+import { anyRenameField } from "./support/terminals"
 import {
   chooseView,
   commandInput,
@@ -229,41 +229,54 @@ describe("Zen mode", () => {
     })
   })
 
-  context("when pressing / in Zen", () => {
+  context(`when pressing ${shortcut.find().label} in Zen`, () => {
     it("opens search and stays in Zen", async () => {
       await openWorkspace()
       await enterZen().click()
       await expectInZen()
 
-      await press("/")
+      await pressShortcut("find")
 
       await expect.element(page.getByRole("dialog", { name: "Find a terminal" })).toBeVisible()
       await expectStaysAbsent(enterZen())
     })
   })
 
-  context("when pressing Z on the workspace", () => {
+  context(`when pressing ${shortcut.zen().label} on the workspace`, () => {
     it("toggles Zen", async () => {
       await openWorkspace()
       await expectOutOfZen()
 
-      await press("z")
+      await pressShortcut("zen")
       await expectInZen()
 
-      await press("z")
+      await pressShortcut("zen")
       await expectOutOfZen()
       await expect.element(dock()).not.toBeInTheDocument()
     })
 
-    it("types the letter instead when a terminal input has focus", async () => {
+    it("toggles Zen from a terminal input without typing into it", async () => {
       await openWorkspace()
       await commandInput("Checkout implementation").click()
 
-      await press("z")
+      await pressShortcut("zen")
+      await expectInZen()
+      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
 
-      await expect.element(commandInput("Checkout implementation")).toHaveValue("z")
-      await expectStaysAbsent(dock())
+      await pressShortcut("zen")
       await expectOutOfZen()
+      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
+    })
+
+    it("does nothing while a dialog is open", async () => {
+      await openWorkspace()
+      await pressShortcut("find")
+      await expect.element(findDialog()).toBeVisible()
+
+      await pressShortcut("zen")
+
+      await expectStaysAbsent(dock())
+      await expect.element(findDialog()).toBeVisible()
     })
   })
 
@@ -317,7 +330,7 @@ describe("Zen dock", () => {
   context("when activating the chevron from the keyboard", () => {
     it("toggles with Enter and Space", async () => {
       await openWorkspace()
-      await enterZen().click()
+      await activateWithKeyboard(enterZen())
       await expect.element(dock().getByRole("button", { name: "New terminal" })).toHaveFocus()
       await press("{Tab}")
       await expect.element(showControls()).toHaveFocus()
@@ -364,7 +377,7 @@ describe("Zen dock", () => {
 
     it("folds when keyboard focus leaves it", async () => {
       await openWorkspace()
-      await enterZen().click()
+      await activateWithKeyboard(enterZen())
       await press("{Tab}")
       await expect.element(showControls()).toHaveFocus()
       await press("{Enter}")
@@ -396,20 +409,26 @@ describe("Zen dock", () => {
   }
 
   context("when choosing New terminal in the dock", () => {
-    it("creates a terminal and renames it in its header", async () => {
+    it("creates a terminal and focuses its input", async () => {
       await openWorkspace()
       await enterZen().click()
 
       await dock().getByRole("button", { name: "New terminal" }).click()
 
       await expect.element(terminal("Terminal 07")).toBeVisible()
-      await expect
-        .element(terminal("Terminal 07").getByRole("textbox", { name: "Rename Terminal 07" }))
-        .toHaveFocus()
+      await expect.element(commandInput("Terminal 07")).toHaveFocus()
+      await expectStaysAbsent(anyRenameField())
       await expectInZen()
     })
   })
 })
+
+/** Activates a button from the keyboard, as Tab then Enter does. */
+const activateWithKeyboard = async (button: Locator): Promise<void> => {
+  button.element().focus()
+  await expect.element(button).toHaveFocus()
+  await press("{Enter}")
+}
 
 describe("leaving Zen", () => {
   context("when choosing Exit Zen", () => {
@@ -436,7 +455,7 @@ describe("leaving Zen", () => {
       await enterZen().click()
       await dock().getByRole("button", { name: "New terminal" }).click()
       await expect.element(terminal("Terminal 07")).toBeVisible()
-      await escapeFrom(headerRenameField("Terminal 07"))
+      await expect.element(commandInput("Terminal 07")).toHaveFocus()
 
       await showControls().click()
       await exitZen().click()
@@ -471,14 +490,14 @@ describe("leaving Zen", () => {
       await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")
     })
 
-    it("leaves Zen showing Terminals for B", async () => {
+    it("leaves Zen showing Terminals when the sidebar was hidden", async () => {
       await openWorkspace()
       await sidebarPanel("Terminals").click()
       await expect.element(sidebar()).not.toBeInTheDocument()
       await enterZen().click()
       await expectInZen()
 
-      await press("b")
+      await pressShortcut("terminals")
 
       await expectOutOfZen()
       await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")

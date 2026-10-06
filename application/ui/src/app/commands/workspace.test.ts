@@ -48,13 +48,14 @@ const twoSessions = () => {
 
 describe("workspace commands", () => {
   context("when adding a terminal while another is being renamed", () => {
-    it("saves the rename in progress and starts renaming the new terminal", () => {
+    it("saves the rename in progress and puts typing focus in the new terminal", () => {
       const app = openCommands()
       app.commands.startRename(terminal(app, "01"), "sidebar")
       app.commands.changeRenameDraft("01", "Server")
       const id = app.commands.add()
       expect(terminal(app, "01").name).toBe("Server")
-      expect(app.ui.getSnapshot().rename).toMatchObject({ id, origin: "sidebar" })
+      expect(app.ui.getSnapshot().rename).toBeNull()
+      expect(app.shell().keyboardFocus).toEqual({ id, view: app.state().view })
       expect(app.state().selected).toBe(id)
     })
   })
@@ -89,34 +90,14 @@ describe("workspace commands", () => {
   })
 
   context("when adding a terminal from the keyboard", () => {
-    it("opens the collapsed sidebar and renames the terminal there", () => {
+    it("opens the collapsed sidebar without renaming the terminal", () => {
       const app = openCommands()
       app.commands.hideSidebar()
-      app.commands.add({ fromKeyboard: true })
+      const id = app.commands.add({ fromKeyboard: true })
       expect(app.shell().sidebarCollapsed).toBe(false)
-      expect(app.ui.getSnapshot().rename?.origin).toBe("sidebar")
-      expect(app.ui.getSnapshot().location.route.panel).toBe("terminals")
-    })
-
-    it("renames in the header in Zen or on a phone", () => {
-      const zen = openCommands()
-      zen.commands.enterZen()
-      zen.commands.add({ fromKeyboard: true })
-      expect(zen.ui.getSnapshot().rename?.origin).toBe("header")
-      const phone = openCommands({ desktop: false })
-      phone.commands.add({ fromKeyboard: true })
-      expect(phone.ui.getSnapshot().rename?.origin).toBe("header")
-    })
-  })
-
-  context("when adding a terminal from a view background", () => {
-    it("saves a rename in progress and does not start another", () => {
-      const app = openCommands()
-      app.commands.startRename(terminal(app, "02"), "header")
-      app.commands.changeRenameDraft("02", "Logs")
-      app.commands.add({ beginRename: false })
-      expect(terminal(app, "02").name).toBe("Logs")
       expect(app.ui.getSnapshot().rename).toBeNull()
+      expect(app.shell().keyboardFocus?.id).toBe(id)
+      expect(app.ui.getSnapshot().location.route.panel).toBe("terminals")
     })
   })
 

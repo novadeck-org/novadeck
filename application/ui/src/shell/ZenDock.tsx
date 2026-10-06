@@ -1,7 +1,7 @@
 import { ChevronLeft, LayoutGrid, PanelLeft, Plus, SquareDashedMousePointer, X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
-import { workspaceShortcutBindings } from "../interaction/shortcuts"
+import { shortcutBindings } from "../interaction/shortcuts"
 import type { ViewMode } from "../model/types"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 
@@ -57,9 +57,7 @@ export const ZenDock = ({
       role="group"
       aria-label="Zen controls"
     >
-      <Tooltip
-        content={`New terminal · ${workspaceShortcutBindings().newTerminal.display.join(" ")}`}
-      >
+      <Tooltip content={`New terminal · ${shortcutBindings().newTerminal.display.join(" ")}`}>
         <button
           ref={create}
           data-workspace-zen-create

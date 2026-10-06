@@ -4,10 +4,9 @@ import { page } from "vitest/browser"
 import { bounds, focusView, gridView, headerGap } from "./support/layouts"
 import {
   chooseView,
-  commandInput,
-  expectNothingSelected,
   expectSelected,
   expectStaysAbsent,
+  focusStage,
   openWorkspace,
   press,
   terminal,
@@ -97,37 +96,16 @@ describe("Focus view", () => {
     })
   })
 
-  context("when Escape deselects the terminal", () => {
-    it("keeps showing it", async () => {
+  context("when pressing Escape on the stage outside navigate mode", () => {
+    it("keeps showing the selected terminal", async () => {
       await openWorkspace()
       await expectSelected("Checkout implementation")
+      await focusStage()
 
       await press("{Escape}")
-
-      await expectNothingSelected()
-      await expect.element(terminal("Checkout implementation")).toBeVisible()
-    })
-
-    it("activates it again when clicked", async () => {
-      await openWorkspace()
-      await press("{Escape}")
-      await expectNothingSelected()
-
-      await terminal("Checkout implementation").click()
 
       await expectSelected("Checkout implementation")
       await expect.element(terminal("Checkout implementation")).toBeVisible()
-    })
-
-    it("activates it again when its input receives focus", async () => {
-      await openWorkspace()
-      await press("{Escape}")
-      await expectNothingSelected()
-
-      await commandInput("Checkout implementation").click()
-
-      await expectSelected("Checkout implementation")
-      await expect.element(commandInput("Checkout implementation")).toHaveFocus()
     })
   })
 })

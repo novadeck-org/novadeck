@@ -25,6 +25,7 @@ export const shortcut = {
   find: (): Chord => command(isMac() ? "k" : "K", "K"),
   focus: (): Chord => command("{Enter}", "Enter"),
   newTerminal: (): Chord => command(isMac() ? "t" : "T", "T"),
+  zen: (): Chord => commandShift("Z"),
   terminals: (): Chord => commandShift("1"),
   sessions: (): Chord => commandShift("2"),
   preferences: (): Chord =>
@@ -32,6 +33,15 @@ export const shortcut = {
       ? { label: "Cmd+,", keys: "{Meta>},{/Meta}" }
       : { label: "Ctrl+,", keys: "{Control>},{/Control}" },
 }
+
+/** The chord that jumps to the terminal on an arrow's side: ⌘⌥ on a Mac, Ctrl+Shift elsewhere. */
+export const jump = (arrow: "Up" | "Down" | "Left" | "Right"): Chord =>
+  isMac()
+    ? { label: `Cmd+Option+${arrow}`, keys: `{Meta>}{Alt>}{Arrow${arrow}}{/Alt}{/Meta}` }
+    : {
+        label: `Ctrl+Shift+${arrow}`,
+        keys: `{Control>}{Shift>}{Arrow${arrow}}{/Shift}{/Control}`,
+      }
 
 /** Presses a modifier shortcut, e.g. `pressShortcut("find")`. */
 export const pressShortcut = (name: keyof typeof shortcut): Promise<void> =>

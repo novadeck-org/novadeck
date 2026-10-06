@@ -1,5 +1,6 @@
 /* The region recipe: the app's chrome. The header (`.app-header`, with the `.brand`
-   link home), the footer (`.app-footer`, its `.footer-running` count, `.footer-status`
+   link home), the footer (`.app-footer`, its `.footer-running` count, the
+   `.footer-navigate` note while the person navigates the workspace, `.footer-status`
    and `.footer-action`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
    (`.sidebar`), which on narrow screens opens as a `.sidebar-drawer`. Each region is a
    ground with an edge toward the workspace.
@@ -14,6 +15,7 @@
    --region-header-border-color (line): the header.
    --region-footer-bg (paper), --region-footer-fg (muted),
    --region-footer-border-color (line): the footer at rest.
+   --region-footer-navigate-fg (ink): the note that the person is navigating.
    --region-rail-bg (shell), --region-rail-fg (ink), --region-rail-border-color (line):
    the rail.
    --region-sidebar-bg (shell), --region-sidebar-fg (ink),
@@ -54,6 +56,14 @@
 }
 .app-footer:not([data-tone]) .footer-running {
   border-inline-start-color: var(--region-footer-border-color, var(--color-line));
+}
+/* Like the count's divider, and in the bar's strongest text, as a mode line. */
+.footer-navigate {
+  border-inline-start: var(--border-width) solid color-mix(in srgb, currentColor 20%, transparent);
+}
+.app-footer:not([data-tone]) .footer-navigate {
+  border-inline-start-color: var(--region-footer-border-color, var(--color-line));
+  color: var(--region-footer-navigate-fg, var(--color-ink));
 }
 .footer-status,
 .footer-action {

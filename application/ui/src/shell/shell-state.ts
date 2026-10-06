@@ -35,6 +35,9 @@ export type ShellState = {
   readonly focusPreview: FocusPreview | null
   // A session created from the sidebar, which opens the phone drawer once it shows.
   readonly freshSession: string | null
+  // Keys move around the workspace instead of reaching a terminal, from Shift+Esc until
+  // the person goes back into one.
+  readonly navigate: boolean
 }
 
 export const initialShell = (sidebarCollapsed: boolean): ShellState => ({
@@ -47,6 +50,7 @@ export const initialShell = (sidebarCollapsed: boolean): ShellState => ({
   navigation: { count: 1, fit: false },
   focusPreview: null,
   freshSession: null,
+  navigate: false,
 })
 
 export const sidebarVisible = (shell: ShellState, desktop: boolean): boolean =>

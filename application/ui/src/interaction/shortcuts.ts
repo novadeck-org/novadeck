@@ -5,6 +5,8 @@ export type Shortcut = {
   ctrl: boolean
   meta: boolean
   shift: boolean
+  // Option or Alt; left out, it must not be held.
+  alt?: boolean
   display: string[]
 }
 
@@ -19,11 +21,13 @@ export type ShortcutName =
   | "recent"
   | "previous"
   | "focus"
+  | "zen"
   | "newTerminal"
   | "newSession"
   | "terminals"
   | "sessions"
   | "preferences"
+  | "navigate"
 
 // Modifier shortcuts, which also work from terminal input.
 export const shortcutBindings = (
@@ -62,6 +66,14 @@ export const shortcutBindings = (
       meta: mac,
       shift: !mac,
       display: mac ? ["⌘", "Enter"] : ["Ctrl", "Shift", "Enter"],
+    },
+    zen: {
+      label: "Toggle Zen mode",
+      key: "z",
+      ctrl: !mac,
+      meta: mac,
+      shift: true,
+      display: [mac ? "⌘" : "Ctrl", "Shift", "Z"],
     },
     newTerminal: {
       label: "New terminal",
@@ -105,59 +117,47 @@ export const shortcutBindings = (
       shift: false,
       display: [mac ? "⌘" : "Ctrl", ","],
     },
+    navigate: {
+      label: "Navigate the workspace",
+      key: "Escape",
+      ctrl: false,
+      meta: false,
+      shift: true,
+      display: ["Shift", "Esc"],
+    },
   }
 }
 
-export type WorkspaceShortcutName =
-  | "find"
-  | "focus"
-  | "newTerminal"
-  | "zen"
-  | "terminals"
-  | "rename"
+export type Arrow = "up" | "right" | "down" | "left"
 
-// Single keys, which work only while navigating the workspace itself.
+const arrowKeys: Record<Arrow, { key: string; display: string }> = {
+  up: { key: "ArrowUp", display: "↑" },
+  right: { key: "ArrowRight", display: "→" },
+  down: { key: "ArrowDown", display: "↓" },
+  left: { key: "ArrowLeft", display: "←" },
+}
+
+// Moves to the terminal on that side and keeps typing there, from terminal input too:
+// ⌘⌥ and an arrow on Apple platforms, Ctrl+Shift and an arrow elsewhere.
+export const jumpShortcut = (arrow: Arrow, platform: Platform = currentPlatform()): Shortcut => {
+  const mac = platform === "mac"
+  const { key, display } = arrowKeys[arrow]
+  return {
+    label: "Terminal in that direction",
+    key,
+    ctrl: !mac,
+    meta: mac,
+    shift: !mac,
+    alt: mac,
+    display: mac ? ["⌘", "⌥", display] : ["Ctrl", "Shift", display],
+  }
+}
+
+export type WorkspaceShortcutName = "rename"
+
+// Keys that work only while navigating the workspace. None is a letter or other printable
+// key, so typing meant for a terminal never triggers one.
 export const workspaceShortcutBindings = (): Record<WorkspaceShortcutName, Shortcut> => ({
-  find: {
-    label: "Find a terminal",
-    key: "/",
-    ctrl: false,
-    meta: false,
-    shift: false,
-    display: ["/"],
-  },
-  focus: {
-    label: "Toggle Focus view",
-    key: "f",
-    ctrl: false,
-    meta: false,
-    shift: false,
-    display: ["F"],
-  },
-  newTerminal: {
-    label: "New terminal",
-    key: "t",
-    ctrl: false,
-    meta: false,
-    shift: false,
-    display: ["T"],
-  },
-  zen: {
-    label: "Toggle Zen mode",
-    key: "z",
-    ctrl: false,
-    meta: false,
-    shift: false,
-    display: ["Z"],
-  },
-  terminals: {
-    label: "Toggle terminal sidebar",
-    key: "b",
-    ctrl: false,
-    meta: false,
-    shift: false,
-    display: ["B"],
-  },
   rename: {
     label: "Rename active terminal",
     key: "F2",
@@ -175,11 +175,11 @@ export type ShortcutInput = Pick<
   "key" | "code" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey"
 >
 
-// Exact modifiers; Alt never matches.
+// Exact modifiers.
 export const matchesShortcut = (event: ShortcutInput, shortcut: Shortcut): boolean =>
   (event.key.toLowerCase() === shortcut.key.toLowerCase() ||
     (shortcut.code !== undefined && event.code === shortcut.code)) &&
   event.ctrlKey === shortcut.ctrl &&
   event.metaKey === shortcut.meta &&
   event.shiftKey === shortcut.shift &&
-  !event.altKey
+  event.altKey === Boolean(shortcut.alt)

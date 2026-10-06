@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
-import { shortcutBindings, workspaceShortcutBindings } from "../interaction/shortcuts"
+import { shortcutBindings } from "../interaction/shortcuts"
 import type { Tile, WorkspaceSession } from "../model/types"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
@@ -78,7 +78,7 @@ export const WorkspaceSidebar = ({
         <Plus size={14} className="shrink-0" />
         <span className="min-w-0 truncate">Terminal</span>
         <kbd className="hint mb-[-2px] ml-auto shrink-0 whitespace-nowrap">
-          {workspaceShortcutBindings().newTerminal.display.join(" ")}
+          {shortcutBindings().newTerminal.display.join(" ")}
         </kbd>
       </button>
       <TerminalTabs

@@ -14,7 +14,6 @@ import {
   switchProject,
   workspaceSwitcher,
 } from "./support/sessions"
-import { sidebarRenameField } from "./support/terminals"
 import {
   chooseView,
   commandInput,
@@ -207,7 +206,7 @@ describe("sessions sidebar", () => {
       await expect.element(emptyWorkspace()).toBeVisible()
       const fresh = await newSessionName(original)
       await page.getByRole("button", { name: "New terminal" }).click()
-      await escapeFrom(sidebarRenameField("Terminal 01"))
+      await expect.element(commandInput("Terminal 01")).toHaveFocus()
       await commandInput("Terminal 01").fill("new draft")
 
       await sidebarPanel("Sessions").click()
@@ -331,7 +330,7 @@ describe("narrow screens", () => {
   })
 
   context("when pressing the new-terminal shortcut on a phone", () => {
-    it("keeps the sidebar closed so the new terminal and its name editor are visible", async () => {
+    it("keeps the sidebar closed so the new terminal is visible and focused", async () => {
       await phone()
       await openWorkspace()
       await commandInput("Checkout implementation").click()
@@ -340,9 +339,7 @@ describe("narrow screens", () => {
 
       await expect.element(terminal("Terminal 07")).toBeVisible()
       await expectStaysAbsent(sidebar())
-      await expect
-        .element(terminal("Terminal 07").getByRole("textbox", { name: "Rename Terminal 07" }))
-        .toHaveFocus()
+      await expect.element(commandInput("Terminal 07")).toHaveFocus()
     })
   })
 
