@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto"
+import { tmpdir } from "node:os"
+import { dirname, join } from "node:path"
 
 import { CompanionItems } from "./companions/items.js"
 import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
@@ -6,6 +8,7 @@ import { createRouter, type Connection } from "./router.js"
 import { installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { Uploads } from "./terminals/uploads.js"
+import { Voice } from "./voice/service.js"
 import { Projects } from "./workspaces/projects.js"
 import { WorkspaceStore } from "./workspaces/store.js"
 
@@ -29,6 +32,17 @@ export type RunnerOptions = {
    * the one `@novadeck/relay` built by default. The desktop app passes the one it ships.
    */
   relay?: string
+  /**
+   * Voice input's speech engine: `engine` is the path to its manifest (`engine.json`),
+   * `source` where its archive is, an https URL ending in `/` or a folder, and `directory`
+   * where it and the models install, a `voice` folder beside the database by default.
+   * Without an engine voice input is unavailable.
+   */
+  voice?: {
+    readonly engine?: string
+    readonly source?: string
+    readonly directory?: string
+  }
   /** Where agents are looked for and how their plugin commands run; for tests. */
   agents?: HarnessesOptions
 }
@@ -102,13 +116,24 @@ export const wire = (options: RunnerOptions) => {
   })
   const projects = new Projects(store, terminals, items)
   const uploads = new Uploads(options.uploads)
-  return { store, shellFiles, agents, terminals, items, projects, uploads }
+  const voice = new Voice(store, {
+    engine: options.voice?.engine,
+    source: options.voice?.source,
+    directory:
+      options.voice?.directory ??
+      (options.database === undefined
+        ? join(tmpdir(), `novadeck-voice-${randomUUID()}`)
+        : join(dirname(options.database), "voice")),
+  })
+  // Not awaited: the runner starts at once, and the first voice call waits for the load.
+  voice.start()
+  return { store, shellFiles, agents, terminals, items, projects, uploads, voice }
 }
 
 /** Owns shells and workspace metadata, independent of how clients reach it. */
 export const createRunner = (options: RunnerOptions = {}): Runner => {
   const id = randomUUID()
-  const { store, terminals, items, agents, projects, uploads } = wire(options)
+  const { store, terminals, items, agents, projects, uploads, voice } = wire(options)
   const clients = new Map<string, Connection>()
   let closing: Promise<void> | undefined
   const disconnect = (connection: Connection) => {
@@ -118,6 +143,7 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
       clients.delete(connection.clientId)
     }
     terminals.release(connection.id)
+    voice.release(connection.id)
   }
   // A client only notices a dead link first; release its stale connection now instead
   // of after missed heartbeats, so its reconnection can reclaim terminal control.
@@ -141,6 +167,7 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
       items,
       agents,
       uploads,
+      voice,
       closing: () => closing !== undefined,
     }),
     snapshotBytes: options.terminals?.snapshotBytes ?? 32 * 1024 * 1024,
@@ -161,7 +188,13 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
         try {
           await terminals.shutdown()
         } finally {
-          store.close()
+          // Downloads and the engine use no records, but end before the store they ask;
+          // the store closes even if they fail to.
+          try {
+            await voice.close()
+          } finally {
+            store.close()
+          }
         }
       })()
       return closing

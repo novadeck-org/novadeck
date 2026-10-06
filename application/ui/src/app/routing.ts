@@ -9,6 +9,7 @@ import {
 } from "../model/state"
 import type { WorkspaceTransaction } from "../model/store"
 import type { PreferencesValue, ViewMode, Workspace } from "../model/types"
+import { preferencesTabs, type PreferencesTab } from "../preferences/settings"
 
 export type WorkspaceRoute = {
   projectId: string
@@ -17,7 +18,7 @@ export type WorkspaceRoute = {
   terminal: string
   panel: "terminals" | "sessions"
   dialog: "search" | "preferences" | null
-  section: "general" | "shortcuts"
+  section: PreferencesTab
 }
 
 // URL-driven navigation over the workspace and UI stores. Each call commits the
@@ -46,13 +47,17 @@ export const workspaceRoute = (workspace: Workspace): WorkspaceRoute => ({
   section: "general",
 })
 
+// The Preferences tab a URL names, General for anything else.
+const sectionOf = (name: string | null): PreferencesTab =>
+  preferencesTabs.find(({ id }) => id === name)?.id ?? "general"
+
 export const routeUrl = (route: WorkspaceRoute): string => {
   const search = new URLSearchParams()
   // Keep an explicit empty selection so Canvas can have no active terminal.
   search.set("terminal", route.terminal)
   if (route.panel === "sessions") search.set("panel", route.panel)
   if (route.dialog) search.set("dialog", route.dialog)
-  if (route.dialog === "preferences" && route.section === "shortcuts")
+  if (route.dialog === "preferences" && route.section !== "general")
     search.set("section", route.section)
   return `/projects/${encodeURIComponent(route.projectId)}/sessions/${encodeURIComponent(route.sessionId)}/${route.view}?${search}`
 }
@@ -118,8 +123,7 @@ export const resolveRoute = (
       terminal,
       panel: search.get("panel") === "sessions" ? "sessions" : "terminals",
       dialog: dialog === "search" || dialog === "preferences" ? dialog : null,
-      section:
-        dialog === "preferences" && search.get("section") === "shortcuts" ? "shortcuts" : "general",
+      section: dialog === "preferences" ? sectionOf(search.get("section")) : "general",
     },
   }
 }

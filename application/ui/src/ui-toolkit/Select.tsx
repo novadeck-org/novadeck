@@ -13,6 +13,7 @@ export type SelectProps = {
   items: SelectOption[]
   value: string
   onValueChange?: (value: string) => void
+  disabled?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
   portalContainer?: RefObject<HTMLElement | null>
@@ -25,6 +26,7 @@ export const Select = ({
   items,
   value,
   onValueChange,
+  disabled,
   open,
   onOpenChange,
   portalContainer,
@@ -36,6 +38,7 @@ export const Select = ({
       className={cn("flex min-w-0 items-center justify-between gap-4 text-[12px]", className)}
       collection={collection}
       value={[value]}
+      disabled={disabled}
       onValueChange={(details) => {
         if (details.value[0] !== undefined) onValueChange?.(details.value[0])
       }}

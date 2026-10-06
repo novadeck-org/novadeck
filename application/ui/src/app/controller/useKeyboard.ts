@@ -15,6 +15,7 @@ import {
   type KeyPhase,
 } from "../../interaction/keymap"
 import { currentPlatform } from "../../interaction/shortcuts"
+import type { Dictation } from "../../voice/dictation-control"
 import { createKeyCommands, keyState, runKey } from "../commands/keys"
 import { currentState } from "../selectors"
 import { useWorkspaceServices } from "./context"
@@ -58,8 +59,9 @@ const blurInput: KeyInput = {
 // and a bubble keydown listener, plus keyup and blur, all on window. It also keeps the
 // keyboard's home in the selected terminal: navigating ends once focus moves into a
 // field or a terminal, or the mouse goes down, and a mouse click on the workspace's
-// chrome hands typing back to the selected terminal.
-export const useKeyboard = (): void => {
+// chrome hands typing back to the selected terminal. `dictation` is the backend's voice
+// input, if it has one.
+export const useKeyboard = (dictation?: Dictation): void => {
   const services = useWorkspaceServices()
   useEffect(() => {
     const { ui, workspace, navigation, commands, canvas, backend } = services
@@ -70,10 +72,17 @@ export const useKeyboard = (): void => {
       newTerminal: backend.newTerminal,
       canvas,
       effects: domEffects,
+      dictation,
     })
     const bindings = keymapFor(currentPlatform())
     const dispatch = (phase: KeyPhase, event: Event, input: KeyInput): void => {
-      const candidates = routeKey(bindings, phase, input, keyState(services, commands), environment)
+      const candidates = routeKey(
+        bindings,
+        phase,
+        input,
+        keyState({ ...services, dictation }, commands),
+        environment,
+      )
       if (runKey(keys, candidates, phase, input) !== "handled") return
       event.preventDefault()
       if (phase === "capture") event.stopPropagation()
@@ -101,7 +110,8 @@ export const useKeyboard = (): void => {
         if (now !== clicked && now !== document.body) return
         const target = classifyKeyTarget(now)
         if (target.editing || target.companion || target.zenDock) return
-        if (keyState(services, commands).dialog || environment.overlayOpen()) return
+        if (keyState({ ...services, dictation }, commands).dialog || environment.overlayOpen())
+          return
         if (environment.tabInteraction() || ui.getSnapshot().shell.navigate) return
         const { selected, view } = currentState(workspace.getSnapshot())
         if (selected) commands.setKeyboardFocus({ id: selected, view })
@@ -123,5 +133,5 @@ export const useKeyboard = (): void => {
       window.removeEventListener("pointerdown", pointerdown, true)
       window.removeEventListener("click", click)
     }
-  }, [services])
+  }, [services, dictation])
 }

@@ -346,6 +346,28 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       entry.users -= 1
       if (entry.users === 0 && entry.timer === undefined) settle(key, entry)
     },
+    // Pastes text into the terminal's screen as the person's own paste: bracketed when its
+    // program asked for that, and never followed by Enter. Dictation targets a terminal the
+    // person is looking at, so a terminal with no open screen has nothing to type into and
+    // gets nothing: opening a second attachment to write behind a screen that is not there,
+    // for a paste with no brackets, would run the text as typed commands. Says whether it
+    // pasted. Line breaks and other control characters become spaces first: outside
+    // bracketed paste xterm turns a newline into Enter, which would submit what was said.
+    typeInto: (key: TerminalKey, text: string): boolean => {
+      const screen = entries.get(id(key))?.screen
+      if (!screen) return false
+      // oxlint-disable-next-line no-control-regex -- Control characters are what this removes.
+      const plain = text.replaceAll(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim()
+      if (!plain) return false
+      // Dictating twice in a row, or after typing a word, would run the words together.
+      const buffer = screen.xterm.buffer.active
+      const before = buffer
+        .getLine(buffer.baseY + buffer.cursorY)
+        ?.getCell(buffer.cursorX - 1)
+        ?.getChars()
+      screen.xterm.paste(before && before.trim() ? ` ${plain}` : plain)
+      return true
+    },
   }
 }
 

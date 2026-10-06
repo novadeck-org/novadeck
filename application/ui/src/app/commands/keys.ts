@@ -1,3 +1,4 @@
+import type { TerminalKey } from "../../backend/port"
 import {
   arrowDirections,
   type Arrow,
@@ -18,6 +19,7 @@ import {
   alertOpen,
   currentContext,
   currentState,
+  currentTarget,
   windowedDestination,
 } from "../selectors"
 import type { CommandContext } from "./context"
@@ -40,7 +42,7 @@ const handled = (run: () => void) => (): "handled" => {
 // What each key binding does, over the same commands the pointer UI uses.
 export const createKeyCommands = (
   commands: WorkspaceCommands,
-  { workspace, ui, navigation, canvas, effects }: CommandContext,
+  { workspace, ui, navigation, canvas, effects, dictation }: CommandContext,
 ): Record<CommandId, KeyCommand> => {
   const state = () => currentState(workspace.getSnapshot())
   const panel = () => ui.getSnapshot().location.route.panel
@@ -83,6 +85,15 @@ export const createKeyCommands = (
     const others = tiles.filter((tile) => tile.id !== current)
     const id = nearestInDirection(from.rect, others, arrow)
     return ordered.some((tile) => tile.id === id) ? id : undefined
+  }
+  // Where dictation pastes: the selected terminal, never a window undocked from a companion.
+  const dictationTarget = (): TerminalKey | undefined => {
+    const snapshot = workspace.getSnapshot()
+    const { roster, selected } = currentState(snapshot)
+    const terminal = tilesOf(roster).find((tile) => tile.id === selected)
+    return terminal && !isWindow(terminal)
+      ? { ...currentTarget(snapshot), terminalId: terminal.id }
+      : undefined
   }
   const stepView = (step: 1 | -1): "handled" => {
     const { view } = state()
@@ -265,6 +276,28 @@ export const createKeyCommands = (
       }),
     },
     "recent.cancelHeld": { run: handled(() => commands.setSwitcher(null)) },
+    // Handled even where the backend can't transcribe: unhandled, a terminal would read
+    // Ctrl+Shift+M as Ctrl+M and press Enter.
+    "voice.press": {
+      run: (input) => {
+        dictation?.press(dictationTarget(), input.code)
+        return "handled"
+      },
+    },
+    // Releases and blur only add to what other layers do on them, so routing goes on.
+    "voice.release": {
+      run: (input) => {
+        dictation?.release(input.code)
+        return "next"
+      },
+    },
+    "voice.blur": {
+      run: () => {
+        dictation?.blur()
+        return "next"
+      },
+    },
+    "voice.cancel": { run: handled(() => dictation?.cancel()) },
   }
 }
 
@@ -285,7 +318,7 @@ const inOrder = (ordered: readonly Tile[], current: string | undefined, step: 1 
 
 // What routing needs to know about the stores right now.
 export const keyState = (
-  { ui, workspace }: Pick<CommandContext, "ui" | "workspace">,
+  { ui, workspace, dictation }: Pick<CommandContext, "ui" | "workspace" | "dictation">,
   commands: Pick<WorkspaceCommands, "visibleSwitcher">,
 ): KeyState => {
   const alert = alertOpen(ui.getSnapshot(), workspace.getSnapshot())
@@ -295,6 +328,7 @@ export const keyState = (
     switcher: commands.visibleSwitcher()?.mode ?? null,
     held: ui.getSnapshot().recent.switcher?.mode === "held",
     navigate: ui.getSnapshot().shell.navigate,
+    dictating: dictation?.active() ?? false,
   }
 }
 

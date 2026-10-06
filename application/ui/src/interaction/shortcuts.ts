@@ -28,6 +28,7 @@ export type ShortcutName =
   | "sessions"
   | "preferences"
   | "navigate"
+  | "voice"
 
 // Modifier shortcuts, which also work from terminal input.
 export const shortcutBindings = (
@@ -124,6 +125,21 @@ export const shortcutBindings = (
       meta: false,
       shift: true,
       display: ["Shift", "Esc"],
+    },
+    // Held while speaking, so it must come up as a key of its own: macOS reports no keyup
+    // for a letter while ⌘ is down, which rules out ⌘ there, and the same Ctrl+Shift chord
+    // serves every platform. Ctrl+Space and ⌘Space belong to the input method or Spotlight,
+    // a bare modifier can't be told from the start of another chord, and Alt or Option
+    // letters type characters in shells and on Apple keyboards. M for microphone is free in
+    // the app and in the agent CLIs; the keymap handles it before a terminal can read it as
+    // Ctrl+M, an Enter.
+    voice: {
+      label: "Hold to dictate",
+      key: "m",
+      ctrl: true,
+      meta: false,
+      shift: true,
+      display: ["Ctrl", "Shift", "M"],
     },
   }
 }

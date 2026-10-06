@@ -1,6 +1,8 @@
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
+import { engineDirectory, engineManifest } from "@novadeck/whisper"
+
 import type { ServerOptions } from "./server.js"
 
 const defaultCorsOrigins = ["http://127.0.0.1:5173"]
@@ -39,6 +41,9 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
       join(homedir(), ".local", "share", "novadeck", "workspace.sqlite"),
   )
   const relay = environment.NOVADECK_RELAY?.trim()
+  // The engine voice input downloads: the one built here unless another is named.
+  const engine = environment.NOVADECK_VOICE_ENGINE?.trim()
+  const source = environment.NOVADECK_VOICE_SOURCE?.trim()
   return {
     hostname: environment.HOST?.trim() || "127.0.0.1",
     port: readPort(environment.PORT),
@@ -49,6 +54,16 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
       database,
       shell: join(dirname(database), "shell"),
       uploads: join(dirname(database), "uploads"),
+      voice: {
+        engine: engine ? resolve(engine) : engineManifest,
+        // A URL as given, or a folder.
+        source: source
+          ? /^https?:\/\//i.test(source)
+            ? source
+            : resolve(source)
+          : engineDirectory,
+        directory: join(dirname(database), "voice"),
+      },
     }),
     // Another build of the relay than `@novadeck/relay`'s, as a packaged one.
     ...(relay ? { relay: resolve(relay) } : {}),

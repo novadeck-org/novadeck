@@ -97,7 +97,7 @@ jobs:
     needs: prepare
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ github.event_name == 'pull_request' && 60 || 30 }}
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -107,16 +107,19 @@ jobs:
             target: linux
             files: |
               application/host/release/*.AppImage
+              application/host/release/novadeck-whisper-linux-x64.tar.gz
           - name: macOS
             os: macos-latest
             target: mac
             files: |
               application/host/release/*.zip
+              application/host/release/novadeck-whisper-darwin-universal.tar.gz
           - name: Windows
             os: windows-latest
             target: win
             files: |
               application/host/release/*.exe
+              application/host/release/novadeck-whisper-win32-x64.tar.gz
     steps:
       - name: Wait for Quality Checks
         if: github.event_name == 'pull_request'
@@ -173,6 +176,50 @@ jobs:
 
       - name: Set Package Version
         run: npm --prefix application/host pkg set "version=${{ needs.prepare.outputs.version || '0.0.0' }}"
+
+      # Voice input's engine, whisper.cpp built for this platform (see application/whisper),
+      # is compiled here, not by the Quality workflow's builds: it takes minutes, and its
+      # archive is a release asset the app downloads, while the app ships only its manifest.
+      - name: Install Vulkan Build Dependencies (Linux)
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libvulkan-dev glslc spirv-headers
+
+      - name: Install Vulkan SDK (Windows)
+        if: matrix.target == 'win'
+        uses: jakoch/install-vulkan-sdk-action@37effcfa045411f8bfbbda26df2fd1b3bf3436fa # v1.6.0
+        with:
+          vulkan_version: 1.4.363.0
+          install_runtime: false
+          cache: true
+
+      - name: Restore Voice Engine
+        id: engine
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: application/whisper/dist
+          key: whisper-engine-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('application/whisper/scripts/**', 'application/whisper/patches/**', 'application/whisper/package.json') }}
+
+      - name: Build Voice Engine
+        if: steps.engine.outputs.cache-hit != 'true'
+        run: pnpm --filter @novadeck/whisper build:engine
+
+      # Unpacks the engine with the tar the runner uses on this platform and runs it, so a
+      # missing library or backend module fails here rather than on a person's machine.
+      - name: Check Voice Engine
+        shell: bash
+        run: |
+          engine="$RUNNER_TEMP/voice-engine"
+          mkdir -p "$engine"
+          archive="$(ls application/whisper/dist/novadeck-whisper-*.tar.gz)"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            "$SYSTEMROOT/System32/tar.exe" -xzf "$(cygpath -w "$archive")" -C "$(cygpath -w "$engine")"
+            "$engine/whisper-server.exe" --help > /dev/null
+          else
+            tar -xzf "$archive" -C "$engine"
+            "$engine/whisper-server" --help > /dev/null
+          fi
 
       # The relay is built with the Rust its rust-toolchain.toml names; on macOS as one
       # binary for both architectures.
@@ -281,6 +328,11 @@ jobs:
           else
             pnpm run smoke
           fi
+
+      # Beside the packages, so the artifact keeps one flat folder for the release job.
+      - name: Collect Voice Engine
+        shell: bash
+        run: cp application/whisper/dist/novadeck-whisper-*.tar.gz application/host/release/
 
       - name: Upload Packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

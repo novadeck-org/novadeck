@@ -10,6 +10,8 @@ import {
   databaseArgumentPrefix,
   relayArgumentPrefix,
   runnerPortChannel,
+  voiceEngineArgumentPrefix,
+  voiceSourceArgumentPrefix,
   type RunnerCommand,
 } from "../bridge.js"
 
@@ -33,13 +35,21 @@ export const startRunner = (options: {
   entry: string
   database: string
   relay: string
+  /** The voice engine's manifest and where its archive is downloaded from. */
+  engine: string
+  source: string
 }): RunnerHost => {
   let child: UtilityProcess | undefined
   let closing: Promise<void> | undefined
   const spawn = () => {
     const worker = utilityProcess.fork(
       options.entry,
-      [`${databaseArgumentPrefix}${options.database}`, `${relayArgumentPrefix}${options.relay}`],
+      [
+        `${databaseArgumentPrefix}${options.database}`,
+        `${relayArgumentPrefix}${options.relay}`,
+        `${voiceEngineArgumentPrefix}${options.engine}`,
+        `${voiceSourceArgumentPrefix}${options.source}`,
+      ],
       { serviceName: "Novadeck Runner" },
     )
     worker.once("exit", (code) => {

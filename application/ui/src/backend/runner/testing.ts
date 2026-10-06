@@ -157,6 +157,19 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       pause: (paused) => note(`pause messages ${paused}`, () => runner.messages.pause(paused)),
       release: (thread) => note(`release ${thread}`, () => runner.messages.release(thread)),
     },
+    voice: {
+      watch: () => runner.voice.watch(),
+      install: (model) => note(`voice install ${model}`, () => runner.voice.install(model)),
+      cancel: () => note("voice cancel", () => runner.voice.cancel()),
+      uninstall: () => note("voice uninstall", () => runner.voice.uninstall()),
+      set: (settings) =>
+        note(`voice set ${JSON.stringify(settings)}`, () => runner.voice.set(settings)),
+      record: (clipId, offset, audio) =>
+        note(`voice record ${offset}`, () => runner.voice.record(clipId, offset, audio)),
+      transcribe: (clipId, options) =>
+        note("voice transcribe", () => runner.voice.transcribe(clipId, options)),
+      discard: (clipId) => note("voice discard", () => runner.voice.discard(clipId)),
+    },
     companions: {
       list: (input) => runner.companions.list(input),
       watch: () => runner.companions.watch(),

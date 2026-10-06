@@ -1,0 +1,22 @@
+{
+  "name": "@novadeck/whisper",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The whisper.cpp engine voice input downloads, built for each platform.",
+  "author": "mzpkdev",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "scripts": {
+    "build:engine": "node scripts/build.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2"
+  }
+}

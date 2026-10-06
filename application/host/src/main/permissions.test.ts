@@ -18,29 +18,49 @@ const contents = (type: string, url: string) =>
   ({ getType: () => type, getURL: () => url }) as unknown as WebContents
 
 // The app's session as its handlers answer a frame of `contents`.
-const session = () => {
+const session = (microphone?: () => Promise<boolean>) => {
   const handlers: { check?: Check; request?: Request } = {}
   const fake = {
     setPermissionCheckHandler: (handler: Check) => (handlers.check = handler),
     setPermissionRequestHandler: (handler: Request) => (handlers.request = handler),
   }
-  limitPermissions(fake as unknown as Session, (url) => url === appUrl)
+  limitPermissions(fake as unknown as Session, (url) => url === appUrl, microphone)
   const asks = (
     permission: string,
     from = contents("window", appUrl),
     isMainFrame = true,
+    media: { mediaTypes?: string[]; mediaType?: string } = {},
   ): { checked: boolean; requested: boolean | undefined } => {
     let requested: boolean | undefined
     handlers.request?.(from, permission, (granted) => (requested = granted), {
       isMainFrame,
       requestingUrl: appUrl,
+      ...(media.mediaTypes && { mediaTypes: media.mediaTypes }),
     })
     return {
-      checked: handlers.check?.(from, permission, "http://127.0.0.1:5173", { isMainFrame }) ?? true,
+      checked:
+        handlers.check?.(from, permission, "http://127.0.0.1:5173", {
+          isMainFrame,
+          ...(media.mediaType && { mediaType: media.mediaType }),
+        }) ?? true,
       requested,
     }
   }
-  return { asks }
+  // A request that waits on the system, answered when its promise settles.
+  const asksLater = async (
+    mediaTypes: string[],
+    from = contents("window", appUrl),
+  ): Promise<boolean | undefined> => {
+    let requested: boolean | undefined
+    handlers.request?.(from, "media", (granted) => (requested = granted), {
+      isMainFrame: true,
+      requestingUrl: appUrl,
+      mediaTypes,
+    })
+    await new Promise((settle) => setTimeout(settle, 0))
+    return requested
+  }
+  return { asks, asksLater }
 }
 
 describe("the app's permissions", () => {
@@ -53,8 +73,47 @@ describe("the app's permissions", () => {
 
     it("refuse everything else", () => {
       const app = session()
-      for (const permission of ["media", "notifications", "geolocation", "openExternal"])
+      for (const permission of ["notifications", "geolocation", "openExternal"])
         expect(app.asks(permission)).toEqual({ checked: false, requested: false })
+    })
+  })
+
+  context("for the microphone", () => {
+    it("allow audio alone, and refuse the camera", async () => {
+      const app = session()
+      expect(app.asks("media", undefined, true, { mediaType: "audio" }).checked).toBe(true)
+      expect(app.asks("media", undefined, true, { mediaType: "video" }).checked).toBe(false)
+      expect(app.asks("media", undefined, true, { mediaType: "unknown" }).checked).toBe(false)
+      expect(await app.asksLater(["audio"])).toBe(true)
+      expect(await app.asksLater(["video"])).toBe(false)
+      expect(await app.asksLater(["audio", "video"])).toBe(false)
+      expect(await app.asksLater([])).toBe(false)
+    })
+
+    it("are granted only as far as the system allows", async () => {
+      expect(await session(async () => false).asksLater(["audio"])).toBe(false)
+      expect(await session(() => Promise.reject(new Error("no"))).asksLater(["audio"])).toBe(false)
+    })
+
+    it("are not asked of the system for a camera or another page", async () => {
+      let asked = 0
+      const app = session(async () => ++asked > 0)
+      await app.asksLater(["video"])
+      await app.asksLater(["audio"], contents("window", "https://example.com/"))
+      expect(asked).toBe(0)
+    })
+
+    it("are refused to a frame inside the page or a live page", () => {
+      const app = session()
+      const audio = { mediaType: "audio", mediaTypes: ["audio"] }
+      expect(app.asks("media", undefined, false, audio)).toEqual({
+        checked: false,
+        requested: false,
+      })
+      expect(app.asks("media", contents("webview", appUrl), true, audio)).toEqual({
+        checked: false,
+        requested: false,
+      })
     })
   })
 

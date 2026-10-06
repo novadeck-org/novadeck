@@ -8,10 +8,12 @@ import { sidebarVisible } from "../shell/shell-state"
 import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
 import { ZenDock } from "../shell/ZenDock"
+import { DictationOverlay } from "../voice/DictationOverlay"
 import { selectBackend } from "./backend"
 import { BackendGate } from "./BackendGate"
 import { BootReporter } from "./BootReporter"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
+import { DictationContext, useDictationController } from "./controller/dictation"
 import { useKeyboard } from "./controller/useKeyboard"
 import { useWorkspaceEffects } from "./controller/useWorkspaceEffects"
 import { HeaderSection } from "./HeaderSection"
@@ -69,7 +71,8 @@ const WorkspaceEffects = (): null => {
 }
 
 export const WorkspaceApp = (): React.JSX.Element => {
-  const { commands, canvas } = useWorkspaceServices()
+  const services = useWorkspaceServices()
+  const { commands, canvas } = services
   const { hideSidebar, toggleSidebar, exitZen, changeView, add } = commands
   const desktop = useDesktop()
   const shell = useUiState((state) => {
@@ -86,7 +89,8 @@ export const WorkspaceApp = (): React.JSX.Element => {
   }, shallowEqual)
   const { zen, sidebar, sidebarCollapsed, sidebarPanel, fontSize, enabledViews } = shell
   const view = useWorkspaceState((workspace) => currentState(workspace).view)
-  useKeyboard()
+  const voice = useDictationController(services)
+  useKeyboard(voice?.dictation)
   const sidebarRail = (mobile = false): React.JSX.Element => (
     <SidebarRail
       mobile={mobile}
@@ -98,49 +102,52 @@ export const WorkspaceApp = (): React.JSX.Element => {
     />
   )
   return (
-    <main
-      className="workspace flex h-dvh min-h-100 flex-col overflow-hidden"
-      data-zen={zen}
-      onPointerDownCapture={cancelTerminalTransition}
-      onKeyDownCapture={cancelTerminalTransition}
-      style={
-        {
-          "--terminal-font-size": `${fontSize}px`,
-        } as React.CSSProperties
-      }
-    >
-      <WorkspaceEffects />
-      <HeaderSection />
-      <div className="workspace-body relative flex min-h-0 flex-1">
-        {sidebarRail()}
-        <WorkspacePanels
-          collapsed={zen || sidebarCollapsed}
-          mobileOpen={!zen && sidebar}
-          onMobileOpenChange={(open) => {
-            if (!open) hideSidebar()
-          }}
-          mobileRail={sidebarRail(true)}
-          mobileLabel={sidebarPanel === "sessions" ? "Workspace sessions" : "Terminal sessions"}
-          mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
-          sidebar={<SidebarSection />}
-        >
-          <WorkspaceStage canvas={canvas} />
-        </WorkspacePanels>
-        {zen && (
-          <ZenDock
-            view={view}
-            enabledViews={enabledViews}
-            onCreate={() => add()}
-            onViewChange={(next) => {
-              if (next !== view) changeView(next)
+    <DictationContext.Provider value={voice}>
+      <main
+        className="workspace flex h-dvh min-h-100 flex-col overflow-hidden"
+        data-zen={zen}
+        onPointerDownCapture={cancelTerminalTransition}
+        onKeyDownCapture={cancelTerminalTransition}
+        style={
+          {
+            "--terminal-font-size": `${fontSize}px`,
+          } as React.CSSProperties
+        }
+      >
+        <WorkspaceEffects />
+        <HeaderSection />
+        <div className="workspace-body relative flex min-h-0 flex-1">
+          {sidebarRail()}
+          <WorkspacePanels
+            collapsed={zen || sidebarCollapsed}
+            mobileOpen={!zen && sidebar}
+            onMobileOpenChange={(open) => {
+              if (!open) hideSidebar()
             }}
-            onExit={exitZen}
-          />
-        )}
-      </div>
-      <WorkspaceFooter />
-      <WorkspaceOverlays />
-      <DebugSection />
-    </main>
+            mobileRail={sidebarRail(true)}
+            mobileLabel={sidebarPanel === "sessions" ? "Workspace sessions" : "Terminal sessions"}
+            mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
+            sidebar={<SidebarSection />}
+          >
+            <WorkspaceStage canvas={canvas} />
+          </WorkspacePanels>
+          {zen && (
+            <ZenDock
+              view={view}
+              enabledViews={enabledViews}
+              onCreate={() => add()}
+              onViewChange={(next) => {
+                if (next !== view) changeView(next)
+              }}
+              onExit={exitZen}
+            />
+          )}
+        </div>
+        <WorkspaceFooter />
+        <WorkspaceOverlays />
+        {voice && <DictationOverlay view={voice.view} level={voice.level} />}
+        <DebugSection />
+      </main>
+    </DictationContext.Provider>
   )
 }

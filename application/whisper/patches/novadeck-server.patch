@@ -1,0 +1,121 @@
+diff --git a/examples/server/server.cpp b/examples/server/server.cpp
+index b745f4d..e3d0918 100644
+--- a/examples/server/server.cpp
++++ b/examples/server/server.cpp
+@@ -67,6 +67,7 @@ struct server_params
+     int32_t write_timeout = 600;
+ 
+     bool ffmpeg_converter = false;
++    bool exit_with_stdin  = false;
+ };
+ 
+ struct whisper_params {
+@@ -249,6 +250,7 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params, serve
+ 
+         // server params
+         else if (                   arg == "--port")            { sparams.port        = std::stoi(argv[++i]); }
++        else if (                   arg == "--exit-with-stdin") { sparams.exit_with_stdin = true; }
+         else if (                   arg == "--host")            { sparams.hostname    = argv[++i]; }
+         else if (                   arg == "--public")          { sparams.public_path = argv[++i]; }
+         else if (                   arg == "--request-path")    { sparams.request_path = argv[++i]; }
+@@ -651,6 +653,16 @@ int main(int argc, char ** argv) {
+         return 1;
+     }
+ 
++    // Novadeck's runner holds this server's stdin open for as long as it lives, so the
++    // server ends with the runner even when the runner is killed without a chance to stop it.
++    if (sparams.exit_with_stdin) {
++        std::thread([] {
++            char buffer[256];
++            while (fread(buffer, 1, sizeof buffer, stdin) > 0) {}
++            std::_Exit(0);
++        }).detach();
++    }
++
+     if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1) {
+         fprintf(stderr, "error: unknown language '%s'\n", params.language.c_str());
+         whisper_print_usage(argc, argv, params, sparams);
+@@ -735,9 +747,20 @@ int main(int argc, char ** argv) {
+     state.store(SERVER_STATE_READY);
+ 
+ 
+-    svr->set_default_headers({{"Server", "whisper.cpp"},
+-                             {"Access-Control-Allow-Origin", "*"},
+-                             {"Access-Control-Allow-Headers", "content-type, authorization"}});
++    // Novadeck: no CORS headers and no OPTIONS handler, so no web page can read or preflight
++    // a request to this server; and only requests addressed to this server's own loopback
++    // name are served, which a page reaching it through DNS rebinding cannot send.
++    svr->set_default_headers({{"Server", "whisper.cpp"}});
++    svr->set_pre_routing_handler([port = sparams.port](const Request &req, Response &res) {
++        const std::string host = req.get_header_value("Host");
++        const std::string suffix = ":" + std::to_string(port);
++        if (host == "127.0.0.1" + suffix || host == "localhost" + suffix || host == "[::1]" + suffix) {
++            return Server::HandlerResponse::Unhandled;
++        }
++        res.status = 403;
++        res.set_content("Forbidden", "text/plain");
++        return Server::HandlerResponse::Handled;
++    });
+ 
+     std::string const default_content = R"(
+     <html>
+@@ -820,9 +843,6 @@ int main(int argc, char ** argv) {
+         return false;
+     });
+ 
+-    svr->Options(sparams.request_path + sparams.inference_path, [&](const Request &, Response &){
+-    });
+-
+     svr->Post(sparams.request_path + sparams.inference_path, [&](const Request &req, Response &res){
+         // acquire whisper model mutex lock
+         std::lock_guard<std::mutex> lock(whisper_mutex);
+@@ -1172,48 +1192,7 @@ int main(int argc, char ** argv) {
+                             "application/json");
+         }
+     });
+-    svr->Post(sparams.request_path + "/load", [&](const Request &req, Response &res){
+-        std::lock_guard<std::mutex> lock(whisper_mutex);
+-        state.store(SERVER_STATE_LOADING_MODEL);
+-        if (!req.has_file("model"))
+-        {
+-            fprintf(stderr, "error: no 'model' field in the request\n");
+-            const std::string error_resp = "{\"error\":\"no 'model' field in the request\"}";
+-            res.status = 400;
+-            res.set_content(error_resp, "application/json");
+-            return;
+-        }
+-        std::string model = req.get_file_value("model").content;
+-        if (!is_file_exist(model.c_str()))
+-        {
+-            fprintf(stderr, "error: 'model': %s not found!\n", model.c_str());
+-            const std::string error_resp = "{\"error\":\"model not found!\"}";
+-            res.status = 400;
+-            res.set_content(error_resp, "application/json");
+-            return;
+-        }
+-
+-        // clean up
+-        whisper_free(ctx);
+-
+-        // whisper init
+-        ctx = whisper_init_from_file_with_params(model.c_str(), cparams);
+-
+-        // TODO perhaps load prior model here instead of exit
+-        if (ctx == nullptr) {
+-            fprintf(stderr, "error: model init  failed, no model loaded must exit\n");
+-            exit(1);
+-        }
+-
+-        // initialize openvino encoder. this has no effect on whisper.cpp builds that don't have OpenVINO configured
+-        whisper_ctx_init_openvino_encoder(ctx, nullptr, params.openvino_encode_device.c_str(), nullptr);
+-
+-        state.store(SERVER_STATE_READY);
+-        const std::string success = "Load was successful!";
+-        res.set_content(success, "application/text");
+-
+-        // check if the model is in the file system
+-    });
++    // Novadeck: no /load route; the model is the one the server started with.
+ 
+     svr->Get(sparams.request_path + "/health", [&](const Request &, Response &res){
+         server_state current_state = state.load();

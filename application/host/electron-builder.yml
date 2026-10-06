@@ -26,6 +26,11 @@ extraResources:
     to: relay
     filter:
       - novadeck-relay*
+  # The manifest of the voice engine, which voice input downloads on install from this
+  # release; the archive it names is a release asset, not part of the app. See
+  # application/whisper.
+  - from: ../whisper/dist/engine.json
+    to: voice/engine.json
 artifactName: novadeck-${version}-${os}-${arch}.${ext}
 mac:
   # node-pty ships prebuilds for both architectures, and the relay is built universal; the
@@ -35,6 +40,7 @@ mac:
   # Electron resolves helpers from CFBundleName; builder strips the branding's trailing dot.
   extendInfo:
     CFBundleName: novadeck
+    NSMicrophoneUsageDescription: Novadeck uses the microphone for voice input, transcribed on this computer.
   identity: null
   category: public.app-category.utilities
   target:

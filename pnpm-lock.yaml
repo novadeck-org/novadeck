@@ -133,6 +133,9 @@ importers:
       '@novadeck/relay':
         specifier: workspace:*
         version: link:../relay
+      '@novadeck/whisper':
+        specifier: workspace:*
+        version: link:../whisper
       '@orpc/server':
         specifier: 1.15.4
         version: 1.15.4(ws@8.21.3)
@@ -321,6 +324,15 @@ importers:
       vitest-browser-react:
         specifier: ^2.3.0
         version: 2.3.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.1)
+
+  application/whisper:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
 packages:
 

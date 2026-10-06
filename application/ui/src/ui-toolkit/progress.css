@@ -1,0 +1,20 @@
+/* The progress recipe: a bar filling as work goes (`.progress-track`, with its
+   `.progress-range`), for work whose size is known.
+
+   Hooks: on the track, data-state="loading" | "complete" from the component.
+
+   Tokens, each optional (its fallback in brackets):
+   --progress-track-bg (soft), --progress-track-border-color (line),
+   --progress-radius (radius-control): the track.
+   --progress-range-bg (strong): the fill. */
+.progress-track {
+  overflow: hidden;
+  border: var(--border-width) solid var(--progress-track-border-color, var(--color-line));
+  border-radius: var(--progress-radius, var(--radius-control));
+  background-color: var(--progress-track-bg, var(--color-soft));
+}
+.progress-range {
+  height: 100%;
+  background-color: var(--progress-range-bg, var(--color-strong));
+  transition: width var(--motion-state) var(--ease-interface);
+}

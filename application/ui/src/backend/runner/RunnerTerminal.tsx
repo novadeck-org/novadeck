@@ -13,7 +13,7 @@ import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolki
 import type { TerminalSurfaceProps } from "../port"
 import { restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
-import { createScreens, type RunnerScreen, type ScreenStream } from "./screens"
+import { createScreens, type RunnerScreen, type Screens, type ScreenStream } from "./screens"
 
 // Why typing is paused. A failed paste says why in the same notice.
 const lockNotices = {
@@ -33,8 +33,10 @@ const ignore = (): (() => void) => () => {}
 // One component per backend, so its identity stays stable while the backend lives. Its
 // screens outlive the surfaces: a view switch unmounts one surface and mounts the next,
 // which takes the same emulator and attachment instead of opening them again.
-export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
-  const screens = createScreens(runtime)
+export const createRunnerTerminal = (
+  runtime: SurfaceRuntime,
+  screens: Screens = createScreens(runtime),
+) => {
   const RunnerTerminal = ({
     terminalKey,
     terminal,

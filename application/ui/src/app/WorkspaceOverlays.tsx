@@ -4,6 +4,7 @@ import type { Backend } from "../backend/port"
 import { terminalElement } from "../interaction/dom"
 import { orderedTiles } from "../model/roster"
 import { activeProject } from "../model/state"
+import type { VoiceAddon } from "../preferences/VoiceInput"
 import { WelcomeDialog } from "../preferences/WelcomeDialog"
 import { CrashLoopDialog } from "../shell/CrashLoopDialog"
 import { CloseTerminalDialog } from "../terminals/CloseTerminalDialog"
@@ -59,11 +60,20 @@ const useAgents = (agents: Backend["agents"]) => {
   return { list, welcome }
 }
 
+// The backend's voice input addon for Preferences; undefined where it has none.
+const useVoice = (voice: Backend["voice"]): VoiceAddon | undefined => {
+  const state = useSyncExternalStore(voice?.state.subscribe ?? always, () =>
+    voice?.state.getSnapshot(),
+  )
+  return voice && state && { state, actions: voice }
+}
+
 // Dialogs and the terminal switcher, above the workspace.
 export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { backend, commands, navigation } = useWorkspaceServices()
   const transcripts = useTranscripts(backend.transcripts)
   const agents = useAgents(backend.agents)
+  const voice = useVoice(backend.voice)
   const { go, closeDialog } = navigation
   const { chooseRecent, updatePreferences, openSearchResult, closeSwitcher } = commands
   const { confirmClose, cancelClose, retryAfterCrashLoop, dismissCrashLoop } = commands
@@ -163,6 +173,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onClose={closeDialog}
           {...(transcripts ? { transcripts } : {})}
           notices={backend.notices !== undefined}
+          {...(voice ? { voice } : {})}
           {...(backend.agents
             ? { agents: { list: agents.list, onChange: backend.agents.set } }
             : {})}

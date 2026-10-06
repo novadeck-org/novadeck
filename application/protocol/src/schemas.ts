@@ -463,6 +463,70 @@ export const runnerSettings = z.strictObject({
   welcomed: z.boolean(),
 })
 
+// Voice input: speech typed into terminals, transcribed on this machine by an engine and
+// a model the person installs from Preferences. `turbo` is accurate in many languages but
+// wants a GPU; `small` is quicker on a CPU and less accurate.
+export const voiceModel = z.enum(["turbo", "small"])
+// The language spoken: `auto` to detect it, or a code Whisper knows, such as "en" or "pl".
+export const voiceLanguage = z.string().regex(/^(auto|[a-z]{2,3})$/)
+
+/** Voice clips are 16 kHz mono 16-bit little-endian PCM. */
+export const voiceSampleRate = 16_000
+/** The longest clip, in seconds. */
+export const maxVoiceSeconds = 120
+/**
+ * The longest part of a clip, in base64 characters: 144 KiB of audio, so a whole
+ * `voice.record` call fits in `maxWebSocketMessageBytes`.
+ */
+export const maxVoicePartLength = 196_608
+
+// What an install is doing: downloading the engine or the model, or checking that they
+// transcribe, with the bytes received of the step's total.
+export const voiceInstall = z.strictObject({
+  model: voiceModel,
+  step: z.enum(["engine", "model", "check"]),
+  received: z.int().nonnegative(),
+  total: z.int().nonnegative(),
+})
+
+// How the engine did on a test clip after an install: how long it took, whether it ran on
+// a GPU, and the model that suits this machine.
+export const voiceCheck = z.strictObject({
+  model: voiceModel,
+  milliseconds: z.int().nonnegative(),
+  gpu: z.boolean(),
+  recommended: voiceModel,
+})
+
+export const voiceState = z.strictObject({
+  // Whether this build has an engine for this platform; without one nothing installs.
+  available: z.boolean(),
+  // The models on disk beside the engine; empty until an install finishes.
+  installed: z.array(voiceModel),
+  // Whether the person turned voice input on; it needs `model` installed.
+  enabled: z.boolean(),
+  model: voiceModel,
+  language: voiceLanguage,
+  // Download sizes in bytes: the engine for this platform, and each model.
+  sizes: z.strictObject({ engine: z.int().nonnegative(), turbo: z.int(), small: z.int() }),
+  installing: voiceInstall.nullable(),
+  check: voiceCheck.nullable(),
+  // Why the last install, or the engine, failed, until the next install or transcription.
+  failure: z.string().max(1024).nullable(),
+})
+
+export const voiceSettings = z.strictObject({
+  enabled: z.boolean(),
+  model: voiceModel,
+  language: voiceLanguage,
+})
+
+export const voiceTranscript = z.strictObject({
+  text: z.string(),
+  // The language the engine heard, as a code such as "en".
+  language: z.string(),
+})
+
 export const messageId = z.string().regex(/^m-[a-z0-9]{1,32}$/)
 export const threadId = z.string().regex(/^t-[a-z0-9]{1,32}$/)
 
@@ -555,6 +619,12 @@ export type TranscriptItem = z.infer<typeof transcriptItem>
 export type TranscriptChange = z.infer<typeof transcriptChange>
 export type AgentIntegration = z.infer<typeof agentIntegration>
 export type RunnerSettings = z.infer<typeof runnerSettings>
+export type VoiceModel = z.infer<typeof voiceModel>
+export type VoiceInstall = z.infer<typeof voiceInstall>
+export type VoiceCheck = z.infer<typeof voiceCheck>
+export type VoiceState = z.infer<typeof voiceState>
+export type VoiceSettings = z.infer<typeof voiceSettings>
+export type VoiceTranscript = z.infer<typeof voiceTranscript>
 export type MessageState = z.infer<typeof messageState>
 export type DeliveryState = z.infer<typeof deliveryState>
 export type AgentMessage = z.infer<typeof agentMessage>

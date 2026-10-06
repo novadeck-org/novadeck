@@ -34,6 +34,7 @@ import { pause } from "./pause"
 import { resumableProgram } from "./resumable"
 import { createRunnerTerminal } from "./RunnerTerminal"
 import { createSessionSaves } from "./saves"
+import { createScreens } from "./screens"
 import {
   cleanlyExited,
   lostTerminals,
@@ -43,6 +44,7 @@ import {
   terminalRuns,
   type RunnerListing,
 } from "./seed"
+import { createRunnerVoice } from "./voice"
 
 // The part of the runner client the adapter uses.
 export type RunnerApi = Pick<
@@ -53,6 +55,7 @@ export type RunnerApi = Pick<
   | "terminals"
   | "agents"
   | "messages"
+  | "voice"
   | "settings"
   | "companions"
 >
@@ -925,6 +928,8 @@ export const runnerBackend = (
     },
     track,
   )
+  // The voice input addon, followed from `start` like the messages.
+  const voice = createRunnerVoice(runner.voice, track)
   let following = false
   // Follows a terminal's messages once the runner has it: it answers "not found" before
   // then. Called whenever a shell is created or started afresh.
@@ -1181,6 +1186,7 @@ export const runnerBackend = (
     void consume(requests, onRequest)
     following = true
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
+    voice.follow()
     window.addEventListener("pagehide", flush)
     // The host waits for these saves, and removals, before a close or quit can end the
     // shells, so they name what still runs.
@@ -1196,12 +1202,14 @@ export const runnerBackend = (
       following = false
       stopItems()
       messages.stop()
+      voice.stop()
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true
     }
   }
 
+  const screens = createScreens(runtime)
   const backend: Backend = {
     seed,
     newTerminal: ({ directory, launch, title }) => {
@@ -1216,7 +1224,9 @@ export const runnerBackend = (
       return terminal
     },
     commit,
-    TerminalSurface: createRunnerTerminal(runtime),
+    TerminalSurface: createRunnerTerminal(runtime, screens),
+    voice: voice.voice,
+    typeInto: screens.typeInto,
     start,
     companions: createRunnerCompanions(runner.companions, {
       livePages: options.livePages === true,

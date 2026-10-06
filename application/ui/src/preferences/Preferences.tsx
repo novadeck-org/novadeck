@@ -13,7 +13,13 @@ import { Select } from "../ui-toolkit/Select"
 import { Switch } from "../ui-toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "../ui-toolkit/Tabs"
 import { AgentSwitches, agentsExplanation, type AgentSwitch } from "./AgentSwitches"
-import { settingRowClasses, settingsCardClasses } from "./settings"
+import {
+  preferencesTabs,
+  settingRowClasses,
+  settingsCardClasses,
+  type PreferencesTab,
+} from "./settings"
+import { VoiceInput, type VoiceAddon } from "./VoiceInput"
 
 const themeItems = themes.map(({ id, name }) => ({ label: name, value: id }))
 const schemeItems = [
@@ -90,11 +96,12 @@ export const Preferences = ({
   onTabChange,
   transcripts,
   agents,
+  voice,
   notices = false,
 }: {
   open: boolean
-  tab: "general" | "shortcuts"
-  onTabChange: (tab: "general" | "shortcuts") => void
+  tab: PreferencesTab
+  onTabChange: (tab: PreferencesTab) => void
   value: PreferencesValue
   onChange: (value: PreferencesValue) => void
   onClose: () => void
@@ -109,13 +116,16 @@ export const Preferences = ({
     readonly list: readonly AgentSwitch[]
     readonly onChange: (agent: AgentSwitch["agent"], connected: boolean) => void
   }
+  // Voice input, as the backend has it; absent where it has none.
+  voice?: VoiceAddon
 }): React.JSX.Element => {
   const dialog = useRef<HTMLDivElement>(null)
   const panels = useRef<HTMLDivElement>(null)
   const [openSelect, setOpenSelect] = useState<string | null>(null)
   const changeTab = (next: string): void => {
-    if (next !== "general" && next !== "shortcuts") return
-    onTabChange(next)
+    const chosen = preferencesTabs.find(({ id }) => id === next)
+    if (!chosen) return
+    onTabChange(chosen.id)
     setOpenSelect(null)
     if (panels.current) panels.current.scrollTop = 0
   }
@@ -163,9 +173,9 @@ export const Preferences = ({
             label="Preference sections"
             indicatorClassName="bottom-[-1px] h-0.5"
           >
-            {(["general", "shortcuts"] as const).map((id) => (
+            {preferencesTabs.map(({ id, label }) => (
               <Tab key={id} value={id} className="relative min-h-9 px-0.5 text-left text-[12px]">
-                {id === "general" ? "General" : "Shortcuts"}
+                {label}
               </Tab>
             ))}
           </TabList>
@@ -320,6 +330,14 @@ export const Preferences = ({
                 <AgentSwitches agents={agents.list} onChange={agents.onChange} />
               </Section>
             )}
+          </TabPanel>
+          <TabPanel value="addons" className={panelClasses}>
+            <Section
+              title="Voice input"
+              description="Speak prompts into agent terminals. Speech is transcribed on this computer and never leaves it."
+            >
+              <VoiceInput voice={voice} open={open && tab === "addons"} portalContainer={dialog} />
+            </Section>
           </TabPanel>
           <TabPanel value="shortcuts" className={panelClasses}>
             {shortcutGroups(currentPlatform()).map(({ title, description, items }) => (

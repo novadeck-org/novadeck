@@ -3,6 +3,7 @@ import { hasCode, normalize, RunnerError } from "./errors.js"
 import {
   maxUploadBytes,
   maxUploadPartLength,
+  maxVoicePartLength,
   protocolVersion,
   type AgentDetail,
   type AgentIntegration,
@@ -21,6 +22,10 @@ import {
   type TerminalRequestAnswer,
   type TerminalSummary,
   type TranscriptChange,
+  type VoiceModel,
+  type VoiceSettings,
+  type VoiceState,
+  type VoiceTranscript,
   type WorkspaceSession,
 } from "./schemas.js"
 import { createWireClient, type Channel } from "./wire.js"
@@ -321,6 +326,31 @@ export type Runner = {
     pause(paused: boolean): Promise<void>
     /** Releases a held thread: its messages go on, and it may have 12 more. */
     release(thread: string): Promise<void>
+  }
+  readonly voice: {
+    /**
+     * Follows the voice input addon: its state, then again on each change, across
+     * reconnections, each subscription starting with a fresh one. Iteration ends when the
+     * runner closes, or on `return()`.
+     */
+    watch(): AsyncIterableIterator<VoiceState, undefined>
+    /** Starts installing the engine, if missing, and a model; `watch` shows progress. */
+    install(model: VoiceModel): Promise<void>
+    /** Stops an install. */
+    cancel(): Promise<void>
+    /** Removes the engine and every model, and turns voice input off. */
+    uninstall(): Promise<void>
+    /** Changes the settings given; the others stay. */
+    set(settings: Partial<VoiceSettings>): Promise<void>
+    /**
+     * Adds 16 kHz mono 16-bit little-endian PCM to a clip the caller names, at the byte
+     * `offset` into it, in as many calls as it takes.
+     */
+    record(clipId: string, offset: number, audio: Uint8Array): Promise<void>
+    /** Transcribes a recorded clip and forgets it; `prompt` names words likely said. */
+    transcribe(clipId: string, options?: { readonly prompt?: string }): Promise<VoiceTranscript>
+    /** Forgets a clip without transcribing it. */
+    discard(clipId: string): Promise<void>
   }
   readonly settings: {
     get(): Promise<RunnerSettings>
@@ -1017,10 +1047,10 @@ class Watch<Change> implements AsyncIterableIterator<
   }
 }
 
-// Bytes as base64 parts of `terminals.upload`: whole groups of three bytes, so no part
-// but the last is padded.
-const uploadParts = (data: Uint8Array): string[] => {
-  const size = (maxUploadPartLength / 4) * 3
+// Bytes as base64 parts of at most `length` characters: whole groups of three bytes, so
+// no part but the last is padded.
+const base64Parts = (data: Uint8Array, length: number): string[] => {
+  const size = (length / 4) * 3
   const parts: string[] = []
   for (let start = 0; start < data.length; start += size) {
     const part = data.subarray(start, start + size)
@@ -1083,7 +1113,7 @@ export const connectRunner = async (
       resetTitle: (terminalId) => call((wire) => wire.terminals.resetTitle({ terminalId })),
       async upload(terminalId, { name, data }) {
         if (data.length > maxUploadBytes) throw new RunnerError("UPLOAD_TOO_LARGE")
-        const [first = "", ...rest] = uploadParts(data)
+        const [first = "", ...rest] = base64Parts(data, maxUploadPartLength)
         const started = await call((wire) =>
           wire.terminals.upload({ terminalId, name, data: first }),
         )
@@ -1144,6 +1174,27 @@ export const connectRunner = async (
         ),
       pause: (paused) => call((wire) => wire.messages.pause({ paused })),
       release: (thread) => call((wire) => wire.messages.release({ thread })),
+    },
+    voice: {
+      watch: () =>
+        new Resubscription(connection, (wire, signal) => wire.voice.watch(undefined, { signal })),
+      install: (model) => call((wire) => wire.voice.install({ model })),
+      cancel: () => call((wire) => wire.voice.cancel()),
+      uninstall: () => call((wire) => wire.voice.uninstall()),
+      set: (settings) => call((wire) => wire.voice.set(settings)),
+      async record(clipId, offset, audio) {
+        const size = (maxVoicePartLength / 4) * 3
+        let at = offset
+        for (const data of base64Parts(audio, maxVoicePartLength)) {
+          const start = at
+          // eslint-disable-next-line no-await-in-loop -- Parts arrive in order.
+          await call((wire) => wire.voice.record({ clipId, offset: start, data }))
+          at += size
+        }
+      },
+      transcribe: (clipId, { prompt } = {}) =>
+        call((wire) => wire.voice.transcribe({ clipId, ...(prompt ? { prompt } : {}) })),
+      discard: (clipId) => call((wire) => wire.voice.discard({ clipId })),
     },
     settings: {
       get: () => call((wire) => wire.settings.get()),

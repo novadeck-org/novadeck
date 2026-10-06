@@ -192,3 +192,6 @@ export type WorkspaceSession = {
 export type WorkspaceProject = Project & { activeSessionId: string; history: WorkspaceSession[] }
 export type Workspace = { projects: WorkspaceProject[]; activeProjectId: string }
 export type WorkspaceTarget = { projectId: string; workspaceSessionId: string }
+
+// A terminal in a workspace session: what a backend and the UI name one by.
+export type TerminalKey = WorkspaceTarget & { readonly terminalId: string }

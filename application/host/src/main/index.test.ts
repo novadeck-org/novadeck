@@ -34,6 +34,8 @@ describe("compiled desktop host", () => {
 
       expect(main).toContain("utilityProcess.fork")
       expect(main).toContain("runner.js")
+      expect(main).toContain("voiceEngineArgumentPrefix")
+      expect(main).toContain("voiceSourceArgumentPrefix")
       expect(main).toContain("MessageChannelMain")
       expect(main).toContain("senderFrame")
       expect(preload).toContain("novadeck:runner-port")
@@ -78,14 +80,16 @@ describe("compiled desktop host", () => {
       expect(preload).toContain("showAppearance")
     })
 
-    it("blocks renderer navigation and denies permissions but the app page's clipboard", async () => {
+    it("blocks renderer navigation and denies permissions but the app page's clipboard and microphone", async () => {
       const main = await read("main/index.js")
 
       expect(main).toContain('webContents.on("will-navigate"')
       expect(main).toContain("setPermissionCheckHandler")
       expect(main).toContain("setPermissionRequestHandler")
-      // Which frames get the clipboard is covered in ./permissions.test.ts.
-      expect(main).toContain("limitPermissions(session.defaultSession, isAppPage)")
+      // Which frames get the clipboard and the microphone is covered in ./permissions.test.ts.
+      expect(main).toContain("limitPermissions(")
+      expect(main).toContain("session.defaultSession")
+      expect(main).toContain('askForMediaAccess("microphone")')
     })
   })
 })

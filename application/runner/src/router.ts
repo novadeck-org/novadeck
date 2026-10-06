@@ -8,6 +8,7 @@ import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
 import type { Terminals } from "./terminals/index.js"
 import type { Uploads } from "./terminals/uploads.js"
+import type { Voice } from "./voice/service.js"
 import type { Projects } from "./workspaces/projects.js"
 import type { WorkspaceStore } from "./workspaces/store.js"
 
@@ -45,10 +46,11 @@ export const createRouter = (options: {
   items: CompanionItems
   agents: Harnesses
   uploads: Uploads
+  voice: Voice
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
-  const { store, terminals, projects, items, agents, uploads } = options
+  const { store, terminals, projects, items, agents, uploads, voice } = options
   const api = implement(contract).$context<Context>()
   const authorized = api.use(async ({ context, next }) => {
     const connection = context.connection
@@ -255,6 +257,33 @@ export const createRouter = (options: {
       ),
       release: authorized.messages.release.handler(({ input }) =>
         terminals.releaseThread(input.thread),
+      ),
+    },
+    voice: {
+      watch: authorized.voice.watch.handler(async function* ({ context, signal }) {
+        if (context.connection.closed) return
+        try {
+          yield* voice.watch(context.connection.id, signal)
+        } catch (error) {
+          throw apiError(error)
+        }
+      }),
+      install: authorized.voice.install.handler(({ input }) => voice.install(input.model)),
+      cancel: authorized.voice.cancel.handler(() => voice.cancel()),
+      uninstall: authorized.voice.uninstall.handler(() => voice.uninstall()),
+      set: authorized.voice.set.handler(async ({ input }) => {
+        await voice.ready()
+        voice.set(input)
+      }),
+      record: authorized.voice.record.handler(async ({ input, context }) => {
+        await voice.ready()
+        voice.record(context.connection.id, input.clipId, input.offset, input.data)
+      }),
+      transcribe: authorized.voice.transcribe.handler(({ input, context }) =>
+        voice.transcribe(context.connection.id, input.clipId, input.prompt),
+      ),
+      discard: authorized.voice.discard.handler(({ input, context }) =>
+        voice.discard(context.connection.id, input.clipId),
       ),
     },
     // The store keeps the settings; the terminals apply the transcript switch.

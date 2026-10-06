@@ -18,6 +18,7 @@ import { createDemoEngine, type DemoEngine } from "./engine"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
 import { createMockTerminal, demoSeed } from "./samples"
 import { demoTurns } from "./turns"
+import { createDemoVoice } from "./voice"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
 const sampleAgents: readonly AgentConnection[] = [
@@ -40,6 +41,7 @@ export const demoBackend = (
   const transcripts = createStore(true)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
+  const voice = createDemoVoice()
   // Standing in for the runner, it numbers each session's terminals itself, never
   // giving a number twice, from the workspace it last saw.
   const seed = demoSeed(Date.now())
@@ -73,6 +75,12 @@ export const demoBackend = (
       engine.reconcile(workspace, actions)
     },
     TerminalSurface: createDemoTerminal(engine, introOf, runtime),
+    voice,
+    // The demo's command line takes dictation as typed text, which it never submits.
+    typeInto: (key, text) => {
+      engine.setDraft(key, engine.getSnapshot(key).draft + text.replaceAll(/\s*\r?\n\s*/g, " "))
+      return true
+    },
     transcripts: { enabled: transcripts, set: (enabled) => transcripts.update(() => enabled) },
     agents: {
       state: agents,

@@ -19,10 +19,13 @@ const rules: Record<string, readonly string[]> = {
   "ui-toolkit/": ["ui-toolkit/", "class-name.ts"],
   "interaction/": ["interaction/", "model/"],
   ...Object.fromEntries(features.map((layer) => [layer, [...base, layer]])),
+  // Voice input: capture and the dictation state machine over the model's `Voice`, and the
+  // one terminal contract it types into.
+  "voice/": ["voice/", "model/", "ui-toolkit/"],
   "terminals/": [...base, "terminals/", "sidebar/"],
   "layouts/": [...base, "layouts/", "sidebar/", "terminals/"],
   "shell/": [...base, "shell/", "sidebar/", "terminals/", "layouts/", "projects/"],
-  "app/": ["app/", "backend/", ...base, ...features, "terminals/", "layouts/", "shell/"],
+  "app/": ["app/", "backend/", ...base, ...features, "terminals/", "layouts/", "shell/", "voice/"],
   // Commands are plain functions over the stores: no React, no DOM libraries.
   "app/commands/": [
     "app/commands/",
@@ -39,6 +42,8 @@ const rules: Record<string, readonly string[]> = {
     // The companion panes' store, which commands use by its type.
     "terminals/companion/state.ts",
     "layouts/canvas/types.ts",
+    // The dictation contract's types, which keys call.
+    "voice/dictation-control.ts",
   ],
   "specs/": ["specs/", "app/App.tsx", "theme/", "styles.css"],
   // Entry point and support modules outside the feature layers.

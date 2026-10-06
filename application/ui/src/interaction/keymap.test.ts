@@ -52,7 +52,15 @@ const route = (
       ...press,
       target: { ...nowhere, ...target },
     },
-    { dialog: false, alert: false, switcher: null, held: false, navigate: false, ...state },
+    {
+      dialog: false,
+      alert: false,
+      switcher: null,
+      held: false,
+      navigate: false,
+      dictating: false,
+      ...state,
+    },
     { overlayOpen: () => false, tabInteraction: () => false, ...environment },
   ).map((binding) =>
     binding.args === undefined ? binding.command : `${binding.command} ${binding.args}`,
@@ -116,6 +124,98 @@ describe("keymap", () => {
           expect(route(platform, "keyup", { key: "Control" })).toEqual([])
           expect(route(platform, "blur", {}, held)).toEqual(["recent.cancelHeld"])
           expect(route(platform, "blur", {})).toEqual([])
+        })
+      })
+
+      context("when dictating by holding Ctrl+Shift+M", () => {
+        const chord = { key: "M", ctrlKey: true, shiftKey: true, code: "KeyM" }
+        const recording = { state: { dictating: true } }
+
+        it("starts from a terminal's input, before the terminal can read it as Enter", () => {
+          expect(route(platform, "capture", { ...chord, target: terminalInput })).toEqual([
+            "voice.press",
+          ])
+        })
+
+        it("starts from the workspace, but not from a text field or a dialog", () => {
+          expect(route(platform, "capture", chord)).toEqual(["voice.press"])
+          expect(route(platform, "capture", { ...chord, target: { editing: true } })).toEqual([])
+          expect(route(platform, "capture", chord, { state: { dialog: true } })).toEqual([])
+        })
+
+        it("swallows the key's repeats instead of running them", () => {
+          const [binding] = routeKey(
+            keymapFor(platform),
+            "capture",
+            {
+              ...chord,
+              repeat: true,
+              composing: false,
+              altGraph: false,
+              defaultPrevented: false,
+              altKey: false,
+              metaKey: false,
+              target: nowhere,
+            },
+            {
+              dialog: false,
+              alert: false,
+              switcher: null,
+              held: false,
+              navigate: false,
+              dictating: true,
+            },
+            { overlayOpen: () => false, tabInteraction: () => false },
+          )
+          expect(binding).toMatchObject({ command: "voice.press", repeat: "swallow" })
+        })
+
+        it("ignores the chord with other modifiers", () => {
+          expect(route(platform, "capture", { ...chord, altKey: true })).toEqual([])
+          expect(route(platform, "capture", { ...chord, shiftKey: false })).toEqual([])
+        })
+
+        it("watches every key up while recording, so the main key can be found by its code", () => {
+          expect(route(platform, "keyup", { key: "m", code: "KeyM" }, recording)).toEqual([
+            "voice.release",
+          ])
+          expect(
+            route(platform, "keyup", { key: "Control", code: "ControlLeft" }, recording),
+          ).toEqual(["voice.release"])
+          expect(route(platform, "keyup", { key: "m", code: "KeyM" })).toEqual([])
+        })
+
+        it("watches keys up beside a held switcher's release", () => {
+          const both = { state: { dictating: true, switcher: "held" as const, held: true } }
+          expect(route(platform, "keyup", { key: "Control", code: "ControlLeft" }, both)).toEqual([
+            "voice.release",
+            "recent.commitHeld",
+          ])
+        })
+
+        it("ends a hold when the window loses focus", () => {
+          expect(route(platform, "blur", {}, recording)).toEqual(["voice.blur"])
+          expect(route(platform, "blur", {})).toEqual([])
+        })
+
+        it("cancels on Escape, whatever the target, ahead of everything else", () => {
+          expect(keydown(platform, { key: "Escape" }, recording)).toEqual([
+            "voice.cancel",
+            "canvas.returnToOrigin",
+            "navigate.exit",
+          ])
+          expect(
+            route(
+              platform,
+              "capture",
+              { key: "Escape", ctrlKey: true, target: terminalInput },
+              recording,
+            ),
+          ).toEqual(["voice.cancel"])
+          expect(route(platform, "capture", { key: "Escape" })).toEqual([
+            "canvas.returnToOrigin",
+            "navigate.exit",
+          ])
         })
       })
 
@@ -391,7 +491,9 @@ describe("keymap", () => {
             .filter((binding) => binding.repeat === "swallow")
             .map((binding) => binding.command)
           expect(once).toEqual([
+            "voice.cancel",
             "navigate.exit",
+            "voice.press",
             "session.new",
             "sidebar.terminals",
             "sidebar.sessions",
@@ -431,6 +533,7 @@ describe("keymap", () => {
           "Toggle session sidebar: Ctrl Shift 2",
           "Open preferences: Ctrl ,",
           "Navigate the workspace: Shift Esc",
+          "Hold to dictate: Ctrl Shift M",
           "Terminal in that direction: Ctrl Shift ↑ ↓ ← →",
         ],
       ])
@@ -449,6 +552,7 @@ describe("keymap", () => {
           "Toggle session sidebar: ⌘ Shift 2",
           "Open preferences: ⌘ ,",
           "Navigate the workspace: Shift Esc",
+          "Hold to dictate: Ctrl Shift M",
           "Terminal in that direction: ⌘ ⌥ ↑ ↓ ← →",
         ],
       ])

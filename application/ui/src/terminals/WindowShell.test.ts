@@ -12,8 +12,12 @@ afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
 const ignore = (): void => {}
 
-const renderFrame = (terminal: TerminalMetadata): HTMLElement => {
+const renderFrame = (
+  terminal: TerminalMetadata,
+  extra: Partial<WindowShellProps> = {},
+): HTMLElement => {
   const props: WindowShellProps = {
+    ...extra,
     terminal,
     icon: null,
     children: null,
@@ -42,5 +46,34 @@ describe("terminal frame header", () => {
         "Terminal 01 terminal",
       )
     })
+  })
+})
+
+const mic = (frame: HTMLElement): HTMLButtonElement | null =>
+  frame.querySelector<HTMLButtonElement>('button[aria-label^="Dictate into"]')
+
+describe("terminal frame mic button", () => {
+  it("is absent unless the window is given dictation controls", () => {
+    expect(mic(renderFrame(terminalFixture(1, "~/p")))).toBeNull()
+  })
+
+  it("shows as an unpressed toggle named for the terminal, and starts dictation on click", () => {
+    const calls: string[] = []
+    const frame = renderFrame(terminalFixture(1, "~/p"), {
+      dictation: { recording: false, onToggle: () => void calls.push("toggle") },
+    })
+    const button = mic(frame)!
+    expect(button.getAttribute("aria-label")).toBe("Dictate into Terminal 01")
+    expect(button.getAttribute("aria-pressed")).toBe("false")
+    button.click()
+    expect(calls).toEqual(["toggle"])
+  })
+
+  it("shows as pressed while its terminal records", () => {
+    const frame = renderFrame(terminalFixture(1, "~/p"), {
+      dictation: { recording: true, onToggle: ignore },
+    })
+    expect(mic(frame)!.getAttribute("aria-pressed")).toBe("true")
+    expect(mic(frame)!.classList.contains("dictation-active")).toBe(true)
   })
 })

@@ -14,7 +14,7 @@ import type { BackendConnectionState } from "../port"
 import type { SurfaceRuntime } from "./backend"
 import { ctrlVHoldMs } from "./paste"
 import { createRunnerTerminal } from "./RunnerTerminal"
-import { pasteNoticeMs } from "./screens"
+import { createScreens, pasteNoticeMs } from "./screens"
 
 // jsdom has no layout observers, media queries or canvas; xterm falls back without them.
 vi.hoisted(() => {
@@ -863,5 +863,100 @@ describe("runner terminal surface", () => {
       const page = show(runtime)
       expect(page.container.querySelector("[data-terminal-ending]")).toBeNull()
     })
+  })
+})
+
+describe("typing into a terminal's screen", () => {
+  // A running shell whose first screen is `data`, recording what is written to it.
+  const running = (data: string) => {
+    const { runtime } = starting()
+    const written: string[] = []
+    const attachment: AttachedTerminal = {
+      id: "01",
+      mode: "control",
+      [Symbol.asyncIterator]: () => attachment,
+      next: vi
+        .fn<AttachedTerminal["next"]>()
+        .mockResolvedValueOnce({
+          value: {
+            terminalId: "01",
+            sequence: 1,
+            type: "snapshot",
+            cols: 80,
+            rows: 24,
+            data,
+            exit: null,
+          },
+          done: false,
+        })
+        .mockImplementation(() => new Promise(() => {})),
+      return: async () => ({ value: undefined, done: true as const }),
+      write: async (text) => void written.push(text),
+      resize: async () => {},
+      detach: async () => {},
+    }
+    const live = {
+      ...runtime,
+      entry: () => ({
+        ready: Promise.resolve(true),
+        revived: new Promise<void>(() => {}),
+        closed: false,
+        size: { cols: 80, rows: 24 },
+      }),
+      attach: async () => attachment,
+    }
+    const screens = createScreens(live)
+    const Surface = createRunnerTerminal(live, screens)
+    const page = render(
+      createElement(Surface, {
+        terminalKey: key,
+        terminal: { ...terminalFixture(1, "~"), state: "running" },
+        projectName: "P",
+        fontSize: 13,
+        focusInput: false,
+        onInputFocused: () => {},
+        renderWindow: (content) => content,
+      }),
+    )
+    mounted.push(page)
+    const ready = () => vi.waitFor(() => expect(page.container.textContent).toContain("$"))
+    return { screens, written, ready }
+  }
+
+  it("pastes plain text as typed, without Enter", async () => {
+    const { screens, written, ready } = running("$ ")
+    await ready()
+    screens.typeInto(key, "run the tests")
+    expect(written).toEqual(["run the tests"])
+  })
+
+  it("puts a space between the text and a word the cursor follows", async () => {
+    const { screens, written, ready } = running("$ git")
+    await ready()
+    screens.typeInto(key, "status of the branch")
+    expect(written).toEqual([" status of the branch"])
+  })
+
+  it("brackets the paste once the program asked for that", async () => {
+    const { screens, written, ready } = running("\u001b[?2004h$ ")
+    await ready()
+    screens.typeInto(key, "run the tests")
+    expect(written).toEqual(["\u001b[200~run the tests\u001b[201~"])
+  })
+
+  it("does nothing for a terminal with no screen, and says so", async () => {
+    const { screens, written, ready } = running("$ ")
+    await ready()
+    expect(screens.typeInto({ ...key, terminalId: "02" }, "run the tests")).toBe(false)
+    expect(screens.typeInto(key, "run the tests")).toBe(true)
+    expect(written).toEqual(["run the tests"])
+  })
+
+  it("turns line breaks and control characters into single spaces, never Enter", async () => {
+    const { screens, written, ready } = running("$ ")
+    await ready()
+    expect(screens.typeInto(key, "\n one\r\ntwo\u001b[31m\tthree \n")).toBe(true)
+    expect(written).toEqual(["one two [31m three"])
+    expect(screens.typeInto(key, " \r\n ")).toBe(false)
   })
 })

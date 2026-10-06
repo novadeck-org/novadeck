@@ -1,7 +1,7 @@
 // Launches the unpacked packaged app and runs a real shell through its bundled runner.
 // Usage (after `pnpm run package:<target>`): node scripts/smoke.mjs
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -94,6 +94,25 @@ try {
   }
 } catch (error) {
   fail(`The relay didn't answer as an MCP server and hook: ${error}`)
+}
+
+// The voice engine's manifest, when the build ships one, names the archive it downloads.
+const engine = join(resources, "voice", "engine.json")
+if (existsSync(engine)) {
+  try {
+    const manifest = JSON.parse(readFileSync(engine, "utf8"))
+    if (
+      typeof manifest.file !== "string" ||
+      !/^[0-9a-f]{64}$/.test(manifest.sha256) ||
+      !Number.isInteger(manifest.size) ||
+      manifest.size <= 0
+    ) {
+      throw new Error(JSON.stringify(manifest))
+    }
+  } catch (error) {
+    fail(`The voice engine manifest is invalid: ${error}`)
+  }
+  console.log("The packaged app carries its voice engine manifest.")
 }
 
 const bundle = await esbuild.build({

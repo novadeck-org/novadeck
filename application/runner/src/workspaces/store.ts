@@ -3,7 +3,15 @@ import { realpath, stat } from "node:fs/promises"
 import { dirname, isAbsolute } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
-import type { AgentName, Project, RunnerSettings, WorkspaceSession } from "@novadeck/protocol"
+import {
+  voiceLanguage,
+  voiceModel,
+  type AgentName,
+  type Project,
+  type RunnerSettings,
+  type VoiceSettings,
+  type WorkspaceSession,
+} from "@novadeck/protocol"
 
 import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
@@ -20,6 +28,13 @@ import type {
 import type { Work } from "../terminals/work.js"
 
 /** Settings to change; those left out, or undefined, stay as they are. */
+export type VoiceSettingsChange = {
+  readonly [K in Exclude<keyof VoiceSettings, "enabled">]?: VoiceSettings[K] | undefined
+} & {
+  /** `null` forgets the choice, as when voice input is removed. */
+  readonly enabled?: boolean | null | undefined
+}
+
 export type SettingsChange = {
   readonly [K in keyof RunnerSettings]?: RunnerSettings[K] | undefined
 }
@@ -796,6 +811,43 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
         INSERT INTO settings (key, value) VALUES (${key}, ${String(value)})
         ON CONFLICT (key) DO UPDATE SET value = excluded.value
       `
+  }
+
+  /** Voice input's settings: off, on the lighter model, and detecting the language, until chosen. */
+  voiceSettings(): VoiceSettings {
+    const rows = this.queries.all`SELECT key, value FROM settings WHERE key LIKE 'voice.%'` as {
+      key: string
+      value: string
+    }[]
+    const saved = new Map(rows.map((row) => [row.key, row.value]))
+    return {
+      enabled: saved.get("voice.enabled") === "true",
+      model: voiceModel.catch("turbo").parse(saved.get("voice.model")),
+      language: voiceLanguage.catch("auto").parse(saved.get("voice.language")),
+    }
+  }
+
+  /**
+   * Whether the person chose voice input on or off: `undefined` until they, or an install,
+   * did, so that an install turns it on and a person's own off survives installs.
+   */
+  voiceEnabledChoice(): boolean | undefined {
+    const row = this.queries.get`SELECT value FROM settings WHERE key = 'voice.enabled'` as
+      | { value: string }
+      | undefined
+    return row === undefined ? undefined : row.value === "true"
+  }
+
+  /** Saves what is given; `enabled: null` forgets the choice. */
+  saveVoiceSettings(settings: VoiceSettingsChange): void {
+    for (const [key, value] of Object.entries(settings)) {
+      if (value === null) void this.queries.run`DELETE FROM settings WHERE key = ${`voice.${key}`}`
+      else if (value !== undefined)
+        void this.queries.run`
+        INSERT INTO settings (key, value) VALUES (${`voice.${key}`}, ${String(value)})
+        ON CONFLICT (key) DO UPDATE SET value = excluded.value
+      `
+    }
   }
 
   item(itemId: string): ItemRecord | undefined {

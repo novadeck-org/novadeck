@@ -49,9 +49,14 @@ export type CommandId =
   | "view.step"
   | "recent.commitHeld"
   | "recent.cancelHeld"
+  | "voice.press"
+  | "voice.release"
+  | "voice.blur"
+  | "voice.cancel"
 
 // Layers run in this order within their phase; each has one gate, below.
 export type KeyLayer =
+  | "dictation"
   | "switcher-nav"
   | "escape"
   | "navigation"
@@ -62,6 +67,7 @@ export type KeyLayer =
   | "navigate"
   | "workspace"
   | "release"
+  | "voice"
 
 export type KeyPhase = "capture" | "bubble" | "keyup" | "blur"
 
@@ -73,6 +79,8 @@ export type KeyPattern =
   | { readonly typed: true }
   // The window losing focus.
   | { readonly blur: true }
+  // Any key, for the layers that watch a key's release by its `code`.
+  | { readonly anyKey: true }
 
 export type KeyBinding = {
   readonly layer: KeyLayer
@@ -97,6 +105,8 @@ export type KeyState = {
   readonly held: boolean
   // The person is navigating the workspace, after Shift+Esc.
   readonly navigate: boolean
+  // A voice clip is recording, held or hands-free, or its transcription is under way.
+  readonly dictating: boolean
 }
 
 // DOM facts routing asks for only when a layer needs them.
@@ -107,10 +117,11 @@ export type KeyEnvironment = {
 
 const phaseLayers: Record<KeyPhase, readonly KeyLayer[]> = {
   // Jumps run in capture, before a terminal's input takes its modified arrows.
-  capture: ["switcher-nav", "escape", "navigation", "jump"],
+  // Escape drops a recording before anything else can take it.
+  capture: ["dictation", "switcher-nav", "escape", "navigation", "jump"],
   bubble: ["switcher", "anywhere", "app", "navigate", "workspace"],
-  keyup: ["release"],
-  blur: ["release"],
+  keyup: ["voice", "release"],
+  blur: ["voice", "release"],
 }
 
 const modified = (input: KeyInput): boolean =>
@@ -127,6 +138,7 @@ const typed = (input: KeyInput): boolean =>
 const matches = (pattern: KeyPattern, input: KeyInput, phase: KeyPhase): boolean => {
   if ("blur" in pattern) return phase === "blur"
   if (phase === "blur") return false
+  if ("anyKey" in pattern) return true
   if ("shortcut" in pattern) return matchesShortcut(input, pattern.shortcut)
   if ("typed" in pattern) return typed(input)
   if (input.key !== pattern.key) return false
@@ -139,6 +151,7 @@ const gates: Record<
   KeyLayer,
   (input: KeyInput, state: KeyState, environment: KeyEnvironment) => boolean
 > = {
+  dictation: (_input, state) => state.dictating,
   // Up and Down move through an open switcher, even with Control or Shift held.
   "switcher-nav": (input, state) => Boolean(state.switcher) && !input.altKey && !input.metaKey,
   // Escape belongs to whatever is open or being edited before the workspace.
@@ -188,6 +201,7 @@ const gates: Record<
     !input.target.editing &&
     !environment.overlayOpen(),
   release: (_input, state) => state.held,
+  voice: (_input, state) => state.dictating,
 }
 
 // The bindings that may handle this event, in the order to try them. The caller runs
@@ -240,6 +254,7 @@ export const keymapFor = (platform: Platform): readonly KeyBinding[] => {
       args: 1,
       repeat: "run",
     },
+    { layer: "dictation", keys: key("Escape", "any"), command: "voice.cancel", repeat: "swallow" },
     // Canvas returns to its origin first; otherwise Escape goes back into the terminal.
     { layer: "escape", keys: key("Escape"), command: "canvas.returnToOrigin", repeat: "run" },
     { layer: "escape", keys: key("Escape"), command: "navigate.exit", repeat: "swallow" },
@@ -270,6 +285,8 @@ export const keymapFor = (platform: Platform): readonly KeyBinding[] => {
     },
     // Shift+Esc, from a terminal too: the one way into navigating.
     { layer: "jump", keys: { shortcut: chord.navigate }, command: "navigate.enter", repeat: "run" },
+    // Dictation starts in capture, so a terminal's input can't take the chord first.
+    { layer: "jump", keys: { shortcut: chord.voice }, command: "voice.press", repeat: "swallow" },
     ...arrowDirections.map((arrow, args): KeyBinding => ({
       layer: "jump",
       keys: { shortcut: jumpShortcut(arrow, platform) },
@@ -337,6 +354,9 @@ export const keymapFor = (platform: Platform): readonly KeyBinding[] => {
     },
     // Typing outside a terminal goes into the selected one.
     { layer: "workspace", keys: { typed: true }, command: "terminal.type", repeat: "run" },
+    // The hold ends with its own key, found by `code`, since modifiers may come up first.
+    { layer: "voice", keys: { anyKey: true }, command: "voice.release", repeat: "run" },
+    { layer: "voice", keys: { blur: true }, command: "voice.blur", repeat: "run" },
     { layer: "release", keys: key("Control", "any"), command: "recent.commitHeld", repeat: "run" },
     { layer: "release", keys: { blur: true }, command: "recent.cancelHeld", repeat: "run" },
   ]

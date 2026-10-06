@@ -11,6 +11,7 @@ import type { CanvasHandle } from "../../layouts/canvas/types"
 import { context, describe, expect, it } from "../../test"
 import { openCommands, type CommandsOptions } from "../../test/commands"
 import { appearance, workspaceFixture, workspaceWithWindow } from "../../test/fixtures"
+import type { Dictation } from "../../voice/dictation-control"
 import { createKeyCommands, keyState, runKey } from "./keys"
 
 type Press = Partial<Omit<KeyInput, "target">> & { target?: Partial<KeyTarget> }
@@ -29,9 +30,10 @@ const nowhere: KeyTarget = {
 }
 
 // The app's key handling on other platforms, over real stores and commands.
-const openKeys = (options?: CommandsOptions) => {
+const openKeys = (options?: CommandsOptions & { dictation?: Dictation }) => {
   const app = openCommands(options)
-  const keys = createKeyCommands(app.commands, app.context)
+  const withVoice = { ...app.context, dictation: options?.dictation }
+  const keys = createKeyCommands(app.commands, withVoice)
   const bindings = keymapFor("other")
   const send = (phase: KeyPhase, { target, ...press }: Press): "handled" | "passed" => {
     const input: KeyInput = {
@@ -53,7 +55,7 @@ const openKeys = (options?: CommandsOptions) => {
       bindings,
       phase,
       input,
-      keyState(app.context, app.commands),
+      keyState(withVoice, app.commands),
       environment,
     )
     return runKey(keys, candidates, phase, input)
@@ -493,6 +495,106 @@ describe("key commands", () => {
       app.keydown(newTerminal)
       expect(app.keydown({ ...newTerminal, repeat: true })).toBe("handled")
       expect(app.state().roster.terminals).toHaveLength(3)
+    })
+  })
+})
+
+// A dictation that records what it was asked, standing in for the microphone.
+const fakeDictation = (): Dictation & { readonly calls: string[]; recordingNow: boolean } => {
+  const dictation = {
+    calls: [] as string[],
+    recordingNow: false,
+    recording: () => dictation.recordingNow,
+    active: () => dictation.recordingNow,
+    press: (target: { terminalId: string } | undefined, code: string) =>
+      void dictation.calls.push(`press ${target?.terminalId ?? "none"} ${code}`),
+    release: (code: string) => void dictation.calls.push(`release ${code}`),
+    blur: () => void dictation.calls.push("blur"),
+    cancel: () => void dictation.calls.push("cancel"),
+    toggle: (target: { terminalId: string }) =>
+      void dictation.calls.push(`toggle ${target.terminalId}`),
+  }
+  return dictation
+}
+
+describe("key commands for voice input", () => {
+  const chord = { key: "M", code: "KeyM", ctrlKey: true, shiftKey: true }
+
+  context("when the shortcut is pressed", () => {
+    it("dictates into the selected terminal, from its input too", () => {
+      const dictation = fakeDictation()
+      const app = openKeys({ dictation })
+      expect(app.keydown({ ...chord, target: { editing: true, terminalInput: true } })).toBe(
+        "handled",
+      )
+      expect(dictation.calls).toEqual(["press 01 KeyM"])
+    })
+
+    it("offers no target when an undocked window is selected", () => {
+      const dictation = fakeDictation()
+      const app = openKeys({
+        dictation,
+        workspace: workspaceWithWindow(),
+        url: "/projects/project/sessions/initial/grid?terminal=w1",
+      })
+      app.keydown(chord)
+      expect(dictation.calls).toEqual(["press none KeyM"])
+    })
+
+    it("swallows the key's repeats", () => {
+      const dictation = fakeDictation()
+      const app = openKeys({ dictation })
+      app.keydown(chord)
+      expect(app.keydown({ ...chord, repeat: true })).toBe("handled")
+      expect(dictation.calls).toEqual(["press 01 KeyM"])
+    })
+
+    it("still keeps the key from the terminal where voice input is absent", () => {
+      const app = openKeys()
+      expect(app.keydown({ ...chord, target: { editing: true, terminalInput: true } })).toBe(
+        "handled",
+      )
+    })
+  })
+
+  context("while recording", () => {
+    it("reports the main key's release by its code, and lets other keyup layers run", () => {
+      const dictation = fakeDictation()
+      dictation.recordingNow = true
+      const app = openKeys({ dictation })
+      app.keyup({ key: "Control", code: "ControlLeft" })
+      app.keyup({ key: "m", code: "KeyM" })
+      expect(dictation.calls).toEqual(["release ControlLeft", "release KeyM"])
+    })
+
+    it("reports the window losing focus", () => {
+      const dictation = fakeDictation()
+      dictation.recordingNow = true
+      openKeys({ dictation }).blur()
+      expect(dictation.calls).toEqual(["blur"])
+    })
+
+    it("cancels on Escape without leaving Escape for the terminal", () => {
+      const dictation = fakeDictation()
+      dictation.recordingNow = true
+      const app = openKeys({ dictation })
+      expect(app.keydown({ key: "Escape", target: { editing: true, terminalInput: true } })).toBe(
+        "handled",
+      )
+      expect(dictation.calls).toEqual(["cancel"])
+    })
+  })
+
+  context("while not recording", () => {
+    it("leaves releases, blur and Escape alone", () => {
+      const dictation = fakeDictation()
+      const app = openKeys({ dictation })
+      app.keyup({ key: "m", code: "KeyM" })
+      app.blur()
+      expect(app.keydown({ key: "Escape", target: { editing: true, terminalInput: true } })).toBe(
+        "passed",
+      )
+      expect(dictation.calls).toEqual([])
     })
   })
 })

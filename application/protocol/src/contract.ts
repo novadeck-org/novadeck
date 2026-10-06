@@ -16,6 +16,7 @@ import {
   id,
   itemContent,
   maxUploadPartLength,
+  maxVoicePartLength,
   name,
   project,
   protocolVersion,
@@ -32,6 +33,10 @@ import {
   terminalSummary,
   terminalTitle,
   threadId,
+  voiceModel,
+  voiceSettings,
+  voiceState,
+  voiceTranscript,
   workspaceSession,
 } from "./schemas.js"
 
@@ -56,6 +61,8 @@ export const errors = {
   SPAWN_FAILED: { status: 500 },
   RUNTIME_CLOSING: { status: 503 },
   AGENT_SETUP_FAILED: { status: 500 },
+  VOICE_UNAVAILABLE: { status: 409 },
+  VOICE_FAILED: { status: 500 },
 }
 
 const procedure = oc.errors(errors)
@@ -290,6 +297,45 @@ export const contract = {
     // Releases a thread held for going back and forth too often: its held messages are
     // delivered, and it may have 12 more. One the runner does not keep is NOT_FOUND.
     release: procedure.input(z.strictObject({ thread: threadId })).output(z.void()),
+  },
+  // Voice input, transcribed on this machine (see `voiceState`).
+  voice: {
+    // The addon's state, then again on each change.
+    watch: procedure.input(z.void()).output(eventIterator(voiceState)),
+    // Downloads the engine, unless it is there, and a model, checks that they transcribe,
+    // and makes the model the one used. It returns once the install starts; `watch` shows
+    // its progress, and its end or failure. One already installing is a CONFLICT, and a
+    // build without an engine for this platform is VOICE_UNAVAILABLE.
+    install: procedure.input(z.strictObject({ model: voiceModel })).output(z.void()),
+    // Stops an install, keeping what had finished before it. Nothing installing is fine.
+    cancel: procedure.input(z.void()).output(z.void()),
+    // Removes the engine and every model, and turns voice input off.
+    uninstall: procedure.input(z.void()).output(z.void()),
+    // Changes the settings given; the others stay. Turning voice input on, or choosing a
+    // model, that is not installed is a CONFLICT.
+    set: procedure.input(voiceSettings.partial()).output(z.void()),
+    // Adds audio to a clip being recorded, which the client names: 16 kHz mono 16-bit
+    // little-endian PCM, base64, at the byte `offset` into the clip. Audio past
+    // `maxVoiceSeconds` is UPLOAD_TOO_LARGE, and a part past the start of a clip the
+    // runner does not have NOT_FOUND. Voice input that is off is VOICE_UNAVAILABLE.
+    // Clips nobody transcribes are forgotten after a few minutes.
+    record: procedure
+      .input(
+        z.strictObject({
+          clipId: id,
+          offset: z.int().nonnegative(),
+          data: z.base64().max(maxVoicePartLength),
+        }),
+      )
+      .output(z.void()),
+    // Transcribes a recorded clip and forgets it. `prompt` names words likely said, such
+    // as file names, to spell them right. An unknown clip is NOT_FOUND, voice input that
+    // is off VOICE_UNAVAILABLE, and an engine that fails VOICE_FAILED, saying why.
+    transcribe: procedure
+      .input(z.strictObject({ clipId: id, prompt: z.string().max(1024).optional() }))
+      .output(voiceTranscript),
+    // Forgets a clip without transcribing it. An unknown clip is fine.
+    discard: procedure.input(z.strictObject({ clipId: id })).output(z.void()),
   },
   settings: {
     get: procedure.input(z.void()).output(runnerSettings),

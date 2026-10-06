@@ -2,6 +2,10 @@ export const apiUrlArgumentPrefix = "--novadeck-api-url="
 export const databaseArgumentPrefix = "--novadeck-database="
 /** The relay agents start for Novadeck's MCP server and hooks, as the app ships it. */
 export const relayArgumentPrefix = "--novadeck-relay="
+/** The manifest of the voice engine voice input installs: a file shipped with the app. */
+export const voiceEngineArgumentPrefix = "--novadeck-voice-engine="
+/** Where the voice engine's archive comes from: an https address ending in "/", or a folder. */
+export const voiceSourceArgumentPrefix = "--novadeck-voice-source="
 
 /** Renderer-to-main request for a runner port; the answer arrives on the same channel. */
 export const runnerPortChannel = "novadeck:runner-port"

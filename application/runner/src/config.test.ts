@@ -1,5 +1,7 @@
 import { join, resolve } from "node:path"
 
+import { engineDirectory, engineManifest } from "@novadeck/whisper"
+
 import { readConfig } from "./config.js"
 import { describe, expect, it } from "./test.js"
 
@@ -20,6 +22,27 @@ describe("server configuration", () => {
     expect(config.database).toBe(resolve("data/workspace.sqlite"))
     expect(config.shell).toBe(join(resolve("data"), "shell"))
     expect(config.uploads).toBe(join(resolve("data"), "uploads"))
+  })
+
+  it("installs voice input beside the database, from the engine built here unless another is named", () => {
+    const token = "configuration-tests-only-not-a-real-credential"
+    const base = { NOVADECK_TOKEN: token, NOVADECK_DATABASE: "data/workspace.sqlite" }
+
+    expect(readConfig(base).voice).toEqual({
+      engine: engineManifest,
+      source: engineDirectory,
+      directory: join(resolve("data"), "voice"),
+    })
+    expect(
+      readConfig({
+        ...base,
+        NOVADECK_VOICE_ENGINE: "pack/engine.json",
+        NOVADECK_VOICE_SOURCE: "https://downloads.test/voice/",
+      }).voice,
+    ).toMatchObject({
+      engine: resolve("pack/engine.json"),
+      source: "https://downloads.test/voice/",
+    })
   })
 
   it("takes another build of the relay, as an absolute path, or leaves it to the package", () => {

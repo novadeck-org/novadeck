@@ -16,6 +16,7 @@ export type SegmentGroupProps = {
   items: SegmentOption[]
   value: string
   onValueChange: (value: string) => void
+  disabled?: boolean
   className?: string
   // Arranges each item; the segmented recipe draws it.
   itemClassName?: string
@@ -30,6 +31,7 @@ export const SegmentGroup = ({
   items,
   value,
   onValueChange,
+  disabled,
   className,
   itemClassName,
   indicatorClassName,
@@ -44,6 +46,7 @@ export const SegmentGroup = ({
       aria-label={label}
       className={cn("segmented relative", className)}
       value={value}
+      disabled={disabled}
       onValueChange={(details) => {
         if (details.value !== null) onValueChange(details.value)
       }}

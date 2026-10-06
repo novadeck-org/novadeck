@@ -15,7 +15,7 @@ const closePreferences = async (): Promise<void> => {
   await expect.element(preferencesDialog()).not.toBeInTheDocument()
 }
 
-const tab = (name: "General" | "Shortcuts"): Locator =>
+const tab = (name: "General" | "Addons" | "Shortcuts"): Locator =>
   preferencesDialog().getByRole("tab", { name })
 
 const viewModeChoice = (name: "Focus" | "Grid" | "Canvas"): Locator =>
@@ -132,6 +132,97 @@ describe("Preferences", () => {
   }
 })
 
+/** The Addons tab's panel. */
+const addons = (): Locator => preferencesDialog().getByRole("tabpanel", { name: "Addons" })
+
+describe("Preferences Addons", () => {
+  const showAddons = async (): Promise<void> => {
+    await openPreferences()
+    await tab("Addons").click()
+    await expect.element(tab("Addons")).toHaveAttribute("aria-selected", "true")
+  }
+
+  context("when voice input is not installed", () => {
+    it("offers the models with their sizes, and installs with progress until it is on", async () => {
+      await openWorkspace()
+      await showAddons()
+
+      await expect.element(addons().getByText(/never leaves it/)).toBeVisible()
+      await expect.element(addons().getByText(/Most accurate, 99 languages/)).toBeVisible()
+      await expect.element(addons().getByText(/Downloads 602 MB/)).toBeVisible()
+      await addons().getByText("Small", { exact: true }).click()
+      await expect.element(addons().getByText(/Faster without a GPU/)).toBeVisible()
+      await expect.element(addons().getByText(/Downloads 218 MB/)).toBeVisible()
+      await addons().getByRole("button", { name: "Install" }).click()
+
+      await expect.element(addons().getByText(/Downloading engine/)).toBeVisible()
+      await expect.element(addons().getByRole("progressbar")).toBeVisible()
+      await expect.element(addons().getByRole("button", { name: "Cancel" })).toBeVisible()
+      await expect.element(addons().getByText(/Downloading model/)).toBeVisible()
+
+      const enabled = addons().getByRole("switch", { name: "Enabled" })
+      // The demo's install takes a few seconds, its three steps together.
+      await expect.element(enabled, { timeout: 10_000 }).toHaveAttribute("aria-checked", "true")
+      await expect.element(addons().getByText(/Checked: a test clip took/)).toBeVisible()
+      await expect.element(addons().getByRole("button", { name: /Install · 574 MB/ })).toBeVisible()
+    })
+
+    it("stops an install on Cancel", async () => {
+      await openWorkspace()
+      await showAddons()
+      await addons().getByRole("button", { name: "Install" }).click()
+
+      await addons().getByRole("button", { name: "Cancel" }).click()
+
+      await expect.element(addons().getByRole("button", { name: "Install" })).toBeVisible()
+      await expect.element(addons().getByRole("progressbar")).not.toBeInTheDocument()
+    })
+  })
+
+  context("when voice input is installed", () => {
+    const install = async (): Promise<void> => {
+      await showAddons()
+      await addons().getByRole("button", { name: "Install" }).click()
+      await expect
+        .element(addons().getByRole("switch", { name: "Enabled" }), { timeout: 10_000 })
+        .toHaveAttribute("aria-checked", "true")
+    }
+
+    it("turns off, and asks before uninstalling, saying what it frees", async () => {
+      await openWorkspace()
+      await install()
+
+      await addons().getByRole("switch", { name: "Enabled" }).click()
+      await expect
+        .element(addons().getByRole("switch", { name: "Enabled" }))
+        .toHaveAttribute("aria-checked", "false")
+
+      await addons().getByRole("button", { name: "Uninstall" }).click()
+      const confirm = page.getByRole("alertdialog", { name: "Uninstall voice input?" })
+      await expect.element(confirm.getByText(/freeing 602 MB/)).toBeVisible()
+      await confirm.getByRole("button", { name: "Cancel" }).click()
+      await expect.element(confirm).not.toBeInTheDocument()
+      await expect.element(addons().getByRole("switch", { name: "Enabled" })).toBeVisible()
+
+      await addons().getByRole("button", { name: "Uninstall" }).click()
+      await confirm.getByRole("button", { name: "Uninstall" }).click()
+      await expect.element(addons().getByRole("button", { name: "Install" })).toBeVisible()
+      await expect
+        .element(addons().getByRole("switch", { name: "Enabled" }))
+        .not.toBeInTheDocument()
+    })
+  })
+
+  context("when linked to directly", () => {
+    it("opens on the Addons tab", async () => {
+      await openWorkspace(
+        "/projects/storefront/sessions/initial/focus?dialog=preferences&section=addons",
+      )
+      await expect.element(tab("Addons")).toHaveAttribute("aria-selected", "true")
+    })
+  })
+})
+
 describe("shortcut list", () => {
   context("on Windows and Linux", () => {
     it("groups modifier shortcuts under Anywhere with Ctrl labels", async () => {
@@ -152,6 +243,7 @@ describe("shortcut list", () => {
         "Toggle session sidebar: CtrlShift2",
         "Open preferences: Ctrl,",
         "Navigate the workspace: ShiftEsc",
+        "Hold to dictate: CtrlShiftM",
         "Terminal in that direction: CtrlShift↑↓←→",
       ])
     })
@@ -200,6 +292,7 @@ describe("shortcut list", () => {
         "Toggle session sidebar: ⌘Shift2",
         "Open preferences: ⌘,",
         "Navigate the workspace: ShiftEsc",
+        "Hold to dictate: CtrlShiftM",
         "Terminal in that direction: ⌘⌥↑↓←→",
       ])
     })

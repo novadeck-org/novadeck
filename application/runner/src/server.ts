@@ -1,4 +1,5 @@
 import { startHttpServer, type HttpOptions, type HttpServer } from "./http.js"
+import type { RunnerOptions } from "./runner.js"
 import type { TerminalOptions } from "./terminals/index.js"
 
 export type ServerOptions = HttpOptions &
@@ -11,6 +12,8 @@ export type ServerOptions = HttpOptions &
     uploads?: string
     /** The relay agents start for Novadeck's MCP server and hooks; see `RunnerOptions.relay`. */
     relay?: string
+    /** Voice input's engine and where it installs; see `RunnerOptions.voice`. */
+    voice?: RunnerOptions["voice"]
     terminals?: TerminalOptions
     maxConnections?: number
     heartbeatMs?: number
@@ -27,6 +30,7 @@ export const startServer = async (options: ServerOptions = {}): Promise<HttpServ
     ...(options.shell !== undefined && { shell: options.shell }),
     ...(options.uploads !== undefined && { uploads: options.uploads }),
     ...(options.relay !== undefined && { relay: options.relay }),
+    ...(options.voice !== undefined && { voice: options.voice }),
     // A shared, network-reachable runner keeps a cap; the desktop runner has none.
     terminals: { maxTerminals: 32, ...options.terminals },
   })

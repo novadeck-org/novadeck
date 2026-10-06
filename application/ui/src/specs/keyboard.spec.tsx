@@ -1,4 +1,4 @@
-import { describe as context, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe as context, describe, expect, it } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { clickBackground } from "./support/canvas"
@@ -778,6 +778,126 @@ describe("typing in a terminal", () => {
       await expectStaysAbsent(viewRegion("grid"))
       await expect.element(terminalCount(6)).toBeVisible()
       await expect.element(view("Focus")).toBeChecked()
+    })
+  })
+})
+
+// A microphone made of an oscillator, so the specs record without hardware or a permission
+// prompt, with a count of the tracks still live: a released microphone has none.
+const fakeMicrophone = (): { readonly live: () => number; readonly restore: () => void } => {
+  const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+  const tracks: MediaStreamTrack[] = []
+  navigator.mediaDevices.getUserMedia = async () => {
+    const audio = new AudioContext()
+    const oscillator = audio.createOscillator()
+    const destination = audio.createMediaStreamDestination()
+    oscillator.connect(destination)
+    oscillator.start()
+    tracks.push(...destination.stream.getTracks())
+    return destination.stream
+  }
+  return {
+    live: () => tracks.filter((track) => track.readyState === "live").length,
+    restore: () => void (navigator.mediaDevices.getUserMedia = original),
+  }
+}
+
+// The demo's voice input starts uninstalled: install it as a person would, in Preferences.
+const installVoice = async (): Promise<void> => {
+  await pressShortcut("preferences")
+  await expectFocusWithin(preferencesDialog())
+  await preferencesDialog().getByRole("tab", { name: "Addons" }).click()
+  const addons = preferencesDialog().getByRole("tabpanel", { name: "Addons" })
+  await addons.getByRole("button", { name: "Install" }).click()
+  await expect
+    .element(addons.getByRole("switch", { name: "Enabled" }), { timeout: 10_000 })
+    .toHaveAttribute("aria-checked", "true")
+  await press("{Escape}")
+  await expect.element(preferencesDialog()).not.toBeInTheDocument()
+}
+
+// Hold to dictate: Ctrl+Shift+M, on every platform.
+const dictateKeys = "{Control>}{Shift>}{M>}"
+const releaseKeys = "{/M}{/Shift}{/Control}"
+/** The dictation status line, once it says `text`. */
+const saying = (text: string | RegExp): Locator =>
+  page.getByRole("status").filter({ hasText: text })
+const wait = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds))
+
+describe("dictation", () => {
+  let microphone: ReturnType<typeof fakeMicrophone>
+  beforeEach(() => void (microphone = fakeMicrophone()))
+  afterEach(() => microphone.restore())
+
+  context("when voice input is not installed", () => {
+    it("points to Preferences instead of recording", async () => {
+      await openWorkspace()
+      await commandInput("Checkout implementation").click()
+
+      await press(`${dictateKeys}${releaseKeys}`)
+
+      await expect.element(saying("Preferences → Addons")).toBeVisible()
+      expect(microphone.live()).toBe(0)
+    })
+  })
+
+  context("when voice input is installed", () => {
+    it("records while the shortcut is held and pastes the transcript into the terminal without sending it", async () => {
+      await openWorkspace()
+      await installVoice()
+      await commandInput("Checkout implementation").click()
+
+      await press(dictateKeys)
+      await expect.element(saying("Release to send")).toBeVisible()
+      // Two seconds from the press: past the shortest clip kept, even when the microphone
+      // takes a while to start, as on a slow CI machine.
+      await expect.element(saying("0:02")).toBeVisible()
+      expect(microphone.live()).toBe(1)
+
+      // Modifiers may come up before the letter; the letter ends the hold.
+      await press("{/Control}{/Shift}")
+      await expect.element(saying("Listening")).toBeVisible()
+      await press("{/M}")
+
+      // "Transcribing" shows only as long as the demo takes, too briefly to wait for.
+      await expect
+        .element(commandInput("Checkout implementation"))
+        .toHaveValue("Add a retry to the checkout request and run the tests.")
+      expect(microphone.live()).toBe(0)
+    })
+
+    it("keeps recording after a quick tap until the next press", async () => {
+      await openWorkspace()
+      await installVoice()
+      await commandInput("Checkout implementation").click()
+
+      await press(`${dictateKeys}${releaseKeys}`)
+      await expect.element(saying("Press again to stop")).toBeVisible()
+      await expect.element(saying("0:02")).toBeVisible()
+      expect(microphone.live()).toBe(1)
+
+      await press(`${dictateKeys}${releaseKeys}`)
+      // "Transcribing" shows only as long as the demo takes, too briefly to wait for.
+      await expect
+        .element(commandInput("Checkout implementation"))
+        .toHaveValue("Add a retry to the checkout request and run the tests.")
+    })
+
+    it("drops the recording on Escape and releases the microphone", async () => {
+      await openWorkspace()
+      await installVoice()
+      await commandInput("Checkout implementation").click()
+
+      await press(dictateKeys)
+      await wait(500)
+      expect(microphone.live()).toBe(1)
+      await press("{Escape}")
+      await press(releaseKeys)
+
+      await expect.poll(() => saying(/Listening|Transcribing/).elements().length).toBe(0)
+      expect(microphone.live()).toBe(0)
+      await expect.element(commandInput("Checkout implementation")).toHaveValue("")
     })
   })
 })

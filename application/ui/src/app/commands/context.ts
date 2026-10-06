@@ -4,6 +4,7 @@ import type { Rect } from "../../model/layout/spatial"
 import type { WorkspaceStore } from "../../model/store"
 import type { SidebarPanel } from "../../shell/shell-state"
 import type { Panes } from "../../terminals/companion/state"
+import type { Dictation } from "../../voice/dictation-control"
 import type { WorkspaceNavigator } from "../routing"
 import type { UiStore } from "../ui-store"
 
@@ -52,5 +53,7 @@ export type CommandContext = {
   // Every terminal's companion pane, where the backend has companions.
   readonly panes?: Panes | undefined
   readonly canvas: { readonly current: CanvasHandle | null }
+  // Voice input, where the backend transcribes.
+  readonly dictation?: Dictation | undefined
   readonly effects: CommandEffects
 }

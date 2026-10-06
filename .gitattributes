@@ -2,3 +2,5 @@
 # they keep LF line endings on every platform.
 application/ui/src/**/plan-editor/fixtures/*.md text eol=lf
 application/ui/src/backend/demo/showcase/plans/*.md text eol=lf
+# whisper.cpp patches apply to its LF sources, so they keep LF on every platform.
+application/whisper/patches/*.patch text eol=lf
