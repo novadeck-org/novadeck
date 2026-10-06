@@ -56,6 +56,13 @@ describe("boot rehearsals", () => {
     })
   })
 
+  it("boots again without holding or failing anything", async () => {
+    const rehearsals = createBootRehearsals()
+    rehearsals.rehearse({ reboot: true })
+    expect(rehearsals.reboots.getSnapshot()).toBe(1)
+    await expect(rehearsals.beforeConnect(signal(), failWith)).resolves.toBeUndefined()
+  })
+
   it("does nothing before connecting when nothing is armed", async () => {
     await expect(createBootRehearsals().beforeConnect(signal(), failWith)).resolves.toBeUndefined()
   })

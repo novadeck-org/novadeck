@@ -1,8 +1,11 @@
 import { createStore, type Store } from "../model/store"
 
-// What the debug panel can ask of the next boot: hold the splash until released, or
-// fail the next connection attempt with an error code, once.
-export type BootRehearsal = { readonly hold: true } | { readonly fail: string }
+// What the debug panel can ask of the next boot: hold the splash until released, fail
+// the next connection attempt with an error code, once, or just boot again.
+export type BootRehearsal =
+  | { readonly hold: true }
+  | { readonly fail: string }
+  | { readonly reboot: true }
 
 // Startup rehearsals for the debug panel. `rehearse` arms one and asks the app for a
 // fresh boot through `reboots`; the adapter's connect calls `beforeConnect` first.
@@ -34,7 +37,7 @@ export const createBootRehearsals = (): BootRehearsals => {
     reboots,
     rehearse: (rehearsal) => {
       if ("fail" in rehearsal) failNext = rehearsal.fail
-      else if (!hold) {
+      else if ("hold" in rehearsal && !hold) {
         let resolve: (() => void) | undefined
         const released = new Promise<void>((done) => {
           resolve = done

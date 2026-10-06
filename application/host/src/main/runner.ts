@@ -23,8 +23,6 @@ export type RunnerHost = {
   close(timeoutMs?: number): Promise<void>
   /** Saves every terminal's restore state now, as when the system session is ending. */
   persist(): void
-  /** For the debug panel: kills the runner process as a crash would; false when none runs. */
-  kill(): boolean
 }
 
 const send = (worker: UtilityProcess, command: RunnerCommand, ports: MessagePortMain[] = []) =>
@@ -62,9 +60,6 @@ export const startRunner = (options: {
     },
     persist() {
       if (child && !closing) send(child, { type: "persist" })
-    },
-    kill() {
-      return child?.kill() ?? false
     },
     close(timeoutMs = 5_000) {
       closing ??= new Promise<void>((resolve) => {

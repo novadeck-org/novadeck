@@ -7,7 +7,6 @@ import type {
 } from "@novadeck/protocol"
 import {
   hasCode,
-  RunnerError,
   type AttachedTerminal,
   type Runner,
   type RunnerStatus,
@@ -29,8 +28,6 @@ import { createTerminalRegistry } from "../registry"
 import { defaultQuickExitMs, exitStatus, restartable, terminalActivity } from "./activity"
 import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"
-import type { RunnerDebug } from "./debug"
-import { createDebugPanel } from "./DebugPanel"
 import { createRunnerItems } from "./items"
 import { createRunnerMessages } from "./messages"
 import { pause } from "./pause"
@@ -78,8 +75,6 @@ export type RunnerBackendOptions = {
   // Whether the host can load web pages in the pane, as the desktop app can.
   readonly livePages?: boolean
   readonly now?: () => number
-  // The debug panel's hooks, when this launch offers the panel.
-  readonly debug?: RunnerDebug | undefined
   // Whether the runner keeps transcripts, as it said at startup; unknown when absent.
   readonly transcripts?: boolean
   // The agents the runner can connect, and whether the person has seen the first-run
@@ -360,14 +355,10 @@ export const runnerBackend = (
   const runnerSources = new Map<string, TitleSource>()
   let sink: BackendSink | undefined
   let runnerId: string | undefined
-  // The latest runner status; a simulated outage from the debug panel shows as
-  // reconnecting over it.
+  // The latest runner status.
   let lastStatus: RunnerStatus | undefined
   const showConnection = (): void => {
-    const outage = options.debug?.outage.getSnapshot() ?? false
-    connection.update(() =>
-      outage ? "reconnecting" : lastStatus ? connectionState(lastStatus) : "connected",
-    )
+    connection.update(() => (lastStatus ? connectionState(lastStatus) : "connected"))
   }
   // Counts watch rounds: each `synced`, and each disconnection, starts a new one.
   let round = 0
@@ -718,8 +709,6 @@ export const runnerBackend = (
     return track(
       session.then(async (ok) => {
         if (!ok) throw new Error("The runner could not create this session.")
-        const { cwd, fail } = options.debug?.takeCreate() ?? {}
-        if (fail) throw new RunnerError(fail, "Simulated by the debug panel.")
         const summary = await untilAnswered(
           () => {
             entry.requested = true
@@ -727,7 +716,6 @@ export const runnerBackend = (
               id: terminalId,
               sessionId: workspaceSessionId,
               ...started,
-              ...(cwd ? { cwd } : {}),
               ...titled(entry.key),
               cols: 80,
               rows: 24,
@@ -1197,7 +1185,6 @@ export const runnerBackend = (
     // The host waits for these saves, and removals, before a close or quit can end the
     // shells, so they name what still runs.
     const stopQuit = options.beforeQuit?.(beforeQuit)
-    const stopOutage = options.debug?.outage.subscribe(showConnection)
     return () => {
       live = false
       if (sink === next) sink = undefined
@@ -1206,7 +1193,6 @@ export const runnerBackend = (
       void requests.return?.()
       window.removeEventListener("pagehide", flush)
       stopQuit?.()
-      stopOutage?.()
       following = false
       stopItems()
       messages.stop()
@@ -1285,25 +1271,6 @@ export const runnerBackend = (
     ...(options.pickDirectory ? { pickDirectory: options.pickDirectory } : {}),
     ...(options.showAppearance ? { showAppearance: options.showAppearance } : {}),
     ...(options.notices ? { notices: options.notices } : {}),
-    ...(options.debug
-      ? {
-          DebugPanel: createDebugPanel(options.debug, {
-            write: async (key, data) => {
-              const attachment = entries.get(key.terminalId)?.attachment
-              if (!attachment) return false
-              await attachment.write(data)
-              return true
-            },
-            info: () => ({
-              runnerId,
-              connection: connection.getSnapshot(),
-              restarts: restarts.filter((time) => now() - time < restartWindowMs).length,
-              terminals: entries.size,
-            }),
-            showWelcome: () => welcome.update(() => true),
-          }),
-        }
-      : {}),
   }
   return {
     backend,

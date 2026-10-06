@@ -10,10 +10,8 @@ import {
 } from "@novadeck/protocol/client"
 
 import { sessionName } from "../../model/session-name"
-import type { BootRehearsals } from "../boot-rehearsal"
 import type { BackendConnection, ConnectFailure } from "../port"
 import { runnerBackend, type RunnerBackend } from "./backend"
-import { createRunnerDebug } from "./debug"
 import { desktopHost, desktopNotices } from "./desktop-host"
 import { pause } from "./pause"
 import type { RunnerListing } from "./seed"
@@ -114,17 +112,11 @@ const unavailable = (error: unknown): Error => {
 }
 
 // Connects to the desktop app's own runner, or in a browser to the one the build
-// names, and loads the workspace before the app renders. `rehearsals`, present where
-// the debug panel is offered, can hold or fail this start and gives the panel its
-// hooks.
+// names, and loads the workspace before the app renders.
 export const connectRunnerBackend = async (
   signal: AbortSignal,
   progress: (stage: "loading") => void,
-  rehearsals?: BootRehearsals,
 ): Promise<BackendConnection> => {
-  await rehearsals?.beforeConnect(signal, (code) =>
-    unavailable(new RunnerError(code as RunnerError["code"], "Simulated by the debug panel.")),
-  )
   let runner: Runner
   try {
     runner = await connectRunner(transport(), { signal })
@@ -142,10 +134,6 @@ export const connectRunnerBackend = async (
     const beforeQuit = desktopHost()?.beforeQuit
     const showAppearance = desktopHost()?.showAppearance
     const notices = desktopNotices(desktopHost())
-    const kill = desktopHost()?.debugKillRunner
-    const debug = rehearsals
-      ? createRunnerDebug({ rehearsals, killRunner: kill && (() => kill()) })
-      : undefined
     // StrictMode creates a backend twice and keeps the first, so the last one created is
     // not necessarily the one running: close waits on them all (an unstarted one is idle).
     const created: RunnerBackend[] = []
@@ -158,7 +146,6 @@ export const connectRunnerBackend = async (
           ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
           ...(notices ? { notices } : {}),
           livePages: desktopHost()?.livePages === true,
-          debug,
           transcripts,
           agents,
           welcomed,

@@ -1,7 +1,10 @@
 // DOM contracts for keyboard policy and focus restoration. Library-specific
-// overlay markup stays here so interaction owners do not depend on it.
+// overlay markup stays here so interaction owners do not depend on it. `data-own-keys`
+// marks a region that takes its own keys, as the demo's debug panel does: the
+// workspace's shortcuts, Escape among them, leave keys there alone, and a click there
+// keeps focus where it landed.
 const editingOrOverlay =
-  'input:not([type="radio"], [type="checkbox"], [type="button"], [type="submit"], [type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"]), .xterm, [role="textbox"], [role="searchbox"], [role="combobox"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="slider"], [role="spinbutton"], [role="tablist"], [data-scope="popover"][data-state="open"]'
+  'input:not([type="radio"], [type="checkbox"], [type="button"], [type="submit"], [type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"]), .xterm, [role="textbox"], [role="searchbox"], [role="combobox"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="slider"], [role="spinbutton"], [role="tablist"], [data-scope="popover"][data-state="open"], [data-own-keys]'
 
 export const workspaceShortcutTarget = (target: EventTarget | null): boolean =>
   !(target instanceof Element && target.closest(editingOrOverlay))
@@ -33,6 +36,9 @@ export const insideSwitcherClose = (target: EventTarget | null): boolean =>
 export const navigateHome = (target: EventTarget | null): boolean =>
   target instanceof Element &&
   target.matches("[data-workspace-viewport], [data-workspace-canvas-node], .react-flow__node")
+// A region that takes its own keys and clicks (see `editingOrOverlay`).
+export const insideOwnKeys = (target: EventTarget | null): boolean =>
+  within(target, "[data-own-keys]")
 // A terminal's companion pane and its taskbar close themselves on Escape.
 export const insideCompanion = (target: EventTarget | null): boolean =>
   within(target, "[data-workspace-companion]")

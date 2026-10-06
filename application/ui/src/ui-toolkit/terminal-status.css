@@ -1,0 +1,84 @@
+/* The terminal-status recipe: what a terminal surface lays over its output, whichever
+   backend draws it. The notice while typing is paused (a backend may also show it for a
+   moment, as when a paste fails), and the bar that says how the shell ended.
+
+   Hooks: data-terminal-ending="warning" | "danger" on `.terminal-ending`; aria-disabled
+   on `.terminal-restart`. Parts: `.terminal-lock`, `.terminal-lock-notice`,
+   `.terminal-ending`, `.terminal-ending-reason`, `.terminal-restart` (with its `kbd`).
+
+   Tokens, each optional (its fallback in brackets):
+   --terminal-lock-bg (canvas at 80%): over the surface while typing is paused.
+   --terminal-notice-bg (paper), --terminal-notice-fg (ink), --terminal-notice-border-color
+   (line), --terminal-notice-shadow (shadow-floating): the notice on it.
+   --terminal-ending-bg (shell), --terminal-ending-fg (ink), --terminal-ending-border-color
+   (line), --terminal-ending-reason-fg (muted): the ending bar.
+   --terminal-restart-hover-bg (soft), --terminal-restart-disabled-opacity (0.5): its
+   Restart button. Its key is a `kbd` on paper, muted. */
+
+/* The end-of-session bar's padding, which views override. */
+:where(.terminal-ending) {
+  @apply pr-6 pl-3;
+}
+
+/* The surface dims, after a moment, under a notice. */
+.terminal-lock {
+  background-color: var(
+    --terminal-lock-bg,
+    color-mix(in srgb, var(--color-canvas) 80%, transparent)
+  );
+  transition: opacity var(--motion-state) var(--ease-interface) 200ms;
+}
+@starting-style {
+  .terminal-lock {
+    opacity: 0;
+  }
+}
+.terminal-lock-notice {
+  border: var(--border-width) solid var(--terminal-notice-border-color, var(--color-line));
+  border-radius: var(--radius-control);
+  background-color: var(--terminal-notice-bg, var(--color-paper));
+  color: var(--terminal-notice-fg, var(--color-ink));
+  box-shadow: var(--terminal-notice-shadow, var(--shadow-floating));
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* How the shell ended, along the surface's foot; it slides away when a new one starts. */
+.terminal-ending {
+  border-top: var(--border-width) solid var(--terminal-ending-border-color, var(--color-line));
+  background-color: var(--terminal-ending-bg, var(--color-shell));
+  color: var(--terminal-ending-fg, var(--color-ink));
+  transition:
+    opacity var(--motion-state) var(--ease-interface),
+    translate var(--motion-state) var(--ease-interface);
+}
+.terminal-ending-reason {
+  color: var(--terminal-ending-reason-fg, var(--color-muted));
+}
+.terminal-restart {
+  --_bg: transparent;
+  border-radius: var(--radius-control);
+  background-color: var(--_bg);
+}
+.terminal-restart:hover {
+  --_bg: var(--terminal-restart-hover-bg, var(--color-soft));
+}
+.terminal-restart:focus-visible {
+  outline: 2px solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: 1px;
+}
+.terminal-restart[aria-disabled="true"] {
+  --_bg: transparent;
+  cursor: default;
+  opacity: var(--terminal-restart-disabled-opacity, 0.5);
+}
+.terminal-restart kbd {
+  --_bg: var(--color-paper);
+  --_fg: var(--color-muted);
+}
+
+/* Canvas scales its resize grip (28px, at the node's bottom-right corner) with
+   --_canvas-chrome-scale; the end-of-session bar keeps its Restart button clear of it. */
+.canvas-node .terminal-ending {
+  padding-right: calc(28px * var(--_canvas-chrome-scale, 1) + 4px);
+}

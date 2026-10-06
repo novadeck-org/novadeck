@@ -2,6 +2,7 @@ import { useEffect } from "react"
 
 import {
   classifyKeyTarget,
+  insideOwnKeys,
   navigateHome,
   terminalTabInteractionActive,
   workspaceOverlayOpen,
@@ -88,12 +89,13 @@ export const useKeyboard = (): void => {
     }
     const pointerdown = (): void => commands.setNavigate(false)
     // Only a mouse: a tap that focused a terminal would raise a phone's keyboard. A click
-    // whose control moves focus itself, as Zen's do, keeps where it put it.
+    // whose control moves focus itself, as Zen's do, keeps where it put it, and one in a
+    // region that takes its own keys leaves focus to it, even off its controls.
     const click = (event: MouseEvent): void => {
       if (!(event instanceof PointerEvent) || event.pointerType !== "mouse") return
       const clicked = document.activeElement
       const on = classifyKeyTarget(event.target)
-      if (on.companion || on.zenDock) return
+      if (on.companion || on.zenDock || insideOwnKeys(event.target)) return
       requestAnimationFrame(() => {
         const now = document.activeElement
         if (now !== clicked && now !== document.body) return

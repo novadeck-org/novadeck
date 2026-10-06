@@ -19,14 +19,12 @@ import {
 
 import {
   apiUrlArgumentPrefix,
-  debugArgument,
   directoryPickerChannel,
   noticeClickChannel,
   runnerPortChannel,
 } from "../bridge.js"
 import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
 import { dataFolderName } from "./data-folder.js"
-import { debugEnabled, registerDebugIpc } from "./debug.js"
 import { notificationText, registerNoticeIpc, showNotices } from "./notices.js"
 import { attachPage, guardPage, lockPagesSession, pagesPartition, webAddress } from "./pages.js"
 import { limitPermissions, ownPage } from "./permissions.js"
@@ -42,9 +40,6 @@ if (!app.commandLine.getSwitchValue("user-data-dir"))
     "userData",
     join(app.getPath("appData"), dataFolderName({ packaged: app.isPackaged })),
   )
-// Whether this launch offers the debug panel: always in development, and in a
-// packaged app only with --debug-panel or NOVADECK_DEBUG=1.
-const debugging = debugEnabled({ argv: process.argv, env: process.env, packaged: app.isPackaged })
 const developmentOrigin = "http://127.0.0.1:5173"
 // How long quitting waits for the pages' last saves.
 const saveBeforeQuitMs = 1_500
@@ -128,10 +123,7 @@ const createWindow = (origin: string): BrowserWindow => {
     autoHideMenuBar: true,
     backgroundColor: appearance.current()?.ground ?? "#ffffff",
     webPreferences: {
-      additionalArguments: [
-        `${apiUrlArgumentPrefix}${apiUrl}`,
-        ...(debugging ? [debugArgument] : []),
-      ],
+      additionalArguments: [`${apiUrlArgumentPrefix}${apiUrl}`],
       contextIsolation: true,
       nodeIntegration: false,
       preload: join(currentDirectory, "../preload/index.cjs"),
@@ -188,11 +180,6 @@ const launch = async (): Promise<void> => {
   ipcMain.on(runnerPortChannel, (event, id: unknown) => {
     if (!appWindow(event) || typeof id !== "string") return
     runner?.connect(event.sender, id)
-  })
-  registerDebugIpc(ipcMain, {
-    enabled: debugging,
-    allowed: (event) => appWindow(event) !== undefined,
-    killRunner: () => runner?.kill() ?? false,
   })
   // The window follows the page: native menus and the page's prefers-color-scheme use
   // its scheme, and the window its ground.

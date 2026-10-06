@@ -1,0 +1,38 @@
+/* The demo recipe for in-page notifications: the browser's stand-in for the desktop
+   ones, a card in the page's corner that opens its terminal when clicked.
+
+   Parts: `.demo-notice` (a button) with its `.demo-notice-title` and `.demo-notice-body`.
+
+   Tokens, each optional (its fallback in brackets):
+   --demo-notice-bg (paper), --demo-notice-fg (ink), --demo-notice-border-color (line),
+   --demo-notice-shadow (shadow-floating), --demo-notice-body-fg (muted): the card.
+   --demo-notice-hover-bg (soft): while the pointer is over it. */
+
+@layer components {
+  .demo-notice {
+    --_bg: var(--demo-notice-bg, var(--color-paper));
+    border: var(--border-width) solid var(--demo-notice-border-color, var(--color-line));
+    border-radius: var(--radius-control);
+    background-color: var(--_bg);
+    color: var(--demo-notice-fg, var(--color-ink));
+    box-shadow: var(--demo-notice-shadow, var(--shadow-floating));
+    transition:
+      background-color var(--motion-feedback) var(--ease-interface),
+      opacity var(--motion-state) var(--ease-interface);
+  }
+  @starting-style {
+    .demo-notice {
+      opacity: 0;
+    }
+  }
+  .demo-notice:hover {
+    --_bg: var(--demo-notice-hover-bg, var(--color-soft));
+  }
+  .demo-notice:focus-visible {
+    outline: 2px solid var(--focus-ring-color, var(--color-strong));
+    outline-offset: 1px;
+  }
+  .demo-notice-body {
+    color: var(--demo-notice-body-fg, var(--color-muted));
+  }
+}

@@ -163,7 +163,7 @@
   --floating-border-color: var(--color-line-strong);
   --modal-border-color: var(--color-line-strong);
   --zen-dock-border-color: var(--color-line-strong);
-  --runner-notice-border-color: var(--color-line-strong);
+  --terminal-notice-border-color: var(--color-line-strong);
   --icon-button-raised-border-color: var(--color-line-strong);
   --choice-card-checked-border-color: var(--color-strong);
   /* The welcome's miniature stage: no glow across it, as the workspace has none. */

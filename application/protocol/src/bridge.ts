@@ -62,18 +62,10 @@ export const noticeBodyLength = 120
 /** What a notice's terminal id may be: a terminal's id, as the runner and the demo name them. */
 export const noticeIdPattern = /^[A-Za-z0-9_-]{1,64}$/
 
-/** Present only when the host enables its debug panel for this launch. */
-export type DesktopDebugBridge = {
-  readonly debug: true
-  /** Kills the runner process, as a crash would; false when none runs. */
-  debugKillRunner(): Promise<boolean>
-}
-
 /** `window.novadeck` in a desktop host's page. */
-export type DesktopHost = DesktopBridge &
-  Partial<DesktopDebugBridge> & {
-    /** The host's local HTTP API. */
-    readonly apiUrl: string
-    /** Whether the page can show web pages live, in a locked-down `<webview>`. */
-    readonly livePages?: true
-  }
+export type DesktopHost = DesktopBridge & {
+  /** The host's local HTTP API. */
+  readonly apiUrl: string
+  /** Whether the page can show web pages live, in a locked-down `<webview>`. */
+  readonly livePages?: true
+}

@@ -15,6 +15,21 @@ equivalent: a hook, its transcript or rollout, its status line, or the screen. D
 ship a feature for some harnesses and leave the others behind. A gap no source can close
 is a blocker to raise with the person, not an exception to record and move past.
 
+# Demo Debug Panel
+
+Every state a feature adds to the UI MUST be reachable on the demo backend, so it can be
+seen and checked in isolation without a runner: through normal use, a `?demo=` variant,
+or the demo's debug panel (`pnpm dev:previews`, the bug button at the bottom right).
+When the demo can't produce a new state yet — a dialog, an error, a badge, a tab or
+window phase, a backend field it never sets — add it in the same change:
+
+- Terminal, agent, notification and picker states go in `application/ui/src/backend/demo/debug/states.ts`,
+  with pure action builders in `debug/terminals.ts`. A new tab or window phase also
+  joins the "Every state at once" gallery there.
+- Startup, connection and crash-loop states go in `application/ui/src/backend/demo/debug/shell-groups.ts`.
+- Give each action a hint that names what appears, and keep README "Debug panel"
+  current.
+
 <!-- BEGIN:turborepo-agent-rules -->
 
 # This is NOT the Turborepo you know

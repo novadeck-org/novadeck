@@ -1,16 +1,9 @@
-import {
-  runnerPortMessage,
-  type DesktopBridge,
-  type DesktopDebugBridge,
-  type DesktopHost,
-} from "@novadeck/protocol/bridge"
+import { runnerPortMessage, type DesktopBridge, type DesktopHost } from "@novadeck/protocol/bridge"
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 
 import {
   apiUrlArgumentPrefix,
   appearanceChannel,
-  debugArgument,
-  debugKillRunnerChannel,
   directoryPickerChannel,
   noticeChannel,
   noticeClickChannel,
@@ -90,18 +83,8 @@ ipcRenderer.on(runnerPortChannel, (event, id: string) => {
   window.postMessage({ type: runnerPortMessage, id }, "*", event.ports)
 })
 
-// The main process passes this only when the debug panel is enabled for this launch.
-const debug = process.argv.includes(debugArgument)
-
-const debugBridge = {
-  debug: true,
-  // Kills the runner process, as a crash would.
-  debugKillRunner: async () => (await ipcRenderer.invoke(debugKillRunnerChannel)) === true,
-} satisfies DesktopDebugBridge
-
 contextBridge.exposeInMainWorld("novadeck", {
   apiUrl: apiUrl.href,
   livePages: true,
   ...bridge,
-  ...(debug && debugBridge),
 } satisfies DesktopHost)

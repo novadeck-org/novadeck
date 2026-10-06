@@ -23,6 +23,7 @@
 @import "./ui-toolkit/tone.css" layer(components);
 @import "./ui-toolkit/separator.css" layer(components);
 @import "./ui-toolkit/deck-logo.css" layer(components);
+@import "./ui-toolkit/terminal-status.css" layer(components);
 /* The companion's recipes, before those split from the old styles.css, which win a tie
    with them. */
 @import "./terminals/companion/taskbar.css" layer(components);

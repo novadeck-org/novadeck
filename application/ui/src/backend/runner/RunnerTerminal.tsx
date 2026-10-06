@@ -8,15 +8,14 @@ import {
   useSyncExternalStore,
 } from "react"
 
-import { endingText, terminalEnding, type TerminalEnding } from "../../model/terminal-ending"
-import { Tooltip } from "../../ui-toolkit/Tooltip"
+import { endingText, terminalEnding } from "../../model/terminal-ending"
+import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolkit/TerminalStatus"
 import type { TerminalSurfaceProps } from "../port"
 import { restartable } from "./activity"
 import type { SurfaceRuntime } from "./backend"
 import { createScreens, type RunnerScreen, type ScreenStream } from "./screens"
 
-// Why typing is paused, set in capitals by CSS so assistive technology reads words. A
-// failed paste says why in the same notice.
+// Why typing is paused. A failed paste says why in the same notice.
 const lockNotices = {
   connected: "Starting shell…",
   // A shell already running, whose screen is on its way.
@@ -26,59 +25,6 @@ const lockNotices = {
 } as const
 // A lock this short, such as while a screen arrives, stays out of sight: the dimming
 // and the label fade in only after a moment.
-
-const LockNotice = ({ notice }: { readonly notice: string }): React.JSX.Element => (
-  <span className="runner-lock-notice px-3.5 py-2 text-[11px] font-bold">{notice}</span>
-)
-
-// How the shell ended, along the surface's bottom edge, with the restart Enter also
-// asks for. In Canvas its right end follows the resize grip's scale so the button stays
-// clear of it (runner.css). Restart waits while typing is paused, as a restart then
-// could not reach the runner. It keeps the last ending on screen while it slides away;
-// the surface announces it.
-const EndingBar = ({
-  ending,
-  paused,
-  onRestart,
-}: {
-  readonly ending: TerminalEnding | null
-  readonly paused: boolean
-  readonly onRestart: () => void
-}): React.JSX.Element => {
-  const [shown, setShown] = useState(ending)
-  const text = shown ? endingText(shown) : ""
-  // Each render derives a fresh ending; only a different one replaces the shown one.
-  if (ending && (ending.tone !== shown?.tone || endingText(ending) !== text)) setShown(ending)
-  return (
-    <div
-      className={`runner-ending absolute inset-x-0 bottom-0 flex h-7 items-center justify-between gap-3 text-[11px] ${ending ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}
-      inert={!ending}
-      data-terminal-ending={ending?.tone}
-    >
-      <Tooltip content={text} disabled={!text}>
-        <span className="min-w-0 truncate">
-          <span className="font-medium">{shown?.status}</span>
-          {shown?.reason && <span className="runner-ending-reason"> · {shown.reason}</span>}
-        </span>
-      </Tooltip>
-      {shown && (
-        <button
-          type="button"
-          aria-disabled={paused || undefined}
-          className="runner-restart flex shrink-0 cursor-pointer items-center gap-1.5 px-1.5 py-0.5 font-medium"
-          onClick={() => {
-            if (!paused) onRestart()
-          }}
-        >
-          Restart
-          <kbd aria-hidden className="min-h-4 px-1 text-[9px]">
-            ↵
-          </kbd>
-        </button>
-      )}
-    </div>
-  )
-}
 
 const quiet: ScreenStream = { live: false, resuming: false, waits: false }
 const silent = (): null => null
@@ -241,7 +187,7 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
             <div ref={onHostMount} className="flex min-h-0 flex-1 flex-col" />
             {/* Room for the bar keeps the output clear of it, as far above it as the
                 surface's own padding. */}
-            <EndingBar
+            <TerminalEndingBar
               ending={ending}
               paused={locked}
               onRestart={() => {
@@ -256,26 +202,21 @@ export const createRunnerTerminal = (runtime: SurfaceRuntime) => {
                 data-paste-notice
                 className="runner-paste pointer-events-none absolute inset-x-0 top-3 flex justify-center px-3"
               >
-                <LockNotice notice={notice} />
+                <TerminalNotice notice={notice} />
               </div>
             )}
             {locked && (
-              <div
-                role="status"
-                className="runner-lock pointer-events-none absolute inset-0 flex items-center justify-center"
-              >
-                <LockNotice
-                  notice={
-                    lockNotices[
-                      connection === "connected" && resuming
-                        ? "reconnecting"
-                        : connection === "connected" && terminal.state !== "starting"
-                          ? "attaching"
-                          : connection
-                    ]
-                  }
-                />
-              </div>
+              <TerminalLock
+                notice={
+                  lockNotices[
+                    connection === "connected" && resuming
+                      ? "reconnecting"
+                      : connection === "connected" && terminal.state !== "starting"
+                        ? "attaching"
+                        : connection
+                  ]
+                }
+              />
             )}
           </div>,
         )}

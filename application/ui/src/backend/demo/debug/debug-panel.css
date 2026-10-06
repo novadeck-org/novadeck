@@ -1,0 +1,137 @@
+/* The debug-panel recipe: the demo's debug panel is `.debug-floater`, a round button
+   floating at the page's bottom right, see-through until hovered, focused or open (aria-expanded), and `.debug-panel`,
+   the card that rises out of it with `.debug-panel-tail` pointing back at it. The card
+   has a `.debug-panel-header` with its `.debug-panel-mark` and `.debug-chip`s (a chip
+   may take data-tone), `.debug-group` toggles (aria-expanded, with a
+   `.debug-group-chevron` and `.debug-group-count`), `.debug-action` buttons with their
+   `.debug-hint`s, and a `.debug-panel-note`. Tokens, each optional:
+   --debug-panel-bg (paper), --debug-panel-fg (ink), --debug-panel-border-color (line),
+   --debug-panel-radius (radius-popover), --debug-panel-shadow (shadow-floating): the
+   card and its tail.
+   --debug-mark-bg (ink), --debug-mark-fg (paper): the mark in its header.
+   --debug-muted-fg (muted): chips, group toggles, counts and hints.
+   --debug-action-bg (shell), --debug-action-border-color (line): chips and the note.
+   --debug-action-hover-bg (soft): an action while hovered.
+   --debug-floater-bg (paper), --debug-floater-fg (muted), --debug-floater-border-color
+   (line), --debug-floater-rest-fill (30%, of the background, at rest),
+   --debug-floater-rest-opacity (0.6), --debug-floater-shadow (shadow-floating, once
+   active), --debug-floater-active-fg (ink): the button, and while hovered or open. */
+
+@layer components {
+  /* The debug panel: a floating card that rises out of its button, a tail on its foot
+     pointing back down at it. */
+  .debug-panel {
+    border: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
+    border-radius: var(--debug-panel-radius, var(--radius-popover));
+    background-color: var(--debug-panel-bg, var(--color-paper));
+    color: var(--debug-panel-fg, var(--color-ink));
+    box-shadow: var(--debug-panel-shadow, var(--shadow-floating));
+    transform-origin: calc(100% - 24px) 100%;
+    transition:
+      opacity var(--motion-state) var(--ease-interface),
+      scale var(--motion-state) var(--ease-interface);
+  }
+  /* Focused only to hold keys after a click off its controls; its controls show focus. */
+  .debug-panel:focus {
+    outline: none;
+  }
+  @starting-style {
+    .debug-panel {
+      opacity: 0;
+      scale: 0.96;
+    }
+  }
+  .debug-panel-tail {
+    rotate: 45deg;
+    border-right: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
+    border-bottom: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
+    background-color: var(--debug-panel-bg, var(--color-paper));
+  }
+  .debug-panel-header {
+    border-bottom: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
+  }
+  .debug-panel-mark {
+    border-radius: 999px;
+    background-color: var(--debug-mark-bg, var(--color-ink));
+    color: var(--debug-mark-fg, var(--color-paper));
+  }
+  .debug-chip {
+    border: var(--border-width) solid;
+    border-radius: var(--radius-control);
+    font-family: var(--font-mono);
+  }
+  /* A chip with a tone takes the tone's colours (tone.css). */
+  .debug-chip:not([data-tone]) {
+    border-color: var(--debug-action-border-color, var(--color-line));
+    background-color: var(--debug-action-bg, var(--color-shell));
+    color: var(--debug-muted-fg, var(--color-muted));
+  }
+  .debug-group,
+  .debug-hint,
+  .debug-group-count {
+    color: var(--debug-muted-fg, var(--color-muted));
+  }
+  .debug-group {
+    border-radius: var(--radius-control);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .debug-group:hover {
+    color: var(--debug-panel-fg, var(--color-ink));
+  }
+  .debug-group-chevron {
+    transition: rotate var(--motion-state) var(--ease-interface);
+  }
+  .debug-group[aria-expanded="true"] .debug-group-chevron {
+    rotate: 90deg;
+  }
+  .debug-action {
+    --_bg: transparent;
+    border-radius: var(--radius-control);
+    background-color: var(--_bg);
+  }
+  .debug-action:hover {
+    --_bg: var(--debug-action-hover-bg, var(--color-soft));
+  }
+  .debug-group:focus-visible,
+  .debug-action:focus-visible,
+  .debug-floater:focus-visible {
+    outline: 2px solid var(--focus-ring-color, var(--color-strong));
+    outline-offset: 1px;
+  }
+  .debug-panel-note {
+    border-top: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
+    background-color: var(--debug-action-bg, var(--color-shell));
+    color: var(--debug-panel-fg, var(--color-ink));
+    border-radius: 0 0 var(--debug-panel-radius, var(--radius-popover))
+      var(--debug-panel-radius, var(--radius-popover));
+  }
+
+  /* The button. At rest it is glass: the page shows through a thin fill, blurred, under
+     a faint icon. Hovered, focused or open, it turns solid. */
+  .debug-floater {
+    border: var(--border-width) solid var(--debug-floater-border-color, var(--color-line));
+    border-radius: 999px;
+    background-color: color-mix(
+      in srgb,
+      var(--debug-floater-bg, var(--color-paper)) var(--debug-floater-rest-fill, 30%),
+      transparent
+    );
+    backdrop-filter: blur(6px);
+    color: var(--debug-floater-fg, var(--color-muted));
+    opacity: var(--debug-floater-rest-opacity, 0.6);
+    transition:
+      opacity var(--motion-state) var(--ease-interface),
+      color var(--motion-state) var(--ease-interface),
+      background-color var(--motion-state) var(--ease-interface),
+      box-shadow var(--motion-state) var(--ease-interface);
+  }
+  .debug-floater:hover,
+  .debug-floater:focus-visible,
+  .debug-floater[aria-expanded="true"] {
+    background-color: var(--debug-floater-bg, var(--color-paper));
+    box-shadow: var(--debug-floater-shadow, var(--shadow-floating));
+    color: var(--debug-floater-active-fg, var(--color-ink));
+    opacity: 1;
+  }
+}
