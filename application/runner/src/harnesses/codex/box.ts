@@ -1,4 +1,16 @@
-import { markedBox, type BoxProfile } from "../box.js"
+import { agreeing, markedBox, type BoxProfile, type Markers } from "../box.js"
+
+/** The markers leading its box's first row: `›` as a prompt, `!` in its shell mode. */
+const markers: Markers = { prompt: "›", shell: "!" }
+
+/**
+ * Whether its footer says the box is in its shell mode (`!`), where Enter runs what it
+ * holds as a command: its last row says so, "Shell mode", at its end or before its warnings (probed 0.159.3 and 0.160.1, fixtures/shell-mode.probe.json).
+ */
+export const shellFooter = (rows: readonly string[]): boolean => {
+  const last = rows.findLast((row) => row.trim() !== "")
+  return last !== undefined && /(^|\s)Shell mode(\s|$)/.test(last.trim())
+}
 
 /**
  * Codex's input box: no frame, `› ` leading its first row, the rest indented, and the
@@ -9,7 +21,9 @@ import { markedBox, type BoxProfile } from "../box.js"
  * many lines (25 short lines show whole).
  */
 export const box: BoxProfile = {
-  read: (screen) => markedBox(screen, "›"),
+  read: (screen) => agreeing(markedBox(screen, markers), shellFooter(screen.rows)),
+  // Enter runs a command shown as a placeholder as the text it stands for.
+  shell: { expands: true, footer: shellFooter },
   collapsed: ({ text }) => /^\[Pasted Content \d+ chars?\]$/.test(text.trim()),
   // 999 and 1,000 characters showed whole, 1,024 did not, whatever the lines: 30 short
   // lines showed whole.

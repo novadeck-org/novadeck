@@ -6,6 +6,9 @@ import { defineConfig } from "vitest/config"
 export default defineConfig({
   test: {
     include: ["src/e2e/**/*.e2e.ts"],
+    // Probes (src/e2e/probes) record how harnesses behave for design work and keep their
+    // findings as fixtures; they run only when asked, by path with NOVADECK_E2E_PROBES=1.
+    exclude: process.env.NOVADECK_E2E_PROBES ? [] : ["src/e2e/probes/**"],
     testTimeout: 180_000,
     // Installing a harness the first time downloads it, in each file's beforeAll.
     hookTimeout: 600_000,

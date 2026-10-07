@@ -32,3 +32,7 @@ export const composer = (chat: Locator): Locator => chat.getByRole("textbox", { 
 /** The conversation's log. */
 export const conversation = (chat: Locator): Locator =>
   chat.getByRole("log", { name: /^Conversation with / })
+
+/** The card of a request that waits on the person, by what it says it needs. */
+export const requestCard = (chat: Locator, title: string | RegExp): Locator =>
+  chat.getByRole("region", { name: "Waiting for you" }).getByRole("article", { name: title })

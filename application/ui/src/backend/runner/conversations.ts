@@ -1,10 +1,18 @@
-import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/protocol"
+import type {
+  AgentDetail,
+  RequestAnswer,
+  TranscriptChange,
+  TranscriptItem,
+} from "@novadeck/protocol"
 import { hasCode } from "@novadeck/protocol/client"
 
 import {
   noConversation,
+  type ChatAnswer,
+  type ChatDialog,
   type ChatItem,
   type ChatRequest,
+  WordsLost,
   type Conversation,
   type Conversations,
 } from "../../model/conversation"
@@ -24,6 +32,7 @@ export type ConversationStreams = {
   ) => AsyncIterableIterator<TranscriptChange, undefined>
   readonly prompt: (terminalId: string, text: string) => Promise<void>
   readonly interrupt: (terminalId: string) => Promise<{ readonly returned: string | null }>
+  readonly answer: (terminalId: string, request: string, answer: RequestAnswer) => Promise<void>
 }
 
 export type RunnerConversations = Conversations & {
@@ -82,7 +91,14 @@ const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequ
     subject: request.subject,
     choices: request.choices,
     subagent: request.actor !== root,
+    dialog: request.dialog,
+    answered: request.answered,
   }))
+
+// Dialogs are plain data a snapshot sends again whole, so they are the same when they read
+// the same.
+const sameDialog = (a: ChatDialog | null, b: ChatDialog | null): boolean =>
+  a === b || (a !== null && b !== null && JSON.stringify(a) === JSON.stringify(b))
 
 const sameRequests = (a: readonly ChatRequest[], b: readonly ChatRequest[]): boolean =>
   a.length === b.length &&
@@ -93,8 +109,10 @@ const sameRequests = (a: readonly ChatRequest[], b: readonly ChatRequest[]): boo
       request.tool === b[index]!.tool &&
       request.subject === b[index]!.subject &&
       request.subagent === b[index]!.subagent &&
+      request.answered === b[index]!.answered &&
       request.choices.length === b[index]!.choices.length &&
-      request.choices.every((choice, at) => choice === b[index]!.choices[at]),
+      request.choices.every((choice, at) => choice === b[index]!.choices[at]) &&
+      sameDialog(request.dialog, b[index]!.dialog),
   )
 
 // The runner's own words for why it refused, where it gave any beyond its code.
@@ -125,6 +143,33 @@ const failure = (error: unknown, what: string): Error => {
   if (hasCode(error, "PROMPT_FAILED"))
     return new Error("The prompt didn't land in the agent's box. It may be there as a draft.")
   return new Error(`Couldn't ${what} the agent.`)
+}
+
+// The protocol's answer for the chat's, whose lists are read-only.
+const requestAnswerOf = (answer: ChatAnswer): RequestAnswer => {
+  if (answer.type === "choice") return { ...answer }
+  if (answer.type === "chat") return { ...answer }
+  if (answer.type === "form") return { ...answer, values: { ...answer.values } }
+  return {
+    type: "questions",
+    dialog: answer.dialog,
+    answers: answer.answers.map((each) => ({ ...each, options: [...each.options] })),
+  }
+}
+
+// What the person is told when a request couldn't be answered.
+const refusal = (error: unknown): Error => {
+  if (hasCode(error, "DISCONNECTED", "CLOSED")) return new Error("The runner is offline.")
+  if (hasCode(error, "PROMPT_REFUSED")) return new Error(said(error) ?? promptRefusal)
+  if (hasCode(error, "DIALOG_CHANGED"))
+    return new Error("The dialog changed — check it and answer again.")
+  if (hasCode(error, "CONFLICT"))
+    return new Error(said(error) ?? "Couldn't answer that here. Answer it in the terminal.")
+  if (hasCode(error, "WORDS_NOT_SENT")) return new WordsLost()
+  if (hasCode(error, "ANSWER_FAILED"))
+    return new Error("That answer didn't take. Answer it in the terminal.")
+  if (hasCode(error, "NOT_FOUND")) return new Error("That request is already answered.")
+  return new Error("Couldn't answer for the agent.")
 }
 
 type Reading = {
@@ -347,6 +392,12 @@ export const createRunnerConversations = (
         ({ returned }) => returned,
         (error: unknown) => {
           throw failure(error, "stop")
+        },
+      ),
+    answer: ({ terminalId }, request, answer) =>
+      track(streams.answer(terminalId, request, requestAnswerOf(answer))).catch(
+        (error: unknown) => {
+          throw refusal(error)
         },
       ),
     stop: () => {

@@ -1,5 +1,5 @@
 import type { AgentStatus } from "../../model/types"
-import { chatModeOn } from "../../terminals/chat/mode-state"
+import { chatModeOn, chatReplyOf } from "../../terminals/chat/mode-state"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import { watchChatModes } from "../ui-store"
@@ -79,18 +79,71 @@ describe("chat commands", () => {
     })
   })
 
-  context("when words come back to the draft", () => {
-    it("adds them on a line of their own after what is there", () => {
+  context("when words are given back to the draft", () => {
+    it("adds them after what was typed by then, in the session they were sent in", () => {
       const app = open({ working: false })
-      app.commands.appendChatDraft("project/initial", "01", "Queued beta")
+      app.commands.appendChatDraft("project/initial", "01", "use pnpm")
+      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "use pnpm" } })
+      app.commands.setChatDraft("01", "meanwhile")
+      app.commands.appendChatDraft("project/initial", "01", "use pnpm")
       expect(app.ui.getSnapshot().chatDrafts).toEqual({
-        "project/initial": { "01": "Queued beta" },
+        "project/initial": { "01": "meanwhile\nuse pnpm" },
       })
-      app.commands.setChatDraft("01", "typed")
-      app.commands.appendChatDraft("project/initial", "01", "Queued beta")
+    })
+  })
+
+  context("when words come back to a draft holding a shell command", () => {
+    it("puts them before it, so they never run as more of its lines", () => {
+      const app = open({ working: false })
+      app.commands.setChatDraft("01", "!npm test")
+      app.commands.appendChatDraft("project/initial", "01", "also update the changelog")
       expect(app.ui.getSnapshot().chatDrafts).toEqual({
-        "project/initial": { "01": "typed\nQueued beta" },
+        "project/initial": { "01": "also update the changelog\n!npm test" },
       })
+    })
+  })
+
+  context("when the agent whose question was being replied to ends", () => {
+    it("holds the words written for it, or drops the reply where there are none", () => {
+      const app = open({ working: false })
+      const stop = watchChatModes(app.workspace, app.ui)
+      app.commands.setChatDraft("01", "the second one")
+      app.commands.setChatReply("project/initial", "01", { request: "r1", dialog: "d1" })
+      app.status(undefined)
+      app.status({ working: false })
+      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBe("held")
+      app.commands.setChatDraft("01", "")
+      app.commands.setChatReply("project/initial", "01", { request: "r2", dialog: "d2" })
+      app.status(undefined)
+      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBeNull()
+      stop()
+    })
+  })
+
+  context("when a shell command went while words came back before it", () => {
+    it("clears the command and keeps the words", () => {
+      const app = open({ working: false })
+      app.commands.setChatDraft("01", "also update the changelog\n!npm test")
+      app.commands.clearChatDraft("project/initial", "01", "!npm test")
+      expect(app.ui.getSnapshot().chatDrafts).toEqual({
+        "project/initial": { "01": "also update the changelog" },
+      })
+    })
+  })
+
+  context("when the agent a reply was written for ends", () => {
+    it("keeps the reply's hold with its words, for the next agent there, until the terminal closes", () => {
+      const app = open({ working: false })
+      const stop = watchChatModes(app.workspace, app.ui)
+      app.commands.setChatDraft("01", "!important: pick X")
+      app.commands.setChatReply("project/initial", "01", "held")
+      app.status(undefined)
+      app.status({ working: false })
+      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBe("held")
+      app.workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
+      expect(app.ui.getSnapshot().chatReplies).toEqual({})
+      expect(app.ui.getSnapshot().chatDrafts).toEqual({})
+      stop()
     })
   })
 
@@ -112,6 +165,23 @@ describe("chat commands", () => {
       expect(app.ui.getSnapshot().chatDrafts).toEqual({
         "project/initial": { "01": "and add a test" },
       })
+    })
+  })
+
+  context("when words were given back after a prompt's draft", () => {
+    it("clears the prompt that was sent and keeps the words", () => {
+      const app = open({ working: false })
+      app.commands.setChatDraft("01", "go")
+      app.commands.appendChatDraft("project/initial", "01", "use pnpm")
+      app.commands.clearChatDraft("project/initial", "01", "go")
+      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "use pnpm" } })
+    })
+
+    it("does so though the sent prompt ended in spaces before them", () => {
+      const app = open({ working: false })
+      app.commands.setChatDraft("01", "go  \nuse pnpm")
+      app.commands.clearChatDraft("project/initial", "01", "go")
+      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "use pnpm" } })
     })
   })
 

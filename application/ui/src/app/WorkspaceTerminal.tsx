@@ -4,7 +4,7 @@ import { isWindow } from "../model/roster"
 import { activeProject } from "../model/state"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "../model/types"
 import { ChatView } from "../terminals/chat/ChatView"
-import { chatAvailable, chatDraftOf, chatModeOn } from "../terminals/chat/mode-state"
+import { chatAvailable, chatDraftOf, chatModeOn, chatReplyOf } from "../terminals/chat/mode-state"
 import { TerminalCompanion } from "../terminals/companion/TerminalCompanion"
 import { UndockedWindow } from "../terminals/companion/UndockedWindow"
 import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
@@ -196,6 +196,7 @@ export const WorkspaceTerminal = ({
   const conversations = backend.conversations
   const chatShown = frame.chat?.on === true
   const draft = useUiState((state) => chatDraftOf(state.chatDrafts, chatContext, terminalId))
+  const replyTo = useUiState((state) => chatReplyOf(state.chatReplies, chatContext, terminalId))
   const conversation = useMemo(
     () => (chatShown ? conversations?.conversation(terminalKey) : undefined),
     [chatShown, conversations, terminalKey],
@@ -222,9 +223,12 @@ export const WorkspaceTerminal = ({
               compact={view !== "focus"}
               draft={draft}
               onDraft={(text) => commands.setChatDraft(terminalId, text)}
+              replyTo={replyTo}
+              onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
+              // Cleared even if the chat has gone from the screen meanwhile.
+              onDraftSent={(text) => commands.clearChatDraft(chatContext, terminalId, text)}
               onSend={async (text) => {
                 await conversations!.send(terminalKey, text)
-                // Cleared even if the chat has gone from the screen meanwhile.
                 commands.clearChatDraft(chatContext, terminalId, text)
               }}
               onInterrupt={async () => {
@@ -232,6 +236,8 @@ export const WorkspaceTerminal = ({
                 // Words queued behind the stopped turn come back to the box, to send again.
                 if (returned) commands.appendChatDraft(chatContext, terminalId, returned)
               }}
+              onAnswer={(request, answer) => conversations!.answer(terminalKey, request, answer)}
+              onWordsLost={(words) => commands.appendChatDraft(chatContext, terminalId, words)}
               onAnswerInTerminal={() => commands.showTerminal(terminalId)}
               focusInput={wanted}
               onInputFocused={onInputFocused}

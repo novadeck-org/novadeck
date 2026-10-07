@@ -1,8 +1,11 @@
 /* eslint-disable no-await-in-loop -- A scenario's steps run in order, each after the one before. */
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { TranscriptItem } from "@novadeck/protocol"
 
+import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
@@ -26,7 +29,15 @@ const item = (
   fits: (text: string) => boolean,
 ): Promise<string> =>
   terminal.poll(
-    async () => (await texts(terminal, role)).find(fits),
+    async () => {
+      // A transcript the agent has not opened yet (or is changing) is NOT_FOUND: wait on.
+      try {
+        return (await texts(terminal, role)).find(fits)
+      } catch (error) {
+        if ((error as { code?: string }).code === "NOT_FOUND") return undefined
+        throw error
+      }
+    },
     `its transcript to hold a ${role} item`,
     30_000,
   )
@@ -186,7 +197,7 @@ for (const setup of setups) {
     it("refuses a prompt a TUI would read as a command, writing nothing", async ({ e2e: run }) => {
       const t1 = await start(run, setup)
 
-      for (const text of ["/clear", "!ls", "see @src", "use $", "Hello\x15there", "\x1b[201~x"])
+      for (const text of ["/clear", "see @src", "use $", "Hello\x15there", "\x1b[201~x"])
         await expect(t1.prompt(text)).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
       await sleep(500)
       const shown = await t1.screen()
@@ -383,5 +394,146 @@ for (const setup of setups) {
       const sent = (await texts(t1, "user")).filter((text) => text.includes("Prompt"))
       expect(sent.at(-1)).toBe("Prompt B only")
     })
+
+    // Characters a TUI's composer treats as more than text (probed 2026-10-06): a leading `/`
+    // is a slash command, a leading `!` runs a shell command in Claude Code and Codex, and a
+    // trailing `@name` leaves a file picker open in Codex whose Enter picks. Such a prompt is
+    // refused with nothing pressed; the rest, `@` inside it included, reaches the model
+    // exactly as written.
+    for (const words of [
+      "email me at a@b.co about it",
+      "fix the @no thing now",
+      "@README.md what is this",
+      "#note this down",
+      "& what now",
+      "it costs $5",
+      "see $1.50",
+      "one\r\ntwo",
+    ]) {
+      it(`gives its agent "${words}" as the person's message`, async ({ e2e: run }) => {
+        writeFileSync(join(run.sandbox.project, "README.md"), "# Readme\n")
+        // A CRLF or a lone CR is taken as a line feed.
+        const said = words.replace(/\r\n?/g, "\n")
+        run.model.use(own((call) => (asked(call, said) ? { text: "Got the words." } : undefined)))
+        const t1 = await start(run, setup)
+        const calls = run.model.mark()
+
+        await t1.prompt(words)
+        const seen = await run.model.waitFor((call) => !call.side && latest(call).includes(said), {
+          after: calls,
+        })
+        expect(latest(seen)).toContain(said)
+        await t1.until("Got the words.")
+      })
+    }
+
+    // A leading ! is a shell command, which each harness runs in its shell mode: the chat
+    // types the ! as a key, then pastes the command.
+    it("runs a ! command from the chat, the same command again, and a multi-line one", async ({
+      e2e: run,
+    }) => {
+      const t1 = await start(run, setup)
+      const file = (name: string) => join(run.sandbox.project, name)
+      const made = (name: string) =>
+        t1.poll(
+          () => (existsSync(file(name)) ? readFileSync(file(name), "utf8") : undefined),
+          `${name} to be made by the shell command`,
+          15_000,
+        )
+
+      await t1.prompt("!echo first > bang-one.txt")
+      expect((await made("bang-one.txt")).trim()).toBe("first")
+      // Its row stays in the history, which must not pass for the next one's paste.
+      await t1.prompt("!echo first > bang-one.txt")
+      await t1.prompt("! echo second > bang-two.txt")
+      expect((await made("bang-two.txt")).trim()).toBe("second")
+      await t1.prompt("!echo third > bang-three.txt\necho fourth > bang-four.txt")
+      expect((await made("bang-three.txt")).trim()).toBe("third")
+      expect((await made("bang-four.txt")).trim()).toBe("fourth")
+    })
+
+    it("runs a long ! command where its shell mode expands it, and never its placeholder", async ({
+      e2e: run,
+    }) => {
+      const t1 = await start(run, setup)
+      const lines = Array.from({ length: 16 }, (_, at) => `echo ${at} >> long.txt`)
+      const long = join(run.sandbox.project, "long.txt")
+      const sent = t1.prompt(`!${lines.join("\n")}`)
+      if (harnesses[setup.agent].box.shell.expands) {
+        await sent
+        await t1.poll(
+          () =>
+            existsSync(long) && readFileSync(long, "utf8").trim().split("\n").length === 16
+              ? true
+              : undefined,
+          "all 16 lines to run",
+          15_000,
+        )
+      } else {
+        // Antigravity shows it as "[Pasted text #1 +16 lines]" and would run that text.
+        await expect(sent).rejects.toMatchObject({
+          code: "PROMPT_FAILED",
+          message: expect.stringMatching(/placeholder/),
+        })
+        await sleep(1500)
+        expect(existsSync(long)).toBe(false)
+        expect(await t1.screen()).not.toMatch(/command not found/)
+      }
+    })
+
+    it("keeps a message out of a box left in its shell mode, and takes it once that's undone", async ({
+      e2e: run,
+    }) => {
+      const t1 = await start(run, setup)
+      const left = join(run.sandbox.project, "left.txt")
+      const shelled = async (on: boolean) =>
+        await t1.poll(
+          async () =>
+            harnesses[setup.agent].box.shell.footer((await t1.screen()).split("\n")) === on ||
+            undefined,
+          on ? "its box in its shell mode" : "its box out of its shell mode",
+        )
+      // The person's own `!`, typed in the terminal and left there.
+      t1.press("!")
+      await shelled(true)
+      await expect(t1.prompt("touch left.txt")).rejects.toMatchObject({ code: "CONFLICT" })
+      await expect(t1.prompt("!touch left.txt")).rejects.toMatchObject({ code: "CONFLICT" })
+      await sleep(1000)
+      expect(existsSync(left)).toBe(false)
+      t1.press("\x7f")
+      await shelled(false)
+      await t1.prompt("!touch left.txt")
+      await t1.poll(() => existsSync(left) || undefined, "left.txt to be made", 15_000)
+    })
+
+    for (const words of [
+      "/tmp is full, what now",
+      "!",
+      "!echo @",
+      "!echo $",
+      "/clear",
+      "look at @READ",
+      "see @",
+      "see @README ",
+      "look at $skill",
+      "list $",
+      "see $pdf2",
+      "see $ns:skill",
+      "hi\f",
+      "x\x1b[201~\x15!touch pwned\r",
+    ]) {
+      it(`refuses "${words}", pressing nothing`, async ({ e2e: run }) => {
+        writeFileSync(join(run.sandbox.project, "README.md"), "# Readme\n")
+        run.model.use(own((call) => (asked(call, words) ? { text: "Got the words." } : undefined)))
+        const t1 = await start(run, setup)
+        const calls = run.model.mark()
+
+        await expect(t1.prompt(words)).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
+        await sleep(1000)
+        // Nothing was typed, so no command ran and no file was picked, and nothing was sent.
+        expect(await t1.screen()).not.toContain(words.slice(0, 6))
+        expect(run.model.calls.slice(calls)).toEqual([])
+      })
+    }
   })
 }

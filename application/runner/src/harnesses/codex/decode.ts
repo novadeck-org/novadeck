@@ -4,6 +4,7 @@ import type { Report } from "../../shell/reports.js"
 import type { HarnessEvent } from "../events.js"
 import {
   absolute,
+  withRequestCwd,
   callId,
   promptStart,
   replied,
@@ -25,7 +26,10 @@ import {
  */
 // Its hooks name `permission_mode` as `default` even in Plan Mode: its rollout says
 // whether it plans.
-export const decode = ({ event, seq, instance, env, payload }: Report): readonly HarnessEvent[] => {
+export const decode = (report: Report): readonly HarnessEvent[] =>
+  withRequestCwd(decodeHook(report), report.payload)
+
+const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly HarnessEvent[] => {
   const id = sessionId(payload.session_id)
   if (!id || (env.codexThread !== undefined && env.codexThread !== id)) return []
   const base = { agent: "codex", sessionId: id, instance, startedAt: seq } as const
@@ -96,17 +100,16 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
     case "SubagentStop":
       return actor ? [{ type: "subagent-stopped", ...base, actor }] : []
     case "PermissionRequest":
-      return [
-        {
-          type: "attention-requested",
-          ...base,
-          requestId: callId(actor, tool, call),
-          actor,
-          toolName: tool,
-          ...subjectOf(input),
-          kind: "permission",
-        },
-      ]
+      return [asked(base, actor, tool, input, call, "permission")]
+    case "PreToolUse":
+      // Two tools ask the person with no PermissionRequest: their dialog is up from the
+      // call on, and its PostToolUse says it was answered. The hook is registered for
+      // these two alone.
+      return tool === "request_user_input"
+        ? [asked(base, actor, tool, input, call, "question")]
+        : tool === "request_permissions"
+          ? [asked(base, actor, tool, input, call, "permission")]
+          : []
     case "PostToolUse":
       return [
         {
@@ -115,7 +118,7 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
           requestId: callId(actor, tool, call),
           actor,
           toolName: tool,
-          loose: false,
+          loose: tool === "request_user_input",
           outcome: "allowed",
         },
         ...patched(input, absolute(payload.cwd)).map((path): HarnessEvent => ({
@@ -129,6 +132,29 @@ export const decode = ({ event, seq, instance, env, payload }: Report): readonly
       return []
   }
 }
+
+const asked = (
+  base: {
+    readonly agent: "codex"
+    readonly sessionId: string
+    readonly instance: string | null
+    readonly startedAt: number
+  },
+  actor: string | null,
+  tool: string,
+  input: unknown,
+  call: unknown,
+  kind: "permission" | "question",
+): HarnessEvent => ({
+  type: "attention-requested",
+  ...base,
+  requestId: callId(actor, tool, call),
+  actor,
+  toolName: tool,
+  ...subjectOf(input),
+  kind,
+  input,
+})
 
 // The lines of a patch that name the files it adds, changes or moves to.
 const patchFile = /^\*\*\* (?:Add File|Update File|Move to): (.+)$/gm

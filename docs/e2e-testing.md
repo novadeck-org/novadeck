@@ -235,7 +235,8 @@ harness inside an agent's turn in `nested.e2e.ts`, the person forking a session 
 terminal or in place in `forks.e2e.ts`, the person clearing the conversation
 or leaving the agent for another in `lifecycle.e2e.ts`, and the person's controls over
 a running agent and untrusted seeds in `controls.e2e.ts`, and the chat view's way to an agent
-(`agents.prompt` and `agents.interrupt`) in `chat.e2e.ts`, each written once and run for
+(`agents.prompt` and `agents.interrupt`) in `chat.e2e.ts`, answering the agent's requests
+from the chat (`agents.answer`) in `answers.e2e.ts`, each written once and run for
 every harness in `setups` (`agents/index.ts`):
 
 ```ts
@@ -463,6 +464,14 @@ for (const setup of setups) {
   - _Interrupt_: with the reply held, `interrupt()` ends the turn without a normal Stop
     (Unknown), the harness says it was interrupted before the held reply is let go,
     which never shows; the next prompt's turn settles.
+- **The answers' scenarios** (`answers.e2e.ts`), `agents.answer` as the chat's request
+  cards call it, through each harness's dialog adapter: a permission allowed, refused, and
+  refused with the person's words (sent as the next prompt where the dialog takes none);
+  a question by option, several picked, and in the person's own words; a plan approved,
+  and rejected with feedback; the person's keys elsewhere held while an answer runs; and
+  the fallback, a dialog its adapter can't read (a stub) or a harness without one, shown
+  raw with nothing pressed. A harness without a kind of question (Codex asks no
+  multi-select) skips that scenario, saying so.
 - **The person's scenarios** (`person.e2e.ts`), the person typing around messages,
   asserting docs/agent-messaging.md's "Acceptance scenarios" for them. In each, t2 sends
   t1 a message from its own prompt, which waits queued; a terminal that mustn't be rung

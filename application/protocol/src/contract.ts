@@ -6,6 +6,7 @@ import {
   agentIntegration,
   agentRef,
   interruptResult,
+  requestAnswer,
   transcriptChange,
   agentName,
   clientState,
@@ -66,11 +67,16 @@ export const errors = {
   PROMPT_FAILED: { status: 409 },
   // A prompt a TUI would read as more than text (`promptRefusal`): a control character, a
   // command (a leading `/` or `!`) or a file or skill mention left open at its end (`@name`,
-  // `$name`); or one of nothing but white space. Nothing is written.
+  // `$name`); or one of nothing but white space. Nothing is written. Words that follow an answer as a prompt are judged alike,
+  // before any key of the answer is pressed.
   PROMPT_REFUSED: { status: 409 },
   // The turn was stopped, but the agent's input box holds text (the person's queued
   // messages, put back by the Escape) that could not be cleared out with certainty.
   BOX_NOT_CLEARED: { status: 409 },
+  ANSWER_FAILED: { status: 409 },
+  // An answer took, but the words that follow it (as the agent's next prompt) did not.
+  WORDS_NOT_SENT: { status: 409 },
+  DIALOG_CHANGED: { status: 409 },
   VOICE_UNAVAILABLE: { status: 409, data: voiceUnavailable },
   VOICE_FAILED: { status: 500 },
 }
@@ -244,6 +250,20 @@ export const contract = {
     // nothing but white space, is PROMPT_REFUSED, writing nothing.
     prompt: procedure
       .input(z.strictObject({ terminalId: id, text: z.string().min(1).max(16_384) }))
+      .output(z.void()),
+    // Answers a request waiting on the person through its dialog in the agent's TUI, as the
+    // person would with its keys: the harness's adapter reads the dialog, checks it is the
+    // request's, presses what the answer takes, and resolves once the dialog went as
+    // expected. A request it doesn't have is NOT_FOUND; one whose dialog isn't on screen,
+    // isn't recognised, or doesn't take the answer is a CONFLICT, and one that no longer reads
+    // as the dialog the answer names (its `id` changed) is DIALOG_CHANGED, both pressing
+    // nothing and leaving the dialog as it is (a CONFLICT from a dialog that showed and no
+    // longer reads turns it `raw`, though). Keys pressed without the dialog going as
+    // expected are ANSWER_FAILED (an answer that took whose following words, sent as the agent's
+    // next prompt, did not go is WORDS_NOT_SENT: the dialog was answered), after which the request's dialog turns `raw`, and nothing
+    // more is pressed for it.
+    answer: procedure
+      .input(z.strictObject({ terminalId: id, request: agentRef, answer: requestAnswer }))
       .output(z.void()),
     // Presses Escape in the terminal's agent, which stops its turn in every harness, and
     // takes back out of the agent's box what stopping put there (see `interruptResult`). A

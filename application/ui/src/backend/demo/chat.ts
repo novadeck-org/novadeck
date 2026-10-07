@@ -1,17 +1,18 @@
 import {
   noConversation,
   type ChatItem,
+  type ChatRequest,
   type Conversation,
   type Conversations,
 } from "../../model/conversation"
-import { promptRefusal, promptRefused } from "../../model/prompt-refusal"
+import { promptRefusal, promptRefused, shellCommand } from "../../model/prompt-refusal"
 import type { WorkspaceSeed } from "../../model/seed"
 import { createStore, type MutableStore } from "../../model/store"
 import type { AgentStatus, TerminalMetadata, Workspace } from "../../model/types"
 import type { TerminalKey } from "../port"
 import { terminalKeyId } from "../registry"
 import { chatAgent, chatAgents } from "./samples"
-import type { DemoTranscript } from "./transcripts"
+import type { DemoDraft, DemoTranscript } from "./transcripts"
 import type { DemoTurns, TurnEvent } from "./turns"
 
 export type DemoChat = {
@@ -19,6 +20,13 @@ export type DemoChat = {
   // Takes the workspace as it stands, which tells what each terminal runs.
   readonly observe: (workspace: Workspace) => void
 }
+
+// How long an answer takes to reach the agent, in milliseconds.
+export const answerMs = 400
+
+// How long an answered request stays up, shown as answered, before the agent reports it
+// settled, in milliseconds.
+export const answeredMs = 500
 
 type Found = { readonly key: TerminalKey; readonly terminal: TerminalMetadata }
 
@@ -29,6 +37,15 @@ const runs = (found: Found | undefined): found is Found =>
   found !== undefined &&
   found.terminal.state === "running" &&
   chatAgent(found.terminal) !== undefined
+
+const draftOf = (draft: DemoDraft): Omit<ChatItem, "id" | "at" | "truncated"> => ({
+  role: draft.role,
+  kind: draft.kind,
+  text: draft.text,
+  tool: draft.tool ?? null,
+  call: draft.call ?? null,
+  author: draft.author ?? null,
+})
 
 const text = (role: ChatItem["role"], value: string) => ({
   role,
@@ -82,7 +99,10 @@ export const createDemoChat = (
   turns: DemoTurns,
 ): DemoChat => {
   let latest: Workspace | undefined
-  const stores = new Map<string, { key: TerminalKey; store: MutableStore<Conversation> }>()
+  const stores = new Map<
+    string,
+    { key: TerminalKey; store: MutableStore<Conversation>; attended: boolean }
+  >()
   // The terminal at the full address, in the workspace as it stands, or in the seed.
   const locate = (key: TerminalKey): Found | undefined => {
     const terminals = latest
@@ -95,12 +115,13 @@ export const createDemoChat = (
     const terminal = terminals?.find((each) => each.id === key.terminalId)
     return terminal ? { key, terminal } : undefined
   }
+  const transcriptOf = (found: Found): DemoTranscript | undefined =>
+    found.key.projectId === seed.projects[0]?.id ? transcripts[found.terminal.id] : undefined
   const opened = (found: Found | undefined): Conversation => {
     if (!runs(found)) return noConversation
     // The sample transcripts belong to the first project's terminals, as the engine's
     // sample terminals do; another project's agents start empty.
-    const transcript =
-      found.key.projectId === seed.projects[0]?.id ? transcripts[found.terminal.id] : undefined
+    const transcript = transcriptOf(found)
     return {
       agent: found.terminal.process,
       session: `demo-${terminalKeyId(found.key)}`,
@@ -114,7 +135,13 @@ export const createDemoChat = (
     const existing = stores.get(id)
     if (existing) return existing.store
     const store = createStore(opened(locate(key)))
-    stores.set(id, { key, store })
+    const found = locate(key)
+    // An agent that reported something to wait on has its requests go once it stops.
+    stores.set(id, {
+      key,
+      store,
+      attended: found !== undefined && agentOf(found.terminal).attention !== undefined,
+    })
     return store
   }
   const append = (key: TerminalKey, ...drafts: Omit<ChatItem, "id" | "at" | "truncated">[]) =>
@@ -193,7 +220,34 @@ export const createDemoChat = (
           throw new Error(`${name} is still working. Stop it or wait until it finishes.`)
         if (!prompt.trim()) return
         // As the runner refuses it: text the agent would read as more than a message.
-        if (promptRefused(prompt)) throw new Error(promptRefusal)
+        if (promptRefused(prompt, { shell: true })) throw new Error(promptRefusal)
+        const command = shellCommand(prompt)
+        if (command !== undefined) {
+          // A shell command runs without a turn. Antigravity keeps no record of it; the
+          // others show the person's line and the run, as their transcripts hold them.
+          if (chatAgent(found.terminal) !== "agy")
+            append(
+              found.key,
+              text("user", `!${command}`),
+              {
+                role: "tool",
+                kind: "tool-call",
+                text: JSON.stringify({ command }),
+                tool: "Bash",
+                call: null,
+                author: null,
+              },
+              {
+                role: "tool",
+                kind: "tool-result",
+                text: "(Bash completed with no output)",
+                tool: null,
+                call: null,
+                author: null,
+              },
+            )
+          return
+        }
         turns.prompt(prompt, found.terminal, found.key)
       },
       interrupt: async (key) => {
@@ -202,16 +256,74 @@ export const createDemoChat = (
         // The demo queues nothing behind a turn: nothing comes back.
         return null
       },
+      answer: async (key, id, answer) => {
+        const found = agentFor(key)
+        const store = storeOf(found.key)
+        const waiting = (): ChatRequest | undefined =>
+          store.getSnapshot().requests.find((request) => request.id === id)
+        const dialog = waiting()?.dialog
+        if (!waiting()) throw new Error("That request is already answered.")
+        const outcome = transcriptOf(found)?.outcomes?.[id]
+        if (
+          !dialog ||
+          dialog.type === "raw" ||
+          !outcome ||
+          !{
+            choices: ["choice"],
+            questions: ["questions", "chat"],
+            form: ["form"],
+          }[dialog.type].includes(answer.type)
+        )
+          throw new Error("Couldn't answer that here. Answer it in the terminal.")
+        if (dialog.id !== answer.dialog)
+          throw new Error("The dialog changed — check it and answer again.")
+        // Words that go on as a prompt are checked before anything is pressed.
+        const asPrompt =
+          (answer.type === "choice" &&
+            dialog.type === "choices" &&
+            dialog.options.find((option) => option.id === answer.option)?.text === "prompt") ||
+          (answer.type === "chat" && dialog.type === "questions" && dialog.chat === "prompt")
+        if (
+          asPrompt &&
+          (answer.type === "choice" || answer.type === "chat") &&
+          promptRefused(answer.text ?? "")
+        )
+          throw new Error(promptRefusal)
+        await new Promise((resolve) => setTimeout(resolve, answerMs))
+        // Stopped meanwhile: the request went with the turn.
+        if (!waiting()) throw new Error("That request is already answered.")
+        const result = outcome(answer, dialog)
+        store.update((conversation) => ({
+          ...conversation,
+          requests: conversation.requests.map((request) =>
+            request.id === id ? { ...request, answered: true } : request,
+          ),
+        }))
+        await new Promise((resolve) => setTimeout(resolve, answeredMs))
+        store.update((conversation) => ({
+          ...conversation,
+          requests: conversation.requests.filter((request) => request.id !== id),
+        }))
+        append(found.key, ...result.items.map(draftOf))
+        turns.resume(found.key, found.terminal, result)
+      },
     },
     observe: (workspace) => {
       latest = workspace
-      for (const { key, store } of stores.values()) {
+      for (const entry of stores.values()) {
+        const { key, store } = entry
         const found = locate(key)
+        const attention = runs(found) && agentOf(found.terminal).attention !== undefined
+        const gone = entry.attended && !attention
+        entry.attended = attention
         store.update((conversation) => {
           if (!runs(found)) return conversation.agent === null ? conversation : noConversation
-          if (conversation.agent === null) return opened(found)
+          if (conversation.agent === null) {
+            entry.attended = agentOf(found.terminal).attention !== undefined
+            return opened(found)
+          }
           // Nothing waits once the agent has nothing to ask.
-          return !agentOf(found.terminal).attention && conversation.requests.length
+          return gone && conversation.requests.length
             ? { ...conversation, requests: [] }
             : conversation
         })

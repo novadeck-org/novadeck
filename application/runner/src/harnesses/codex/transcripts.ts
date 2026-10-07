@@ -8,6 +8,11 @@ import { at, entry, joined, record, textOf } from "../items.js"
 const context =
   /^\s*(<(environment_context|user_instructions|recommended_plugins|skill|subagent_notification)>|# AGENTS\.md instructions)/
 
+// A command the person ran in shell mode (`!`), with its exit code and output. A command
+// that printed nothing leaves `Output:` and the closing tag on lines of their own.
+const shell =
+  /^\s*<user_shell_command>\n<command>\n([\s\S]*?)\n<\/command>\n<result>\nExit code: (-?\d+)\nDuration: [^\n]*\nOutput:\n([\s\S]*?)\n?<\/result>\n<\/user_shell_command>\s*$/
+
 // How many days after its parent's a subagent's rollout may start: Codex files each
 // rollout under the day it starts, and a session can outlast midnight.
 const days = 7
@@ -41,7 +46,9 @@ const dayFolders = (folder: string): string[] => {
  * Codex's transcripts are its rollouts: the session's, and one per subagent, named for
  * its thread and kept under the day it started, its parent's or a later one. Each response item holds the person's or the
  * agent's text, another agent's message to it, a tool call or its output; reasoning
- * stays out, as do developer messages and the context Codex adds as the person's.
+ * stays out, as do developer messages and the context Codex adds as the person's. A
+ * command the person ran in shell mode is one user message, which reads as the person's
+ * `!command` and a Bash run with its output, and its exit code when not zero.
  */
 export const transcripts: NonNullable<Harness["transcripts"]> = {
   locate: async (root, _sessionId, subagent) => {
@@ -65,6 +72,22 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
         const { role } = payload
         if (role !== "user" && role !== "assistant") return []
         const text = joined(payload.content, ["input_text", "output_text"])
+        const ran = role === "user" ? shell.exec(text) : null
+        if (ran) {
+          const [, command, code, printed] = ran as unknown as [string, string, string, string]
+          const output = [printed.trimEnd(), code === "0" ? "" : `[exit code ${code}]`]
+            .filter(Boolean)
+            .join("\n")
+          return [
+            entry("user", "text", `!${command}`, { at: time }),
+            entry("assistant", "tool-call", JSON.stringify({ command }), {
+              at: time,
+              tool: "Bash",
+              call: payload.id,
+            }),
+            entry("tool", "tool-result", output || "(no output)", { at: time, call: payload.id }),
+          ]
+        }
         return text && !context.test(text) ? [entry(role, "text", text, { at: time })] : []
       }
       case "function_call":

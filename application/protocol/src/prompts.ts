@@ -19,6 +19,16 @@ const controls = /[\x00-\x08\x0b-\x1f\x7f-\x9f]/
 export const hasControlCharacters = (text: string): boolean => controls.test(normalisedText(text))
 
 /**
+ * The shell command a prompt gives, where it starts with `!`: the rest, trimmed, which each
+ * harness runs in its shell mode (probed 2026-10-07: Claude Code, Codex and Antigravity
+ * each switch to it as `!` is typed in an empty box); undefined for any other prompt.
+ */
+export const shellCommand = (text: string): string | undefined => {
+  const trimmed = normalisedText(text).trim()
+  return trimmed.startsWith("!") ? trimmed.slice(1).trim() : undefined
+}
+
+/**
  * Why a prompt can't be sent as a message, or undefined. Line breaks are normalised to line
  * feeds first, as the runner pastes them; control characters are looked for in the text as
  * pasted, its ends included, and the rest in the text trimmed, as a client sends it:
@@ -26,26 +36,31 @@ export const hasControlCharacters = (text: string): boolean => controls.test(nor
  * - a control character, which would end the paste and press keys;
  * - a leading `/`, a slash command (Codex's "Unrecognized command" leaves the draft, a known
  *   one runs), or `!`, which runs the rest as a shell command in Claude Code, Codex and
- *   Antigravity;
+ *   Antigravity, unless `shell` allows it, and then only with a command after it;
  * - an `@name` at the very end, which leaves a file picker open (Codex's), whose Enter
- *   picks a file instead of submitting;
+ *   picks a file instead of submitting, a shell command's too (probed: `echo @` took a file);
  * - a `$` at the very end, alone or with a name starting with an ASCII letter or `_`, which
  *   does the same with Codex's skill picker whatever follows in the name (probed: `$pdf2`,
  *   `$s3-upload`, `$a.b`, `$ns:skill` each took the Enter; `$5`, `$1.50`, `$-`, `$.x` and
- *   `$é` did not). `echo $HOME` ran, as no
+ *   `$é` did not); a shell command's too (`echo $` took a skill). `echo $HOME` ran, as no
  *   skill's name matched it, but the picker opens wherever one does, so a shell variable at
- *   the very end is refused all the same.
+ *   the very end is refused all the same: a `;` after it lets it go.
  * A trailing space or line break after an `@name` closes the picker in every harness, but
  * the text is judged trimmed, so it is refused all the same. `#`, `&` and `?` start nothing
  * in any harness (probed).
  */
-export const promptRefusal = (text: string): string | undefined => {
+export const promptRefusal = (
+  text: string,
+  { shell = false }: { readonly shell?: boolean } = {},
+): string | undefined => {
   const pasted = normalisedText(text)
   if (controls.test(pasted))
     return "A message can't hold control characters: the agent would take them as keys."
   const trimmed = pasted.trim()
   if (trimmed === "") return "A message can't be empty."
-  if (/^[/!]/.test(trimmed))
+  if (trimmed.startsWith("!") && shell) {
+    if (shellCommand(trimmed) === "") return "A shell command needs a command after the !."
+  } else if (/^[/!]/.test(trimmed))
     return "A message can't start with / or !: the agent would read it as a command."
   if (/(^|\s)@\S*$/.test(trimmed))
     return "A message can't end in an @ mention: the agent would offer a file to pick."

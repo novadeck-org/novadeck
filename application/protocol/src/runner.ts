@@ -22,6 +22,7 @@ import {
   type TerminalRequest,
   type TerminalRequestAnswer,
   type TerminalSummary,
+  type RequestAnswer,
   type TranscriptChange,
   type VoiceModel,
   type VoiceSettings,
@@ -262,6 +263,18 @@ export type Runner = {
      * character, or nothing but white space; see `promptRefusal`.
      */
     prompt(terminalId: string, text: string): Promise<void>
+    /**
+     * Answers a request waiting on the person through its dialog in the agent's TUI, by the
+     * ref `detail` names it by. Rejects with `NOT_FOUND` for a request it doesn't have,
+     * `CONFLICT` when the dialog isn't on screen, isn't recognised or doesn't take that
+     * answer, and `DIALOG_CHANGED` when it no longer reads as the one the answer names
+     * (nothing pressed either way, and `DIALOG_CHANGED` leaves the dialog as it is), and
+     * `ANSWER_FAILED` when the keys didn't take, after which the request's dialog is `raw`,
+     * and `PROMPT_REFUSED` when the words that follow it as a prompt are ones `promptRefusal`
+     * refuses (nothing pressed), and `WORDS_NOT_SENT` when the answer took but the words that follow it as the agent's
+     * next prompt did not go (the dialog was answered).
+     */
+    answer(terminalId: string, request: string, answer: RequestAnswer): Promise<void>
     /**
      * Presses Escape in the terminal's agent, stopping its turn; `CONFLICT` without one.
      * Resolves with the queued words the agent's box took back, cleared out of it, for the
@@ -1167,6 +1180,8 @@ export const connectRunner = async (
           { type: "reset" },
         ),
       prompt: (terminalId, text) => call((wire) => wire.agents.prompt({ terminalId, text })),
+      answer: (terminalId, request, answer) =>
+        call((wire) => wire.agents.answer({ terminalId, request, answer })),
       interrupt: (terminalId) => call((wire) => wire.agents.interrupt({ terminalId })),
       set: (agent, connected) => call((wire) => wire.agents.set({ agent, connected })),
     },

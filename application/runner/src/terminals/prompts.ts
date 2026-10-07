@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { normalisedText, promptRefusal } from "@novadeck/protocol"
+import { normalisedText, promptRefusal, shellCommand } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import { isEmpty, sameText, wrappedRows, type BoxProfile } from "../harnesses/box.js"
@@ -78,8 +78,12 @@ const inPaste = (text: string): string => text.replace(/\r\n?|\n/g, "\r")
  * `harnesses/box.ts`): the paste goes in only where it is empty, so it never merges into
  * a draft, and Enter only where it holds nothing else. It never presses Enter after a
  * failed check: the text stays as a draft. Prompts to one terminal go one at a time, and
- * wait for a doorbell ring under way, so the two never share a box. It fails closed: a
- * screen the box is not found on, whatever the reason, writes nothing.
+ * wait for a doorbell ring under way, so the two never share a box. A shell command (`!`
+ * and a command) goes the way a person types it, which every harness takes: the `!` as a
+ * key, then, once the box reads empty in its shell mode, the command as the paste, and
+ * Enter once the box holds exactly it. A message never goes into a box in its shell mode,
+ * where Enter would run it. It fails closed: a screen the box is not found on, whatever
+ * the reason, writes nothing.
  */
 export class Prompts {
   private readonly pollMs: number
@@ -102,9 +106,10 @@ export class Prompts {
     this.ringMs = options.ringMs ?? 10_000
     this.settleMs = options.settleMs ?? 1_000
     this.emptyMs = options.emptyMs ?? 3_000
-    // The held phase is the wait for the box to read empty and then for the paste to show,
-    // with a margin; the window's resizes stay held a while longer, past the Enter.
-    const inputMs = this.emptyMs + this.pasteMs + 2_000
+    // The held phase is the wait for the box to read empty, for a shell command's `!` to
+    // switch it, and for the paste to show, with a margin; the window's resizes stay held a
+    // while longer, past the Enter.
+    const inputMs = this.emptyMs + 2 * this.pasteMs + 2_000
     this.budget = { inputMs, sizeMs: inputMs + this.settleMs }
   }
 
@@ -113,18 +118,22 @@ export class Prompts {
    * as `admit` says, with `CONFLICT` too where the screen takes no bracketed paste, or its
    * input box is not on it, holds a draft already, or has no room on the screen for the text; `PROMPT_REFUSED` for text a TUI
    * would take for more than a message (`promptRefusal`); `PROMPT_FAILED` where the paste
-   * never showed as exactly the text, leaving what landed of it as a draft. All but the
-   * last write nothing.
+   * never showed as exactly the text (or the box never switched to its shell mode at a
+   * typed `!`), leaving what landed of it as a draft. All but the last write nothing.
    */
   async prompt(terminalId: string, text: string): Promise<void> {
-    const refusal = promptRefusal(text)
+    const refusal = promptRefusal(text, { shell: true })
     if (refusal !== undefined) throw new DomainError("PROMPT_REFUSED", refusal)
     this.host.admit(terminalId)
+    const previous = this.tails.get(terminalId) ?? Promise.resolve()
     // A message's edges are no part of it, and no harness shows them: the cursor of a
     // trailing line break would sit below its box.
-    const message = normalisedText(text).trim()
-    const previous = this.tails.get(terminalId) ?? Promise.resolve()
-    const run = previous.then(() => this.send(terminalId, message))
+    const command = shellCommand(text)
+    const run = previous.then(() =>
+      command === undefined
+        ? this.send(terminalId, normalisedText(text).trim(), false)
+        : this.send(terminalId, command, true),
+    )
     const tail = run.then(
       () => {},
       () => {},
@@ -136,20 +145,29 @@ export class Prompts {
     return await run
   }
 
-  private async send(terminalId: string, text: string): Promise<void> {
+  /** `text` is the message, or with `shell` the command after its `!`. */
+  private async send(terminalId: string, text: string, shell: boolean): Promise<void> {
     await this.ringDone(terminalId)
     const profile = this.host.admit(terminalId)
     // The person's keys are held from before the box is looked at, so none comes between.
     const hold = await this.held(terminalId)
     let pressed = false
+    // Whether the box showed the command only as a placeholder its shell would run as text.
+    let unexpanded = false
     try {
       const first = await this.host.screen(terminalId)
       if (!first) throw new DomainError("TERMINAL_NOT_FOUND")
       if (!first.bracketedPaste)
-        throw new DomainError("CONFLICT", "The agent's screen takes no bracketed paste.")
-      // The box is waited on a while to read empty, as the text of the prompt before this
-      // one may still show as the TUI clears it after its Enter. A screen it is not found
-      // on, as a shell's after the agent exited, refuses the prompt before any key.
+        throw new DomainError(
+          "CONFLICT",
+          "The agent's screen takes no bracketed paste.",
+          undefined,
+          "no-paste",
+        )
+      // The box is waited on a while to read empty, in its prompt mode, as the text of the
+      // prompt before this one may still show as the TUI clears it after its Enter, and a
+      // command's shell mode ends a moment after its Enter. A screen it is not found on,
+      // as a shell's after the agent exited, refuses the prompt before any key.
       const before = await this.emptied(terminalId, profile, first, hold.holding)
       // A text that shows whole in a box with no room for it has no first row to read,
       // and would stay as a draft the next prompt is refused for.
@@ -160,10 +178,52 @@ export class Prompts {
         throw new DomainError(
           "CONFLICT",
           "The message is too tall for the agent's input box on this screen: make the terminal larger or the message shorter.",
+          undefined,
+          "too-tall",
         )
+      // A request may have come while the hold was taken: no paste into its dialog.
+      this.host.admit(terminalId)
+      if (shell) {
+        // The `!` as a key: pasted whole, Antigravity sends it to the model as text.
+        if (!this.host.type(terminalId, "!")) throw this.failed()
+        if (!(await this.switched(terminalId, profile, hold.holding))) {
+          // It may have switched just too late: the `!` goes back out where it shows alone.
+          await this.unbang(terminalId, profile)
+          throw new DomainError(
+            "PROMPT_FAILED",
+            "The agent's input box did not switch to its shell mode.",
+          )
+        }
+        try {
+          // A request may have come meanwhile: no paste into its dialog.
+          this.host.admit(terminalId)
+        } catch (error) {
+          // The `!` goes back out where the box shows it alone in its shell mode, so that
+          // no later message runs as a command; Backspace, as Escape would end a turn.
+          await this.unbang(terminalId, profile)
+          throw error
+        }
+      }
       // A person's paste, whose line breaks the TUI takes as text, never as Enter.
       if (!this.host.type(terminalId, bracketedPaste(inPaste(text)))) throw this.failed()
-      pressed = await this.landed(terminalId, text, profile, hold.holding)
+      const landed = await this.landed(
+        terminalId,
+        text,
+        profile,
+        shell ? "shell" : "prompt",
+        hold.holding,
+      )
+      unexpanded = landed === "unexpanded"
+      pressed = landed === true
+      // A request may have come while the paste landed, its dialog taking the Enter as an
+      // answer: with one waiting now, no Enter, and the paste stays as a draft.
+      if (pressed) {
+        try {
+          this.host.admit(terminalId)
+        } catch {
+          pressed = false
+        }
+      }
       // Their keys wait until the Enter is out, so none comes between the paste and it.
       if (pressed) this.host.type(terminalId, "\r")
     } catch (error) {
@@ -174,6 +234,11 @@ export class Prompts {
     }
     if (!pressed) {
       hold.settle()
+      if (unexpanded)
+        throw new DomainError(
+          "PROMPT_FAILED",
+          "The agent shows a command this long as a placeholder, which its shell would run as text: it stays in its box, unsent. Clear it in the terminal, or send a shorter command.",
+        )
       throw this.failed()
     }
     // A resize as the turn starts may crash a TUI, as the doorbell's ring found of Codex.
@@ -205,7 +270,12 @@ export class Prompts {
       const hold = this.host.hold(terminalId, this.budget)
       if (hold.holding()) return hold
       if (Date.now() >= until)
-        throw new DomainError("CONFLICT", "A message's doorbell is ringing the agent.")
+        throw new DomainError(
+          "CONFLICT",
+          "Another prompt, answer or message holds the agent's input.",
+          undefined,
+          "held",
+        )
       // eslint-disable-next-line no-await-in-loop -- The hold is tried in turn.
       await sleep(this.pollMs)
       this.host.admit(terminalId)
@@ -213,9 +283,11 @@ export class Prompts {
   }
 
   /**
-   * The screen once the box reads empty, within `emptyMs`: a draft the person left, or a
-   * failed paste's, never goes, and is refused then; the TUI still clearing the text of a
-   * prompt just sent does.
+   * The screen once the box reads empty in its prompt mode, within `emptyMs`: a draft the
+   * person left, or a failed paste's, never goes, and is refused then; the TUI still
+   * clearing the text of a prompt just sent does, as does a shell mode that a command's
+   * Enter is leaving. A box left in its shell mode, even empty, would run a message as a
+   * command: refused all the same, to be cleared in the terminal.
    */
   private async emptied(
     terminalId: string,
@@ -227,13 +299,17 @@ export class Prompts {
     let now = first
     for (;;) {
       const box = profile.read(now)
-      if (box && isEmpty(box)) return now
+      if (box && box.mode === "prompt" && isEmpty(box)) return now
       if (Date.now() >= until || !holding())
         throw new DomainError(
           "CONFLICT",
-          box
-            ? "The agent's input box holds text already: a draft the prompt would merge into."
-            : "The agent's input box is not on its screen.",
+          !box
+            ? "The agent's input box is not on its screen."
+            : box.mode === "shell"
+              ? "The agent's input box is in its shell mode: clear it in the terminal first."
+              : "The agent's input box holds text already: a draft the prompt would merge into.",
+          undefined,
+          !box ? "no-box" : box.mode === "shell" ? "shell" : "draft",
         )
       // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
       await sleep(this.pollMs)
@@ -242,6 +318,42 @@ export class Prompts {
       if (!next) throw new DomainError("TERMINAL_NOT_FOUND")
       now = next
     }
+  }
+
+  /**
+   * Whether the `!` typed into the empty box switched it to its shell mode, still empty,
+   * steady on two reads running, within `pasteMs` (probed 2026-10-07).
+   */
+  private async switched(
+    terminalId: string,
+    profile: BoxProfile,
+    holding: () => boolean,
+  ): Promise<boolean> {
+    const until = Date.now() + this.pasteMs
+    let seen = false
+    while (Date.now() < until && holding()) {
+      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+      await sleep(this.pollMs)
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      const after = await this.host.screen(terminalId)
+      if (!after) return false
+      const box = profile.read(after)
+      const shown = box !== undefined && box.mode === "shell" && isEmpty(box)
+      if (shown && seen) return holding()
+      seen = shown
+    }
+    return false
+  }
+
+  /**
+   * Takes the `!` typed for a shell command back out with a Backspace, where the box reads
+   * empty in its shell mode: a Backspace there leaves the shell mode in every harness, idle
+   * or mid-turn (probed 2026-10-07). Anything else on the screen is left as it is.
+   */
+  private async unbang(terminalId: string, profile: BoxProfile): Promise<void> {
+    const now = await this.host.screen(terminalId)
+    const box = now && profile.read(now)
+    if (box && box.mode === "shell" && isEmpty(box)) this.host.type(terminalId, "\x7f")
   }
 
   private failed(): DomainError {
@@ -253,24 +365,34 @@ export class Prompts {
     const until = Date.now() + this.ringMs
     while (this.host.ringing(terminalId) !== undefined) {
       if (Date.now() >= until)
-        throw new DomainError("CONFLICT", "A message's doorbell is ringing the agent.")
+        throw new DomainError(
+          "CONFLICT",
+          "A message's doorbell is ringing the agent.",
+          undefined,
+          "ringing",
+        )
       // eslint-disable-next-line no-await-in-loop -- The ring is looked at in turn.
       await sleep(this.pollMs)
     }
   }
 
   /**
-   * Whether the pasted text showed in time, steady on two reads running: the box holds
-   * exactly the text, or only the placeholder its harness shows for a long paste.
+   * Whether the pasted text showed in time, steady on two reads running: the box, in the
+   * mode asked, holds exactly the text, or only the placeholder its harness shows for a
+   * long paste (for a command, only where its shell runs the text the placeholder stands
+   * for: `unexpanded` where it showed only a placeholder it would run as text). A box that
+   * went into its shell mode as a message landed never counts.
    */
   private async landed(
     terminalId: string,
     text: string,
     profile: BoxProfile,
+    mode: "prompt" | "shell",
     holding: () => boolean,
-  ): Promise<boolean> {
+  ): Promise<boolean | "unexpanded"> {
     const until = Date.now() + this.pasteMs
     let last: string | undefined
+    let unexpanded = false
     while (Date.now() < until && holding()) {
       // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
       await sleep(this.pollMs)
@@ -278,13 +400,15 @@ export class Prompts {
       const after = await this.host.screen(terminalId)
       if (!after) return false
       const box = profile.read(after)
-      const fits =
-        box !== undefined &&
-        (sameText(box.text, text) || (collapsible(text) && profile.collapsed(box)))
+      const right = box !== undefined && box.mode === mode
+      const holds = right && sameText(box.text, text)
+      const placeholder = right && collapsible(text) && profile.collapsed(box)
+      unexpanded = placeholder && mode === "shell" && !profile.shell.expands
+      const fits = holds || (placeholder && (mode === "prompt" || profile.shell.expands))
       const key = fits ? `${box.first}:${box.last}:${box.text}` : undefined
       if (key !== undefined && key === last) return holding()
       last = key
     }
-    return false
+    return unexpanded ? "unexpanded" : false
   }
 }

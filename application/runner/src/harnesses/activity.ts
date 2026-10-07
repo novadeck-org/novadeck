@@ -8,13 +8,19 @@ import { ref } from "./harness.js"
 export const subagentRef = (id: string): string => ref("subagent", id)
 
 /** A request waiting on the person, as its harness identified it. */
-type Request = {
+export type Request = {
   readonly requestId: string
   readonly actor: string | null
   readonly toolName: string
   readonly kind: "permission" | "question" | "plan"
   readonly subject: string | null
   readonly choices: readonly string[]
+  /** The tool's input as its hook gave it, for the dialog adapter to check its dialog against. */
+  readonly input?: unknown
+  /** The directory its hook said the agent ran in, where it said one. */
+  readonly cwd?: string
+  /** Whether only the screen told it (see `DialogAdapter.screenRequest`), no hook. */
+  readonly screen?: true
   /** When its hook started: asked again later, the same call is another request. */
   readonly askedAt: number
 }
@@ -506,13 +512,28 @@ const asked = (
     // The root asks only while its turn runs; a subagent's request, as a background one
     // asks after the root's Stop, neither starts nor resumes the root's turn. A subagent
     // asking after its turn aborted runs again.
-    ...(actor === null && { state: "working" }),
+    // A request only the screen tells, as Codex's plan prompt after its Stop, resumes nothing.
+    ...(actor === null && event.screen !== true && { state: "working" }),
     subagents: activity.subagents.map((each) =>
       each.id === actor && each.abortedAt !== undefined && startedAt >= each.abortedAt
         ? { id: each.id, type: each.type, startedAt: each.startedAt }
         : each,
     ),
-    pending: [...kept, { requestId, actor, toolName, kind, subject, choices, askedAt: startedAt }],
+    pending: [
+      ...kept,
+      {
+        requestId,
+        actor,
+        toolName,
+        kind,
+        subject,
+        choices,
+        ...(event.input !== undefined && { input: event.input }),
+        ...(event.cwd !== undefined && { cwd: event.cwd }),
+        ...(event.screen === true && { screen: true as const }),
+        askedAt: startedAt,
+      },
+    ],
   }
 }
 

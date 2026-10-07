@@ -27,9 +27,107 @@ export type ChatItem = {
   readonly author: string | null
 }
 
+// What a request's dialog in the agent's TUI offers, as the backend read it, so the chat
+// can answer it (`Conversations.answer`):
+// - `choices`: options to pick one of (a permission, a plan approval). An option with
+//   `text` takes the person's words: typed into the dialog's own field (`field`), or sent
+//   as the agent's next prompt once it's chosen (`prompt`).
+// - `questions`: one or more questions, each with its options, whether several may be
+//   picked, and whether the person may answer in their own words.
+// - `form`: a form an MCP server asks the person to fill: its message and fields (text, a
+//   number, yes or no, or one of a set of choices), accepted with values or declined.
+// - `raw`: a dialog is up, but it can't be answered from the chat: the backend doesn't
+//   recognise it (as after an agent update changed it), the agent offers no way to
+//   (`unsupported`), or an answer didn't take (`failed`). `text` is what the terminal
+//   shows of it, to read; the person answers in the terminal.
+// A readable dialog has an `id`, which an answer names: the backend refuses an answer to
+// a dialog that no longer reads the same, pressing nothing. `detail` is what the dialog
+// shows of what it asks about (the command, the tool's arguments), to read before
+// answering.
+export type ChatDialogOption = {
+  readonly id: string
+  readonly label: string
+  readonly text: "field" | "prompt" | null
+}
+export type ChatQuestion = {
+  readonly id: string
+  readonly header: string | null
+  readonly question: string
+  readonly options: readonly {
+    readonly id: string
+    readonly label: string
+    readonly description: string | null
+  }[]
+  readonly multiSelect: boolean
+  readonly text: boolean
+}
+export type ChatFormField = {
+  readonly id: string
+  readonly label: string
+  readonly description: string | null
+  readonly kind: "text" | "number" | "boolean" | "choice"
+  readonly choices: readonly string[]
+  readonly required: boolean
+}
+export type ChatDialog =
+  | {
+      readonly type: "choices"
+      readonly id: string
+      readonly title: string | null
+      readonly detail: string | null
+      readonly options: readonly ChatDialogOption[]
+    }
+  | {
+      readonly type: "questions"
+      readonly id: string
+      // Whether the person may set the questions aside to talk it over first, and how
+      // their words reach the agent then: typed into the dialog, or as its next prompt.
+      readonly chat: "field" | "prompt" | null
+      readonly questions: readonly ChatQuestion[]
+    }
+  | {
+      readonly type: "form"
+      readonly id: string
+      readonly message: string
+      readonly fields: readonly ChatFormField[]
+    }
+  | {
+      readonly type: "raw"
+      readonly text: string
+      readonly reason: "unrecognized" | "unsupported" | "failed"
+    }
+
+// The person's answer to a dialog: an option by id, with their words where it takes them;
+// an answer per question, by ids, with the options picked and/or their own words; or a
+// form accepted with a value per field, by id, or declined.
+export type ChatAnswer =
+  | {
+      readonly type: "choice"
+      readonly dialog: string
+      readonly option: string
+      readonly text?: string
+    }
+  | {
+      readonly type: "questions"
+      readonly dialog: string
+      readonly answers: readonly {
+        readonly question: string
+        readonly options: readonly string[]
+        readonly text?: string
+      }[]
+    }
+  | { readonly type: "chat"; readonly dialog: string; readonly text?: string }
+  | {
+      readonly type: "form"
+      readonly dialog: string
+      readonly action: "accept" | "decline"
+      readonly values: Readonly<Record<string, string | number | boolean>>
+    }
+
 // A request of the agent's, or of a subagent it started, that waits on the person: a
 // permission, a question or a plan to approve, what it asks about, and the answers it
-// offers, where its harness tells them. The person answers it in the agent's own TUI.
+// offers, where its harness tells them. `dialog` is how its dialog in the agent's TUI
+// reads, once it's on screen; null before, or where the backend reads none.
 export type ChatRequest = {
   readonly id: string
   readonly kind: "permission" | "question" | "plan"
@@ -38,6 +136,9 @@ export type ChatRequest = {
   readonly choices: readonly string[]
   // Whether a subagent asks, rather than the root agent.
   readonly subagent: boolean
+  readonly dialog: ChatDialog | null
+  // Whether it was answered from the chat and the agent has yet to report it settled.
+  readonly answered: boolean
 }
 
 // A terminal's conversation now. `agent` and `session` name the agent's session bound to
@@ -82,4 +183,18 @@ export type Conversations = {
   // had queued behind the turn, which the agent gave back and the chat's box takes again,
   // or null. Rejects as `send` does.
   readonly interrupt: (key: ConversationKey) => Promise<string | null>
+  // Answers a request through its dialog in the agent's TUI, as the person would with its
+  // keys, resolving once it took. Rejects as `send` does; a dialog that can't be answered
+  // safely turns `raw`, for the person to answer in the terminal.
+  readonly answer: (key: ConversationKey, request: string, answer: ChatAnswer) => Promise<void>
+}
+
+// What `Conversations.answer` rejects with when the answer took but the words that follow
+// (sent as a prompt after an option or a chat) did not reach the agent: the request is
+// answered, and what the person wrote is theirs to send again.
+export class WordsLost extends Error {
+  constructor() {
+    super("Answered, but your words didn't reach the agent.")
+    this.name = "WordsLost"
+  }
 }

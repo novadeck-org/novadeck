@@ -1,16 +1,28 @@
-import { ArrowUp, Square } from "lucide-react"
+import { ArrowUp, Square, X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
-import { promptHint, promptRefused } from "../../model/prompt-refusal"
+import {
+  controlHint,
+  hasControlCharacters,
+  messageHint,
+  promptRefused,
+  shellCommand,
+} from "../../model/prompt-refusal"
 import { Tooltip } from "../../ui-toolkit/Tooltip"
+import { oneLine } from "./answers"
 import { Hint } from "./Hint"
+
+// The most a reply to the agent's question carries.
+const replyMax = 16_384
 
 const reason = (failure: unknown): string =>
   failure instanceof Error && failure.message ? failure.message : "It didn't go through."
 
 // Where the person writes to the agent. Enter sends what's typed into the agent's own
 // box; Shift+Enter starts a new line. While one goes, the box holds its text, and a
-// send that fails says why and keeps it.
+// send that fails says why and keeps it. While it replies to the agent's question, what's
+// typed is the answer for the agent's own field, which takes one line. A message that starts
+// with `!` is a shell command, which the agent runs in its shell mode.
 export const Composer = ({
   label,
   draft,
@@ -20,6 +32,9 @@ export const Composer = ({
   onStop,
   focusInput,
   onInputFocused,
+  replying,
+  orphaned,
+  onCancelReply,
 }: {
   // The agent it writes to, for the box's name.
   readonly label: string
@@ -33,6 +48,11 @@ export const Composer = ({
   // Keyboard navigation asks for focus here; call `onInputFocused` once it's there.
   readonly focusInput: boolean
   readonly onInputFocused: () => void
+  // Sending answers the agent's question with the words, until the person cancels.
+  readonly replying: boolean
+  // The question a reply was written for went: the words wait for an edit before they go.
+  readonly orphaned: boolean
+  readonly onCancelReply: () => void
 }): React.JSX.Element => {
   const input = useRef<HTMLTextAreaElement>(null)
   const [sending, setSending] = useState(false)
@@ -58,10 +78,18 @@ export const Composer = ({
     box.style.height = `${box.scrollHeight}px`
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Sized to the text it holds.
   }, [draft])
+  // The agent's field takes what a prompt can't start with; only control characters stop it.
+  const long = replying && oneLine(draft).trim().length > replyMax
+  const refused =
+    orphaned ||
+    (replying ? hasControlCharacters(draft) || long : promptRefused(draft, { shell: true }))
+  const command = replying || orphaned ? undefined : shellCommand(draft)
+  // A `!` still waiting for its command: nothing to send yet, nothing to warn about either.
+  const waiting = command === ""
   const send = (): void => {
     const text = draft.trim()
     // The draft is judged as the hint judges it, so Enter refuses what Send does.
-    if (!text || sending || promptRefused(draft)) return
+    if (!text || sending || refused) return
     setSending(true)
     setError(null)
     onSend(text).then(
@@ -90,8 +118,9 @@ export const Composer = ({
     )
   }
   const empty = draft.trim() === ""
-  const refused = promptRefused(draft)
   const hint = useId()
+  const note = useId()
+  const shellNote = useId()
   return (
     <form
       className="chat-composer nodrag nopan"
@@ -106,17 +135,64 @@ export const Composer = ({
           {error}
         </p>
       )}
-      <Hint id={hint} className="chat-error" text={refused ? promptHint : ""} />
+      {replying && (
+        <p className="chat-reply" id={note}>
+          <span>Replying to {label}'s question. Its field takes one line.</span>
+          <button
+            type="button"
+            className="button quiet chat-reply-cancel"
+            aria-label="Cancel the reply"
+            disabled={sending}
+            onClick={onCancelReply}
+          >
+            <X size={12} aria-hidden />
+            Cancel
+          </button>
+        </p>
+      )}
+      {orphaned && (
+        <p className="chat-reply" id={note}>
+          <span>
+            {label}'s question went, so this is no longer a reply. Edit it to send it as a message.
+          </span>
+        </p>
+      )}
+      {command !== undefined && (
+        <p className="chat-reply" id={shellNote}>
+          <span>Runs in {label}'s shell, as if typed in its terminal.</span>
+        </p>
+      )}
+      <Hint
+        id={hint}
+        className="chat-error"
+        text={
+          refused && !waiting && !orphaned
+            ? replying
+              ? long
+                ? "A reply takes at most 16,384 characters."
+                : controlHint
+              : messageHint(draft)
+            : ""
+        }
+      />
       <div className="chat-composer-box">
         <textarea
           ref={input}
           data-terminal-input
           className="chat-input"
           aria-label={`Message ${label}`}
-          placeholder={`Message ${label}…`}
+          placeholder={replying ? `Reply to ${label}'s question…` : `Message ${label}…`}
           rows={1}
           value={draft}
-          aria-describedby={hint}
+          aria-describedby={
+            replying || orphaned
+              ? `${note} ${hint}`
+              : command !== undefined
+                ? `${shellNote} ${hint}`
+                : hint
+          }
+          // What the agent's field takes, as the protocol carries it.
+          maxLength={replying ? replyMax : undefined}
           readOnly={sending}
           aria-busy={sending}
           spellCheck
@@ -125,7 +201,12 @@ export const Composer = ({
             if (error) setError(null)
           }}
           onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return
+            if (event.key !== "Enter" || event.nativeEvent.isComposing) return
+            if (event.shiftKey) {
+              // The agent's field takes one line.
+              if (replying) event.preventDefault()
+              return
+            }
             // A modified Enter belongs to the workspace's shortcuts.
             if (event.ctrlKey || event.metaKey || event.altKey) return
             event.preventDefault()

@@ -3,12 +3,23 @@ import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { trustedIn } from "../../harnesses/codex/trust.js"
+import type { DeckTerminal } from "../deck.js"
 import { responses } from "../model/responses.js"
+import { asked } from "../model/script.js"
 import type { Sandbox } from "../sandbox.js"
+import { own } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
 
 // The variable Codex reads the fake credential from, as its model provider names it.
 const key = "NOVADECK_E2E_CODEX_KEY"
+
+// Plan mode, which offers request_user_input and ends a plan with its "Implement this plan?"
+// prompt (probed 2026-10-06, 0.159.3). Its screen is settled before the next prompt.
+const planMode = async (terminal: DeckTerminal): Promise<void> => {
+  await terminal.submit("/plan")
+  await terminal.until(/Plan mode/)
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+}
 
 const config = (sandbox: Sandbox, url: string, trusted: boolean): string =>
   `# Codex against Novadeck's fake model, for end-to-end tests.
@@ -85,6 +96,39 @@ export const codex: AgentSetup = {
     deny: "\x1b",
     denied: /✗ You canceled the request to run/,
   },
+  // request_user_input, in Plan mode only, one option per question.
+  asking: {
+    multiSelect: false,
+    enter: planMode,
+    questions: (_call, questions) => ({
+      calls: [
+        {
+          name: "request_user_input",
+          input: {
+            questions: questions.map((question, index) => ({
+              id: `q${index + 1}`,
+              header: question.header,
+              question: question.question,
+              options: question.options,
+            })),
+          },
+        },
+      ],
+    }),
+  },
+  // A plan in Plan mode ends with "Implement this plan?", which no hook reports.
+  planning: {
+    enter: planMode,
+    rules: (_sandbox, prompt) => [
+      own((call) =>
+        asked(call, prompt)
+          ? { text: "<proposed_plan>\n# Plan\n\n- Do the thing\n- Test it\n</proposed_plan>" }
+          : undefined,
+      ),
+      own((call) => (asked(call, "Implement the plan.") ? { text: "Implemented." } : undefined)),
+    ],
+    approved: /Implement the plan\./,
+  },
   // Escape mid-turn says so (probed 2026-10-02, 0.159.3).
   interrupted: () => /■ Conversation interrupted/,
   // Esc-Esc browses its transcript, its footer saying so ("↵ rewind · esc back"); a paste
@@ -122,6 +166,9 @@ export const codex: AgentSetup = {
   // for 20 s after. A v1 subagent's `<subagent_notification>` only goes with the person's
   // next prompt, and a v2 one's end with none. Novadeck rightly calls such a root Settled.
   absent: {
+    forms:
+      "its MCP elicitation form fires no hook, so no request waits for it, and none shows as raw (probed 2026-10-06, 0.159.3)",
+    multiSelect: "request_user_input takes one option of a question (probed 2026-10-06, 0.159.3)",
     background: "nothing it starts wakes it once its turn has ended (probed 2026-10-02, 0.159.3)",
     "background.command":
       "nothing it starts wakes it once its turn has ended (probed 2026-10-02, 0.159.3)",

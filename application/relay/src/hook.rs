@@ -63,7 +63,9 @@ impl Config {
     }
 
     /// What `agent`'s `event` prints when the runner gave nothing to print: the event's
-    /// own, else the agent's for any event (`*`), else nothing.
+    /// own, else the agent's for any event (`*`), else nothing, except that Antigravity's
+    /// PreToolUse always prints "ask" (it denies a tool otherwise), even where the
+    /// configuration is unreadable or lacks it.
     pub fn fallback(&self, agent: &str, event: &str) -> String {
         let named = self.fallbacks.get(agent);
         let text = named
@@ -71,6 +73,9 @@ impl Config {
             .and_then(Value::as_str)
             .unwrap_or("");
         if text.is_empty() {
+            if agent == "agy" && event == "PreToolUse" {
+                return "{\"decision\":\"ask\"}\n".to_owned();
+            }
             String::new()
         } else {
             format!("{text}\n")
@@ -294,8 +299,21 @@ mod tests {
         assert_eq!(config.fallback("agy", "Stop"), "{}\n");
         assert_eq!(config.fallback("claude", "Stop"), "");
         assert_eq!(config.fallback("codex", "PreToolUse"), "");
-        // Without its configuration, it prints nothing.
-        assert_eq!(Config::default().fallback("agy", "PreToolUse"), "");
+        // Without its configuration, it prints nothing, but for what keeps Antigravity
+        // from denying every tool.
+        assert_eq!(
+            Config::default().fallback("agy", "PreToolUse"),
+            "{\"decision\":\"ask\"}\n"
+        );
+        assert_eq!(Config::default().fallback("agy", "Stop"), "");
+        // Nor does a configuration without Antigravity's entry.
+        let without = Config::of(&json!({ "fallbacks": { "claude": { "*": "" } } }));
+        assert_eq!(
+            without.fallback("agy", "PreToolUse"),
+            "{\"decision\":\"ask\"}\n"
+        );
+        assert_eq!(without.fallback("agy", "Stop"), "");
+        assert_eq!(Config::default().fallback("codex", "PreToolUse"), "");
     }
 
     #[test]

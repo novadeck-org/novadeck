@@ -11,6 +11,7 @@ import {
 
 import type { Report } from "../shell/reports.js"
 import type { BoxProfile } from "./box.js"
+import type { DialogAdapter } from "./dialogs.js"
 import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
 
 /** Where a harness lives on this machine, as its setup and inspection need it. */
@@ -106,6 +107,11 @@ export type Harness = {
   readonly box: BoxProfile
   /** The normalized facts in one of its hooks' reports; none for one it ignores. */
   readonly decode: (report: Report) => readonly HarnessEvent[]
+  /**
+   * How its TUI's dialogs for requests waiting on the person read on screen and take an
+   * answer, so the chat can answer them (see `dialogs.ts`); absent where none can be.
+   */
+  readonly dialogs?: DialogAdapter
   /**
    * Whether one of its hooks' reports says its prompt shows before any session it names
    * has bound, as Antigravity's status line saying idle with no conversation yet.
@@ -318,6 +324,21 @@ export const absolute = (value: unknown): string | undefined =>
   typeof value === "string" && value.length <= 4096 && !value.includes("\0") && isAbsolute(value)
     ? value
     : undefined
+
+/**
+ * Each request among `events` with the directory its hook named, where it named an
+ * absolute one, so a dialog's relative paths resolve where that agent runs.
+ */
+export const withRequestCwd = (
+  events: readonly HarnessEvent[],
+  payload: { readonly cwd?: unknown },
+): readonly HarnessEvent[] => {
+  const cwd = absolute(payload.cwd)
+  if (!cwd) return events
+  return events.map((event) =>
+    event.type === "attention-requested" && event.cwd === undefined ? { ...event, cwd } : event,
+  )
+}
 
 /**
  * An id for the tool call a permission request asks about, which no harness names: the

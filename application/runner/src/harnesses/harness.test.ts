@@ -183,3 +183,39 @@ describe("the harness registry", () => {
     expect(shimmed("win32")).toEqual(["codex"])
   })
 })
+
+// A PermissionRequest for `ls` from the root agent, with the directory its hook named.
+const permissionReport = (agent: "claude" | "codex", cwd: unknown): Report =>
+  ({
+    agent,
+    event: "PermissionRequest",
+    seq: 1,
+    instance: null,
+    env: {},
+    payload: {
+      session_id: "00000000-0000-4000-8000-000000000001",
+      tool_name: "Bash",
+      tool_input: { command: "ls" },
+      cwd,
+    },
+  }) as unknown as Report
+
+describe("a request's directory", () => {
+  it("is the absolute one its hook names, for Claude Code and Codex alike", () => {
+    for (const agent of ["claude", "codex"] as const) {
+      const asked = harnesses[agent].decode(permissionReport(agent, "/work/project"))
+      const request = asked.find((event) => event.type === "attention-requested")
+      expect(request).toMatchObject({ cwd: "/work/project" })
+    }
+  })
+
+  it("is left out where the hook names none, or a relative one", () => {
+    for (const agent of ["claude", "codex"] as const)
+      for (const cwd of [undefined, "project"]) {
+        const asked = harnesses[agent].decode(permissionReport(agent, cwd))
+        const request = asked.find((event) => event.type === "attention-requested")
+        expect(request).toBeDefined()
+        expect(request).not.toHaveProperty("cwd")
+      }
+  })
+})

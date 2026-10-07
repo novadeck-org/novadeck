@@ -15,10 +15,14 @@ import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage
 import {
   chatKept,
   keepChatDrafts,
+  keepChatReplies,
+  settleChatReplies,
   keepChatModes,
   noChatDrafts,
+  noChatReplies,
   noChatModes,
   type ChatDrafts,
+  type ChatReplies,
   type ChatModes,
 } from "../terminals/chat/mode-state"
 import { nextRecent, visibleSwitcher, type RecentSwitcher } from "../terminals/recent"
@@ -64,6 +68,8 @@ export type UiState = {
   readonly chat: ChatModes
   // What they typed there and have not sent.
   readonly chatDrafts: ChatDrafts
+  // The question each draft replies to, or that it is held once that question went.
+  readonly chatReplies: ChatReplies
 }
 
 export type UiLocation = {
@@ -100,6 +106,7 @@ export const initialUi = ({
   unread: noUnread,
   chat: noChatModes,
   chatDrafts: noChatDrafts,
+  chatReplies: noChatReplies,
 })
 
 export const updateShell = (ui: UiStore, change: (shell: ShellState) => ShellState): void =>
@@ -258,7 +265,12 @@ export const watchChatModes = (workspace: Store<Workspace>, ui: UiStore): (() =>
     if (snapshot.projects === projects) return
     projects = snapshot.projects
     const held = ui.getSnapshot()
-    if (held.chat === noChatModes && held.chatDrafts === noChatDrafts) return
+    if (
+      held.chat === noChatModes &&
+      held.chatDrafts === noChatDrafts &&
+      held.chatReplies === noChatReplies
+    )
+      return
     const terminals = terminalsOf(snapshot)
     const keep = (context: string, id: string): boolean => {
       const terminal = terminals.get(`${context}/${id}`)
@@ -268,9 +280,19 @@ export const watchChatModes = (workspace: Store<Workspace>, ui: UiStore): (() =>
     ui.update((state) => {
       const chat = keepChatModes(state.chat, keep)
       const chatDrafts = keepChatDrafts(state.chatDrafts, open)
-      return chat === state.chat && chatDrafts === state.chatDrafts
+      // What a draft replies to, or that it is held, stays as long as the draft: a reply
+      // whose question went with its agent comes back held, never as a message, and never
+      // replies to a later agent's question.
+      const chatReplies = settleChatReplies(
+        keepChatReplies(state.chatReplies, open),
+        chatDrafts,
+        (context, id) => open(context, id) && !keep(context, id),
+      )
+      return chat === state.chat &&
+        chatDrafts === state.chatDrafts &&
+        chatReplies === state.chatReplies
         ? state
-        : { ...state, chat, chatDrafts }
+        : { ...state, chat, chatDrafts, chatReplies }
     })
   })
 }

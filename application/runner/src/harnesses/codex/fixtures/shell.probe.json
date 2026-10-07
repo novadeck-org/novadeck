@@ -1,0 +1,321 @@
+{
+  "harness": "codex",
+  "version": "0.159.3",
+  "source": "captured",
+  "how": "rollout records of commands run in shell mode (`!`) by the shell-bang probe (application/runner/src/e2e/probes/shell-bang.e2e.ts): the CommandExecution event (source user_shell) where the rollout has one, before the message that records the command and its result; the empty-output record is rebuilt from the probe transcript",
+  "scenarios": {
+    "stderr": [
+      {
+        "timestamp": "2026-10-07T06:00:05.886Z",
+        "ordinal": 2,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "thread_id": "01a114f2-9576-78d1-bb40-f04408c68f5a",
+          "turn_id": "01a114f2-99c3-7600-af1e-78805cc5fb09",
+          "item": {
+            "type": "CommandExecution",
+            "id": "21cc9475-8b28-4f0e-a43c-c502f7fa17ae",
+            "command": ["/bin/bash", "-lc", "echo out-line; echo err-line >&2"],
+            "cwd": "file:///tmp/project/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "echo out-line; echo err-line >&2"
+              }
+            ],
+            "source": "user_shell",
+            "status": "completed",
+            "stdout": "out-line\n",
+            "stderr": "err-line\n",
+            "aggregated_output": "out-line\nerr-line\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 0,
+              "nanos": 16831570
+            },
+            "formatted_output": "out-line\nerr-line\n"
+          },
+          "started_at_ms": 1791352805868,
+          "completed_at_ms": 1791352805885
+        }
+      },
+      {
+        "timestamp": "2026-10-07T06:00:05.888Z",
+        "ordinal": 3,
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "id": "msg_01a114f2-9a00-7ed2-8a85-0628137c19d5",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<user_shell_command>\n<command>\necho out-line; echo err-line >&2\n</command>\n<result>\nExit code: 0\nDuration: 0.0168 seconds\nOutput:\nout-line\nerr-line\n\n</result>\n</user_shell_command>"
+            }
+          ],
+          "internal_chat_message_metadata_passthrough": {
+            "turn_id": "01a114f2-99c3-7600-af1e-78805cc5fb09",
+            "create_time": 1791352805.8885322,
+            "content_item_kinds": ["shell.user_command"]
+          }
+        },
+        "metadata": {
+          "client_authored": false,
+          "mcp_attribution": {
+            "status": "none"
+          }
+        }
+      }
+    ],
+    "failed": [
+      {
+        "timestamp": "2026-10-07T06:00:10.165Z",
+        "ordinal": 6,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "thread_id": "01a114f2-9576-78d1-bb40-f04408c68f5a",
+          "turn_id": "01a114f2-aa99-7812-b4ba-17d137d4acb2",
+          "item": {
+            "type": "CommandExecution",
+            "id": "84309457-d9b9-4066-becb-9f637828ac2a",
+            "command": ["/bin/bash", "-lc", "echo before; exit 3"],
+            "cwd": "file:///tmp/project/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "echo before; exit 3"
+              }
+            ],
+            "source": "user_shell",
+            "status": "failed",
+            "stdout": "before\n",
+            "stderr": "",
+            "aggregated_output": "before\n",
+            "exit_code": 3,
+            "duration": {
+              "secs": 0,
+              "nanos": 18890557
+            },
+            "formatted_output": "before\n"
+          },
+          "started_at_ms": 1791352810146,
+          "completed_at_ms": 1791352810165
+        }
+      },
+      {
+        "timestamp": "2026-10-07T06:00:10.168Z",
+        "ordinal": 7,
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "id": "msg_01a114f2-aab8-7f82-a0d9-8e130a923a17",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<user_shell_command>\n<command>\necho before; exit 3\n</command>\n<result>\nExit code: 3\nDuration: 0.0189 seconds\nOutput:\nbefore\n\n</result>\n</user_shell_command>"
+            }
+          ],
+          "internal_chat_message_metadata_passthrough": {
+            "turn_id": "01a114f2-aa99-7812-b4ba-17d137d4acb2",
+            "create_time": 1791352810.1684577,
+            "content_item_kinds": ["shell.user_command"]
+          }
+        }
+      }
+    ],
+    "missing": [
+      {
+        "timestamp": "2026-10-07T06:00:14.480Z",
+        "ordinal": 10,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "thread_id": "01a114f2-9576-78d1-bb40-f04408c68f5a",
+          "turn_id": "01a114f2-bb70-71a2-9c7b-275f9bb4ae05",
+          "item": {
+            "type": "CommandExecution",
+            "id": "68aaffd7-6c22-49b2-a91c-807e70f63dfa",
+            "command": ["/bin/bash", "-lc", "no-such-command-here"],
+            "cwd": "file:///tmp/project/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "no-such-command-here"
+              }
+            ],
+            "source": "user_shell",
+            "status": "failed",
+            "stdout": "",
+            "stderr": "/bin/bash: line 1: no-such-command-here: command not found\n",
+            "aggregated_output": "/bin/bash: line 1: no-such-command-here: command not found\n",
+            "exit_code": 127,
+            "duration": {
+              "secs": 0,
+              "nanos": 21858185
+            },
+            "formatted_output": "/bin/bash: line 1: no-such-command-here: command not found\n"
+          },
+          "started_at_ms": 1791352814458,
+          "completed_at_ms": 1791352814480
+        }
+      },
+      {
+        "timestamp": "2026-10-07T06:00:14.484Z",
+        "ordinal": 11,
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "id": "msg_01a114f2-bb94-7c91-89dc-c9986903424e",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<user_shell_command>\n<command>\nno-such-command-here\n</command>\n<result>\nExit code: 127\nDuration: 0.0219 seconds\nOutput:\n/bin/bash: line 1: no-such-command-here: command not found\n\n</result>\n</user_shell_command>"
+            }
+          ],
+          "internal_chat_message_metadata_passthrough": {
+            "turn_id": "01a114f2-bb70-71a2-9c7b-275f9bb4ae05",
+            "create_time": 1791352814.4843736,
+            "content_item_kinds": ["shell.user_command"]
+          }
+        }
+      }
+    ],
+    "multiline": [
+      {
+        "timestamp": "2026-10-07T06:00:23.094Z",
+        "ordinal": 18,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "thread_id": "01a114f2-9576-78d1-bb40-f04408c68f5a",
+          "turn_id": "01a114f2-dd17-78d0-859b-46e75d5b88a3",
+          "item": {
+            "type": "CommandExecution",
+            "id": "172f23a6-82a9-4d3e-bd52-bf0c05df9c71",
+            "command": ["/bin/bash", "-lc", "echo first\necho second"],
+            "cwd": "file:///tmp/project/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "echo first\necho second"
+              }
+            ],
+            "source": "user_shell",
+            "status": "completed",
+            "stdout": "first\nsecond\n",
+            "stderr": "",
+            "aggregated_output": "first\nsecond\n",
+            "exit_code": 0,
+            "duration": {
+              "secs": 0,
+              "nanos": 21206943
+            },
+            "formatted_output": "first\nsecond\n"
+          },
+          "started_at_ms": 1791352823073,
+          "completed_at_ms": 1791352823094
+        }
+      },
+      {
+        "timestamp": "2026-10-07T06:00:23.098Z",
+        "ordinal": 19,
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "id": "msg_01a114f2-dd3a-7232-a1b1-b8da5c904121",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<user_shell_command>\n<command>\necho first\necho second\n</command>\n<result>\nExit code: 0\nDuration: 0.0212 seconds\nOutput:\nfirst\nsecond\n\n</result>\n</user_shell_command>"
+            }
+          ],
+          "internal_chat_message_metadata_passthrough": {
+            "turn_id": "01a114f2-dd17-78d0-859b-46e75d5b88a3",
+            "create_time": 1791352823.098677,
+            "content_item_kinds": ["shell.user_command"]
+          }
+        }
+      }
+    ],
+    "aborted": [
+      {
+        "timestamp": "2026-10-07T06:00:29.382Z",
+        "ordinal": 23,
+        "type": "event_msg",
+        "payload": {
+          "type": "item_completed",
+          "thread_id": "01a114f2-9576-78d1-bb40-f04408c68f5a",
+          "turn_id": "01a114f2-edeb-71e1-92a2-0fc1421d18cd",
+          "item": {
+            "type": "CommandExecution",
+            "id": "46c10a9f-3441-431d-9099-106bb1c9ef47",
+            "command": ["/bin/bash", "-lc", "echo started; sleep 30"],
+            "cwd": "file:///tmp/project/project",
+            "parsed_cmd": [
+              {
+                "type": "unknown",
+                "cmd": "echo started; sleep 30"
+              }
+            ],
+            "source": "user_shell",
+            "status": "failed",
+            "stdout": "",
+            "stderr": "command aborted by user",
+            "aggregated_output": "command aborted by user",
+            "exit_code": -1,
+            "duration": {
+              "secs": 0,
+              "nanos": 0
+            },
+            "formatted_output": "command aborted by user"
+          },
+          "started_at_ms": 1791352827386,
+          "completed_at_ms": 1791352829382
+        }
+      },
+      {
+        "timestamp": "2026-10-07T06:00:29.376Z",
+        "ordinal": 22,
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "id": "msg_01a114f2-f5c0-7060-937c-1ac5272395ef",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<user_shell_command>\n<command>\necho started; sleep 30\n</command>\n<result>\nExit code: -1\nDuration: 0.0000 seconds\nOutput:\ncommand aborted by user\n</result>\n</user_shell_command>"
+            }
+          ],
+          "internal_chat_message_metadata_passthrough": {
+            "turn_id": "01a114f2-edeb-71e1-92a2-0fc1421d18cd",
+            "create_time": 1791352829.3760576,
+            "content_item_kinds": ["shell.user_command"]
+          }
+        }
+      }
+    ],
+    "empty": [
+      {
+        "timestamp": "2026-10-07T05:51:07.930Z",
+        "ordinal": 9,
+        "type": "response_item",
+        "payload": {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<user_shell_command>\n<command>\necho bang-one > one.txt\n</command>\n<result>\nExit code: 0\nDuration: 0.0218 seconds\nOutput:\n\n</result>\n</user_shell_command>"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

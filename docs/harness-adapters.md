@@ -326,6 +326,8 @@ type Harness = {
   readonly messaging: MessagingProfile
   /** How its input box reads off its screen (see "Screen readers"). */
   readonly box: BoxProfile
+  /** How its dialogs for requests waiting on the person read and take an answer. */
+  readonly dialogs?: DialogAdapter
 }
 
 type Command = { readonly argv: readonly string[]; readonly optional?: boolean }
@@ -532,24 +534,35 @@ prompt's text (see [Agent messaging](agent-messaging.md#the-doorbell)).
 
 ## Screen readers
 
-`box` is the one place a harness's screen is read, for what a prompt needs: whether its
-input box is empty, and what it holds. A `BoxProfile` has `read(screen)`, which finds the
-box on a `ScreenText` (rows, the rows with dim cells blanked, the cursor, the columns),
-`collapsed(box)`, which tells the placeholder a long paste shows as, `collapses(text)` and
-`room(rows)`, which say before a paste whether it will collapse and whether it fits, and
-`queued(screen)`, which tells messages the person queued behind a turn, and for a harness
-that puts text back in its box (an interrupted prompt, queued messages), `clear(box)`, the
-keys that clear it. Shared code (`terminals/prompts.ts`, the terminal manager's interrupt) knows
-no marker, rule or placeholder.
+Two adapter fields read a harness's TUI off the screen, and shared code knows no marker,
+rule, footer or placeholder of any harness: `box` and `dialogs`.
 
-A reader fails closed: it recognises the box in full, or returns `undefined`. It never
-guesses from a screen it only half knows (a dialog, a picker, a shell's prompt after the
-agent exited, a box whose first row has scrolled off), because what follows from a read
-is a keystroke, Enter, that runs what the box holds. A prompt that can't read the box
-writes nothing and is refused (`CONFLICT`), and the chat falls back to the terminal,
-where the person sees what the agent shows. The thresholds and drawings each reader rests
-on are probed, with fixtures from real screens (`harnesses/*/fixtures/input-box.probe.json`,
-`e2e/probes/input-box.e2e.ts`); see [Harness coverage](harness-coverage.md).
+`box` is where the harness's input box is read, for what a prompt needs: whether it is
+empty, what it holds, and whether it is in its shell mode (`!`). A `BoxProfile` has
+`read(screen)`, which finds the box on a `ScreenText` (rows, the rows with dim cells
+blanked, the cursor, the columns) and says its `mode`, told by the marker leading its first
+row and checked against the harness's footer; `collapsed(box)`, which tells the placeholder
+a long paste shows as; `collapses(text)` and `room(rows)`, which say before a paste whether
+it will collapse and whether it fits; `shell`, whether a command shown as a placeholder runs
+as the text it stands for, and the footer reading; `queued(screen)`, which tells messages
+the person queued behind a turn; and for a harness that puts text back in its box (an
+interrupted prompt, queued messages), `clear(box)`, the keys that clear it. The terminal
+manager's prompts and interrupt use it.
+
+`dialogs` (`DialogAdapter`) reads the dialogs of requests waiting on the person, and says
+what keys answer them. Its answers go through the terminal manager's answer driver, which
+also knows no harness.
+
+Both fail closed under one rule: a reader recognises what it reads in full, or returns
+`undefined` (or nothing). It never guesses from a screen it only half knows (a dialog, a
+picker, a shell's prompt after the agent exited, a box whose first row has scrolled off, a
+box whose footer says shell mode over a prompt marker), because what follows from a read is a keystroke,
+Enter included, that runs what the box holds or answers a dialog. A prompt or an answer
+that can't read what it needs writes nothing and is refused (`CONFLICT`), and the chat
+falls back to the terminal, where the person sees what the agent shows. The thresholds and
+drawings each reader rests on are probed, with fixtures from real screens
+(`harnesses/*/fixtures/input-box.probe.json`, `shell-mode.probe.json`, `ask.probe.json`;
+`e2e/probes/`); see [Harness coverage](harness-coverage.md).
 
 ## Where sources merge
 

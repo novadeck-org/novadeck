@@ -4,6 +4,7 @@ import type { Report } from "../../shell/reports.js"
 import type { Background, HarnessEvent } from "../events.js"
 import {
   absolute,
+  withRequestCwd,
   bounded,
   callId,
   promptStart,
@@ -34,7 +35,10 @@ import { at as writtenAt, record } from "../items.js"
  * an Esc fires nothing: the next turn settles them.
  */
 export const decode = (report: Report): readonly HarnessEvent[] =>
-  withMode(decodeHook(report), report.payload)
+  withRequestCwd(withMode(decodeHook(report), report.payload), report.payload)
+
+/** The tool name an elicitation of `server` goes by: it is no tool call, so it takes this. */
+export const elicitationTool = (server: string): string => `mcp__${server}__elicitation`
 
 /**
  * The SessionStart sources that announce a session at Claude Code's own input prompt.
@@ -113,6 +117,7 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           actor,
           toolName: tool,
           ...subjectOf(payload.tool_input),
+          ...(payload.tool_input !== undefined && { input: payload.tool_input }),
           kind:
             tool === "AskUserQuestion"
               ? "question"
@@ -122,6 +127,50 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
         },
         ...presented(base, actor, tool, payload.tool_input),
       ]
+    case "Elicitation": {
+      // An MCP server asks the person for input, as a form: a request of its own, named
+      // `mcp__<server>__elicitation`, which its ElicitationResult settles.
+      const server = text(payload.mcp_server_name)
+      if (!server) return []
+      const name = elicitationTool(server)
+      const input = {
+        mcp_server_name: server,
+        message: payload.message,
+        mode: payload.mode,
+        requested_schema: payload.requested_schema,
+      }
+      const message = text(payload.message)
+      return [
+        {
+          type: "attention-requested",
+          ...base,
+          requestId: callId(actor, name, input),
+          actor,
+          toolName: name,
+          subject: message?.slice(0, 1024) ?? null,
+          choices: [],
+          input,
+          kind: "question",
+        },
+      ]
+    }
+    case "ElicitationResult": {
+      const server = text(payload.mcp_server_name)
+      if (!server) return []
+      const name = elicitationTool(server)
+      return [
+        {
+          type: "attention-resolved",
+          ...base,
+          requestId: callId(actor, name, null),
+          actor,
+          toolName: name,
+          // The result doesn't repeat the form: it settles the actor's oldest.
+          loose: true,
+          outcome: "allowed",
+        },
+      ]
+    }
     case "PostToolUse":
     case "PostToolUseFailure":
       return [

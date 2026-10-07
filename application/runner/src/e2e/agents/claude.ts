@@ -1,8 +1,10 @@
+import { readFileSync, writeFileSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { anthropic } from "../model/anthropic.js"
-import type { Call } from "../model/script.js"
+import { asked, text as everything, type Call } from "../model/script.js"
+import { own, result } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
 
 // What the prompt of the background subagent a scenario starts holds, and nothing else.
@@ -53,6 +55,68 @@ export const claude: AgentSetup = {
     shows: /❯ 1\. Yes/,
     deny: "3",
     denied: /Interrupted · What should Claude do instead\?/,
+  },
+  // AskUserQuestion, which takes several options of a question where it says so.
+  asking: {
+    multiSelect: true,
+    questions: (_call, questions) => ({
+      calls: [{ name: "AskUserQuestion", input: { questions } }],
+    }),
+  },
+  // An MCP server registered in the project, which asks for a form through elicitation;
+  // its tool is allowed, so only the form asks the person (probed 2026-10-06, 2.1.287).
+  forms: {
+    prepare: (sandbox, server) => {
+      writeFileSync(
+        join(sandbox.project, ".mcp.json"),
+        JSON.stringify({ mcpServers: { elicit: { command: "node", args: [server] } } }),
+      )
+      const path = join(sandbox.home, ".claude", "settings.json")
+      const settings = JSON.parse(readFileSync(path, "utf8")) as {
+        permissions?: { allow?: string[] }
+        enableAllProjectMcpServers?: boolean
+      }
+      settings.enableAllProjectMcpServers = true
+      settings.permissions = {
+        ...settings.permissions,
+        allow: [...(settings.permissions?.allow ?? []), "mcp__elicit"],
+      }
+      writeFileSync(path, JSON.stringify(settings))
+    },
+    ask: () => ({ calls: [{ name: "mcp__elicit__elicit", input: {} }] }),
+  },
+  // Plan mode, as its settings seed it: the model writes the plan into the plans folder its
+  // system prompt names, then calls ExitPlanMode, which asks "Would you like to proceed?".
+  planning: {
+    seed: (sandbox) => {
+      const path = join(sandbox.home, ".claude", "settings.json")
+      const settings = JSON.parse(readFileSync(path, "utf8")) as {
+        permissions?: Record<string, unknown>
+      }
+      settings.permissions = { ...settings.permissions, defaultMode: "plan" }
+      writeFileSync(path, JSON.stringify(settings))
+    },
+    rules: (_sandbox, prompt) => [
+      own((call) => {
+        const last = call.turns.at(-1)
+        if (asked(call, prompt)) {
+          const plans = everything(call).match(/\/[^\s"'`]*\/plans\/[\w.-]+\.md/)
+          if (!plans) throw new Error("Claude Code's call names no plans file")
+          return {
+            calls: [
+              {
+                name: "Write",
+                input: { file_path: plans[0], content: "# Plan\n\n1. Do the thing\n2. Test it\n" },
+              },
+            ],
+          }
+        }
+        if (last?.role === "tool" && /File created|updated/.test(last.text))
+          return { calls: [{ name: "ExitPlanMode", input: {} }] }
+        return result(call) === undefined ? undefined : { text: "Planned." }
+      }),
+    ],
+    approved: /User has approved your plan/,
   },
   // Escape before any reply came drops the turn and puts its prompt back in the box,
   // between the box's rules, with no word of the interruption (probed 2026-10-02, 2.1.287).

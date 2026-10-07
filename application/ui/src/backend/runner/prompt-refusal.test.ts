@@ -53,7 +53,30 @@ const cases = [
   "costs $5x",
 ]
 
+// Shell commands, as the chat's box sends them.
+const shellCases = [
+  "!ls",
+  "  ! git status  ",
+  "!",
+  "!   ",
+  "! \n ",
+  "!echo $",
+  "!echo $HOME",
+  "!echo @src",
+  "!echo a\necho b",
+  "!x\u001b",
+  "!!",
+  "/!ls",
+  "!echo $5",
+]
+
 describe("The mirror of the protocol's rule", () => {
+  it.each(shellCases)("agrees with it on %j as a shell command", (text) => {
+    expect(promptRefused(text, { shell: true })).toBe(
+      protocolRefusal(text, { shell: true }) !== undefined,
+    )
+  })
+
   it.each(cases.filter((text) => text.trim() !== ""))("agrees with it on %j", (text) => {
     expect(promptRefused(text)).toBe(protocolRefusal(text) !== undefined)
   })

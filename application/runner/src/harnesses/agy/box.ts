@@ -1,4 +1,16 @@
-import { ruledBox, type BoxProfile } from "../box.js"
+import { agreeing, ruledBox, type BoxProfile, type Markers } from "../box.js"
+
+/** The markers leading its box's first row: `>` as a prompt, `!` in its shell mode. */
+const markers: Markers = { prompt: ">", shell: "!" }
+
+/**
+ * Whether its footer says the box is in its shell mode (`!`), where Enter runs what it
+ * holds as a command: its last row says so, "activated bash mode · esc to cancel" (probed 1.2.14 and 1.3.0, fixtures/shell-mode.probe.json).
+ */
+export const shellFooter = (rows: readonly string[]): boolean => {
+  const last = rows.findLast((row) => row.trim() !== "")
+  return last !== undefined && /^activated bash mode(\s|·|$)/.test(last.trim())
+}
 
 /**
  * Antigravity's input box: between two `─` rules, `> ` leading its first row and the rest
@@ -8,7 +20,9 @@ import { ruledBox, type BoxProfile } from "../box.js"
  * `[Pasted text #4 1499 chars]`.
  */
 export const box: BoxProfile = {
-  read: (screen) => ruledBox(screen, ">"),
+  read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
+  // Enter would run a command shown as a placeholder as the placeholder's own text.
+  shell: { expands: false, footer: shellFooter },
   collapsed: ({ text }) => /^\[Pasted text #\d+ (?:\+\d+ lines?|\d+ chars?)\]$/.test(text.trim()),
   // 15 lines showed whole, even of 100 characters each; 16 did not. One line of 1,000
   // characters showed whole, 1,024 did not.

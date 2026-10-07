@@ -20,6 +20,10 @@ const has = (setup: AgentSetup, trait: Trait): boolean => {
   if (trait === "fork.picker") return setup.fork?.picker !== undefined
   if (trait === "fork.inPlace") return setup.fork?.inPlace !== undefined
   if (trait === "background.command") return setup.background?.command !== undefined
+  if (trait === "questions") return setup.asking !== undefined
+  if (trait === "multiSelect") return setup.asking?.multiSelect === true
+  if (trait === "plan") return setup.planning !== undefined
+  if (trait === "forms") return setup.forms !== undefined
   return setup[trait] !== undefined
 }
 

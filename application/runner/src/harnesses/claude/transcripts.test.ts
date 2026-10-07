@@ -31,6 +31,64 @@ describe("Claude Code's transcript, as captured", () => {
   })
 })
 
+const shell = JSON.parse(
+  readFileSync(join(import.meta.dirname, "fixtures", "shell.probe.json"), "utf8"),
+) as { scenarios: { [name: string]: object[] } }
+
+describe("Claude Code's shell-mode commands, as captured", () => {
+  const ran = (name: string) => items(shell.scenarios[name]!)
+
+  it("read as the person's `!command` and a Bash run, whose result pairs with its call", () => {
+    const [said, call, result, ...rest] = ran("multiline")
+    expect(rest).toEqual([])
+    expect(said).toMatchObject({ role: "user", kind: "text", text: "!echo first\necho second" })
+    expect(call).toMatchObject({
+      role: "assistant",
+      kind: "tool-call",
+      tool: "Bash",
+      text: JSON.stringify({ command: "echo first\necho second" }),
+    })
+    expect(call?.call).not.toBeNull()
+    expect(result).toMatchObject({ role: "tool", kind: "tool-result", text: "first\nsecond" })
+    expect(result?.call).toBe(call?.call)
+  })
+
+  it("show stdout, then stderr when there is some, and what a command that printed nothing says", () => {
+    expect(ran("stderr")[2]?.text).toBe("out-line\nerr-line")
+    // A failed command's output is all in stderr.
+    expect(ran("failed")[2]?.text).toBe("before")
+    expect(ran("missing")[2]?.text).toBe(
+      "/bin/bash: line 1: no-such-command-here: command not found",
+    )
+    expect(ran("empty")[2]?.text).toBe("(Bash completed with no output)")
+  })
+
+  it("leave out the caveat written before a command that was still running", () => {
+    expect(ran("caveat")).toEqual([])
+  })
+
+  it("cut long output short, and say so", () => {
+    const [, , result] = items([
+      { type: "user", uuid: "u1", message: { content: "<bash-input>seq 1 4000</bash-input>" } },
+      {
+        type: "user",
+        parentUuid: "u1",
+        message: {
+          content: `<bash-stdout>${"1234567\n".repeat(4000)}</bash-stdout><bash-stderr></bash-stderr>`,
+        },
+      },
+    ])
+    expect(result).toMatchObject({ truncated: true })
+    expect(result?.text).toHaveLength(16_384)
+  })
+
+  it("leave a person's own text that merely mentions the tags", () => {
+    expect(
+      items([{ type: "user", message: { content: "what is <bash-input>x</bash-input> for?" } }]),
+    ).toHaveLength(1)
+  })
+})
+
 describe("Claude Code's transcript records", () => {
   it("pair a tool's result with its call, by a ref of the call's id", () => {
     const [call, result] = items([

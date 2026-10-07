@@ -10,7 +10,7 @@ import headless from "@xterm/headless"
 import { vi } from "vitest"
 
 import { describe, expect, it as base } from "../test.js"
-import { command, ptyOptions } from "../testing/pty.js"
+import { command, ptyOptions, ptyTrace } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { forceKill, Terminals } from "./manager.js"
 
@@ -96,6 +96,153 @@ describe("terminal creation ownership", () => {
     const replacement = terminals.attach(manager, terminal.id, "replacement")
     expect((await replacement.next()).value).toMatchObject({ type: "snapshot", exit: null })
     expect(() => manager.write({ terminalId: terminal.id, data: "" }, "replacement")).not.toThrow()
+  })
+})
+
+describe("holding the person's input", () => {
+  it("lasts as long as the caller asked, past the doorbell's 8 s cap on the resizes", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    type Hold = { holding: () => boolean; release: () => void; settle: () => void }
+    const hold = (
+      manager as unknown as {
+        holdInput: (
+          id: string,
+          budget: { inputMs: number; sizeMs: number },
+          options?: object,
+        ) => Hold
+      }
+    ).holdInput(terminal.id, { inputMs: 60_000, sizeMs: 70_000 }, { deferKeys: true })
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    try {
+      // Timers armed before the clock was faked still run on real time: arm anew.
+      hold.settle()
+      const again = (
+        manager as unknown as {
+          holdInput: (
+            id: string,
+            budget: { inputMs: number; sizeMs: number },
+            options?: object,
+          ) => Hold
+        }
+      ).holdInput(terminal.id, { inputMs: 60_000, sizeMs: 70_000 }, { deferKeys: true })
+      vi.advanceTimersByTime(9_000)
+      expect(again.holding()).toBe(true)
+      vi.advanceTimersByTime(61_000)
+      expect(again.holding()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe("an answer's hold of the person's input", () => {
+  it("never replays the mouse's wheel and motion reports it held, once released", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    // The TUI asks for the mouse, as Claude Code and Codex do while a dialog shows.
+    manager.write(
+      { terminalId: terminal.id, data: command({ type: "write", data: "\x1b[?1003h\x1b[?1006h" }) },
+      "creator",
+    )
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    const hold = (
+      manager as unknown as {
+        holdInput: (
+          id: string,
+          cap: number,
+          options: object,
+        ) => { release: () => void; settle: () => void }
+      }
+    ).holdInput(terminal.id, 5_000, { deferKeys: true })
+    // 16 characters, which no other write of this test has: the child traces lengths.
+    manager.write({ terminalId: terminal.id, data: "\x1b[<64;123;456M" }, "creator")
+    manager.write({ terminalId: terminal.id, data: "k" }, "creator")
+    hold.release()
+    hold.settle()
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    const trace = ptyTrace(40)
+    // The key went once released; the wheel report never did.
+    expect(trace).toContain("received 1 chars")
+    expect(trace).not.toContain("received 16 chars")
+  })
+})
+
+describe("answers and the prompts after them", () => {
+  it("keeps a chat prompt behind an answer's follow-up words, which go first", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const order: string[] = []
+    const inside = manager as unknown as {
+      answers: { answer: () => Promise<void> }
+      prompts: { prompt: (id: string, text: string) => Promise<void> }
+    }
+    // The answer takes a while to press its keys, then sends its words as a prompt of its own.
+    inside.answers = {
+      answer: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 60))
+        await inside.prompts.prompt("t", "the person's words")
+      },
+    }
+    inside.prompts = {
+      prompt: async (_, text) => {
+        // Whatever goes first takes its time, as a paste does: nothing may slip in beside it.
+        order.push(`start ${text}`)
+        await new Promise((resolve) => setTimeout(resolve, 30))
+        order.push(`end ${text}`)
+      },
+    }
+    const answer = manager.answer({
+      terminalId: "t",
+      request: "r",
+      answer: { type: "choice", dialog: "d", option: "1" },
+    })
+    // A message from the chat box, sent while the answer is under way.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    const chat = manager.prompt({ terminalId: "t", text: "chat message" })
+    await Promise.all([answer, chat])
+    expect(order).toEqual([
+      "start the person's words",
+      "end the person's words",
+      "start chat message",
+      "end chat message",
+    ])
+  })
+
+  it("lets prompts through again once an answer failed", async ({ terminals }) => {
+    const manager = terminals.manager(ptyOptions)
+    const inside = manager as unknown as {
+      answers: { answer: () => Promise<void> }
+      prompts: { prompt: () => Promise<void> }
+    }
+    inside.answers = { answer: () => Promise.reject(new Error("no")) }
+    let sent = 0
+    inside.prompts = {
+      prompt: () => {
+        sent += 1
+        return Promise.resolve()
+      },
+    }
+    await expect(
+      manager.answer({
+        terminalId: "t",
+        request: "r",
+        answer: { type: "choice", dialog: "d", option: "1" },
+      }),
+    ).rejects.toThrow("no")
+    await manager.prompt({ terminalId: "t", text: "after" })
+    expect(sent).toBe(1)
   })
 })
 

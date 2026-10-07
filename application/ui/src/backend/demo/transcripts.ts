@@ -1,36 +1,49 @@
-import type { ChatItem, ChatRequest } from "../../model/conversation"
+import type { ChatAnswer, ChatDialog, ChatItem, ChatRequest } from "../../model/conversation"
 
 // What a demo agent's conversation opens with: its records, as its harness wrote them, and
 // what waits on the person.
 export type DemoTranscript = {
   readonly items: readonly ChatItem[]
   readonly requests: readonly ChatRequest[]
+  // What answering a request does, by the request's id: only for those the demo can answer.
+  readonly outcomes?: Readonly<
+    Record<string, (answer: ChatAnswer, dialog: ChatDialog) => DemoOutcome>
+  >
 }
 
-type Draft = Pick<ChatItem, "role" | "kind" | "text"> &
+// What an answer leaves in the conversation, as the harness records it: the records it
+// adds, then either what the agent says as its turn goes on, or the person's words, which
+// become the agent's next prompt.
+export type DemoOutcome =
+  | { readonly items: readonly DemoDraft[]; readonly reply: string }
+  | { readonly items: readonly DemoDraft[]; readonly prompt: string }
+  // The turn ends there, and the agent waits at its prompt for the person's words.
+  | { readonly items: readonly DemoDraft[]; readonly waits: true }
+
+export type DemoDraft = Pick<ChatItem, "role" | "kind" | "text"> &
   Partial<Pick<ChatItem, "tool" | "call" | "author" | "truncated">>
 
-const user = (text: string): Draft => ({ role: "user", kind: "text", text })
-const say = (text: string): Draft => ({
+const user = (text: string): DemoDraft => ({ role: "user", kind: "text", text })
+const say = (text: string): DemoDraft => ({
   role: "assistant",
   kind: "text",
   text,
 })
-const use = (call: string, tool: string, input: unknown): Draft => ({
+const use = (call: string, tool: string, input: unknown): DemoDraft => ({
   role: "assistant",
   kind: "tool-call",
   tool,
   call,
   text: typeof input === "string" ? input : JSON.stringify(input),
 })
-const got = (call: string, text: string, truncated = false): Draft => ({
+const got = (call: string, text: string, truncated = false): DemoDraft => ({
   role: "tool",
   kind: "tool-result",
   call,
   text,
   truncated,
 })
-const from = (author: string, text: string): Draft => ({
+const from = (author: string, text: string): DemoDraft => ({
   role: "agent",
   kind: "text",
   text,
@@ -38,7 +51,7 @@ const from = (author: string, text: string): Draft => ({
 })
 
 // Numbers the drafts as one terminal's items, a half minute apart, the last just now.
-const written = (terminalId: string, now: number, drafts: readonly Draft[]): ChatItem[] =>
+const written = (terminalId: string, now: number, drafts: readonly DemoDraft[]): ChatItem[] =>
   drafts.map((draft, index) => ({
     id: `${terminalId}:${index + 1}`,
     at: now - (drafts.length - index) * 30_000,
@@ -135,8 +148,38 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
           "No, keep planning",
         ],
         subagent: false,
+        answered: false,
+        dialog: {
+          type: "choices",
+          id: "01:d",
+          detail:
+            "Checkout flow\n1. Cart summary in src/cart/CartSummary.tsx\n2. Address form\n3. Payment step, behind a provider interface",
+          title: "Claude has written up a plan and is ready to execute. Would you like to proceed?",
+          options: [
+            { id: "1", label: "Yes, and auto-accept edits", text: null },
+            { id: "2", label: "Yes, and manually approve edits", text: null },
+            { id: "3", label: "No, and tell Claude what to change", text: "field" },
+          ],
+        },
       },
     ],
+    outcomes: {
+      "01:plan": (answer) =>
+        answer.type === "choice" && answer.option === "3"
+          ? {
+              items: [
+                got(
+                  "toolu_01d",
+                  `The user doesn't want to proceed with this tool use. To tell you how to proceed, the user said:\n${answer.text ?? ""}`,
+                ),
+              ],
+              reply: `Understood. I'll revise the plan: ${answer.text ?? "your notes"}`,
+            }
+          : {
+              items: [got("toolu_01d", "User has approved your plan. You can now start coding.")],
+              reply: "Starting with the cart summary in `src/cart/CartSummary.tsx`.",
+            },
+    },
   },
   "03": {
     items: written("03", now, [
@@ -164,7 +207,36 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
         prompt: "Run src/checkout specs five times and report which ones fail or time out.",
       }),
     ]),
-    requests: [],
+    // A dialog the chat can't read, as after an agent update changed it.
+    requests: [
+      {
+        id: "03:raw",
+        kind: "permission",
+        tool: "Bash",
+        subject: "pnpm test --filter cart --repeat 5",
+        choices: [],
+        subagent: true,
+        answered: false,
+        dialog: {
+          type: "raw",
+          reason: "unrecognized",
+          text: [
+            "╭──────────────────────────────────────────────────────────╮",
+            "│ Bash command                                             │",
+            "│                                                          │",
+            "│   pnpm test --filter cart --repeat 5                     │",
+            "│   Run the cart specs five times                          │",
+            "│                                                          │",
+            "│ Allow this command?                                      │",
+            "│                                                          │",
+            "│ ❯ [a] Allow once                                         │",
+            "│   [s] Allow for this session                             │",
+            "│   [d] Deny                                               │",
+            "╰──────────────────────────────────────────────────────────╯",
+          ].join("\n"),
+        },
+      },
+    ],
   },
   "04": {
     items: written("04", now, [
@@ -217,8 +289,41 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
           "No, and tell Codex what to do differently",
         ],
         subagent: false,
+        answered: false,
+        dialog: {
+          type: "choices",
+          id: "04:d",
+          detail: "pnpm test --filter checkout",
+          title: "Would you like to run the following command?",
+          options: [
+            { id: "1", label: "Yes, proceed", text: null },
+            {
+              id: "2",
+              label: "Yes, and don't ask again for commands that start with `pnpm test`",
+              text: null,
+            },
+            { id: "3", label: "No, and tell Codex what to do differently", text: "prompt" },
+          ],
+        },
       },
     ],
+    outcomes: {
+      "04:permission": (answer) =>
+        answer.type === "choice" && answer.option === "3"
+          ? {
+              items: [got("call_04d", "aborted by user")],
+              prompt: answer.text ?? "Don't run that.",
+            }
+          : {
+              items: [
+                got(
+                  "call_04d",
+                  "Chunk ID: 5d1e90\nWall time: 4.2100 seconds\nProcess exited with code 0\nOutput:\n Test Files  3 passed (3)\n      Tests  41 passed (41)\n",
+                ),
+              ],
+              reply: "The checkout tests pass with the rounding fix. Nothing else needs changing.",
+            },
+    },
   },
   "05": {
     items: written("05", now, [
@@ -273,8 +378,102 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
       say(
         "Fixed: each request is now logged once. I removed the duplicate `router.use(requestLogger)` from `routes.ts` and noted where logging lives in `notes/logging.md`.",
       ),
+      use("step:8", "ask_question", {
+        questions: [
+          {
+            question: "Which checks should run before each deploy?",
+            options: ["Unit tests", "Type check", "Lint", "End-to-end tests"],
+            is_multi_select: true,
+          },
+          {
+            question: "Where should the logging note live?",
+            options: ["notes/logging.md", "The README"],
+            is_multi_select: false,
+          },
+        ],
+      }),
     ]),
-    requests: [],
+    // Antigravity says nothing of what it waits on; its question is read from its screen.
+    requests: [
+      {
+        id: "05:question",
+        kind: "question",
+        tool: "ask_question",
+        subject: null,
+        choices: [],
+        subagent: false,
+        answered: false,
+        dialog: {
+          type: "questions",
+          id: "05:d",
+          chat: "prompt",
+          questions: [
+            {
+              id: "checks",
+              header: "Checks",
+              question: "Which checks should run before each deploy?",
+              options: [
+                { id: "unit", label: "Unit tests", description: "Fast, runs in a few seconds" },
+                { id: "types", label: "Type check", description: null },
+                { id: "lint", label: "Lint", description: null },
+                {
+                  id: "e2e",
+                  label: "End-to-end tests",
+                  description: "Drives a real browser and takes a few minutes",
+                },
+              ],
+              multiSelect: true,
+              text: true,
+            },
+            {
+              id: "note",
+              header: "Note",
+              question: "Where should the logging note live?",
+              options: [
+                { id: "file", label: "notes/logging.md", description: null },
+                { id: "readme", label: "The README", description: null },
+              ],
+              multiSelect: false,
+              text: true,
+            },
+          ],
+        },
+      },
+    ],
+    outcomes: {
+      "05:question": (answer, dialog) => {
+        if (answer.type === "chat")
+          return answer.text
+            ? {
+                items: [got("step:8", "The user chose to chat about the questions instead.")],
+                prompt: answer.text,
+              }
+            : {
+                items: [got("step:8", "The user chose to chat about the questions instead.")],
+                waits: true,
+              }
+        const labels = new Map(
+          dialog.type === "questions"
+            ? dialog.questions.flatMap((q) => q.options.map((o) => [o.id, o.label] as const))
+            : [],
+        )
+        const said =
+          answer.type === "questions"
+            ? answer.answers
+                .map((each) =>
+                  [
+                    ...each.options.map((id) => labels.get(id) ?? id),
+                    ...(each.text ? [each.text] : []),
+                  ].join(", "),
+                )
+                .join("; ")
+            : ""
+        return {
+          items: [got("step:8", `User answered: ${said}`)],
+          reply: `Noted: ${said}. I'll set the deploy up that way.`,
+        }
+      },
+    },
   },
   "06": {
     items: written("06", now, [
@@ -314,8 +513,73 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
       say(
         "## Build\n\nIt passes now. The failure was an import from the wrong module, fixed in `src/checkout/total.ts`.\n\n| Asset | Size |\n| --- | --- |\n| JavaScript | 214 kB (68 kB gzip) |\n| CSS | 18 kB |\n\nI left `pnpm preview` running in the background so you can open it at <http://localhost:4173>.",
       ),
+      use("toolu_06e", "mcp__deploy__configure_target", {
+        message: "Configure the deploy target",
+      }),
     ]),
-    requests: [],
+    // An MCP server asks for a form.
+    requests: [
+      {
+        id: "06:form",
+        kind: "question",
+        tool: "mcp__deploy__configure_target",
+        subject: null,
+        choices: [],
+        subagent: false,
+        answered: false,
+        dialog: {
+          type: "form",
+          id: "06:d",
+          message: "Configure the deploy target",
+          fields: [
+            {
+              id: "target",
+              label: "Target name",
+              description: "As it is named in the deploy config",
+              kind: "text",
+              choices: [],
+              required: true,
+            },
+            {
+              id: "environment",
+              label: "Environment",
+              description: null,
+              kind: "choice",
+              choices: ["staging", "production"],
+              required: true,
+            },
+            {
+              id: "replicas",
+              label: "Replicas",
+              description: null,
+              kind: "number",
+              choices: [],
+              required: false,
+            },
+            {
+              id: "dryRun",
+              label: "Dry run first",
+              description: "Shows what would change without deploying",
+              kind: "boolean",
+              choices: [],
+              required: false,
+            },
+          ],
+        },
+      },
+    ],
+    outcomes: {
+      "06:form": (answer) =>
+        answer.type === "form" && answer.action === "accept"
+          ? {
+              items: [got("toolu_06e", `User accepted: ${JSON.stringify(answer.values)}`)],
+              reply: `Deploying ${String(answer.values.target ?? "the target")} to ${String(answer.values.environment ?? "staging")}.`,
+            }
+          : {
+              items: [got("toolu_06e", "User declined to provide the configuration.")],
+              reply: "Understood, I won't deploy. Tell me when you want to try again.",
+            },
+    },
   },
 })
 

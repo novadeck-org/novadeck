@@ -149,6 +149,18 @@ export type ActivityEvent = {
       readonly subject: string | null
       readonly choices: readonly string[]
       /**
+       * The tool's input as the hook gave it (questions, a command, a plan), for the
+       * harness's dialog adapter to check its dialog against; absent where none came.
+       */
+      readonly input?: unknown
+      /** The directory the agent's hook said it ran in, where it said one. */
+      readonly cwd?: string
+      /**
+       * Whether only the screen told it (see `DialogAdapter.screenRequest`): the terminal
+       * manager raises it, and it resumes no turn.
+       */
+      readonly screen?: true
+      /**
        * Whether only a root turn running asks it, and only a snapshot that may lag behind
        * the turn's end tells it, as Antigravity's status line shows a confirmation: it
        * counts only while a turn runs, or one a `turn-working` resumed.

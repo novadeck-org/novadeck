@@ -82,7 +82,7 @@ describe("Antigravity's status line, as captured", () => {
         requestId: "confirmation",
         actor: null,
         toolName: "confirmation",
-        loose: false,
+        loose: true,
         outcome: "allowed",
       },
     ])

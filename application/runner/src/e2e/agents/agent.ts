@@ -1,7 +1,8 @@
 import type { AgentName } from "@novadeck/protocol"
 
+import type { DeckTerminal } from "../deck.js"
 import type { Dialect } from "../model/dialect.js"
-import type { Call, Reply } from "../model/script.js"
+import type { Call, Reply, Rule } from "../model/script.js"
 import type { FakeModel } from "../model/server.js"
 import type { Sandbox } from "../sandbox.js"
 
@@ -61,6 +62,10 @@ export type Trait =
   | "shell"
   | "rewind"
   | "popup"
+  | "questions"
+  | "multiSelect"
+  | "plan"
+  | "forms"
   | "fork.picker"
   | "fork.inPlace"
 
@@ -80,6 +85,60 @@ export type Approval = {
   readonly deny: string
   /** What the screen shows once it is refused, the harness's own account of the refusal. */
   readonly denied: RegExp
+}
+
+/** A question a scenario has the agent ask the person, in the words of any harness's tool. */
+export type Question = {
+  readonly question: string
+  readonly header: string
+  readonly options: readonly { readonly label: string; readonly description: string }[]
+  readonly multiSelect: boolean
+}
+
+/**
+ * How a scenario has the agent ask the person questions with its own tool (Claude Code's
+ * AskUserQuestion, Codex's request_user_input, Antigravity's ask_question), which the chat
+ * answers.
+ */
+export type Asking = {
+  /** A reply that asks `questions` through the tool, given the call it answers. */
+  readonly questions: (call: Call, questions: readonly Question[]) => Reply
+  /**
+   * Whether it lets the person pick several options of a question (the `multiSelect`
+   * trait); one that doesn't has its tool take one.
+   */
+  readonly multiSelect: boolean
+  /** Puts a started terminal into the mode its tool needs (Codex offers it in Plan mode only). */
+  readonly enter?: (terminal: DeckTerminal) => Promise<void>
+}
+
+/**
+ * How a scenario has the agent call an MCP tool that asks the person to fill a form (an
+ * elicitation), which the chat accepts with values or declines.
+ */
+export type Forms = {
+  /**
+   * Registers `server`, the stdio MCP server of `mcp-elicit-server.mjs`, in the harness
+   * (its `elicit` tool, allowed without asking), before any terminal starts.
+   */
+  readonly prepare: (sandbox: Sandbox, server: string) => void
+  /** A reply that calls the server's `elicit` tool, given the call it answers. */
+  readonly ask: (call: Call) => Reply
+}
+
+/**
+ * How a scenario has the agent propose a plan the person reviews, which the chat approves
+ * or rejects with feedback.
+ */
+export type Planning = {
+  /** Seeds the sandbox before any terminal starts: the harness in its planning mode. */
+  readonly seed?: (sandbox: Sandbox) => void
+  /** Puts a started terminal into planning (Codex's `/plan`). */
+  readonly enter?: (terminal: DeckTerminal) => Promise<void>
+  /** Rules that have the agent answer `prompt` with a plan for review, given the sandbox. */
+  readonly rules: (sandbox: Sandbox, prompt: string) => readonly Rule[]
+  /** What the agent's next call holds once the person approved the plan. */
+  readonly approved: RegExp
 }
 
 /**
@@ -217,6 +276,12 @@ export type AgentSetup = {
   ) => Promise<Readonly<Record<string, string>>>
   /** How it asks before a tool runs. */
   readonly approval?: Approval
+  /** How its agent asks the person questions. */
+  readonly asking?: Asking
+  /** How its agent calls an MCP tool that elicits a form. */
+  readonly forms?: Forms
+  /** How its agent proposes a plan for the person's review. */
+  readonly planning?: Planning
   /** How its agent starts work that outlives its turn. */
   readonly background?: Background
   /** How its agent runs a command, a nested run of the harness, without asking. */

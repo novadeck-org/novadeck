@@ -1,6 +1,6 @@
-import type { AgentDetail } from "@novadeck/protocol"
+import type { AgentDetail, RequestDialog } from "@novadeck/protocol"
 
-import { subagentRef, summary, type Activity } from "./activity.js"
+import { subagentRef, summary, type Activity, type Request } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import { ref } from "./harness.js"
 import { harnesses } from "./registry.js"
@@ -13,6 +13,10 @@ const maxActors = 33
 /** The reference clients know a session's root agent by. */
 export const rootRef = ({ agent, sessionId }: Binding): string => ref("root", agent, sessionId)
 
+/** The reference clients know a request waiting on the person by. */
+export const requestRef = ({ sessionId }: Binding, { requestId, askedAt }: Request): string =>
+  ref("request", sessionId, requestId, String(askedAt))
+
 /**
  * The agent a terminal runs, in detail: its root and subagents, each request waiting on
  * the person, and what its harness tells. Harnesses do not say which agent started a
@@ -23,6 +27,8 @@ export const agentDetail = (
   binding: Binding | null,
   activity: Activity | null,
   telemetry: Telemetry | null,
+  dialogs: ReadonlyMap<string, RequestDialog> = new Map(),
+  answered: ReadonlySet<string> = new Set(),
 ): AgentDetail => {
   if (!binding)
     return {
@@ -73,14 +79,20 @@ export const agentDetail = (
     ],
     requests: pending
       .filter(({ actor }) => actor === null || listed(actor))
-      .map(({ requestId, actor, toolName, kind, subject, choices, askedAt }) => ({
-        ref: ref("request", binding.sessionId, requestId, String(askedAt)),
-        actor: actor === null ? root : subagentRef(actor),
-        kind,
-        tool: toolName.slice(0, 256),
-        subject,
-        choices: [...choices],
-      })),
+      .map((request) => {
+        const { actor, toolName, kind, subject, choices } = request
+        const at = requestRef(binding, request)
+        return {
+          ref: at,
+          actor: actor === null ? root : subagentRef(actor),
+          kind,
+          tool: toolName.slice(0, 256),
+          subject,
+          choices: [...choices],
+          dialog: dialogs.get(at) ?? null,
+          answered: answered.has(at),
+        }
+      }),
     coverage: harnesses[binding.agent].coverage,
   }
 }

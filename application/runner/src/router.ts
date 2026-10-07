@@ -201,6 +201,7 @@ export const createRouter = (options: {
         }
       }),
       prompt: authorized.agents.prompt.handler(({ input }) => terminals.prompt(input)),
+      answer: authorized.agents.answer.handler(({ input }) => terminals.answer(input)),
       interrupt: authorized.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
       set: authorized.agents.set.handler(async ({ input }) => {
         const result = await agents.set(input.agent, input.connected)

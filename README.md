@@ -66,7 +66,16 @@ box types a prompt into the agent's real TUI the way you would (Enter sends, Shi
 adds a line): the runner's `agents.prompt` pastes it, checks it landed in the agent's
 box, then presses Enter. **Stop** presses Escape there. The TUI keeps running underneath
 at its full size, so the Chat button, or **Answer in terminal** on a request card, shows
-it again as it was; permissions, questions and plans are answered there. The choice and
+it again as it was. What waits on you (a permission, a plan to approve, the agent's
+questions, a form an MCP server asks you to fill) shows as a card under the conversation
+and is answered right there: pick an option, give your own words where the agent's
+dialog takes them (a refusal with instructions, plan feedback, an answer of your own), or
+fill the form's fields and accept or decline it. Novadeck answers by pressing the
+dialog's keys in the agent's terminal, as you would, then checks that it took; each
+agent's dialogs are read by its own adapter (`harnesses/<agent>/dialogs.ts` in the
+runner), which checks what it reads against what the agent asked and never guesses. When
+it can't read a dialog, as after an agent update changed it, or an answer didn't take,
+the card shows the dialog's text as the terminal draws it, with **Answer in terminal**. The choice and
 the draft last until the agent ends; a reload starts in the terminal again. The
 behaviour specs' demo (`?demo=agents`) has a conversation for each of its agents.
 

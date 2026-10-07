@@ -70,6 +70,47 @@ const moves = /^\x1b(?:\[[\d;]*[CDFH]|O[CDFH]|\[[1478]~)$/
 const right = /^\x1b(?:\[[\d;]*C|OC)$/
 
 /**
+ * A write split into the terminal's own reports (answers to its queries, focus and wheel
+ * reports the TUI asked for), which are never held back, and the rest, the person's keys
+ * and pastes, in their order. With `holdMouse`, the mouse's wheel and motion reports come
+ * apart as `mouse`, for the caller to drop: a TUI that tracks the mouse (Claude Code's and
+ * Codex's do) would take them as the person's hand over a dialog being answered, and
+ * replayed later, once tracking may be off, they would read as keys.
+ */
+export const splitReports = (
+  data: string,
+  reporting: Reporting,
+  holdMouse = false,
+): { readonly reports: string; readonly typed: string; readonly mouse: string } => {
+  let reports = ""
+  let mouse = ""
+  let typed = ""
+  let at = 0
+  while (at < data.length) {
+    const rest = data.slice(at)
+    if (rest.startsWith("\x1b[200~")) {
+      const end = rest.indexOf("\x1b[201~")
+      const length = end < 0 ? rest.length : end + 6
+      typed += rest.slice(0, length)
+      at += length
+      continue
+    }
+    const reported = report.exec(rest)
+    if (reported && reportOf(reported, reporting) === "none") {
+      const isMouse = reported.groups?.sgr !== undefined || reported.groups?.x10 !== undefined
+      if (holdMouse && isMouse) mouse += reported[0]
+      else reports += reported[0]
+      at += reported[0].length
+      continue
+    }
+    // One at a time: a report starts where a key sequence ended.
+    typed += rest[0]
+    at += 1
+  }
+  return { reports, typed, mouse }
+}
+
+/**
  * The keys in one write: everything but the terminal's own reports. A bracketed paste is
  * one key, whatever it holds, so its carriage returns never submit.
  */

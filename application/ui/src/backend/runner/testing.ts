@@ -152,6 +152,10 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note(`prompt ${terminalId}`, () => runner.agents.prompt(terminalId, text)),
       interrupt: (terminalId) =>
         note(`interrupt ${terminalId}`, () => runner.agents.interrupt(terminalId)),
+      answer: (terminalId, request, answer) =>
+        note(`answer ${terminalId} ${request}`, () =>
+          runner.agents.answer(terminalId, request, answer),
+        ),
       set: (agent, connected) =>
         note(`agent ${agent} ${connected}`, () => runner.agents.set(agent, connected)),
     },

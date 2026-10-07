@@ -207,6 +207,20 @@ describe("applying activity", () => {
       startedAt: 9,
     })
 
+  it("keeps the tool's input a request asked with, and the screen it came from", () => {
+    const input = { command: "ls" }
+    const asked = apply(started(0), binding, {
+      ...request("a:Bash:1", null),
+      input,
+      screen: true,
+    } as ActivityEvent)!
+    expect(asked.pending[0]).toMatchObject({ input, screen: true })
+    // One only the screen tells resumes no turn: an idle agent stays idle.
+    expect(asked.state).toBe("idle")
+    expect(apply(started(0), binding, request("a:Bash:1", null))!.state).toBe("working")
+    expect(apply(asked, binding, result("a:Bash:1", null))?.pending).toEqual([])
+  })
+
   it("keeps one actor's request waiting while another actor's calls finish", () => {
     const waiting = apply(started(0), binding, request("a:Bash:1", "a"))!
     // Another subagent's own call of the same tool, which needed no permission.

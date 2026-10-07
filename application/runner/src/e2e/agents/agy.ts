@@ -1,8 +1,10 @@
+import { readdirSync, statSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import { gemini } from "../model/gemini.js"
-import type { Call } from "../model/script.js"
+import { asked, type Call } from "../model/script.js"
+import { own } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
 
 // The folder its commands run in, as its system prompt names it: a command must run there.
@@ -74,6 +76,62 @@ export const agy: AgentSetup = {
     shows: /> 1\. Yes, run command/,
     deny: "4",
     denied: /User declined the tool call/,
+  },
+  // ask_question, which takes several options where it says so.
+  asking: {
+    multiSelect: true,
+    questions: (_call, questions) => ({
+      calls: [
+        {
+          name: "ask_question",
+          input: {
+            questions: questions.map((question) => ({
+              question: question.question,
+              options: question.options.map(({ label }) => label),
+              is_multi_select: question.multiSelect,
+            })),
+            toolSummary: "Question",
+            toolAction: "Asking",
+          },
+        },
+      ],
+    }),
+  },
+  // A plan is an artifact written for review (RequestFeedback), in the folder of the
+  // conversation, the newest one under its `brain` (probed 2026-10-06, 1.2.14).
+  planning: {
+    rules: (sandbox, prompt) => [
+      own((call) => {
+        if (!asked(call, prompt)) return undefined
+        const brain = join(sandbox.home, ".gemini", "antigravity-cli", "brain")
+        const newest = readdirSync(brain)
+          .map((name) => ({ name, at: statSync(join(brain, name)).mtimeMs }))
+          .toSorted((a, b) => b.at - a.at)[0]
+        if (!newest) throw new Error("Antigravity has no artifact folder yet")
+        return {
+          calls: [
+            {
+              name: "write_to_file",
+              input: {
+                TargetFile: join(brain, newest.name, "implementation_plan.md"),
+                Overwrite: true,
+                CodeContent: "# Plan\n\n1. Do the thing\n2. Test the thing\n",
+                Description: "Writes the plan",
+                ArtifactMetadata: {
+                  Summary: "A plan to do and test the thing",
+                  UserFacing: true,
+                  RequestFeedback: true,
+                },
+                toolSummary: "Plan",
+                toolAction: "Planning",
+              },
+            },
+          ],
+        }
+      }),
+      own((call) => (call.turns.at(-1)?.role === "tool" ? { text: "Planned." } : undefined)),
+    ],
+    approved: /\[Approved\] implementation_plan\.md/,
   },
   // `run_command` running its own print mode, which its settings allow (`command(agy -p)`).
   // It waits at most 10 s for the command, its range's top (500 to 10000 ms; 30000 waited
@@ -148,6 +206,7 @@ export const agy: AgentSetup = {
     },
   },
   absent: {
+    forms: "it shows no MCP elicitation form to answer (probed 2026-10-06, 1.2.14)",
     "fork.picker":
       "no command line forks a conversation: its flags only resume one (`--conversation`, `--continue`), and its fork is the in-place /fork (probed 2026-10-03, 1.2.14)",
     popup:

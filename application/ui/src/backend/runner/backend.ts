@@ -935,6 +935,7 @@ export const runnerBackend = (
       transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
       prompt: (terminalId, text) => runner.agents.prompt(terminalId, text),
       interrupt: (terminalId) => runner.agents.interrupt(terminalId),
+      answer: (terminalId, request, answer) => runner.agents.answer(terminalId, request, answer),
     },
     track,
   )

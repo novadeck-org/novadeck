@@ -105,9 +105,25 @@ describe("an agent's detail", () => {
         tool: "AskUserQuestion",
         subject: "Which color?",
         choices: ["Red", "Blue"],
+        dialog: null,
+        answered: false,
       },
     ])
     expect(detail.coverage).toBe(harnesses.claude.coverage)
+  })
+
+  it("carries a request's dialog, by its ref, where one is told", () => {
+    const { binding, activity } = replay("question")
+    const id = "00000000-0000-4000-8000-000000000001"
+    const ref = agentDetail(id, binding, activity, null).requests[0]!.ref
+    const dialog = { type: "raw", text: "screen", reason: "unrecognized" } as const
+    const detail = agentDetail(id, binding, activity, null, new Map([[ref, dialog]]))
+    expect(schema.parse(detail)).toEqual(detail)
+    expect(detail.requests[0]?.dialog).toEqual(dialog)
+    expect(detail.requests[0]?.answered).toBe(false)
+    const answered = agentDetail(id, binding, activity, null, new Map(), new Set([ref]))
+    expect(schema.parse(answered)).toEqual(answered)
+    expect(answered.requests[0]?.answered).toBe(true)
   })
 
   it("names a plan waiting for review by its file", () => {

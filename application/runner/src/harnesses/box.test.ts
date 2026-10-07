@@ -6,10 +6,10 @@ import headless from "@xterm/headless"
 import { screenText, type ScreenText } from "../terminals/screen.js"
 import { describe, expect, it } from "../test.js"
 import { screen as screenWith } from "../testing/screens.js"
-import { box as agy } from "./agy/box.js"
+import { box as agy, shellFooter as agyFooter } from "./agy/box.js"
 import { compact, isEmpty, sameText, wrappedRows, type BoxProfile } from "./box.js"
-import { box as claude } from "./claude/box.js"
-import { box as codex } from "./codex/box.js"
+import { box as claude, shellFooter as claudeFooter } from "./claude/box.js"
+import { box as codex, shellFooter as codexFooter } from "./codex/box.js"
 
 // Each harness's input box, read off the screens real runs drew (fixtures/input-box.probe.json,
 // from e2e/probes/input-box.e2e.ts): the pinned version and the latest of 2026-10-07.
@@ -277,10 +277,10 @@ describe("boxes read from synthetic screens", () => {
   })
 
   it("clears text put back in the box only where a harness puts some back", () => {
-    const box = { text: "a\nb", first: 3, last: 4 }
+    const box = { text: "a\nb", mode: "prompt" as const, first: 3, last: 4 }
     expect(claude.clear?.(box)).toBe("\x1b\x1b")
     expect(agy.clear?.(box)).toBe("\x15\x7f\x15")
-    expect(agy.clear?.({ text: "a", first: 3, last: 3 })).toBe("\x15")
+    expect(agy.clear?.({ text: "a", mode: "prompt" as const, first: 3, last: 3 })).toBe("\x15")
     expect(codex.clear).toBe(undefined)
   })
 
@@ -300,5 +300,71 @@ describe("boxes read from synthetic screens", () => {
     // With the cursor past it, it is a draft.
     const typed = screenWith({ rows, bright: lit, cursor: { row: 1, column: 3 } })
     expect(isEmpty(claude.read(typed)!)).toBe(false)
+  })
+})
+
+// Each harness's shell mode (`!`), as the screens of a real run showed it
+// (fixtures/shell-mode.probe.json, from e2e/probes/shell-bang.e2e.ts): the box's marker
+// says it, the footer agrees, and a box whose footer disagrees reads as no box.
+type ShellCase = { step: string; version: string; shell: boolean; rows: string[] }
+const shellCases = (harness: string): ShellCase[] =>
+  (
+    JSON.parse(
+      readFileSync(join(import.meta.dirname, harness, "fixtures", "shell-mode.probe.json"), "utf8"),
+    ) as { cases: ShellCase[] }
+  ).cases
+
+/** A screen of the rows with its cursor on the box's first row, as the harness draws it. */
+const cursored = (rows: string[], framed: boolean): ScreenText => {
+  const rules = rows.flatMap((row, index) => (/^─{8,}$/.test(row.trim()) ? [index] : []))
+  const first = framed
+    ? rules.at(-2)! + 1
+    : rows.findLastIndex((row) => row.startsWith("›") || row.startsWith("!"))
+  return screenWith({ rows, cursor: { row: first, column: 2 } })
+}
+
+const mixed = (box: string[], foot: string[]) => [
+  ...box.slice(0, -1),
+  foot.findLast((row) => row.trim() !== "")!,
+]
+
+describe.each([
+  { name: "Claude Code", footer: claudeFooter, profile: claude, key: "claude", framed: true },
+  { name: "Codex", footer: codexFooter, profile: codex, key: "codex", framed: false },
+  { name: "Antigravity", footer: agyFooter, profile: agy, key: "agy", framed: true },
+])("the shell mode of $name", ({ footer, profile, key, framed }) => {
+  const cases = shellCases(key)
+
+  it.each(cases.map((each) => [`${each.version} ${each.step}`, each] as const))(
+    "reads %s",
+    (_name, { shell, rows }) => {
+      expect(footer(rows)).toBe(shell)
+      const box = profile.read(cursored(rows, framed))
+      expect(box, "its box is found").toBeDefined()
+      expect(box!.mode).toBe(shell ? "shell" : "prompt")
+    },
+  )
+
+  it("reads nothing of a screen with nothing on it", () => {
+    expect(footer([])).toBe(false)
+    expect(footer(["", "  "])).toBe(false)
+  })
+
+  it("finds no box where the footer says the shell mode over a prompt's marker", () => {
+    const prompt = cases.find((each) => !each.shell && each.step === "9-idle")
+    const shell = cases.find((each) => each.shell && each.step === "9-bang")
+    expect(profile.read(cursored(mixed(prompt!.rows, shell!.rows), framed))).toBe(undefined)
+  })
+
+  it("still reads a shell mode's box under another hint than its footer", () => {
+    // Claude Code's "paste again to expand", under a pasted command's placeholder.
+    const prompt = cases.find((each) => !each.shell && each.step === "9-idle")
+    const shell = cases.find((each) => each.shell && each.step === "9-bang")
+    const box = profile.read(cursored(mixed(shell!.rows, prompt!.rows), framed))
+    expect(box?.mode).toBe("shell")
+  })
+
+  it("says whether a command shown as a placeholder runs as the text it stands for", () => {
+    expect(profile.shell.expands).toBe(key !== "agy")
   })
 })

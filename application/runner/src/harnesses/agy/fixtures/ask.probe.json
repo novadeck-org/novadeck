@@ -1,0 +1,697 @@
+{
+  "harness": "agy",
+  "version": "1.2.14",
+  "source": "captured",
+  "how": "the e2e sandbox with the fake model, Novadeck connected, a probe hook registered for every event in the project's .agents/hooks.json, driven by application/runner/src/e2e/probes/agy-ask.e2e.ts at 120x40 and 60x20; paths and ids replaced",
+  "scenarios": {
+    "command": {
+      "what": "run_command the person has no setting allowing, as the e2e seed leaves it",
+      "pending": {
+        "screen120": [
+          "────────────────────────────────────────────────────────────",
+          "> Run it",
+          "",
+          "● Bash(echo approved) (ctrl+o to expand)",
+          "",
+          "Command",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "",
+          "Requesting permission for:",
+          "   echo approved",
+          "",
+          "Run this command?",
+          "> 1. Yes, run command",
+          "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
+          "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+          "  4. No, cancel",
+          "",
+          "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        ],
+        "screen60": [
+          "────────────────────────────────────────────────────────────",
+          "",
+          "Requesting permission for:",
+          "   echo approved",
+          "",
+          "Run this command?",
+          "> 1. Yes, run command",
+          "  2. Yes, and always allow in this conversation for commands",
+          "that start with 'echo'",
+          "  3. Yes, and always allow for commands that start with",
+          "'echo' (Persist to settings.json)",
+          "  4. No, cancel",
+          "",
+          "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+          "esc to cancel                           Gemini 3.1 Pro · low"
+        ],
+        "status": [
+          {
+            "agent_state": "idle"
+          },
+          {
+            "agent_state": "tool_use",
+            "tool_confirmation_pending": true
+          },
+          {
+            "agent_state": "tool_use",
+            "tool_confirmation_pending": true
+          },
+          {
+            "agent_state": "tool_use",
+            "tool_confirmation_pending": true
+          }
+        ],
+        "hooks": [
+          {
+            "event": "PreInvocation"
+          },
+          {
+            "event": "PreToolUse",
+            "in": {
+              "conversationId": "<conversation>",
+              "modelName": "gemini-3.1-pro-low",
+              "stepIdx": 2,
+              "toolCall": {
+                "args": {
+                  "CommandLine": "echo approved",
+                  "Cwd": "/tmp/sandbox/project",
+                  "WaitMsBeforeAsync": 5000,
+                  "toolAction": "Echoing",
+                  "toolSummary": "Echo"
+                },
+                "name": "run_command"
+              }
+            }
+          },
+          {
+            "event": "PreToolUse:answer",
+            "out": {
+              "decision": "ask"
+            }
+          }
+        ]
+      },
+      "keys": {
+        "1": "runs it (PostToolUse, step DONE)",
+        "2": "runs it, always allow for the conversation",
+        "3": "runs it, persists to settings.json",
+        "4": "denied: step ERROR \"user denied permission to run command\"; no PostToolUse, Stop",
+        "Esc": "cancelled: no transcript step, no hook after PreToolUse",
+        "y": "ignored",
+        "Enter": "runs the selected option (1 by default)",
+        "Down x3 + Enter": "option 4: denied"
+      },
+      "afterAllow": {
+        "transcript": [
+          {
+            "step_index": 2,
+            "source": "MODEL",
+            "type": "GENERIC",
+            "status": "DONE",
+            "content": "\nThe command exited with code 0.\nOutput:\napproved\r\n\n"
+          },
+          {
+            "step_index": 3,
+            "source": "MODEL",
+            "type": "PLANNER_RESPONSE",
+            "status": "DONE",
+            "content": "Made it."
+          }
+        ],
+        "status": [
+          {
+            "agent_state": "tool_use",
+            "tool_confirmation_pending": true
+          },
+          {
+            "agent_state": "working"
+          },
+          {
+            "agent_state": "idle"
+          }
+        ]
+      },
+      "afterDeny": {
+        "transcript": [
+          {
+            "step_index": 2,
+            "source": "MODEL",
+            "type": "GENERIC",
+            "status": "ERROR",
+            "error": "permission check failed for command \"echo approved\": user denied permission to run command:\necho approved\nDo not attempt to circumvent this denial by rephrasing the command, using alternative tools/scripts (e.g. python, sh, curl), or accessing the same target resource. Proceed without performing this action.",
+            "content": "Encountered error in step execution: permission check failed for command \"echo approved\": user denied permission to run command:\necho approved\nDo not attempt to circumvent this denial by rephrasing the command, using alternative tools/scripts (e.g. python, sh, curl), or accessing the same target resource. Proceed without performing this action."
+          }
+        ]
+      }
+    },
+    "write_to_file": {
+      "what": "write_to_file of a plain file in the project",
+      "pending": {
+        "screen120": [
+          "────────────────────────────────────────────────────────────",
+          "> Make the file",
+          "",
+          "● Create(/tmp/sandbox/project/probe.txt) (ctrl+o to expand)",
+          "",
+          "Create file",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "",
+          "/tmp/sandbox/project/probe.txt  +1",
+          "   1 +  hello",
+          "",
+          "Allow creation of this file?",
+          "> 1. Yes, allow creation",
+          "  2. No, deny creation",
+          "",
+          "  ↑/↓ Navigate · tab Amend · f full diff",
+          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        ],
+        "hooks": [
+          {
+            "event": "PreInvocation"
+          },
+          {
+            "event": "PreToolUse",
+            "in": {
+              "conversationId": "<conversation>",
+              "modelName": "gemini-3.1-pro-low",
+              "stepIdx": 2,
+              "toolCall": {
+                "args": {
+                  "CodeContent": "hello\n",
+                  "Description": "Makes the file",
+                  "Overwrite": false,
+                  "TargetFile": "/tmp/sandbox/project/probe.txt",
+                  "toolAction": "Making file",
+                  "toolSummary": "Make file"
+                },
+                "name": "write_to_file"
+              }
+            }
+          },
+          {
+            "event": "PreToolUse:answer",
+            "out": {
+              "decision": "ask"
+            }
+          }
+        ]
+      },
+      "keys": {
+        "1": "creates it",
+        "2": "No, deny creation (pressed only to dismiss it after hook probes; its effect was not captured)"
+      },
+      "afterAllow": {
+        "transcript": [
+          {
+            "step_index": 2,
+            "source": "MODEL",
+            "type": "GENERIC",
+            "status": "DONE",
+            "content": "Created file file:///tmp/sandbox/project/probe.txt with requested content.\nIf relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission."
+          },
+          {
+            "step_index": 3,
+            "source": "MODEL",
+            "type": "PLANNER_RESPONSE",
+            "status": "DONE",
+            "content": "Made it."
+          }
+        ]
+      }
+    },
+    "ask_question": {
+      "what": "ask_question, one single-select question",
+      "pending": {
+        "screen120": [
+          "────────────────────────────────────────────────────────────",
+          "> Ask me",
+          "",
+          "? Which colour?",
+          "",
+          "Question",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "",
+          "Question 1/1: Which colour?",
+          "",
+          "> 1. Red",
+          "  2. Green",
+          "  3. Blue",
+          "  4. Write-in...",
+          "",
+          "  ↑/↓ Navigate · enter Select · esc Skip",
+          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        ],
+        "screen60": [
+          "─────────────────────────────────────────────────────────",
+          "> Ask me",
+          "",
+          "? Which colour?",
+          "",
+          "Question",
+          "────────────────────────────────────────────────────────────",
+          "",
+          "Question 1/1: Which colour?",
+          "",
+          "> 1. Red",
+          "  2. Green",
+          "  3. Blue",
+          "  4. Write-in...",
+          "",
+          "  ↑/↓ Navigate · enter Select · esc Skip",
+          "esc to cancel                           Gemini 3.1 Pro · low"
+        ],
+        "status": [
+          {
+            "agent_state": "working"
+          },
+          {
+            "agent_state": "working"
+          }
+        ],
+        "hooks": [
+          {
+            "event": "PreInvocation"
+          },
+          {
+            "event": "PreToolUse",
+            "in": {
+              "conversationId": "<conversation>",
+              "modelName": "gemini-3.1-pro-low",
+              "stepIdx": 2,
+              "toolCall": {
+                "args": {
+                  "questions": [
+                    {
+                      "is_multi_select": false,
+                      "options": ["Red", "Green", "Blue"],
+                      "question": "Which colour?"
+                    }
+                  ],
+                  "toolAction": "Asking colour",
+                  "toolSummary": "Colour question"
+                },
+                "name": "ask_question"
+              }
+            }
+          },
+          {
+            "event": "PreToolUse:answer",
+            "out": {
+              "decision": "ask"
+            }
+          }
+        ]
+      },
+      "multiSelect": {
+        "screen": [
+          "────────────────────────────────────────────────────────────",
+          "> Ask me",
+          "",
+          "? Which colour?",
+          "",
+          "Question",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "",
+          "Question 1/1: Which colour?",
+          "",
+          "> 1. [ ] Red",
+          "  2. [ ] Green",
+          "  3. [ ] Blue",
+          "  4. Write-in...",
+          "",
+          "  ↑/↓ Navigate · space Toggle · enter Submit · esc Skip",
+          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        ]
+      },
+      "twoQuestions": {
+        "q1": [
+          "────────────────────────────────────────────────────────────",
+          "> Ask me",
+          "",
+          "? Which colour?",
+          "? Which size?",
+          "",
+          "Question",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "",
+          "Question 1/2: Which colour?",
+          "",
+          "> 1. Red",
+          "  2. Green",
+          "  3. Write-in...",
+          "",
+          "  ↑/↓ Navigate · → Next · enter Select · esc Skip",
+          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        ],
+        "q2": [
+          "────────────────────────────────────────────────────────────",
+          "> Ask me",
+          "",
+          "? Which colour?",
+          "? Which size?",
+          "",
+          "Question",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "",
+          "Question 2/2: Which size?",
+          "",
+          "> 1. Small",
+          "  2. Large",
+          "  3. Write-in...",
+          "",
+          "  ↑/↓ Navigate · ← Back · enter Submit All · esc Skip",
+          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        ]
+      },
+      "writeIn": [
+        "────────────────────────────────────────────────────────────",
+        "> Ask me",
+        "",
+        "? Which colour?",
+        "",
+        "Question",
+        "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+        "",
+        "Question 1/1: Which colour?",
+        "",
+        "  1. Red",
+        "  2. Green",
+        "  3. Blue",
+        "> 4. Write-in...",
+        "",
+        "  Your answer:",
+        "",
+        "  enter Submit · esc Back",
+        "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      ],
+      "results": {
+        "digit 1": "A1: Red",
+        "Down+Enter": "A1: Green",
+        "Esc": "A1: User Skipped",
+        "write-in": "A1: Purple",
+        "two questions": "A1: Green\nA2: Large"
+      }
+    },
+    "plan_feedback": {
+      "what": "write_to_file of implementation_plan.md with ArtifactMetadata.RequestFeedback true",
+      "afterWrite": {
+        "screen120": [
+          "────────────────────────────────────────────────────────────",
+          "> Plan it",
+          "",
+          "● Edit(~/.gemini/antigravity-cli/brain/3bc11b00-fd34-4791-a10c-855d7414bc04/implementation_plan.md) (ctrl+o to expand)",
+          "",
+          "  Planned.",
+          "                                                                                        1 artifact · /artifact to review",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          ">",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+        ],
+        "status": [
+          {
+            "agent_state": "reviewing",
+            "artifact_count": 1
+          },
+          {
+            "agent_state": "reviewing",
+            "artifact_count": 1
+          }
+        ],
+        "transcript": [
+          {
+            "step_index": 2,
+            "source": "MODEL",
+            "type": "GENERIC",
+            "status": "DONE",
+            "content": "Created file file:///tmp/sandbox/home/.gemini/antigravity-cli/brain/<conversation>/implementation_plan.md with requested content.\nIf relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.\nNote: You have just created an artifact and requested user feedback. Stop calling tools to end your turn, and allow the user to review the artifact, approve it, or provide feedback"
+          },
+          {
+            "step_index": 3,
+            "source": "MODEL",
+            "type": "PLANNER_RESPONSE",
+            "status": "DONE",
+            "content": "Planned."
+          }
+        ]
+      },
+      "review": {
+        "screen120": [
+          "────────────────────────────────────────────────────────────",
+          "> Plan it",
+          "",
+          "● Edit(~/.gemini/antigravity-cli/brain/acedbb2d-bc35-4ad8-886b-e3788affaffd/implementation_plan.md) (ctrl+o to expand)",
+          "",
+          "  Planned.",
+          "                                                                                        1 artifact · /artifact to review",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          ">",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "Action required (1 left)",
+          "› □ new implementation_plan.md   open  approve reject",
+          "",
+          "Keyboard: ↑/↓ Navigate  y/n Approve/reject  shift+a Approve all  p Preview  ctrl+g open in editor  esc Done",
+          "",
+          "                                                                                                    Gemini 3.1 Pro · low"
+        ]
+      },
+      "approved": [
+        {
+          "step_index": 4,
+          "source": "USER_EXPLICIT",
+          "type": "USER_INPUT",
+          "status": "DONE",
+          "content": "<USER_REQUEST>\n[Approved] implementation_plan.md\n\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 2026-10-06T15:41:39+02:00.\n</ADDITIONAL_METADATA>"
+        },
+        {
+          "step_index": 5,
+          "source": "SYSTEM_SDK",
+          "type": "EPHEMERAL_MESSAGE",
+          "status": "DONE",
+          "content": "Novadeck: automatic notice, not from the user: this terminal has no description yet. When it suits, call Novadeck's describe tool with a short title and a line or two on what you work on here, so the user and other agents can tell terminals apart; this notice needs no reply."
+        },
+        {
+          "step_index": 6,
+          "source": "MODEL",
+          "type": "PLANNER_RESPONSE",
+          "status": "DONE",
+          "content": "Reacted."
+        }
+      ],
+      "rejected": [
+        {
+          "step_index": 4,
+          "source": "USER_EXPLICIT",
+          "type": "USER_INPUT",
+          "status": "DONE",
+          "content": "<USER_REQUEST>\n[Rejected] implementation_plan.md\n\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 2026-10-06T15:41:52+02:00.\n</ADDITIONAL_METADATA>"
+        },
+        {
+          "step_index": 5,
+          "source": "SYSTEM_SDK",
+          "type": "EPHEMERAL_MESSAGE",
+          "status": "DONE",
+          "content": "Novadeck: automatic notice, not from the user: this terminal has no description yet. When it suits, call Novadeck's describe tool with a short title and a line or two on what you work on here, so the user and other agents can tell terminals apart; this notice needs no reply."
+        },
+        {
+          "step_index": 6,
+          "source": "MODEL",
+          "type": "PLANNER_RESPONSE",
+          "status": "DONE",
+          "content": "Reacted."
+        }
+      ]
+    },
+    "hook": {
+      "what": "a PreToolUse hook answer on run_command / ask_question / write_to_file",
+      "results": {
+        "allow": "confirmation still shown",
+        "allow+permissionOverrides (command(...), write_file(...), command(*))": "confirmation still shown",
+        "force_ask": "confirmation shown",
+        "ask": "confirmation shown",
+        "{} (no decision)": "denied: \"tool call denied by pre-tool hook: \"",
+        "deny+reason": "step ERROR \"tool call denied by pre-tool hook: <reason>\", the model sees it",
+        "overwrite on ask_question": "the modal shows the overwritten questions",
+        "killed at timeout": "step ERROR \"JSON hook ... failed: command failed: signal: killed\", tool not run, no dialog",
+        "ask_question allow": "modal still shown"
+      },
+      "whileHolding": {
+        "screen120": [
+          "────────────────────────────────────────────────────────────",
+          "> Run it",
+          "",
+          "● Bash(echo approved) (ctrl+o to expand)",
+          "⣟  Running command...",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          ">",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        ],
+        "status": [
+          {
+            "agent_state": "authenticating"
+          },
+          {
+            "agent_state": "authenticating"
+          },
+          {
+            "agent_state": "idle"
+          },
+          {
+            "agent_state": "working"
+          }
+        ],
+        "keysTyped": [
+          "────────────────────────────────────────────────────────────",
+          "> Run it",
+          "",
+          "● Bash(echo approved) (ctrl+o to expand)",
+          "⣟  Running command...",
+          "└ Tip: To disable tips, toggle Show Tips in /settings.",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "> 4",
+          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        ]
+      }
+    },
+    "answered": {
+      "what": "the screen after each dialog was answered: the dialog gone, its answer in the history (captured 2026-10-06 with the keys Down+Enter, digit 1, a typed write-in, y and n in the artifact review)",
+      "ask": [
+        "──────────────────────────────────────────────────────",
+        "> Ask me",
+        "",
+        "? Which colour?",
+        "> Red",
+        "",
+        "  Noted.",
+        "",
+        "──────────────────────────────────────────────────────",
+        ">",
+        "──────────────────────────────────────────────────────",
+        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      ],
+      "two": [
+        "──────────────────────────────────────────────────────",
+        "> Ask me",
+        "",
+        "? Which colour?",
+        "> Green",
+        "? Which size?",
+        "> Large",
+        "",
+        "  Noted.",
+        "",
+        "──────────────────────────────────────────────────────",
+        ">",
+        "──────────────────────────────────────────────────────",
+        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      ],
+      "writeIn": [
+        "──────────────────────────────────────────────────────",
+        "> Ask me",
+        "",
+        "? Which colour?",
+        "> Purple",
+        "",
+        "  Noted.",
+        "",
+        "──────────────────────────────────────────────────────",
+        ">",
+        "──────────────────────────────────────────────────────",
+        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      ],
+      "planApproved": [
+        "──────────────────────────────────────────────────────",
+        "> Plan it",
+        "",
+        "● Edit(~/.gemini/antigravity-cli/brain/<conversation>/implementation_plan.md) (ctrl+o to expand)",
+        "",
+        "  Planned.",
+        "",
+        "> /artifact",
+        "  ⎿  Review submitted",
+        "",
+        "──────────────────────────────────────────────────────",
+        "> [Approved] implementation_plan.md",
+        "",
+        "  Reacted.",
+        "",
+        "──────────────────────────────────────────────────────",
+        ">",
+        "──────────────────────────────────────────────────────",
+        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      ],
+      "planRejected": [
+        "──────────────────────────────────────────────────────",
+        "> Plan it",
+        "",
+        "● Edit(~/.gemini/antigravity-cli/brain/<conversation>/implementation_plan.md) (ctrl+o to expand)",
+        "",
+        "  Planned.",
+        "",
+        "> /artifact",
+        "  ⎿  Review submitted",
+        "",
+        "──────────────────────────────────────────────────────",
+        "> [Rejected] implementation_plan.md",
+        "",
+        "  Reacted.",
+        "",
+        "──────────────────────────────────────────────────────",
+        ">",
+        "──────────────────────────────────────────────────────",
+        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+      ]
+    },
+    "twin": {
+      "what": "two identical run_command calls at once: the first one's dialog, and the twin's once the first was answered with 1",
+      "first": [
+        "──────────────────────────────────────────────────────",
+        "> Run it",
+        "",
+        "● Bash(echo same)",
+        "○ Bash(echo same) (ctrl+o to expand)",
+        "",
+        "Command",
+        "──────────────────────────────────────────────────────",
+        "",
+        "Requesting permission for:",
+        "   echo same",
+        "",
+        "Run this command?",
+        "> 1. Yes, run command",
+        "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
+        "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+        "  4. No, cancel",
+        "",
+        "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+        "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      ],
+      "second": [
+        "──────────────────────────────────────────────────────",
+        "> Run it",
+        "",
+        "● Bash(echo same)",
+        "● Bash(echo same) (ctrl+o to expand)",
+        "",
+        "Command",
+        "──────────────────────────────────────────────────────",
+        "",
+        "Requesting permission for:",
+        "   echo same",
+        "",
+        "Run this command?",
+        "> 1. Yes, run command",
+        "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
+        "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+        "  4. No, cancel",
+        "",
+        "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+        "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+      ]
+    }
+  }
+}

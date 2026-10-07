@@ -14,6 +14,7 @@ import {
 } from "../harness.js"
 import { box } from "./box.js"
 import { decode } from "./decode.js"
+import { dialogs } from "./dialogs.js"
 import { followRollout, followSubagent, rolloutPlans } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
 import { startedSession, title, titleWorking } from "./title.js"
@@ -33,6 +34,7 @@ const events = [
   "SubagentStart",
   "SubagentStop",
   "PermissionRequest",
+  "PreToolUse",
   "PostToolUse",
 ]
 
@@ -103,6 +105,10 @@ export const codex = {
             [
               {
                 ...(event === "SessionStart" && { matcher: "startup|resume|clear|compact|fork" }),
+                // Only the two tools that ask the person without a PermissionRequest.
+                ...(event === "PreToolUse" && {
+                  matcher: "request_user_input|request_permissions",
+                }),
                 hooks: [{ type: "command", command: hook(platform, event), timeout: hookSeconds }],
               },
             ],
@@ -136,6 +142,7 @@ export const codex = {
     context: "partial",
   },
   decode,
+  dialogs,
   title,
   titleWorking,
   startedSession,
