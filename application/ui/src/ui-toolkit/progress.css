@@ -5,13 +5,14 @@
 
    Tokens, each optional (its fallback in brackets):
    --progress-track-bg (soft), --progress-track-border-color (line),
-   --progress-radius (radius-control): the track.
+   --progress-radius (radius-control), --progress-track-shadow (none): the track.
    --progress-range-bg (strong): the fill. */
 .progress-track {
   overflow: hidden;
   border: var(--border-width) solid var(--progress-track-border-color, var(--color-line));
   border-radius: var(--progress-radius, var(--radius-control));
   background-color: var(--progress-track-bg, var(--color-soft));
+  box-shadow: var(--progress-track-shadow, none);
 }
 .progress-range {
   height: 100%;

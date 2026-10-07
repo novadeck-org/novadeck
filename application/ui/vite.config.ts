@@ -44,7 +44,12 @@ export default defineConfig({
       process.env.VITEST === "true" ? "false" : "true",
     ),
   },
-  build: { manifest: true },
+  build: {
+    manifest: true,
+    // Fonts always ship as files: the Content Security Policy loads them only from the
+    // app itself, so a small subset Vite would inline as a data: URL would be blocked.
+    assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
+  },
   plugins: [tailwindcss(), react(), contentSecurityPolicy()],
   resolve: {
     alias: [{ find: /^react$/, replacement: resolve("node_modules/react/index.js") }],

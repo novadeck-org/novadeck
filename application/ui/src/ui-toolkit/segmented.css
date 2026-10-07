@@ -19,7 +19,8 @@
    the active segment, or the indicator.
    --segmented-disabled-opacity (0.6): a disabled segment.
    --tabs-fg (muted), --tabs-active-fg (ink): a tab at rest, and under the pointer or
-   selected. --tabs-indicator-bg (strong): the line under the selected tab. */
+   selected. --tabs-indicator-bg (strong): the line under the selected tab,
+   --tabs-indicator-shadow (none): a glow around it. */
 .segmented {
   @apply p-0.5;
   border: var(--border-width) solid var(--segmented-border-color, var(--color-line));
@@ -103,6 +104,7 @@
 }
 .tabs-indicator {
   background-color: var(--tabs-indicator-bg, var(--color-strong));
+  box-shadow: var(--tabs-indicator-shadow, none);
   --transition-duration: var(--motion-state);
   --transition-timing-function: var(--ease-interface);
 }

@@ -22,7 +22,7 @@ kbd {
   --_bg: var(--kbd-bg, var(--color-shell));
   --_fg: var(--kbd-fg, currentColor);
   --_border-color: var(--kbd-border-color, var(--color-line));
-  @apply inline-flex min-h-5 items-center justify-center px-1.5 text-[9px];
+  @apply inline-flex min-h-5 items-center justify-center px-1.5 text-label;
   border: var(--border-width) solid var(--_border-color);
   border-radius: var(--kbd-radius, var(--radius-control));
   background-color: var(--_bg);

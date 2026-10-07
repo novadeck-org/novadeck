@@ -567,7 +567,7 @@ This is a TypeScript monorepo using pnpm workspaces and Turborepo.
 
 The UI runs real shells through the runner. Projects, sessions and their terminals
 live in the runner's SQLite metadata, and each session saves its terminals' order and
-layouts there too; preferences (the theme and its light, dark or system mode among
+layouts there too; preferences (the light, dark or system mode among
 them) and sidebar settings are stored locally. Unit tests
 and behaviour specs run on the demo adapter's sample data instead.
 
@@ -612,12 +612,12 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `ui-toolkit/`                                      | Reusable controls, direct Ark UI imports, and the shared recipes they draw with.        |
 | `test/`                                            | Unit-test fixtures, a jsdom render helper, a command harness, and the port contract.    |
 | `assets/`                                          | Static files referenced from CSS.                                                       |
-| `theme/`                                           | Tailwind's layout-only theme, token defaults, theme files, the theme list, `apply.ts`.  |
+| `theme/`                                           | Tailwind's layout-only theme, token defaults, the Graphite theme, `apply.ts`.           |
 | `styles.css`                                       | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources. |
 | `specs/`                                           | Behaviour specs for the whole UI, run in a real browser.                                |
 
 Imports point down the layers. `model/` imports nothing else, not even packages,
-apart from the theme list's types, and `theme/` imports nothing at all; every layer
+apart from the scheme types, and `theme/` imports nothing at all; every layer
 that composes the page may use it, adapters included, and
 [docs/theming.md](docs/theming.md) is its contract with components.
 `backend/` builds on `model/` and uses React only for the port's types; adapters

@@ -2,15 +2,8 @@ import type { Backend, WindowAppearance } from "../backend/port"
 import type { Store } from "../model/store"
 import type { PreferencesValue } from "../model/types"
 import { preferencesStorageKey, readPreferences } from "../preferences/preferences-storage"
-import {
-  applyAppearance,
-  bootRecordKey,
-  bootRecordOf,
-  darkSchemeQuery,
-  resolveAppearance,
-} from "../theme/apply"
+import { applyAppearance, bootRecordKey, darkSchemeQuery, resolveAppearance } from "../theme/apply"
 import { tokenColors } from "../theme/probe"
-import { themes } from "../theme/themes"
 import type { UiState } from "./ui-store"
 
 // The scheme the window's native parts use: the system's while the page follows it, so
@@ -19,8 +12,7 @@ const windowScheme = (
   preference: PreferencesValue["appearance"],
   shown: WindowAppearance["scheme"],
 ): WindowAppearance["scheme"] => {
-  const theme = themes.find((entry) => entry.id === preference.theme) ?? themes[0]
-  return preference.scheme === "system" && theme.schemes.length > 1 ? "system" : shown
+  return preference.scheme === "system" ? "system" : shown
 }
 
 // Shows the preferred appearance on the page and keeps it there: again whenever the
@@ -38,9 +30,9 @@ export const watchAppearance = (
   let shown: string | undefined
   const apply = (): void => {
     const preference = ui.getSnapshot().preferences.appearance
-    const appearance = resolveAppearance(preference, system?.matches ?? false, themes)
+    const appearance = resolveAppearance(preference, system?.matches ?? false)
     applyAppearance(root, appearance)
-    const record = JSON.stringify(bootRecordOf(preference, themes))
+    const record = JSON.stringify({ scheme: preference.scheme })
     if (record !== saved) {
       saved = record
       try {
@@ -77,7 +69,7 @@ export const watchAppearance = (
   }
 }
 
-// Takes up preferences another window saved, so every window shows the same theme and
+// Takes up preferences another window saved, so every window shows the same scheme and
 // settings. Returns the stop.
 export const followSavedPreferences = (
   ui: Store<UiState>,

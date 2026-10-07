@@ -111,7 +111,7 @@ export const WorkspaceHeader = ({
               label="Workspace layout"
               tooltips={iconOnly}
               className="view-switch max-[701px]:gap-0 flex shrink-0 gap-1"
-              itemClassName="flex h-8 min-w-22 items-center justify-center gap-2 px-3 text-[11px] max-[701px]:min-w-0 max-[701px]:w-8 max-[701px]:px-2 max-[701px]:gap-0 max-[701px]:text-[10px] [&>span]:max-[701px]:hidden"
+              itemClassName="flex h-8 min-w-22 items-center justify-center gap-2 px-3 text-control max-[701px]:min-w-0 max-[701px]:w-8 max-[701px]:px-2 max-[701px]:gap-0 max-[701px]:text-caption [&>span]:max-[701px]:hidden"
               items={views
                 .filter(({ id }) => enabledViews.includes(id))
                 .map(({ id, label, icon: Icon }) => ({
@@ -137,7 +137,7 @@ export const WorkspaceHeader = ({
         {!switchable && zen}
         <Tooltip content={`Search · ${searchShortcut}`} disabled={!iconOnly}>
           <button
-            className="icon-button header-search w-auto gap-2 px-2.5 text-[11px] max-[701px]:w-8 max-[701px]:gap-0 max-[701px]:px-0"
+            className="icon-button header-search w-auto gap-2 px-2.5 text-control max-[701px]:w-8 max-[701px]:gap-0 max-[701px]:px-0"
             aria-label="Find a terminal"
             onClick={onSearch}
           >

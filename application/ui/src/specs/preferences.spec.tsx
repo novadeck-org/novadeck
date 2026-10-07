@@ -62,6 +62,17 @@ const chooseMode = async (name: "System" | "Light" | "Dark"): Promise<void> => {
 const transcriptsSwitch = (): Locator =>
   preferencesDialog().getByRole("switch", { name: "Transcripts" })
 
+const ligaturesSwitch = (): Locator =>
+  preferencesDialog().getByRole("switch", { name: "Ligatures" })
+
+/** A style of a terminal's output text, as drawn. */
+const outputStyle = (property: "fontVariantLigatures" | "fontFamily"): string =>
+  getComputedStyle(
+    terminal("Checkout implementation")
+      .getByText("Nothing to commit, working tree clean.")
+      .element(),
+  )[property]
+
 describe("Preferences", () => {
   context("when choosing whether terminals keep transcripts", () => {
     it("keeps them by default, says they may hold secrets, and turns them off", async () => {
@@ -77,6 +88,23 @@ describe("Preferences", () => {
     })
   })
 
+  context("when choosing whether to join ligatures", () => {
+    it("draws terminals in the bundled mono without them, then joins them once turned on", async () => {
+      await openWorkspace()
+      expect(outputStyle("fontFamily")).toMatch(/^"JetBrains Mono Variable"/)
+      expect(outputStyle("fontVariantLigatures")).toBe("none")
+      await openPreferences()
+      await expect.element(ligaturesSwitch()).toHaveAttribute("aria-checked", "false")
+      await ligaturesSwitch().click()
+      await expect.element(ligaturesSwitch()).toHaveAttribute("aria-checked", "true")
+      await closePreferences()
+
+      await expect.poll(() => outputStyle("fontVariantLigatures")).toBe("normal")
+      await reloadWorkspace()
+      await expect.poll(() => outputStyle("fontVariantLigatures")).toBe("normal")
+    })
+  })
+
   context("when opened from the header", () => {
     it("shows the General section with its settings", async () => {
       await openWorkspace()
@@ -86,9 +114,8 @@ describe("Preferences", () => {
       await expect.element(tab("General")).toHaveAttribute("aria-selected", "true")
       await expect.element(tab("Shortcuts")).toHaveAttribute("aria-selected", "false")
       const general = preferencesDialog().getByRole("tabpanel", { name: "General" })
-      await expect
-        .element(general.getByRole("combobox", { name: "Theme" }))
-        .toHaveTextContent("Graphite")
+      // One theme, in light and dark: Mode is the only appearance choice.
+      await expect.element(general.getByRole("combobox", { name: "Theme" })).not.toBeInTheDocument()
       await expect.element(modeChoice("System")).toBeChecked()
       await expect
         .element(general.getByRole("combobox", { name: "Text size" }))
@@ -387,10 +414,9 @@ describe("appearance preference", () => {
       await expect.poll(pageScheme).toBe("dark")
       await closePreferences()
       // As a fresh load finds it: nothing on <html> until the app shows what it saved.
-      document.documentElement.removeAttribute("data-theme")
       document.documentElement.removeAttribute("data-scheme")
       await reloadWorkspace()
-      expect(document.documentElement.dataset).toMatchObject({ theme: "graphite", scheme: "dark" })
+      expect(document.documentElement.dataset).toMatchObject({ scheme: "dark" })
       await expect.poll(pageScheme).toBe("dark")
       await openPreferences()
       await expect.element(modeChoice("Dark")).toBeChecked()
@@ -406,28 +432,6 @@ describe("appearance preference", () => {
 
       await chooseMode("Light")
 
-      await expect.poll(pageScheme).toBe("light")
-    })
-  })
-
-  context("when a theme with only a light scheme is chosen", () => {
-    it("disables Mode and keeps the page light while the system is dark", async () => {
-      await systemScheme("dark")
-      await openWorkspace()
-      await expect.poll(pageScheme).toBe("dark")
-      await openPreferences()
-
-      await preferencesDialog().getByRole("combobox", { name: "Theme" }).click()
-      await preferencesDialog().getByRole("option", { name: "Sandstone" }).click()
-
-      await expect
-        .element(preferencesDialog().getByRole("combobox", { name: "Theme" }))
-        .toHaveTextContent("Sandstone")
-      await expect.element(modeChoice("Dark")).toBeDisabled()
-      await expect.element(modeChoice("Light")).toBeChecked()
-      await expect
-        .element(preferencesDialog().getByRole("group", { name: "Mode" }))
-        .toHaveAccessibleDescription("Sandstone comes only in light.")
       await expect.poll(pageScheme).toBe("light")
     })
   })
@@ -456,7 +460,7 @@ describe("appearance preference", () => {
       const saved = JSON.parse(localStorage.getItem("novadeck.preferences") ?? "{}")
       saveFromAnotherWindow("novadeck.preferences", {
         ...saved,
-        appearance: { theme: "graphite", scheme: "dark" },
+        appearance: { scheme: "dark" },
       })
 
       await expect.poll(pageScheme).toBe("dark")

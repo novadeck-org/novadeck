@@ -33,6 +33,6 @@ export const Switch = ({
     }}
     className={`switch relative h-5 w-9 shrink-0 ${disabled ? "cursor-not-allowed" : pending ? "cursor-default" : "cursor-pointer"}`}
   >
-    <span className="switch-thumb absolute top-0.5 size-3.5" />
+    <span className="switch-thumb absolute top-[3px] size-3" />
   </button>
 )

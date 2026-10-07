@@ -482,6 +482,7 @@ describe("workspace commands", () => {
         enabledViews: ["focus", "canvas"],
         appearance,
         notifyFinished: true,
+        ligatures: false,
       })
       expect(app.state().view).not.toBe("grid")
       expect(app.shell().revealCanvas).toBe(false)

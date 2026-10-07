@@ -28,8 +28,8 @@ export const EmptyWorkspace = ({
     )}
     <section className="panel empty-state pointer-events-auto relative z-1 flex w-full max-w-96 flex-col items-center p-8">
       <DeckMark size={44} className="empty-state-icon mb-4" />
-      <h2 className="empty-state-title text-base font-medium">No terminals open</h2>
-      <p className="empty-state-description mt-2 max-w-60 text-xs leading-relaxed">
+      <h2 className="empty-state-title text-title leading-6 font-medium">No terminals open</h2>
+      <p className="empty-state-description mt-2 max-w-60 text-body leading-relaxed">
         Open a terminal or pick up a previous session.
       </p>
       <div className="empty-state-actions mt-5 flex flex-wrap items-center justify-center gap-2">
@@ -42,7 +42,7 @@ export const EmptyWorkspace = ({
           Terminal
         </button>
         <button
-          className="button quiet empty-sessions-link h-auto px-[11px] py-[7px] text-[11px]"
+          className="button quiet empty-sessions-link h-auto px-[11px] py-[7px] text-control"
           onClick={onShowSessions}
         >
           Browse sessions

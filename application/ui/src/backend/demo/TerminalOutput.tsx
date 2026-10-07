@@ -102,7 +102,7 @@ export const TerminalOutput = ({
           <p> Duration 684ms</p>
         </div>
         <p className="output-gap">
-          <span className="terminal-badge mr-1 px-1.5 py-0.5 text-[9px]">PASS</span> Waiting for
+          <span className="terminal-badge mr-1 px-1.5 py-0.5 text-label">PASS</span> Waiting for
           file changes…
         </p>
         <p className="muted">press h to show help, press q to quit</p>

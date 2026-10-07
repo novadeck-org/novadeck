@@ -61,7 +61,7 @@ export const ContextMenu = ({ label, trigger, items }: ContextMenuProps): React.
       </ArkMenu.ContextTrigger>
       <Portal>
         <ArkMenu.Positioner className="context-menu-positioner z-50!">
-          <ArkMenu.Content aria-labelledby={labelId} className="floating min-w-40 p-1 text-[11px]">
+          <ArkMenu.Content aria-labelledby={labelId} className="floating min-w-40 p-1 text-control">
             <span id={labelId} className="sr-only">
               {label}
             </span>

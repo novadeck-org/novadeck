@@ -22,7 +22,7 @@
   --_fg: var(--button-fg, var(--color-ink));
   --_border-color: var(--button-border-color, var(--color-line-strong));
   --_shadow: var(--button-shadow, var(--shadow-control));
-  @apply flex h-9 items-center justify-center gap-2 px-4 text-[11px];
+  @apply flex h-9 items-center justify-center gap-2 px-4 text-control;
   border: var(--border-width) solid var(--_border-color);
   border-radius: var(--button-radius, var(--radius-control));
   background-color: var(--_bg);

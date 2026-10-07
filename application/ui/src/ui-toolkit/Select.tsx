@@ -35,7 +35,7 @@ export const Select = ({
   const collection = useMemo(() => createListCollection({ items }), [items])
   return (
     <ArkSelect.Root
-      className={cn("flex min-w-0 items-center justify-between gap-4 text-[12px]", className)}
+      className={cn("flex min-w-0 items-center justify-between gap-4 text-body", className)}
       collection={collection}
       value={[value]}
       disabled={disabled}
@@ -62,7 +62,7 @@ export const Select = ({
           className={
             variant === "icon"
               ? "icon-button"
-              : "field flex min-h-8 min-w-30 items-center justify-between gap-4 px-2.5 py-1.75 text-[11px]"
+              : "field flex min-h-8 min-w-30 items-center justify-between gap-4 px-2.5 py-1.75 text-control"
           }
         >
           <ArkSelect.ValueText className={variant === "icon" ? "sr-only" : "truncate"} />
@@ -76,7 +76,7 @@ export const Select = ({
         <ArkSelect.Positioner className="z-50">
           <ArkSelect.Content
             className={cn(
-              "floating z-50 max-h-[min(240px,var(--available-height))] overflow-y-auto p-1 text-[11px]",
+              "floating z-50 max-h-[min(240px,var(--available-height))] overflow-y-auto p-1 text-control",
               variant === "icon" && "min-w-48 max-w-[calc(100vw-24px)]",
             )}
           >
@@ -88,7 +88,7 @@ export const Select = ({
               >
                 <ArkSelect.ItemText className="min-w-0 truncate">{item.label}</ArkSelect.ItemText>
                 {item.description && (
-                  <span className="item-detail ml-auto shrink-0 text-[10px]">
+                  <span className="item-detail ml-auto shrink-0 text-caption">
                     {item.description}
                   </span>
                 )}

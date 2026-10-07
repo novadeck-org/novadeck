@@ -3,7 +3,7 @@ import { createTerminalState, workspaceReducer, type WorkspaceAction } from "../
 import type { PreferencesValue, TerminalMetadata, ViewMode, Workspace } from "../model/types"
 
 // The appearance a fresh install starts with.
-export const appearance: PreferencesValue["appearance"] = { theme: "graphite", scheme: "system" }
+export const appearance: PreferencesValue["appearance"] = { scheme: "system" }
 
 // A plain shell terminal numbered like the ones a person creates.
 export const terminalFixture = (number: number, directory: string): TerminalMetadata => {

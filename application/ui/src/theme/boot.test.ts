@@ -7,13 +7,11 @@ import { context, describe, expect, it } from "../test"
 import {
   applyAppearance,
   bootRecordKey,
-  bootRecordOf,
   defaultPreference,
   resolveAppearance,
   startingAppearance,
   type Appearance,
 } from "./apply"
-import { themes, type ThemeManifest } from "./themes"
 
 const script = readFileSync(join(process.cwd(), "public/theme-boot.js"), "utf8")
 
@@ -21,7 +19,6 @@ const script = readFileSync(join(process.cwd(), "public/theme-boot.js"), "utf8")
 // the system in this scheme, and reads back what it set.
 const boot = (saved: string | null, systemDark: boolean): Appearance => {
   const root = document.documentElement
-  root.removeAttribute("data-theme")
   root.removeAttribute("data-scheme")
   root.removeAttribute("style")
   if (saved === null) localStorage.removeItem(bootRecordKey)
@@ -32,15 +29,14 @@ const boot = (saved: string | null, systemDark: boolean): Appearance => {
   })
   // oxlint-disable-next-line no-new-func -- the script runs as the page runs it, as is
   new Function(script)()
-  return { theme: root.dataset.theme!, scheme: root.dataset.scheme as Appearance["scheme"] }
+  return { scheme: root.dataset.scheme as Appearance["scheme"] }
 }
 
 afterEach(() => {
   localStorage.removeItem(bootRecordKey)
   delete (window as { matchMedia?: unknown }).matchMedia
-  document.documentElement.removeAttribute("data-theme")
   document.documentElement.removeAttribute("data-scheme")
-  document.documentElement.removeAttribute("data-theme-switching")
+  document.documentElement.removeAttribute("data-scheme-switching")
   document.documentElement.removeAttribute("style")
 })
 
@@ -48,48 +44,44 @@ const systems = [false, true]
 const schemes = ["system", "light", "dark"] as const
 
 describe("the boot script", () => {
-  it("shows what apply.ts resolves for every theme and choice it saves", () => {
-    for (const { id } of themes)
-      for (const scheme of schemes)
-        for (const systemDark of systems) {
-          const preference = { theme: id, scheme }
-          const record = JSON.stringify(bootRecordOf(preference, themes))
-          expect(boot(record, systemDark)).toEqual(
-            resolveAppearance(preference, systemDark, themes),
-          )
-        }
-  })
-
-  it("keeps a theme with one scheme in that scheme", () => {
-    const manifest: ThemeManifest = [...themes, { id: "night", name: "Night", schemes: ["dark"] }]
+  it("shows what apply.ts resolves for every choice it saves", () => {
     for (const scheme of schemes)
       for (const systemDark of systems) {
-        const preference = { theme: "night", scheme }
-        const record = JSON.stringify(bootRecordOf(preference, manifest))
-        expect(boot(record, systemDark)).toEqual({ theme: "night", scheme: "dark" })
+        const preference = { scheme }
+        expect(boot(JSON.stringify(preference), systemDark)).toEqual(
+          resolveAppearance(preference, systemDark),
+        )
       }
   })
 
   it("gives <html> the scheme's color-scheme until the app shows the theme", () => {
     const root = document.documentElement
-    const record = JSON.stringify(bootRecordOf({ theme: "graphite", scheme: "system" }, themes))
-    boot(record, true)
+    boot(JSON.stringify({ scheme: "system" }), true)
     expect(root.style.colorScheme).toBe("dark")
 
-    applyAppearance(root, startingAppearance(window, themes))
+    applyAppearance(root, startingAppearance(window))
 
     expect(root.style.colorScheme).toBe("")
   })
 
-  context("with a record naming a theme this version no longer has", () => {
-    it("shows it until the app starts, which shows the first theme instead", () => {
+  context("with a record older versions saved", () => {
+    it("shows its scheme, whatever theme and schemes it names", () => {
+      for (const theme of ["graphite", "sandstone"])
+        for (const scheme of schemes)
+          for (const systemDark of systems) {
+            const record = JSON.stringify({ theme, scheme, schemes: ["light"] })
+            expect(boot(record, systemDark)).toEqual(resolveAppearance({ scheme }, systemDark))
+          }
+    })
+
+    it("shows it as the app does at startup", () => {
       const root = document.documentElement
-      const record = JSON.stringify({ theme: "retired", scheme: "dark", schemes: ["dark"] })
-      expect(boot(record, false)).toEqual({ theme: "retired", scheme: "dark" })
+      const record = JSON.stringify({ theme: "sandstone", scheme: "dark", schemes: ["light"] })
+      expect(boot(record, false)).toEqual({ scheme: "dark" })
 
-      applyAppearance(root, startingAppearance(window, themes))
+      applyAppearance(root, startingAppearance(window))
 
-      expect(root.dataset).toMatchObject({ theme: "graphite", scheme: "dark" })
+      expect(root.dataset.scheme).toBe("dark")
     })
   })
 
@@ -99,25 +91,22 @@ describe("the boot script", () => {
       "{",
       "null",
       "[]",
-      JSON.stringify({ theme: "graphite", scheme: "dim", schemes: ["light"] }),
-      JSON.stringify({ theme: "graphite", scheme: "dark", schemes: [] }),
-      JSON.stringify({ theme: "graphite", scheme: "dark", schemes: ["sepia"] }),
-      JSON.stringify({ theme: '"><script>', scheme: "dark", schemes: ["dark"] }),
+      JSON.stringify({ scheme: "dim" }),
+      JSON.stringify({ theme: "graphite", scheme: 1, schemes: ["light", "dark"] }),
+      JSON.stringify({ theme: "graphite" }),
     ]
 
-    it("shows the default theme in the system's scheme, as apply.ts would", () => {
+    it("shows the system's scheme, as apply.ts would", () => {
       for (const record of records)
         for (const systemDark of systems)
-          expect(boot(record, systemDark)).toEqual(
-            resolveAppearance(defaultPreference(themes), systemDark, themes),
-          )
+          expect(boot(record, systemDark)).toEqual(resolveAppearance(defaultPreference, systemDark))
     })
 
     it("tolerates storage that throws", () => {
       vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
         throw new Error("denied")
       })
-      expect(boot(null, true)).toEqual(resolveAppearance(defaultPreference(themes), true, themes))
+      expect(boot(null, true)).toEqual(resolveAppearance(defaultPreference, true))
     })
   })
 })

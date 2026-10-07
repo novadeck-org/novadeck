@@ -183,9 +183,9 @@ export const TerminalTab = ({
                   onChange={onRenameDraft}
                   onSave={onRenameSave}
                   onCancel={onRenameCancel}
-                  className="terminal-rename-input w-full text-[12px] leading-[18px] font-medium"
+                  className="terminal-rename-input w-full text-body leading-[18px] font-medium"
                 />
-                <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center overflow-hidden pr-(--_sidebar-actions-space) whitespace-nowrap text-[10px] leading-[18px]">
+                <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center overflow-hidden pr-(--_sidebar-actions-space) whitespace-nowrap text-caption leading-[18px]">
                   <span className="terminal-tab-process truncate">{process}</span>
                 </span>
               </div>

@@ -18,10 +18,7 @@ export const Checkbox = ({
   readonly className?: string
 }): React.JSX.Element => (
   <span
-    className={cn(
-      "checkbox relative flex size-4.5 shrink-0 items-center justify-center",
-      className,
-    )}
+    className={cn("checkbox relative flex size-4 shrink-0 items-center justify-center", className)}
   >
     <input
       {...attributes}
@@ -31,8 +28,8 @@ export const Checkbox = ({
       className="checkbox-input absolute inset-0 m-0 size-full cursor-[inherit]"
     />
     <Check
-      size={12}
-      strokeWidth={3}
+      size={11}
+      strokeWidth={2.25}
       aria-hidden="true"
       className="checkbox-mark pointer-events-none relative"
     />

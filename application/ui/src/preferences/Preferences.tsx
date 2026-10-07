@@ -5,7 +5,6 @@ import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
 import { viewModes } from "../model/state"
 import type { PreferencesValue } from "../model/types"
-import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { Checkbox } from "../ui-toolkit/Checkbox"
 import { Dialog } from "../ui-toolkit/Dialog"
 import { SegmentGroup } from "../ui-toolkit/SegmentGroup"
@@ -21,7 +20,6 @@ import {
 } from "./settings"
 import { VoiceInput, type VoiceAddon } from "./VoiceInput"
 
-const themeItems = themes.map(({ id, name }) => ({ label: name, value: id }))
 const schemeItems = [
   { label: "System", value: "system" },
   { label: "Light", value: "light" },
@@ -32,8 +30,8 @@ const viewLabels = { focus: "Focus", grid: "Grid", canvas: "Canvas" } as const
 const viewIcons = { focus: PanelLeft, grid: LayoutGrid, canvas: SquareDashedMousePointer } as const
 
 // Section titles match the sidebar's panel titles.
-const sectionTitleClasses = "section-label m-0 text-[9px] font-medium"
-const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-[11px] leading-relaxed"
+const sectionTitleClasses = "section-label m-0 text-label font-medium"
+const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-relaxed"
 const panelClasses =
   "preferences-panel col-start-1 row-start-1 flex flex-col gap-6 px-6 py-5 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[480px]:px-4"
 
@@ -80,7 +78,7 @@ const SettingText = ({
 }): React.JSX.Element => (
   <span className="flex min-w-0 flex-col gap-1">
     <span id={id}>{label}</span>
-    <span id={descriptionId} className="settings-description text-[11px] leading-relaxed">
+    <span id={descriptionId} className="settings-description text-control leading-relaxed">
       {description}
     </span>
   </span>
@@ -131,10 +129,6 @@ export const Preferences = ({
   }
   const lastView = value.enabledViews.length === 1
   const { appearance } = value
-  const theme: ThemeEntry<ThemeId> =
-    themes.find((entry) => entry.id === appearance.theme) ?? themes[0]
-  // A theme drawn in one scheme leaves nothing to choose.
-  const onlyScheme = theme.schemes.length === 1 ? theme.schemes[0] : undefined
   return (
     <Dialog
       open={open}
@@ -157,7 +151,7 @@ export const Preferences = ({
       <Tabs value={tab} onValueChange={changeTab} className="flex min-h-0 flex-1 flex-col">
         <div className="modal-header preferences-heading shrink-0 px-6 pt-5 max-[480px]:px-4">
           <div className="flex items-center justify-between gap-4">
-            <h2 id="preferences-title" className="modal-title m-0 text-[15px] font-medium">
+            <h2 id="preferences-title" className="modal-title m-0 text-title font-medium">
               Preferences
             </h2>
             <button
@@ -174,7 +168,7 @@ export const Preferences = ({
             indicatorClassName="bottom-[-1px] h-0.5"
           >
             {preferencesTabs.map(({ id, label }) => (
-              <Tab key={id} value={id} className="relative min-h-9 px-0.5 text-left text-[12px]">
+              <Tab key={id} value={id} className="relative min-h-9 px-0.5 text-left text-body">
                 {label}
               </Tab>
             ))}
@@ -184,47 +178,27 @@ export const Preferences = ({
           <TabPanel value="general" className={panelClasses}>
             <Section title="Appearance">
               <div className={settingsCardClasses}>
-                <Select
-                  className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
-                  label="Theme"
-                  items={themeItems}
-                  value={theme.id}
-                  onValueChange={(id) => {
-                    const chosen = themes.find((entry) => entry.id === id)
-                    if (chosen)
-                      onChange({ ...value, appearance: { ...appearance, theme: chosen.id } })
-                  }}
-                  open={open && tab === "general" && openSelect === "theme"}
-                  onOpenChange={(expanded) => setOpenSelect(expanded ? "theme" : null)}
-                  portalContainer={dialog}
-                />
-                {/* A disabled fieldset disables the segment group inside it. */}
                 <fieldset
                   className={`preference-row ${settingRowClasses} m-0 min-w-0`}
                   aria-labelledby="theme-scheme-label"
                   aria-describedby="theme-scheme-description"
-                  disabled={onlyScheme !== undefined}
                 >
                   <SettingText
                     id="theme-scheme-label"
                     label="Mode"
-                    description={
-                      onlyScheme
-                        ? `${theme.name} comes only in ${onlyScheme}.`
-                        : "Follow the system, or stay light or dark."
-                    }
+                    description="Follow the system, or stay light or dark."
                     descriptionId="theme-scheme-description"
                   />
                   <SegmentGroup
                     label="Mode"
                     items={[...schemeItems]}
-                    value={onlyScheme ?? appearance.scheme}
+                    value={appearance.scheme}
                     onValueChange={(next) => {
                       const scheme = schemeItems.find((item) => item.value === next)?.value
                       if (scheme) onChange({ ...value, appearance: { ...appearance, scheme } })
                     }}
                     className="flex shrink-0 gap-1"
-                    itemClassName="flex h-7 min-w-14 items-center justify-center px-2.5 text-[11px] data-disabled:cursor-not-allowed"
+                    itemClassName="flex h-7 min-w-14 items-center justify-center px-2.5 text-control data-disabled:cursor-not-allowed"
                     indicatorClassName="absolute"
                   />
                 </fieldset>
@@ -252,7 +226,7 @@ export const Preferences = ({
                   return (
                     <label
                       key={mode}
-                      className={`choice-card relative flex min-h-[76px] min-w-0 flex-col justify-between gap-3 p-3 text-[12px] ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
+                      className={`choice-card relative flex min-h-[76px] min-w-0 flex-col justify-between gap-3 p-3 text-body ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
                       data-state={checked ? "checked" : "unchecked"}
                       data-disabled={locked || undefined}
                     >
@@ -288,6 +262,20 @@ export const Preferences = ({
                   onOpenChange={(expanded) => setOpenSelect(expanded ? "font-size" : null)}
                   portalContainer={dialog}
                 />
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <SettingText
+                    id="ligatures-label"
+                    label="Ligatures"
+                    description="Join pairs such as => and != into one symbol in terminals and code."
+                    descriptionId="ligatures-description"
+                  />
+                  <Switch
+                    checked={value.ligatures}
+                    onChange={(ligatures) => onChange({ ...value, ligatures })}
+                    labelledBy="ligatures-label"
+                    describedBy="ligatures-description"
+                  />
+                </div>
                 {transcripts && (
                   <div className={`preference-row ${settingRowClasses}`}>
                     <SettingText
@@ -351,14 +339,14 @@ export const Preferences = ({
                   {items.map(({ label, display }) => (
                     <div
                       key={label}
-                      className="settings-row flex min-h-10.5 items-center justify-between gap-4 px-4 py-2 text-[12px]"
+                      className="settings-row flex min-h-10.5 items-center justify-between gap-4 px-4 py-2 text-body"
                     >
                       <dt className="m-0 min-w-0">{label}</dt>
                       <dd className="m-0 flex shrink-0 gap-1">
                         {display.map((key) => (
                           <kbd
                             key={key}
-                            className="h-5.5 min-w-5.5 pt-0.5 text-[10px] leading-none"
+                            className="h-5.5 min-w-5.5 pt-0.5 text-caption leading-none"
                           >
                             {key}
                           </kbd>

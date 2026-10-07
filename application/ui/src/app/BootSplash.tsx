@@ -78,7 +78,7 @@ export const BootSplash = ({
               animated={!finished}
               className="boot-splash-word -mt-[0.08em] -mb-[0.12em] overflow-hidden pt-[0.08em] pb-[0.12em] text-[52px] leading-none"
             />
-            <span className="boot-splash-tag pl-[3px] text-[13px] leading-[18px]">
+            <span className="boot-splash-tag pl-[3px] text-lead leading-[18px]">
               Terminals, on deck.
             </span>
           </span>
@@ -95,7 +95,7 @@ export const BootSplash = ({
           </span>
           <span className="boot-splash-lines relative flex h-[18px] w-full justify-center">
             <span
-              className="boot-splash-phase text-[12px] leading-[18px] whitespace-nowrap tabular-nums"
+              className="boot-splash-phase text-body leading-[18px] whitespace-nowrap tabular-nums"
               role="status"
               aria-hidden={Boolean(failure)}
             >

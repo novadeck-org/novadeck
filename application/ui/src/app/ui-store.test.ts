@@ -34,6 +34,7 @@ const initial = (): UiState =>
       enabledViews: ["focus", "grid"],
       appearance,
       notifyFinished: true,
+      ligatures: false,
     },
   })
 

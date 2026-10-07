@@ -24,7 +24,14 @@ export const useWorkspaceEffects = (): void => {
   const renameSession = useUiState((state) => state.rename)
   const canvasKeyboardFocus = useUiState((state) => state.shell.canvasKeyboardFocus)
   const navigationType = useUiState((state) => state.location.navigationType)
+  const ligatures = useUiState((state) => state.preferences.ligatures)
   const activeRename = renameSession?.context === context ? renameSession : null
+
+  // Ligatures follow the preference on <html>, so dialogs outside the workspace follow it
+  // too (theme/base.css).
+  useEffect(() => {
+    document.documentElement.dataset.ligatures = ligatures ? "on" : "off"
+  }, [ligatures])
 
   // A rename left behind by a session, view or terminal change saves itself.
   useEffect(() => {

@@ -62,8 +62,8 @@ export const ConfirmDialog = <Subject,>({
       positionerClassName="fixed inset-0 z-50 flex items-center justify-center px-5"
       className={`modal ${widthClassName} flex flex-col gap-2 p-5`}
     >
-      <DialogTitle className="modal-title m-0 text-[14px] font-medium">{heading}</DialogTitle>
-      <DialogDescription className="modal-description m-0 text-[12px] leading-[1.5]">
+      <DialogTitle className="modal-title m-0 text-heading font-medium">{heading}</DialogTitle>
+      <DialogDescription className="modal-description m-0 text-body leading-[1.5]">
         {shown === null ? null : description(shown)}
       </DialogDescription>
       <div className="mt-3 flex justify-end gap-2">

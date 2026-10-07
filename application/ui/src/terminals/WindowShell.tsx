@@ -250,14 +250,14 @@ export const WindowShell = ({
               onChange={onRenameDraft}
               onSave={onRenameSave}
               onCancel={onRenameCancel}
-              className="terminal-rename-input w-full min-w-0 text-xs font-medium nodrag nopan"
+              className="terminal-rename-input w-full min-w-0 text-body leading-4 font-medium nodrag nopan"
             />
           )}
         </>
       </div>
       {phase === "done" && (
         // Said in full as the window's description; a compact window keeps its name.
-        <span className="terminal-done ml-auto shrink-0 text-[10px]" aria-hidden>
+        <span className="terminal-done ml-auto shrink-0 text-caption" aria-hidden>
           {compact ? (failed ? "Error" : "Done") : doneText(failed)}
         </span>
       )}
@@ -265,7 +265,7 @@ export const WindowShell = ({
         // Whether the agent plans, its subagents, context and busiest rate limit, in
         // full on hover. Only a focused window has room beside its name; a compact one
         // leaves them to its tab's tooltip.
-        <span className="terminal-metadata ml-auto flex min-w-0 items-center gap-2 overflow-hidden text-[10px]">
+        <span className="terminal-metadata ml-auto flex min-w-0 items-center gap-2 overflow-hidden text-caption">
           {planning && (
             <Tooltip content="Planning, not changing anything yet">
               <span className="terminal-planning shrink-0">planning</span>

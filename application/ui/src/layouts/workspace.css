@@ -14,6 +14,8 @@
    --workspace-edge-bg (soft): the glow at its middle and the shade at its edges.
    --workspace-image (a radial gradient from glow through bg to edge): the ground's
    whole image, for a theme that draws its own.
+   --workspace-inset-shadow (none): an inner shadow along the ground's edges, so the
+   chrome around it reads as raised over a recessed workspace.
    --workspace-grain-image (canvas-grain.svg), --canvas-grain-opacity: its grain.
    --workspace-dots-fg (muted), --workspace-dots-image (dots of that colour),
    --canvas-dots-opacity: the dot grid. --workspace-spotlight-opacity (0.48): the
@@ -40,6 +42,7 @@
   --_spotlight-opacity: var(--workspace-spotlight-opacity, 0.48);
   --_grain-opacity: var(--canvas-grain-opacity);
   background-color: var(--workspace-bg, var(--color-canvas));
+  box-shadow: var(--workspace-inset-shadow, none);
   background-image: var(
     --workspace-image,
     radial-gradient(
@@ -198,7 +201,7 @@
   padding-inline: 16px;
   overflow: hidden;
   border-bottom: 1px dashed color-mix(in srgb, var(--_border-color) 55%, transparent);
-  font-size: 12px;
+  font-size: var(--text-body);
   font-weight: 500;
   white-space: nowrap;
   text-overflow: ellipsis;

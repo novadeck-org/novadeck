@@ -14,15 +14,19 @@
    --window-bg (paper), --window-fg (ink), --window-border-color (line),
    --window-shadow (shadow-panel), --window-radius (radius-panel): the window at rest.
    --window-selected-border-color (line-strong): the selected window's outline.
+   --window-selected-shadow (the window's shadow): the selected window's lift.
    --window-header-bg (the window's bg), --window-header-border-color (line): the header
    and its hairline. --window-header-icon-fg (muted): the icons in it.
    --window-selected-header-bg (the header's bg): the selected window's header.
    --window-metadata-fg (muted), --window-metadata-font (mono): planning, subagents and
    usage beside the name.
    --window-indicator-bg (the sidebar item's --item-selected-indicator-bg, then strong):
-   the selection bar at the header's leading edge.
+   the selection bar at the header's leading edge. --window-indicator-shadow (the sidebar
+   item's --item-selected-indicator-shadow, then none): a glow around it.
    --window-phase-border-width (1px): the phase line's weight.
    --window-phase-track-border-color (line): the line the running sweep travels along.
+   --window-phase-running-shadow (none): a filter over the running sweep, such as a
+   drop-shadow that glows along it as it moves.
    --window-phase-running-border-color (strong), --window-phase-starting-border-color
    (muted), --window-phase-attention-border-color (warning-fg),
    --window-phase-ended-border-color (strong): the phase line in each phase.
@@ -43,12 +47,15 @@
 .terminal-window {
   --_border-color: var(--window-border-color, var(--color-line));
   --_border-style: solid;
+  --_shadow: var(--window-shadow, var(--shadow-panel));
   border: var(--border-width) var(--_border-style) var(--_border-color);
   border-radius: var(--window-radius, var(--radius-panel));
   background-color: var(--window-bg, var(--color-paper));
   color: var(--window-fg, var(--color-ink));
-  box-shadow: var(--window-shadow, var(--shadow-panel));
-  transition: border-color var(--motion-state) var(--ease-interface);
+  box-shadow: var(--_shadow);
+  transition:
+    border-color var(--motion-state) var(--ease-interface),
+    box-shadow var(--motion-state) var(--ease-interface);
 }
 .terminal-header {
   --_bg: var(--window-header-bg, var(--window-bg, var(--color-paper)));
@@ -61,7 +68,7 @@
   color: var(--window-header-icon-fg, var(--color-muted));
 }
 :where(.terminal-header) {
-  @apply h-12 gap-3 px-4 text-xs;
+  @apply h-12 gap-3 px-4 text-body leading-4;
 }
 :where(.terminal-title) {
   @apply gap-2.5;
@@ -86,6 +93,7 @@
 .grid-terminal.selected .terminal-window,
 .canvas-node.selected .terminal-window {
   --_border-color: var(--window-selected-border-color, var(--color-line-strong));
+  --_shadow: var(--window-selected-shadow, var(--window-shadow, var(--shadow-panel)));
 }
 .terminal-focused .terminal-header,
 .grid-terminal.selected .terminal-header,
@@ -104,6 +112,7 @@
     --window-indicator-bg,
     var(--item-selected-indicator-bg, var(--color-strong))
   );
+  box-shadow: var(--window-indicator-shadow, var(--item-selected-indicator-shadow, none));
   opacity: 0;
   transition: opacity var(--motion-state) var(--ease-interface);
 }
@@ -168,6 +177,7 @@
       var(--_track) calc(var(--_terminal-sweep) + 25%)
     )
     1;
+  filter: var(--window-phase-running-shadow, none);
   animation: terminal-sweep 2.2s var(--ease-interface) infinite;
 }
 .terminal-window[data-terminal-phase="starting"] .terminal-heading::after {

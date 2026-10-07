@@ -80,7 +80,7 @@ export const TerminalSearch = ({
           </button>
         }
         empty={
-          <p className="search-empty px-4 py-10 text-center text-xs">
+          <p className="search-empty px-4 py-10 text-center text-body leading-4">
             No terminals match “{query}”.
           </p>
         }
@@ -90,9 +90,11 @@ export const TerminalSearch = ({
           content: (
             <>
               <TerminalIcon size={15} strokeWidth={1.5} />
-              <span className="search-result-copy flex min-w-0 flex-1 flex-col gap-1">
-                <strong className="truncate text-xs font-medium">{terminal.name}</strong>
-                <small className="item-detail search-result-meta flex min-w-0 items-center gap-2 text-[10px]">
+              <span className="search-result-copy flex min-w-0 flex-1 flex-col gap-1.5">
+                <strong className="truncate text-body leading-4 font-medium">
+                  {terminal.name}
+                </strong>
+                <small className="item-detail search-result-meta flex min-w-0 items-center gap-2 text-caption">
                   <span className="shrink-0">{detail(terminal).command}</span>
                   <span className="search-result-path truncate pl-2">
                     {detail(terminal).directory}
@@ -104,7 +106,7 @@ export const TerminalSearch = ({
           ),
         }))}
       />
-      <div className="modal-footer search-footnote flex items-center justify-between px-5 py-3 text-[10px]">
+      <div className="modal-footer search-footnote flex items-center justify-between px-5 py-3 text-caption">
         <span>Open in {destination}</span>
         <span className="search-dismiss flex items-center gap-2">
           <kbd>esc</kbd> Close

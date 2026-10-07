@@ -54,7 +54,7 @@ export const WorkspaceFooter = ({
     <footer
       hidden={hidden}
       data-tone={current?.tone}
-      className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] h-7 shrink-0 items-center justify-between px-4 text-[10px]"
+      className="app-footer max-[701px]:px-3 max-[701px]:text-[8px] h-7 shrink-0 items-center justify-between px-4 text-caption"
     >
       <span className="flex items-center gap-2">
         <span>

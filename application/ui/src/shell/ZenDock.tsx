@@ -107,7 +107,7 @@ export const ZenDock = ({
             </>
           )}
           <button
-            className="icon-button zen-exit w-auto gap-1.5 px-2 py-0 text-[11px]"
+            className="icon-button zen-exit w-auto gap-1.5 px-2 py-0 text-control"
             onClick={onExit}
           >
             <X size={14} /> Exit Zen

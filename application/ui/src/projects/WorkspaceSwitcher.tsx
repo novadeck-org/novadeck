@@ -40,7 +40,7 @@ export const WorkspaceSwitcher = ({
         trigger={
           <button
             ref={trigger}
-            className="button ghost workspace-switcher-trigger inline-flex min-h-9 min-w-0 w-full max-w-full items-center justify-start gap-1.5 px-[9px] text-[12px] leading-[1.5] font-medium"
+            className="button ghost workspace-switcher-trigger inline-flex min-h-9 min-w-0 w-full max-w-full items-center justify-start gap-1.5 px-[9px] text-body leading-[1.5] font-medium"
             type="button"
             aria-label="Switch workspace"
           >
@@ -69,8 +69,8 @@ export const WorkspaceSwitcher = ({
                     }}
                   >
                     <span className="workspace-switcher-project-copy flex min-w-0 flex-1 flex-col gap-0.75">
-                      <strong className="truncate text-[12px] font-medium">{project.name}</strong>
-                      <small className="item-detail truncate text-[10px]">
+                      <strong className="truncate text-body font-medium">{project.name}</strong>
+                      <small className="item-detail truncate text-caption">
                         {project.directory}
                       </small>
                     </span>
@@ -107,7 +107,7 @@ export const WorkspaceSwitcher = ({
         <Tooltip content="Unavailable" disabled={Boolean(onOpenFolder)}>
           <div className="workspace-switcher-footer p-[5px]">
             <button
-              className="button quiet workspace-switcher-new h-auto w-full justify-start gap-2.25 px-[9px] py-2 text-left text-[11px] disabled:cursor-not-allowed"
+              className="button quiet workspace-switcher-new h-auto w-full justify-start gap-2.25 px-[9px] py-2 text-left text-control disabled:cursor-not-allowed"
               type="button"
               disabled={!onOpenFolder}
               onClick={() => {

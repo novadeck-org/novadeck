@@ -20,13 +20,16 @@
    the rail.
    --region-sidebar-bg (shell), --region-sidebar-fg (ink),
    --region-sidebar-border-color (line): the sidebar.
-   --region-sidebar-shadow (shadow-panel): the sidebar as a drawer. */
+   --region-sidebar-shadow (shadow-panel): the sidebar as a drawer.
+   --region-{header,footer,rail,sidebar}-image (none): a texture over each ground, such as
+   a grain; the footer drops its own while toned. */
 .app-header {
   --_bg: var(--region-header-bg, var(--color-paper));
   --_fg: var(--region-header-fg, var(--color-ink));
   --_border-color: var(--region-header-border-color, var(--color-line));
   border-bottom: var(--border-width) solid var(--_border-color);
   background-color: var(--_bg);
+  background-image: var(--region-header-image, none);
   color: var(--_fg);
 }
 .brand {
@@ -47,6 +50,7 @@
 .app-footer:not([data-tone]) {
   border-color: var(--region-footer-border-color, var(--color-line));
   background-color: var(--region-footer-bg, var(--color-paper));
+  background-image: var(--region-footer-image, none);
   color: var(--region-footer-fg, var(--color-muted));
 }
 /* The count's divider: the bar's edge at rest, and toned a faint line of the tone's
@@ -89,6 +93,7 @@
   --_border-color: var(--region-rail-border-color, var(--color-line));
   border-right: var(--border-width) solid var(--_border-color);
   background-color: var(--_bg);
+  background-image: var(--region-rail-image, none);
   color: var(--_fg);
 }
 
@@ -98,6 +103,7 @@
   --_border-color: var(--region-sidebar-border-color, var(--color-line));
   border-right: var(--border-width) solid var(--_border-color);
   background-color: var(--_bg);
+  background-image: var(--region-sidebar-image, none);
   color: var(--_fg);
 }
 .sidebar-drawer {

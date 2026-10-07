@@ -1,7 +1,7 @@
 /* Tailwind's theme: only the layout scale (spacing, breakpoints, type sizes, line
    heights and weights) that TSX arranges with; see docs/theming.md. Everything a theme
    draws is cleared here, so no utility can paint a colour, a corner, a shadow, a face
-   or a motion around the theme: themes set those tokens in `theme/themes/*.css`, and
+   or a motion around the theme: themes set those tokens in `theme/graphite.css`, and
    `theme/base.css` holds the optional ones' defaults. */
 @theme {
   --color-*: initial;
@@ -10,9 +10,25 @@
   --inset-shadow-*: initial;
   --drop-shadow-*: initial;
   --text-shadow-*: initial;
+  --text-*: initial;
   --blur-*: initial;
   --font-*: initial;
   --tracking-*: initial;
   --ease-*: initial;
   --animate-*: initial;
+}
+
+/* The type scale: one size per role, which TSX takes as `text-<role>` and recipes as
+   var(--text-<role>). Miniatures (the welcome's stage, a peek's thumbnail), the brand's
+   wordmark and display text keep their own sizes. `static`, so recipes can read the
+   variables whether or not TSX uses the utility. */
+@theme static {
+  --text-label: 10px; /* section labels, counts, badges */
+  --text-caption: 11px; /* metadata, hints, the footer */
+  --text-control: 12px; /* buttons, menus, tooltips, secondary rows */
+  --text-code: 12.5px; /* code in panes */
+  --text-body: 13px; /* names, dialog and pane text */
+  --text-lead: 14px; /* the page's own size, plans' prose */
+  --text-heading: 15px; /* dialog headings */
+  --text-title: 16px; /* a section's title */
 }

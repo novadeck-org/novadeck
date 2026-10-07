@@ -231,7 +231,7 @@ export const WelcomePreview = ({
               aria-pressed={active}
               data-state={active ? "on" : "off"}
               onClick={() => choose(item)}
-              className="segment relative flex min-h-9 items-center gap-2 overflow-hidden px-3 py-2 text-[11px]"
+              className="segment relative flex min-h-9 items-center gap-2 overflow-hidden px-3 py-2 text-control"
             >
               <Icon size={13} strokeWidth={1.6} aria-hidden="true" />
               {item.label}
@@ -254,7 +254,7 @@ export const WelcomePreview = ({
         aria-live={touring ? "off" : "polite"}
         aria-atomic="true"
       >
-        <p key={view.id} className="welcome-caption m-0 text-[12px] text-balance">
+        <p key={view.id} className="welcome-caption m-0 text-body text-balance">
           {view.caption}
         </p>
       </div>

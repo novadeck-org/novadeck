@@ -40,7 +40,7 @@
   place-items: center;
   min-height: 0;
   overflow: auto;
-  font-size: 12px;
+  font-size: var(--text-body);
   color: var(--artifact-status-fg, var(--color-muted));
 }
 /* What can't show, and why, with what can be done about it. */
@@ -54,7 +54,7 @@
   overflow: auto;
   padding: 24px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--text-body);
   color: var(--artifact-unavailable-fg, var(--color-muted));
 }
 .artifact-unavailable p {
@@ -86,12 +86,16 @@
   gap: 6px 12px;
   padding: 8px 14px;
   border-bottom: var(--border-width) solid var(--artifact-meta-border-color, var(--color-line));
-  font-size: 11px;
+  font-size: var(--text-control);
   line-height: 22px;
   color: var(--artifact-meta-fg, var(--color-muted));
 }
 .artifact-meta code {
-  font: 11px var(--font-mono);
+  font-family: var(--font-mono);
+  font-size: var(--text-control);
+  font-weight: normal;
+  font-style: normal;
+  line-height: normal;
   color: var(--artifact-meta-code-fg, var(--color-ink));
 }
 .artifact-meta-push {
@@ -120,7 +124,7 @@
 .artifact-zoom .segment {
   padding: 0 7px;
   line-height: 16px;
-  font-size: 11px;
+  font-size: var(--text-control);
 }
 .artifact-image {
   display: grid;
@@ -155,7 +159,11 @@
   min-height: 0;
   padding: 10px 0;
   overflow: auto;
-  font: 11.5px/1.75 var(--font-mono);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.75;
   user-select: text;
 }
 .artifact-code div {
@@ -203,7 +211,11 @@
   border-radius: var(--radius-control);
   background-color: var(--artifact-url-bg, var(--color-paper));
   color: var(--artifact-url-fg, var(--color-ink));
-  font: 11px var(--font-mono);
+  font-family: var(--font-mono);
+  font-size: var(--text-control);
+  font-weight: normal;
+  font-style: normal;
+  line-height: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -219,7 +231,7 @@
   border-radius: var(--radius-control);
   background-color: var(--_bg);
   color: var(--_fg);
-  font-size: 11px;
+  font-size: var(--text-control);
   text-decoration: none;
 }
 .artifact-open:hover {

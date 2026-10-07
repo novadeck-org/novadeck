@@ -59,10 +59,8 @@ export const createDemoNotices = (): {
               listeners.forEach((listener) => listener(notice.id))
             }}
           >
-            <span className="demo-notice-title truncate text-[12px] font-medium">
-              {notice.title}
-            </span>
-            <span className="demo-notice-body line-clamp-2 text-[11px]">{notice.body}</span>
+            <span className="demo-notice-title truncate text-body font-medium">{notice.title}</span>
+            <span className="demo-notice-body line-clamp-2 text-control">{notice.body}</span>
           </button>
         ))}
       </section>

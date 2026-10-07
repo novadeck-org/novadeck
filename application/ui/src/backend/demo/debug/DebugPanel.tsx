@@ -117,8 +117,8 @@ export const createDebugPanel = ({
                 <Bug size={16} />
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <h2 className="m-0 text-[13px] leading-none font-semibold">Debug</h2>
-                <p className="m-0 flex flex-wrap gap-1.5 text-[10px]">
+                <h2 className="m-0 text-lead leading-none font-semibold">Debug</h2>
+                <p className="m-0 flex flex-wrap gap-1.5 text-caption">
                   <span className="debug-chip px-1.5 py-0.5">{launch.variant}</span>
                   <span className="debug-chip px-1.5 py-0.5" data-tone={connectionTone(connection)}>
                     {connection}
@@ -143,7 +143,7 @@ export const createDebugPanel = ({
                     <button
                       type="button"
                       aria-expanded={shown}
-                      className="debug-group flex w-full items-center gap-1.5 px-2 py-2 text-left text-[10px] font-semibold"
+                      className="debug-group flex w-full items-center gap-1.5 px-2 py-2 text-left text-caption font-semibold"
                       onClick={() => fold(title)}
                     >
                       <ChevronRight size={12} aria-hidden className="debug-group-chevron" />
@@ -164,8 +164,8 @@ export const createDebugPanel = ({
                               )
                             }}
                           >
-                            <span className="text-[12px] font-medium">{action.label}</span>
-                            <span className="debug-hint text-[10px] leading-[1.4]">
+                            <span className="text-body font-medium">{action.label}</span>
+                            <span className="debug-hint text-caption leading-[1.4]">
                               {action.hint}
                             </span>
                           </button>
@@ -177,7 +177,7 @@ export const createDebugPanel = ({
               })}
             </div>
             {note && (
-              <p role="status" className="debug-panel-note m-0 px-4 py-2 text-[11px]">
+              <p role="status" className="debug-panel-note m-0 px-4 py-2 text-control">
                 {note}
               </p>
             )}

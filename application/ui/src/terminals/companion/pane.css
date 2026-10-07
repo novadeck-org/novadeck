@@ -185,7 +185,11 @@
 }
 .plan-spine-label {
   margin: 0 8px 8px;
-  font: 9px var(--font-mono);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: normal;
+  font-style: normal;
+  line-height: normal;
   letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--spine-label-fg, var(--color-muted));
@@ -206,7 +210,7 @@
   border-radius: var(--radius-control);
   background-color: var(--_bg);
   color: var(--_fg);
-  font-size: 11px;
+  font-size: var(--text-control);
   text-align: left;
 }
 .plan-spine button:hover {
@@ -220,7 +224,11 @@
   border-radius: var(--radius-control);
   background-color: var(--spine-count-bg, var(--color-strong));
   color: var(--spine-count-fg, var(--color-on-strong));
-  font: 9px/16px var(--font-mono);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: normal;
+  font-style: normal;
+  line-height: 16px;
   font-style: normal;
   text-align: center;
 }
@@ -261,7 +269,7 @@
   border-width: var(--border-width);
   border-style: solid;
   border-radius: var(--radius-control);
-  font-size: 11px;
+  font-size: var(--text-control);
 }
 .plan-changes-toggle[aria-pressed="true"] {
   background-color: transparent;
@@ -298,6 +306,6 @@
   padding: 6px 14px;
   border-bottom: var(--border-width) solid var(--placed-from-border-color, var(--color-line));
   background-color: var(--placed-from-bg, var(--color-shell));
-  font-size: 11px;
+  font-size: var(--text-control);
   color: var(--placed-from-fg, var(--color-muted));
 }

@@ -27,7 +27,7 @@ export type VoiceAddon = {
 
 const models: readonly VoiceModel[] = ["turbo", "small"]
 const rowClasses = `preference-row ${settingRowClasses}`
-const noteClasses = "settings-description text-[11px] leading-relaxed"
+const noteClasses = "settings-description text-control leading-relaxed"
 
 // What the person holds to dictate, when the shortcut list names it.
 const dictationKeys = (): string | undefined => {
@@ -76,19 +76,24 @@ const ModelChoice = ({
   readonly disabled?: boolean
 }): React.JSX.Element => (
   <Row id="model" label={label} description={`${modelSummaries[value]} ${detail(value)}`.trim()}>
-    <SegmentGroup
-      label={label}
-      items={choices.map((model) => ({ label: modelNames[model], value: model }))}
-      value={value}
-      disabled={disabled}
-      onValueChange={(next) => {
-        const model = choices.find((item) => item === next)
-        if (model) onChange(model)
-      }}
-      className="flex shrink-0 gap-1"
-      itemClassName="flex h-7 min-w-14 items-center justify-center px-2.5 text-[11px]"
-      indicatorClassName="absolute"
-    />
+    {choices.length === 1 ? (
+      // One installed model leaves nothing to choose: it is shown as the value.
+      <span className="shrink-0">{modelNames[value]}</span>
+    ) : (
+      <SegmentGroup
+        label={label}
+        items={choices.map((model) => ({ label: modelNames[model], value: model }))}
+        value={value}
+        disabled={disabled}
+        onValueChange={(next) => {
+          const model = choices.find((item) => item === next)
+          if (model) onChange(model)
+        }}
+        className="flex shrink-0 gap-1"
+        itemClassName="flex h-7 min-w-14 items-center justify-center px-2.5 text-control"
+        indicatorClassName="absolute"
+      />
+    )}
   </Row>
 )
 
@@ -116,7 +121,7 @@ const Installing = ({
         </span>
         <button
           type="button"
-          className="button min-h-8 shrink-0 px-3 text-[11px]"
+          className="button min-h-8 shrink-0 px-3 text-control"
           onClick={onCancel}
         >
           Cancel
@@ -169,7 +174,7 @@ export const VoiceInput = ({
   const { failure, installing, installed } = state
   const failed = failure && (
     <p
-      className="settings-note m-0 px-4 py-3 text-[11px] leading-relaxed"
+      className="settings-note m-0 px-4 py-3 text-control leading-relaxed"
       data-tone="danger"
       role="alert"
     >
@@ -213,7 +218,7 @@ export const VoiceInput = ({
           <span className={noteClasses}>Downloads once, then works offline.</span>
           <button
             type="button"
-            className="button primary min-h-8 shrink-0 px-3 text-[11px]"
+            className="button primary min-h-8 shrink-0 px-3 text-control"
             onClick={() => install(choice)}
           >
             Install
@@ -228,8 +233,8 @@ export const VoiceInput = ({
   const hint = recommendation(state)
   return (
     <>
-      <ul className={`m-0 p-0 ${settingsCardClasses}`} aria-label="Voice input">
-        <li className={rowClasses}>
+      <div className={settingsCardClasses}>
+        <div className={rowClasses}>
           <span className="flex min-w-0 flex-col gap-1">
             <span id="voice-enabled">Enabled</span>
             <span id="voice-enabled-description" className={noteClasses}>
@@ -245,82 +250,78 @@ export const VoiceInput = ({
             labelledBy="voice-enabled"
             describedBy="voice-enabled-description"
           />
-        </li>
-        <li>
-          <ModelChoice
-            label="Model"
-            choices={installed}
-            value={installed.includes(state.model) ? state.model : installed[0]!}
-            onChange={(model) => actions.set({ model })}
-            detail={() => ""}
-            disabled={busy}
-          />
-        </li>
+        </div>
+        <ModelChoice
+          label="Model"
+          choices={installed}
+          value={installed.includes(state.model) ? state.model : installed[0]!}
+          onChange={(model) => actions.set({ model })}
+          detail={() => ""}
+          disabled={busy}
+        />
         {other && (
-          <li className={rowClasses}>
+          <div className={rowClasses}>
             <span className="flex min-w-0 flex-col gap-1">
               <span>{`Also install ${modelNames[other]}`}</span>
               <span className={noteClasses}>{modelSummaries[other]}</span>
             </span>
             <button
               type="button"
-              className="button min-h-8 shrink-0 px-3 text-[11px]"
+              className="button min-h-8 shrink-0 px-3 text-control"
               disabled={busy}
               onClick={() => install(other)}
             >
               {`Install · ${formatSize(installSize(state, other))}`}
             </button>
-          </li>
+          </div>
         )}
-        <li>
-          <Select
-            className={`${rowClasses} [&_[data-part=trigger]]:w-36`}
-            label="Language"
-            items={languages}
-            value={state.language}
-            onValueChange={(language) => actions.set({ language })}
-            disabled={busy}
-            open={open && selecting}
-            onOpenChange={setSelecting}
-            portalContainer={portalContainer}
-          />
-        </li>
+        <Select
+          className={`${rowClasses} [&_[data-part=trigger]]:w-36`}
+          label="Language"
+          items={languages}
+          value={state.language}
+          onValueChange={(language) => actions.set({ language })}
+          disabled={busy}
+          open={open && selecting}
+          onOpenChange={setSelecting}
+          portalContainer={portalContainer}
+        />
         {state.check && (
-          <li className={rowClasses}>
+          <div className={rowClasses}>
             <span className="flex min-w-0 flex-col gap-1">
               <span className={noteClasses}>{checkText(state.check)}</span>
               {hint && <span className={noteClasses}>{hint}</span>}
             </span>
-          </li>
+          </div>
         )}
-        <li className={rowClasses}>
+        <div className={rowClasses}>
           <span className="flex min-w-0 flex-col gap-1">
             <span>Uninstall</span>
             <span className={noteClasses}>{`Frees ${formatSize(installedSize(state))}.`}</span>
           </span>
           <button
             type="button"
-            className="button min-h-8 shrink-0 px-3 text-[11px]"
+            className="button min-h-8 shrink-0 px-3 text-control"
             disabled={busy}
             onClick={() => setConfirming(true)}
           >
             {busy ? "Removing…" : "Uninstall"}
           </button>
-        </li>
+        </div>
         {failure && (
-          <li className="flex items-center justify-between gap-6">
+          <div className="flex items-center justify-between gap-6">
             {failed}
             <button
               type="button"
-              className="button mr-4 min-h-8 shrink-0 px-3 text-[11px]"
+              className="button mr-4 min-h-8 shrink-0 px-3 text-control"
               disabled={busy}
               onClick={retry}
             >
               Try again
             </button>
-          </li>
+          </div>
         )}
-      </ul>
+      </div>
       <ConfirmDialog
         subject={confirming ? state : null}
         title={() => "Uninstall voice input?"}

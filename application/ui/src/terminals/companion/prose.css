@@ -42,7 +42,11 @@
   margin: auto;
   background: transparent;
   color: var(--prose-fg, var(--color-ink));
-  font: 13px/1.75 var(--prose-font, var(--font-sans));
+  font-family: var(--prose-font, var(--font-sans));
+  font-size: var(--text-lead);
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.75;
 }
 .cm-plan-h1 {
   font-size: 26px;
@@ -51,7 +55,7 @@
   letter-spacing: -0.8px;
 }
 .cm-plan-h2 {
-  font-size: 15px;
+  font-size: var(--text-title);
   font-weight: 550;
 }
 .cm-plan-h3 {
@@ -71,15 +75,23 @@
   border-radius: var(--radius-control);
   background-color: var(--prose-code-bg, var(--color-soft));
   color: var(--prose-code-fg, currentColor);
-  font: 11.5px var(--font-mono);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  font-weight: normal;
+  font-style: normal;
+  line-height: normal;
 }
 .cm-plan-path {
   border: var(--border-width) solid var(--prose-path-border-color, var(--color-line));
   background-color: var(--prose-path-bg, var(--color-shell));
-  font-size: 11px;
+  font-size: var(--text-control);
 }
 .cm-plan-listmark {
-  font: 11px var(--font-mono);
+  font-family: var(--font-mono);
+  font-size: var(--text-control);
+  font-weight: normal;
+  font-style: normal;
+  line-height: normal;
   color: var(--prose-muted-fg, var(--color-muted));
 }
 .cm-plan-quote {
@@ -88,7 +100,11 @@
 }
 .cm-plan-codeblock {
   background-color: var(--prose-codeblock-bg, var(--color-shell));
-  font: 11px/1.9 var(--font-mono);
+  font-family: var(--font-mono);
+  font-size: var(--text-control);
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1.9;
 }
 .cm-plan-fence {
   font-size: 0;
@@ -255,7 +271,7 @@
 .cm-plan-table-widget table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--text-body);
   line-height: 1.6;
 }
 .cm-plan-table-widget th,
@@ -312,7 +328,7 @@
   border-radius: var(--radius-control);
   background-color: var(--_bg);
   color: var(--_fg);
-  font-size: 10px;
+  font-size: var(--text-caption);
   line-height: 18px;
   white-space: nowrap;
 }

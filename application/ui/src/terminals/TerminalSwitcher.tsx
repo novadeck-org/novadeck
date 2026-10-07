@@ -57,10 +57,10 @@ export const TerminalSwitcher = ({
         <header className="modal-header switcher-header flex min-h-17 shrink-0 items-center gap-3 px-5 py-3">
           <Layers size={16} className="shrink-0" aria-hidden="true" />
           <div className="min-w-0 flex-1">
-            <h2 className="m-0 text-sm font-medium">Switch terminal</h2>
-            <p className="modal-description m-0 mt-0.5 truncate text-[10px]">{project}</p>
+            <h2 className="m-0 text-heading leading-5 font-medium">Switch terminal</h2>
+            <p className="modal-description m-0 mt-0.5 truncate text-caption">{project}</p>
           </div>
-          <span className="switcher-count shrink-0 text-[10px]">
+          <span className="switcher-count shrink-0 text-caption">
             {terminals.findIndex((terminal) => terminal.id === selected) + 1} / {terminals.length}
           </span>
           <button
@@ -96,8 +96,8 @@ export const TerminalSwitcher = ({
               >
                 <Terminal size={15} strokeWidth={1.5} aria-hidden="true" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <p className="m-0 truncate text-xs font-medium">{terminal.name}</p>
-                  <p className="switcher-process item-detail m-0 truncate text-[10px]">
+                  <p className="m-0 truncate text-body leading-4 font-medium">{terminal.name}</p>
+                  <p className="switcher-process item-detail m-0 truncate text-caption">
                     {isWindow(terminal) ? "window" : terminal.process || terminal.command}
                   </p>
                 </div>
@@ -106,7 +106,7 @@ export const TerminalSwitcher = ({
             )
           })}
         </div>
-        <footer className="modal-footer switcher-footer shrink-0 px-5 py-3 text-[10px]">
+        <footer className="modal-footer switcher-footer shrink-0 px-5 py-3 text-caption">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             <span>
               {mode === "held" ? (

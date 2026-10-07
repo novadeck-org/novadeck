@@ -5,8 +5,10 @@
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
-/* Inter ships with the app: the CSP only loads fonts from the app itself. */
-@import "@fontsource-variable/inter" layer(base);
+/* Inter and JetBrains Mono ship with the app: the CSP only loads fonts from the app
+   itself. */
+@import "./theme/fonts.css" layer(base);
+@import "@fontsource-variable/jetbrains-mono" layer(base);
 
 /* Recipes, each beside its component. Feature CSS that a lazily loaded view imports
    itself wraps its own rules in `@layer components`. */
@@ -51,8 +53,7 @@
 @import "./preferences/welcome-preview.css" layer(components);
 @import "./search/search.css" layer(components);
 
-@import "./theme/themes/graphite.css" layer(themes);
-@import "./theme/themes/sandstone.css" layer(themes);
+@import "./theme/graphite.css" layer(themes);
 @import "./theme/accessibility.css" layer(accessibility);
 
 /* Only utilities the TSX arranges with: unit tests name utilities without using them,

@@ -1,5 +1,5 @@
 /* The base layer: defaults for the optional foundation tokens, element defaults, and the
-   rule that stills transitions while the theme changes. Imported into `layer(base)`;
+   rule that stills transitions while the scheme changes. Imported into `layer(base)`;
    see docs/theming.md. */
 
 /* Optional foundation tokens: a theme may set any of these, and these are Graphite's. */
@@ -10,8 +10,12 @@
   --radius-popover: 4px;
   --border-width: 1px;
   /* Type */
-  --font-sans: "Inter Variable", "Inter", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-sans: "InterVariable", "Inter", "Helvetica Neue", Arial, sans-serif;
+  /* JetBrains Mono ships with the app, so terminals look and measure the same on every
+     system. A prompt's icons, which it lacks, fall to a Nerd Font the person installed. */
+  --font-mono:
+    "JetBrains Mono Variable", "Symbols Nerd Font Mono", "Symbols Nerd Font", "SFMono-Regular",
+    Consolas, "Liberation Mono", monospace;
   /* Focus */
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
@@ -30,11 +34,11 @@
   --brand-tile-border-color: transparent;
 }
 
-/* While the theme changes, nothing fades: the whole page changes at once. `!important`,
+/* While the scheme changes, nothing fades: the whole page changes at once. `!important`,
    one of the contract's exceptions, so inline transitions still too. */
-[data-theme-switching] *,
-[data-theme-switching] *::before,
-[data-theme-switching] *::after {
+[data-scheme-switching] *,
+[data-scheme-switching] *::before,
+[data-scheme-switching] *::after {
   transition: none !important;
 }
 
@@ -51,14 +55,40 @@
   border-radius: var(--radius-control);
   background: var(--color-line);
 }
+/* Ligatures join pairs such as => into one glyph. In terminals and code they stay off
+   unless the person turns them on in Preferences (data-ligatures on <html>), since a
+   terminal shows what a program printed; the rest of the interface keeps its type's
+   own. */
+:root:not([data-ligatures="on"])
+  :is(
+    .terminal-content,
+    .xterm,
+    .artifact-code,
+    .peek-code,
+    .cm-plan-code,
+    .cm-plan-codeblock,
+    .cm-plan-path,
+    code,
+    pre,
+    kbd,
+    samp
+  ) {
+  font-variant-ligatures: none;
+}
+/* Inter's l takes a tail, its I serifs and its 0 a slash, so names, paths and branches
+   read unambiguously; and its digits are all one width, so counts, timers and badges
+   hold still as they change. The mono has none of these variants and fixed digits
+   already, so terminals draw as they were. */
 body {
   margin: 0;
+  font-feature-settings: "cv05", "cv08", "zero";
+  font-variant-numeric: tabular-nums;
   background-color: var(--color-paper);
   font-family: var(--font-sans);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-size: 13px;
+  font-size: var(--text-lead);
   user-select: none;
 }
 /* Tailwind's own defaults would set code in a face the theme never chose. */

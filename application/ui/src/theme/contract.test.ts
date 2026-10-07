@@ -2,11 +2,9 @@
 
 // The theming contract in docs/theming.md, checked against the source.
 //
-// Themes: every theme in `themes.ts` has a file in `themes/`, imported into
-// `layer(themes)`, whose selectors all start with its own `[data-theme]`; the file
+// Theme: `graphite.css`, the app's one theme, is imported into `layer(themes)` and
 // defines every required foundation token (`tokens.ts`, which the doc's table matches)
-// for each scheme the manifest lists. The first scheme lives on `[data-theme="<id>"]`,
-// each other one on `[data-theme="<id>"][data-scheme="<scheme>"]`.
+// for each scheme: light on `:root`, dark on `:root[data-scheme="dark"]`.
 //
 // Rules: (a) to (d) below hold for every file. Rule (c) has a short list of
 // exceptions, each with its reason, which the guide's "Exceptions" section repeats; an
@@ -18,17 +16,17 @@
 //     `!` and `-`) begins with a Tailwind utility root must match `layoutUtilities`.
 //     Allowed: display, flex and grid, gap, margin, padding, position and inset,
 //     z-index, order, overflow, visibility, sizes, transforms, pointer and scroll
-//     behaviour, `opacity-0` and `opacity-100`, and type that sets size and flow:
-//     text sizes (`text-sm`, `text-[11px]`), alignment (`text-center`), wrapping and
-//     truncation, line height (`leading-*`) and weight (`font-medium`). Everything
-//     else is a look: colours and backgrounds (`text-muted`, `bg-*`), every `border*`
-//     (width, sides and colour), `rounded*`, `shadow*`, `ring*`, `outline*`, opacity
-//     between 0 and 1, fill, stroke, filters and backdrops, font family
-//     (`font-mono`), letter spacing, text transform and decoration, and motion
-//     (`transition*`, `duration-*`, `ease-*`, `animate-*`). An arbitrary property
-//     (`[overflow-wrap:anywhere]`) follows the same split by its property name. Class
-//     strings are found in each script's syntax tree; see `classStrings`. `@apply` in
-//     a stylesheet follows the same split.
+//     behaviour, `opacity-0` and `opacity-100`, and type that sets size and flow: text
+//     sizes (a step of the type scale such as `text-body`, or `text-[11px]`), alignment
+//     (`text-center`), wrapping and truncation, line height (`leading-*`) and weight
+//     (`font-medium`). Everything else is a look: colours and backgrounds
+//     (`text-muted`, `bg-*`), every `border*` (width, sides and colour), `rounded*`,
+//     `shadow*`, `ring*`, `outline*`, opacity between 0 and 1, fill, stroke, filters
+//     and backdrops, font family (`font-mono`), letter spacing, text transform and
+//     decoration, and motion (`transition*`, `duration-*`, `ease-*`, `animate-*`). An
+//     arbitrary property (`[overflow-wrap:anywhere]`) follows the same split by its
+//     property name. Class strings are found in each script's syntax tree; see
+//     `classStrings`. `@apply` in a stylesheet follows the same split.
 // (b) No colour literals in CSS outside theme files: hex, colour functions (`rgb()`,
 //     `hsl()`, `oklch()`, …), named colours, Tailwind palette colours in `@apply`, and
 //     system colours, in any case, outside `accessibility.css`. `transparent`, `currentColor` and
@@ -49,7 +47,6 @@ import { join, posix } from "node:path"
 import { parseAst, transformWithEsbuild } from "vite"
 
 import { describe, expect, it } from "../test"
-import { themes } from "./themes"
 import { requiredTokens } from "./tokens"
 
 const src = join(process.cwd(), "src")
@@ -59,7 +56,7 @@ const all = (readdirSync(src, { recursive: true }) as string[]).map((file) =>
 )
 const read = (file: string): string => readFileSync(join(src, file), "utf8")
 const stylesheets = all.filter((file) => file.endsWith(".css"))
-const themeFile = (file: string): boolean => /^theme\/themes\/[^/]+\.css$/.test(file)
+const themeFile = (file: string): boolean => file === "theme/graphite.css"
 const scripts = all.filter(
   (file) =>
     /\.tsx?$/.test(file) &&
@@ -128,24 +125,6 @@ const declarations = (body: string): Map<string, string> =>
     }),
   )
 
-// A selector list's selectors: split at its own commas, not those inside `:is()` or
-// another function.
-const selectorList = (prelude: string): string[] => {
-  const found: string[] = []
-  let depth = 0
-  let start = 0
-  for (let index = 0; index < prelude.length; index++) {
-    const char = prelude[index]
-    if (char === "(" || char === "[") depth++
-    else if (char === ")" || char === "]") depth--
-    else if (char === "," && depth === 0) {
-      found.push(prelude.slice(start, index).trim())
-      start = index + 1
-    }
-  }
-  return [...found, prelude.slice(start).trim()]
-}
-
 // ---- Reporting: what breaks a rule, by file, with how to fix it.
 
 type Rule = { readonly broken: string; readonly fix: string }
@@ -184,54 +163,48 @@ describe("theme contract", () => {
     })
   })
 
-  describe.each(themes.map((theme) => [theme.id, theme] as const))("theme %s", (id, theme) => {
-    const file = `theme/themes/${id}.css`
+  describe("the theme file", () => {
+    const file = "theme/graphite.css"
 
-    it("has a file imported into the themes layer", () => {
+    it("is imported into the themes layer", () => {
       expect(stylesheets).toContain(file)
       expect(uncomment(read("styles.css"))).toContain(`@import "./${file}" layer(themes);`)
     })
 
-    it("selects only its own theme", () => {
-      const prefix = `[data-theme="${id}"]`
-      const selectors = (css: string): string[] =>
-        cssNodes(css).flatMap((node) =>
-          node.body === undefined
-            ? []
-            : node.prelude.startsWith("@")
-              ? selectors(node.body)
-              : selectorList(node.prelude),
-        )
-      expect(
-        selectors(uncomment(read(file))).filter((selector) => !selector.startsWith(prefix)),
-      ).toEqual([])
-      expect(
-        [...read(file).matchAll(/data-theme="([^"]*)"/g)]
-          .map((match) => match[1])
-          .filter((name) => name !== id),
-      ).toEqual([])
+    it.each([
+      ["light", ":root"],
+      ["dark", ':root[data-scheme="dark"]'],
+    ])("defines every required token for its %s scheme", (scheme, selector) => {
+      const block = cssNodes(uncomment(read(file))).find((node) => node.prelude === selector)
+      expect(block?.body, `${file} has no ${selector} block`).toBeDefined()
+      const tokens = declarations(block!.body!)
+
+      expect(tokens.get("color-scheme")).toBe(scheme)
+      expect(requiredTokens.filter((token) => !tokens.has(token))).toEqual([])
     })
 
-    it.each(theme.schemes.map((scheme, index) => [scheme, index] as const))(
-      "defines every required token for its %s scheme",
-      (scheme, index) => {
-        const selector =
-          index === 0 ? `[data-theme="${id}"]` : `[data-theme="${id}"][data-scheme="${scheme}"]`
-        const block = cssNodes(uncomment(read(file))).find((node) => node.prelude === selector)
-        expect(block?.body, `${file} has no ${selector} block`).toBeDefined()
-        const tokens = declarations(block!.body!)
+    // The light block is shared, so a colour it sets holds in dark unless dark restates
+    // it. Aliases and offsets from the paper resolve again against dark's values; a
+    // literal does not, so each one is restated or listed here with why it holds in both.
+    it("restates in dark every literal colour the light block sets", () => {
+      const holdsInBoth = new Map([
+        ["--brand-tile-fg", "the logo's glyph is the bright cyan in both schemes"],
+        ["--artifact-webview-bg", "a live page assumes a white ground in both schemes"],
+      ])
+      const nodes = cssNodes(uncomment(read(file)))
+      const light = declarations(nodes.find((node) => node.prelude === ":root")!.body!)
+      const dark = declarations(
+        nodes.find((node) => node.prelude === ':root[data-scheme="dark"]')!.body!,
+      )
+      const literal = /#[\da-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\((?!\s*from\b)/i
 
-        expect(tokens.get("color-scheme")).toBe(scheme)
-        expect(requiredTokens.filter((token) => !tokens.has(token))).toEqual([])
-      },
-    )
-  })
+      const leaking = [...light]
+        .filter(([name, value]) => literal.test(value) && !dark.has(name))
+        .map(([name]) => name)
+        .filter((name) => !holdsInBoth.has(name))
 
-  it("lists every theme file in the manifest", () => {
-    const ids = new Set<string>(themes.map((theme) => theme.id))
-    expect(
-      stylesheets.filter(themeFile).filter((file) => !ids.has(posix.basename(file, ".css"))),
-    ).toEqual([])
+      expect(leaking).toEqual([])
+    })
   })
 })
 
@@ -460,7 +433,7 @@ const layoutUtilities: readonly RegExp[] = [
   /^((translate|scale|rotate|skew)(-[xyz])?-.+|transform(-.+)?|origin-.+)$/,
   /^(pointer-events|cursor|select|touch|resize|scroll|snap|will-change|appearance)(-.+)?$/,
   /^opacity-(0|100)$/,
-  /^text-(xs|sm|base|lg|[2-9]?xl)(\/.+)?$/,
+  /^text-(label|caption|control|code|body|lead|heading|title)(\/.+)?$/,
   /^text-\[(length:)?[\d.]+(px|rem|em)\](\/.+)?$/,
   /^text-\[length:.+\]$/,
   /^text-(left|center|right|justify|start|end|wrap|nowrap|balance|pretty|ellipsis|clip)$/,
@@ -598,9 +571,9 @@ const importantExceptions: readonly {
 }[] = [
   {
     file: "theme/base.css",
-    reason: "stills every transition, inline ones too, while the theme changes",
+    reason: "stills every transition, inline ones too, while the scheme changes",
     declarations: [
-      "[data-theme-switching] *, [data-theme-switching] *::before, [data-theme-switching] *::after { transition }",
+      "[data-scheme-switching] *, [data-scheme-switching] *::before, [data-scheme-switching] *::after { transition }",
     ],
   },
   {
@@ -629,9 +602,9 @@ const important: Rule = {
 
 // ---- (d) Every stylesheet is layered.
 
-// Holds only Tailwind's `@theme`, which Tailwind puts in its own layer.
+// Holds only Tailwind's `@theme` (or `@theme static`), which Tailwind puts in its own layer.
 const onlyTheme = (file: string): boolean =>
-  cssNodes(uncomment(read(file))).every((node) => node.prelude === "@theme")
+  cssNodes(uncomment(read(file))).every((node) => /^@theme( static)?$/.test(node.prelude))
 
 const imports = (css: string): { readonly target: string; readonly layered: boolean }[] =>
   cssNodes(css).flatMap((node) => {

@@ -281,6 +281,7 @@ describe("key commands", () => {
           enabledViews: ["focus", "canvas"],
           appearance,
           notifyFinished: true,
+          ligatures: false,
         },
         workspace: workspaceFixture({ view: "canvas" }),
         url: "/projects/project/sessions/initial/canvas?terminal=01",
@@ -422,6 +423,7 @@ describe("key commands", () => {
           enabledViews: ["grid", "canvas"],
           appearance,
           notifyFinished: true,
+          ligatures: false,
         },
       })
       expect(app.keydown({ key: "Enter", ctrlKey: true, shiftKey: true })).toBe("passed")

@@ -129,6 +129,35 @@ const ended = (terminal: Partial<TerminalMetadata>) => {
   return { page, bar, restarts, connection }
 }
 
+// The page's font set while the bundled mono is on its way: it arrives when the test says.
+const loading = () => {
+  const arrival = later<FontFace[]>()
+  const original = Object.getOwnPropertyDescriptor(document, "fonts")
+  Object.defineProperty(document, "fonts", {
+    configurable: true,
+    value: { check: () => false, load: () => arrival.promise },
+  })
+  const restore = () => {
+    if (original) Object.defineProperty(document, "fonts", original)
+    else delete (document as { fonts?: unknown }).fonts
+  }
+  return { arrive: () => arrival.give([]), restore }
+}
+// Records each font family xterm is told to use after it opens, in order.
+const fontChanges = () => {
+  const changes: string[] = []
+  const options = Object.getOwnPropertyDescriptor(Terminal.prototype, "options")!.get!
+  vi.spyOn(Terminal.prototype, "options", "get").mockImplementation(function (this: Terminal) {
+    return new Proxy(options.call(this), {
+      set: (target, name, value) => {
+        if (name === "fontFamily") changes.push(value as string)
+        return Reflect.set(target, name, value)
+      },
+    })
+  })
+  return changes
+}
+
 // Two programs' bodies, each its own component, so switching remounts the content.
 const Agent = (props: { children: ReactNode }) => createElement("section", props)
 const Plain = (props: { children: ReactNode }) => createElement("article", props)
@@ -495,6 +524,55 @@ describe("runner terminal surface", () => {
         expect(opened[0]?.options.fontFamily).toBe("New Mono")
       } finally {
         root.style.removeProperty("--font-mono")
+      }
+    })
+  })
+
+  context("while its bundled monospace font is still loading", () => {
+    it("measures again in the font once it arrives", async () => {
+      const font = loading()
+      const changes = fontChanges()
+      const root = document.documentElement
+      root.style.setProperty("--font-mono", "Bundled Mono")
+      try {
+        show(starting().runtime)
+        const before = changes.length
+
+        await act(async () => font.arrive())
+
+        // The family is unchanged, so xterm is told another one first: only a change
+        // makes it measure its cells again.
+        expect(changes.slice(before)).toEqual(["monospace", "Bundled Mono"])
+      } finally {
+        root.style.removeProperty("--font-mono")
+        font.restore()
+      }
+    })
+
+    it("leaves a screen alone that closed before the font arrived", async () => {
+      const font = loading()
+      const changes = fontChanges()
+      const root = document.documentElement
+      root.style.setProperty("--font-mono", "Bundled Mono")
+      try {
+        const page = show(starting().runtime)
+        mounted.splice(mounted.indexOf(page), 1)
+        // A screen closes once its session has stayed off screen for its retention.
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+        try {
+          page.unmount()
+          vi.advanceTimersByTime(31 * 60 * 1000)
+        } finally {
+          vi.useRealTimers()
+        }
+        const before = changes.length
+
+        await act(async () => font.arrive())
+
+        expect(changes.slice(before)).toEqual([])
+      } finally {
+        root.style.removeProperty("--font-mono")
+        font.restore()
       }
     })
   })

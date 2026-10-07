@@ -61,7 +61,7 @@ export const SearchCombobox = ({
           {(combobox) => (
             <Combobox.Input
               ref={inputRef}
-              className="field-input min-w-0 flex-1 text-sm"
+              className="field-input min-w-0 flex-1 text-heading leading-5"
               aria-label={label}
               placeholder={placeholder}
               onFocus={() => {

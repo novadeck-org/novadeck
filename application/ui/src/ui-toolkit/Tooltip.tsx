@@ -60,7 +60,7 @@ export const Tooltip = ({
       </ArkTooltip.Trigger>
       <Portal>
         <ArkTooltip.Positioner className="z-50">
-          <ArkTooltip.Content className="floating z-50 max-w-64 px-2 py-1.5 text-[11px] whitespace-pre-line">
+          <ArkTooltip.Content className="floating z-50 max-w-64 px-2 py-1.5 text-control whitespace-pre-line">
             {content}
           </ArkTooltip.Content>
         </ArkTooltip.Positioner>

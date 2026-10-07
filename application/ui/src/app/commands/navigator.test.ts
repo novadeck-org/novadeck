@@ -11,6 +11,7 @@ const preferences: PreferencesValue = {
   enabledViews: ["focus", "grid", "canvas"],
   appearance,
   notifyFinished: true,
+  ligatures: false,
 }
 const base = "/projects/project/sessions/initial/grid"
 

@@ -150,6 +150,9 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       fontSize,
       fontFamily: monospace(element),
       theme: themeOf(element),
+      // Programs and agents pick their own colours, often greys meant for another ground;
+      // xterm darkens or lightens any that would read under 4.5:1 against the background.
+      minimumContrastRatio: 4.5,
       scrollback: 1000,
       allowTransparency: false,
     })
@@ -289,6 +292,21 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     })
     resizes.observe(element)
     window.addEventListener(themeChangeEvent, retheme)
+    // xterm measures its cells once, with whatever font has loaded by then; a bundled font
+    // still on its way arrives later, so the terminal measures and fits again once it has.
+    const fonts = element.ownerDocument.fonts as FontFaceSet | undefined
+    const face = `${xterm.options.fontSize}px ${xterm.options.fontFamily}`
+    if (fonts && !fonts.check(face))
+      fonts.load(face).then(
+        () => {
+          if (gone) return
+          const font = monospace(element)
+          xterm.options.fontFamily = "monospace"
+          xterm.options.fontFamily = font
+          followed.refit()
+        },
+        () => {},
+      )
     runtime.screen(key, "mounted")
     entry.dispose = () => {
       runtime.screen(key, "gone")

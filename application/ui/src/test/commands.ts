@@ -47,6 +47,7 @@ export const openCommands = ({
     enabledViews: ["focus", "grid", "canvas"],
     appearance,
     notifyFinished: true,
+    ligatures: false,
   },
   desktop = true,
   canvas,

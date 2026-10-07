@@ -17,7 +17,7 @@ const endingLine = ({ status, reason }: TerminalEndingView): string =>
 
 // Why typing is paused, set in capitals by CSS so assistive technology reads words.
 export const TerminalNotice = ({ notice }: { readonly notice: string }): React.JSX.Element => (
-  <span className="terminal-lock-notice px-3.5 py-2 text-[11px] font-bold">{notice}</span>
+  <span className="terminal-lock-notice px-3.5 py-2 text-control font-bold">{notice}</span>
 )
 
 // Over the whole surface while typing is paused: the output dims under the notice.
@@ -50,7 +50,7 @@ export const TerminalEndingBar = ({
   if (ending && (ending.tone !== shown?.tone || endingLine(ending) !== text)) setShown(ending)
   return (
     <div
-      className={`terminal-ending absolute inset-x-0 bottom-0 flex h-7 items-center justify-between gap-3 text-[11px] ${ending ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}
+      className={`terminal-ending absolute inset-x-0 bottom-0 flex h-7 items-center justify-between gap-3 text-control ${ending ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}
       inert={!ending}
       data-terminal-ending={ending?.tone}
     >
@@ -70,7 +70,7 @@ export const TerminalEndingBar = ({
           }}
         >
           Restart
-          <kbd aria-hidden className="min-h-4 px-1 text-[9px]">
+          <kbd aria-hidden className="min-h-4 px-1 text-label">
             ↵
           </kbd>
         </button>

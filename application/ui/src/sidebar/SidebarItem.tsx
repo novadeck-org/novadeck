@@ -55,7 +55,7 @@ export const SidebarItem = ({
   const descriptionId = useId()
   const describers =
     describedBy && [description && descriptionId, describedBy].filter(Boolean).join(" ")
-  const nameClasses = `truncate text-[12px] leading-[18px] ${emphasized ? "font-bold" : "font-medium"}`
+  const nameClasses = `truncate text-body leading-[18px] ${emphasized ? "font-bold" : "font-medium"}`
   return (
     <div
       {...attributes}
@@ -87,7 +87,7 @@ export const SidebarItem = ({
             ) : (
               <strong className={nameClasses}>{name}</strong>
             )}
-            <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10px] leading-[18px] [.sidebar-item:has(.sidebar-item-actions)_&]:pr-[var(--_sidebar-actions-space,52px)]">
+            <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-caption leading-[18px] [.sidebar-item:has(.sidebar-item-actions)_&]:pr-[var(--_sidebar-actions-space,52px)]">
               {detail}
             </span>
           </span>

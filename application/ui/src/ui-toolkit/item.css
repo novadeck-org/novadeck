@@ -13,7 +13,7 @@
    --item-highlighted-bg (shell), --item-highlighted-border-color (line): highlighted.
    --item-selected-bg (paper), --item-selected-border-color (line),
    --item-selected-shadow (shadow-control), --item-selected-indicator-bg (strong):
-   selected, and its bar.
+   selected, and its bar. --item-selected-indicator-shadow (none): a glow around the bar.
    --item-disabled-fg (muted), --item-disabled-opacity (0.6): disabled. */
 .item {
   --_bg: transparent;
@@ -44,6 +44,7 @@
   left: 0;
   width: 2px;
   background-color: var(--item-selected-indicator-bg, var(--color-strong));
+  box-shadow: var(--item-selected-indicator-shadow, none);
   opacity: var(--_indicator-opacity);
   pointer-events: none;
   transition: opacity var(--motion-state) var(--ease-interface);

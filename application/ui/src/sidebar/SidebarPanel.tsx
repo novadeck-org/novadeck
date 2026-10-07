@@ -37,7 +37,7 @@ export const SidebarPanel = ({
         <h2
           id={`${id}-title`}
           tabIndex={titleHint ? 0 : undefined}
-          className="section-label m-0 flex min-w-0 items-center gap-1.5 text-[9px] font-medium"
+          className="section-label m-0 flex min-w-0 items-center gap-1.5 text-label font-medium"
         >
           {title}
           {count !== undefined && <span className="sidebar-panel-count">{count}</span>}

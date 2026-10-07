@@ -41,7 +41,13 @@ const ui = () =>
         dialogDepth: 0,
         navigationType: "POP",
       },
-      preferences: { fontSize: 13, enabledViews: ["focus"], appearance, notifyFinished: true },
+      preferences: {
+        fontSize: 13,
+        enabledViews: ["focus"],
+        appearance,
+        notifyFinished: true,
+        ligatures: false,
+      },
     }),
   )
 

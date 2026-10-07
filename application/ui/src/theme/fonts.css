@@ -1,0 +1,13 @@
+/* Inter 4.1, the official build (github.com/rsms/inter, SIL Open Font License; see
+   assets/fonts/LICENSE-Inter.txt). Google Fonts' build, which Fontsource serves, drops
+   the character variants the UI turns on to tell I, l and 0 apart (theme/base.css), so
+   the app ships Inter's own file. It carries the optical size axis, so large text takes
+   Inter's display shapes. Imported into `layer(base)`; JetBrains Mono comes from
+   Fontsource, whose build keeps what the terminals need. */
+@font-face {
+  font-family: "InterVariable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/InterVariable.woff2") format("woff2");
+}

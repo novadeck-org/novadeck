@@ -35,7 +35,7 @@
     background-color: var(--dictation-bg, var(--color-paper));
     color: var(--dictation-fg, var(--color-ink));
     box-shadow: var(--dictation-shadow, var(--shadow-floating));
-    font-size: 12px;
+    font-size: var(--text-body);
   }
   .dictation-overlay[hidden] {
     display: none;
@@ -59,7 +59,7 @@
     height: 0.25rem;
     flex: none;
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: var(--radius-control);
     background-color: color-mix(in srgb, var(--color-muted) 25%, transparent);
   }
   .dictation-meter > i {

@@ -121,7 +121,7 @@ const DemoTerminalSurface = ({
         }}
       >
         {!agent && (
-          <div className="command-location mb-1 flex items-center gap-2 text-[10px] [&>svg]:ml-1">
+          <div className="command-location mb-1 flex items-center gap-2 text-caption [&>svg]:ml-1">
             <span>{projectName}</span>
             <GitBranch size={12} />
             <span>main</span>

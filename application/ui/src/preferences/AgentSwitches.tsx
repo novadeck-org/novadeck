@@ -49,7 +49,7 @@ export const AgentSwitches = ({
             {note && item.error && (
               <span
                 id={`agent-${item.agent}-note`}
-                className="settings-note text-[11px] leading-relaxed"
+                className="settings-note text-control leading-relaxed"
                 data-tone="danger"
                 role="alert"
               >
@@ -60,7 +60,7 @@ export const AgentSwitches = ({
           {/* A short state sits beside the switch, so the row keeps its height. */}
           <div className="flex shrink-0 items-center gap-3">
             {note && !item.error && (
-              <span id={`agent-${item.agent}-note`} className="settings-note text-[11px]">
+              <span id={`agent-${item.agent}-note`} className="settings-note text-control">
                 {note}
               </span>
             )}

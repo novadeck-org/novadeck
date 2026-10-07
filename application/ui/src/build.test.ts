@@ -35,6 +35,18 @@ describe("compiled frontend", () => {
       expect(await read("theme-boot.js")).toContain("novadeck.theme-boot")
     })
 
+    it("ships its fonts as files, which the Content Security Policy allows", async () => {
+      const html = await read("index.html")
+      const sheets = [...html.matchAll(/href="\.\/(assets\/[^"]+\.css)"/g)].flatMap((match) =>
+        match[1] ? [match[1]] : [],
+      )
+      expect(sheets.length).toBeGreaterThan(0)
+      const css = (await Promise.all(sheets.map(read))).join("\n")
+
+      expect(css).toMatch(/url\(\.?\/?[^)]*\.woff2\)/)
+      expect(css).not.toContain("url(data:font")
+    })
+
     it("ships every deferred view and its assets alongside the entry point", async () => {
       const manifest: Manifest = JSON.parse(await read(".vite/manifest.json"))
       const chunks = Object.values(manifest)

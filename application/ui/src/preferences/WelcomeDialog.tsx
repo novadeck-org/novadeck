@@ -77,11 +77,11 @@ const ChoiceCard = ({
       <Icon size={20} strokeWidth={1.4} />
     </span>
     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-      <span className="text-[12px] font-medium">{label}</span>
+      <span className="text-body font-medium">{label}</span>
       {note && (
         <span
           id={noteId}
-          className="settings-note text-[10px] leading-relaxed"
+          className="settings-note text-caption leading-relaxed"
           data-tone={error ? "danger" : undefined}
           role={error ? "alert" : undefined}
         >
@@ -176,7 +176,7 @@ const WelcomeForm = ({
             </span>
           </DialogTitle>
           <DialogDescription
-            className="modal-description welcome-enter mt-4 mb-0 max-w-[350px] text-[13px] leading-[1.7]"
+            className="modal-description welcome-enter mt-4 mb-0 max-w-[350px] text-lead leading-[1.7]"
             style={at(1300)}
           >
             Terminals, agents, and projects in one workspace.
@@ -193,7 +193,7 @@ const WelcomeForm = ({
             <h3 className="welcome-heading m-0 text-[25px] leading-[1.2] font-medium">
               Connect your agents
             </h3>
-            <p className="modal-description mt-2 mb-0 text-[12px] leading-[1.7]">
+            <p className="modal-description mt-2 mb-0 text-body leading-[1.7]">
               Unlock Novadeck features inside your coding agents.
             </p>
           </div>
@@ -225,7 +225,7 @@ const WelcomeForm = ({
           </fieldset>
 
           <p
-            className={`modal-description welcome-enter mt-3 min-h-[2lh] text-[10px] leading-[1.65] ${transcripts ? "mb-5" : "mb-8"}`}
+            className={`modal-description welcome-enter mt-3 min-h-[2lh] text-caption leading-[1.65] ${transcripts ? "mb-5" : "mb-8"}`}
             style={at(850)}
           >
             {pluginNote(
@@ -257,14 +257,14 @@ const WelcomeForm = ({
         <div className="welcome-enter" style={at(1000)}>
           <button
             type="submit"
-            className="button primary welcome-start relative min-h-11 w-full justify-between gap-3 overflow-hidden px-4 py-3 text-[12px] font-medium"
+            className="button primary welcome-start relative min-h-11 w-full justify-between gap-3 overflow-hidden px-4 py-3 text-body font-medium"
           >
             Let’s build something
             <ArrowRight size={16} className="welcome-arrow" aria-hidden="true" />
           </button>
           <button
             type="button"
-            className="button ghost welcome-skip mt-2 min-h-9 w-full px-3 py-2 text-[11px]"
+            className="button ghost welcome-skip mt-2 min-h-9 w-full px-3 py-2 text-control"
             onClick={onDone}
           >
             Skip for now

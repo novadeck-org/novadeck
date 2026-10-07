@@ -43,7 +43,7 @@ export const shellGroups = ({
         },
         {
           label: "Slow attach",
-          hint: "Boots again; the splash counts terminals attaching over about 3 s.",
+          hint: "Boots again; the splash counts terminals attaching over about 3\u00a0s.",
           run: launch.armSlowAttach,
         },
         ...bootFailures.map((failure) => ({
