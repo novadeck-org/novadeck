@@ -11,6 +11,7 @@ import { gzipSync } from "node:zlib"
 //
 //   node scripts/build.ts     builds dist/novadeck-whisper-<platform>-<arch>.tar.gz and
 //                             dist/engine.json, which names it with its SHA-256 and size
+//                             and the interface it speaks
 //
 // The archive holds `whisper-server`, the libraries and backend modules it loads, a
 // sample of speech for the post-install check and whisper.cpp's licence, all flat, so
@@ -27,6 +28,12 @@ const version = "v1.9.4"
 const commit = "927cfce34f31707e17f2bff35c349632fb9e2c3a"
 const sourceUrl = `https://github.com/ggml-org/whisper.cpp/archive/${commit}.tar.gz`
 const sourceSha256 = "41b664fee09e79176ac277b5237debec34f8d74af3c7d71f333f1ec67989ecde"
+
+// The interface the runner launches the server through: the flags it passes and the HTTP
+// surface the patches give it. Bump it with any change to either, so an app that is still
+// fetching this engine does not dictate with an older one that would not understand the
+// runner (see olderEngine in application/runner/src/voice/service.ts).
+const engineInterface = 1
 
 // The oldest macOS Electron 44 runs on; a newer target would drop computers the app runs on.
 const macosTarget = "12.0"
@@ -327,7 +334,12 @@ const pack = (staging: string, names: readonly string[]): Buffer => {
 const place = async (staging: string): Promise<void> => {
   await mkdir(dist, { recursive: true })
   const data = pack(staging, (await readdir(staging)).toSorted())
-  const manifest = { file: archive, sha256: sha256(data), size: data.length }
+  const manifest = {
+    file: archive,
+    sha256: sha256(data),
+    size: data.length,
+    interface: engineInterface,
+  }
   const temporary = join(dist, `${archive}.${process.pid}.tmp`)
   await writeFile(temporary, data)
   await rename(temporary, join(dist, archive))

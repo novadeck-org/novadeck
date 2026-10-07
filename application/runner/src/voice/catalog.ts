@@ -45,6 +45,9 @@ export const manifest = z.strictObject({
     .refine((file) => !/[/\\]/.test(file) && file !== ".."),
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
   size: z.int().nonnegative(),
+  // Which server flags and HTTP surface the engine speaks. An engine unpacked before the
+  // marker existed, and a manifest without one, are the first.
+  interface: z.int().positive().default(1),
 })
 
 export type Manifest = z.infer<typeof manifest>

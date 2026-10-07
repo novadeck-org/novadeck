@@ -9,6 +9,7 @@ import type { Resources } from "../testing/resources.js"
 import { engineArchive, fakeLaunch, folder, modelCatalog } from "../testing/voice.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { Catalog } from "./catalog.js"
+import { engineInterface } from "./engine.js"
 import { updateRetryMs, Voice } from "./service.js"
 
 const pcm = (bytes: number) => Buffer.alloc(bytes).toString("base64")
@@ -612,6 +613,41 @@ describe("voice input after the app brings a new engine", () => {
     // The next clip starts the new engine, the old one's folder being gone.
     await expect(voice.transcribe("owner", "clip")).resolves.toMatchObject({ language: "pl" })
     expect(voice.state()).toMatchObject({ installing: null, failure: null, enabled: true })
+  })
+
+  it("keeps dictating with an older engine that has no marker, as the first interface", async ({
+    resources,
+  }) => {
+    const { voice, directory } = await updated(resources)
+    const [older] = await readdir(join(directory, "engine"))
+    await rm(join(directory, "engine", older ?? "", ".interface"), { force: true })
+    await voice.refresh()
+
+    await expect(voice.record("owner", "clip", 0, pcm(3200))).resolves.toBeUndefined()
+    await voice.settled()
+  })
+
+  it("does not fall back to an older engine of another interface", async ({ resources }) => {
+    const first = await installed(resources)
+    const next = await engineArchive(resources, "2", { interface: 2 })
+    const { voice } = await setup(resources, {
+      store: first.store,
+      directory: first.directory,
+      engine: next,
+      catalog: await modelCatalog(resources),
+    })
+
+    await expect(voice.record("owner", "clip", 0, pcm(2))).rejects.toMatchObject({
+      code: "VOICE_UNAVAILABLE",
+      data: { reason: "updating" },
+    })
+    await voice.settled()
+
+    // The engine that came with the update speaks the new interface, so it runs.
+    const [unpacked] = await readdir(join(first.directory, "engine"))
+    await expect(engineInterface(join(first.directory, "engine", unpacked ?? ""))).resolves.toBe(2)
+    await voice.record("owner", "clip", 0, pcm(3200))
+    await expect(voice.transcribe("owner", "clip")).resolves.toMatchObject({ language: "pl" })
   })
 
   it("tells a dictation that no engine is there that it is updating", async ({ resources }) => {

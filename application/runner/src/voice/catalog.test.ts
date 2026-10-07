@@ -21,6 +21,22 @@ describe("the engine manifest", () => {
     await expect(readManifest(path)).resolves.toMatchObject({ file: "engine.tar.gz" })
   })
 
+  it("takes the first interface for a manifest that names none", async ({ resources }) => {
+    const path = await engineArchive(resources)
+    const named = await engineArchive(resources, "2", { interface: 2 })
+
+    await expect(readManifest(path)).resolves.toMatchObject({ interface: 1 })
+    await expect(readManifest(named)).resolves.toMatchObject({ interface: 2 })
+  })
+
+  it("is nothing for an interface that is not a positive whole number", async ({ resources }) => {
+    const zero = await engineArchive(resources, "1", { interface: 0 })
+    const half = await engineArchive(resources, "2", { interface: 1.5 })
+
+    await expect(readManifest(zero)).resolves.toBeUndefined()
+    await expect(readManifest(half)).resolves.toBeUndefined()
+  })
+
   it("is nothing where there is no manifest, or one that makes no sense", async ({ resources }) => {
     const directory = await folder(resources)
     const bad = join(directory, "bad.json")

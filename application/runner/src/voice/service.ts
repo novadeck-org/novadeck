@@ -27,6 +27,7 @@ import {
   Engine,
   EngineError,
   engineFolder,
+  engineInterface,
   engineProgram,
   enginesIn,
   unpack,
@@ -154,19 +155,32 @@ export class Voice {
     this.manifest = manifest
     this.installed = models
     this.engineReady = ready
-    this.engineDir = manifest === undefined ? undefined : ready ? current : await this.olderEngine()
+    this.engineDir =
+      manifest === undefined
+        ? undefined
+        : ready
+          ? current
+          : await this.olderEngine(manifest.interface)
   }
 
-  /** An engine of an earlier build that is still unpacked and can run, if there is one. */
-  private async olderEngine(): Promise<string | undefined> {
+  /**
+   * An engine of an earlier build that is still unpacked and speaks `wanted`, the
+   * interface this runner launches engines with, if there is one.
+   */
+  private async olderEngine(wanted: number): Promise<string | undefined> {
     const root = enginesIn(this.directory)
     // Folders being unpacked start with a dot and are not whole yet.
     const entries = (await readdir(root).catch(() => [])).filter((entry) => !entry.startsWith("."))
     for (const entry of entries.toSorted()) {
       // eslint-disable-next-line no-await-in-loop -- Stops at the first that runs.
-      if (await exists(join(root, entry, engineProgram))) return join(root, entry)
+      if (await this.runs(join(root, entry), wanted)) return join(root, entry)
     }
     return undefined
+  }
+
+  /** Whether the engine unpacked in `folder` has its program and speaks `wanted`. */
+  private async runs(folder: string, wanted: number): Promise<boolean> {
+    return (await exists(join(folder, engineProgram))) && (await engineInterface(folder)) === wanted
   }
 
   /**
@@ -528,7 +542,7 @@ export class Voice {
         // failure, settles.
         this.engineDir = undefined
         await this.engine.stop()
-        await unpack(archive, this.directory, manifest.sha256, signal)
+        await unpack(archive, this.directory, manifest.sha256, manifest.interface, signal)
         await rm(archive, { force: true })
         await this.refresh()
       }

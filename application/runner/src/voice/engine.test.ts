@@ -8,6 +8,7 @@ import {
   Engine,
   EngineError,
   engineFolder,
+  engineInterface,
   engineProgram,
   enginesIn,
   unpack,
@@ -42,11 +43,35 @@ describe("unpacking the engine", () => {
     const older = join(enginesIn(directory), "0123456789ab")
     await mkdir(older, { recursive: true })
 
-    const target = await unpack(archive, directory, "f".repeat(64))
+    const target = await unpack(archive, directory, "f".repeat(64), 2)
 
     expect(target).toBe(engineFolder(directory, "f".repeat(64)))
-    expect((await readdir(target)).toSorted()).toEqual(["LICENSE", "check.wav", engineProgram])
+    expect((await readdir(target)).toSorted()).toEqual([
+      ".interface",
+      "LICENSE",
+      "check.wav",
+      engineProgram,
+    ])
     expect(await readdir(enginesIn(directory))).toEqual(["ffffffffffff"])
+  })
+
+  it("marks the folder with the interface it was unpacked for", async ({ resources }) => {
+    const archive = join(await engineArchive(resources), "..", "engine.tar.gz")
+    const directory = await folder(resources)
+    const bare = join(directory, "bare")
+    await mkdir(bare)
+    const torn = join(directory, "torn")
+    await mkdir(torn)
+    await writeFile(join(torn, ".interface"), "two")
+    const unreadable = join(directory, "unreadable")
+    await mkdir(join(unreadable, ".interface"), { recursive: true })
+
+    const target = await unpack(archive, directory, "c".repeat(64), 3)
+
+    await expect(engineInterface(target)).resolves.toBe(3)
+    await expect(engineInterface(bare)).resolves.toBe(1)
+    await expect(engineInterface(torn)).resolves.toBe(0)
+    await expect(engineInterface(unreadable)).resolves.toBe(0)
   })
 
   it("fails in words for a file that is not an archive, leaving no folder behind", async ({
@@ -56,7 +81,7 @@ describe("unpacking the engine", () => {
     const archive = join(directory, "engine.tar.gz")
     await writeFile(archive, "not an archive")
 
-    await expect(unpack(archive, directory, "a".repeat(64))).rejects.toThrow(
+    await expect(unpack(archive, directory, "a".repeat(64), 1)).rejects.toThrow(
       "Could not unpack the engine",
     )
 

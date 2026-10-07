@@ -29,9 +29,13 @@ export const folder = async (resources: Resources): Promise<string> => {
  * An engine archive and its manifest in a new folder, as the build leaves them: the
  * program, a test clip and a licence, packed flat. Returns the manifest's path, which
  * beside the archive is also its source. Another `release` is another engine, with another
- * checksum.
+ * checksum. `fields` adds to the manifest, as the build's `interface` does.
  */
-export const engineArchive = async (resources: Resources, release = "1"): Promise<string> => {
+export const engineArchive = async (
+  resources: Resources,
+  release = "1",
+  fields: Record<string, unknown> = {},
+): Promise<string> => {
   const directory = await folder(resources)
   const contents = join(directory, "contents")
   await mkdir(contents)
@@ -43,7 +47,10 @@ export const engineArchive = async (resources: Resources, release = "1"): Promis
   if (packed.status !== 0) throw new Error(`tar failed: ${packed.stderr.toString()}`)
   const archive = await readFile(join(directory, file))
   const manifest = join(directory, "engine.json")
-  await writeFile(manifest, JSON.stringify({ file, sha256: sha256(archive), size: archive.length }))
+  await writeFile(
+    manifest,
+    JSON.stringify({ file, sha256: sha256(archive), size: archive.length, ...fields }),
+  )
   return manifest
 }
 
