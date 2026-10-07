@@ -14,20 +14,27 @@ export type RunnerErrorCode =
 
 /** Every failure a runner client reports, identified by a stable `code`. */
 export class RunnerError extends Error {
+  /** What the contract says about this code, such as why voice input is unavailable; unchecked. */
+  readonly data: unknown
+
   constructor(
     readonly code: RunnerErrorCode,
     message: string = code,
-    options?: ErrorOptions,
+    options?: ErrorOptions & { readonly data?: unknown },
   ) {
     super(message, options)
     this.name = "RunnerError"
+    this.data = options?.data
   }
 }
 
 /** Converts oRPC failures into runner errors; anything else is a local fault and passes through. */
 export const normalize = (error: unknown): unknown =>
   error instanceof ORPCError
-    ? new RunnerError(error.code as RunnerErrorCode, error.message, { cause: error })
+    ? new RunnerError(error.code as RunnerErrorCode, error.message, {
+        cause: error,
+        data: error.data,
+      })
     : error
 
 export const hasCode = (error: unknown, ...codes: RunnerErrorCode[]): error is RunnerError =>

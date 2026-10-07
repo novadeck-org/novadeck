@@ -37,6 +37,7 @@ import {
   voiceSettings,
   voiceState,
   voiceTranscript,
+  voiceUnavailable,
   workspaceSession,
 } from "./schemas.js"
 
@@ -61,7 +62,7 @@ export const errors = {
   SPAWN_FAILED: { status: 500 },
   RUNTIME_CLOSING: { status: 503 },
   AGENT_SETUP_FAILED: { status: 500 },
-  VOICE_UNAVAILABLE: { status: 409 },
+  VOICE_UNAVAILABLE: { status: 409, data: voiceUnavailable },
   VOICE_FAILED: { status: 500 },
 }
 
@@ -305,7 +306,8 @@ export const contract = {
     // Downloads the engine, unless it is there, and a model, checks that they transcribe,
     // and makes the model the one used. It returns once the install starts; `watch` shows
     // its progress, and its end or failure. One already installing is a CONFLICT, and a
-    // build without an engine for this platform is VOICE_UNAVAILABLE.
+    // build without an engine for this platform is VOICE_UNAVAILABLE, whose data says why
+    // (see `voiceUnavailable`).
     install: procedure.input(z.strictObject({ model: voiceModel })).output(z.void()),
     // Stops an install, keeping what had finished before it. Nothing installing is fine.
     cancel: procedure.input(z.void()).output(z.void()),
@@ -317,7 +319,7 @@ export const contract = {
     // Adds audio to a clip being recorded, which the client names: 16 kHz mono 16-bit
     // little-endian PCM, base64, at the byte `offset` into the clip. Audio past
     // `maxVoiceSeconds` is UPLOAD_TOO_LARGE, and a part past the start of a clip the
-    // runner does not have NOT_FOUND. Voice input that is off is VOICE_UNAVAILABLE.
+    // runner does not have NOT_FOUND. Voice input that cannot be used is VOICE_UNAVAILABLE.
     // Clips nobody transcribes are forgotten after a few minutes.
     record: procedure
       .input(
@@ -330,7 +332,7 @@ export const contract = {
       .output(z.void()),
     // Transcribes a recorded clip and forgets it. `prompt` names words likely said, such
     // as file names, to spell them right. An unknown clip is NOT_FOUND, voice input that
-    // is off VOICE_UNAVAILABLE, and an engine that fails VOICE_FAILED, saying why.
+    // cannot be used VOICE_UNAVAILABLE, and an engine that fails VOICE_FAILED, saying why.
     transcribe: procedure
       .input(z.strictObject({ clipId: id, prompt: z.string().max(1024).optional() }))
       .output(voiceTranscript),

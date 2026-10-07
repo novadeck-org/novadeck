@@ -946,3 +946,14 @@ describe("terminal attachment and recovery API", () => {
     await output.untilText("STALE_ACK_RECOVERED")
   })
 })
+
+describe("voice input API", () => {
+  it("says why voice input is unavailable as the error's data", async ({ resources }) => {
+    const app = await fixture(resources)
+    const { client } = await app.connect()
+
+    await expect(
+      client.voice.record({ clipId: randomUUID(), offset: 0, data: "" }),
+    ).rejects.toMatchObject({ code: "VOICE_UNAVAILABLE", data: { reason: "unavailable" } })
+  })
+})

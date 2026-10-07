@@ -9,6 +9,7 @@ import {
   type VoiceSettings,
   type VoiceState,
   type VoiceTranscript,
+  type VoiceUnavailable,
 } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
@@ -39,6 +40,9 @@ export type VoiceSettingsStore = {
   voiceSettings(): VoiceSettings
   saveVoiceSettings(settings: VoiceSettingsChange): void
   voiceEnabledChoice(): boolean | undefined
+  /** The last install's check, which outlives a restart; `null` when none passed. */
+  voiceCheck(): VoiceCheck | null
+  saveVoiceCheck(check: VoiceCheck | null): void
 }
 
 export type VoiceOptions = {
@@ -62,6 +66,9 @@ const exists = (path: string): Promise<boolean> =>
     () => true,
     () => false,
   )
+
+const unavailable = (reason: VoiceUnavailable["reason"], message: string): DomainError =>
+  new DomainError("VOICE_UNAVAILABLE", message, { reason })
 
 const aborted = (error: unknown): boolean => error instanceof Error && error.name === "AbortError"
 
@@ -105,8 +112,9 @@ export class Voice {
   private updateFailedAt: number | undefined
   private uninstalling = false
   private installing: VoiceInstall | null = null
-  private check: VoiceCheck | null = null
   private failure: string | null = null
+  // The model whose install the failure is of; none for an engine update's.
+  private failureModel: VoiceModel | undefined
   private running:
     | { readonly done: Promise<void>; readonly controller: AbortController }
     | undefined
@@ -186,6 +194,7 @@ export class Voice {
 
   state(): VoiceState {
     const settings = this.settings.voiceSettings()
+    const check = this.settings.voiceCheck()
     return {
       available: this.manifest !== undefined,
       installed: this.installed,
@@ -199,7 +208,8 @@ export class Voice {
         small: this.catalog.models.small.size + this.catalog.vad.size,
       },
       installing: this.installing,
-      check: this.check,
+      // A model that is gone takes its check with it, as when its files were deleted by hand.
+      check: check !== null && this.installed.includes(check.model) ? check : null,
       failure: this.failure,
     }
   }
@@ -208,6 +218,8 @@ export class Voice {
   async *watch(owner: string, signal?: AbortSignal): AsyncGenerator<VoiceState> {
     this.assertOpen()
     await this.ready()
+    // The runner may have closed while the saved state loaded.
+    this.assertOpen()
     await this.refresh()
     this.updateEngine()
     const watch: Watch = { owner, finished: false, wake: undefined }
@@ -255,14 +267,14 @@ export class Voice {
       throw new DomainError("CONFLICT", "Voice input is being removed. Install it afterwards.")
     await this.refresh()
     if (this.manifest === undefined)
-      throw new DomainError("VOICE_UNAVAILABLE", "Voice input is not available in this build.")
+      throw unavailable("unavailable", "Voice input is not available in this build.")
     // `refresh` yielded: another install may have started.
     if (this.running || this.uninstalling)
       throw new DomainError("CONFLICT", "Voice input is already installing.")
     const controller = new AbortController()
     this.updateFailedAt = undefined
     this.failure = null
-    this.check = null
+    this.settings.saveVoiceCheck(null)
     this.installing = { model, step: "engine", received: 0, total: this.manifest.size }
     this.changed()
     this.running = { controller, done: this.run(model, this.manifest, controller.signal) }
@@ -338,7 +350,7 @@ export class Voice {
       } finally {
         await this.load()
       }
-      this.check = null
+      this.settings.saveVoiceCheck(null)
       this.failure = null
     } finally {
       this.uninstalling = false
@@ -346,7 +358,10 @@ export class Voice {
     }
   }
 
-  set(change: VoiceSettingsChange): void {
+  async set(change: VoiceSettingsChange): Promise<void> {
+    this.assertOpen()
+    await this.ready()
+    // The runner may have closed while the saved state loaded.
     this.assertOpen()
     if (this.uninstalling) throw new DomainError("CONFLICT", "Voice input is being removed.")
     const model = change.model ?? this.settings.voiceSettings().model
@@ -354,6 +369,12 @@ export class Voice {
       throw new DomainError("CONFLICT", `The ${change.model} model is not installed.`)
     if (change.enabled === true && !this.installed.includes(model))
       throw new DomainError("CONFLICT", "Install voice input before turning it on.")
+    // A check that ran out of time says to turn voice input on to try dictating anyway,
+    // which is the end of that failure; another model's, or the engine's, stays.
+    if (change.enabled === true && this.failure !== null && this.failureModel === model) {
+      this.failure = null
+      this.failureModel = undefined
+    }
     this.settings.saveVoiceSettings(change)
     // The engine holds one model, so the next clip starts it with the new one.
     if (change.model !== undefined) void this.engine.stop()
@@ -361,7 +382,9 @@ export class Voice {
   }
 
   /** Adds audio to a clip. The first part of a clip starts the engine, to have it ready by its end. */
-  record(owner: string, clipId: string, offset: number, data: string): void {
+  async record(owner: string, clipId: string, offset: number, data: string): Promise<void> {
+    this.assertOpen()
+    await this.ready()
     this.assertOpen()
     const config = this.configuration()
     if (this.clips.write(owner, clipId, offset, Buffer.from(data, "base64")))
@@ -377,6 +400,7 @@ export class Voice {
   async transcribe(owner: string, clipId: string, prompt?: string): Promise<VoiceTranscript> {
     this.assertOpen()
     await this.ready()
+    this.assertOpen()
     const config = this.configuration()
     const pcm = this.clips.get(owner, clipId)
     if (pcm === undefined) throw new DomainError("NOT_FOUND", "That recording is gone.")
@@ -389,17 +413,12 @@ export class Voice {
     try {
       const result = await this.engine.transcribe(config, wav(pcm), { language, prompt })
       this.clips.discard(owner, clipId)
-      if (this.failure !== null && this.installing === null) {
-        this.failure = null
-        this.changed()
-      }
       return result
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       // The engine may be what went wrong with a first clip; keep the clip for another try.
-      this.failure = message.slice(0, 1024)
-      this.changed()
-      throw new DomainError("VOICE_FAILED", this.failure)
+      // Only the caller hears of it: the shared failure is for the install and the engine.
+      throw new DomainError("VOICE_FAILED", message.slice(0, 1024))
     }
   }
 
@@ -420,25 +439,26 @@ export class Voice {
     if (this.closed) throw new DomainError("RUNTIME_CLOSING")
   }
 
-  /** The engine's files, for voice input that is on and installed; VOICE_UNAVAILABLE otherwise. */
+  /** The engine's files, for voice input that is on and installed; VOICE_UNAVAILABLE, saying why, otherwise. */
   private configuration(): EngineConfig {
     const settings = this.settings.voiceSettings()
-    if (this.uninstalling)
-      throw new DomainError("VOICE_UNAVAILABLE", "Voice input is being removed.")
-    if (!settings.enabled || !this.manifest || !this.installed.includes(settings.model))
-      throw new DomainError("VOICE_UNAVAILABLE", "Voice input is not turned on.")
+    if (this.uninstalling) throw unavailable("removing", "Voice input is being removed.")
+    if (!this.manifest)
+      throw unavailable("unavailable", "Voice input is not available in this build.")
+    if (!settings.enabled || !this.installed.includes(settings.model))
+      throw unavailable("off", "Voice input is not turned on.")
     // An update of the engine is fetched in the background; clips go on with the engine
     // that is there until the new one is.
     if (!this.engineReady) this.updateEngine()
     if (this.engineDir === undefined) {
       // A dictation does not wait for the download, which takes minutes: it is told, and
       // the install in the state shows how far the engine is.
-      throw new DomainError(
-        "VOICE_UNAVAILABLE",
-        this.running
-          ? "Updating the voice engine. Try again when it is done."
-          : (this.failure ?? "The voice engine is missing. Install voice input again."),
-      )
+      throw this.running
+        ? unavailable("updating", "Updating the voice engine. Try again when it is done.")
+        : unavailable(
+            "missing",
+            this.failure ?? "The voice engine is missing. Install voice input again.",
+          )
     }
     return {
       ...this.engineConfig(this.manifest, settings.model, settings.language),
@@ -523,11 +543,12 @@ export class Voice {
         enabled: this.settings.voiceEnabledChoice() !== false,
       })
       await this.load()
-      this.check = check
+      this.settings.saveVoiceCheck(check)
     } catch (error) {
       // Cancelling is the person's choice, not a failure.
       if (!signal.aborted && !aborted(error)) {
         this.failure = explain(error).slice(0, 1024)
+        this.failureModel = engineOnly ? undefined : model
         this.updateFailedAt = engineOnly ? this.clock() : undefined
       }
       // What finished stays: a model that downloaded shows as installed, to turn on or

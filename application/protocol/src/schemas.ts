@@ -511,8 +511,19 @@ export const voiceState = z.strictObject({
   sizes: z.strictObject({ engine: z.int().nonnegative(), turbo: z.int(), small: z.int() }),
   installing: voiceInstall.nullable(),
   check: voiceCheck.nullable(),
-  // Why the last install, or the engine, failed, until the next install or transcription.
+  // Why the last install, or the engine's update, failed, until the next install, update
+  // or removal, or the person turns voice input on despite a failed check. A clip that fails to transcribe is its
+  // caller's error alone.
   failure: z.string().max(1024).nullable(),
+})
+
+/**
+ * Why voice input cannot be used, as the data of VOICE_UNAVAILABLE: this build has no
+ * engine for the platform, voice input is off or its model is not installed, it is being
+ * removed, its engine is updating with none usable, or its engine is missing.
+ */
+export const voiceUnavailable = z.strictObject({
+  reason: z.enum(["unavailable", "off", "removing", "updating", "missing"]),
 })
 
 export const voiceSettings = z.strictObject({
@@ -623,6 +634,7 @@ export type VoiceModel = z.infer<typeof voiceModel>
 export type VoiceInstall = z.infer<typeof voiceInstall>
 export type VoiceCheck = z.infer<typeof voiceCheck>
 export type VoiceState = z.infer<typeof voiceState>
+export type VoiceUnavailable = z.infer<typeof voiceUnavailable>
 export type VoiceSettings = z.infer<typeof voiceSettings>
 export type VoiceTranscript = z.infer<typeof voiceTranscript>
 export type MessageState = z.infer<typeof messageState>

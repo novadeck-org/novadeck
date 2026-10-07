@@ -69,7 +69,14 @@ describe("voice input without an engine", () => {
 
     expect(voice.state()).toMatchObject({ available: false, installed: [], enabled: false })
     expect(voice.state().sizes.engine).toBe(0)
-    await expect(voice.install("small")).rejects.toMatchObject({ code: "VOICE_UNAVAILABLE" })
+    await expect(voice.install("small")).rejects.toMatchObject({
+      code: "VOICE_UNAVAILABLE",
+      data: { reason: "unavailable" },
+    })
+    await expect(voice.record("owner", "clip", 0, pcm(2))).rejects.toMatchObject({
+      code: "VOICE_UNAVAILABLE",
+      data: { reason: "unavailable" },
+    })
   })
 })
 
@@ -170,8 +177,11 @@ describe("installing voice input", () => {
 
     expect(voice.state().failure).toContain("did not transcribe a short test clip within")
     expect(voice.state()).toMatchObject({ installed: ["small"], enabled: false, installing: null })
-    expect(() => voice.set({ enabled: true })).not.toThrow()
+    await expect(voice.set({ enabled: true })).resolves.toBeUndefined()
     expect(voice.state().enabled).toBe(true)
+
+    // Turning it on, as the failure suggests, settles it.
+    expect(voice.state().failure).toBeNull()
   })
 
   it("keeps the model in use when another fails its check or is cancelled", async ({
@@ -193,6 +203,11 @@ describe("installing voice input", () => {
       enabled: true,
       model: "small",
     })
+    // Dictating with small, or turning it on again, says nothing of turbo's failed check.
+    await voice.set({ enabled: true })
+    await voice.record("owner", "clip", 0, pcm(3200))
+    await voice.transcribe("owner", "clip")
+    expect(voice.state().failure).toContain("did not transcribe")
 
     const checking = watchUntil(voice, (state) => state.installing?.step === "check")
     await new Promise((resolve) => setTimeout(resolve, 50))
@@ -207,7 +222,7 @@ describe("installing voice input", () => {
   }) => {
     const { voice } = await installed(resources)
     expect(voice.state().enabled).toBe(true)
-    voice.set({ enabled: false })
+    await voice.set({ enabled: false })
 
     await voice.install("turbo")
     await voice.settled()
@@ -241,7 +256,7 @@ describe("installing voice input", () => {
     resources,
   }) => {
     const { voice } = await installed(resources)
-    voice.set({ enabled: false })
+    await voice.set({ enabled: false })
     await voice.uninstall()
 
     await voice.install("small")
@@ -296,29 +311,29 @@ describe("voice input settings", () => {
   it("refuses a model, or turning on, that is not installed", async ({ resources }) => {
     const { voice } = await setup(resources)
 
-    expect(() => voice.set({ model: "turbo" })).toThrowError(
+    await expect(voice.set({ model: "turbo" })).rejects.toThrowError(
       expect.objectContaining({ code: "CONFLICT" }),
     )
-    expect(() => voice.set({ enabled: true })).toThrowError(
+    await expect(voice.set({ enabled: true })).rejects.toThrowError(
       expect.objectContaining({ code: "CONFLICT" }),
     )
-    expect(() => voice.set({ language: "pl" })).not.toThrow()
+    await expect(voice.set({ language: "pl" })).resolves.toBeUndefined()
     expect(voice.state()).toMatchObject({ language: "pl", enabled: false })
   })
 
   it("turns off and on, and chooses among installed models", async ({ resources }) => {
     const { voice } = await installed(resources)
 
-    voice.set({ enabled: false })
+    await voice.set({ enabled: false })
     expect(voice.state().enabled).toBe(false)
-    voice.set({ enabled: true, language: "de" })
+    await voice.set({ enabled: true, language: "de" })
     expect(voice.state()).toMatchObject({ enabled: true, language: "de", model: "small" })
-    expect(() => voice.set({ model: "small" })).not.toThrow()
+    await expect(voice.set({ model: "small" })).resolves.toBeUndefined()
   })
 
   it("survive the runner, with what is installed", async ({ resources }) => {
     const first = await installed(resources)
-    first.voice.set({ language: "pl" })
+    await first.voice.set({ language: "pl" })
 
     const second = await setup(resources, {
       store: first.store,
@@ -331,15 +346,44 @@ describe("voice input settings", () => {
       installed: ["small"],
       enabled: true,
       language: "pl",
+      check: first.voice.state().check,
     })
+    expect(second.voice.state().check).not.toBeNull()
+  })
+
+  it("keep the check until a new install replaces it, or voice input is removed", async ({
+    resources,
+  }) => {
+    const first = await installed(resources)
+    const check = first.voice.state().check
+    expect(first.store.voiceCheck()).toEqual(check)
+
+    await first.voice.install("turbo")
+    expect(first.store.voiceCheck()).toBeNull()
+    await first.voice.settled()
+    expect(first.store.voiceCheck()).toMatchObject({ model: "turbo" })
+
+    await first.voice.uninstall()
+    expect(first.store.voiceCheck()).toBeNull()
+  })
+
+  it("ignore a saved check that cannot be read", async ({ resources }) => {
+    const { voice, store } = await installed(resources)
+    store.saveVoiceCheck({ model: "small", milliseconds: 1, gpu: false, recommended: "small" })
+    expect(voice.state().check).not.toBeNull()
+
+    store.saveVoiceCheck(JSON.parse('{"model":"huge"}') as never)
+
+    expect(store.voiceCheck()).toBeNull()
+    expect(voice.state().check).toBeNull()
   })
 })
 
 describe("transcribing a recording", () => {
   it("returns what the engine heard of the clip, after the prompt", async ({ resources }) => {
     const { voice } = await installed(resources)
-    voice.record("owner", "clip", 0, pcm(32_000))
-    voice.record("owner", "clip", 32_000, pcm(32_000))
+    await voice.record("owner", "clip", 0, pcm(32_000))
+    await voice.record("owner", "clip", 32_000, pcm(32_000))
 
     const transcript = await voice.transcribe("owner", "clip", "README.md")
 
@@ -350,8 +394,8 @@ describe("transcribing a recording", () => {
 
   it("has the engine in the language chosen", async ({ resources }) => {
     const { voice } = await installed(resources)
-    voice.set({ language: "pl" })
-    voice.record("owner", "clip", 0, pcm(3200))
+    await voice.set({ language: "pl" })
+    await voice.record("owner", "clip", 0, pcm(3200))
 
     const transcript = await voice.transcribe("owner", "clip")
 
@@ -360,15 +404,15 @@ describe("transcribing a recording", () => {
 
   it("names the language the engine heard when detecting it", async ({ resources }) => {
     const { voice } = await installed(resources)
-    voice.set({ language: "auto" })
-    voice.record("owner", "clip", 0, pcm(3200))
+    await voice.set({ language: "auto" })
+    await voice.record("owner", "clip", 0, pcm(3200))
 
     await expect(voice.transcribe("owner", "clip")).resolves.toMatchObject({ language: "pl" })
   })
 
   it("is empty for a clip with no audio, without the engine", async ({ resources }) => {
     const { voice } = await installed(resources)
-    voice.record("owner", "clip", 0, "")
+    await voice.record("owner", "clip", 0, "")
 
     await expect(voice.transcribe("owner", "clip")).resolves.toEqual({ text: "", language: "" })
   })
@@ -376,17 +420,17 @@ describe("transcribing a recording", () => {
   it("refuses audio past the longest clip", async ({ resources }) => {
     const { voice } = await installed(resources)
     const whole = maxVoiceSeconds * voiceSampleRate * 2
-    voice.record("owner", "clip", 0, pcm(2))
-    voice.record("owner", "clip", whole - 2, pcm(2))
+    await voice.record("owner", "clip", 0, pcm(2))
+    await voice.record("owner", "clip", whole - 2, pcm(2))
 
-    expect(() => voice.record("owner", "clip", whole - 1, pcm(2))).toThrowError(
+    await expect(voice.record("owner", "clip", whole - 1, pcm(2))).rejects.toThrowError(
       expect.objectContaining({ code: "UPLOAD_TOO_LARGE" }),
     )
   })
 
   it("forgets a discarded clip", async ({ resources }) => {
     const { voice } = await installed(resources)
-    voice.record("owner", "clip", 0, pcm(3200))
+    await voice.record("owner", "clip", 0, pcm(3200))
     voice.discard("owner", "clip")
     voice.discard("owner", "never-recorded")
 
@@ -396,16 +440,17 @@ describe("transcribing a recording", () => {
   it("is unavailable while voice input is off, or not installed", async ({ resources }) => {
     const bare = await setup(resources)
     const { voice } = await installed(resources)
-    voice.set({ enabled: false })
+    await voice.set({ enabled: false })
 
-    expect(() => bare.voice.record("owner", "clip", 0, pcm(2))).toThrowError(
-      expect.objectContaining({ code: "VOICE_UNAVAILABLE" }),
+    await expect(bare.voice.record("owner", "clip", 0, pcm(2))).rejects.toThrowError(
+      expect.objectContaining({ code: "VOICE_UNAVAILABLE", data: { reason: "off" } }),
     )
-    expect(() => voice.record("owner", "clip", 0, pcm(2))).toThrowError(
-      expect.objectContaining({ code: "VOICE_UNAVAILABLE" }),
+    await expect(voice.record("owner", "clip", 0, pcm(2))).rejects.toThrowError(
+      expect.objectContaining({ code: "VOICE_UNAVAILABLE", data: { reason: "off" } }),
     )
     await expect(voice.transcribe("owner", "clip")).rejects.toMatchObject({
       code: "VOICE_UNAVAILABLE",
+      data: { reason: "off" },
     })
   })
 
@@ -416,17 +461,18 @@ describe("transcribing a recording", () => {
     const model = `${directory}/models/ggml-small.bin`
     await writeFile(model, "small crash")
     // Choosing a model ends the engine, which the next clip starts again from the file.
-    voice.set({ model: "small" })
-    voice.record("owner", "clip", 0, pcm(3200))
+    await voice.set({ model: "small" })
+    await voice.record("owner", "clip", 0, pcm(3200))
 
     await expect(voice.transcribe("owner", "clip")).rejects.toMatchObject({
       code: "VOICE_FAILED",
       message: expect.stringContaining("out of memory"),
     })
-    expect(voice.state().failure).toContain("out of memory")
+    // Only the caller hears of it; the shared failure is for the install and the engine.
+    expect(voice.state().failure).toBeNull()
 
     await writeFile(model, "small")
-    voice.record("owner", "clip", 0, pcm(3200))
+    await voice.record("owner", "clip", 0, pcm(3200))
     await expect(voice.transcribe("owner", "clip")).resolves.toMatchObject({ language: "pl" })
     expect(voice.state().failure).toBeNull()
   })
@@ -446,18 +492,19 @@ describe("uninstalling voice input", () => {
 describe("uninstalling voice input while it is used", () => {
   it("refuses an install, a recording and a setting until it is done", async ({ resources }) => {
     const { voice, store } = await installed(resources)
-    voice.record("owner", "clip", 0, pcm(3200))
+    await voice.record("owner", "clip", 0, pcm(3200))
 
     const removing = voice.uninstall()
 
     await expect(voice.install("small")).rejects.toMatchObject({ code: "CONFLICT" })
-    expect(() => voice.record("owner", "clip", 0, pcm(2))).toThrowError(
-      expect.objectContaining({ code: "VOICE_UNAVAILABLE" }),
+    await expect(voice.record("owner", "clip", 0, pcm(2))).rejects.toThrowError(
+      expect.objectContaining({ code: "VOICE_UNAVAILABLE", data: { reason: "removing" } }),
     )
     await expect(voice.transcribe("owner", "clip")).rejects.toMatchObject({
       code: "VOICE_UNAVAILABLE",
+      data: { reason: "removing" },
     })
-    expect(() => voice.set({ enabled: true })).toThrowError(
+    await expect(voice.set({ enabled: true })).rejects.toThrowError(
       expect.objectContaining({ code: "CONFLICT" }),
     )
     await removing
@@ -496,7 +543,7 @@ describe("uninstalling voice input while it is used", () => {
 describe("recordings", () => {
   it("belong to the connection that made them, which goes with them", async ({ resources }) => {
     const { voice } = await installed(resources)
-    voice.record("one", "clip", 0, pcm(3200))
+    await voice.record("one", "clip", 0, pcm(3200))
 
     await expect(voice.transcribe("two", "clip")).rejects.toMatchObject({ code: "NOT_FOUND" })
     voice.release("one")
@@ -506,12 +553,14 @@ describe("recordings", () => {
 
   it("are limited for each connection", async ({ resources }) => {
     const { voice } = await installed(resources)
-    for (const id of ["a", "b", "c", "d"]) voice.record("one", id, 0, pcm(2))
+    for (const id of ["a", "b", "c", "d"])
+      // eslint-disable-next-line no-await-in-loop -- Each is counted as it arrives.
+      await voice.record("one", id, 0, pcm(2))
 
-    expect(() => voice.record("one", "e", 0, pcm(2))).toThrowError(
+    await expect(voice.record("one", "e", 0, pcm(2))).rejects.toThrowError(
       expect.objectContaining({ code: "RESOURCE_LIMIT" }),
     )
-    expect(() => voice.record("two", "e", 0, pcm(2))).not.toThrow()
+    await expect(voice.record("two", "e", 0, pcm(2))).resolves.toBeUndefined()
   })
 })
 
@@ -548,7 +597,7 @@ describe("voice input after the app brings a new engine", () => {
     expect(after).toHaveLength(1)
     expect(after).not.toEqual(before)
     expect(voice.state()).toMatchObject({ installed: ["small"], enabled: true, failure: null })
-    voice.record("owner", "clip", 0, pcm(3200))
+    await voice.record("owner", "clip", 0, pcm(3200))
     await expect(voice.transcribe("owner", "clip")).resolves.toMatchObject({ language: "pl" })
     await first.voice.close()
   })
@@ -556,7 +605,7 @@ describe("voice input after the app brings a new engine", () => {
   it("keeps dictating with the older engine while the new one downloads", async ({ resources }) => {
     const { voice } = await updated(resources)
 
-    expect(() => voice.record("owner", "clip", 0, pcm(3200))).not.toThrow()
+    await expect(voice.record("owner", "clip", 0, pcm(3200))).resolves.toBeUndefined()
     expect(voice.state().installing).toMatchObject({ step: "engine" })
     await voice.settled()
 
@@ -570,14 +619,34 @@ describe("voice input after the app brings a new engine", () => {
     await rm(join(directory, "engine"), { recursive: true })
     await voice.refresh()
 
-    expect(() => voice.record("owner", "clip", 0, pcm(2))).toThrowError(
+    await expect(voice.record("owner", "clip", 0, pcm(2))).rejects.toThrowError(
       expect.objectContaining({
         code: "VOICE_UNAVAILABLE",
         message: expect.stringContaining("Updating the voice engine"),
+        data: { reason: "updating" },
       }),
     )
     expect(voice.state().installing).toMatchObject({ step: "engine" })
     await voice.settled()
+  })
+
+  it("tells a dictation that the engine is missing when its update failed", async ({
+    resources,
+  }) => {
+    const { voice, directory, next } = await updated(resources)
+    await rm(join(directory, "engine"), { recursive: true })
+    await rm(join(next, "..", "engine.tar.gz"))
+    await voice.refresh()
+    await expect(voice.record("owner", "clip", 0, pcm(2))).rejects.toMatchObject({
+      data: { reason: "updating" },
+    })
+    await voice.settled()
+
+    await expect(voice.record("owner", "clip", 0, pcm(2))).rejects.toMatchObject({
+      code: "VOICE_UNAVAILABLE",
+      message: voice.state().failure,
+      data: { reason: "missing" },
+    })
   })
 
   it("shows a failed update as a failure, keeping the older engine in use", async ({
@@ -586,7 +655,7 @@ describe("voice input after the app brings a new engine", () => {
     const { voice, next } = await updated(resources)
     await rm(join(next, "..", "engine.tar.gz"))
 
-    expect(() => voice.record("owner", "clip", 0, pcm(3200))).not.toThrow()
+    await expect(voice.record("owner", "clip", 0, pcm(3200))).resolves.toBeUndefined()
     await voice.settled()
 
     expect(voice.state()).toMatchObject({ installed: ["small"], enabled: true, installing: null })
@@ -602,17 +671,17 @@ describe("voice input after the app brings a new engine", () => {
     const archive = join(next, "..", "engine.tar.gz")
     const kept = await readFile(archive)
     await rm(archive)
-    voice.record("owner", "clip", 0, pcm(2))
+    await voice.record("owner", "clip", 0, pcm(2))
     await voice.settled()
     expect(voice.state().failure).toEqual(expect.any(String))
 
     await writeFile(archive, kept)
     time += updateRetryMs - 1
-    voice.record("owner", "clip", 0, pcm(2))
+    await voice.record("owner", "clip", 0, pcm(2))
     expect(voice.state().installing).toBeNull()
 
     time += 2
-    voice.record("owner", "clip", 0, pcm(2))
+    await voice.record("owner", "clip", 0, pcm(2))
     expect(voice.state().installing).toMatchObject({ step: "engine" })
     await voice.settled()
     expect(voice.state()).toMatchObject({ failure: null, installing: null, enabled: true })
@@ -633,7 +702,7 @@ describe("voice input after the runner restarts", () => {
     restarted.start()
     await restarted.ready()
 
-    expect(() => restarted.record("owner", "clip", 0, pcm(3200))).not.toThrow()
+    await expect(restarted.record("owner", "clip", 0, pcm(3200))).resolves.toBeUndefined()
     await expect(restarted.transcribe("owner", "clip")).resolves.toMatchObject({ language: "pl" })
   })
 
@@ -663,7 +732,7 @@ describe("the switch of voice input", () => {
     await voice.settled()
     expect(store.voiceEnabledChoice()).toBe(true)
 
-    voice.set({ enabled: false })
+    await voice.set({ enabled: false })
     expect(store.voiceEnabledChoice()).toBe(false)
     expect(voice.state().enabled).toBe(false)
   })
@@ -674,7 +743,7 @@ describe("the switch of voice input", () => {
     const { voice, store } = await setup(resources, { catalog: await modelCatalog(resources) })
     await voice.install("small")
     await voice.settled()
-    voice.set({ enabled: false })
+    await voice.set({ enabled: false })
 
     await voice.install("turbo")
     await voice.settled()
@@ -710,7 +779,7 @@ describe("a chosen model that went missing", () => {
 describe("the install check", () => {
   it("does not disturb a dictation that runs with another model", async ({ resources }) => {
     const { voice } = await installed(resources, "turbo")
-    voice.record("owner", "clip", 0, pcm(3200))
+    await voice.record("owner", "clip", 0, pcm(3200))
 
     await voice.install("small")
     const transcript = voice.transcribe("owner", "clip")
@@ -728,15 +797,46 @@ describe("closing voice input", () => {
     await voice.close()
 
     await expect(voice.install("small")).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
-    expect(() => voice.set({ language: "de" })).toThrowError(
+    await expect(voice.set({ language: "de" })).rejects.toThrowError(
       expect.objectContaining({ code: "RUNTIME_CLOSING" }),
     )
-    expect(() => voice.record("owner", "clip", 0, pcm(2))).toThrowError(
+    await expect(voice.record("owner", "clip", 0, pcm(2))).rejects.toThrowError(
       expect.objectContaining({ code: "RUNTIME_CLOSING" }),
     )
     await expect(voice.transcribe("owner", "clip")).rejects.toMatchObject({
       code: "RUNTIME_CLOSING",
     })
+  })
+
+  it("refuses a setting or a recording that waited for the saved state as it closed", async ({
+    resources,
+  }) => {
+    const { voice } = await installed(resources)
+    voice.start()
+
+    const setting = voice.set({ language: "de" })
+    const recording = voice.record("owner", "clip", 0, pcm(2))
+    const closing = voice.close()
+
+    await expect(setting).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await expect(recording).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await closing
+  })
+
+  it("refuses a watch or a transcription that waited for the saved state as it closed", async ({
+    resources,
+  }) => {
+    const { voice } = await installed(resources)
+    await voice.record("owner", "clip", 0, pcm(3200))
+    voice.start()
+
+    const watching = voice.watch("owner").next()
+    const transcribing = voice.transcribe("owner", "clip")
+    const closing = voice.close()
+
+    await expect(watching).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await expect(transcribing).rejects.toMatchObject({ code: "RUNTIME_CLOSING" })
+    await closing
   })
 
   it("ends a watch when its owner is released", async ({ resources }) => {

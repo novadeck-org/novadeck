@@ -83,7 +83,8 @@ export const createDemoVoice = (timing: DemoVoiceTiming = defaultTiming): Voice 
     const steps: ("engine" | "model" | "check")[] = state.getSnapshot().installed.length
       ? ["model", "check"]
       : ["engine", "model", "check"]
-    state.update((current) => ({ ...current, failure: null }))
+    // As the runner: a new install forgets the last check until its own passes.
+    state.update((current) => ({ ...current, failure: null, check: null }))
     steps.forEach((step, index) => {
       for (let part = 0; part <= ticks; part += 1)
         later(() => progress(model, step, part), (index + part / ticks) * timing.step)

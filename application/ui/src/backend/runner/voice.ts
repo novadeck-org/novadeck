@@ -1,7 +1,9 @@
 import {
   maxVoiceSeconds,
   voiceSampleRate,
+  voiceUnavailable,
   type VoiceState as WireVoiceState,
+  type VoiceUnavailable,
 } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/protocol/client"
 
@@ -42,17 +44,32 @@ export const flushMs = 300
 const reason = (error: unknown): string =>
   error instanceof Error && error.message ? error.message : String(error)
 
+// What each reason voice input is unavailable means for the person, with what to do next.
+const unavailable: Record<VoiceUnavailable["reason"], string> = {
+  unavailable: "This version of Novadeck has no voice input for this computer.",
+  off: "Voice input isn't installed or is turned off. See Preferences, Addons.",
+  removing: "Voice input is being removed. Install it again in Preferences, Addons.",
+  updating: "The voice engine is updating. Try dictating again in a moment.",
+  missing: "The voice engine is missing. Install voice input again in Preferences, Addons.",
+}
+
 // What a failed clip call means for the person.
 export const clipFailure = (error: unknown): Error => {
   if (hasCode(error, "UPLOAD_TOO_LARGE"))
     return new Error(`That was too long to transcribe. Dictate up to ${maxVoiceSeconds} seconds.`)
-  // The runner says why, as that its engine is updating; a bare code says nothing.
-  if (hasCode(error, "VOICE_UNAVAILABLE"))
-    return new Error(
-      reason(error) !== "VOICE_UNAVAILABLE" && reason(error)
-        ? reason(error)
-        : "Voice input isn't installed or is turned off. See Preferences, Addons.",
-    )
+  if (hasCode(error, "VOICE_UNAVAILABLE")) {
+    // A runner that sends no reason, or one this client doesn't know, still says why in
+    // words; a bare code says nothing.
+    const why = voiceUnavailable.safeParse(error.data)
+    // A missing engine's own message says more, such as that the disk is full.
+    if (why.success)
+      return new Error(
+        why.data.reason === "missing" && reason(error) !== "VOICE_UNAVAILABLE"
+          ? reason(error)
+          : unavailable[why.data.reason],
+      )
+    return new Error(reason(error) !== "VOICE_UNAVAILABLE" ? reason(error) : unavailable.off)
+  }
   if (hasCode(error, "VOICE_FAILED")) return new Error(`The speech engine failed: ${reason(error)}`)
   if (hasCode(error, "NOT_FOUND"))
     return new Error("The runner lost the recording. Try dictating again.")

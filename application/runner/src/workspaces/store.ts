@@ -4,11 +4,13 @@ import { dirname, isAbsolute } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
 import {
+  voiceCheck,
   voiceLanguage,
   voiceModel,
   type AgentName,
   type Project,
   type RunnerSettings,
+  type VoiceCheck,
   type VoiceSettings,
   type WorkspaceSession,
 } from "@novadeck/protocol"
@@ -836,6 +838,30 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
       | { value: string }
       | undefined
     return row === undefined ? undefined : row.value === "true"
+  }
+
+  /** The check the last install passed, as saved; `null` when there is none or it can't be read. */
+  voiceCheck(): VoiceCheck | null {
+    const row = this.queries.get`SELECT value FROM settings WHERE key = 'voice.check'` as
+      | { value: string }
+      | undefined
+    if (row === undefined) return null
+    try {
+      const parsed = voiceCheck.safeParse(JSON.parse(row.value))
+      return parsed.success ? parsed.data : null
+    } catch {
+      return null
+    }
+  }
+
+  /** Replaces the saved check; `null` forgets it, as when voice input is removed. */
+  saveVoiceCheck(check: VoiceCheck | null): void {
+    if (check === null) void this.queries.run`DELETE FROM settings WHERE key = 'voice.check'`
+    else
+      void this.queries.run`
+        INSERT INTO settings (key, value) VALUES ('voice.check', ${JSON.stringify(check)})
+        ON CONFLICT (key) DO UPDATE SET value = excluded.value
+      `
   }
 
   /** Saves what is given; `enabled: null` forgets the choice. */

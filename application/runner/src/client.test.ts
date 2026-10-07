@@ -1213,3 +1213,17 @@ describe("runner client over MessagePort", () => {
     expect(client.status).toMatchObject({ state: "closed", error: { code: "CLOSED" } })
   })
 })
+
+describe("runner client voice input", () => {
+  it("carries why voice input is unavailable on the error", async ({ resources }) => {
+    const app = await deployed(resources)
+    const runner = await app.connect()
+
+    await expect(
+      runner.voice.record(crypto.randomUUID(), 0, new Uint8Array(2)),
+    ).rejects.toMatchObject({
+      code: "VOICE_UNAVAILABLE",
+      data: { reason: "unavailable" },
+    })
+  })
+})

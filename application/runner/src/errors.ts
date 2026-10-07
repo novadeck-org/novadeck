@@ -11,6 +11,8 @@ export class DomainError extends Error {
   constructor(
     readonly code: DomainErrorCode,
     message: string = code,
+    /** What the contract's error carries, such as why voice input is unavailable. */
+    readonly data?: unknown,
   ) {
     super(message)
     this.name = "DomainError"

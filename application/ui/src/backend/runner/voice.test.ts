@@ -168,18 +168,49 @@ describe("the runner's voice input", () => {
       next.append(Int16Array.of(1))
       await expect(next.finish()).rejects.toThrow(/Preferences/)
 
-      // The runner's own reason, as while its engine updates, says more than the code.
-      const updating = runner({
+      // Each reason has its own words and next step.
+      for (const [why, words] of [
+        ["unavailable", /no voice input for this computer/],
+        ["off", /turned off.*Preferences/],
+        ["removing", /being removed/],
+        ["updating", /engine is updating/],
+        ["missing", /engine is missing.*Install/],
+      ] as const) {
+        const refused = runner({
+          record: async () => {
+            throw new RunnerError("VOICE_UNAVAILABLE", undefined, { data: { reason: why } })
+          },
+        })
+        const refusedClip = refused.voice.record()
+        refusedClip.append(Int16Array.of(1))
+        // eslint-disable-next-line no-await-in-loop -- One reason after the other.
+        await expect(refusedClip.finish()).rejects.toThrow(words)
+      }
+
+      // A missing engine's own message says more than the fixed words.
+      const full = runner({
         record: async () => {
-          throw new RunnerError(
-            "VOICE_UNAVAILABLE",
-            "Updating the voice engine. Try again when it is done.",
-          )
+          throw new RunnerError("VOICE_UNAVAILABLE", "There is not enough disk space.", {
+            data: { reason: "missing" },
+          })
         },
       })
-      const later = updating.voice.record()
-      later.append(Int16Array.of(1))
-      await expect(later.finish()).rejects.toThrow("Updating the voice engine")
+      const fullClip = full.voice.record()
+      fullClip.append(Int16Array.of(1))
+      await expect(fullClip.finish()).rejects.toThrow("not enough disk space")
+
+      // A runner that sends no reason, or one this client doesn't know, is still heard.
+      for (const data of [undefined, { reason: "newer" }]) {
+        const unknown = runner({
+          record: async () => {
+            throw new RunnerError("VOICE_UNAVAILABLE", "Updating the voice engine.", { data })
+          },
+        })
+        const later = unknown.voice.record()
+        later.append(Int16Array.of(1))
+        // eslint-disable-next-line no-await-in-loop -- One after the other.
+        await expect(later.finish()).rejects.toThrow("Updating the voice engine")
+      }
     })
 
     it("lets the runner forget a clip whose transcription failed", async () => {

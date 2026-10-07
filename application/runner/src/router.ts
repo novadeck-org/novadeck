@@ -34,6 +34,7 @@ const apiError = (error: unknown): unknown =>
     ? new ORPCError(error.code, {
         status: contractErrors[error.code].status,
         message: error.message,
+        data: error.data,
       })
     : error
 
@@ -271,14 +272,10 @@ export const createRouter = (options: {
       install: authorized.voice.install.handler(({ input }) => voice.install(input.model)),
       cancel: authorized.voice.cancel.handler(() => voice.cancel()),
       uninstall: authorized.voice.uninstall.handler(() => voice.uninstall()),
-      set: authorized.voice.set.handler(async ({ input }) => {
-        await voice.ready()
-        voice.set(input)
-      }),
-      record: authorized.voice.record.handler(async ({ input, context }) => {
-        await voice.ready()
-        voice.record(context.connection.id, input.clipId, input.offset, input.data)
-      }),
+      set: authorized.voice.set.handler(({ input }) => voice.set(input)),
+      record: authorized.voice.record.handler(({ input, context }) =>
+        voice.record(context.connection.id, input.clipId, input.offset, input.data),
+      ),
       transcribe: authorized.voice.transcribe.handler(({ input, context }) =>
         voice.transcribe(context.connection.id, input.clipId, input.prompt),
       ),

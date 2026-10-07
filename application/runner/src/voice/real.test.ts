@@ -58,7 +58,8 @@ describe.skipIf(!engine || !model || !vad || !clip)("voice input with the real e
     const speech = (await readFile(clip ?? "")).subarray(44)
     const part = Math.floor((maxVoicePartLength / 4) * 3)
     for (let offset = 0; offset < speech.length; offset += part)
-      voice.record(
+      // eslint-disable-next-line no-await-in-loop -- Parts arrive in order.
+      await voice.record(
         "owner",
         "clip",
         offset,
