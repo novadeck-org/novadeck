@@ -3,6 +3,8 @@ import { useCallback, useMemo, type ReactNode } from "react"
 import { isWindow } from "../model/roster"
 import { activeProject } from "../model/state"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "../model/types"
+import { ChatView } from "../terminals/chat/ChatView"
+import { chatAvailable, chatDraftOf, chatModeOn } from "../terminals/chat/mode-state"
 import { TerminalCompanion } from "../terminals/companion/TerminalCompanion"
 import { UndockedWindow } from "../terminals/companion/UndockedWindow"
 import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
@@ -49,12 +51,13 @@ const useWindowFrame = (
       large: state.view !== "focus" && state.layout.sizePresets[state.view][id] === "large",
     }
   }, shallowEqual)
-  const { fresh, rename, enabledViews, unread } = useUiState(
+  const { fresh, rename, enabledViews, unread, chatOn } = useUiState(
     (state) => ({
       fresh: state.created?.context === context && state.created.id === id,
       rename: state.rename?.context === context && state.rename.id === id ? state.rename : null,
       enabledViews: state.preferences.enabledViews,
       unread: unreadEnd(state.unread, context, id),
+      chatOn: chatModeOn(state.chat, context, id),
     }),
     shallowEqual,
   )
@@ -62,6 +65,11 @@ const useWindowFrame = (
   const destination = windowedDestination(windowedView, enabledViews)
   const windowedLabel = destination === "canvas" ? "Canvas" : "Grid"
   const dockIn = useDockTarget(tile)
+  // A terminal whose agent has a conversation to show, on a backend that reads it.
+  const chat =
+    backend.conversations && !isWindow(tile) && chatAvailable(tile)
+      ? { on: chatOn, onToggle: () => commands.toggleChat(id) }
+      : undefined
   return {
     terminal: tile,
     active,
@@ -80,6 +88,7 @@ const useWindowFrame = (
       onClose: () => close(id),
     }),
     compact,
+    ...(chat ? { chat } : {}),
     switcher: { onOpen: (button) => openSwitcher(id, button) },
     onClose: () => close(id),
     ...(minimize ? { minimize } : {}),
@@ -97,7 +106,12 @@ const useWindowFrame = (
     ...(compact && enabledViews.includes("focus")
       ? { onFocus: () => openFocus(id) }
       : !compact && destination
-        ? { windowed: { destination: windowedLabel, onOpen: () => openWindowed(id) } }
+        ? {
+            windowed: {
+              destination: windowedLabel,
+              onOpen: () => openWindowed(id),
+            },
+          }
         : {}),
   }
 }
@@ -149,6 +163,7 @@ export const WorkspaceTerminal = ({
     }
   }, shallowEqual)
   const { projectId, workspaceSessionId } = useWorkspaceState(currentTarget, sameTarget)
+  const chatContext = `${projectId}/${workspaceSessionId}`
   const terminalName = useWorkspaceState(terminalNames, shallowEqual)
   const names = useWorkspaceState(handleNames, shallowEqual)
   const { keyboardFocus, fontSize } = useUiState(
@@ -175,34 +190,96 @@ export const WorkspaceTerminal = ({
     icon: <Icon size={14} strokeWidth={1.5} />,
     ...(processWindow ? { processWindow } : {}),
   }
-  // One shell element whatever runs, so only the body around the content changes.
-  const renderWindow = (content: ReactNode): ReactNode => (
-    <WindowShell {...frame}>
-      {panes ? (
-        <TerminalCompanion
-          panes={panes}
-          messages={backend.messages}
-          peerName={(handle) => names[handle]}
-          companionKey={terminalKey}
-          view={view}
-          onReveal={onReveal}
-          minimized={minimize?.minimized}
-          clipContent={minimize?.clipContent}
-          bar={bar}
-          items={items}
-          fresh={fresh}
-          terminalName={(id) => terminalName[id]}
-          commands={commands}
-        >
-          {Body ? <Body>{content}</Body> : content}
-        </TerminalCompanion>
-      ) : Body ? (
-        <Body>{content}</Body>
-      ) : (
-        content
-      )}
-    </WindowShell>
+  // The chat is drawn over the content, which stays mounted at its size, so the terminal
+  // keeps its dimensions and its emulator its state. The content is inert beneath, where
+  // neither focus nor typing can reach it, and the chat's box takes keyboard focus.
+  const conversations = backend.conversations
+  const chatShown = frame.chat?.on === true
+  const draft = useUiState((state) => chatDraftOf(state.chatDrafts, chatContext, terminalId))
+  const conversation = useMemo(
+    () => (chatShown ? conversations?.conversation(terminalKey) : undefined),
+    [chatShown, conversations, terminalKey],
   )
+  const wanted = keyboardFocus?.view === view && active
+  const hidden = minimize?.minimized === true && !minimize.clipContent
+  const withChat = (content: ReactNode): ReactNode =>
+    conversations ? (
+      <div className="chat-host relative flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Before the content, so the first terminal input in the window is the chat's. */}
+        {conversation && (
+          <div
+            className="chat-pane absolute inset-0 z-10 nodrag nopan nowheel"
+            data-workspace-chat=""
+            hidden={hidden}
+            aria-hidden={minimize?.minimized}
+            inert={minimize?.minimized}
+          >
+            <ChatView
+              conversation={conversation}
+              terminalName={terminal.name}
+              program={terminal.process}
+              agent={terminal.state === "running" ? terminal.agent : undefined}
+              compact={view !== "focus"}
+              draft={draft}
+              onDraft={(text) => commands.setChatDraft(terminalId, text)}
+              onSend={async (text) => {
+                await conversations!.send(terminalKey, text)
+                // Cleared even if the chat has gone from the screen meanwhile.
+                commands.clearChatDraft(chatContext, terminalId, text)
+              }}
+              onInterrupt={async () => {
+                const returned = await conversations!.interrupt(terminalKey)
+                // Words queued behind the stopped turn come back to the box, to send again.
+                if (returned) commands.appendChatDraft(chatContext, terminalId, returned)
+              }}
+              onAnswerInTerminal={() => commands.showTerminal(terminalId)}
+              focusInput={wanted}
+              onInputFocused={onInputFocused}
+            />
+          </div>
+        )}
+        <div
+          className="flex min-h-0 min-w-0 flex-1 flex-col"
+          aria-hidden={chatShown || undefined}
+          inert={chatShown}
+        >
+          {content}
+        </div>
+      </div>
+    ) : (
+      content
+    )
+  // One shell element whatever runs, so only the body around the content changes.
+  const renderWindow = (surface: ReactNode): ReactNode => {
+    const content = withChat(surface)
+    return (
+      <WindowShell {...frame}>
+        {panes ? (
+          <TerminalCompanion
+            panes={panes}
+            messages={backend.messages}
+            peerName={(handle) => names[handle]}
+            companionKey={terminalKey}
+            view={view}
+            onReveal={onReveal}
+            minimized={minimize?.minimized}
+            clipContent={minimize?.clipContent}
+            bar={bar}
+            items={items}
+            fresh={fresh}
+            terminalName={(id) => terminalName[id]}
+            commands={commands}
+          >
+            {Body ? <Body>{content}</Body> : content}
+          </TerminalCompanion>
+        ) : Body ? (
+          <Body>{content}</Body>
+        ) : (
+          content
+        )}
+      </WindowShell>
+    )
+  }
   return (
     <backend.TerminalSurface
       terminalKey={terminalKey}
@@ -211,7 +288,7 @@ export const WorkspaceTerminal = ({
       fontSize={fontSize}
       minimized={minimize?.minimized}
       clipContent={minimize?.clipContent}
-      focusInput={keyboardFocus?.view === view && active}
+      focusInput={wanted && !chatShown}
       onInputFocused={onInputFocused}
       renderWindow={renderWindow}
     />

@@ -104,12 +104,14 @@ export const useKeyboard = (dictation?: Dictation): void => {
       if (!(event instanceof PointerEvent) || event.pointerType !== "mouse") return
       const clicked = document.activeElement
       const on = classifyKeyTarget(event.target)
-      if (on.companion || on.zenDock || insideOwnKeys(event.target)) return
+      // A chat holds text to select and controls that keep the focus they take.
+      if (on.companion || on.zenDock || on.chat || insideOwnKeys(event.target)) return
+      if (window.getSelection()?.isCollapsed === false) return
       requestAnimationFrame(() => {
         const now = document.activeElement
         if (now !== clicked && now !== document.body) return
         const target = classifyKeyTarget(now)
-        if (target.editing || target.companion || target.zenDock) return
+        if (target.editing || target.companion || target.zenDock || target.chat) return
         if (keyState({ ...services, dictation }, commands).dialog || environment.overlayOpen())
           return
         if (environment.tabInteraction() || ui.getSnapshot().shell.navigate) return

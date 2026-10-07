@@ -642,3 +642,13 @@ export type DeliveryState = z.infer<typeof deliveryState>
 export type AgentMessage = z.infer<typeof agentMessage>
 export type MessageThread = z.infer<typeof messageThread>
 export type TerminalMessages = z.infer<typeof terminalMessages>
+
+/**
+ * What `agents.interrupt` gives back: the words the person had queued behind the turn that
+ * the agent's input box took back as the turn was stopped (Claude Code and Antigravity
+ * hand queued messages back for editing), now cleared out of the box, which the chat puts
+ * back in the person's draft; null when there were none, and always for Codex, whose
+ * queued message goes to the agent as a steer.
+ */
+export const interruptResult = z.strictObject({ returned: z.string().nullable() })
+export type InterruptResult = z.infer<typeof interruptResult>

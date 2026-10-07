@@ -99,6 +99,8 @@ harnesses/
   claude/
     index.ts       # claude: Harness
     decode.ts      # Its hook reports, as normalized events
+    box.ts         # Its input box, as it reads off the screen (`box: BoxProfile`)
+  box.ts           # BoxProfile and the shared readers (`ruledBox`, `markedBox`)
   codex/           # Same shape; its shim is in its `shims`
   agy/
 ```
@@ -322,6 +324,8 @@ type Harness = {
   readonly coverage: (found: Found) => FeatureCoverage
   /** How its hooks take agents' messages (see below). */
   readonly messaging: MessagingProfile
+  /** How its input box reads off its screen (see "Screen readers"). */
+  readonly box: BoxProfile
 }
 
 type Command = { readonly argv: readonly string[]; readonly optional?: boolean }
@@ -525,6 +529,27 @@ names another. Messaging reads the root from there. The doorbell knows nothing o
 harness draws its screen, so the profile holds no screen pattern; it adds only how the
 harness starts with a first prompt (`initialPrompt`) and whether its hooks see a
 prompt's text (see [Agent messaging](agent-messaging.md#the-doorbell)).
+
+## Screen readers
+
+`box` is the one place a harness's screen is read, for what a prompt needs: whether its
+input box is empty, and what it holds. A `BoxProfile` has `read(screen)`, which finds the
+box on a `ScreenText` (rows, the rows with dim cells blanked, the cursor, the columns),
+`collapsed(box)`, which tells the placeholder a long paste shows as, `collapses(text)` and
+`room(rows)`, which say before a paste whether it will collapse and whether it fits, and
+`queued(screen)`, which tells messages the person queued behind a turn, and for a harness
+that puts text back in its box (an interrupted prompt, queued messages), `clear(box)`, the
+keys that clear it. Shared code (`terminals/prompts.ts`, the terminal manager's interrupt) knows
+no marker, rule or placeholder.
+
+A reader fails closed: it recognises the box in full, or returns `undefined`. It never
+guesses from a screen it only half knows (a dialog, a picker, a shell's prompt after the
+agent exited, a box whose first row has scrolled off), because what follows from a read
+is a keystroke, Enter, that runs what the box holds. A prompt that can't read the box
+writes nothing and is refused (`CONFLICT`), and the chat falls back to the terminal,
+where the person sees what the agent shows. The thresholds and drawings each reader rests
+on are probed, with fixtures from real screens (`harnesses/*/fixtures/input-box.probe.json`,
+`e2e/probes/input-box.e2e.ts`); see [Harness coverage](harness-coverage.md).
 
 ## Where sources merge
 

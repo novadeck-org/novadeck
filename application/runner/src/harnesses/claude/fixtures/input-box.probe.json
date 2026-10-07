@@ -1,0 +1,983 @@
+{
+  "harness": "claude",
+  "source": "src/e2e/probes/input-box.e2e.ts, run with NOVADECK_E2E_PROBES=1 (2026-10-07)",
+  "how": "Each harness driven in a PTY (120x40) by the end-to-end deck against the fake model; keys and pastes written as the person would; each state read with `screenText`: `rows` holds the rows that show anything, `bright` the rows whose dim cells blank some of their text (`screenText`'s bright rows), `cursor` the cursor. The box was cleared between states with repeated Ctrl-U and Backspace; the state 12 onward come after one turn, 14 to 17 while a turn is held mid-flight.",
+  "versions": {
+    "2.1.287": {
+      "1 ready empty": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on · ← for agents"
+        },
+        "bright": {}
+      },
+      "2 ready first key": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 3
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ D",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "4 draft pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 21
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Draft of the person",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "5 draft typed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 13
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Typed draft",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "6 short pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 4
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ go",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "7 three lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 7
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "32": "                                                                                                 ctrl+g to edit in Vim",
+          "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "34": "❯ one",
+          "35": "  two",
+          "36": "  three",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "8 wrapped line": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 112
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "31": "                                                                                          Ctrl+Y to paste deleted text",
+          "32": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "33": "❯ wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping",
+          "34": "  words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words",
+          "35": "  wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping",
+          "36": "  words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "9 long collapsed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 28
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #1 +39 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "10 collapsed then more": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 10
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "33": "                                                                                                 ctrl+g to edit in Vim",
+          "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "35": "❯ [Pasted text #2 +39 lines]",
+          "36": "  and more",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "size 10 lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 27
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #3 +9 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "size 25 lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 28
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #4 +24 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "size 300 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 70
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "32": "                                                                                          Ctrl+Y to paste deleted text",
+          "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "34": "❯ w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8",
+          "35": "  w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6",
+          "36": "  w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "size 700 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 28
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "28": "                                                                                          Ctrl+Y to paste deleted text",
+          "29": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "30": "❯ w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8",
+          "31": "  w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6",
+          "32": "  w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5",
+          "33": "  w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3",
+          "34": "  w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2",
+          "35": "  w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0",
+          "36": "  w1 w2 w3 w4 w5 w6 w7 w8 w9",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "size 1500 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 18
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #5]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "12 after turn": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:46 AM",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "13 draft after turn": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 18
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:46 AM",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Draft after turn",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "14 mid-turn empty": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:46 AM",
+          "12": "❯ Hold on",
+          "32": "✢ Philosophizing…",
+          "33": "  ⎿  Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify its suggested edits",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on · ← for agents"
+        },
+        "bright": {}
+      },
+      "15 mid-turn short pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 4
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:46 AM",
+          "12": "❯ Hold on",
+          "32": "✻ Philosophizing…",
+          "33": "  ⎿  Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify its suggested edits",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ go",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "16 mid-turn three lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 7
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:46 AM",
+          "12": "❯ Hold on",
+          "30": "* Philosophizing…",
+          "31": "  ⎿  Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify its suggested edits",
+          "32": "                                                                                                 ctrl+g to edit in Vim",
+          "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "34": "❯ one",
+          "35": "  two",
+          "36": "  three",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "17 mid-turn long collapsed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 28
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-GReJFm/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:46 AM",
+          "12": "❯ Hold on",
+          "32": "· Philosophizing…",
+          "33": "  ⎿  Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify its suggested edits",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #8 +39 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "text indented": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 27
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-FMU2pA/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #8 +5 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "text emoji": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 34
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-FMU2pA/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Thanks ❤️ heart 👨‍👩‍👧 family 日本語",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "queued": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-YmjtoN/project",
+          "6": "❯ Hold on",
+          "8": "❯ Queued beta",
+          "9": "  ctrl+x ctrl+s to send now",
+          "33": "· Nesting…",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Press up to edit queued messages",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on · ← for agents"
+        },
+        "bright": {
+          "36": "❯ P"
+        }
+      },
+      "queued pulled back": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 13
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.287",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-YmjtoN/project",
+          "6": "❯ Hold on",
+          "7": "  ⎿  Interrupted · What should Claude do instead?",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Queued beta",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      }
+    },
+    "2.1.292": {
+      "1 ready empty": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on · ← for agents"
+        },
+        "bright": {}
+      },
+      "2 ready first key": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 3
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ D",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "4 draft pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 21
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Draft of the person",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "5 draft typed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 13
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Typed draft",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "6 short pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 4
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ go",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "7 three lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 7
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "32": "                                                                                                 ctrl+g to edit in Vim",
+          "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "34": "❯ one",
+          "35": "  two",
+          "36": "  three",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "8 wrapped line": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 112
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "31": "                                                                                          Ctrl+Y to paste deleted text",
+          "32": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "33": "❯ wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping",
+          "34": "  words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words",
+          "35": "  wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping",
+          "36": "  words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "9 long collapsed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 28
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #1 +39 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "10 collapsed then more": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 10
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "33": "                                                                                                 ctrl+g to edit in Vim",
+          "34": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "35": "❯ [Pasted text #2 +39 lines]",
+          "36": "  and more",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "size 10 lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 27
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #3 +9 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "size 25 lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 28
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #4 +24 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "size 300 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 70
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "32": "                                                                                          Ctrl+Y to paste deleted text",
+          "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "34": "❯ w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8",
+          "35": "  w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6",
+          "36": "  w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "size 700 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 28
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "28": "                                                                                          Ctrl+Y to paste deleted text",
+          "29": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "30": "❯ w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8",
+          "31": "  w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6",
+          "32": "  w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5",
+          "33": "  w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3",
+          "34": "  w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2",
+          "35": "  w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0",
+          "36": "  w1 w2 w3 w4 w5 w6 w7 w8 w9",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "size 1500 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 18
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #5]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "12 after turn": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:47 AM",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "13 draft after turn": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 18
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:47 AM",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Draft after turn",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "14 mid-turn empty": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:47 AM",
+          "12": "❯ Hold on",
+          "32": "* Tinkering…",
+          "33": "  ⎿  Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify its suggested edits",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on · ← for agents"
+        },
+        "bright": {}
+      },
+      "15 mid-turn short pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 4
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:47 AM",
+          "12": "❯ Hold on",
+          "32": "✶ Tinkering…",
+          "33": "  ⎿  Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify its suggested edits",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ go",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "16 mid-turn three lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 7
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:47 AM",
+          "12": "❯ Hold on",
+          "30": "* Tinkering…",
+          "31": "  ⎿  Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify its suggested edits",
+          "32": "                                                                                                 ctrl+g to edit in Vim",
+          "33": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "34": "❯ one",
+          "35": "  two",
+          "36": "  three",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      },
+      "17 mid-turn long collapsed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 28
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-3EHXt2/project",
+          "6": "❯ Say hello",
+          "8": "● Hello there.",
+          "10": "✻ Brewed for 0s · done 10:47 AM",
+          "12": "❯ Hold on",
+          "32": "· Tinkering…",
+          "33": "  ⎿  Tip: Start with small features or bug fixes, tell Claude to propose a plan, and verify its suggested edits",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #8 +39 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "text indented": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 27
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-CNZTxY/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ [Pasted text #8 +5 lines]",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "text emoji": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 34
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-CNZTxY/project",
+          "34": "                                                                                          Ctrl+Y to paste deleted text",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Thanks ❤️ heart 👨‍👩‍👧 family 日本語",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  paste again to expand"
+        },
+        "bright": {}
+      },
+      "queued": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-ARhhDj/project",
+          "6": "❯ Hold on",
+          "8": "❯ Queued beta",
+          "9": "  ctrl+x ctrl+s to send now",
+          "33": "· Fermenting…",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Press up to edit queued messages",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on · ← for agents"
+        },
+        "bright": {
+          "36": "❯ P"
+        }
+      },
+      "queued pulled back": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 13
+        },
+        "rows": {
+          "1": " ▐▛███▛█   Claude Code v2.1.292",
+          "2": "▝▜██████▀  Opus 5.5 · API Usage Billing",
+          "3": " ▝▝   ▝▝   /tmp/novadeck-e2e-ARhhDj/project",
+          "6": "❯ Hold on",
+          "7": "  ⎿  Interrupted · What should Claude do instead?",
+          "34": "                                                                                                    ◐ medium · /effort",
+          "35": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "36": "❯ Queued beta",
+          "37": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "39": "  ⏸ manual mode on"
+        },
+        "bright": {}
+      }
+    }
+  }
+}

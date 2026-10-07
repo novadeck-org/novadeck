@@ -1,0 +1,641 @@
+/* The chat recipe: a terminal's agent as a conversation, drawn over its screen
+   (`.chat`, which fills the window's body). The transcript (`.chat-scroll`, a log) holds
+   the person's messages as bubbles (`.chat-message[data-role="user"]`), the agent's text
+   as plain formatted prose (`.chat-prose`, with `.chat-code` blocks and `.chat-table`),
+   other agents' messages (`data-role="agent"`), runs of tool calls (`.chat-tools`, a row
+   `.chat-tool` each, opening to `.chat-tool-body`), notes (`.chat-note`) and the agent's
+   state (`.chat-status`). Under it sit what waits on the person (`.chat-requests`) and the
+   composer (`.chat-composer`).
+
+   Hooks: data-compact on `.chat` in a Grid or Canvas window; data-role="user" |
+   "assistant" | "agent" on a message; data-kind="run" | "read" | "write" | "search" |
+   "web" | "agent" | "plan" | "other" and data-running on a tool row, aria-expanded on its
+   button; data-folded on a long run of calls; data-kind="permission" | "question" |
+   "plan" on a request; data-working or data-ended on the status; aria-disabled on Stop,
+   :disabled on Send.
+
+   Tokens, each optional (its fallback in brackets):
+   --chat-bg (the window's bg, then paper), --chat-fg (ink): the ground and its text.
+   --chat-font (sans): the transcript's face. --chat-muted-fg (muted): times, notes, the
+   status, a tool's detail and the labels.
+   --chat-user-bg (soft), --chat-user-fg (the text's), --chat-user-border-color
+   (transparent), --chat-user-radius (radius-panel): the person's bubble.
+   --chat-agent-bg (shell), --chat-agent-border-color (line): another agent's message.
+   --chat-tool-bg (shell), --chat-tool-border-color (line), --chat-tool-radius
+   (radius-panel), --chat-tool-hover-bg (soft): a run of tool calls and its rows.
+   --chat-tool-icon-fg (muted), --chat-tool-running-fg (ink): a row's icon, and the
+   spinner of a call still running.
+   --chat-code-bg (shell), --chat-code-border-color (line), --chat-code-fg (the text's),
+   --chat-inline-code-bg (soft): code, fenced and inline. Its colours are the syntax
+   tokens'.
+   --chat-quote-border-color (line-strong), --chat-table-border-color (line),
+   --chat-table-head-bg (shell): quotes and tables.
+   --chat-link-fg (ink): links.
+   --chat-request-bg (warning), --chat-request-fg (warning-fg),
+   --chat-request-border-color (the fg at 35%): a request that waits on the person.
+   --chat-status-fg (muted): the working line; --chat-error-fg (danger-fg): an error.
+   --chat-composer-bg (paper), --chat-composer-border-color (line-strong),
+   --chat-composer-focus-border-color (strong), --chat-composer-radius (radius-panel),
+   --chat-composer-shadow (shadow-control): the box.
+   --chat-send-bg (strong), --chat-send-fg (on-strong), --chat-send-hover-bg
+   (strong-hover): Send. --chat-stop-fg (ink), --chat-stop-border-color (line-strong):
+   Stop. --chat-jump-bg (paper), --chat-jump-border-color (line-strong),
+   --chat-jump-shadow (shadow-floating): the jump to the latest message. */
+
+.chat {
+  --_font: var(--chat-font, var(--font-sans));
+  --_muted: var(--chat-muted-fg, var(--color-muted));
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background-color: var(--chat-bg, var(--window-bg, var(--color-paper)));
+  color: var(--chat-fg, var(--color-ink));
+  font: 13px/1.6 var(--_font);
+}
+.chat[data-compact] {
+  font-size: 12px;
+}
+.canvas-node:not(.selected) .chat {
+  pointer-events: none;
+  user-select: none;
+}
+/* Zen's dock floats over the window's bottom edge. */
+.workspace[data-zen="true"] .terminal-focused .chat {
+  padding-bottom: 5rem;
+}
+.chat-main {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.chat-scroll {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 24px 8px;
+  /* The first row fades in under the header's line. */
+  mask-image: linear-gradient(to bottom, transparent, currentColor 18px);
+  user-select: text;
+  cursor: auto;
+}
+.chat[data-compact] .chat-scroll {
+  padding: 16px 14px 4px;
+}
+.chat-scroll:focus-visible {
+  outline-offset: -2px;
+}
+.chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding-bottom: 8px;
+}
+.chat[data-compact] .chat-thread {
+  gap: 12px;
+}
+.chat-earlier {
+  align-self: center;
+  height: 28px;
+}
+.chat-empty {
+  margin: 48px 0;
+  text-align: center;
+  color: var(--_muted);
+}
+
+/* Messages */
+.chat-message {
+  min-width: 0;
+}
+.chat-message[data-role="user"] {
+  align-self: flex-end;
+  max-width: min(85%, 560px);
+}
+.chat-message[data-role="agent"] {
+  max-width: min(92%, 640px);
+}
+.chat-bubble {
+  padding: 8px 12px;
+  border: var(--border-width) solid var(--chat-user-border-color, transparent);
+  border-radius: var(--chat-user-radius, var(--radius-panel));
+  background-color: var(--chat-user-bg, var(--color-soft));
+  color: var(--chat-user-fg, currentColor);
+}
+.chat-message[data-role="agent"] .chat-bubble {
+  border-color: var(--chat-agent-border-color, var(--color-line));
+  background-color: var(--chat-agent-bg, var(--color-shell));
+  color: inherit;
+}
+.chat-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-author {
+  margin: 0 0 4px;
+  font-size: 11px;
+  color: var(--_muted);
+}
+.chat-shortened,
+.chat-tool-note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--_muted);
+}
+.chat-note {
+  align-self: center;
+  margin: 0;
+  font-size: 11px;
+  color: var(--_muted);
+}
+
+/* The agent's formatted text */
+.chat-prose {
+  overflow-wrap: anywhere;
+}
+.chat-prose > :first-child {
+  margin-top: 0;
+}
+.chat-prose > :last-child {
+  margin-bottom: 0;
+}
+.chat-prose :is(p, ul, ol, blockquote, .chat-code, .chat-table, hr, h3, h4, h5, h6) {
+  margin: 0 0 10px;
+}
+.chat-prose ul {
+  list-style: disc;
+}
+.chat-prose ol {
+  list-style: decimal;
+}
+.chat-prose :is(ul, ol) {
+  padding-left: 22px;
+}
+.chat-prose li :is(p, ul, ol) {
+  margin: 0 0 4px;
+}
+.chat-prose li {
+  margin: 2px 0;
+}
+.chat-prose li::marker {
+  color: var(--_muted);
+}
+.chat-prose :is(h3, h4, h5, h6) {
+  margin-top: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.chat-prose h3[data-level="1"] {
+  font-size: 16px;
+  letter-spacing: -0.2px;
+}
+.chat-prose h4[data-level="2"] {
+  font-size: 14.5px;
+}
+.chat[data-compact] .chat-prose :is(h3, h4) {
+  font-size: 12.5px;
+}
+.chat-prose a {
+  color: var(--chat-link-fg, var(--color-ink));
+  text-decoration: underline;
+  text-decoration-color: var(--color-line-strong);
+  text-underline-offset: 2px;
+}
+.chat-prose a:hover {
+  text-decoration-color: currentColor;
+}
+.chat-prose blockquote {
+  padding-left: 12px;
+  border-left: 2px solid var(--chat-quote-border-color, var(--color-line-strong));
+  color: var(--_muted);
+}
+.chat-prose hr {
+  border: 0;
+  border-top: var(--border-width) solid var(--color-line);
+}
+.chat-prose :not(pre) > code {
+  padding: 1px 4px;
+  border-radius: var(--radius-control);
+  background-color: var(--chat-inline-code-bg, var(--color-soft));
+  font-size: 0.92em;
+}
+
+/* Code */
+.chat-code {
+  border: var(--border-width) solid var(--chat-code-border-color, var(--color-line));
+  border-radius: var(--radius-control);
+  background-color: var(--chat-code-bg, var(--color-shell));
+  color: var(--chat-code-fg, currentColor);
+}
+.chat-code-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 0 10px;
+  min-height: 26px;
+  border-bottom: var(--border-width) solid var(--chat-code-border-color, var(--color-line));
+  font-size: 11px;
+  color: var(--_muted);
+}
+.chat-code pre {
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.55;
+  tab-size: 2;
+}
+.chat-code pre:focus-visible {
+  outline-offset: -2px;
+}
+.chat-code code {
+  font-family: var(--font-mono);
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* Tables */
+.chat-table {
+  overflow-x: auto;
+}
+.chat-table table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.chat-table :is(th, td) {
+  padding: 4px 10px;
+  border: var(--border-width) solid var(--chat-table-border-color, var(--color-line));
+  text-align: left;
+  vertical-align: top;
+}
+.chat-table th {
+  background-color: var(--chat-table-head-bg, var(--color-shell));
+  font-weight: 600;
+}
+
+/* Tool calls */
+.chat-tools {
+  min-width: 0;
+  border: var(--border-width) solid var(--chat-tool-border-color, var(--color-line));
+  border-radius: var(--chat-tool-radius, var(--radius-panel));
+  background-color: var(--chat-tool-bg, var(--color-shell));
+  overflow: hidden;
+}
+.chat-tools-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chat-tools-fold ~ .chat-tools-list {
+  border-top: var(--border-width) solid var(--chat-tool-border-color, var(--color-line));
+}
+.chat-tool + .chat-tool {
+  border-top: var(--border-width) solid var(--chat-tool-border-color, var(--color-line));
+}
+.chat-tool-summary,
+.chat-tools-fold {
+  --_bg: transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  background-color: var(--_bg);
+  color: inherit;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+.chat[data-compact] :is(.chat-tool-summary, .chat-tools-fold) {
+  font-size: 11px;
+  min-height: 26px;
+}
+@media (hover: hover) {
+  .chat-tool-summary:hover,
+  .chat-tools-fold:hover {
+    --_bg: var(--chat-tool-hover-bg, var(--color-soft));
+  }
+}
+.chat-tool-chevron {
+  flex-shrink: 0;
+  color: var(--_muted);
+  transition: transform var(--motion-feedback) var(--ease-interface);
+}
+:is(.chat-tool-summary, .chat-tools-fold)[aria-expanded="true"] .chat-tool-chevron {
+  transform: rotate(90deg);
+}
+.chat-tool-icon {
+  flex-shrink: 0;
+  color: var(--chat-tool-icon-fg, var(--color-muted));
+}
+.chat-tool[data-running] .chat-tool-icon {
+  color: var(--chat-tool-running-fg, var(--color-ink));
+  animation: chat-pulse 1.2s ease-in-out infinite;
+}
+.chat-tool-title {
+  flex-shrink: 0;
+  font-weight: 500;
+}
+.chat-tool-detail {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--_muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-tool-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 10px 10px 31px;
+}
+.chat-tool-part h4 {
+  margin: 0 0 3px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--_muted);
+}
+.chat-tool-part pre {
+  max-height: 220px;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: var(--border-width) solid var(--chat-code-border-color, var(--color-line));
+  border-radius: var(--radius-control);
+  background-color: var(--chat-code-bg, var(--color-paper));
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-tool-part pre:focus-visible {
+  outline-offset: -2px;
+}
+.chat-tool-body > .chat-tool-note {
+  margin: 0;
+}
+
+/* The agent's state */
+.chat-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--chat-status-fg, var(--color-muted));
+}
+.chat-status[data-ended] {
+  align-self: center;
+  font-size: 11px;
+}
+.chat-spinner {
+  animation: chat-spin 1s linear infinite;
+}
+@keyframes chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes chat-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Jump to the latest */
+.chat-jump {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px 0 10px;
+  transform: translateX(-50%);
+  border: var(--border-width) solid var(--chat-jump-border-color, var(--color-line-strong));
+  border-radius: 999px;
+  background-color: var(--chat-jump-bg, var(--color-paper));
+  box-shadow: var(--chat-jump-shadow, var(--shadow-floating));
+  color: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .chat-jump:hover {
+    background-color: var(--color-soft);
+  }
+}
+
+/* What waits on the person */
+.chat-requests {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 42%;
+  overflow-y: auto;
+  padding: 8px 24px 0;
+}
+.chat[data-compact] .chat-requests {
+  padding: 6px 14px 0;
+}
+.chat-request {
+  --_fg: var(--chat-request-fg, var(--color-warning-fg));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-shrink: 0;
+  gap: 6px;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  border: var(--border-width) solid
+    var(--chat-request-border-color, color-mix(in srgb, var(--_fg) 35%, transparent));
+  border-radius: var(--radius-panel);
+  background-color: var(--chat-request-bg, var(--color-warning));
+  color: var(--_fg);
+}
+.chat-request-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+}
+.chat-request-head svg {
+  flex-shrink: 0;
+}
+.chat-request-head h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.chat-request-tool,
+.chat-request-tag {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.chat-request-tool {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-request-head .button {
+  height: 26px;
+  margin-left: auto;
+  color: var(--color-ink);
+}
+.chat-request-subject {
+  max-width: 100%;
+  margin: 0;
+  max-height: 4.8em;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+/* What the agent offers, said as plain text: the answer is given in its terminal. */
+.chat-request-choices {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.8;
+  user-select: text;
+}
+.chat-request-choices span {
+  font-weight: 600;
+}
+.chat[data-compact] .chat-request {
+  gap: 4px;
+  padding: 8px 10px;
+}
+.chat[data-compact] .chat-request-subject {
+  max-height: 2.9em;
+}
+.chat[data-compact] .chat-request-choices {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+/* The composer */
+.chat-composer {
+  padding: 10px 24px 14px;
+}
+.chat[data-compact] .chat-composer {
+  padding: 8px 12px 10px;
+}
+.chat-composer > * {
+  max-width: 760px;
+  margin-right: auto;
+  margin-left: auto;
+}
+.chat-error {
+  margin-top: 0;
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--chat-error-fg, var(--color-danger-fg));
+}
+/* An empty hint stays in the page, taking no room, for a reader to announce what appears. */
+.chat-error:empty {
+  position: absolute;
+  margin: 0;
+}
+.chat-composer-box {
+  --_border-color: var(--chat-composer-border-color, var(--color-line-strong));
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--chat-composer-radius, var(--radius-panel));
+  background-color: var(--chat-composer-bg, var(--color-paper));
+  box-shadow: var(--chat-composer-shadow, var(--shadow-control));
+  cursor: text;
+}
+.chat-composer-box:focus-within {
+  --_border-color: var(--chat-composer-focus-border-color, var(--color-strong));
+}
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  max-height: 9.5em;
+  padding: 4px 0;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+  user-select: text;
+}
+.chat-input::placeholder {
+  color: var(--_muted);
+}
+.chat-input[readonly] {
+  opacity: 0.7;
+}
+.chat-composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.chat-send,
+.chat-stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+.chat-send {
+  --_bg: var(--chat-send-bg, var(--color-strong));
+  border: 0;
+  background-color: var(--_bg);
+  color: var(--chat-send-fg, var(--color-on-strong));
+}
+@media (hover: hover) {
+  .chat-send:hover:not(:disabled) {
+    --_bg: var(--chat-send-hover-bg, var(--color-strong-hover));
+  }
+}
+.chat-send:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+.chat-stop {
+  border: var(--border-width) solid var(--chat-stop-border-color, var(--color-line-strong));
+  background-color: transparent;
+  color: var(--chat-stop-fg, var(--color-ink));
+}
+.chat-stop[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.5;
+}
+@media (hover: hover) {
+  .chat-stop:hover {
+    background-color: var(--color-soft);
+  }
+}

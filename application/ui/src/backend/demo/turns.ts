@@ -1,16 +1,41 @@
 import type { AgentStatus, TerminalMetadata } from "../../model/types"
 import type { BackendSink, TerminalKey } from "../port"
-import { demoAgent } from "./samples"
+import { terminalKeyId } from "../registry"
+import { chatAgent, demoAgent } from "./samples"
 
 // How long a demo agent's turn works before it finishes.
 export const demoTurnMs = 1500
 
-// The agents demo's turns: a prompt to one of its agents idle at its prompt works for a
+// What a demo agent's turn does that its conversation shows: it began with a prompt, ran
+// a tool halfway through, and ended with a reply, or was interrupted and said nothing.
+export type TurnEvent =
+  | {
+      readonly type: "begin"
+      readonly key: TerminalKey
+      readonly prompt: string
+    }
+  | { readonly type: "tool"; readonly key: TerminalKey }
+  | {
+      readonly type: "end"
+      readonly key: TerminalKey
+      readonly outcome: "completed" | "interrupted"
+      readonly reply?: string
+    }
+
+// What its ended turn left running, which the next status keeps.
+const left = (agent: AgentStatus) => (agent.background ? { background: agent.background } : {})
+
+// The demo agents' turns: a prompt to one of its agents idle at its prompt works for a
 // moment, then finishes with the reply it shows, as its hooks would report it, anything it left
-// running still running. `reply` answers the prompt for the demo engine, and `start`
-// takes the sink the statuses go to.
+// running still running. `prompt` starts a turn and `interrupt` ends one early, as Escape
+// does; `reply` answers a prompt typed in the terminal for the demo engine; `watch` hears
+// every turn's events; and `start` takes the sink the statuses go to.
 export const demoTurns = (turnMs = demoTurnMs) => {
   let sink: BackendSink | undefined
+  const watchers = new Set<(event: TurnEvent) => void>()
+  // The timers of each turn in flight, by terminal.
+  const active = new Map<string, ReturnType<typeof setTimeout>[]>()
+  const emit = (event: TurnEvent): void => watchers.forEach((watcher) => watcher(event))
   const status = (key: TerminalKey, agent: AgentStatus) => {
     const { projectId, workspaceSessionId, terminalId } = key
     sink?.dispatch([
@@ -22,25 +47,62 @@ export const demoTurns = (turnMs = demoTurnMs) => {
       },
     ])
   }
+  // Starts the turn of an agent idle at its prompt; nothing for any other terminal.
+  const prompt = (
+    text: string,
+    terminal: TerminalMetadata,
+    key: TerminalKey,
+  ): string | undefined => {
+    const id = terminalKeyId(key)
+    const agent = terminal.state === "running" ? (terminal.agent ?? { working: false }) : undefined
+    if (!chatAgent(terminal) || !agent || agent.working || agent.attention || active.has(id))
+      return undefined
+    const reply = `Done: ${text.trim()}. Nothing else changed.`
+    emit({ type: "begin", key, prompt: text.trim() })
+    active.set(id, [
+      setTimeout(() => emit({ type: "tool", key }), turnMs / 2),
+      setTimeout(() => {
+        active.delete(id)
+        status(key, {
+          working: false,
+          ...left(agent),
+          lastTurn: { outcome: "completed", reply, at: Date.now() },
+        })
+        emit({ type: "end", key, outcome: "completed", reply })
+      }, turnMs),
+    ])
+    // After the engine's own update: a status is a workspace commit of its own.
+    queueMicrotask(() => {
+      if (active.has(id)) status(key, { working: true })
+    })
+    // What the agent says, which the screen shows as its turn ends.
+    return reply
+  }
   return {
-    reply: (command: string, terminal: TerminalMetadata, key: TerminalKey): string | undefined => {
-      const agent = terminal.state === "running" ? terminal.agent : undefined
-      if (!demoAgent(terminal) || !agent || agent.working || agent.attention) return undefined
-      const reply = `Done: ${command.trim()}. Nothing else changed.`
-      const left = agent.background ? { background: agent.background } : {}
-      // After the engine's own update: a status is a workspace commit of its own.
-      queueMicrotask(() => status(key, { working: true }))
-      setTimeout(
-        () =>
-          status(key, {
-            working: false,
-            ...left,
-            lastTurn: { outcome: "completed", reply, at: Date.now() },
-          }),
-        turnMs,
-      )
-      // What the agent says, which the screen shows as its turn ends.
-      return reply
+    prompt,
+    reply: (command: string, terminal: TerminalMetadata, key: TerminalKey): string | undefined =>
+      demoAgent(terminal) ? prompt(command, terminal, key) : undefined,
+    // Whether a turn started here still runs.
+    working: (key: TerminalKey): boolean => active.has(terminalKeyId(key)),
+    // Ends the agent's turn as Escape does, refusing whatever it asked: the turn it runs
+    // here stops, and any other it shows stops showing. Whether it had one to stop.
+    interrupt: (key: TerminalKey, agent: AgentStatus): boolean => {
+      const id = terminalKeyId(key)
+      const timers = active.get(id)
+      if (!timers && !agent.working && !agent.attention) return false
+      timers?.forEach(clearTimeout)
+      active.delete(id)
+      status(key, {
+        working: false,
+        ...left(agent),
+        lastTurn: { outcome: "interrupted", at: Date.now() },
+      })
+      emit({ type: "end", key, outcome: "interrupted" })
+      return true
+    },
+    watch: (watcher: (event: TurnEvent) => void): (() => void) => {
+      watchers.add(watcher)
+      return () => watchers.delete(watcher)
     },
     start: (next: BackendSink): (() => void) => {
       sink = next
@@ -50,3 +112,5 @@ export const demoTurns = (turnMs = demoTurnMs) => {
     },
   }
 }
+
+export type DemoTurns = ReturnType<typeof demoTurns>

@@ -24,6 +24,7 @@ import {
   persistUi,
   trackRecent,
   watchPresentation,
+  watchChatModes,
   watchClosing,
   watchCrashLoop,
   watchFinishes,
@@ -123,6 +124,7 @@ export const WorkspaceProvider = ({
   useEffect(() => watchSwitcher(services.workspace, services.ui), [services])
   useEffect(() => watchCrashLoop(services.backend.crashLoop?.crashes, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
+  useEffect(() => watchChatModes(services.workspace, services.ui), [services])
   useEffect(() => watchPageFocus(services.ui, window), [services])
   useEffect(
     () => watchFinishes(services.workspace, services.ui, services.backend.notices?.show),

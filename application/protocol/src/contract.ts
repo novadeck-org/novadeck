@@ -5,6 +5,7 @@ import {
   agentDetail,
   agentIntegration,
   agentRef,
+  interruptResult,
   transcriptChange,
   agentName,
   clientState,
@@ -62,6 +63,14 @@ export const errors = {
   SPAWN_FAILED: { status: 500 },
   RUNTIME_CLOSING: { status: 503 },
   AGENT_SETUP_FAILED: { status: 500 },
+  PROMPT_FAILED: { status: 409 },
+  // A prompt a TUI would read as more than text (`promptRefusal`): a control character, a
+  // command (a leading `/` or `!`) or a file or skill mention left open at its end (`@name`,
+  // `$name`); or one of nothing but white space. Nothing is written.
+  PROMPT_REFUSED: { status: 409 },
+  // The turn was stopped, but the agent's input box holds text (the person's queued
+  // messages, put back by the Escape) that could not be cleared out with certainty.
+  BOX_NOT_CLEARED: { status: 409 },
   VOICE_UNAVAILABLE: { status: 409, data: voiceUnavailable },
   VOICE_FAILED: { status: 500 },
 }
@@ -224,6 +233,24 @@ export const contract = {
     transcript: procedure
       .input(z.strictObject({ terminalId: id, actor: agentRef }))
       .output(eventIterator(transcriptChange)),
+    // Gives the terminal's agent a prompt as the person would: the text pasted into its own
+    // input box as one bracketed paste, then Enter once the paste shows there, the person's
+    // keys held meanwhile. A terminal without an agent bound, or one that takes no
+    // bracketed paste, is a CONFLICT, as is one whose input box holds a draft already (the
+    // person's, or a failed paste's), which a prompt would merge into; a paste that never
+    // showed, or showed other than exactly the text, is PROMPT_FAILED, and what landed of it
+    // stays in the box as a draft; text a TUI would read as a command or a file pick (a
+    // leading `/` or `!`, a trailing `@name` or `$name`, a control character), or that is
+    // nothing but white space, is PROMPT_REFUSED, writing nothing.
+    prompt: procedure
+      .input(z.strictObject({ terminalId: id, text: z.string().min(1).max(16_384) }))
+      .output(z.void()),
+    // Presses Escape in the terminal's agent, which stops its turn in every harness, and
+    // takes back out of the agent's box what stopping put there (see `interruptResult`). A
+    // terminal without an agent bound is a CONFLICT; a box that still holds the queued
+    // messages, which could not be read or cleared with certainty, is BOX_NOT_CLEARED: the
+    // turn is stopped, and the person is to clear the box in the terminal.
+    interrupt: procedure.input(z.strictObject({ terminalId: id })).output(interruptResult),
     // Installs or removes the plugin through the agent's own commands.
     set: procedure
       .input(z.strictObject({ agent: agentName, connected: z.boolean() }))

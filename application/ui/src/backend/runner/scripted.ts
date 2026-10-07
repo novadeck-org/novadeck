@@ -159,6 +159,11 @@ export const scripted = ({
     settings: { get: unused, set: note("settings", saveSettings) },
     agents: {
       list: async () => [],
+      // No agent is followed here; `prompt` and `interrupt` are noted and take.
+      detail: () => channel<never>().iterator,
+      transcript: () => channel<never>().iterator,
+      prompt: note("prompt", async () => {}),
+      interrupt: note("interrupt", async () => {}),
       set: note("agents", (input) => {
         const [agent, connected] = input as [string, boolean]
         return connect(agent, connected)

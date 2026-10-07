@@ -234,7 +234,8 @@ permission question, its own popup, a picker) in `requests.e2e.ts`, a nested run
 harness inside an agent's turn in `nested.e2e.ts`, the person forking a session in a new
 terminal or in place in `forks.e2e.ts`, the person clearing the conversation
 or leaving the agent for another in `lifecycle.e2e.ts`, and the person's controls over
-a running agent and untrusted seeds in `controls.e2e.ts`, each written once and run for
+a running agent and untrusted seeds in `controls.e2e.ts`, and the chat view's way to an agent
+(`agents.prompt` and `agents.interrupt`) in `chat.e2e.ts`, each written once and run for
 every harness in `setups` (`agents/index.ts`):
 
 ```ts
@@ -449,6 +450,19 @@ for (const setup of setups) {
   - _Folder untrusted_: t1 and t2 both ask; trusted in t1, t1 sends t2 a message, which
     waits queued while t2's question shows, past the doorbell's settle window, t2 never
     Ready nor rung; trusted there too, t2 goes Ready, is rung, and its hook delivers.
+- **The chat's scenarios** (`chat.e2e.ts`), `agents.prompt` and `agents.interrupt` as the
+  chat view calls them (`t.prompt(text)`, `t.interrupt()`), read back as a client does
+  (`t.transcript()`: the root actor's items, by the ref `agents.detail` names):
+  - _One line_ and _several lines_: the transcript holds the user item with that text,
+    each line whole, one user turn, and the fake model's reply; the turn goes working,
+    then settled. A _long_ prompt (40 lines), which a TUI may show as a placeholder, too.
+  - _Named alike_: a terminal given its first prompt this way is named as one typed in
+    another terminal is, whatever that is for the harness.
+  - _Mid-turn_: with the reply held, a second prompt (several lines) queues, or steers,
+    as the person's would: both prompts and both replies reach the transcript.
+  - _Interrupt_: with the reply held, `interrupt()` ends the turn without a normal Stop
+    (Unknown), the harness says it was interrupted before the held reply is let go,
+    which never shows; the next prompt's turn settles.
 - **The person's scenarios** (`person.e2e.ts`), the person typing around messages,
   asserting docs/agent-messaging.md's "Acceptance scenarios" for them. In each, t2 sends
   t1 a message from its own prompt, which waits queued; a terminal that mustn't be rung

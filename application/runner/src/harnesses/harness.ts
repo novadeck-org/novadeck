@@ -10,6 +10,7 @@ import {
 } from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
+import type { BoxProfile } from "./box.js"
 import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
 
 /** Where a harness lives on this machine, as its setup and inspection need it. */
@@ -101,6 +102,8 @@ export type Harness = {
   readonly wakes: boolean
   /** How it takes part in agents' messaging: what its hooks print, and how it behaves. */
   readonly messaging: MessagingProfile
+  /** How its input box reads off its screen, which a prompt checks before and after it pastes. */
+  readonly box: BoxProfile
   /** The normalized facts in one of its hooks' reports; none for one it ignores. */
   readonly decode: (report: Report) => readonly HarnessEvent[]
   /**

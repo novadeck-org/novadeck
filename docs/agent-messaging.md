@@ -1067,7 +1067,14 @@ optional `messages` capability (`model/messages.ts`):
   clicks while one is on its way, and says why when the runner refuses one.
   While paused, the view says so and every badge shows it.
 
-The person doesn't send as themselves; they type in the terminal.
+The person doesn't send as themselves; they type in the terminal. The chat view's
+prompts (`agents.prompt`, `agents.interrupt`; see `backend-api.md`) are the person typing:
+the runner writes them as one bracketed paste and an Enter, or an Escape, through the same
+key bookkeeping as the person's own keys (`Terminals.keyed`), so "What counts" and
+"States" apply to them unchanged: the paste makes a draft, its Enter a submission, the
+Escape ends the turn as theirs does. A prompt meeting a ring under way waits for it, and
+holds the person's keys and the window's resizes as a ring does, so the two never share
+the box.
 
 Self-description adds to it: every terminal summary says who its title is from
 (`titleSource`), `terminals.resetTitle` hands a title back to Novadeck, and

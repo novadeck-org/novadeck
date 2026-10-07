@@ -5,9 +5,12 @@ import type {
   AgentActivity,
   AgentDetail,
   AgentName,
+  InterruptResult,
   TerminalMessages,
   TerminalRequest,
   TerminalSummary,
+  TranscriptChange,
+  TranscriptItem,
 } from "@novadeck/protocol"
 import headless from "@xterm/headless"
 
@@ -101,6 +104,18 @@ export type DeckTerminal = {
     what: string,
     timeoutMs?: number,
   ) => Promise<T>
+  /**
+   * Gives its agent a prompt as the chat does, `agents.prompt`: pasted into its box, and
+   * Enter once it shows; resolves once that Enter is out, rejects as the call would.
+   */
+  readonly prompt: (text: string) => Promise<void>
+  /** Presses Escape in its agent as the chat does, `agents.interrupt`. */
+  readonly interrupt: () => Promise<InterruptResult>
+  /**
+   * The items of its root actor's transcript as `agents.transcript` gives them now, read
+   * as a client does with the root's ref from `agents.detail`; empty before a session binds.
+   */
+  readonly transcript: () => Promise<readonly TranscriptItem[]>
   /** What a client's terminal listing says of it now: its agent and that agent's activity. */
   readonly summary: () => TerminalSummary
   /** Its messages and how its agent can take one now. */
@@ -420,6 +435,34 @@ const stop = async (runner: Runner): Promise<void> => {
   }
 }
 
+/**
+ * The items a transcript stream holds now: what it sent until it had nothing more to say
+ * for `quietMs`.
+ */
+const itemsNow = async (
+  stream: (signal: AbortSignal) => AsyncGenerator<TranscriptChange>,
+  quietMs = 300,
+): Promise<TranscriptItem[]> => {
+  const controller = new AbortController()
+  const changes = stream(controller.signal)
+  const items: TranscriptItem[] = []
+  try {
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop -- Changes are taken in order.
+      const next = await Promise.race([
+        changes.next(),
+        new Promise<undefined>((resolve) => setTimeout(resolve, quietMs)),
+      ])
+      if (next === undefined || next.done) return items
+      if (next.value.type === "reset") items.length = 0
+      else items.push(...next.value.items)
+    }
+  } finally {
+    controller.abort()
+    await changes.return(undefined)
+  }
+}
+
 // The first of a stream's snapshots: how things stand now.
 const now = async <T>(stream: (signal: AbortSignal) => AsyncGenerator<T>): Promise<T> => {
   const controller = new AbortController()
@@ -582,6 +625,20 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         }),
       summary: () => terminals.get(id),
       messages: () => terminals.messages(id),
+      prompt: async (text) => {
+        prompted = undefined
+        await terminals.prompt({ terminalId: id, text })
+      },
+      interrupt: async () => {
+        prompted = undefined
+        return await terminals.interrupt({ terminalId: id })
+      },
+      transcript: async () => {
+        const detail = await now((signal) => terminals.detail(id, signal))
+        const root = detail.actors.find((actor) => actor.role === "root")
+        if (!root) return []
+        return itemsNow((signal) => terminals.transcript(id, root.ref, signal))
+      },
       detail: () => now((signal) => terminals.detail(id, signal)),
       history: history.snapshots,
       mark: history.mark,

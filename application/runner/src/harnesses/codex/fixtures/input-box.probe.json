@@ -1,0 +1,1241 @@
+{
+  "harness": "codex",
+  "source": "src/e2e/probes/input-box.e2e.ts, run with NOVADECK_E2E_PROBES=1 (2026-10-07)",
+  "how": "Each harness driven in a PTY (120x40) by the end-to-end deck against the fake model; keys and pastes written as the person would; each state read with `screenText`: `rows` holds the rows that show anything, `bright` the rows whose dim cells blank some of their text (`screenText`'s bright rows), `cursor` the cursor. The box was cleared between states with repeated Ctrl-U and Backspace; the state 12 onward come after one turn, 14 to 17 while a turn is held mid-flight.",
+  "versions": {
+    "0.159.3": {
+      "1 ready empty": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "11": "                                                       ⣀⣤⣤⣤⣀⣀",
+          "12": "                                                    ⣠⣶⣿⣿⣿⣿⣿⣿⣿⣿⣦⣤⣤⣤⣤⣤⣤⡀",
+          "13": "                                                  ⢀⣾⣿⣿⠿⠋⠉⠉⢉⣭⣿⣿⣿⣿⣿⠿⣿⣿⣿⣿⣷⣄",
+          "14": "                                                 ⣀⣾⣿⣿⠃ ⣀⣴⣾⣿⣿⡿⠟⠋ ⣀⡀ ⠈⠙⢿⣿⣿⣧",
+          "15": "                                              ⣀⣶⣿⣿⣿⣿⡇ ⢸⣿⣿⡿⠛⠉⢀⣠⣴⣿⣿⣿⣷⣦⣀⠈⢻⣿⣿⡇",
+          "16": "                                             ⣰⣿⣿⡿⢿⣿⣿⡇ ⢸⣿⣿⢀⣤⣶⣿⣿⣿⠟⠛⠻⣿⣿⣿⣿⣮⣿⣿⡷",
+          "17": "                                            ⢰⣿⣿⡟⠁⢸⣿⣿⡇ ⢸⣿⣿⣿⣿⠿⠿⣿⣿⣿⣦⣄⡀⠈⠛⠿⣿⣿⣿⣧⡀",
+          "18": "                                            ⣾⣿⣿⠃ ⢸⣿⣿⡇ ⢸⣿⣿⠋⠁  ⠈⠙⢻⣿⣿⣿⣶⣤⡀ ⠹⢿⣿⣷⡄",
+          "19": "                                            ⢸⣿⣿⣇ ⠸⣿⣿⣷⣦⣼⣿⣿      ⢸⣿⣿⠻⢿⣿⣿⡇ ⠘⣿⣿⣿",
+          "20": "                                            ⠈⢿⣿⣿⣦⡀⠈⠛⠿⣿⣿⣿⣿⣄⡀  ⢀⣠⣼⣿⣿  ⣿⣿⡇  ⣿⣿⣿⠇",
+          "21": "                                              ⢻⣿⣿⣿⣷⣦⣀⠈⠙⠻⣿⣿⣿⣶⣶⣿⣿⣿⣿⣿  ⣿⣿⡇ ⣠⣿⣿⣿",
+          "22": "                                              ⢸⣿⣿⡿⢿⣿⣿⣿⣦⣠⣴⣿⣿⣿⡿⠟⠋⢸⣿⣿  ⣿⣿⣷⣴⣿⣿⣿⠃",
+          "23": "                                              ⠘⣿⣿⣷ ⠈⠛⢿⣿⣿⣿⠿⠋⠉ ⣠⣴⣿⣿⣿  ⣿⣿⣿⣿⣿⠟⠁",
+          "24": "                                               ⠻⣿⣿⣿⣤⣀ ⠈⠉ ⢀⣤⣶⣿⣿⣿⠿⠟⠁ ⣰⣿⣿⡟⠋⠁",
+          "25": "                                                ⠈⠿⣿⣿⣿⣿⣶⣾⣿⣿⣿⣿⠟⠋⠁  ⣠⣼⣿⣿⡟",
+          "26": "                                                   ⠙⠛⠛⠛⠻⠛⢿⣿⣿⣿⣿⣷⣾⣿⣿⣿⡿⠏",
+          "27": "                                                          ⠈⠙⠛⠿⠿⠿⠿⠛⠉",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "36": "›"
+        }
+      },
+      "2 ready first key": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 3
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "36": "› D",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "4 draft pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 21
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "36": "› Draft of the person",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "5 draft typed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 13
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "36": "› Typed draft",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "6 short pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 4
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "36": "› go",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "7 three lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 7
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "34": "› one",
+          "35": "  two",
+          "36": "  three",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "8 wrapped line": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 112
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "33": "› wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping",
+          "34": "  words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words",
+          "35": "  wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping",
+          "36": "  words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "9 long collapsed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 29
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "36": "› [Pasted Content 1030 chars]",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "10 collapsed then more": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 10
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "35": "› [Pasted Content 1030 chars]",
+          "36": "  and more",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 10 lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 15
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "27": "› Short line 1",
+          "28": "  Short line 2",
+          "29": "  Short line 3",
+          "30": "  Short line 4",
+          "31": "  Short line 5",
+          "32": "  Short line 6",
+          "33": "  Short line 7",
+          "34": "  Short line 8",
+          "35": "  Short line 9",
+          "36": "  Short line 10",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 25 lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 15
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "12": "› Short line 1",
+          "13": "  Short line 2",
+          "14": "  Short line 3",
+          "15": "  Short line 4",
+          "16": "  Short line 5",
+          "17": "  Short line 6",
+          "18": "  Short line 7",
+          "19": "  Short line 8",
+          "20": "  Short line 9",
+          "21": "  Short line 10",
+          "22": "  Short line 11",
+          "23": "  Short line 12",
+          "24": "  Short line 13",
+          "25": "  Short line 14",
+          "26": "  Short line 15",
+          "27": "  Short line 16",
+          "28": "  Short line 17",
+          "29": "  Short line 18",
+          "30": "  Short line 19",
+          "31": "  Short line 20",
+          "32": "  Short line 21",
+          "33": "  Short line 22",
+          "34": "  Short line 23",
+          "35": "  Short line 24",
+          "36": "  Short line 25",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 300 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 67
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "34": "› w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8",
+          "35": "  w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7",
+          "36": "  w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 700 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 19
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "30": "› w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8",
+          "31": "  w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7",
+          "32": "  w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6",
+          "33": "  w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5",
+          "34": "  w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4",
+          "35": "  w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3",
+          "36": "  w4 w5 w6 w7 w8 w9",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 1500 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 29
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "36": "› [Pasted Content 1499 chars]",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "12 after turn": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:46",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "36": "›"
+        }
+      },
+      "13 draft after turn": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 18
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:46",
+          "36": "› Draft after turn",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "                                                                                              ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": ""
+        }
+      },
+      "14 mid-turn empty": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:46",
+          "15": "› Hold on",
+          "33": "• Working (2s • esc to interrupt)",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "15": "  Hold on",
+          "33": "•               esc",
+          "36": "›"
+        }
+      },
+      "15 mid-turn short pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 4
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:46",
+          "15": "› Hold on",
+          "33": "◦ Working (3s • esc to interrupt)",
+          "36": "› go",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "  tab to queue message"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "15": "  Hold on",
+          "33": "                esc"
+        }
+      },
+      "16 mid-turn three lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 7
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:46",
+          "15": "› Hold on",
+          "31": "◦ Working (6s • esc to interrupt)",
+          "34": "› one",
+          "35": "  two",
+          "36": "  three",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "  tab to queue message"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "15": "  Hold on",
+          "31": "                esc"
+        }
+      },
+      "17 mid-turn long collapsed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 29
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-5myacX/project",
+          "4": "  Hello again. What’s the plot this time?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:46",
+          "15": "› Hold on",
+          "33": "• Working (10s • esc to interrupt)",
+          "36": "› [Pasted Content 1030 chars]",
+          "38": "  fake-model default · /tmp/novadeck-e2e-5myacX/project",
+          "39": "  tab to queue message"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "15": "  Hold on",
+          "33": "•                esc"
+        }
+      },
+      "text indented": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 5
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-Us3fOw/project",
+          "4": "  Greetings, fellow tinkerer.",
+          "31": "› def check():",
+          "32": "   if x:",
+          "33": "          return 1  # trailing",
+          "36": "  end",
+          "38": "  fake-model default · /tmp/novadeck-e2e-Us3fOw/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "text emoji": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 34
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-Us3fOw/project",
+          "4": "  Greetings, fellow tinkerer.",
+          "36": "› Thanks ❤️  heart   family 日本語",
+          "38": "  fake-model default · /tmp/novadeck-e2e-Us3fOw/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "queued": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-UscQkh/project",
+          "4": "  Shall we put some verbs after that cursor?",
+          "7": "› Hold on",
+          "30": "◦ Working (1s • esc to interrupt)",
+          "32": "• Messages to be submitted after next tool call (press esc to interrupt and send immediately)",
+          "33": "  ↳ Queued beta",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-UscQkh/project",
+          "39": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Hold on",
+          "30": "                esc",
+          "32": "  Messages to be submitted after next tool call        esc",
+          "33": "",
+          "36": "›"
+        }
+      },
+      "queued steered": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.159.3)",
+          "2": "     /tmp/novadeck-e2e-UscQkh/project",
+          "4": "  Whoa, fancy meeting you here!",
+          "7": "› Hold on",
+          "10": "• Model interrupted to submit steer instructions.",
+          "13": "› Queued beta",
+          "33": "• Working (1s • esc to interrupt)",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-UscQkh/project",
+          "39": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Hold on",
+          "10": "  Model interrupted to submit steer instructions.",
+          "13": "  Queued beta",
+          "33": "•               esc",
+          "36": "›"
+        }
+      }
+    },
+    "0.160.1": {
+      "1 ready empty": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "11": "                                                       ⣀⣤⣤⣤⣀⣀",
+          "12": "                                                    ⣠⣶⣿⣿⣿⣿⣿⣿⣿⣿⣦⣤⣤⣤⣤⣤⣤⡀",
+          "13": "                                                  ⢀⣾⣿⣿⠿⠋⠉⠉⢉⣭⣿⣿⣿⣿⣿⠿⣿⣿⣿⣿⣷⣄",
+          "14": "                                                 ⣀⣾⣿⣿⠃ ⣀⣴⣾⣿⣿⡿⠟⠋ ⣀⡀ ⠈⠙⢿⣿⣿⣧",
+          "15": "                                              ⣀⣶⣿⣿⣿⣿⡇ ⢸⣿⣿⡿⠛⠉⢀⣠⣴⣿⣿⣿⣷⣦⣀⠈⢻⣿⣿⡇",
+          "16": "                                             ⣰⣿⣿⡿⢿⣿⣿⡇ ⢸⣿⣿⢀⣤⣶⣿⣿⣿⠟⠛⠻⣿⣿⣿⣿⣮⣿⣿⡷",
+          "17": "                                            ⢰⣿⣿⡟⠁⢸⣿⣿⡇ ⢸⣿⣿⣿⣿⠿⠿⣿⣿⣿⣦⣄⡀⠈⠛⠿⣿⣿⣿⣧⡀",
+          "18": "                                            ⣾⣿⣿⠃ ⢸⣿⣿⡇ ⢸⣿⣿⠋⠁  ⠈⠙⢻⣿⣿⣿⣶⣤⡀ ⠹⢿⣿⣷⡄",
+          "19": "                                            ⢸⣿⣿⣇ ⠸⣿⣿⣷⣦⣼⣿⣿      ⢸⣿⣿⠻⢿⣿⣿⡇ ⠘⣿⣿⣿",
+          "20": "                                            ⠈⢿⣿⣿⣦⡀⠈⠛⠿⣿⣿⣿⣿⣄⡀  ⢀⣠⣼⣿⣿  ⣿⣿⡇  ⣿⣿⣿⠇",
+          "21": "                                              ⢻⣿⣿⣿⣷⣦⣀⠈⠙⠻⣿⣿⣿⣶⣶⣿⣿⣿⣿⣿  ⣿⣿⡇ ⣠⣿⣿⣿",
+          "22": "                                              ⢸⣿⣿⡿⢿⣿⣿⣿⣦⣠⣴⣿⣿⣿⡿⠟⠋⢸⣿⣿  ⣿⣿⣷⣴⣿⣿⣿⠃",
+          "23": "                                              ⠘⣿⣿⣷ ⠈⠛⢿⣿⣿⣿⠿⠋⠉ ⣠⣴⣿⣿⣿  ⣿⣿⣿⣿⣿⠟⠁",
+          "24": "                                               ⠻⣿⣿⣿⣤⣀ ⠈⠉ ⢀⣤⣶⣿⣿⣿⠿⠟⠁ ⣰⣿⣿⡟⠋⠁",
+          "25": "                                                ⠈⠿⣿⣿⣿⣿⣶⣾⣿⣿⣿⣿⠟⠋⠁  ⣠⣼⣿⣿⡟",
+          "26": "                                                   ⠙⠛⠛⠛⠻⠛⢿⣿⣿⣿⣿⣷⣾⣿⣿⣿⡿⠏",
+          "27": "                                                          ⠈⠙⠛⠿⠿⠿⠿⠛⠉",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "11": "",
+          "12": "",
+          "13": "",
+          "14": "",
+          "15": "",
+          "16": "",
+          "17": "",
+          "18": "",
+          "19": "",
+          "20": "",
+          "21": "",
+          "22": "",
+          "23": "",
+          "24": "",
+          "25": "",
+          "26": "",
+          "27": "",
+          "36": "›"
+        }
+      },
+      "2 ready first key": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 3
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "36": "› D",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "4 draft pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 21
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "36": "› Draft of the person",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "5 draft typed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 13
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "36": "› Typed draft",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "6 short pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 4
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "36": "› go",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "7 three lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 7
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "34": "› one",
+          "35": "  two",
+          "36": "  three",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "8 wrapped line": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 112
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "33": "› wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping",
+          "34": "  words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words",
+          "35": "  wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping",
+          "36": "  words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words wrapping words",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "9 long collapsed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 29
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "36": "› [Pasted Content 1030 chars]",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "10 collapsed then more": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 10
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "35": "› [Pasted Content 1030 chars]",
+          "36": "  and more",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 10 lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 15
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "27": "› Short line 1",
+          "28": "  Short line 2",
+          "29": "  Short line 3",
+          "30": "  Short line 4",
+          "31": "  Short line 5",
+          "32": "  Short line 6",
+          "33": "  Short line 7",
+          "34": "  Short line 8",
+          "35": "  Short line 9",
+          "36": "  Short line 10",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 25 lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 15
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "12": "› Short line 1",
+          "13": "  Short line 2",
+          "14": "  Short line 3",
+          "15": "  Short line 4",
+          "16": "  Short line 5",
+          "17": "  Short line 6",
+          "18": "  Short line 7",
+          "19": "  Short line 8",
+          "20": "  Short line 9",
+          "21": "  Short line 10",
+          "22": "  Short line 11",
+          "23": "  Short line 12",
+          "24": "  Short line 13",
+          "25": "  Short line 14",
+          "26": "  Short line 15",
+          "27": "  Short line 16",
+          "28": "  Short line 17",
+          "29": "  Short line 18",
+          "30": "  Short line 19",
+          "31": "  Short line 20",
+          "32": "  Short line 21",
+          "33": "  Short line 22",
+          "34": "  Short line 23",
+          "35": "  Short line 24",
+          "36": "  Short line 25",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 300 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 67
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "34": "› w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8",
+          "35": "  w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7",
+          "36": "  w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 700 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 19
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "30": "› w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8",
+          "31": "  w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7",
+          "32": "  w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6",
+          "33": "  w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5",
+          "34": "  w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4",
+          "35": "  w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w0 w1 w2 w3",
+          "36": "  w4 w5 w6 w7 w8 w9",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "size 1500 chars": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 29
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "36": "› [Pasted Content 1499 chars]",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "12 after turn": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:47",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "36": "›"
+        }
+      },
+      "13 draft after turn": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 18
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:47",
+          "36": "› Draft after turn",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "                                                                                              ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": ""
+        }
+      },
+      "14 mid-turn empty": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:47",
+          "15": "› Hold on",
+          "33": "• Working (2s • esc to interrupt)",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "15": "  Hold on",
+          "33": "•               esc",
+          "36": "›"
+        }
+      },
+      "15 mid-turn short pasted": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 4
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:47",
+          "15": "› Hold on",
+          "33": "◦ Working (3s • esc to interrupt)",
+          "36": "› go",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "  tab to queue message"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "15": "  Hold on",
+          "33": "                esc"
+        }
+      },
+      "16 mid-turn three lines": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 7
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:47",
+          "15": "› Hold on",
+          "31": "◦ Working (6s • esc to interrupt)",
+          "34": "› one",
+          "35": "  two",
+          "36": "  three",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "  tab to queue message"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "15": "  Hold on",
+          "31": "                esc"
+        }
+      },
+      "17 mid-turn long collapsed": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 29
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-T7AGT5/project",
+          "4": "  How deep does this codebase go?",
+          "7": "› Say hello",
+          "10": "• Hello there.",
+          "12": "  Worked for <1s • 10:47",
+          "15": "› Hold on",
+          "33": "• Working (10s • esc to interrupt)",
+          "36": "› [Pasted Content 1030 chars]",
+          "38": "  fake-model default · /tmp/novadeck-e2e-T7AGT5/project",
+          "39": "  tab to queue message"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Say hello",
+          "10": "  Hello there.",
+          "12": "",
+          "15": "  Hold on",
+          "33": "•                esc"
+        }
+      },
+      "text indented": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 5
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-tY0ND1/project",
+          "4": "  Anything interesting on the docket?",
+          "31": "› def check():",
+          "32": "   if x:",
+          "33": "          return 1  # trailing",
+          "36": "  end",
+          "38": "  fake-model default · /tmp/novadeck-e2e-tY0ND1/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "text emoji": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 34
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-tY0ND1/project",
+          "4": "  Anything interesting on the docket?",
+          "36": "› Thanks ❤️  heart   family 日本語",
+          "38": "  fake-model default · /tmp/novadeck-e2e-tY0ND1/project",
+          "39": "                                                                                               ⚠ 1 warning · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": ""
+        }
+      },
+      "queued": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-E3ZsNy/project",
+          "4": "  Is this a plan day or a poke-around day?",
+          "7": "› Hold on",
+          "30": "• Working (1s • esc to interrupt)",
+          "32": "• Messages to be submitted after next tool call (press esc to interrupt and send immediately)",
+          "33": "  ↳ Queued beta",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-E3ZsNy/project",
+          "39": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Hold on",
+          "30": "•               esc",
+          "32": "  Messages to be submitted after next tool call        esc",
+          "33": "",
+          "36": "›"
+        }
+      },
+      "queued steered": {
+        "height": 40,
+        "cursor": {
+          "row": 36,
+          "column": 2
+        },
+        "rows": {
+          "1": "  >_ OpenAI Codex (v0.160.1)",
+          "2": "     /tmp/novadeck-e2e-E3ZsNy/project",
+          "4": "  What are we getting into today?",
+          "7": "› Hold on",
+          "10": "• Model interrupted to submit steer instructions.",
+          "13": "› Queued beta",
+          "33": "• Working (1s • esc to interrupt)",
+          "36": "› Ask Codex to do anything",
+          "38": "  fake-model default · /tmp/novadeck-e2e-E3ZsNy/project",
+          "39": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        },
+        "bright": {
+          "1": "  >_ OpenAI Codex",
+          "2": "",
+          "7": "  Hold on",
+          "10": "  Model interrupted to submit steer instructions.",
+          "13": "  Queued beta",
+          "33": "•               esc",
+          "36": "›"
+        }
+      }
+    }
+  }
+}

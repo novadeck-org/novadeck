@@ -200,6 +200,8 @@ export const createRouter = (options: {
           throw apiError(error)
         }
       }),
+      prompt: authorized.agents.prompt.handler(({ input }) => terminals.prompt(input)),
+      interrupt: authorized.agents.interrupt.handler(({ input }) => terminals.interrupt(input)),
       set: authorized.agents.set.handler(async ({ input }) => {
         const result = await agents.set(input.agent, input.connected)
         if (!result.connected) terminals.forgetAgent(input.agent)

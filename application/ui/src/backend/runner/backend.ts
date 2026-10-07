@@ -28,6 +28,7 @@ import { createTerminalRegistry } from "../registry"
 import { defaultQuickExitMs, exitStatus, restartable, terminalActivity } from "./activity"
 import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"
+import { createRunnerConversations } from "./conversations"
 import { createRunnerItems } from "./items"
 import { createRunnerMessages } from "./messages"
 import { pause } from "./pause"
@@ -928,6 +929,15 @@ export const runnerBackend = (
     },
     track,
   )
+  const conversations = createRunnerConversations(
+    {
+      detail: (terminalId) => runner.agents.detail(terminalId),
+      transcript: (terminalId, actor) => runner.agents.transcript(terminalId, actor),
+      prompt: (terminalId, text) => runner.agents.prompt(terminalId, text),
+      interrupt: (terminalId) => runner.agents.interrupt(terminalId),
+    },
+    track,
+  )
   // The voice input addon, followed from `start` like the messages.
   const voice = createRunnerVoice(runner.voice, track)
   let following = false
@@ -1202,6 +1212,7 @@ export const runnerBackend = (
       following = false
       stopItems()
       messages.stop()
+      conversations.stop()
       voice.stop()
       // The last changes are saved; nothing retries after this.
       flush()
@@ -1232,6 +1243,7 @@ export const runnerBackend = (
       livePages: options.livePages === true,
     }),
     messages,
+    conversations,
     resetTitle: (key) => {
       const { terminalId } = key
       if (items.holdsWindow(target(key), terminalId))

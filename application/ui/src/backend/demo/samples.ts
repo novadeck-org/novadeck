@@ -11,6 +11,14 @@ export type DemoAgent = keyof typeof demoAgents
 export const demoAgent = (terminal: TerminalMetadata): DemoAgent | undefined =>
   Object.hasOwn(demoAgents, terminal.process) ? (terminal.process as DemoAgent) : undefined
 
+// The agents whose conversations the demo simulates, by program name: the two it runs
+// in its screens, and Antigravity.
+export const chatAgents = { ...demoAgents, agy: "Antigravity" } as const
+export type ChatAgent = keyof typeof chatAgents
+
+export const chatAgent = (terminal: TerminalMetadata): ChatAgent | undefined =>
+  Object.hasOwn(chatAgents, terminal.process) ? (terminal.process as ChatAgent) : undefined
+
 const samples: (TerminalMetadata & {
   output: SampleOutput
   x: number

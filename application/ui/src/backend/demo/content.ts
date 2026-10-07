@@ -12,11 +12,13 @@ import type {
 import type { Backend, BackendSink, CreateBackend, TerminalKey } from "../port"
 import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoEngine, type DemoEngine } from "./engine"
-import { demoBackend, windowReset } from "./index"
+import { demoBackend, windowReset, withConversations } from "./index"
 import { createDemoMessages, studioMailbox } from "./messages"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { devServerArtifacts } from "./showcase/artifacts"
 import { createShowcase } from "./showcase/simulation"
+import { showcaseTranscripts } from "./transcripts"
+import { demoTurns } from "./turns"
 
 // A UI-only workspace. The previews never start processes or request a runner.
 export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
@@ -125,7 +127,7 @@ export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
     latest?.projects
       .find((project) => project.id === session.projectId)
       ?.history.find((each) => each.id === session.workspaceSessionId)?.state.items ?? []
-  return {
+  const content: Backend = {
     ...backend,
     // A closed terminal's agent is gone.
     commit: (workspace, actions) => {
@@ -201,6 +203,7 @@ export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
       ],
     },
   }
+  return withConversations(content, showcaseTranscripts(Date.now()), demoTurns())
 }
 
 export const createContentDemo: CreateBackend = () => contentDemo()

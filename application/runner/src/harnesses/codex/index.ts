@@ -12,6 +12,7 @@ import {
   type Harness,
   type Install,
 } from "../harness.js"
+import { box } from "./box.js"
 import { decode } from "./decode.js"
 import { followRollout, followSubagent, rolloutPlans } from "./rollout.js"
 import { cmdShim, posixShim } from "./shim.js"
@@ -142,6 +143,7 @@ export const codex = {
   // Where it keeps its threads' locks and its configuration, and how it is found.
   environment: ["PATH", "HOME", "CODEX_HOME"],
   messaging,
+  box,
   // The rollout records the session's tokens and the account's rate-limit windows, each
   // turn's mode and the plans it proposes.
   watch: followRollout,

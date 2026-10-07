@@ -1,4 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit"
+import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
 import { Terminal, type ITheme } from "@xterm/xterm"
 
 import { createStore, type Store } from "../../model/store"
@@ -155,9 +156,14 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       minimumContrastRatio: 4.5,
       scrollback: 1000,
       allowTransparency: false,
+      allowProposedApi: true,
     })
     const fit = new FitAddon()
     xterm.loadAddon(fit)
+    // Widths as the runner's screen counts them, emoji sequences and CJK included, so a
+    // screen it gives back replays on the same rows.
+    xterm.loadAddon(new UnicodeGraphemesAddon())
+    xterm.unicode.activeVersion = "15-graphemes"
     linkTerminal(xterm)
     xterm.open(element)
     const queries = silenceQueries(xterm)

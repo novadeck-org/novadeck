@@ -12,6 +12,15 @@ import type { PreferencesValue, TerminalMetadata, Workspace } from "../model/typ
 import { writePreferences } from "../preferences/preferences-storage"
 import { initialShell, resetPresentation, type ShellState } from "../shell/shell-state"
 import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage"
+import {
+  chatKept,
+  keepChatDrafts,
+  keepChatModes,
+  noChatDrafts,
+  noChatModes,
+  type ChatDrafts,
+  type ChatModes,
+} from "../terminals/chat/mode-state"
 import { nextRecent, visibleSwitcher, type RecentSwitcher } from "../terminals/recent"
 import type { RenameSession } from "../terminals/rename-state"
 import {
@@ -51,6 +60,10 @@ export type UiState = {
   readonly pageFocused: boolean
   // The terminals whose agent finished while the person looked elsewhere.
   readonly unread: Unread
+  // The terminals showing their agent's conversation instead of their screen.
+  readonly chat: ChatModes
+  // What they typed there and have not sent.
+  readonly chatDrafts: ChatDrafts
 }
 
 export type UiLocation = {
@@ -85,6 +98,8 @@ export const initialUi = ({
   crashLoop: 0,
   pageFocused: true,
   unread: noUnread,
+  chat: noChatModes,
+  chatDrafts: noChatDrafts,
 })
 
 export const updateShell = (ui: UiStore, change: (shell: ShellState) => ShellState): void =>
@@ -149,7 +164,10 @@ export const trackRecent = (workspace: Store<Workspace>, ui: UiStore): (() => vo
         ? state
         : {
             ...state,
-            recent: { ...state.recent, byContext: { ...state.recent.byContext, [context]: ids } },
+            recent: {
+              ...state.recent,
+              byContext: { ...state.recent.byContext, [context]: ids },
+            },
           }
     })
   }
@@ -164,7 +182,10 @@ export const watchSwitcher = (workspace: Store<Workspace>, ui: UiStore): (() => 
     if (!recent.switcher) return
     const context = currentContext(workspace.getSnapshot())
     if (visibleSwitcher(recent.switcher, context, location.route.dialog)) return
-    ui.update((state) => ({ ...state, recent: { ...state.recent, switcher: null } }))
+    ui.update((state) => ({
+      ...state,
+      recent: { ...state.recent, switcher: null },
+    }))
   }
   const stops = [workspace.subscribe(check), ui.subscribe(check)]
   return () => stops.forEach((stop) => stop())
@@ -227,6 +248,33 @@ const terminalsOf = (workspace: Workspace): Map<string, TerminalMetadata> =>
 const contextOf = (key: string, terminal: TerminalMetadata): string =>
   key.slice(0, key.length - terminal.id.length - 1)
 
+// A terminal shows its chat only while an agent runs in it: once the agent ends, or the
+// terminal goes, the screen comes back, and a later agent starts on it too. What was typed
+// in the chat and not sent stays until the terminal goes, for the next agent there.
+export const watchChatModes = (workspace: Store<Workspace>, ui: UiStore): (() => void) => {
+  let projects = workspace.getSnapshot().projects
+  return workspace.subscribe(() => {
+    const snapshot = workspace.getSnapshot()
+    if (snapshot.projects === projects) return
+    projects = snapshot.projects
+    const held = ui.getSnapshot()
+    if (held.chat === noChatModes && held.chatDrafts === noChatDrafts) return
+    const terminals = terminalsOf(snapshot)
+    const keep = (context: string, id: string): boolean => {
+      const terminal = terminals.get(`${context}/${id}`)
+      return terminal !== undefined && chatKept(terminal)
+    }
+    const open = (context: string, id: string): boolean => terminals.has(`${context}/${id}`)
+    ui.update((state) => {
+      const chat = keepChatModes(state.chat, keep)
+      const chatDrafts = keepChatDrafts(state.chatDrafts, open)
+      return chat === state.chat && chatDrafts === state.chatDrafts
+        ? state
+        : { ...state, chat, chatDrafts }
+    })
+  })
+}
+
 // A desktop notification about one terminal, as a backend shows it.
 export type FinishNotify = (notice: {
   readonly id: string
@@ -258,7 +306,11 @@ export const watchFinishes = (
   const sight = () => {
     const before = terminals
     terminals = terminalsOf(previous)
-    const finished: { key: string; terminal: TerminalMetadata; finish: AgentFinish }[] = []
+    const finished: {
+      key: string
+      terminal: TerminalMetadata
+      finish: AgentFinish
+    }[] = []
     const working: string[] = []
     for (const [key, terminal] of terminals) {
       if (before.get(key) === terminal) continue

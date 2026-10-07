@@ -7,6 +7,7 @@ import {
   protocolVersion,
   type AgentDetail,
   type AgentIntegration,
+  type InterruptResult,
   type AgentName,
   type CompanionChange,
   type CompanionItem,
@@ -251,6 +252,24 @@ export type Runner = {
       terminalId: string,
       actor: string,
     ): AsyncIterableIterator<TranscriptChange, undefined>
+    /**
+     * Gives the terminal's agent a prompt as the person would type it: pasted into its
+     * input box, then Enter once exactly the text shows there. Rejects with `CONFLICT`
+     * without an agent bound or when its box holds a draft already, `PROMPT_FAILED` when the
+     * paste never showed as exactly the text, and `PROMPT_REFUSED`, writing nothing, for
+     * text the agent's TUI would read as more than a message: one starting with `/` or `!`,
+     * ending in an `@` or `$` mention a picker would take the Enter for, holding a control
+     * character, or nothing but white space; see `promptRefusal`.
+     */
+    prompt(terminalId: string, text: string): Promise<void>
+    /**
+     * Presses Escape in the terminal's agent, stopping its turn; `CONFLICT` without one.
+     * Resolves with the queued words the agent's box took back, cleared out of it, for the
+     * chat to put back in the person's draft (`returned`, null for none, and for Codex);
+     * rejects with `BOX_NOT_CLEARED` when the box still holds them: the turn is stopped, and
+     * the person is to clear the box in the terminal.
+     */
+    interrupt(terminalId: string): Promise<InterruptResult>
     /**
      * Installs or removes Novadeck's plugin in the agent through its own commands;
      * rejects with `AGENT_SETUP_FAILED` saying why when that did not work.
@@ -1147,6 +1166,8 @@ export const connectRunner = async (
           (wire, signal) => wire.agents.transcript({ terminalId, actor }, { signal }),
           { type: "reset" },
         ),
+      prompt: (terminalId, text) => call((wire) => wire.agents.prompt({ terminalId, text })),
+      interrupt: (terminalId) => call((wire) => wire.agents.interrupt({ terminalId })),
       set: (agent, connected) => call((wire) => wire.agents.set({ agent, connected })),
     },
     companions: {

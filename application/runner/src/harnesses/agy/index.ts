@@ -10,6 +10,7 @@ import {
   type Harness,
   type Install,
 } from "../harness.js"
+import { box } from "./box.js"
 import { decode, shown } from "./decode.js"
 import { statusLineSettings, trustsFolder } from "./settings.js"
 import { transcripts, typedEntry } from "./transcripts.js"
@@ -116,4 +117,5 @@ export const agy = {
   decode,
   shown,
   messaging,
+  box,
 } satisfies Harness

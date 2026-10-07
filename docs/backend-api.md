@@ -641,6 +641,101 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   client's `agents.transcript(terminalId, actor)` resubscribes across reconnections,
   yielding `reset` before the items follow again, and ends without one when the actor
   is gone.
+- `agents.prompt({ terminalId, text })` gives the terminal's agent a prompt as the person
+  would paste and submit it (`text` is 1 to 16,384 characters; its line breaks stay
+  line breaks in the box). It needs an agent bound, or one showing its own empty prompt
+  before its first session binds (Codex before its first prompt), and no request waiting
+  on the person, whose dialog would take the text: otherwise `CONFLICT`, as when the
+  screen takes no bracketed paste. Text a TUI would read as more than a message is
+  refused with `PROMPT_REFUSED` before anything is written: a control character (C0
+  but line feed and tab, DEL, C1: an escape inside it would end the paste and type what
+  follows as keys), nothing but white space, a leading `/` or `!` (a slash or shell
+  command), and an `@name` or `$name` at the very end (a file or skill picker that takes
+  the Enter); `promptRefusal` in `@novadeck/protocol` is that rule, which a client may use
+  to warn first. CRLF and CR are line feeds, and the white space around the text is not
+  sent. The runner holds the person's keys and reads the agent's input box off its
+  screen, through the harness's adapter (`harnesses/*/box.ts`, which knows how that
+  harness draws it and which of its text is a faint suggestion, not the person's):
+  where the box is not on the screen, or still holds anything after waiting up to 3 s for
+  it to read empty (the TUI may be clearing the text of the prompt just sent before; the
+  person's draft, or what a failed paste left, never clears), the call is a `CONFLICT`
+  that wrote nothing, as the text would merge into it. Otherwise it writes the text as one
+  bracketed paste and presses Enter once the box holds exactly the text (whitespace aside:
+  the TUI wraps and indents it) or, for text a TUI may collapse (several lines, or over
+  200 characters), only the placeholder it shows for it, on two reads running; the words
+  already on the screen elsewhere, or a spinner redrawing it, are no matter. It resolves
+  after that Enter. When that does not happen within 5 s, the call fails with
+  `PROMPT_FAILED`: no Enter is ever pressed after a failed check, so what landed stays
+  in the box as a draft. The reader fails closed: the box is read through the adapter of
+  the agent admitted, and a screen it is not found on (the agent exited, a dialog) writes
+  nothing. A text that shows whole in a box taller than the screen has no first row to
+  read and would stay as a draft, so it is refused first with a `CONFLICT` (nothing
+  written, the message saying to enlarge the terminal or shorten the text): its lines,
+  wrapped at word boundaries at the screen's columns less the marker's two (tabs spread
+  to multiples of eight columns), plus a row of margin, take more rows than the harness
+  leaves for its box; a text the harness certainly collapses to a placeholder is not
+  refused. The rows left and the thresholds are each harness's own, probed, in
+  `docs/harness-coverage.md` and `harnesses/*/box.ts`. A box's own lines may be indented,
+  tab and trailing spaces included, and hold blank lines; text is compared without its
+  white space, and without the emoji a harness drew blank, unless the text is only emoji.
+  The runner's headless terminal counts wide characters (emoji sequences, CJK) as a TUI's
+  own do (`@xterm/addon-unicode-graphemes`), so a redraw erases the rows the TUI means.
+  The person's keys are held from before the box is looked at until the Enter is out, at
+  most the wait for an empty box, the paste's 5 s and a margin of 2 s.
+  Prompts to one terminal go one at a time, in order; one that meets a doorbell ring under
+  way waits for it, up to 10 s (`CONFLICT` after). Both keys go through the bookkeeping the
+  person's own do (`Terminals.keyed`): what messaging and the doorbell see of the box and
+  its Enter, the person's prompt attributed from the harness's transcript, the terminal
+  named from its first prompt. A prompt given while the agent works behaves as typing it
+  would: Claude Code and Antigravity queue it (their box shows "Press up to edit queued
+  messages") and run it as its own turn once the turn ends; Codex shows it as "Messages to
+  be submitted after next tool call", submitting it into the running turn then, or at its
+  end when no tool follows. Each shows up as a separate user item in the transcript. The
+  window's resizes are held until a second after the Enter, or the next prompt. The
+  client's `agents.prompt(terminalId, text)` is that call.
+- `agents.interrupt({ terminalId })` presses Escape in the terminal's agent, which stops
+  its turn in every harness (the turn ends without a normal Stop: its activity is
+  `unknown` until the next prompt, see `agent-messaging.md`); `CONFLICT` without an agent
+  bound, or one showing its own prompt. It presses the key only while the agent's activity
+  is `working`; otherwise it resolves having sent nothing, as the turn is already over (a
+  Stop clicked as the turn ends, or a second one), since Escape at an idle prompt does
+  nothing the chat wants and two of them open Claude Code's rewind picker. Interrupts of
+  one terminal go one at a time, each looking at the activity only a second after the
+  one before, so a double Stop sends one Escape. It waits for the person's input to be
+  let go, as held for a prompt's paste or the doorbell's test paste, for as long as that
+  hold's own cap allows (about 10 s for a prompt's, 3 s for a ring's), so its
+  Escape never cuts into one. It goes through the person's key bookkeeping too:
+  the turn ends as an Escape of theirs ends it. The harness takes the key a moment later.
+  Claude Code puts a prompt interrupted before any reply back in its box as a draft (Codex
+  and Antigravity leave it echoed above their box, which stays empty; probed); the runner
+  leaves the box as it was before the turn's prompt. Where the box read empty before the
+  Escape, it looks up to 2 s at the box through the harness's adapter, and when the box
+  holds exactly the turn's prompt as its hooks told it (or the placeholder for a long
+  one), steady on two reads, it writes the adapter's clear keys, a double Escape for
+  Claude Code (never pressed over an empty box, where it opens Claude Code's rewind
+  picker, nor over text the person had typed or merged in, which is left). A harness
+  without clear keys has nothing pressed.
+
+  Messages the person queued behind the turn (a prompt given mid-turn) are not lost. It
+  looks at the screen before the Escape for the harness's own sign of queued messages
+  (`BoxProfile.queued`), and what comes of the Escape then is each harness's, probed
+  (`harness-coverage.md`): Antigravity stops the turn and puts the queued messages back in
+  its box, one to a line; Claude Code stops the turn and sends the queued messages as the
+  next turn, which the runner stops with a second Escape, and Claude Code then puts them
+  back in its box; Codex sends them as a steer, which a second Escape stops, and its box
+  stays empty. Whatever the box then holds, steady, which was empty before the Escape, is
+  the queued words: the runner writes the adapter's clear keys (Ctrl-U and Backspace per
+  line for Antigravity, a double Escape for Claude Code), looks that the box reads empty,
+  and gives the words as `returned`. The call resolves with `{ returned: string | null }`
+  (`InterruptResult`): the words with line breaks as line feeds, for the chat to put back
+  in the person's draft; `null` when there were none, and always for Codex. It fails
+  closed: where the box holds text that can't be cleared and seen empty, that is only a
+  placeholder standing for the words (clearing it would lose them), or can't be read,
+  after the Escape stopped the turn, it rejects with `BOX_NOT_CLEARED` and leaves the box
+  as it is: the person is to clear it in the terminal. The call takes up to about half a
+  second longer where nothing comes back, and a few seconds more with queued messages. The
+  client's `agents.interrupt(terminalId)` is that call, and resolves with the result.
+
 - `companions.*` keeps what agents show and the person attaches beside terminals: items,
   each a pointer to a file, a page or a plan, never a copy of it, held by exactly one
   terminal's bar or one undocked window. Items and windows live in the runner's database,

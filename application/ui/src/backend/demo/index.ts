@@ -12,12 +12,14 @@ import type {
   CreateBackend,
   TerminalKey,
 } from "../port"
+import { createDemoChat } from "./chat"
 import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
 import { createMockTerminal, demoSeed } from "./samples"
-import { demoTurns } from "./turns"
+import { agentTranscripts, type DemoTranscript } from "./transcripts"
+import { demoTurns, type DemoTurns } from "./turns"
 import { createDemoVoice } from "./voice"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
@@ -192,14 +194,41 @@ export const withMessages = (backend: Backend, now: number): Backend => {
   }
 }
 
+// A backend with the conversations of its agents, as `transcripts` open them and `turns`
+// run what the person sends: the status of each turn goes through the sink it starts with.
+export const withConversations = (
+  backend: Backend,
+  transcripts: Readonly<Record<string, DemoTranscript>>,
+  turns: DemoTurns,
+): Backend => {
+  const chat = createDemoChat(backend.seed, transcripts, turns)
+  return {
+    ...backend,
+    conversations: chat.conversations,
+    commit: (workspace, actions) => {
+      backend.commit(workspace, actions)
+      chat.observe(workspace)
+    },
+    start: (sink) => {
+      const stopTurns = turns.start(sink)
+      const stop = backend.start?.(sink)
+      return () => {
+        stop?.()
+        stopTurns()
+      }
+    },
+  }
+}
+
 // The demos with no content showcase: the plain one, the agents', the agents' with
 // messages between them, and the plain one with its first-run welcome dialog open.
 export type PlainVariant = "plain" | "agents" | "messages" | "welcome"
 
 export const plainDemo = (variant: PlainVariant, runtime?: DemoSurfaceRuntime): Backend => {
-  // The agents demo's idle agents take a prompt, work a moment, and finish.
-  const turns = variant === "agents" ? demoTurns() : undefined
-  const engine = createDemoEngine(turns?.reply)
+  // The agents demo's idle agents take a prompt, work a moment, and finish; its chats'
+  // prompts drive the same turns.
+  const turns = demoTurns()
+  const engine = createDemoEngine(variant === "agents" ? turns.reply : undefined)
   const backend = demoBackend(
     engine,
     variant === "welcome" ||
@@ -207,9 +236,19 @@ export const plainDemo = (variant: PlainVariant, runtime?: DemoSurfaceRuntime): 
     undefined,
     runtime,
   )
+  const now = Date.now()
+  const transcripts = agentTranscripts(now)
   if (variant === "messages")
-    return withMessages({ ...backend, seed: demoSeed(Date.now(), true) }, Date.now())
-  return turns ? { ...backend, seed: demoSeed(Date.now(), true), start: turns.start } : backend
+    return withConversations(
+      withMessages({ ...backend, seed: demoSeed(now, true) }, now),
+      transcripts,
+      turns,
+    )
+  return withConversations(
+    variant === "agents" ? { ...backend, seed: demoSeed(now, true) } : backend,
+    transcripts,
+    turns,
+  )
 }
 
 // The variant the address's hash asks for, as specs do with `?demo=`.

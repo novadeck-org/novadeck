@@ -3,6 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
+import { screen } from "../testing/screens.js"
 import { Doorbell, type DoorbellHost } from "./doorbell.js"
 
 /**
@@ -62,7 +63,7 @@ const terminal = (
       failed.push(nonce)
     },
     screen: async () => {
-      const text = { rows: [...rows], bracketedPaste: options.bracketedPaste ?? true }
+      const text = screen({ rows: [...rows], bracketedPaste: options.bracketedPaste ?? true })
       if (options.screenMs) await sleep(options.screenMs)
       return text
     },

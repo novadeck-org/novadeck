@@ -39,6 +39,7 @@ const rules: Record<string, readonly string[]> = {
     "shell/shell-state.ts",
     "terminals/rename-state.ts",
     "terminals/recent.ts",
+    "terminals/chat/mode-state.ts",
     // The companion panes' store, which commands use by its type.
     "terminals/companion/state.ts",
     "layouts/canvas/types.ts",

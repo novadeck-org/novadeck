@@ -4,6 +4,7 @@ import type { TerminalKey } from "../../backend/port"
 import { tilesOf } from "../../model/roster"
 import { activeProject } from "../../model/state"
 import type { TerminalMetadata } from "../../model/types"
+import { chatDraftOf, chatModeOn, setChatDraft } from "../../terminals/chat/mode-state"
 import { isAgentTerminal } from "../../voice/agent-terminal"
 import { startCapture } from "../../voice/capture"
 import {
@@ -13,17 +14,38 @@ import {
   type DictationController,
 } from "../../voice/dictation"
 import { currentState } from "../selectors"
+import type { UiStore } from "../ui-store"
 import { useWorkspaceServices, type WorkspaceServices } from "./context"
 import { domEffects } from "./effects"
 
 export const DictationContext = createContext<DictationController | undefined>(undefined)
+
+// Where dictated words go: a terminal showing its agent's chat takes them in the chat's box,
+// after what is there, for the person to send; any other takes them typed into it.
+export const dictateInto =
+  (ui: UiStore, typeInto: (key: TerminalKey, text: string) => boolean) =>
+  (key: TerminalKey, text: string): boolean => {
+    const context = `${key.projectId}/${key.workspaceSessionId}`
+    if (!chatModeOn(ui.getSnapshot().chat, context, key.terminalId)) return typeInto(key, text)
+    ui.update((state) => {
+      const draft = chatDraftOf(state.chatDrafts, context, key.terminalId)
+      const next =
+        draft.trim() === "" ? text : /\s$/.test(draft) ? draft + text : `${draft} ${text}`
+      return {
+        ...state,
+        chatDrafts: setChatDraft(state.chatDrafts, context, key.terminalId, next),
+      }
+    })
+    return true
+  }
 
 // Dictation for this App, once, where its backend transcribes and can type into a
 // terminal; undefined where it can't. A hold in progress ends with the App.
 export const useDictationController = ({
   backend,
   workspace,
-}: Pick<WorkspaceServices, "backend" | "workspace">): DictationController | undefined => {
+  ui,
+}: Pick<WorkspaceServices, "backend" | "workspace" | "ui">): DictationController | undefined => {
   const { voice, typeInto } = backend
   const controller = useMemo(
     () =>
@@ -31,7 +53,7 @@ export const useDictationController = ({
       typeInto &&
       createDictation({
         voice,
-        typeInto,
+        typeInto: dictateInto(ui, typeInto),
         startCapture,
         promptFor: (key) => {
           const snapshot = workspace.getSnapshot()
@@ -45,7 +67,7 @@ export const useDictationController = ({
         now: domEffects.now,
         after: domEffects.after,
       }),
-    [voice, typeInto, workspace],
+    [voice, typeInto, workspace, ui],
   )
   useEffect(() => () => controller?.dictation.cancel(), [controller])
   return controller

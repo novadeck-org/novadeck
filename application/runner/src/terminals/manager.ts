@@ -10,6 +10,7 @@ import type {
   AgentDetail,
   AgentName,
   ForegroundProcess,
+  InterruptResult,
   TerminalAttached,
   TerminalChange,
   TerminalEvent,
@@ -21,6 +22,7 @@ import type {
 } from "@novadeck/protocol"
 import { SerializeAddon } from "@xterm/addon-serialize"
 import type { SerializeAddon as Serializer } from "@xterm/addon-serialize"
+import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
 import headless from "@xterm/headless"
 import type { Terminal as Screen } from "@xterm/headless"
 import * as pty from "node-pty"
@@ -37,6 +39,7 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
+import { isEmpty, sameText, type BoxProfile, type InputBox } from "../harnesses/box.js"
 import { actorOf, agentDetail } from "../harnesses/detail.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
 import type {
@@ -84,7 +87,7 @@ import {
 import { coalesced } from "./coalesce.js"
 import { expectedAgent, promptIn } from "./commands.js"
 import { readDescribeRequest, type DescribeAnswer } from "./describe.js"
-import { Doorbell, screenText, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
+import { Doorbell, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
 import {
   foregroundProcess,
   foregroundRuns,
@@ -122,6 +125,13 @@ import {
   type OpenAnswer,
 } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
+import {
+  collapsible,
+  Prompts,
+  type HoldBudget,
+  type PromptHost,
+  type PromptOptions,
+} from "./prompts.js"
 import type {
   AgentReport,
   ListedTerminal,
@@ -130,6 +140,7 @@ import type {
   TerminalRecords,
 } from "./records.js"
 import { freshNonce } from "./ring.js"
+import { screenText, type ScreenText } from "./screen.js"
 import { snapshot } from "./snapshot.js"
 import { Subscription } from "./subscription.js"
 import { replay, transcriptOf } from "./transcript.js"
@@ -149,6 +160,20 @@ export const trustRecheckMs = 1000
  * `/status`, or nothing): a prompt binds in about a second (probed 2026-10-04, 0.159.3).
  */
 export const readyReturnMs = 5000
+
+/** The waits of an interrupt, in milliseconds. */
+export type InterruptOptions = {
+  /** How long it looks for the turn's prompt put back in the agent's box. */
+  readonly restoreMs?: number
+  /** How long the screen must be still without it before it is taken as not coming. */
+  readonly restoreCalmMs?: number
+  /**
+   * How long after an interrupt the next one of the terminal waits before it looks at the
+   * turn: its hooks may still report the turn working a moment after Escape ended it, and
+   * a second Escape then would stop nothing.
+   */
+  readonly settleMs?: number
+}
 
 export type TerminalOptions = {
   shell?: string
@@ -205,6 +230,10 @@ export type TerminalOptions = {
   projectOf?: (sessionId: string) => string | undefined
   /** How the doorbell rings idle agents; it never rings with `false`, as in some tests. */
   doorbell?: DoorbellOptions | false
+  /** How prompts the chat gives agents are typed, with its waits, as in some tests. */
+  prompts?: PromptOptions
+  /** How interrupts wait, as in some tests. */
+  interrupts?: InterruptOptions
   /**
    * Where a harness lives on this machine, which says how it may start with a task; a
    * harness counts as having none when omitted.
@@ -324,6 +353,8 @@ type Record = {
    */
   held: {
     input: string[] | null
+    /** When the input's hold lapses by its cap at the latest, in epoch milliseconds. */
+    readonly until: number
     size: {
       readonly cols: number
       readonly rows: number
@@ -586,6 +617,8 @@ export class Terminals {
       | "mailbox"
       | "projectOf"
       | "doorbell"
+      | "prompts"
+      | "interrupts"
       | "install"
       | "hooksTrusted"
       | "items"
@@ -614,6 +647,10 @@ export class Terminals {
   private readonly peers: TerminalPeers
   /** Wakes idle agents for their messages; none when switched off. */
   private readonly doorbell: Doorbell | undefined
+  private readonly prompts: Prompts
+  /** The latest interrupt of each terminal that is not yet done, with its settling time. */
+  private readonly interrupts = new Map<string, Promise<void>>()
+  private readonly interruptWaits: Required<InterruptOptions>
   /** Sessions given out to resume, as agent:session, and the terminal each went to. */
   private readonly claims = new Map<string, string>()
   /** Sessions whose project is going, whose terminals no restart starts again. */
@@ -674,6 +711,12 @@ export class Terminals {
       const record = this.records.get(change.terminalId)
       if (record) this.lapsed(record)
     })
+    this.prompts = new Prompts(this.promptHost(), options.prompts)
+    this.interruptWaits = {
+      restoreMs: options.interrupts?.restoreMs ?? 2_000,
+      restoreCalmMs: options.interrupts?.restoreCalmMs ?? 500,
+      settleMs: options.interrupts?.settleMs ?? 1_000,
+    }
     const doorbell = this.doorbell
     if (doorbell)
       this.messaging.subscribe((change) => {
@@ -1012,31 +1055,7 @@ export class Terminals {
   write(input: { terminalId: string; data: string }, ownerId: string): void {
     const record = this.control(input.terminalId, ownerId)
     this.running(record)
-    // The person's keys, and whether a request waits on them: what they did to the
-    // agent's box, messaging's delivery decides. The terminal's own reports, such as a
-    // focus report or, while the TUI asked for them, the mouse's scroll, are no keys.
-    const queueKey = record.binding ? harnesses[record.binding.agent].messaging.queueKey : undefined
-    const { modes } = record.screen
-    const keys = keysOf(input.data, queueKey, {
-      mouse: mouseReporting(modes.mouseTrackingMode, record.mouseEncoding()),
-      focus: modes.sendFocusMode,
-    })
-    if (keys.length > 0) {
-      // Typing before the shell resumes its agent cancels the resume, so the shell gets
-      // what was typed. A cancelled resume leaves its session free for another terminal.
-      const claim = record.resumeClaim
-      if (this.cancelResume(record) && claim && this.claims.get(claim) === record.summary.id)
-        this.claims.delete(claim)
-      if (/[\r\n]/.test(input.data)) record.submitted = true
-      if (keys.some(({ kind }) => kind === "enter") && this.readyOf(record)) this.readyEnter(record)
-      this.messaging.keys(
-        input.terminalId,
-        keys.map(({ kind }) => kind),
-        (record.activity?.pending.length ?? 0) > 0,
-      )
-      this.escaped(record)
-      if (this.messaging.untrustedAgent(input.terminalId)) this.recheckTrust(record)
-    }
+    this.keyed(record, input.data)
     // While the doorbell's test paste is on screen, the person's input waits its turn.
     if (record.held?.input) {
       record.held.input.push(input.data)
@@ -1046,12 +1065,317 @@ export class Terminals {
     record.process.write(input.data)
   }
 
+  /**
+   * Gives the terminal's agent a prompt as the person would paste and submit it (see
+   * `Prompts`), once those before it are done.
+   */
+  prompt(input: { terminalId: string; text: string }): Promise<void> {
+    return this.prompts.prompt(input.terminalId, input.text)
+  }
+
+  /**
+   * Presses Escape in the terminal's agent as the person would, which stops its turn, and
+   * leaves its box as it was before: where the harness put the turn's prompt back in it
+   * (Claude Code, before any reply), it is cleared, only when the box holds exactly it and
+   * nothing else, read by the harness's box adapter; where messages the person queued
+   * behind the turn came back into the box (Antigravity's Escape; Claude Code's second
+   * one, the first having sent them as the next turn), they are taken out again and
+   * given back as `returned`, for the chat to put in the person's draft. Codex sends them
+   * as a steer, which its second Escape stops, and returns none. A box left holding text
+   * that could not be cleared with certainty is `BOX_NOT_CLEARED`.
+   *
+   * Presses it only while the agent's turn is working, once the person's input is no
+   * longer held for a prompt's paste or a ring: at an idle prompt Escape does nothing
+   * the chat wants, and two of them open Claude Code's rewind picker. Otherwise it
+   * resolves having sent nothing, as the turn it was asked to stop is already over. Those
+   * of one terminal go one at a time, each given its settle wait (`InterruptOptions`)
+   * after the last to show its turn ended before the next looks.
+   */
+  async interrupt(input: { terminalId: string }): Promise<InterruptResult> {
+    const { terminalId } = input
+    this.promptable(terminalId)
+    const previous = this.interrupts.get(terminalId) ?? Promise.resolve()
+    const run = previous.then(() => this.interruptOnce(terminalId))
+    const tail = run
+      .then(
+        () => {},
+        () => {},
+      )
+      .then(
+        () =>
+          new Promise<void>((resolve) => setTimeout(resolve, this.interruptWaits.settleMs).unref()),
+      )
+    this.interrupts.set(terminalId, tail)
+    void tail.then(() => {
+      if (this.interrupts.get(terminalId) === tail) this.interrupts.delete(terminalId)
+    })
+    return await run
+  }
+
+  private async interruptOnce(terminalId: string): Promise<InterruptResult> {
+    const none = { returned: null }
+    // The person's input is held while a prompt's paste or a ring's is on screen; an
+    // Escape then would cut into it. The hold lets go by its own cap at the latest, which a
+    // prompt's is longer than a ring's.
+    while (this.live(terminalId)?.held?.input) {
+      const lapse = this.live(terminalId)?.held?.until ?? 0
+      if (Date.now() >= lapse + 500) break
+      // eslint-disable-next-line no-await-in-loop -- The hold is waited out in turn.
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    const record = this.promptable(terminalId)
+    if (record.activity?.state !== "working") return none
+    // How its box reads, and the keys that clear it, if its harness puts text back.
+    const profile = this.boxOf(record)
+    // The turn's prompt, as its hooks told it, ends with the turn Escape ends.
+    const prompt = this.messaging.personPrompt(terminalId)
+    // Only an empty box has text put back alone: text the person has typed there would be
+    // merged with it, and is theirs.
+    const first = profile ? await this.screenOf(terminalId) : undefined
+    const boxBefore = first && profile?.read(first)
+    const emptyBefore = boxBefore !== undefined && isEmpty(boxBefore)
+    const queued = first !== undefined && profile?.queued(first) === true
+    if (this.live(terminalId) !== record || record.activity?.state !== "working") return none
+    this.keyed(record, "\x1b")
+    record.process.write("\x1b")
+    if (!profile || !emptyBefore) return none
+    if (prompt === undefined && !queued) return none
+    let box = await this.settledBox(record, profile)
+    // Claude Code and Codex send what was queued as the next turn, or a steer, which a
+    // second Escape stops; Claude Code then puts that message back in its box. One Escape
+    // does nothing at an idle prompt, and two are never written here.
+    if (box !== undefined && isEmpty(box) && queued && this.live(terminalId) === record) {
+      this.keyed(record, "\x1b")
+      record.process.write("\x1b")
+      box = await this.settledBox(record, profile)
+    }
+    if (this.live(terminalId) !== record) return none
+    // Text that may be there and can't be seen is left, and said.
+    if (box === undefined && queued) throw this.notCleared()
+    if (box === undefined || isEmpty(box)) return none
+    // The prompt put back is the turn's own, which the chat shows already; with messages
+    // queued, what is there is theirs (the hooks name the queued one the person's latest).
+    const restored =
+      !queued &&
+      prompt !== undefined &&
+      (sameText(box.text, prompt) || (collapsible(prompt) && profile.collapsed(box)))
+    const words = box.text.trim()
+    // A placeholder stands for words that clearing would lose: they are left, and said.
+    if (!profile.clear || (!restored && profile.collapsed(box))) throw this.notCleared()
+    if (!(await this.cleared(record, profile, box))) throw this.notCleared()
+    return restored ? none : { returned: words }
+  }
+
+  private notCleared(): DomainError {
+    return new DomainError(
+      "BOX_NOT_CLEARED",
+      "The turn is stopped, but the agent's input box holds the message you queued: clear it in the terminal.",
+    )
+  }
+
+  /**
+   * Clears the text of the box with the profile's keys, written, not typed (the box is
+   * empty after them, which the person's keys never say), and looks that it reads empty,
+   * writing them again up to twice if not. False where it does not.
+   */
+  private async cleared(record: Record, profile: BoxProfile, box: InputBox): Promise<boolean> {
+    const id = record.summary.id
+    let now = box
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      record.process.write(profile.clear!(now))
+      const until = Date.now() + this.interruptWaits.restoreCalmMs
+      while (Date.now() < until) {
+        // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        const after = await this.screenOf(id)
+        const read = after && profile.read(after)
+        if (!after || this.live(id) !== record) return false
+        if (read === undefined) continue
+        if (isEmpty(read)) return true
+        now = read
+      }
+    }
+    return false
+  }
+
+  /**
+   * The box once it has held still: steady on two reads running where it holds text, or
+   * for `restoreCalmMs` where it is empty, the harness putting something back in it
+   * quickly if it does at all. Whatever it reads after `restoreMs`; undefined where the
+   * terminal is gone or the box is not found.
+   */
+  private async settledBox(record: Record, profile: BoxProfile): Promise<InputBox | undefined> {
+    const id = record.summary.id
+    const until = Date.now() + this.interruptWaits.restoreMs
+    let key: string | undefined
+    let since = Date.now()
+    let last: InputBox | undefined
+    while (Date.now() < until) {
+      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      const after = await this.screenOf(id)
+      if (!after || this.live(id) !== record) return undefined
+      const box = profile.read(after)
+      const now = box ? `${box.first}:${box.last}:${box.text}` : undefined
+      if (now !== key) since = Date.now()
+      else if (box && (!isEmpty(box) || Date.now() - since >= this.interruptWaits.restoreCalmMs))
+        return box
+      key = now
+      last = box
+    }
+    return last
+  }
+
+  /** The harness of the agent bound to the terminal, or shown at its prompt, as its box reads. */
+  private boxOf(record: Record): BoxProfile | undefined {
+    const agent = record.binding?.agent ?? this.messaging.shownAgent(record.summary.id)
+    return agent === undefined ? undefined : harnesses[agent].box
+  }
+
+  /**
+   * The record of a terminal whose agent takes the person's keys, or the error saying why
+   * not: no agent bound, nor its own prompt shown before its first session binds, or one
+   * that waits on the person's answer to a request, whose dialog would take them.
+   */
+  private promptable(terminalId: string): Record {
+    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    const record = this.record(terminalId)
+    this.running(record)
+    if (!record.binding && this.messaging.shownAgent(terminalId) === undefined)
+      throw new DomainError("CONFLICT", "No agent is running in this terminal.")
+    if ((record.activity?.pending.length ?? 0) > 0)
+      throw new DomainError("CONFLICT", "The agent waits on the person's answer to a request.")
+    return record
+  }
+
+  /**
+   * What the person's keys do beyond reaching the terminal, for what watches them: whether
+   * a request waits on them, and what they did to the agent's box, which messaging's
+   * delivery decides. The terminal's own reports, such as a focus report or, while the TUI
+   * asked for them, the mouse's scroll, are no keys.
+   */
+  private keyed(record: Record, data: string): void {
+    const queueKey = record.binding ? harnesses[record.binding.agent].messaging.queueKey : undefined
+    const { modes } = record.screen
+    const keys = keysOf(data, queueKey, {
+      mouse: mouseReporting(modes.mouseTrackingMode, record.mouseEncoding()),
+      focus: modes.sendFocusMode,
+    })
+    if (keys.length === 0) return
+    // Typing before the shell resumes its agent cancels the resume, so the shell gets
+    // what was typed. A cancelled resume leaves its session free for another terminal.
+    const claim = record.resumeClaim
+    if (this.cancelResume(record) && claim && this.claims.get(claim) === record.summary.id)
+      this.claims.delete(claim)
+    if (/[\r\n]/.test(data)) record.submitted = true
+    if (keys.some(({ kind }) => kind === "enter") && this.readyOf(record)) this.readyEnter(record)
+    this.messaging.keys(
+      record.summary.id,
+      keys.map(({ kind }) => kind),
+      (record.activity?.pending.length ?? 0) > 0,
+    )
+    this.escaped(record)
+    if (this.messaging.untrustedAgent(record.summary.id)) this.recheckTrust(record)
+  }
+
+  /** The record of a terminal that is running, if it is. */
+  private live(terminalId: string): Record | undefined {
+    const record = this.records.get(terminalId)
+    return record && !record.exitQueued && record.summary.exit === null ? record : undefined
+  }
+
+  /** The screen of a running terminal once it has drawn what its shell already sent. */
+  private async screenOf(terminalId: string): Promise<ScreenText | undefined> {
+    const record = this.live(terminalId)
+    if (!record) return undefined
+    const { process: child } = record
+    const text = await this.enqueue(record, () => screenText(record.screen))
+    return record.process === child && this.live(terminalId) ? text : undefined
+  }
+
+  /**
+   * Holds the person's input to a running terminal for at most `budget.inputMs`, and the app's
+   * resizes until the hold settles (see `DoorbellHost.hold`).
+   */
+  private holdInput(terminalId: string, budget: HoldBudget): ReturnType<DoorbellHost["hold"]> {
+    const live = (id: string) => this.live(id)
+    const record = live(terminalId)
+    // A hold already in force is another's: this one has none.
+    if (!record || record.held) return { release: () => {}, settle: () => {}, holding: () => false }
+    const held: NonNullable<Record["held"]> = {
+      input: [],
+      until: Date.now() + budget.inputMs,
+      size: null,
+    }
+    record.held = held
+    const release = () => {
+      clearTimeout(inputCap)
+      const { input } = held
+      if (record.held !== held || !input) return
+      held.input = null
+      if (input.length > 0 && live(terminalId) === record) record.process.write(input.join(""))
+    }
+    const settle = () => {
+      release()
+      clearTimeout(sizeCap)
+      if (record.held !== held) return
+      record.held = null
+      if (live(terminalId) !== record) return
+      // Only for the attachment still in control: one that took over meanwhile, or
+      // the same window attached anew, was told the size in force and asks its own.
+      const { size } = held
+      if (
+        !size ||
+        record.controller !== size.owner ||
+        record.subscribers.get(size.owner) !== size.attachment
+      )
+        return
+      try {
+        this.applySize(record, size)
+      } catch {
+        // A shell that exited meanwhile takes no size; its exit is handled in turn.
+      }
+    }
+    // A ring or a prompt takes well under these; should it not, the person's keys, then
+    // the app's sizes, go on.
+    const inputCap = setTimeout(release, budget.inputMs)
+    inputCap.unref()
+    const sizeCap = setTimeout(settle, budget.sizeMs)
+    sizeCap.unref()
+    return {
+      release,
+      settle,
+      holding: () => record.held === held && held.input !== null && live(terminalId) === record,
+    }
+  }
+
+  /** What prompts ask of the terminals and messaging. */
+  private promptHost(): PromptHost {
+    return {
+      admit: (terminalId) => {
+        const profile = this.boxOf(this.promptable(terminalId))
+        // No harness to read its box, no prompt: nothing tells where the text would land.
+        if (!profile) throw new DomainError("CONFLICT", "No agent is running in this terminal.")
+        return profile
+      },
+      ringing: (terminalId) => this.messaging.ringing(terminalId),
+      screen: (terminalId) => this.screenOf(terminalId),
+      hold: (terminalId, budget) => this.holdInput(terminalId, budget),
+      type: (terminalId, data) => {
+        const record = this.live(terminalId)
+        if (!record) return false
+        this.keyed(record, data)
+        record.process.write(data)
+        return true
+      },
+    }
+  }
+
   /** What the doorbell asks of the terminals and messaging. */
   private ringHost(): DoorbellHost {
-    const live = (terminalId: string) => {
-      const record = this.records.get(terminalId)
-      return record && !record.exitQueued && record.summary.exit === null ? record : undefined
-    }
+    const live = (terminalId: string) => this.live(terminalId)
     return {
       // A request asked after the turn's Stop waits on the person though messaging has the
       // terminal Settled: the line would land in its dialog.
@@ -1069,14 +1393,7 @@ export class Terminals {
       ringing: (terminalId) => this.messaging.ringing(terminalId),
       ready: (terminalId) => this.messaging.ready(terminalId),
       ringFailed: (terminalId, nonce) => this.messaging.ringFailed(terminalId, nonce),
-      screen: async (terminalId) => {
-        const record = live(terminalId)
-        if (!record) return undefined
-        const { process: child } = record
-        // Once it has drawn what the shell already sent.
-        const text = await this.enqueue(record, () => screenText(record.screen))
-        return record.process === child && live(terminalId) ? text : undefined
-      },
+      screen: (terminalId) => this.screenOf(terminalId),
       foreground: async (terminalId) => {
         const record = live(terminalId)
         if (!record) return undefined
@@ -1107,53 +1424,7 @@ export class Terminals {
         return held === undefined || own === undefined ? undefined : held === own
       },
       resizedAt: (terminalId) => live(terminalId)?.resizedAt ?? 0,
-      hold: (terminalId) => {
-        const record = live(terminalId)
-        // A hold already in force is another ring's: this one has none.
-        if (!record || record.held)
-          return { release: () => {}, settle: () => {}, holding: () => false }
-        const held: NonNullable<Record["held"]> = { input: [], size: null }
-        record.held = held
-        const release = () => {
-          clearTimeout(inputCap)
-          const { input } = held
-          if (record.held !== held || !input) return
-          held.input = null
-          if (input.length > 0 && live(terminalId) === record) record.process.write(input.join(""))
-        }
-        const settle = () => {
-          release()
-          clearTimeout(sizeCap)
-          if (record.held !== held) return
-          record.held = null
-          if (live(terminalId) !== record) return
-          // Only for the attachment still in control: one that took over meanwhile, or
-          // the same window attached anew, was told the size in force and asks its own.
-          const { size } = held
-          if (
-            !size ||
-            record.controller !== size.owner ||
-            record.subscribers.get(size.owner) !== size.attachment
-          )
-            return
-          try {
-            this.applySize(record, size)
-          } catch {
-            // A shell that exited meanwhile takes no size; its exit is handled in turn.
-          }
-        }
-        // A ring takes well under these; should it not, the person's keys, then the app's
-        // sizes, go on.
-        const inputCap = setTimeout(release, holdCapMs)
-        inputCap.unref()
-        const sizeCap = setTimeout(settle, sizeCapMs)
-        sizeCap.unref()
-        return {
-          release,
-          settle,
-          holding: () => record.held === held && held.input !== null && live(terminalId) === record,
-        }
-      },
+      hold: (terminalId) => this.holdInput(terminalId, { inputMs: holdCapMs, sizeMs: sizeCapMs }),
       write: (terminalId, data) => {
         const record = live(terminalId)
         if (!record) return false
@@ -2390,6 +2661,10 @@ export class Terminals {
     const screen = new Terminal({ cols, rows, scrollback: 1000, allowProposedApi: true })
     const serializer = new SerializeAddon()
     screen.loadAddon(serializer)
+    // Widths as a TUI's own (Ink's) count them, emoji sequences and CJK included: by the
+    // default's, a row it erased is a different number of rows, and stale ones stay.
+    screen.loadAddon(new UnicodeGraphemesAddon())
+    screen.unicode.activeVersion = "15-graphemes"
     const mouseEncoding = watchMouseEncoding(screen)
     try {
       const args = this.options.shellArgs ?? launched.args

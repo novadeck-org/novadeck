@@ -18,6 +18,7 @@ import {
   sameTarget,
   windowedDestination,
 } from "../selectors"
+import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
 import { createLayoutCommands, type LayoutCommands } from "./layout"
@@ -32,6 +33,7 @@ export type AddTerminalOptions = { fromKeyboard?: boolean }
 // latest stores when it runs, so several in one event keep one another's changes.
 export type WorkspaceCommands = ShellCommands &
   CompanionCommands &
+  ChatCommands &
   RenameCommands &
   RecentCommands &
   LayoutCommands & {
@@ -164,6 +166,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     ...rename,
     ...recent,
     ...createLayoutCommands(ctx),
+    ...createChatCommands(ctx),
     ...createCompanionCommands(ctx, {
       select,
       setSelected,

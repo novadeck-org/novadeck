@@ -1,22 +1,9 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { Terminal as Screen } from "@xterm/headless"
-
 import { doorbellLine } from "../harnesses/harness.js"
 import { coalesced } from "./coalesce.js"
 import { bracketedPaste, calmMs, checkPaste, freshNonce, gate } from "./ring.js"
-
-/** A terminal's screen as the doorbell reads it: its rows' text, and its paste mode. */
-export type ScreenText = { readonly rows: readonly string[]; readonly bracketedPaste: boolean }
-
-/** The screen's visible rows as text, and whether it takes pastes bracketed. */
-export const screenText = (screen: Screen): ScreenText => {
-  const buffer = screen.buffer.active
-  const rows: string[] = []
-  for (let row = 0; row < screen.rows; row += 1)
-    rows.push(buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? "")
-  return { rows, bracketedPaste: screen.modes.bracketedPasteMode }
-}
+import type { ScreenText } from "./screen.js"
 
 /** What the doorbell needs of the terminal manager and messaging, by terminal. */
 export type DoorbellHost = {

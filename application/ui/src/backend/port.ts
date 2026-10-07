@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from "react"
 
 import type { Companions } from "../model/companion"
+import type { Conversations } from "../model/conversation"
 import type { Messages } from "../model/messages"
 import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
@@ -171,6 +172,10 @@ export type Backend = {
   // The pane needs `companions`: a backend with messages and nothing else to show passes
   // `emptyCompanions()`.
   readonly messages?: Messages
+  // Optional. The conversations of the agents in its terminals, read from the agents' own
+  // transcripts, and a way to prompt or stop them: a terminal running an agent gets a
+  // chat view beside its screen. Absent where the backend reads no transcripts.
+  readonly conversations?: Conversations
   // Optional. Voice input: the person speaks, and the backend transcribes it on its
   // machine. Absent where the backend cannot transcribe.
   readonly voice?: Voice

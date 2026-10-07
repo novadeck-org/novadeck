@@ -12,6 +12,7 @@ import {
   type Harness,
   type Install,
 } from "../harness.js"
+import { box } from "./box.js"
 import { decode, transcriptPlans } from "./decode.js"
 import { posixShim } from "./shim.js"
 import { transcriptEvents } from "./transcript.js"
@@ -155,6 +156,7 @@ export const claude = {
   },
   decode,
   messaging,
+  box,
   // The transcript records what no hook reports: an interrupted turn.
   watch: (run, signal, emit) =>
     followLines(run.transcript, signal, (line) => {

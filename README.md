@@ -56,6 +56,20 @@ entry, with its own body if needed, and a launcher entry in `model/process.ts` i
 runs as a Node script. Profiles are presentation only: per-program behaviour goes beside
 `programName` in `model/`, as `model/resume.ts` names the agents whose sessions resume.
 
+A terminal running an agent (Claude Code, Codex or Antigravity) has a **Chat** button in
+its window header wherever the backend reads the agents' transcripts
+(`backend.conversations`). Chat shows the agent's own conversation as it records it,
+read from its session's transcript rather than a second agent process: your messages,
+its replies as formatted text, its tool calls (one line each, opening to their input and
+result), other agents' messages to it, what waits on you, and whether it is working. Its
+box types a prompt into the agent's real TUI the way you would (Enter sends, Shift+Enter
+adds a line): the runner's `agents.prompt` pastes it, checks it landed in the agent's
+box, then presses Enter. **Stop** presses Escape there. The TUI keeps running underneath
+at its full size, so the Chat button, or **Answer in terminal** on a request card, shows
+it again as it was; permissions, questions and plans are answered there. The choice and
+the draft last until the agent ends; a reload starts in the terminal again. The
+behaviour specs' demo (`?demo=agents`) has a conversation for each of its agents.
+
 The backend port keeps windows out of the backend: a surface renders one content
 element and passes it to `renderWindow`, and `WorkspaceTerminal.tsx` wraps it in the
 shared window and the profile's body. The surface keeps its controller mounted above
@@ -599,11 +613,14 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `model/companion.ts`                               | Companion items, their content, the `companions` port, and the plan note format.        |
 | `model/companion-bar.ts`                           | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
 | `model/messages.ts`                                | The contract for agents' messages: threads, states, the pause, and a tab's count.       |
+| `model/conversation.ts`                            | The contract for an agent's conversation: transcript items, requests, the port.         |
+| `model/conversation-turns.ts`                      | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.  |
 | `model/roster.ts`                                  | A session's terminals and undocked windows, laid out as tiles, their order and status.  |
 | `model/layout/workspace-layout.ts`                 | Where each terminal sits and how big it is in each view.                                |
 | `terminals/`                                       | Terminal frame, tabs, rename state, and the recent-terminal switcher.                   |
 | `terminals/companion/`                             | Taskbar and pane: the panes' store, `bar.ts` rules, viewers, `plan-editor/`.            |
 | `terminals/drag-session.ts`                        | What's dragged off a taskbar, the views' drop spaces, and the windows it's over.        |
+| `terminals/chat/`                                  | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.    |
 | `layouts/canvas/`, `grid/`, `focus/`               | View adapters and colocated library styles.                                             |
 | `layouts/` (top level)                             | Helpers shared by views: view transitions, background gestures, visibility.             |
 | `shell/`                                           | Header, rail, panels, zen dock, sidebar, and shell state transitions.                   |
@@ -629,7 +646,7 @@ backend adapter. `app/commands/` has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on `model/`,
 `interaction/keymap.ts`, `backend/port.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
-of `shell/` and `terminals/`, the companion panes' store among them. Vendor
+of `shell/` and `terminals/`, the companion panes' store and the chat's modes among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in

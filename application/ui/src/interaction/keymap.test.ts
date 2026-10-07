@@ -22,6 +22,7 @@ const nowhere: KeyTarget = {
   switcherClose: false,
   zenDock: false,
   companion: false,
+  chat: false,
 }
 const terminalInput: Partial<KeyTarget> = { editing: true, terminalInput: true }
 
@@ -314,6 +315,24 @@ describe("keymap", () => {
           expect(
             route(platform, "capture", { key: "ArrowUp", ...jump }, { state: { dialog: true } }),
           ).toEqual([])
+        })
+
+        it("starts dictation from a chat's box, which its words fill", () => {
+          const chat = { editing: true, terminalInput: true, chat: true }
+          const voice = { key: "M", ctrlKey: true, shiftKey: true, code: "KeyM" }
+          expect(route(platform, "capture", { ...voice, target: chat })).toEqual(["voice.press"])
+        })
+
+        it("leaves a chat's box its word selection, but Shift+Esc still leaves it", () => {
+          const jump =
+            platform === "mac" ? { metaKey: true, altKey: true } : { ctrlKey: true, shiftKey: true }
+          const chat = { editing: true, terminalInput: true, chat: true }
+          expect(route(platform, "capture", { key: "ArrowLeft", ...jump, target: chat })).toEqual(
+            [],
+          )
+          expect(
+            route(platform, "capture", { key: "Escape", shiftKey: true, target: chat }),
+          ).toEqual(["navigate.enter"])
         })
 
         it("takes them over from the view switch but leaves other radio groups and the resizer", () => {
