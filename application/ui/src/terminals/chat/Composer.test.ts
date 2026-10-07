@@ -1,6 +1,7 @@
-import { createElement } from "react"
+import { act, createElement } from "react"
 import { afterEach } from "vitest"
 
+import { SettleInTerminal } from "../../model/conversation"
 import { describe, expect, it } from "../../test"
 import { refusing } from "../../test/fixtures"
 import { render } from "../../test/render"
@@ -10,7 +11,17 @@ import { composerState } from "./mode-state"
 const unmounts: (() => void)[] = []
 afterEach(() => unmounts.splice(0).forEach((unmount) => unmount()))
 
-const show = (draft: string, sent: string[] = []): HTMLElement => {
+const show = (
+  draft: string,
+  sent: string[] = [],
+  {
+    send = async (text: string) => void sent.push(text),
+    onOpenTerminal = () => {},
+  }: {
+    readonly send?: (text: string) => Promise<void>
+    readonly onOpenTerminal?: () => void
+  } = {},
+): HTMLElement => {
   const { container, unmount } = render(
     createElement(Composer, {
       label: "Claude",
@@ -20,13 +31,12 @@ const show = (draft: string, sent: string[] = []): HTMLElement => {
       sending: false,
       replySending: false,
       working: false,
-      onSend: async (text: string) => {
-        sent.push(text)
-      },
+      onSend: send,
       onStop: async () => {},
       focusInput: false,
       onInputFocused: () => {},
       onCancelReply: () => {},
+      onOpenTerminal,
       // As the backend says of each text these cases give.
       refused: refusing("ask @alice ", "!", "!echo $", "hi\f"),
     }),
@@ -73,5 +83,42 @@ describe("the composer's warning about a message the agent would read as a comma
     const box = container.querySelector("textarea")!
     box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
     expect(sent).toEqual([])
+  })
+})
+
+describe("the composer's failed send", () => {
+  it("says why, and offers the terminal where the person settles it there", async () => {
+    const opened: string[] = []
+    const container = show("go", [], {
+      send: async () => {
+        throw new SettleInTerminal("The agent's input box already holds text.")
+      },
+      onOpenTerminal: () => opened.push("terminal"),
+    })
+    await act(
+      async () =>
+        void container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click(),
+    )
+    const alert = container.querySelector('[role="alert"]')!
+    expect(alert.textContent).toContain("already holds text")
+    const open = [...alert.querySelectorAll("button")].find(
+      (each) => each.textContent === "Open terminal",
+    )!
+    act(() => open.click())
+    expect(opened).toEqual(["terminal"])
+  })
+
+  it("offers nothing more for a failure that clears by itself", async () => {
+    const container = show("go", [], {
+      send: async () => {
+        throw new Error("Send again in a moment.")
+      },
+    })
+    await act(
+      async () =>
+        void container.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!.click(),
+    )
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Send again in a moment.")
+    expect(container.querySelector('[role="alert"] button')).toBeNull()
   })
 })

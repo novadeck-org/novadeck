@@ -1,4 +1,5 @@
 import type { ScreenText } from "../terminals/screen.js"
+import { cells } from "../terminals/width.js"
 
 /**
  * What a harness's input box holds, as its adapter reads it off the screen. Only a
@@ -74,24 +75,26 @@ export type BoxProfile = {
    * draws around it kept: a paste that shows whole and needs more has no first row to read.
    */
   readonly room: (rows: number) => number
+  /**
+   * How many rows the box shows of a text taller than that on a screen of `rows` rows: it
+   * shows the text's tail, so a box that tall may hold only the end of what was put in it.
+   * Omitted where the harness's box shows all (or grows to `room`).
+   */
+  readonly viewport?: (rows: number) => number
 }
-
-/** How many columns a line takes: wide characters (CJK, emoji) count two. */
-const cells = (line: string): number =>
-  [...line].reduce((sum, char) => sum + ((char.codePointAt(0) ?? 0) >= 0x1100 ? 2 : 1), 0)
 
 /** A line with its tabs spread to the next multiple of eight columns. */
 const untabbed = (line: string): string => {
   let out = ""
   let column = 0
-  for (const char of line) {
-    if (char === "\t") {
+  const parts = line.split("\t")
+  for (const [index, part] of parts.entries()) {
+    out += part
+    column += cells(part)
+    if (index < parts.length - 1) {
       const to = 8 - (column % 8)
       out += " ".repeat(to)
       column += to
-    } else {
-      out += char
-      column += cells(char)
     }
   }
   return out
@@ -121,7 +124,7 @@ const wrappedLine = (line: string, width: number): number => {
 /**
  * How many rows the text takes in a box on a screen `columns` wide, the marker and indent
  * (two columns) aside: each line wrapped at word boundaries, tabs spread to multiples of
- * eight columns, wide characters (CJK, emoji) counting two.
+ * eight columns, each character as wide as the terminal emulator draws it (`cells`).
  */
 export const wrappedRows = (text: string, columns: number): number => {
   const width = Math.max(columns - 2, 1)
@@ -144,6 +147,17 @@ export const sameText = (shown: string, sent: string): boolean => {
   if (a === b) return true
   const [x, y] = [a.replace(pictures, ""), b.replace(pictures, "")]
   return x !== "" && x === y
+}
+
+/**
+ * Whether the text shown is the end of the text sent, whitespace aside and emoji as the
+ * screen drew them, as a box too short for the text shows only its tail.
+ */
+export const endsText = (shown: string, sent: string): boolean => {
+  const [a, b] = [compact(shown), compact(sent)]
+  if (a !== "" && b.endsWith(a)) return true
+  const [x, y] = [a.replace(pictures, ""), b.replace(pictures, "")]
+  return x !== "" && y.endsWith(x)
 }
 
 /** Whether the box holds nothing. */

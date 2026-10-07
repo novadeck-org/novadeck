@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { agentDetail as schema } from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
+import { loadProbe } from "../testing/probes.js"
 import { apply, started, type Activity } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import { agentDetail, rootRef } from "./detail.js"
@@ -17,8 +17,9 @@ type Scenario = { events: { event: string; payload: Report["payload"] }[] }
 // A captured Claude Code scenario's activity as its first request waits on the person,
 // bound to the session it names.
 const replay = (name: string): { binding: Binding; activity: Activity } => {
-  const { scenarios } = JSON.parse(
-    readFileSync(join(import.meta.dirname, "claude", "fixtures", "interactive.probe.json"), "utf8"),
+  const { scenarios } = loadProbe(
+    join(import.meta.dirname, "claude"),
+    "interactive.probe.json",
   ) as { scenarios: { [name: string]: Scenario } }
   let binding: Binding | undefined
   let activity = started(0)

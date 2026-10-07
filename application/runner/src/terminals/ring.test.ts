@@ -1,9 +1,8 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-
 import { doorbellLine } from "../harnesses/harness.js"
 import { describe, expect, it } from "../test.js"
+import { loadProbe } from "../testing/probes.js"
 import { checkPaste, findLine, freshNonce, gate } from "./ring.js"
+import type { ScreenText } from "./screen.js"
 
 type Pair = {
   readonly name: string
@@ -13,11 +12,13 @@ type Pair = {
 }
 
 const pairs = (harness: string): readonly Pair[] =>
-  (
-    JSON.parse(
-      readFileSync(join(import.meta.dirname, "fixtures", `doorbell-${harness}.json`), "utf8"),
-    ) as { pairs: Pair[] }
-  ).pairs
+  loadProbe<{
+    pairs: (Omit<Pair, "before" | "after"> & { before: ScreenText; after: ScreenText })[]
+  }>(import.meta.dirname, `doorbell-${harness}.json`).pairs.map((pair) => ({
+    ...pair,
+    before: pair.before.rows,
+    after: pair.after.rows,
+  }))
 
 // The probes pasted the line with this nonce.
 const line = doorbellLine("n7Q2")

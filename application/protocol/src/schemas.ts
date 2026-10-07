@@ -650,6 +650,32 @@ export const voiceState = z.strictObject({
 })
 
 /**
+ * Why a `CONFLICT` about typing into an agent's terminal is one, as its data, so a client
+ * can tell what clears by itself from what the person settles in the terminal:
+ * - `pending`: a request waits on the person, whose dialog would take the text;
+ * - `ringing`: another agent's message is reaching the agent (its doorbell rings);
+ * - `draft`: the agent's input box holds text already;
+ * - `no-agent`: no agent is running in the terminal;
+ * - `no-box`: no input box is found on the agent's screen;
+ * - `too-tall`: the text has no room in the box on this screen;
+ * - `shell`: the box is in its shell mode;
+ * - `no-paste`: the screen takes no bracketed paste yet.
+ * Other conflicts carry no data; a client must take a reason it doesn't know as none.
+ */
+export const conflictReason = z.strictObject({
+  reason: z.enum([
+    "pending",
+    "ringing",
+    "draft",
+    "no-agent",
+    "no-box",
+    "too-tall",
+    "shell",
+    "no-paste",
+  ]),
+})
+
+/**
  * Why voice input cannot be used, as the data of VOICE_UNAVAILABLE: this build has no
  * engine for the platform, voice input is off or its model is not installed, it is being
  * removed, its engine is updating with none usable, or its engine is missing.

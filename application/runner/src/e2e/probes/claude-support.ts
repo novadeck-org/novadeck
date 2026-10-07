@@ -11,6 +11,7 @@ import {
 } from "node:fs"
 import { join } from "node:path"
 
+import { screenRecord, type ScreenRecord } from "../../testing/probes.js"
 import type { DeckTerminal } from "../deck.js"
 import type { E2E } from "../fixture.js"
 
@@ -156,8 +157,9 @@ export const capture = (name: string, data: unknown) => {
   writeFileSync(join(capDir, `${name}.json`), JSON.stringify(data, null, 2))
 }
 
-export const snap = async (t: DeckTerminal) =>
-  (await t.screen()).split("\n").filter((l, i, a) => a.slice(i).some(Boolean))
+/** The terminal's screen as a probe fixture keeps it, the rows up to the last that shows anything. */
+export const snap = async (t: DeckTerminal, columns?: number): Promise<ScreenRecord> =>
+  screenRecord(await t.screen(), { columns })
 export { appendFileSync }
 
 import { readFileSync as readFile } from "node:fs"
@@ -256,18 +258,18 @@ export const surface = (spec: Spec) =>
       if (spec.shows) await t.until(spec.shows, 30_000)
       else await probe.waitLog(spec.hookStart ?? "PermissionRequest", "start")
       await sleep(700 + (spec.settle ?? 0))
-      const screens: Record<string, string[]> = {}
-      screens["120x40"] = await snap(t)
+      const screens: Record<string, ScreenRecord> = {}
+      screens["120x40"] = await snap(t, 120)
       for (const [c, r] of spec.sizes ?? (spec.shows ? [[60, 20]] : [])) {
         t.resize(c, r)
         // eslint-disable-next-line no-await-in-loop -- The sizes are tried in turn.
         await sleep(900)
         // eslint-disable-next-line no-await-in-loop -- As above.
-        screens[`${c}x${r}`] = await snap(t)
+        screens[`${c}x${r}`] = await snap(t, c)
       }
       t.resize(120, 40)
       await sleep(900)
-      const steps: Record<string, string[]> = {}
+      const steps: Record<string, ScreenRecord> = {}
       const shot: Shot = async (label, wait = 700) => {
         await sleep(wait)
         steps[label] = await snap(t)

@@ -1,9 +1,8 @@
 import { spawnSync } from "node:child_process"
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
 
 import type { Report } from "../../shell/reports.js"
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import { apply, started } from "../activity.js"
 import type { ActivityEvent, HarnessEvent } from "../events.js"
 import { silentFor, type Launchers } from "../harness.js"
@@ -11,9 +10,7 @@ import { decode } from "./decode.js"
 import { agy } from "./index.js"
 
 type Hook = { event: string; in?: Report["payload"] }
-const { scenarios } = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "ask.probe.json"), "utf8"),
-) as {
+const { scenarios } = loadProbe(import.meta.dirname, "ask.probe.json") as {
   scenarios: {
     command: { pending: { hooks: Hook[] } }
     ask_question: { pending: { hooks: Hook[] } }

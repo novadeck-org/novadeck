@@ -5,676 +5,615 @@
       "step": "1-pasted",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "! echo bang-one > one.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "! echo bang-one > one.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "1-entered",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "2-bang",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "!",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "!",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "2-pasted",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "! echo bang-two > two.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "! echo bang-two > two.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "2-entered",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "3-pasted",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "",
-        "",
-        "",
-        "! echo a > m1.txt",
-        "  echo b > m2.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "3": "! echo a > m1.txt",
+          "4": "  echo b > m2.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "3-entered",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "4-working",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "• Working (2s • esc to interrupt)",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠹",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (2s • esc to interrupt)",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠹",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "4-pasted",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "",
-        "• Working (3s • esc to interrupt)",
-        "",
-        "",
-        "! echo bang-three > three.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠼",
-        "  tab to queue message                                                                                      Shell mode"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (3s • esc to interrupt)",
+          "4": "! echo bang-three > three.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠼",
+          "7": "  tab to queue message                                                                                      Shell mode"
+        }
+      }
     },
     {
       "step": "4-entered",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "• Working (7s • esc to interrupt)",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠼",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (7s • esc to interrupt)",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠼",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "4-after",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "  Worked for 7s • 07:51",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "  Worked for 7s • 07:51",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "6-idle",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "  Worked for 7s • 07:51",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "  Worked for 7s • 07:51",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "6-pasted",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "  Worked for 7s • 07:51",
-        "",
-        "",
-        "! echo c > m3.txt",
-        "  echo d > m4.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                Shell mode    ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "0": "  Worked for 7s • 07:51",
+          "3": "! echo c > m3.txt",
+          "4": "  echo d > m4.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                Shell mode    ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "6-entered",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "  Worked for <1s • 07:51",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "  Worked for <1s • 07:51",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "7-bang",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "",
-        "◦ Working (3s • esc to interrupt)",
-        "",
-        "",
-        "!",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠋",
-        "  tab to queue message                                                                                      Shell mode"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "◦ Working (3s • esc to interrupt)",
+          "4": "!",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠋",
+          "7": "  tab to queue message                                                                                      Shell mode"
+        }
+      }
     },
     {
       "step": "7-pasted",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "",
-        "◦ Working (4s • esc to interrupt)",
-        "",
-        "",
-        "! echo bang-four > four.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠹",
-        "  tab to queue message                                                                                      Shell mode"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "◦ Working (4s • esc to interrupt)",
+          "4": "! echo bang-four > four.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠹",
+          "7": "  tab to queue message                                                                                      Shell mode"
+        }
+      }
     },
     {
       "step": "7-entered",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "• Working (8s • esc to interrupt)",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠹",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (8s • esc to interrupt)",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠹",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "7-after",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "  Worked for 8s • 07:51",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "  Worked for 8s • 07:51",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "1-pasted",
       "version": "0.160.1",
       "shell": true,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "! echo bang-one > one.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "! echo bang-one > one.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "1-entered",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "2-bang",
       "version": "0.160.1",
       "shell": true,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "!",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "!",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "2-pasted",
       "version": "0.160.1",
       "shell": true,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "! echo bang-two > two.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "! echo bang-two > two.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "2-entered",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "3-pasted",
       "version": "0.160.1",
       "shell": true,
-      "rows": [
-        "",
-        "",
-        "",
-        "! echo a > m1.txt",
-        "  echo b > m2.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "3": "! echo a > m1.txt",
+          "4": "  echo b > m2.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "3-entered",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "4-working",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "• Working (2s • esc to interrupt)",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠙",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (2s • esc to interrupt)",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠙",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "4-pasted",
       "version": "0.160.1",
       "shell": true,
-      "rows": [
-        "",
-        "• Working (3s • esc to interrupt)",
-        "",
-        "",
-        "! echo bang-three > three.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠼",
-        "  tab to queue message                                                                                      Shell mode"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (3s • esc to interrupt)",
+          "4": "! echo bang-three > three.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠼",
+          "7": "  tab to queue message                                                                                      Shell mode"
+        }
+      }
     },
     {
       "step": "4-entered",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "• Working (7s • esc to interrupt)",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠼",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (7s • esc to interrupt)",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠼",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "4-after",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "  Worked for 7s • 07:52",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "  Worked for 7s • 07:52",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "6-idle",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "  Worked for 7s • 07:52",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "  Worked for 7s • 07:52",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "6-pasted",
       "version": "0.160.1",
       "shell": true,
-      "rows": [
-        "  Worked for 7s • 07:52",
-        "",
-        "",
-        "! echo c > m3.txt",
-        "  echo d > m4.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                Shell mode    ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "0": "  Worked for 7s • 07:52",
+          "3": "! echo c > m3.txt",
+          "4": "  echo d > m4.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                Shell mode    ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "6-entered",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "  Worked for <1s • 07:52",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "  Worked for <1s • 07:52",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "7-bang",
       "version": "0.160.1",
       "shell": true,
-      "rows": [
-        "",
-        "◦ Working (3s • esc to interrupt)",
-        "",
-        "",
-        "!",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠏",
-        "  tab to queue message                                                                                      Shell mode"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "◦ Working (3s • esc to interrupt)",
+          "4": "!",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠏",
+          "7": "  tab to queue message                                                                                      Shell mode"
+        }
+      }
     },
     {
       "step": "7-pasted",
       "version": "0.160.1",
       "shell": true,
-      "rows": [
-        "",
-        "◦ Working (4s • esc to interrupt)",
-        "",
-        "",
-        "! echo bang-four > four.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠙",
-        "  tab to queue message                                                                                      Shell mode"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "◦ Working (4s • esc to interrupt)",
+          "4": "! echo bang-four > four.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠙",
+          "7": "  tab to queue message                                                                                      Shell mode"
+        }
+      }
     },
     {
       "step": "7-entered",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "• Working (8s • esc to interrupt)",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠙",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (8s • esc to interrupt)",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠙",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "7-after",
       "version": "0.160.1",
       "shell": false,
-      "rows": [
-        "",
-        "  Worked for 8s • 07:52",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "  Worked for 8s • 07:52",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "9-idle",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "9-bang",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "!",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "!",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                 Shell mode    ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "9-backspaced",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "9-normal-pasted",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› touch undo-normal.txt",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "                                                                                               ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› touch undo-normal.txt",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "                                                                                               ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "9-cleared",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                              ⚠ 1 warning · f2 to view"
+        }
+      }
     },
     {
       "step": "9-working",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "• Working (2s • esc to interrupt)",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠏",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (2s • esc to interrupt)",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠏",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "9-working-bang",
       "version": "0.159.3",
       "shell": true,
-      "rows": [
-        "",
-        "◦ Working (3s • esc to interrupt)",
-        "",
-        "",
-        "!",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠧",
-        "  tab to queue message                                                                                      Shell mode"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "◦ Working (3s • esc to interrupt)",
+          "4": "!",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠧",
+          "7": "  tab to queue message                                                                                      Shell mode"
+        }
+      }
     },
     {
       "step": "9-working-backspaced",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "• Working (4s • esc to interrupt)",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project · ⠴",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "1": "• Working (4s • esc to interrupt)",
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project · ⠴",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     },
     {
       "step": "9-after",
       "version": "0.159.3",
       "shell": false,
-      "rows": [
-        "",
-        "",
-        "",
-        "",
-        "› Ask Codex to do anything",
-        "",
-        "  fake-model default · /tmp/novadeck-e2e-X/project",
-        "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 8,
+        "rows": {
+          "4": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/novadeck-e2e-X/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 2 warnings · f2 to view"
+        }
+      }
     }
   ]
 }

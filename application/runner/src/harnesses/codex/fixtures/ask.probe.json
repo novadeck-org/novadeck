@@ -6,31 +6,39 @@
   "scenarios": {
     "rui-esc-then-prompt": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Whoa, fancy meeting you here!",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in notes (tab)",
-          "  tab to add notes | enter to submit answer | esc to interrupt"
-        ],
-        "narrow": [
-          "     /tmp/sandbox/project",
-          "  Whoa, fancy meeting you here!",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in",
-          "                           notes (tab)",
-          "  tab to add notes | enter to submit answer",
-          "  esc to interrupt"
-        ]
+        "wide": {
+          "height": 10,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Whoa, fancy meeting you here!",
+            "3": "› Ask me about the button",
+            "4": "  Question 1/1 (1 unanswered)",
+            "5": "  Which color should the button be?",
+            "6": "  › 1. Blue (Recommended)  The house color.",
+            "7": "    2. Green               Calmer.",
+            "8": "    3. None of the above   Optionally, add details in notes (tab)",
+            "9": "  tab to add notes | enter to submit answer | esc to interrupt"
+          }
+        },
+        "narrow": {
+          "height": 11,
+          "columns": 60,
+          "rows": {
+            "0": "     /tmp/sandbox/project",
+            "1": "  Whoa, fancy meeting you here!",
+            "2": "› Ask me about the button",
+            "3": "  Question 1/1 (1 unanswered)",
+            "4": "  Which color should the button be?",
+            "5": "  › 1. Blue (Recommended)  The house color.",
+            "6": "    2. Green               Calmer.",
+            "7": "    3. None of the above   Optionally, add details in",
+            "8": "                           notes (tab)",
+            "9": "  tab to add notes | enter to submit answer",
+            "10": "  esc to interrupt"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -349,16 +357,19 @@
         }
       ],
       "toolOutputSeenByModel": "unsupported call: request_user_input",
-      "screenAfterEsc": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  Whoa, fancy meeting you here!",
-        "› Ask me about the button",
-        "■ Conversation interrupted - use /feedback if something went wrong",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
-      ],
+      "screenAfterEsc": {
+        "height": 8,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  Whoa, fancy meeting you here!",
+          "3": "› Ask me about the button",
+          "4": "■ Conversation interrupted - use /feedback if something went wrong",
+          "5": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/sandbox/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
+        }
+      },
       "novadeckSeesAfterEsc": {
         "activity": {
           "state": "idle",
@@ -560,19 +571,22 @@
         }
       ],
       "requestSettledAfterMs": 1,
-      "screenAfterPrompt": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  Whoa, fancy meeting you here!",
-        "› Ask me about the button",
-        "■ Conversation interrupted - use /feedback if something went wrong",
-        "› Let me clarify: I want purple, not these",
-        "• Understood.",
-        "  Worked for <1s • 19:59",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
-      ],
+      "screenAfterPrompt": {
+        "height": 11,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  Whoa, fancy meeting you here!",
+          "3": "› Ask me about the button",
+          "4": "■ Conversation interrupted - use /feedback if something went wrong",
+          "5": "› Let me clarify: I want purple, not these",
+          "6": "• Understood.",
+          "7": "  Worked for <1s • 19:59",
+          "8": "› Ask Codex to do anything",
+          "9": "  fake-model default · /tmp/sandbox/project",
+          "10": "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
+        }
+      },
       "hooksFinal": [
         {
           "kind": "start",
@@ -1080,68 +1094,80 @@
         {
           "label": "down",
           "key": "\u001b[B",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Hello, you. Got an idea?",
-            "› Ask me about the button",
-            "  Question 1/1 (1 unanswered)",
-            "  Which color should the button be?",
-            "    1. Blue (Recommended)  The house color.",
-            "  › 2. Green               Calmer.",
-            "    3. None of the above   Optionally, add details in notes (tab)",
-            "  tab to add notes | enter to submit answer | esc to interrupt"
-          ]
+          "screen": {
+            "height": 10,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Hello, you. Got an idea?",
+              "3": "› Ask me about the button",
+              "4": "  Question 1/1 (1 unanswered)",
+              "5": "  Which color should the button be?",
+              "6": "    1. Blue (Recommended)  The house color.",
+              "7": "  › 2. Green               Calmer.",
+              "8": "    3. None of the above   Optionally, add details in notes (tab)",
+              "9": "  tab to add notes | enter to submit answer | esc to interrupt"
+            }
+          }
         },
         {
           "label": "down",
           "key": "\u001b[B",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Hello, you. Got an idea?",
-            "› Ask me about the button",
-            "  Question 1/1 (1 unanswered)",
-            "  Which color should the button be?",
-            "    1. Blue (Recommended)  The house color.",
-            "    2. Green               Calmer.",
-            "  › 3. None of the above   Optionally, add details in notes (tab)",
-            "  tab to add notes | enter to submit answer | esc to interrupt"
-          ]
+          "screen": {
+            "height": 10,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Hello, you. Got an idea?",
+              "3": "› Ask me about the button",
+              "4": "  Question 1/1 (1 unanswered)",
+              "5": "  Which color should the button be?",
+              "6": "    1. Blue (Recommended)  The house color.",
+              "7": "    2. Green               Calmer.",
+              "8": "  › 3. None of the above   Optionally, add details in notes (tab)",
+              "9": "  tab to add notes | enter to submit answer | esc to interrupt"
+            }
+          }
         },
         {
           "label": "tab",
           "key": "\t",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Hello, you. Got an idea?",
-            "› Ask me about the button",
-            "  Question 1/1 (1 unanswered)",
-            "  Which color should the button be?",
-            "    1. Blue (Recommended)  The house color.",
-            "    2. Green               Calmer.",
-            "  › 3. None of the above   Optionally, add details in notes (tab)",
-            "  › Add notes",
-            "  tab or esc to clear notes | enter to submit answer"
-          ]
+          "screen": {
+            "height": 11,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Hello, you. Got an idea?",
+              "3": "› Ask me about the button",
+              "4": "  Question 1/1 (1 unanswered)",
+              "5": "  Which color should the button be?",
+              "6": "    1. Blue (Recommended)  The house color.",
+              "7": "    2. Green               Calmer.",
+              "8": "  › 3. None of the above   Optionally, add details in notes (tab)",
+              "9": "  › Add notes",
+              "10": "  tab or esc to clear notes | enter to submit answer"
+            }
+          }
         }
       ],
-      "screenAfterEnter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  Hello, you. Got an idea?",
-        "› Ask me about the button",
-        "• Questions 1/1 answered",
-        "  • Which color should the button be?",
-        "    answer: None of the above",
-        "    note: I want purple, not these",
-        "• Finished the request.",
-        "  Worked for 4s • 19:59",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
-      ],
+      "screenAfterEnter": {
+        "height": 13,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  Hello, you. Got an idea?",
+          "3": "› Ask me about the button",
+          "4": "• Questions 1/1 answered",
+          "5": "  • Which color should the button be?",
+          "6": "    answer: None of the above",
+          "7": "    note: I want purple, not these",
+          "8": "• Finished the request.",
+          "9": "  Worked for 4s • 19:59",
+          "10": "› Ask Codex to do anything",
+          "11": "  fake-model default · /tmp/sandbox/project",
+          "12": "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
+        }
+      },
       "hooksAll": [
         {
           "kind": "start",
@@ -1486,17 +1512,20 @@
     },
     "hook-rui-pretooluse-block": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Show me the bit that’s being weird.",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Ask me about the button",
-          "◦ Working (3s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 9,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Show me the bit that’s being weird.",
+            "3": "• Model changed to fake-model medium for Plan mode.",
+            "4": "› Ask me about the button",
+            "5": "◦ Working (3s • esc to interrupt) · Running hooks",
+            "6": "› Ask Codex to do anything",
+            "7": "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
+            "8": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "ICNxo_oqgsT8HivR",
@@ -1527,20 +1556,23 @@
           "response_item:function_call:request_user_input"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  Show me the bit that’s being weird.",
-        "• Model changed to fake-model medium for Plan mode.",
-        "› Ask me about the button",
-        "• Blocked by hook",
-        "  └ The person answered question \"color\": Green",
-        "• Finished the request.",
-        "  Worked for 3s • 19:59",
-        "› Ask Codex to do anything",
-        "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
-        "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-      ],
+      "screenAfter": {
+        "height": 12,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  Show me the bit that’s being weird.",
+          "3": "• Model changed to fake-model medium for Plan mode.",
+          "4": "› Ask me about the button",
+          "5": "• Blocked by hook",
+          "6": "  └ The person answered question \"color\": Green",
+          "7": "• Finished the request.",
+          "8": "  Worked for 3s • 19:59",
+          "9": "› Ask Codex to do anything",
+          "10": "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
+          "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -1746,33 +1778,41 @@
     },
     "exec-approve": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Well, this terminal just got interesting.",
-          "› Run the command",
-          "• Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "◦ Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with",
-          "     `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 13,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Well, this terminal just got interesting.",
+            "3": "› Run the command",
+            "4": "• Running echo approved > probe-out.txt",
+            "5": "  Would you like to run the following command?",
+            "6": "  Environment: local",
+            "7": "  Reason: Echo outside the sandbox",
+            "8": "  $ echo approved > probe-out.txt",
+            "9": "› 1. Yes, proceed (y)",
+            "10": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+            "11": "  3. No, and tell Codex what to do differently (esc)",
+            "12": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "◦ Running echo approved > probe-out.txt",
+            "1": "  Would you like to run the following command?",
+            "2": "  Environment: local",
+            "3": "  Reason: Echo outside the sandbox",
+            "4": "  $ echo approved > probe-out.txt",
+            "5": "› 1. Yes, proceed (y)",
+            "6": "  2. Yes, and don't ask again for commands that start with",
+            "7": "     `echo approved > probe-out.txt` (p)",
+            "8": "  3. No, and tell Codex what to do differently (esc)",
+            "9": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -2063,20 +2103,23 @@
         {
           "label": "approve",
           "key": "y",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Well, this terminal just got interesting.",
-            "› Run the command",
-            "✔ You approved codex to run echo approved > probe-out.txt this time",
-            "• Ran echo approved > probe-out.txt",
-            "  └ (no output)",
-            "• Finished the request.",
-            "  Worked for 9s • 16:00",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Well, this terminal just got interesting.",
+              "3": "› Run the command",
+              "4": "✔ You approved codex to run echo approved > probe-out.txt this time",
+              "5": "• Ran echo approved > probe-out.txt",
+              "6": "  └ (no output)",
+              "7": "• Finished the request.",
+              "8": "  Worked for 9s • 16:00",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model default · /tmp/sandbox/project",
+              "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -2232,33 +2275,41 @@
     },
     "exec-approve-prefix": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  You bring the idea. I’ll bring the brackets.",
-          "› Run the command",
-          "• Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "◦ Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with",
-          "     `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 13,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  You bring the idea. I’ll bring the brackets.",
+            "3": "› Run the command",
+            "4": "• Running echo approved > probe-out.txt",
+            "5": "  Would you like to run the following command?",
+            "6": "  Environment: local",
+            "7": "  Reason: Echo outside the sandbox",
+            "8": "  $ echo approved > probe-out.txt",
+            "9": "› 1. Yes, proceed (y)",
+            "10": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+            "11": "  3. No, and tell Codex what to do differently (esc)",
+            "12": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "◦ Running echo approved > probe-out.txt",
+            "1": "  Would you like to run the following command?",
+            "2": "  Environment: local",
+            "3": "  Reason: Echo outside the sandbox",
+            "4": "  $ echo approved > probe-out.txt",
+            "5": "› 1. Yes, proceed (y)",
+            "6": "  2. Yes, and don't ask again for commands that start with",
+            "7": "     `echo approved > probe-out.txt` (p)",
+            "8": "  3. No, and tell Codex what to do differently (esc)",
+            "9": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -2549,20 +2600,23 @@
         {
           "label": "approve-prefix",
           "key": "p",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  You bring the idea. I’ll bring the brackets.",
-            "› Run the command",
-            "✔ You approved codex to always run commands that start with echo approved > probe-out.txt",
-            "• Ran echo approved > probe-out.txt",
-            "  └ (no output)",
-            "• OK.",
-            "  Worked for 5s • 16:01",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  You bring the idea. I’ll bring the brackets.",
+              "3": "› Run the command",
+              "4": "✔ You approved codex to always run commands that start with echo approved > probe-out.txt",
+              "5": "• Ran echo approved > probe-out.txt",
+              "6": "  └ (no output)",
+              "7": "• OK.",
+              "8": "  Worked for 5s • 16:01",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model default · /tmp/sandbox/project",
+              "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -2718,33 +2772,41 @@
     },
     "exec-approve-session-key-not-offered": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  What’s the first thing on our napkin sketch?",
-          "› Run the command",
-          "• Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "◦ Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with",
-          "     `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 13,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  What’s the first thing on our napkin sketch?",
+            "3": "› Run the command",
+            "4": "• Running echo approved > probe-out.txt",
+            "5": "  Would you like to run the following command?",
+            "6": "  Environment: local",
+            "7": "  Reason: Echo outside the sandbox",
+            "8": "  $ echo approved > probe-out.txt",
+            "9": "› 1. Yes, proceed (y)",
+            "10": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+            "11": "  3. No, and tell Codex what to do differently (esc)",
+            "12": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "◦ Running echo approved > probe-out.txt",
+            "1": "  Would you like to run the following command?",
+            "2": "  Environment: local",
+            "3": "  Reason: Echo outside the sandbox",
+            "4": "  $ echo approved > probe-out.txt",
+            "5": "› 1. Yes, proceed (y)",
+            "6": "  2. Yes, and don't ask again for commands that start with",
+            "7": "     `echo approved > probe-out.txt` (p)",
+            "8": "  3. No, and tell Codex what to do differently (esc)",
+            "9": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -2993,21 +3055,24 @@
         {
           "label": "approve-session-key-not-offered",
           "key": "a",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  What’s the first thing on our napkin sketch?",
-            "› Run the command",
-            "◦ Running echo approved > probe-out.txt",
-            "  Would you like to run the following command?",
-            "  Environment: local",
-            "  Reason: Echo outside the sandbox",
-            "  $ echo approved > probe-out.txt",
-            "› 1. Yes, proceed (y)",
-            "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-            "  3. No, and tell Codex what to do differently (esc)",
-            "  Press enter to confirm or esc to cancel"
-          ]
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  What’s the first thing on our napkin sketch?",
+              "3": "› Run the command",
+              "4": "◦ Running echo approved > probe-out.txt",
+              "5": "  Would you like to run the following command?",
+              "6": "  Environment: local",
+              "7": "  Reason: Echo outside the sandbox",
+              "8": "  $ echo approved > probe-out.txt",
+              "9": "› 1. Yes, proceed (y)",
+              "10": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+              "11": "  3. No, and tell Codex what to do differently (esc)",
+              "12": "  Press enter to confirm or esc to cancel"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -3072,33 +3137,41 @@
     },
     "exec-decline-key-not-offered": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Your keyboard has entered the chat.",
-          "› Run the command",
-          "• Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "• Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with",
-          "     `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 13,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Your keyboard has entered the chat.",
+            "3": "› Run the command",
+            "4": "• Running echo approved > probe-out.txt",
+            "5": "  Would you like to run the following command?",
+            "6": "  Environment: local",
+            "7": "  Reason: Echo outside the sandbox",
+            "8": "  $ echo approved > probe-out.txt",
+            "9": "› 1. Yes, proceed (y)",
+            "10": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+            "11": "  3. No, and tell Codex what to do differently (esc)",
+            "12": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "• Running echo approved > probe-out.txt",
+            "1": "  Would you like to run the following command?",
+            "2": "  Environment: local",
+            "3": "  Reason: Echo outside the sandbox",
+            "4": "  $ echo approved > probe-out.txt",
+            "5": "› 1. Yes, proceed (y)",
+            "6": "  2. Yes, and don't ask again for commands that start with",
+            "7": "     `echo approved > probe-out.txt` (p)",
+            "8": "  3. No, and tell Codex what to do differently (esc)",
+            "9": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -3347,21 +3420,24 @@
         {
           "label": "decline-key-not-offered",
           "key": "d",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Your keyboard has entered the chat.",
-            "› Run the command",
-            "• Running echo approved > probe-out.txt",
-            "  Would you like to run the following command?",
-            "  Environment: local",
-            "  Reason: Echo outside the sandbox",
-            "  $ echo approved > probe-out.txt",
-            "› 1. Yes, proceed (y)",
-            "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-            "  3. No, and tell Codex what to do differently (esc)",
-            "  Press enter to confirm or esc to cancel"
-          ]
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Your keyboard has entered the chat.",
+              "3": "› Run the command",
+              "4": "• Running echo approved > probe-out.txt",
+              "5": "  Would you like to run the following command?",
+              "6": "  Environment: local",
+              "7": "  Reason: Echo outside the sandbox",
+              "8": "  $ echo approved > probe-out.txt",
+              "9": "› 1. Yes, proceed (y)",
+              "10": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+              "11": "  3. No, and tell Codex what to do differently (esc)",
+              "12": "  Press enter to confirm or esc to cancel"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -3426,33 +3502,41 @@
     },
     "exec-cancel": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Fancy a little quality terminal time?",
-          "› Run the command",
-          "• Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "• Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with",
-          "     `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 13,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Fancy a little quality terminal time?",
+            "3": "› Run the command",
+            "4": "• Running echo approved > probe-out.txt",
+            "5": "  Would you like to run the following command?",
+            "6": "  Environment: local",
+            "7": "  Reason: Echo outside the sandbox",
+            "8": "  $ echo approved > probe-out.txt",
+            "9": "› 1. Yes, proceed (y)",
+            "10": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+            "11": "  3. No, and tell Codex what to do differently (esc)",
+            "12": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "• Running echo approved > probe-out.txt",
+            "1": "  Would you like to run the following command?",
+            "2": "  Environment: local",
+            "3": "  Reason: Echo outside the sandbox",
+            "4": "  $ echo approved > probe-out.txt",
+            "5": "› 1. Yes, proceed (y)",
+            "6": "  2. Yes, and don't ask again for commands that start with",
+            "7": "     `echo approved > probe-out.txt` (p)",
+            "8": "  3. No, and tell Codex what to do differently (esc)",
+            "9": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -3718,19 +3802,22 @@
         {
           "label": "cancel",
           "key": "n",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Fancy a little quality terminal time?",
-            "› Run the command",
-            "✗ You canceled the request to run echo approved > probe-out.txt",
-            "• Failed (exit 1) echo approved > probe-out.txt",
-            "  └ (no output)",
-            "■ Conversation interrupted - use /feedback if something went wrong",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 11,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Fancy a little quality terminal time?",
+              "3": "› Run the command",
+              "4": "✗ You canceled the request to run echo approved > probe-out.txt",
+              "5": "• Failed (exit 1) echo approved > probe-out.txt",
+              "6": "  └ (no output)",
+              "7": "■ Conversation interrupted - use /feedback if something went wrong",
+              "8": "› Ask Codex to do anything",
+              "9": "  fake-model default · /tmp/sandbox/project",
+              "10": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -3827,36 +3914,44 @@
     },
     "patch-approve": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  It’s dangerous to code alone. Take a prompt.",
-          "› Patch the file",
-          "• Added patched.txt (+1 -0)",
-          "    1 +hello",
-          "    + Show details",
-          "  Would you like to make the following edits?",
-          "  Description: Apply proposed file edits",
-          "  Destination: /tmp/sandbox/project/patched.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for these files (a)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "› Patch the file",
-          "• Added patched.txt (+1 -0)",
-          "    1 +hello",
-          "    + Show details",
-          "  Would you like to make the following edits?",
-          "  Description: Apply proposed file edits",
-          "  Destination:",
-          "  /tmp/sandbox/project/patched.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for these files (a)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 14,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  It’s dangerous to code alone. Take a prompt.",
+            "3": "› Patch the file",
+            "4": "• Added patched.txt (+1 -0)",
+            "5": "    1 +hello",
+            "6": "    + Show details",
+            "7": "  Would you like to make the following edits?",
+            "8": "  Description: Apply proposed file edits",
+            "9": "  Destination: /tmp/sandbox/project/patched.txt",
+            "10": "› 1. Yes, proceed (y)",
+            "11": "  2. Yes, and don't ask again for these files (a)",
+            "12": "  3. No, and tell Codex what to do differently (esc)",
+            "13": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 12,
+          "columns": 60,
+          "rows": {
+            "0": "› Patch the file",
+            "1": "• Added patched.txt (+1 -0)",
+            "2": "    1 +hello",
+            "3": "    + Show details",
+            "4": "  Would you like to make the following edits?",
+            "5": "  Description: Apply proposed file edits",
+            "6": "  Destination:",
+            "7": "  /tmp/sandbox/project/patched.txt",
+            "8": "› 1. Yes, proceed (y)",
+            "9": "  2. Yes, and don't ask again for these files (a)",
+            "10": "  3. No, and tell Codex what to do differently (esc)",
+            "11": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -4122,20 +4217,23 @@
         {
           "label": "approve",
           "key": "y",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  It’s dangerous to code alone. Take a prompt.",
-            "› Patch the file",
-            "• Added patched.txt (+1 -0)",
-            "    1 +hello",
-            "    + Show details",
-            "• Finished the request.",
-            "  Worked for 4s • 16:01",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  It’s dangerous to code alone. Take a prompt.",
+              "3": "› Patch the file",
+              "4": "• Added patched.txt (+1 -0)",
+              "5": "    1 +hello",
+              "6": "    + Show details",
+              "7": "• Finished the request.",
+              "8": "  Worked for 4s • 16:01",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model default · /tmp/sandbox/project",
+              "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -4280,36 +4378,44 @@
     },
     "patch-approve-session": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Speak, friend, and enter a prompt.",
-          "› Patch the file",
-          "• Added patched.txt (+1 -0)",
-          "    1 +hello",
-          "    + Show details",
-          "  Would you like to make the following edits?",
-          "  Description: Apply proposed file edits",
-          "  Destination: /tmp/sandbox/project/patched.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for these files (a)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "› Patch the file",
-          "• Added patched.txt (+1 -0)",
-          "    1 +hello",
-          "    + Show details",
-          "  Would you like to make the following edits?",
-          "  Description: Apply proposed file edits",
-          "  Destination:",
-          "  /tmp/sandbox/project/patched.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for these files (a)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 14,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Speak, friend, and enter a prompt.",
+            "3": "› Patch the file",
+            "4": "• Added patched.txt (+1 -0)",
+            "5": "    1 +hello",
+            "6": "    + Show details",
+            "7": "  Would you like to make the following edits?",
+            "8": "  Description: Apply proposed file edits",
+            "9": "  Destination: /tmp/sandbox/project/patched.txt",
+            "10": "› 1. Yes, proceed (y)",
+            "11": "  2. Yes, and don't ask again for these files (a)",
+            "12": "  3. No, and tell Codex what to do differently (esc)",
+            "13": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 12,
+          "columns": 60,
+          "rows": {
+            "0": "› Patch the file",
+            "1": "• Added patched.txt (+1 -0)",
+            "2": "    1 +hello",
+            "3": "    + Show details",
+            "4": "  Would you like to make the following edits?",
+            "5": "  Description: Apply proposed file edits",
+            "6": "  Destination:",
+            "7": "  /tmp/sandbox/project/patched.txt",
+            "8": "› 1. Yes, proceed (y)",
+            "9": "  2. Yes, and don't ask again for these files (a)",
+            "10": "  3. No, and tell Codex what to do differently (esc)",
+            "11": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -4575,20 +4681,23 @@
         {
           "label": "approve-session",
           "key": "a",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Speak, friend, and enter a prompt.",
-            "› Patch the file",
-            "• Added patched.txt (+1 -0)",
-            "    1 +hello",
-            "    + Show details",
-            "• Finished the request.",
-            "  Worked for 4s • 16:02",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Speak, friend, and enter a prompt.",
+              "3": "› Patch the file",
+              "4": "• Added patched.txt (+1 -0)",
+              "5": "    1 +hello",
+              "6": "    + Show details",
+              "7": "• Finished the request.",
+              "8": "  Worked for 4s • 16:02",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model default · /tmp/sandbox/project",
+              "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -4733,36 +4842,44 @@
     },
     "patch-cancel": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Same terminal, new possibilities.",
-          "› Patch the file",
-          "• Added patched.txt (+1 -0)",
-          "    1 +hello",
-          "    + Show details",
-          "  Would you like to make the following edits?",
-          "  Description: Apply proposed file edits",
-          "  Destination: /tmp/sandbox/project/patched.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for these files (a)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "› Patch the file",
-          "• Added patched.txt (+1 -0)",
-          "    1 +hello",
-          "    + Show details",
-          "  Would you like to make the following edits?",
-          "  Description: Apply proposed file edits",
-          "  Destination:",
-          "  /tmp/sandbox/project/patched.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for these files (a)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 14,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Same terminal, new possibilities.",
+            "3": "› Patch the file",
+            "4": "• Added patched.txt (+1 -0)",
+            "5": "    1 +hello",
+            "6": "    + Show details",
+            "7": "  Would you like to make the following edits?",
+            "8": "  Description: Apply proposed file edits",
+            "9": "  Destination: /tmp/sandbox/project/patched.txt",
+            "10": "› 1. Yes, proceed (y)",
+            "11": "  2. Yes, and don't ask again for these files (a)",
+            "12": "  3. No, and tell Codex what to do differently (esc)",
+            "13": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 12,
+          "columns": 60,
+          "rows": {
+            "0": "› Patch the file",
+            "1": "• Added patched.txt (+1 -0)",
+            "2": "    1 +hello",
+            "3": "    + Show details",
+            "4": "  Would you like to make the following edits?",
+            "5": "  Description: Apply proposed file edits",
+            "6": "  Destination:",
+            "7": "  /tmp/sandbox/project/patched.txt",
+            "8": "› 1. Yes, proceed (y)",
+            "9": "  2. Yes, and don't ask again for these files (a)",
+            "10": "  3. No, and tell Codex what to do differently (esc)",
+            "11": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -5026,19 +5143,22 @@
         {
           "label": "cancel",
           "key": "n",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Same terminal, new possibilities.",
-            "› Patch the file",
-            "• Added patched.txt (+1 -0)",
-            "    1 +hello",
-            "    + Show details",
-            "■ Conversation interrupted - use /feedback if something went wrong",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 11,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Same terminal, new possibilities.",
+              "3": "› Patch the file",
+              "4": "• Added patched.txt (+1 -0)",
+              "5": "    1 +hello",
+              "6": "    + Show details",
+              "7": "■ Conversation interrupted - use /feedback if something went wrong",
+              "8": "› Ask Codex to do anything",
+              "9": "  fake-model default · /tmp/sandbox/project",
+              "10": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -5135,32 +5255,40 @@
     },
     "rui-plan-digit-1": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Hello, you. Got an idea?",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in notes (tab)",
-          "  tab to add notes | enter to submit answer | esc to interrupt"
-        ],
-        "narrow": [
-          "  Hello, you. Got an idea?",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in",
-          "                           notes (tab)",
-          "  tab to add notes | enter to submit answer",
-          "  esc to interrupt"
-        ]
+        "wide": {
+          "height": 11,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Hello, you. Got an idea?",
+            "3": "• Model changed to fake-model medium for Plan mode.",
+            "4": "› Ask me about the button",
+            "5": "  Question 1/1 (1 unanswered)",
+            "6": "  Which color should the button be?",
+            "7": "  › 1. Blue (Recommended)  The house color.",
+            "8": "    2. Green               Calmer.",
+            "9": "    3. None of the above   Optionally, add details in notes (tab)",
+            "10": "  tab to add notes | enter to submit answer | esc to interrupt"
+          }
+        },
+        "narrow": {
+          "height": 11,
+          "columns": 60,
+          "rows": {
+            "0": "  Hello, you. Got an idea?",
+            "1": "• Model changed to fake-model medium for Plan mode.",
+            "2": "› Ask me about the button",
+            "3": "  Question 1/1 (1 unanswered)",
+            "4": "  Which color should the button be?",
+            "5": "  › 1. Blue (Recommended)  The house color.",
+            "6": "    2. Green               Calmer.",
+            "7": "    3. None of the above   Optionally, add details in",
+            "8": "                           notes (tab)",
+            "9": "  tab to add notes | enter to submit answer",
+            "10": "  esc to interrupt"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -5446,21 +5574,24 @@
         {
           "label": "1",
           "key": "1",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Hello, you. Got an idea?",
-            "• Model changed to fake-model medium for Plan mode.",
-            "› Ask me about the button",
-            "• Questions 1/1 answered",
-            "  • Which color should the button be?",
-            "    answer: Blue (Recommended)",
-            "• Finished the request.",
-            "  Worked for 3s • 16:02",
-            "› Ask Codex to do anything",
-            "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Hello, you. Got an idea?",
+              "3": "• Model changed to fake-model medium for Plan mode.",
+              "4": "› Ask me about the button",
+              "5": "• Questions 1/1 answered",
+              "6": "  • Which color should the button be?",
+              "7": "    answer: Blue (Recommended)",
+              "8": "• Finished the request.",
+              "9": "  Worked for 3s • 16:02",
+              "10": "› Ask Codex to do anything",
+              "11": "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
+              "12": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -5580,32 +5711,40 @@
     },
     "rui-plan-digit-2": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Got an idea that won’t stay on the napkin?",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in notes (tab)",
-          "  tab to add notes | enter to submit answer | esc to interrupt"
-        ],
-        "narrow": [
-          "  Got an idea that won’t stay on the napkin?",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in",
-          "                           notes (tab)",
-          "  tab to add notes | enter to submit answer",
-          "  esc to interrupt"
-        ]
+        "wide": {
+          "height": 11,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Got an idea that won’t stay on the napkin?",
+            "3": "• Model changed to fake-model medium for Plan mode.",
+            "4": "› Ask me about the button",
+            "5": "  Question 1/1 (1 unanswered)",
+            "6": "  Which color should the button be?",
+            "7": "  › 1. Blue (Recommended)  The house color.",
+            "8": "    2. Green               Calmer.",
+            "9": "    3. None of the above   Optionally, add details in notes (tab)",
+            "10": "  tab to add notes | enter to submit answer | esc to interrupt"
+          }
+        },
+        "narrow": {
+          "height": 11,
+          "columns": 60,
+          "rows": {
+            "0": "  Got an idea that won’t stay on the napkin?",
+            "1": "• Model changed to fake-model medium for Plan mode.",
+            "2": "› Ask me about the button",
+            "3": "  Question 1/1 (1 unanswered)",
+            "4": "  Which color should the button be?",
+            "5": "  › 1. Blue (Recommended)  The house color.",
+            "6": "    2. Green               Calmer.",
+            "7": "    3. None of the above   Optionally, add details in",
+            "8": "                           notes (tab)",
+            "9": "  tab to add notes | enter to submit answer",
+            "10": "  esc to interrupt"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -5891,21 +6030,24 @@
         {
           "label": "2",
           "key": "2",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Got an idea that won’t stay on the napkin?",
-            "• Model changed to fake-model medium for Plan mode.",
-            "› Ask me about the button",
-            "• Questions 1/1 answered",
-            "  • Which color should the button be?",
-            "    answer: Green",
-            "• Finished the request.",
-            "  Worked for 4s • 16:02",
-            "› Ask Codex to do anything",
-            "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Got an idea that won’t stay on the napkin?",
+              "3": "• Model changed to fake-model medium for Plan mode.",
+              "4": "› Ask me about the button",
+              "5": "• Questions 1/1 answered",
+              "6": "  • Which color should the button be?",
+              "7": "    answer: Green",
+              "8": "• Finished the request.",
+              "9": "  Worked for 4s • 16:02",
+              "10": "› Ask Codex to do anything",
+              "11": "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
+              "12": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -6025,32 +6167,40 @@
     },
     "rui-plan-esc": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Follow the white cursor.",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in notes (tab)",
-          "  tab to add notes | enter to submit answer | esc to interrupt"
-        ],
-        "narrow": [
-          "  Follow the white cursor.",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in",
-          "                           notes (tab)",
-          "  tab to add notes | enter to submit answer",
-          "  esc to interrupt"
-        ]
+        "wide": {
+          "height": 11,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Follow the white cursor.",
+            "3": "• Model changed to fake-model medium for Plan mode.",
+            "4": "› Ask me about the button",
+            "5": "  Question 1/1 (1 unanswered)",
+            "6": "  Which color should the button be?",
+            "7": "  › 1. Blue (Recommended)  The house color.",
+            "8": "    2. Green               Calmer.",
+            "9": "    3. None of the above   Optionally, add details in notes (tab)",
+            "10": "  tab to add notes | enter to submit answer | esc to interrupt"
+          }
+        },
+        "narrow": {
+          "height": 11,
+          "columns": 60,
+          "rows": {
+            "0": "  Follow the white cursor.",
+            "1": "• Model changed to fake-model medium for Plan mode.",
+            "2": "› Ask me about the button",
+            "3": "  Question 1/1 (1 unanswered)",
+            "4": "  Which color should the button be?",
+            "5": "  › 1. Blue (Recommended)  The house color.",
+            "6": "    2. Green               Calmer.",
+            "7": "    3. None of the above   Optionally, add details in",
+            "8": "                           notes (tab)",
+            "9": "  tab to add notes | enter to submit answer",
+            "10": "  esc to interrupt"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -6295,17 +6445,20 @@
         {
           "label": "esc",
           "key": "\u001b",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Follow the white cursor.",
-            "• Model changed to fake-model medium for Plan mode.",
-            "› Ask me about the button",
-            "■ Conversation interrupted - use /feedback if something went wrong",
-            "› Ask Codex to do anything",
-            "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 9,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Follow the white cursor.",
+              "3": "• Model changed to fake-model medium for Plan mode.",
+              "4": "› Ask me about the button",
+              "5": "■ Conversation interrupted - use /feedback if something went wrong",
+              "6": "› Ask Codex to do anything",
+              "7": "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
+              "8": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -6402,32 +6555,40 @@
     },
     "rui-plan-wrong-key-y": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Forty-two is an answer. What’s the question?",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in notes (tab)",
-          "  tab to add notes | enter to submit answer | esc to interrupt"
-        ],
-        "narrow": [
-          "  Forty-two is an answer. What’s the question?",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in",
-          "                           notes (tab)",
-          "  tab to add notes | enter to submit answer",
-          "  esc to interrupt"
-        ]
+        "wide": {
+          "height": 11,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Forty-two is an answer. What’s the question?",
+            "3": "• Model changed to fake-model medium for Plan mode.",
+            "4": "› Ask me about the button",
+            "5": "  Question 1/1 (1 unanswered)",
+            "6": "  Which color should the button be?",
+            "7": "  › 1. Blue (Recommended)  The house color.",
+            "8": "    2. Green               Calmer.",
+            "9": "    3. None of the above   Optionally, add details in notes (tab)",
+            "10": "  tab to add notes | enter to submit answer | esc to interrupt"
+          }
+        },
+        "narrow": {
+          "height": 11,
+          "columns": 60,
+          "rows": {
+            "0": "  Forty-two is an answer. What’s the question?",
+            "1": "• Model changed to fake-model medium for Plan mode.",
+            "2": "› Ask me about the button",
+            "3": "  Question 1/1 (1 unanswered)",
+            "4": "  Which color should the button be?",
+            "5": "  › 1. Blue (Recommended)  The house color.",
+            "6": "    2. Green               Calmer.",
+            "7": "    3. None of the above   Optionally, add details in",
+            "8": "                           notes (tab)",
+            "9": "  tab to add notes | enter to submit answer",
+            "10": "  esc to interrupt"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -6655,19 +6816,22 @@
         {
           "label": "y",
           "key": "y",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Forty-two is an answer. What’s the question?",
-            "• Model changed to fake-model medium for Plan mode.",
-            "› Ask me about the button",
-            "  Question 1/1 (1 unanswered)",
-            "  Which color should the button be?",
-            "  › 1. Blue (Recommended)  The house color.",
-            "    2. Green               Calmer.",
-            "    3. None of the above   Optionally, add details in notes (tab)",
-            "  tab to add notes | enter to submit answer | esc to interrupt"
-          ]
+          "screen": {
+            "height": 11,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Forty-two is an answer. What’s the question?",
+              "3": "• Model changed to fake-model medium for Plan mode.",
+              "4": "› Ask me about the button",
+              "5": "  Question 1/1 (1 unanswered)",
+              "6": "  Which color should the button be?",
+              "7": "  › 1. Blue (Recommended)  The house color.",
+              "8": "    2. Green               Calmer.",
+              "9": "    3. None of the above   Optionally, add details in notes (tab)",
+              "10": "  tab to add notes | enter to submit answer | esc to interrupt"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -6826,45 +6990,56 @@
         }
       ],
       "toolOutputSeenByModel": "request_user_input is unavailable in Default mode",
-      "screen": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  How’s life between the brackets?",
-        "› Ask me about the button",
-        "• Finished the request.",
-        "  Worked for <1s • 16:03",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-      ]
+      "screen": {
+        "height": 9,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  How’s life between the brackets?",
+          "3": "› Ask me about the button",
+          "4": "• Finished the request.",
+          "5": "  Worked for <1s • 16:03",
+          "6": "› Ask Codex to do anything",
+          "7": "  fake-model default · /tmp/sandbox/project",
+          "8": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+        }
+      }
     },
     "rui-default-on": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Welcome back. Familiar territory or a fresh adventure?",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in notes (tab)",
-          "  tab to add notes | enter to submit answer | esc to interrupt"
-        ],
-        "narrow": [
-          "     /tmp/sandbox/project",
-          "  Welcome back. Familiar territory or a fresh adventure?",
-          "› Ask me about the button",
-          "  Question 1/1 (1 unanswered)",
-          "  Which color should the button be?",
-          "  › 1. Blue (Recommended)  The house color.",
-          "    2. Green               Calmer.",
-          "    3. None of the above   Optionally, add details in",
-          "                           notes (tab)",
-          "  tab to add notes | enter to submit answer",
-          "  esc to interrupt"
-        ]
+        "wide": {
+          "height": 10,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Welcome back. Familiar territory or a fresh adventure?",
+            "3": "› Ask me about the button",
+            "4": "  Question 1/1 (1 unanswered)",
+            "5": "  Which color should the button be?",
+            "6": "  › 1. Blue (Recommended)  The house color.",
+            "7": "    2. Green               Calmer.",
+            "8": "    3. None of the above   Optionally, add details in notes (tab)",
+            "9": "  tab to add notes | enter to submit answer | esc to interrupt"
+          }
+        },
+        "narrow": {
+          "height": 11,
+          "columns": 60,
+          "rows": {
+            "0": "     /tmp/sandbox/project",
+            "1": "  Welcome back. Familiar territory or a fresh adventure?",
+            "2": "› Ask me about the button",
+            "3": "  Question 1/1 (1 unanswered)",
+            "4": "  Which color should the button be?",
+            "5": "  › 1. Blue (Recommended)  The house color.",
+            "6": "    2. Green               Calmer.",
+            "7": "    3. None of the above   Optionally, add details in",
+            "8": "                           notes (tab)",
+            "9": "  tab to add notes | enter to submit answer",
+            "10": "  esc to interrupt"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -7150,20 +7325,23 @@
         {
           "label": "2",
           "key": "2",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Welcome back. Familiar territory or a fresh adventure?",
-            "› Ask me about the button",
-            "• Questions 1/1 answered",
-            "  • Which color should the button be?",
-            "    answer: Green",
-            "• Finished the request.",
-            "  Worked for 4s • 16:03",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Welcome back. Familiar territory or a fresh adventure?",
+              "3": "› Ask me about the button",
+              "4": "• Questions 1/1 answered",
+              "5": "  • Which color should the button be?",
+              "6": "    answer: Green",
+              "7": "• Finished the request.",
+              "8": "  Worked for 4s • 16:03",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model default · /tmp/sandbox/project",
+              "11": "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -7283,16 +7461,19 @@
     },
     "hook-allow": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  What’s the first thing on our napkin sketch?",
-          "› Run the command",
-          "◦ Working (3s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model default · /tmp/sandbox/project",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 8,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  What’s the first thing on our napkin sketch?",
+            "3": "› Run the command",
+            "4": "◦ Working (3s • esc to interrupt) · Running hooks",
+            "5": "› Ask Codex to do anything",
+            "6": "  fake-model default · /tmp/sandbox/project",
+            "7": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "VjJtExxnqyDbgrjp",
@@ -7321,19 +7502,22 @@
           "response_item:function_call:exec_command"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  What’s the first thing on our napkin sketch?",
-        "› Run the command",
-        "• Ran echo approved > probe-out.txt",
-        "  └ (no output)",
-        "• Finished the request.",
-        "  Worked for 3s • 16:03",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-      ],
+      "screenAfter": {
+        "height": 11,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  What’s the first thing on our napkin sketch?",
+          "3": "› Run the command",
+          "4": "• Ran echo approved > probe-out.txt",
+          "5": "  └ (no output)",
+          "6": "• Finished the request.",
+          "7": "  Worked for 3s • 16:03",
+          "8": "› Ask Codex to do anything",
+          "9": "  fake-model default · /tmp/sandbox/project",
+          "10": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -7608,16 +7792,19 @@
     },
     "hook-deny": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  A glitch in the Matrix, or just a missing semicolon?",
-          "› Run the command",
-          "◦ Working (3s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model default · /tmp/sandbox/project",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 8,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  A glitch in the Matrix, or just a missing semicolon?",
+            "3": "› Run the command",
+            "4": "◦ Working (3s • esc to interrupt) · Running hooks",
+            "5": "› Ask Codex to do anything",
+            "6": "  fake-model default · /tmp/sandbox/project",
+            "7": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "lKU3sOBrSGyKxY2F",
@@ -7646,19 +7833,22 @@
           "response_item:function_call:exec_command"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  A glitch in the Matrix, or just a missing semicolon?",
-        "› Run the command",
-        "• Blocked by hook",
-        "  └ The chat said: not today",
-        "• Finished the request.",
-        "  Worked for 3s • 16:03",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-      ],
+      "screenAfter": {
+        "height": 11,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  A glitch in the Matrix, or just a missing semicolon?",
+          "3": "› Run the command",
+          "4": "• Blocked by hook",
+          "5": "  └ The chat said: not today",
+          "6": "• Finished the request.",
+          "7": "  Worked for 3s • 16:03",
+          "8": "› Ask Codex to do anything",
+          "9": "  fake-model default · /tmp/sandbox/project",
+          "10": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -7872,16 +8062,19 @@
     },
     "hook-exit2": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Your cursor called. It wants a plot.",
-          "› Run the command",
-          "◦ Working (3s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model default · /tmp/sandbox/project",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 8,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Your cursor called. It wants a plot.",
+            "3": "› Run the command",
+            "4": "◦ Working (3s • esc to interrupt) · Running hooks",
+            "5": "› Ask Codex to do anything",
+            "6": "  fake-model default · /tmp/sandbox/project",
+            "7": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "2TsP8NPVXSsFszrZ",
@@ -7910,19 +8103,22 @@
           "response_item:function_call:exec_command"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  Your cursor called. It wants a plot.",
-        "› Run the command",
-        "• Blocked by hook",
-        "  └ Refused from the chat",
-        "• Finished the request.",
-        "  Worked for 3s • 16:03",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-      ],
+      "screenAfter": {
+        "height": 11,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  Your cursor called. It wants a plot.",
+          "3": "› Run the command",
+          "4": "• Blocked by hook",
+          "5": "  └ Refused from the chat",
+          "6": "• Finished the request.",
+          "7": "  Worked for 3s • 16:03",
+          "8": "› Ask Codex to do anything",
+          "9": "  fake-model default · /tmp/sandbox/project",
+          "10": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -8137,16 +8333,19 @@
     },
     "hook-no-decision": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Same terminal, new possibilities.",
-          "› Run the command",
-          "◦ Working (3s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model default · /tmp/sandbox/project",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 8,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Same terminal, new possibilities.",
+            "3": "› Run the command",
+            "4": "◦ Working (3s • esc to interrupt) · Running hooks",
+            "5": "› Ask Codex to do anything",
+            "6": "  fake-model default · /tmp/sandbox/project",
+            "7": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "B2FgtZe-pZUm1uJF",
@@ -8175,21 +8374,24 @@
           "response_item:function_call:exec_command"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  Same terminal, new possibilities.",
-        "› Run the command",
-        "• Running echo approved > probe-out.txt",
-        "  Would you like to run the following command?",
-        "  Environment: local",
-        "  Reason: Echo outside the sandbox",
-        "  $ echo approved > probe-out.txt",
-        "› 1. Yes, proceed (y)",
-        "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-        "  3. No, and tell Codex what to do differently (esc)",
-        "  Press enter to confirm or esc to cancel"
-      ],
+      "screenAfter": {
+        "height": 13,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  Same terminal, new possibilities.",
+          "3": "› Run the command",
+          "4": "• Running echo approved > probe-out.txt",
+          "5": "  Would you like to run the following command?",
+          "6": "  Environment: local",
+          "7": "  Reason: Echo outside the sandbox",
+          "8": "  $ echo approved > probe-out.txt",
+          "9": "› 1. Yes, proceed (y)",
+          "10": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+          "11": "  3. No, and tell Codex what to do differently (esc)",
+          "12": "  Press enter to confirm or esc to cancel"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -8327,16 +8529,19 @@
     },
     "hook-allow-with-updatedPermissions": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  What’s today’s little adventure?",
-          "› Run the command",
-          "◦ Working (3s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model default · /tmp/sandbox/project",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 8,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  What’s today’s little adventure?",
+            "3": "› Run the command",
+            "4": "◦ Working (3s • esc to interrupt) · Running hooks",
+            "5": "› Ask Codex to do anything",
+            "6": "  fake-model default · /tmp/sandbox/project",
+            "7": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "lxXiFa_O8kxCqYeu",
@@ -8365,23 +8570,26 @@
           "response_item:function_call:exec_command"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  What’s today’s little adventure?",
-        "› Run the command",
-        "• Hook failed",
-        "  └ PermissionRequest hook returned unsupported updatedPermissions",
-        "• Running echo approved > probe-out.txt",
-        "  Would you like to run the following command?",
-        "  Environment: local",
-        "  Reason: Echo outside the sandbox",
-        "  $ echo approved > probe-out.txt",
-        "› 1. Yes, proceed (y)",
-        "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-        "  3. No, and tell Codex what to do differently (esc)",
-        "  Press enter to confirm or esc to cancel"
-      ],
+      "screenAfter": {
+        "height": 15,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  What’s today’s little adventure?",
+          "3": "› Run the command",
+          "4": "• Hook failed",
+          "5": "  └ PermissionRequest hook returned unsupported updatedPermissions",
+          "6": "• Running echo approved > probe-out.txt",
+          "7": "  Would you like to run the following command?",
+          "8": "  Environment: local",
+          "9": "  Reason: Echo outside the sandbox",
+          "10": "  $ echo approved > probe-out.txt",
+          "11": "› 1. Yes, proceed (y)",
+          "12": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+          "13": "  3. No, and tell Codex what to do differently (esc)",
+          "14": "  Press enter to confirm or esc to cancel"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -8519,23 +8727,26 @@
     },
     "hook-timeout": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  How’s life between the brackets?",
-          "› Run the command",
-          "• Hook failed",
-          "  └ hook timed out after 8s",
-          "• Running echo approved > probe-out.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo approved > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
+        "screen": {
+          "height": 15,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  How’s life between the brackets?",
+            "3": "› Run the command",
+            "4": "• Hook failed",
+            "5": "  └ hook timed out after 8s",
+            "6": "• Running echo approved > probe-out.txt",
+            "7": "  Would you like to run the following command?",
+            "8": "  Environment: local",
+            "9": "  Reason: Echo outside the sandbox",
+            "10": "  $ echo approved > probe-out.txt",
+            "11": "› 1. Yes, proceed (y)",
+            "12": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+            "13": "  3. No, and tell Codex what to do differently (esc)",
+            "14": "  Press enter to confirm or esc to cancel"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "RQ3U8L2TZ7qnlxSI",
@@ -8564,23 +8775,26 @@
           "response_item:function_call:exec_command"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  How’s life between the brackets?",
-        "› Run the command",
-        "• Hook failed",
-        "  └ hook timed out after 8s",
-        "• Running echo approved > probe-out.txt",
-        "  Would you like to run the following command?",
-        "  Environment: local",
-        "  Reason: Echo outside the sandbox",
-        "  $ echo approved > probe-out.txt",
-        "› 1. Yes, proceed (y)",
-        "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
-        "  3. No, and tell Codex what to do differently (esc)",
-        "  Press enter to confirm or esc to cancel"
-      ],
+      "screenAfter": {
+        "height": 15,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  How’s life between the brackets?",
+          "3": "› Run the command",
+          "4": "• Hook failed",
+          "5": "  └ hook timed out after 8s",
+          "6": "• Running echo approved > probe-out.txt",
+          "7": "  Would you like to run the following command?",
+          "8": "  Environment: local",
+          "9": "  Reason: Echo outside the sandbox",
+          "10": "  $ echo approved > probe-out.txt",
+          "11": "› 1. Yes, proceed (y)",
+          "12": "  2. Yes, and don't ask again for commands that start with `echo approved > probe-out.txt` (p)",
+          "13": "  3. No, and tell Codex what to do differently (esc)",
+          "14": "  Press enter to confirm or esc to cancel"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -8710,16 +8924,19 @@
     },
     "hook-person-presses-y": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Shall we give this cursor a purpose?",
-          "› Run the command",
-          "◦ Working (3s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model default · /tmp/sandbox/project",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 8,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Shall we give this cursor a purpose?",
+            "3": "› Run the command",
+            "4": "◦ Working (3s • esc to interrupt) · Running hooks",
+            "5": "› Ask Codex to do anything",
+            "6": "  fake-model default · /tmp/sandbox/project",
+            "7": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "wn9CKGczHjOR5TMr",
@@ -8748,19 +8965,22 @@
           "response_item:function_call:exec_command"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  Shall we give this cursor a purpose?",
-        "› Run the command",
-        "• Ran echo approved > probe-out.txt",
-        "  └ (no output)",
-        "• Finished the request.",
-        "  Worked for 5s • 16:04",
-        "› y",
-        "  fake-model default · /tmp/sandbox/project",
-        "                                                                                              ⚠ 4 warnings · f2 to view"
-      ],
+      "screenAfter": {
+        "height": 11,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  Shall we give this cursor a purpose?",
+          "3": "› Run the command",
+          "4": "• Ran echo approved > probe-out.txt",
+          "5": "  └ (no output)",
+          "6": "• Finished the request.",
+          "7": "  Worked for 5s • 16:04",
+          "8": "› y",
+          "9": "  fake-model default · /tmp/sandbox/project",
+          "10": "                                                                                              ⚠ 4 warnings · f2 to view"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -9035,16 +9255,19 @@
     },
     "hook-person-presses-esc": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  What brings you to this corner of the terminal?",
-          "› Run the command",
-          "◦ Working (3s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model default · /tmp/sandbox/project",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 8,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  What brings you to this corner of the terminal?",
+            "3": "› Run the command",
+            "4": "◦ Working (3s • esc to interrupt) · Running hooks",
+            "5": "› Ask Codex to do anything",
+            "6": "  fake-model default · /tmp/sandbox/project",
+            "7": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "QzEE2VqDwWBTJDT3",
@@ -9073,16 +9296,19 @@
           "response_item:function_call:exec_command"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  What brings you to this corner of the terminal?",
-        "› Run the command",
-        "■ Conversation interrupted - use /feedback if something went wrong",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-      ],
+      "screenAfter": {
+        "height": 8,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  What brings you to this corner of the terminal?",
+          "3": "› Run the command",
+          "4": "■ Conversation interrupted - use /feedback if something went wrong",
+          "5": "› Ask Codex to do anything",
+          "6": "  fake-model default · /tmp/sandbox/project",
+          "7": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -9263,16 +9489,19 @@
     },
     "hook-novadeck-view": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  What’s the latest from your side of the keyboard?",
-          "› Run the command",
-          "◦ Working (4s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model default · /tmp/sandbox/project",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 8,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  What’s the latest from your side of the keyboard?",
+            "3": "› Run the command",
+            "4": "◦ Working (4s • esc to interrupt) · Running hooks",
+            "5": "› Ask Codex to do anything",
+            "6": "  fake-model default · /tmp/sandbox/project",
+            "7": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "vBfDTb1g4QPgT_oq",
@@ -9301,19 +9530,22 @@
           "response_item:function_call:exec_command"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  What’s the latest from your side of the keyboard?",
-        "› Run the command",
-        "• Ran echo approved > probe-out.txt",
-        "  └ (no output)",
-        "• Finished the request.",
-        "  Worked for 4s • 16:04",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-      ],
+      "screenAfter": {
+        "height": 11,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  What’s the latest from your side of the keyboard?",
+          "3": "› Run the command",
+          "4": "• Ran echo approved > probe-out.txt",
+          "5": "  └ (no output)",
+          "6": "• Finished the request.",
+          "7": "  Worked for 4s • 16:04",
+          "8": "› Ask Codex to do anything",
+          "9": "  fake-model default · /tmp/sandbox/project",
+          "10": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {
@@ -9588,40 +9820,48 @@
     },
     "exec-long-command": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  How deep does this codebase go?",
-          "› Run the command",
-          "• Running echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyy…",
-          "    + Show details",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo",
-          "  yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\\",
-          "   && echo second line of a long command && printf '%s' zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz >",
-          "  probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo",
-          "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-          "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo",
-          "  yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
-          "  yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\\",
-          "   && echo second line of a long command && printf '%s'",
-          "  zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
-          "  zzzz > probe-out.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 16,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  How deep does this codebase go?",
+            "3": "› Run the command",
+            "4": "• Running echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo yyyyy…",
+            "5": "    + Show details",
+            "6": "  Would you like to run the following command?",
+            "7": "  Environment: local",
+            "8": "  Reason: Echo outside the sandbox",
+            "9": "  $ echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo",
+            "10": "  yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\\",
+            "11": "   && echo second line of a long command && printf '%s' zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz >",
+            "12": "  probe-out.txt",
+            "13": "› 1. Yes, proceed (y)",
+            "14": "  2. No, and tell Codex what to do differently (esc)",
+            "15": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 14,
+          "columns": 60,
+          "rows": {
+            "0": "  Would you like to run the following command?",
+            "1": "  Environment: local",
+            "2": "  Reason: Echo outside the sandbox",
+            "3": "  $ echo",
+            "4": "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "5": "  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && echo",
+            "6": "  yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+            "7": "  yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\\",
+            "8": "   && echo second line of a long command && printf '%s'",
+            "9": "  zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+            "10": "  zzzz > probe-out.txt",
+            "11": "› 1. Yes, proceed (y)",
+            "12": "  2. No, and tell Codex what to do differently (esc)",
+            "13": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -9887,20 +10127,23 @@
         {
           "label": "n",
           "key": "n",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  How deep does this codebase go?",
-            "› Run the command",
-            "✗ You canceled the request to run echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
-            "• Failed (exit 1) echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && ec…",
-            "  └ (no output)",
-            "    + Show details",
-            "■ Conversation interrupted - use /feedback if something went wrong",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  How deep does this codebase go?",
+              "3": "› Run the command",
+              "4": "✗ You canceled the request to run echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...",
+              "5": "• Failed (exit 1) echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx && ec…",
+              "6": "  └ (no output)",
+              "7": "    + Show details",
+              "8": "■ Conversation interrupted - use /feedback if something went wrong",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model default · /tmp/sandbox/project",
+              "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -9997,35 +10240,43 @@
     },
     "exec-two-queued": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  A fresh prompt. An open question.",
-          "› Run both",
-          "• Running echo second > probe-second.txt",
-          "• Running echo first > probe-first.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo second > probe-second.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with `echo second > probe-second.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "• Running echo second > probe-second.txt",
-          "• Running echo first > probe-first.txt",
-          "  Would you like to run the following command?",
-          "  Environment: local",
-          "  Reason: Echo outside the sandbox",
-          "  $ echo second > probe-second.txt",
-          "› 1. Yes, proceed (y)",
-          "  2. Yes, and don't ask again for commands that start with",
-          "     `echo second > probe-second.txt` (p)",
-          "  3. No, and tell Codex what to do differently (esc)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 14,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  A fresh prompt. An open question.",
+            "3": "› Run both",
+            "4": "• Running echo second > probe-second.txt",
+            "5": "• Running echo first > probe-first.txt",
+            "6": "  Would you like to run the following command?",
+            "7": "  Environment: local",
+            "8": "  Reason: Echo outside the sandbox",
+            "9": "  $ echo second > probe-second.txt",
+            "10": "› 1. Yes, proceed (y)",
+            "11": "  2. Yes, and don't ask again for commands that start with `echo second > probe-second.txt` (p)",
+            "12": "  3. No, and tell Codex what to do differently (esc)",
+            "13": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 11,
+          "columns": 60,
+          "rows": {
+            "0": "• Running echo second > probe-second.txt",
+            "1": "• Running echo first > probe-first.txt",
+            "2": "  Would you like to run the following command?",
+            "3": "  Environment: local",
+            "4": "  Reason: Echo outside the sandbox",
+            "5": "  $ echo second > probe-second.txt",
+            "6": "› 1. Yes, proceed (y)",
+            "7": "  2. Yes, and don't ask again for commands that start with",
+            "8": "     `echo second > probe-second.txt` (p)",
+            "9": "  3. No, and tell Codex what to do differently (esc)",
+            "10": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -10454,45 +10705,51 @@
         {
           "label": "y (first)",
           "key": "y",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  A fresh prompt. An open question.",
-            "› Run both",
-            "• Running echo second > probe-second.txt",
-            "✔ You approved codex to run echo second > probe-second.txt this time",
-            "• Running echo first > probe-first.txt",
-            "  Would you like to run the following command?",
-            "  Environment: local",
-            "  Reason: Echo outside the sandbox",
-            "  $ echo first > probe-first.txt",
-            "› 1. Yes, proceed (y)",
-            "  2. Yes, and don't ask again for commands that start with `echo first > probe-first.txt` (p)",
-            "  3. No, and tell Codex what to do differently (esc)",
-            "  Press enter to confirm or esc to cancel"
-          ]
+          "screen": {
+            "height": 15,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  A fresh prompt. An open question.",
+              "3": "› Run both",
+              "4": "• Running echo second > probe-second.txt",
+              "5": "✔ You approved codex to run echo second > probe-second.txt this time",
+              "6": "• Running echo first > probe-first.txt",
+              "7": "  Would you like to run the following command?",
+              "8": "  Environment: local",
+              "9": "  Reason: Echo outside the sandbox",
+              "10": "  $ echo first > probe-first.txt",
+              "11": "› 1. Yes, proceed (y)",
+              "12": "  2. Yes, and don't ask again for commands that start with `echo first > probe-first.txt` (p)",
+              "13": "  3. No, and tell Codex what to do differently (esc)",
+              "14": "  Press enter to confirm or esc to cancel"
+            }
+          }
         },
         {
           "label": "y (second)",
           "key": "y",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  A fresh prompt. An open question.",
-            "› Run both",
-            "• Running echo second > probe-second.txt",
-            "✔ You approved codex to run echo second > probe-second.txt this time",
-            "✔ You approved codex to run echo first > probe-first.txt this time",
-            "• Ran echo second > probe-second.txt",
-            "  └ (no output)",
-            "• Ran echo first > probe-first.txt",
-            "  └ (no output)",
-            "• Finished the request.",
-            "  Worked for 8s • 16:05",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 16,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  A fresh prompt. An open question.",
+              "3": "› Run both",
+              "4": "• Running echo second > probe-second.txt",
+              "5": "✔ You approved codex to run echo second > probe-second.txt this time",
+              "6": "✔ You approved codex to run echo first > probe-first.txt this time",
+              "7": "• Ran echo second > probe-second.txt",
+              "8": "  └ (no output)",
+              "9": "• Ran echo first > probe-first.txt",
+              "10": "  └ (no output)",
+              "11": "• Finished the request.",
+              "12": "  Worked for 8s • 16:05",
+              "13": "› Ask Codex to do anything",
+              "14": "  fake-model default · /tmp/sandbox/project",
+              "15": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -10721,48 +10978,59 @@
       "toolOutputSeenByModel": "Chunk ID: 119e9b\nWall time: 3.2917 seconds\nProcess exited with code 0\nOriginal token count: 0\nOutput:\n"
     },
     "y-with-no-dialog": {
-      "screen": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  You set the direction. We’ll work out the steps.",
-        "› Say hi",
-        "• Hi.",
-        "  Worked for <1s • 16:05",
-        "› y",
-        "  fake-model default · /tmp/sandbox/project",
-        "                                                                                              ⚠ 4 warnings · f2 to view"
-      ],
+      "screen": {
+        "height": 9,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  You set the direction. We’ll work out the steps.",
+          "3": "› Say hi",
+          "4": "• Hi.",
+          "5": "  Worked for <1s • 16:05",
+          "6": "› y",
+          "7": "  fake-model default · /tmp/sandbox/project",
+          "8": "                                                                                              ⚠ 4 warnings · f2 to view"
+        }
+      },
       "hooks": 6
     },
     "request-permissions": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  A hunch is a perfectly respectable starting point.",
-          "› Ask for permission",
-          "  Would you like to grant these permissions?",
-          "  Environment: local",
-          "  Reason: Need network for the build",
-          "  Permission rule: network",
-          "› 1. Yes, grant these permissions for this turn (y)",
-          "  2. Yes, grant for this turn with strict auto review (r)",
-          "  3. Yes, grant these permissions for this session (a)",
-          "  4. No, continue without permissions (d)",
-          "  Press enter to confirm or esc to cancel"
-        ],
-        "narrow": [
-          "› Ask for permission",
-          "  Would you like to grant these permissions?",
-          "  Environment: local",
-          "  Reason: Need network for the build",
-          "  Permission rule: network",
-          "› 1. Yes, grant these permissions for this turn (y)",
-          "  2. Yes, grant for this turn with strict auto review (r)",
-          "  3. Yes, grant these permissions for this session (a)",
-          "  4. No, continue without permissions (d)",
-          "  Press enter to confirm or esc to cancel"
-        ]
+        "wide": {
+          "height": 13,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  A hunch is a perfectly respectable starting point.",
+            "3": "› Ask for permission",
+            "4": "  Would you like to grant these permissions?",
+            "5": "  Environment: local",
+            "6": "  Reason: Need network for the build",
+            "7": "  Permission rule: network",
+            "8": "› 1. Yes, grant these permissions for this turn (y)",
+            "9": "  2. Yes, grant for this turn with strict auto review (r)",
+            "10": "  3. Yes, grant these permissions for this session (a)",
+            "11": "  4. No, continue without permissions (d)",
+            "12": "  Press enter to confirm or esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "› Ask for permission",
+            "1": "  Would you like to grant these permissions?",
+            "2": "  Environment: local",
+            "3": "  Reason: Need network for the build",
+            "4": "  Permission rule: network",
+            "5": "› 1. Yes, grant these permissions for this turn (y)",
+            "6": "  2. Yes, grant for this turn with strict auto review (r)",
+            "7": "  3. Yes, grant these permissions for this session (a)",
+            "8": "  4. No, continue without permissions (d)",
+            "9": "  Press enter to confirm or esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -11015,18 +11283,21 @@
         {
           "label": "y",
           "key": "y",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  A hunch is a perfectly respectable starting point.",
-            "› Ask for permission",
-            "You granted additional permissions",
-            "• Finished the request.",
-            "  Worked for 4s • 16:05",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 10,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  A hunch is a perfectly respectable starting point.",
+              "3": "› Ask for permission",
+              "4": "You granted additional permissions",
+              "5": "• Finished the request.",
+              "6": "  Worked for 4s • 16:05",
+              "7": "› Ask Codex to do anything",
+              "8": "  fake-model default · /tmp/sandbox/project",
+              "9": "  ? for shortcuts                                                                             ⚠ 5 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -11146,35 +11417,43 @@
     },
     "plan-prompt": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Forty-two is an answer. What’s the question?",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Plan the button",
-          "• Proposed Plan",
-          "  # Button plan",
-          "  • Make it blue",
-          "  • Ship it",
-          "  Worked for <1s • 16:05",
-          "  Implement this plan?",
-          "› 1. Yes, implement this plan          Switch to Default and start coding",
-          "  2. Yes, clear context and implement  Fresh thread with this plan",
-          "  3. No, stay in Plan mode             Continue planning with the model",
-          "  enter select · esc back"
-        ],
-        "narrow": [
-          "› Plan the button",
-          "  # Button plan",
-          "  • Make it blue",
-          "  • Ship it",
-          "  Worked for <1s • 16:05",
-          "  Implement this plan?",
-          "› 1. Yes, implement this plan",
-          "  2. Yes, clear context and implement",
-          "  3. No, stay in Plan mode",
-          "  enter select · esc back"
-        ]
+        "wide": {
+          "height": 15,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Forty-two is an answer. What’s the question?",
+            "3": "• Model changed to fake-model medium for Plan mode.",
+            "4": "› Plan the button",
+            "5": "• Proposed Plan",
+            "6": "  # Button plan",
+            "7": "  • Make it blue",
+            "8": "  • Ship it",
+            "9": "  Worked for <1s • 16:05",
+            "10": "  Implement this plan?",
+            "11": "› 1. Yes, implement this plan          Switch to Default and start coding",
+            "12": "  2. Yes, clear context and implement  Fresh thread with this plan",
+            "13": "  3. No, stay in Plan mode             Continue planning with the model",
+            "14": "  enter select · esc back"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "› Plan the button",
+            "1": "  # Button plan",
+            "2": "  • Make it blue",
+            "3": "  • Ship it",
+            "4": "  Worked for <1s • 16:05",
+            "5": "  Implement this plan?",
+            "6": "› 1. Yes, implement this plan",
+            "7": "  2. Yes, clear context and implement",
+            "8": "  3. No, stay in Plan mode",
+            "9": "  enter select · esc back"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -11380,21 +11659,24 @@
         {
           "label": "esc",
           "key": "\u001b",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Forty-two is an answer. What’s the question?",
-            "• Model changed to fake-model medium for Plan mode.",
-            "› Plan the button",
-            "• Proposed Plan",
-            "  # Button plan",
-            "  • Make it blue",
-            "  • Ship it",
-            "  Worked for <1s • 16:05",
-            "› Ask Codex to do anything",
-            "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 13,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Forty-two is an answer. What’s the question?",
+              "3": "• Model changed to fake-model medium for Plan mode.",
+              "4": "› Plan the button",
+              "5": "• Proposed Plan",
+              "6": "  # Button plan",
+              "7": "  • Make it blue",
+              "8": "  • Ship it",
+              "9": "  Worked for <1s • 16:05",
+              "10": "› Ask Codex to do anything",
+              "11": "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
+              "12": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -11471,33 +11753,41 @@
     },
     "plan-prompt-digit-3": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Welcome to the blinking edge of possibility.",
-          "• Model changed to fake-model medium for Plan mode.",
-          "› Plan the button",
-          "• Proposed Plan",
-          "  # Button plan",
-          "  • Make it blue",
-          "  Worked for <1s • 16:05",
-          "  Implement this plan?",
-          "› 1. Yes, implement this plan          Switch to Default and start coding",
-          "  2. Yes, clear context and implement  Fresh thread with this plan",
-          "  3. No, stay in Plan mode             Continue planning with the model",
-          "  enter select · esc back"
-        ],
-        "narrow": [
-          "• Proposed Plan",
-          "  # Button plan",
-          "  • Make it blue",
-          "  Worked for <1s • 16:05",
-          "  Implement this plan?",
-          "› 1. Yes, implement this plan",
-          "  2. Yes, clear context and implement",
-          "  3. No, stay in Plan mode",
-          "  enter select · esc back"
-        ]
+        "wide": {
+          "height": 14,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Welcome to the blinking edge of possibility.",
+            "3": "• Model changed to fake-model medium for Plan mode.",
+            "4": "› Plan the button",
+            "5": "• Proposed Plan",
+            "6": "  # Button plan",
+            "7": "  • Make it blue",
+            "8": "  Worked for <1s • 16:05",
+            "9": "  Implement this plan?",
+            "10": "› 1. Yes, implement this plan          Switch to Default and start coding",
+            "11": "  2. Yes, clear context and implement  Fresh thread with this plan",
+            "12": "  3. No, stay in Plan mode             Continue planning with the model",
+            "13": "  enter select · esc back"
+          }
+        },
+        "narrow": {
+          "height": 9,
+          "columns": 60,
+          "rows": {
+            "0": "• Proposed Plan",
+            "1": "  # Button plan",
+            "2": "  • Make it blue",
+            "3": "  Worked for <1s • 16:05",
+            "4": "  Implement this plan?",
+            "5": "› 1. Yes, implement this plan",
+            "6": "  2. Yes, clear context and implement",
+            "7": "  3. No, stay in Plan mode",
+            "8": "  enter select · esc back"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -11703,20 +11993,23 @@
         {
           "label": "3",
           "key": "3",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Welcome to the blinking edge of possibility.",
-            "• Model changed to fake-model medium for Plan mode.",
-            "› Plan the button",
-            "• Proposed Plan",
-            "  # Button plan",
-            "  • Make it blue",
-            "  Worked for <1s • 16:05",
-            "› Ask Codex to do anything",
-            "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Welcome to the blinking edge of possibility.",
+              "3": "• Model changed to fake-model medium for Plan mode.",
+              "4": "› Plan the button",
+              "5": "• Proposed Plan",
+              "6": "  # Button plan",
+              "7": "  • Make it blue",
+              "8": "  Worked for <1s • 16:05",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model medium · /tmp/sandbox/project                                                       Plan mode",
+              "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -11793,32 +12086,40 @@
     },
     "mcp-tool-approval": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  What are we building in this episode?",
-          "› Touch it",
-          "• Calling probe.touch",
-          "    + Show details",
-          "  Field 1/1",
-          "  Allow the probe MCP server to run tool \"touch\"?",
-          "  name: a.txt",
-          "  › 1. Allow   Run the tool and continue",
-          "    2. Cancel  Cancel this tool call",
-          "  enter to submit | esc to cancel"
-        ],
-        "narrow": [
-          "  What are we building in this episode?",
-          "› Touch it",
-          "• Calling probe.touch",
-          "    + Show details",
-          "  Field 1/1",
-          "  Allow the probe MCP server to run tool \"touch\"?",
-          "  name: a.txt",
-          "  › 1. Allow   Run the tool and continue",
-          "    2. Cancel  Cancel this tool call",
-          "  enter to submit | esc to cancel"
-        ]
+        "wide": {
+          "height": 12,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  What are we building in this episode?",
+            "3": "› Touch it",
+            "4": "• Calling probe.touch",
+            "5": "    + Show details",
+            "6": "  Field 1/1",
+            "7": "  Allow the probe MCP server to run tool \"touch\"?",
+            "8": "  name: a.txt",
+            "9": "  › 1. Allow   Run the tool and continue",
+            "10": "    2. Cancel  Cancel this tool call",
+            "11": "  enter to submit | esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "  What are we building in this episode?",
+            "1": "› Touch it",
+            "2": "• Calling probe.touch",
+            "3": "    + Show details",
+            "4": "  Field 1/1",
+            "5": "  Allow the probe MCP server to run tool \"touch\"?",
+            "6": "  name: a.txt",
+            "7": "  › 1. Allow   Run the tool and continue",
+            "8": "    2. Cancel  Cancel this tool call",
+            "9": "  enter to submit | esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -12115,20 +12416,23 @@
         {
           "label": "1 (allow)",
           "key": "1",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  What are we building in this episode?",
-            "› Touch it",
-            "• Called probe.touch",
-            "  └ touched a.txt",
-            "    + Show details",
-            "• Finished the request.",
-            "  Worked for 13s • 16:06",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  What are we building in this episode?",
+              "3": "› Touch it",
+              "4": "• Called probe.touch",
+              "5": "  └ touched a.txt",
+              "6": "    + Show details",
+              "7": "• Finished the request.",
+              "8": "  Worked for 13s • 16:06",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model default · /tmp/sandbox/project",
+              "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -12302,32 +12606,40 @@
     },
     "mcp-tool-approval-esc": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Hello again, carbon-based collaborator.",
-          "› Touch it",
-          "• Calling probe.touch",
-          "    + Show details",
-          "  Field 1/1",
-          "  Allow the probe MCP server to run tool \"touch\"?",
-          "  name: a.txt",
-          "  › 1. Allow   Run the tool and continue",
-          "    2. Cancel  Cancel this tool call",
-          "  enter to submit | esc to cancel"
-        ],
-        "narrow": [
-          "  Hello again, carbon-based collaborator.",
-          "› Touch it",
-          "• Calling probe.touch",
-          "    + Show details",
-          "  Field 1/1",
-          "  Allow the probe MCP server to run tool \"touch\"?",
-          "  name: a.txt",
-          "  › 1. Allow   Run the tool and continue",
-          "    2. Cancel  Cancel this tool call",
-          "  enter to submit | esc to cancel"
-        ]
+        "wide": {
+          "height": 12,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Hello again, carbon-based collaborator.",
+            "3": "› Touch it",
+            "4": "• Calling probe.touch",
+            "5": "    + Show details",
+            "6": "  Field 1/1",
+            "7": "  Allow the probe MCP server to run tool \"touch\"?",
+            "8": "  name: a.txt",
+            "9": "  › 1. Allow   Run the tool and continue",
+            "10": "    2. Cancel  Cancel this tool call",
+            "11": "  enter to submit | esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 10,
+          "columns": 60,
+          "rows": {
+            "0": "  Hello again, carbon-based collaborator.",
+            "1": "› Touch it",
+            "2": "• Calling probe.touch",
+            "3": "    + Show details",
+            "4": "  Field 1/1",
+            "5": "  Allow the probe MCP server to run tool \"touch\"?",
+            "6": "  name: a.txt",
+            "7": "  › 1. Allow   Run the tool and continue",
+            "8": "    2. Cancel  Cancel this tool call",
+            "9": "  enter to submit | esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -12594,20 +12906,23 @@
         {
           "label": "esc",
           "key": "\u001b",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Hello again, carbon-based collaborator.",
-            "› Touch it",
-            "• Failed probe.touch",
-            "  └ Error: user cancelled MCP tool call",
-            "    + Show details",
-            "• Finished the request.",
-            "  Worked for 13s • 16:06",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Hello again, carbon-based collaborator.",
+              "3": "› Touch it",
+              "4": "• Failed probe.touch",
+              "5": "  └ Error: user cancelled MCP tool call",
+              "6": "    + Show details",
+              "7": "• Finished the request.",
+              "8": "  Worked for 13s • 16:06",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model default · /tmp/sandbox/project",
+              "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -12766,33 +13081,41 @@
     },
     "mcp-elicitation": {
       "screens": {
-        "wide": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  Speak, friend, and enter a prompt.",
-          "› Ask the server",
-          "• Calling probe.ask_color",
-          "    + Show details",
-          "  Field 1/1 (1 required unanswered)",
-          "  Which color do you want?",
-          "  Color",
-          "  › 1. blue",
-          "    2. green",
-          "  enter to submit | esc to cancel"
-        ],
-        "narrow": [
-          "     /tmp/sandbox/project",
-          "  Speak, friend, and enter a prompt.",
-          "› Ask the server",
-          "• Calling probe.ask_color",
-          "    + Show details",
-          "  Field 1/1 (1 required unanswered)",
-          "  Which color do you want?",
-          "  Color",
-          "  › 1. blue",
-          "    2. green",
-          "  enter to submit | esc to cancel"
-        ]
+        "wide": {
+          "height": 12,
+          "columns": 120,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  Speak, friend, and enter a prompt.",
+            "3": "› Ask the server",
+            "4": "• Calling probe.ask_color",
+            "5": "    + Show details",
+            "6": "  Field 1/1 (1 required unanswered)",
+            "7": "  Which color do you want?",
+            "8": "  Color",
+            "9": "  › 1. blue",
+            "10": "    2. green",
+            "11": "  enter to submit | esc to cancel"
+          }
+        },
+        "narrow": {
+          "height": 11,
+          "columns": 60,
+          "rows": {
+            "0": "     /tmp/sandbox/project",
+            "1": "  Speak, friend, and enter a prompt.",
+            "2": "› Ask the server",
+            "3": "• Calling probe.ask_color",
+            "4": "    + Show details",
+            "5": "  Field 1/1 (1 required unanswered)",
+            "6": "  Which color do you want?",
+            "7": "  Color",
+            "8": "  › 1. blue",
+            "9": "    2. green",
+            "10": "  enter to submit | esc to cancel"
+          }
+        }
       },
       "novadeckSees": {
         "activity": {
@@ -13032,20 +13355,23 @@
         {
           "label": "2",
           "key": "2",
-          "screen": [
-            "  >_ OpenAI Codex (v0.159.3)",
-            "     /tmp/sandbox/project",
-            "  Speak, friend, and enter a prompt.",
-            "› Ask the server",
-            "• Called probe.ask_color",
-            "  └ elicitation answered: {\"action\":\"accept\",\"content\":{\"color\":\"green\"}}",
-            "    + Show details",
-            "• Finished the request.",
-            "  Worked for 13s • 16:06",
-            "› Ask Codex to do anything",
-            "  fake-model default · /tmp/sandbox/project",
-            "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-          ]
+          "screen": {
+            "height": 12,
+            "rows": {
+              "0": "  >_ OpenAI Codex (v0.159.3)",
+              "1": "     /tmp/sandbox/project",
+              "2": "  Speak, friend, and enter a prompt.",
+              "3": "› Ask the server",
+              "4": "• Called probe.ask_color",
+              "5": "  └ elicitation answered: {\"action\":\"accept\",\"content\":{\"color\":\"green\"}}",
+              "6": "    + Show details",
+              "7": "• Finished the request.",
+              "8": "  Worked for 13s • 16:06",
+              "9": "› Ask Codex to do anything",
+              "10": "  fake-model default · /tmp/sandbox/project",
+              "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+            }
+          }
         }
       ],
       "rolloutAfter": [
@@ -13217,18 +13543,21 @@
     },
     "hook-mcp-allow": {
       "during": {
-        "screen": [
-          "  >_ OpenAI Codex (v0.159.3)",
-          "     /tmp/sandbox/project",
-          "  What are we building in this episode?",
-          "› Touch it",
-          "◦ Calling probe.touch",
-          "    + Show details",
-          "◦ Working (3s • esc to interrupt) · Running hooks",
-          "› Ask Codex to do anything",
-          "  fake-model default · /tmp/sandbox/project",
-          "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-        ],
+        "screen": {
+          "height": 10,
+          "rows": {
+            "0": "  >_ OpenAI Codex (v0.159.3)",
+            "1": "     /tmp/sandbox/project",
+            "2": "  What are we building in this episode?",
+            "3": "› Touch it",
+            "4": "◦ Calling probe.touch",
+            "5": "    + Show details",
+            "6": "◦ Working (3s • esc to interrupt) · Running hooks",
+            "7": "› Ask Codex to do anything",
+            "8": "  fake-model default · /tmp/sandbox/project",
+            "9": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+          }
+        },
         "novadeckRequests": [
           {
             "ref": "iwDqRyvI_KiLwZHH",
@@ -13257,20 +13586,23 @@
           "response_item:function_call:touch"
         ]
       },
-      "screenAfter": [
-        "  >_ OpenAI Codex (v0.159.3)",
-        "     /tmp/sandbox/project",
-        "  What are we building in this episode?",
-        "› Touch it",
-        "• Called probe.touch",
-        "  └ touched a.txt",
-        "    + Show details",
-        "• Finished the request.",
-        "  Worked for 3s • 16:06",
-        "› Ask Codex to do anything",
-        "  fake-model default · /tmp/sandbox/project",
-        "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
-      ],
+      "screenAfter": {
+        "height": 12,
+        "rows": {
+          "0": "  >_ OpenAI Codex (v0.159.3)",
+          "1": "     /tmp/sandbox/project",
+          "2": "  What are we building in this episode?",
+          "3": "› Touch it",
+          "4": "• Called probe.touch",
+          "5": "  └ touched a.txt",
+          "6": "    + Show details",
+          "7": "• Finished the request.",
+          "8": "  Worked for 3s • 16:06",
+          "9": "› Ask Codex to do anything",
+          "10": "  fake-model default · /tmp/sandbox/project",
+          "11": "  ? for shortcuts                                                                             ⚠ 4 warnings · f2 to view"
+        }
+      },
       "hookAliveAfter": false,
       "hooks": [
         {

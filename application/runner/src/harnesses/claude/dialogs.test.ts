@@ -1,10 +1,9 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-
 import type { RequestAnswer } from "@novadeck/protocol"
 import { vi } from "vitest"
 
+import type { ScreenText } from "../../terminals/screen.js"
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import type { DialogRead, KeyStep, RequestFacts } from "../dialogs.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
@@ -14,16 +13,16 @@ type Scenario = {
   events: { event?: string; payload?: { tool_name: string; tool_input: unknown } }[]
   version?: string
   prompts?: string[]
-  screens: { [size: string]: string[] }
-  steps: { [name: string]: string[] }
+  screens: { [size: string]: ScreenText }
+  steps: { [name: string]: ScreenText }
 }
-const probe = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "ask.probe.json"), "utf8"),
-) as { scenarios: { [name: string]: Scenario } }
+const probe = loadProbe(import.meta.dirname, "ask.probe.json") as {
+  scenarios: { [name: string]: Scenario }
+}
 
 const scenario = (name: string): Scenario => probe.scenarios[name]!
-const screen = (name: string, size: string): string[] => scenario(name).screens[size]!
-const step = (name: string, key: string): string[] => scenario(name).steps[key]!
+const screen = (name: string, size: string): string[] => [...scenario(name).screens[size]!.rows]
+const step = (name: string, key: string): string[] => [...scenario(name).steps[key]!.rows]
 
 // What the request asks, as its PermissionRequest hook told it.
 const factsOf = (name: string): RequestFacts => {

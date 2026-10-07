@@ -564,6 +564,63 @@ drawings each reader rests on are probed, with fixtures from real screens
 (`harnesses/*/fixtures/input-box.probe.json`, `shell-mode.probe.json`, `ask.probe.json`;
 `e2e/probes/`); see [Harness coverage](harness-coverage.md).
 
+### Answer driver
+
+The answer driver (`terminals/answers.ts`) answers a request through its `DialogAdapter`
+(see `agents.answer` in [Backend API](backend-api.md) for the contract), and knows no
+harness.
+
+- **Reading the dialog.** It holds the person's keys and waits for the screen to hold still
+  on two reads 100 ms apart. It reads the screen, again for up to 3 s before refusing a
+  dialog that may be half drawn, and has the adapter recognise the dialog in full as the
+  request's: its question and options, and its command or file against what the hook said.
+- **Pressing keys.** It presses the keys the adapter gives for the answer: digits as the
+  screen numbers them, and text as one bracketed paste where the screen takes it. Between
+  moves it waits on the adapter's own `until` checks of the screen. Every `type` step is
+  followed by one that checks the words showed in the adapter's field; an adapter whose
+  steps would type without one is an internal error, and nothing is pressed. Each key goes through the person's key
+  bookkeeping, as `agents.prompt`'s do.
+- **Confirming.** It waits up to 5 s, on a screen that held still on two reads, for the
+  adapter to see the dialog go as the answer should have it go, or for the request to be
+  gone (its hook said it was answered). An answer also counts as taken where the screen no
+  longer reads as the request's dialog and reads as another waiting request's (queued
+  permissions).
+- **The person's keys.** What the person typed meanwhile is dropped, not replayed after, and
+  counted as theirs only if delivered. The terminal's own replies (cursor-position and
+  device-attribute answers, focus reports) are never held. The mouse's wheel and motion
+  reports, which Claude Code and Codex turn tracking on for while a dialog shows, are
+  dropped while the answer holds the keys. The hold, and the window's resizes with it, last
+  as long as the answer's waits need (up to 10 minutes), not the doorbell's and prompts'
+  short caps.
+- **Twins.** Requests of the same agent (root, or the same subagent) that ask the very same
+  thing (kind, tool, input, and the directory their hook said, else the terminal's) and
+  read the same dialog are interchangeable. The dialog shows on each, an answer goes
+  through either, and the hook of either resolving counts as taken. The request the answer
+  went through is left waiting where the same dialog shows again at once: a harness folds
+  identical calls into one request, as Codex's queue of two identical commands does, so the
+  second is answered through it again. Requests that differ in any of those, a subagent's
+  and the root's among them, stay unanswerable while one screen reads for both. A twin's
+  vanishing counts as taken only where the screen moved on from the dialog read before the
+  keys.
+- **Limits and raw dialogs.** What an adapter reads is cut to the protocol's limits before
+  it shows (a long question or description). A `choices` `detail` past 4 KiB is never
+  approved from a cut view: it reads as nothing and shows raw, as does a dialog whose ids
+  or counts exceed the limits. A request raw for good (locked) still keeps another's
+  identical-looking dialog from being answerable; an answered one doesn't. An answer to a
+  request whose dialog shows `raw` without a lock (the screen reads as nothing now) is a
+  `CONFLICT` that locks nothing. Request dialogs only show raw, for want of one the adapter
+  reads, once the screen has been still for 1.5 s and the request pending for 2 s: a harness
+  may run its hooks (ours included) before it draws a dialog.
+- **Follow-up words.** Where the answer's words go on as the agent's next prompt, they are
+  given in the same input-queue entry once the dialog took its key and the screen settled.
+  For up to 10 s it tries again while the agent can't take a prompt for a reason that
+  clears by itself (a request still pending). It gives up at once on one that won't (a
+  draft in the box, no box, too tall, shell mode), and then the call is `WORDS_NOT_SENT`.
+- **Forms and directories.** A form's keys come from the adapter with the whole answer, and
+  a harness that raises no request for a form (Codex) shows none. Adapters get the
+  session's working directory (`cwd`) with each request, to resolve the paths a dialog
+  shows.
+
 ## Where sources merge
 
 Each harness can offer several native sources for the same run: hook

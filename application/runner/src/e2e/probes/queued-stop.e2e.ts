@@ -14,6 +14,7 @@ import { box as agyBox } from "../../harnesses/agy/box.js"
 import { box as claudeBox } from "../../harnesses/claude/box.js"
 import { box as codexBox } from "../../harnesses/codex/box.js"
 import { screenText } from "../../terminals/screen.js"
+import { screenRecord } from "../../testing/probes.js"
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate } from "../model/script.js"
@@ -134,22 +135,12 @@ for (const setup of setups) {
               await new Promise<void>((resolve) => screen.write(event.data, resolve))
               const read = screenText(screen)
               const box = profile.read(read)
-              const rowsOut: Record<number, string> = {}
-              const brightOut: Record<number, string> = {}
-              read.rows.forEach((row, index) => {
-                if (row.trim() !== "") rowsOut[index] = row.trimEnd()
-                if (read.bright[index] !== row.trimEnd() && row.trim() !== "")
-                  brightOut[index] = read.bright[index] ?? ""
-              })
               screen.dispose()
               return {
                 label,
                 state: terminals.get(t.id).activity?.state,
                 box: box ? { text: box.text, first: box.first, last: box.last } : null,
-                height: rows,
-                cursor: read.cursor,
-                rows: rowsOut,
-                bright: brightOut,
+                ...screenRecord(read),
               }
             }
           } finally {

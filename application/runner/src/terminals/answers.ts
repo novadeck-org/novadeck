@@ -5,8 +5,8 @@ import { hasControlCharacters, promptRefusal, type RequestAnswer } from "@novade
 import { DomainError } from "../errors.js"
 import type { DialogAdapter, DialogRead, KeyStep, RequestFacts } from "../harnesses/dialogs.js"
 import { identified, twin } from "./dialogs.js"
-import { collapsible, type HoldBudget } from "./prompts.js"
-import { bracketedPaste, findLine } from "./ring.js"
+import type { InputEntry, InputHold, InputQueue } from "./input-queue.js"
+import { bracketedPaste } from "./ring.js"
 import type { ScreenText } from "./screen.js"
 
 /** Another request waiting: its ref, who asks and what it asks. */
@@ -40,21 +40,6 @@ export type AnswerHost = {
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
   readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
   /**
-   * Holds the person's input to the terminal for at most `budget.inputMs`, and its
-   * window's resizes for at most `budget.sizeMs` or until `settle`, which releases the
-   * input too (see `PromptHost.hold`).
-   */
-  readonly hold: (
-    terminalId: string,
-    budget: HoldBudget,
-  ) => {
-    readonly release: () => void
-    readonly settle: () => void
-    readonly holding: () => boolean
-    /** Drops what the person typed while their input was held. */
-    readonly discard: () => void
-  }
-  /**
    * Writes keys to the agent as the person's, through the bookkeeping their own keys get,
    * ahead of anything their held input waits to send; false once the terminal is gone.
    */
@@ -77,13 +62,15 @@ export type AnswerHost = {
   /** The request was answered. */
   readonly done: (terminalId: string, ref: string) => void
   /**
-   * Gives the agent `text` as its next prompt (see `Prompts`), as the person's words after
-   * an option that only tells it to expect them: the plain call, which `Answers` retries
-   * and times.
+   * Gives the agent `text` as its next prompt (see `Prompts`), within the answer's own
+   * entry of the terminal's input queue: the words that follow an option which only tells
+   * the agent to expect them. The plain call, which `Answers` retries and times.
    */
-  readonly prompt: (terminalId: string, text: string) => Promise<void>
+  readonly prompt: (entry: InputEntry, terminalId: string, text: string) => Promise<void>
   /** Whether its agent's turn runs now, per its hooks. */
   readonly working: (terminalId: string) => boolean
+  /** When its agent's running turn began, on the runner's clock; undefined where none runs. */
+  readonly turnStartedAt: (terminalId: string) => number | undefined
   /** An answer begins or ends there, so the dialogs tracker leaves its screens alone. */
   readonly busy: (terminalId: string, on: boolean) => void
 }
@@ -93,11 +80,14 @@ export type AnswerOptions = {
   readonly pollMs?: number
   /** How long the dialog may take to show it was answered, in milliseconds. */
   readonly answeredMs?: number
-  /** How long typed text may take to show in its field, in milliseconds. */
+  /** How long a key step is allowed in the hold's budget, in milliseconds. */
   readonly typedMs?: number
   /** How long a doorbell ring under way is waited for, in milliseconds. */
   readonly ringMs?: number
-  /** How long after the last key the window's resizes stay held, in milliseconds. */
+  /**
+   * How long after the last key the window's resizes stay held, and how long a turn is
+   * left to start before an answer presses its first key, in milliseconds.
+   */
   readonly settleMs?: number
   /** The longest the person's keys are held for one answer, in milliseconds. */
   readonly holdMs?: number
@@ -151,8 +141,8 @@ const pasted = (text: string): string => text.replace(/\r\n?|\n/g, "\r")
  * get. It presses nothing without a dialog the adapter recognised as the request's, and
  * after one that failed or was unrecognised never presses for the request again. Where the
  * option chosen sends the person's words as the agent's next prompt, they follow once it
- * took. Answers
- * to one terminal go one at a time. Knows nothing of how any harness draws its screen.
+ * took, as one entry of the terminal's input queue with the answer: nothing comes between
+ * them. Knows nothing of how any harness draws its screen.
  */
 export class Answers {
   private readonly pollMs: number
@@ -165,12 +155,10 @@ export class Answers {
   private readonly stillMs: number
   private readonly followMs: number
   private readonly calmMs: number
-  /** The latest answer of each terminal that is not yet done. */
-  private readonly tails = new Map<string, Promise<void>>()
-  private readonly settles = new Map<string, () => void>()
 
   constructor(
     private readonly host: AnswerHost,
+    private readonly queue: InputQueue,
     options: AnswerOptions = {},
   ) {
     this.pollMs = options.pollMs ?? 50
@@ -186,8 +174,8 @@ export class Answers {
   }
 
   /**
-   * Gives the request `ref` of the terminal's agent `answer`, once answers before it are
-   * done. `NOT_FOUND` where the agent has no such request; `DIALOG_CHANGED` where the dialog the
+   * Gives the request `ref` of the terminal's agent `answer`, once those before it in the
+   * terminal's input queue are done. `NOT_FOUND` where the agent has no such request; `DIALOG_CHANGED` where the dialog the
    * answer names is not the one the screen reads now; `CONFLICT`, pressing nothing,
    * where its dialog isn't on screen, isn't recognised as the request's, can't take the
    * answer, was answered, or turned raw; `ANSWER_FAILED` where keys were pressed and the
@@ -198,47 +186,51 @@ export class Answers {
    */
   async answer(terminalId: string, ref: string, answer: RequestAnswer): Promise<void> {
     this.host.request(terminalId, ref)
-    const previous = this.tails.get(terminalId) ?? Promise.resolve()
-    const run = previous.then(() => this.send(terminalId, ref, answer))
-    const tail = run.then(
-      () => {},
-      () => {},
-    )
-    this.tails.set(terminalId, tail)
-    void tail.then(() => {
-      if (this.tails.get(terminalId) === tail) this.tails.delete(terminalId)
-    })
-    return await run
+    await this.queue.run(terminalId, (entry) => this.send(entry, terminalId, ref, answer))
   }
 
-  private async send(terminalId: string, ref: string, answer: RequestAnswer): Promise<void> {
-    const request = this.host.request(terminalId, ref)
-    if (!request) throw new DomainError("NOT_FOUND", "The agent has no such request.")
-    if (this.host.closed(terminalId, ref))
-      throw new DomainError(
-        "CONFLICT",
-        "The request was answered, or its dialog can only be answered in the terminal.",
-      )
-    const { facts, adapter, others } = request
-    const self = { facts, actor: request.actor }
-    if (!adapter)
-      throw new DomainError("CONFLICT", "The agent's dialogs can't be answered from outside.")
-    // Its dialog reads as nothing now: nothing is pressed, and nothing is locked either.
-    if (this.host.raw(terminalId, ref))
-      throw new DomainError("CONFLICT", "The request's dialog isn't one the adapter reads.")
+  private async send(
+    entry: InputEntry,
+    terminalId: string,
+    ref: string,
+    answer: RequestAnswer,
+  ): Promise<void> {
     // Keys the person's words can't carry: an escape sequence would be pressed, not typed.
     if (wordsOf(answer).some(hasControlCharacters))
       throw new DomainError("CONFLICT", "The answer's words hold control characters.")
     this.host.busy(terminalId, true)
     let rows: readonly string[] = []
-    let hold: ReturnType<AnswerHost["hold"]> | undefined
+    let hold: InputHold | undefined
     // The person's words, where the option they chose sends them as the next prompt.
     let words: string | undefined
     try {
       await this.ringDone(terminalId)
+      await this.turnSettled(terminalId)
+      // The request is read after the waits: a twin may register during them, and the
+      // dialog's reading and its confirmation must see it.
+      const request = this.host.request(terminalId, ref)
+      if (!request) throw new DomainError("NOT_FOUND", "The agent has no such request.")
+      if (this.host.closed(terminalId, ref))
+        throw new DomainError(
+          "CONFLICT",
+          "The request was answered, or its dialog can only be answered in the terminal.",
+        )
+      const { facts, adapter, others } = request
+      const self = { facts, actor: request.actor }
+      if (!adapter)
+        throw new DomainError("CONFLICT", "The agent's dialogs can't be answered from outside.")
+      // Its dialog reads as nothing now: nothing is pressed, and nothing is locked either.
+      if (this.host.raw(terminalId, ref))
+        throw new DomainError("CONFLICT", "The request's dialog isn't one the adapter reads.")
       // Their keys wait from before the dialog is read until the screen has settled after
       // the last key, and are dropped then, so none lands in the dialog or the next one.
-      hold = await this.held(terminalId)
+      hold = entry.hold({
+        // Past the input's own cap, as an answer's hold needs, the resizes stay held too.
+        inputMs: this.holdMs,
+        sizeMs: this.holdMs + 10_000,
+        deferred: true,
+      })
+      if (!hold.holding()) throw new DomainError("TERMINAL_NOT_FOUND")
       const found = await this.readDialog(terminalId, ref, adapter, self, others)
       rows = found.rows
       const { read } = found
@@ -277,7 +269,7 @@ export class Answers {
       rows = taken.rows
       hold.discard()
       hold.release()
-      this.settle(terminalId, hold.settle)
+      this.settleLater(hold)
       // Through a twin's hook, or where its identical dialog shows again at once (the
       // harness folds twin calls into one request), it waits still, for the dialog that
       // shows next, which is as much its to answer.
@@ -290,7 +282,7 @@ export class Answers {
       if (error instanceof Failed && error.pressed) hold?.discard()
       hold?.release()
       // The window's resizes go on at once where no key was pressed, else once they have.
-      if (error instanceof Failed && error.pressed && hold) this.settle(terminalId, hold.settle)
+      if (error instanceof Failed && error.pressed && hold) this.settleLater(hold)
       else hold?.settle()
       if (!(error instanceof Failed)) throw error
       // Whatever the dialog was, nothing is pressed for the request again.
@@ -301,7 +293,7 @@ export class Answers {
     }
     if (words === undefined) return
     try {
-      await this.follow(terminalId, words)
+      await this.follow(entry, terminalId, words)
     } catch {
       // The dialog took its answer; only the words did not follow it.
       throw new DomainError(
@@ -314,23 +306,20 @@ export class Answers {
   /**
    * Gives the agent the words once it takes a prompt: the answer that sends them is just
    * done, and the hook that ends the request, or the turn it aborted, may be a moment
-   * behind. Retried only while the refusal is of the kind that clears by itself (a request
-   * still pending, a doorbell ring, another hold on the agent's input), for `followMs`
-   * from when the screen settled; a draft in the box, no box, a text too tall or a shell
-   * mode never clear, and fail at once.
+   * behind. Retried only while a request still pending refuses it, for `followMs` from
+   * when the screen settled; a draft in the box, no box, a text too tall or a shell mode
+   * never clear, and fail at once.
    */
-  private async follow(terminalId: string, words: string): Promise<void> {
+  private async follow(entry: InputEntry, terminalId: string, words: string): Promise<void> {
     await this.calm(terminalId)
     const until = Date.now() + this.followMs
     for (;;) {
       try {
         // eslint-disable-next-line no-await-in-loop -- Tried in turn.
-        return await this.host.prompt(terminalId, words)
+        return await this.host.prompt(entry, terminalId, words)
       } catch (error) {
         const transient =
-          error instanceof DomainError &&
-          error.code === "CONFLICT" &&
-          (error.reason === "pending" || error.reason === "ringing" || error.reason === "held")
+          error instanceof DomainError && error.code === "CONFLICT" && error.reason === "pending"
         if (!transient || Date.now() >= until) throw error
         // eslint-disable-next-line no-await-in-loop -- As above.
         await sleep(this.pollMs * 2)
@@ -371,18 +360,29 @@ export class Answers {
     }
   }
 
-  /** Lets go of the window's resizes held after the last key, once they have lapsed. */
-  private settle(terminalId: string, settle: () => void): void {
-    this.settles.get(terminalId)?.()
-    const timer = setTimeout(() => {
-      this.settles.delete(terminalId)
-      settle()
-    }, this.settleMs)
-    timer.unref()
-    this.settles.set(terminalId, () => {
-      clearTimeout(timer)
-      settle()
-    })
+  /**
+   * Lets go of the window's resizes held after the last key, once they have lapsed: the
+   * next entry of the terminal takes the hold over with them before that.
+   */
+  private settleLater(hold: InputHold): void {
+    hold.settleAfter(this.settleMs)
+  }
+
+  /**
+   * Waits for the turn that put the dialog up to have run for `settleMs`: a dialog drawn
+   * as the turn starts is still in flux (the agent registers its parallel calls, and
+   * identical ones fold into one request), and a key pressed then may be taken without the
+   * screen or the hooks ever showing it. An answer after the prompt that began the turn
+   * used to wait for that prompt's lingering resize hold, which lapsed on this time; the
+   * queue hands the hold over at once, so the wait is made here. The turn's later
+   * dialogs, and answers after answers, wait for nothing.
+   */
+  private async turnSettled(terminalId: string): Promise<void> {
+    const began = this.host.turnStartedAt(terminalId)
+    if (began === undefined) return
+    // Bounded by the settle time: a clock that stepped must not hold an answer longer.
+    const wait = Math.min(began + this.settleMs - Date.now(), this.settleMs)
+    if (wait > 0) await sleep(wait)
   }
 
   /** Waits for the ring under way, if any, to end; a ring that outlasts it is a conflict. */
@@ -390,33 +390,13 @@ export class Answers {
     const until = Date.now() + this.ringMs
     while (this.host.ringing(terminalId) !== undefined) {
       if (Date.now() >= until)
-        throw new DomainError("CONFLICT", "A message's doorbell is ringing the agent.")
-      // eslint-disable-next-line no-await-in-loop -- The ring is looked at in turn.
-      await sleep(this.pollMs)
-    }
-  }
-
-  /**
-   * The person's input held for as long as the steps may take at most. A hold in force is
-   * another's, waited out as a ring is.
-   */
-  private async held(terminalId: string): Promise<ReturnType<AnswerHost["hold"]>> {
-    const until = Date.now() + this.ringMs
-    for (;;) {
-      // Past the input's own cap, as an answer's hold needs, the resizes stay held too.
-      const hold = this.host.hold(terminalId, {
-        inputMs: this.holdMs,
-        sizeMs: this.holdMs + 10_000,
-      })
-      if (hold.holding()) return hold
-      if (Date.now() >= until)
         throw new DomainError(
           "CONFLICT",
-          "Another prompt or message holds the agent's input.",
+          "A message's doorbell is ringing the agent.",
           undefined,
-          "held",
+          "ringing",
         )
-      // eslint-disable-next-line no-await-in-loop -- The hold is tried in turn.
+      // eslint-disable-next-line no-await-in-loop -- The ring is looked at in turn.
       await sleep(this.pollMs)
     }
   }
@@ -484,7 +464,7 @@ export class Answers {
   /**
    * Runs the steps. The dialog was read and matched once, before the first press; between
    * moves the adapter's own `until` steps wait for the screen to show what the next needs,
-   * and the answer ends with its `answered` check. Before each press the request must
+   * one after each `type` step among them, and the answer ends with its `answered` check. Before each press the request must
    * still wait on the person. Keys already pressed stay pressed when one fails.
    */
   private async run(
@@ -493,6 +473,10 @@ export class Answers {
     steps: readonly KeyStep[],
     check: { readonly adapter: DialogAdapter; readonly facts: RequestFacts; readonly id: string },
   ): Promise<void> {
+    // Words typed into a field are checked by the adapter's own `until` right after, which
+    // knows where its field shows them; an answer that would type unchecked presses nothing.
+    if (steps.some((step, at) => "type" in step && !(steps[at + 1] && "until" in steps[at + 1]!)))
+      throw new Error("The adapter types words without a check that they showed.")
     let pressed = false
     for (const step of steps) {
       if ("until" in step) {
@@ -517,9 +501,6 @@ export class Answers {
       if (!this.host.type(terminalId, text))
         throw new Failed("The terminal went away before the keys were pressed.", pressed)
       pressed = true
-      if ("type" in step)
-        // eslint-disable-next-line no-await-in-loop -- As above.
-        await this.shownTyped(terminalId, step.type, screen)
     }
   }
 
@@ -549,31 +530,6 @@ export class Answers {
       // eslint-disable-next-line no-await-in-loop -- As above.
       await sleep(this.pollMs)
     }
-  }
-
-  /**
-   * Waits for typed text to show, or its start, once more than before. Text a TUI may
-   * collapse into a placeholder (several lines, or long) shows as the screen changing and
-   * holding still on two reads instead.
-   */
-  private async shownTyped(terminalId: string, typed: string, before: ScreenText): Promise<void> {
-    const shown = before.rows.join("\n")
-    const start = typed.replace(/\s+/g, " ").trim().slice(0, 30)
-    const had = findLine(before.rows, start).length
-    const placeholder = collapsible(typed)
-    const until = Date.now() + this.typedMs
-    let last: string | undefined
-    while (Date.now() < until) {
-      // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
-      await sleep(this.pollMs)
-      // eslint-disable-next-line no-await-in-loop -- As above.
-      const screen = await this.screen(terminalId, true)
-      const now = screen.rows.join("\n")
-      if (placeholder ? now !== shown && now === last : findLine(screen.rows, start).length > had)
-        return
-      last = now
-    }
-    throw new Failed("The typed text never showed in the dialog.", true)
   }
 
   /**

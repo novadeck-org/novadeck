@@ -1,13 +1,13 @@
-import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../test.js"
+import { loadProbe } from "../testing/probes.js"
 
 // Sanitized payloads captured from real harness runs; docs/harness-coverage.md rests on
 // what they show, so these checks keep the two in step.
 type Payload = { readonly [key: string]: unknown }
 const fixture = <T>(harness: string, name: string): T =>
-  JSON.parse(readFileSync(join(import.meta.dirname, harness, "fixtures", name), "utf8")) as T
+  loadProbe(join(import.meta.dirname, harness), name) as T
 
 const claude = fixture<{
   hookEnvironment: string[]

@@ -5,15 +5,16 @@ import { join } from "node:path"
 
 import type { Report } from "../../shell/reports.js"
 import { describe, expect, it as base } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import { apply as applyActivity, started, summary } from "../activity.js"
 import type { ActivityEvent } from "../events.js"
 import type { Install } from "../harness.js"
 import { decode, shown } from "./decode.js"
 import { statusLineCommand, statusLineSettings } from "./settings.js"
 
-const { payloads } = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "statusline.probe.json"), "utf8"),
-) as { payloads: Report["payload"][] }
+const { payloads } = loadProbe(import.meta.dirname, "statusline.probe.json") as {
+  payloads: Report["payload"][]
+}
 const report = (payload: Report["payload"], seq = 5): Report => ({
   terminalId: "t",
   token: "0".repeat(48),
@@ -129,9 +130,9 @@ describe("Antigravity's status line, as captured", () => {
   })
 
   it("says whether the agent plans, by the mode it names only when not the default", () => {
-    const { cycleMode } = JSON.parse(
-      readFileSync(join(import.meta.dirname, "fixtures", "modes.probe.json"), "utf8"),
-    ) as { cycleMode: Record<string, string | null> }
+    const { cycleMode } = loadProbe(import.meta.dirname, "modes.probe.json") as {
+      cycleMode: Record<string, string | null>
+    }
     const conversation = payloads.at(-1)!.conversation_id
     const planning = (mode: string | null) =>
       decode(

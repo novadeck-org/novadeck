@@ -204,3 +204,83 @@ export class WordsLost extends Error {
     this.name = "WordsLost"
   }
 }
+
+// Why the agent couldn't take what was typed into its terminal for the person, as the
+// backend says: a request waits on the person (`pending`), another agent's message is
+// reaching it (`ringing`), its input box holds text already (`draft`), is in its shell mode
+// (`shell`) or isn't found on its screen (`no-box`), no agent is running there (`no-agent`),
+// the text has no room in the box on this screen (`too-tall`), or the screen takes no pasted
+// text yet (`no-paste`).
+export type ConflictReason =
+  | "pending"
+  | "ringing"
+  | "draft"
+  | "no-agent"
+  | "no-box"
+  | "too-tall"
+  | "shell"
+  | "no-paste"
+
+// What the person did that the agent couldn't take: sent a message, pressed Stop, or picked
+// an option of a request.
+export type ChatAction = "send" | "stop" | "answer"
+
+// A failure the person settles in the agent's terminal, which the chat offers to show.
+export class SettleInTerminal extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "SettleInTerminal"
+  }
+}
+
+// Stop took the turn's Escape, but the words queued behind it are still in the agent's box.
+export const notCleared = (): SettleInTerminal =>
+  new SettleInTerminal(
+    "Stopped. Your queued message is still in the agent's box: clear it in the terminal.",
+  )
+
+// What the person is told when the agent couldn't take what the chat typed for them, by
+// why and by what they did: what clears by itself says to try that again, and what the
+// person settles in the terminal says so and offers it. Without a reason the backend gave,
+// the terminal is where to look.
+export const conflictFailure = (reason: ConflictReason | undefined, action: ChatAction): Error => {
+  const again = { send: "send again", stop: "stop it again", answer: "answer again" }[action]
+  const retry = { send: "Send again", stop: "Stop it again", answer: "Try the answer again" }[
+    action
+  ]
+  switch (reason) {
+    case "pending":
+      // A request's dialog takes a message's or a Stop's keys as its answer.
+      return new Error(
+        action === "stop"
+          ? "The agent is waiting for your answer. Answer it first, then stop it."
+          : "The agent is waiting for your answer. Answer it here, then send again.",
+      )
+    case "ringing":
+      return new Error(`Another agent's message is reaching it right now. ${retry} in a moment.`)
+    case "no-paste":
+      return new Error(
+        `The agent isn't ready for ${action === "send" ? "a message" : "that"} yet. ${retry} in a moment.`,
+      )
+    case "draft":
+      return new SettleInTerminal(
+        `The agent's input box already holds text. Clear it in the terminal, then ${again}.`,
+      )
+    case "shell":
+      return new SettleInTerminal(
+        `The agent's input box is in shell mode. Leave it in the terminal, then ${again}.`,
+      )
+    case "too-tall":
+      return new SettleInTerminal(
+        "This is too long for the agent's input box on this screen. Make the terminal larger or the message shorter.",
+      )
+    case "no-agent":
+      return new SettleInTerminal("No agent is running in this terminal.")
+    case "no-box":
+      return new SettleInTerminal(
+        "Novadeck can't find the agent's input box on its screen. Check the terminal.",
+      )
+    default:
+      return new SettleInTerminal("The agent can't take that right now. Check its terminal.")
+  }
+}

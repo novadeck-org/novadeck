@@ -59,7 +59,7 @@ export type KeyStep =
  * once the screen has settled, refuses it where it reads for more than one pending
  * request, and checks the fingerprint the answer names on the screen read and again on the
  * one right before the first key, never after: later steps rely on the adapter's own `until`
- * waits. After a `type` step it waits for the typed text to show before going on.
+ * waits, which must follow each `type` step to check its words showed.
  */
 export type DialogRead = {
   readonly dialog: ReadDialog

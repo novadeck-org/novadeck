@@ -1,13 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import { transcripts } from "./transcripts.js"
 
-const { records } = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "rollout.probe.json"), "utf8"),
-) as { records: object[] }
+const { records } = loadProbe(import.meta.dirname, "rollout.probe.json") as { records: object[] }
 const items = (lines: readonly object[]) =>
   lines.flatMap((line) => transcripts.items(JSON.stringify(line)))
 const item = (payload: object) => ({
@@ -26,9 +25,9 @@ describe("Codex's rollout, as captured", () => {
   })
 })
 
-const shell = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "shell.probe.json"), "utf8"),
-) as { scenarios: { [name: string]: object[] } }
+const shell = loadProbe(import.meta.dirname, "shell.probe.json") as {
+  scenarios: { [name: string]: object[] }
+}
 
 describe("Codex's shell-mode commands, as captured", () => {
   const ran = (name: string) => items(shell.scenarios[name]!)

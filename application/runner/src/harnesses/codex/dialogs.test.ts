@@ -1,10 +1,9 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-
 import type { RequestAnswer } from "@novadeck/protocol"
 
 import type { Report } from "../../shell/reports.js"
+import type { ScreenText } from "../../terminals/screen.js"
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import type { RequestFacts } from "../dialogs.js"
 import type { HarnessEvent } from "../events.js"
 import { harnesses } from "../registry.js"
@@ -12,19 +11,18 @@ import { dialogs } from "./dialogs.js"
 
 type Hook = { readonly event: string; readonly payload: Report["payload"] }
 type Scenario = {
-  readonly screens?: Record<"wide" | "narrow", string[]>
-  readonly screen?: string[]
+  readonly screens?: Record<"wide" | "narrow", ScreenText>
+  readonly screen?: ScreenText
   readonly hooksAll?: {
     readonly kind: string
     readonly event?: string
     readonly payload?: Report["payload"]
   }[]
-  readonly pressed?: { readonly screen: string[] }[]
-  readonly screenAfterEsc?: string[]
+  readonly pressed?: { readonly screen: ScreenText }[]
+  readonly screenAfterEsc?: ScreenText
 }
 type Probe = { scenarios: Record<string, Scenario> }
-const load = (file: string) =>
-  JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", file), "utf8")) as Probe
+const load = (file: string) => loadProbe(import.meta.dirname, file) as Probe
 // The pin's screens, and those of the newest release probed (0.160.1).
 const probe = load("ask.probe.json")
 const newer = load("ask.probe.0.160.1.json")
@@ -56,8 +54,9 @@ const factsOf = (name: string, at = 0, source = probe): RequestFacts => {
   if (event.type !== "attention-requested") throw new Error("no request")
   return { kind: event.kind, tool: event.toolName, input: event.input, cwd: null }
 }
-const screen = (name: string, size: "wide" | "narrow" = "wide", source = probe): string[] =>
-  source.scenarios[name]!.screens![size]
+const screen = (name: string, size: "wide" | "narrow" = "wide", source = probe): string[] => [
+  ...source.scenarios[name]!.screens![size].rows,
+]
 const sizes = ["wide", "narrow"] as const
 
 const read = (rows: readonly string[], facts: RequestFacts) => dialogs.read(rows, facts)
@@ -147,18 +146,18 @@ describe("Codex's exec approval", () => {
     const found = read(screen("exec-approve"), facts)!
     expect(found.answered(screen("exec-approve"))).toBe(false)
     expect(found.answered(screen("exec-approve", "narrow"))).toBe(false)
-    expect(found.answered(probe.scenarios["exec-approve"]!.pressed![0]!.screen)).toBe(true)
+    expect(found.answered(probe.scenarios["exec-approve"]!.pressed![0]!.screen.rows)).toBe(true)
     const queued = screen("exec-two-queued")
     const second = read(queued, factsOf("exec-two-queued", 1))
     const first = read(queued, factsOf("exec-two-queued", 0))
     const shown = second ?? first!
-    expect(shown.answered(probe.scenarios["exec-two-queued"]!.pressed![0]!.screen)).toBe(true)
+    expect(shown.answered(probe.scenarios["exec-two-queued"]!.pressed![0]!.screen.rows)).toBe(true)
   })
 
   it("is no dialog on a screen without one", () => {
     const facts = factsOf("exec-approve")
     expect(read([], facts)).toBeUndefined()
-    expect(read(probe.scenarios["y-with-no-dialog"]!.screen!, facts)).toBeUndefined()
+    expect(read(probe.scenarios["y-with-no-dialog"]!.screen!.rows, facts)).toBeUndefined()
   })
 })
 
@@ -261,7 +260,7 @@ describe("Codex's apply_patch approval", () => {
       expect(found.keys(choice("1"))).toEqual([{ press: "y" }])
       expect(found.keys(choice("2"))).toEqual([{ press: "a" }])
       expect(found.keys(choice("3", "no"))).toEqual([{ press: "\x1b" }])
-      expect(found.answered(probe.scenarios["patch-approve"]!.pressed![0]!.screen)).toBe(true)
+      expect(found.answered(probe.scenarios["patch-approve"]!.pressed![0]!.screen.rows)).toBe(true)
     }
   })
 
@@ -306,7 +305,9 @@ describe("Codex's request_permissions", () => {
         [{ press: "a" }],
         [{ press: "d" }],
       ])
-      expect(found.answered(probe.scenarios["request-permissions"]!.pressed![0]!.screen)).toBe(true)
+      expect(found.answered(probe.scenarios["request-permissions"]!.pressed![0]!.screen.rows)).toBe(
+        true,
+      )
     }
   })
 
@@ -336,7 +337,9 @@ describe("Codex's MCP tool approval", () => {
       })
       expect(found.keys(choice("1"))).toEqual([{ press: "1" }])
       expect(found.keys(choice("2"))).toEqual([{ press: "2" }])
-      expect(found.answered(probe.scenarios["mcp-tool-approval"]!.pressed![0]!.screen)).toBe(true)
+      expect(found.answered(probe.scenarios["mcp-tool-approval"]!.pressed![0]!.screen.rows)).toBe(
+        true,
+      )
     }
   })
 
@@ -474,7 +477,7 @@ describe("Codex's request_user_input", () => {
     const found = read(rows, facts)!
     expect(found.answered(rows)).toBe(false)
     expect(found.answered(screen("rui-default-on", "narrow"))).toBe(false)
-    expect(found.answered(probe.scenarios["rui-default-on"]!.pressed![0]!.screen)).toBe(true)
+    expect(found.answered(probe.scenarios["rui-default-on"]!.pressed![0]!.screen.rows)).toBe(true)
   })
 
   it("walks several questions, waiting for each", () => {
@@ -623,7 +626,9 @@ describe("Codex's plan prompt", () => {
       expect(found.keys(choice("3", "split it"))).toEqual([{ press: "3" }])
       expect(found.keys(choice("2", "x"))).toBeUndefined()
       expect(found.answered(screen("plan-prompt", size))).toBe(false)
-      expect(found.answered(probe.scenarios["plan-prompt-digit-3"]!.pressed![0]!.screen)).toBe(true)
+      expect(found.answered(probe.scenarios["plan-prompt-digit-3"]!.pressed![0]!.screen.rows)).toBe(
+        true,
+      )
     }
   })
 
@@ -808,7 +813,7 @@ describe("Codex's dialogs, matched strictly to their requests", () => {
 
 describe("Codex's answered, on positive evidence", () => {
   const facts = factsOf("exec-approve")
-  const done = probe.scenarios["exec-approve"]!.pressed![0]!.screen
+  const done = probe.scenarios["exec-approve"]!.pressed![0]!.screen.rows
 
   it("needs the result line or the composer back, not just a screen that no longer reads", () => {
     const found = read(screen("exec-approve"), facts)!
@@ -936,7 +941,7 @@ describe("Codex 0.160.1's dialogs, as probed", () => {
         expect((found!.dialog as { options: unknown[] }).options, name).toHaveLength(options)
         expect(found!.keys(choice("1")), name).toEqual([{ press: first }])
       }
-      const done = newer.scenarios[name]!.pressed![0]!.screen
+      const done = newer.scenarios[name]!.pressed![0]!.screen.rows
       expect(read(screen(name, "wide", newer), facts)!.answered(done), name).toBe(true)
     }
     expect(dialogs.screenRequest!(screen("plan-prompt", "wide", newer))).toBeDefined()
@@ -948,7 +953,7 @@ describe("Codex 0.160.1's dialogs, as probed", () => {
     for (const size of sizes) {
       const found = read(screen("rui-default-on", size, newer), facts)!
       expect(found.keys(answer(["2"]))).toEqual([{ press: "2" }])
-      expect(found.answered(newer.scenarios["rui-default-on"]!.pressed![0]!.screen)).toBe(true)
+      expect(found.answered(newer.scenarios["rui-default-on"]!.pressed![0]!.screen.rows)).toBe(true)
     }
   })
 
@@ -963,7 +968,7 @@ describe("Codex's request_user_input, set aside to talk it over", () => {
   const facts = factsOf("rui-default-on")
   const rows = screen("rui-default-on")
   const chat: RequestAnswer = { type: "chat", dialog: "d", text: "Let me clarify" }
-  const after = probe.scenarios["rui-esc-then-prompt"]!.screenAfterEsc as string[]
+  const after = [...probe.scenarios["rui-esc-then-prompt"]!.screenAfterEsc!.rows]
 
   it("is offered with its words as a prompt, at both sizes", () => {
     for (const size of sizes) {

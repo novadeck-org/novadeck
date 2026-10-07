@@ -34,7 +34,7 @@ const apiError = (error: unknown): unknown =>
     ? new ORPCError(error.code, {
         status: contractErrors[error.code].status,
         message: error.message,
-        data: error.data,
+        data: error.data ?? (error.reason ? { reason: error.reason } : undefined),
       })
     : error
 

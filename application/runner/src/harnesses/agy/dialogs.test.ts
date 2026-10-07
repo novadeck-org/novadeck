@@ -1,28 +1,25 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-
 import type { RequestAnswer } from "@novadeck/protocol"
 
+import type { ScreenText } from "../../terminals/screen.js"
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import type { DialogRead, KeyStep, RequestFacts } from "../dialogs.js"
 import { dialogs } from "./dialogs.js"
 
-type Screens = { [name: string]: string[] }
-const { scenarios } = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "ask.probe.json"), "utf8"),
-) as {
+type Screens = { [name: string]: ScreenText }
+const { scenarios } = loadProbe(import.meta.dirname, "ask.probe.json") as {
   scenarios: {
     command: { pending: Screens }
-    twin: { first: string[]; second: string[] }
+    twin: { first: ScreenText; second: ScreenText }
     write_to_file: { pending: Screens }
     ask_question: {
       pending: Screens
       multiSelect: Screens
       twoQuestions: Screens
-      writeIn: string[]
+      writeIn: ScreenText
     }
     plan_feedback: { afterWrite: Screens; review: Screens }
-    answered: { [name: string]: string[] }
+    answered: { [name: string]: ScreenText }
   }
 }
 const { command, write_to_file: write, ask_question: ask, plan_feedback: plan } = scenarios
@@ -87,7 +84,7 @@ const choice = (option: string, text?: string) =>
 
 describe("Antigravity's command confirmation", () => {
   it("is read from the screen at both sizes, its options as shown, a digit answering at once", () => {
-    for (const screen of [command.pending.screen120!, command.pending.screen60!]) {
+    for (const screen of [command.pending.screen120!.rows, command.pending.screen60!.rows]) {
       const found = read(screen, permission(run("echo approved")))
       expect(found.dialog).toMatchObject({
         type: "choices",
@@ -113,7 +110,7 @@ describe("Antigravity's command confirmation", () => {
   })
 
   it("joins an option wrapped on a narrow screen", () => {
-    const found = read(command.pending.screen60!, permission(run("echo approved")))
+    const found = read(command.pending.screen60!.rows, permission(run("echo approved")))
     expect(found.dialog).toMatchObject({
       options: [
         {},
@@ -128,35 +125,35 @@ describe("Antigravity's command confirmation", () => {
   })
 
   it("is answered once its dialog is gone, and not while it, or the same call's, shows", () => {
-    const found = read(command.pending.screen120!, permission(run("echo approved")))
-    expect(found.answered(command.pending.screen120!)).toBe(false)
-    expect(found.answered(command.pending.screen60!)).toBe(false)
-    expect(found.answered(gone.ask!)).toBe(true)
+    const found = read(command.pending.screen120!.rows, permission(run("echo approved")))
+    expect(found.answered(command.pending.screen120!.rows)).toBe(false)
+    expect(found.answered(command.pending.screen60!.rows)).toBe(false)
+    expect(found.answered(gone.ask!.rows)).toBe(true)
     // Parallel calls show their dialogs one at a time: the next is another command's.
     expect(
-      found.answered(same(command.pending.screen120!, "   echo approved", "   echo another")),
+      found.answered(same(command.pending.screen120!.rows, "   echo approved", "   echo another")),
     ).toBe(true)
   })
 
   it("tells the next of two identical queued commands by how the tool lines moved on", () => {
     const { twin } = scenarios
     const latest = (
-      JSON.parse(
-        readFileSync(join(import.meta.dirname, "fixtures", "ask.probe.1.3.0.json"), "utf8"),
-      ) as { screens: { [name: string]: string[] } }
+      loadProbe(import.meta.dirname, "ask.probe.1.3.0.json") as {
+        screens: { [name: string]: ScreenText }
+      }
     ).screens
     const twins = permission(run("echo same"))
     // 1.2.14 marks the queued call ○ until it is its turn; 1.3.0 folds the ran into a count.
     for (const [first, second] of [
-      [twin.first, twin.second],
-      [latest.twinFirst!, latest.twinSecond!],
+      [twin.first.rows, twin.second.rows],
+      [latest.twinFirst!.rows, latest.twinSecond!.rows],
     ]) {
       const found = read(first!, twins)
       expect(found.answered(first!)).toBe(false)
       expect(found.answered(second!)).toBe(true)
     }
     // A redraw of the lines above it, a hint toggled, is no progress.
-    const pending = command.pending.screen120!
+    const pending = command.pending.screen120!.rows
     const found = read(pending, permission(run("echo approved")))
     const toggled = same(
       pending,
@@ -165,21 +162,21 @@ describe("Antigravity's command confirmation", () => {
     )
     expect(found.answered(toggled)).toBe(false)
     expect(found.answered(same(pending, "> Run it", "> Run it again"))).toBe(false)
-    const queued = read(twin.first!, twins)
-    expect(queued.answered(same(twin.first!, /^● Bash\(echo same\)$/, "● Bash(echo same) !"))).toBe(
-      false,
-    )
-    const folded = read(latest.twinFirst!, twins)
+    const queued = read(twin.first!.rows, twins)
     expect(
-      folded.answered(same(latest.twinFirst!, /^● Ran \(echo same\)$/, "● Ran (echo same) ·")),
+      queued.answered(same(twin.first!.rows, /^● Bash\(echo same\)$/, "● Bash(echo same) !")),
+    ).toBe(false)
+    const folded = read(latest.twinFirst!.rows, twins)
+    expect(
+      folded.answered(same(latest.twinFirst!.rows, /^● Ran \(echo same\)$/, "● Ran (echo same) ·")),
     ).toBe(false)
     // Not at 60 columns, where the lines scrolled off: nothing tells them apart.
-    const narrow = read(command.pending.screen60!, permission(run("echo approved")))
-    expect(narrow.answered(command.pending.screen60!)).toBe(false)
+    const narrow = read(command.pending.screen60!.rows, permission(run("echo approved")))
+    expect(narrow.answered(command.pending.screen60!.rows)).toBe(false)
   })
 
   it("agrees with the command of the call it was asked of, or is none", () => {
-    const screen = command.pending.screen120!
+    const screen = command.pending.screen120!.rows
     expect(dialogs.read(screen, permission(run("rm -rf /")))).toBeUndefined()
     expect(dialogs.read(screen, permission(run("echo approved && true")))).toBeUndefined()
     expect(dialogs.read(screen, permission(undefined))).toBeUndefined()
@@ -206,18 +203,18 @@ describe("Antigravity's command confirmation", () => {
 
   it("reads a command cut short with ... as none, whatever its start", () => {
     const request = permission(run("echo approved"))
-    const cut = same(command.pending.screen120!, "   echo approved", "   echo appr...")
+    const cut = same(command.pending.screen120!.rows, "   echo approved", "   echo appr...")
     expect(dialogs.read(cut, request)).toBeUndefined()
     expect(dialogs.read(cut, permission(run("echo approved and more")))).toBeUndefined()
-    const bare = same(command.pending.screen120!, "   echo approved", "   ...")
+    const bare = same(command.pending.screen120!.rows, "   echo approved", "   ...")
     expect(dialogs.read(bare, request)).toBeUndefined()
-    const short = same(command.pending.screen120!, "   echo approved", "   echo appr")
+    const short = same(command.pending.screen120!.rows, "   echo approved", "   echo appr")
     expect(dialogs.read(short, request)).toBeUndefined()
   })
 
   it("is none once the screen is broken", () => {
     const request = permission(run("echo approved"))
-    for (const screen of [command.pending.screen120!, command.pending.screen60!]) {
+    for (const screen of [command.pending.screen120!.rows, command.pending.screen60!.rows]) {
       const breaks = [
         // The question, its footer, the command's heading.
         without(screen, /^Run this command\?$/),
@@ -237,12 +234,12 @@ describe("Antigravity's command confirmation", () => {
       ]
       for (const broken of breaks) expect(dialogs.read(broken, request)).toBeUndefined()
     }
-    expect(dialogs.read(gone.ask!, request)).toBeUndefined()
+    expect(dialogs.read(gone.ask!.rows, request)).toBeUndefined()
   })
 
   it("is none for a request of another kind", () => {
     expect(
-      dialogs.read(command.pending.screen120!, {
+      dialogs.read(command.pending.screen120!.rows, {
         ...permission(run("echo approved")),
         kind: "plan",
       }),
@@ -254,7 +251,7 @@ describe("Antigravity's file confirmation", () => {
   const target = { name: "write_to_file", args: { TargetFile: "/tmp/sandbox/project/probe.txt" } }
 
   it("is read by its wording, its options as shown", () => {
-    const found = read(write.pending.screen120!, permission(target))
+    const found = read(write.pending.screen120!.rows, permission(target))
     expect(found.dialog).toEqual({
       type: "choices",
       title: "Allow creation of this file?",
@@ -265,19 +262,19 @@ describe("Antigravity's file confirmation", () => {
       ],
     })
     expect(sent(found.keys(choice("2")))).toEqual(["2"])
-    expect(found.answered(write.pending.screen120!)).toBe(false)
-    expect(found.answered(gone.ask!)).toBe(true)
+    expect(found.answered(write.pending.screen120!.rows)).toBe(false)
+    expect(found.answered(gone.ask!.rows)).toBe(true)
   })
 
   it("shows the whole of what it asks, never a cut of it", () => {
     const long = `echo ${"x".repeat(1500)}`
-    const screen = same(command.pending.screen120!, "   echo approved", `   ${long}`)
+    const screen = same(command.pending.screen120!.rows, "   echo approved", `   ${long}`)
     const found = read(screen, permission(run(long)))
     expect(found.dialog).toMatchObject({ detail: long })
   })
 
   it("agrees with the file of the call, or is none", () => {
-    const screen = write.pending.screen120!
+    const screen = write.pending.screen120!.rows
     const other = { name: "write_to_file", args: { TargetFile: "/tmp/sandbox/project/other.txt" } }
     expect(dialogs.read(screen, permission(other))).toBeUndefined()
     expect(dialogs.read(screen, permission({ name: "write_to_file", args: {} }))).toBeUndefined()
@@ -314,7 +311,7 @@ describe("Antigravity's file confirmation", () => {
 
 describe("Antigravity's ask_question", () => {
   it("is read at both sizes: one single-select, its Write-in a field", () => {
-    for (const screen of [ask.pending.screen120!, ask.pending.screen60!]) {
+    for (const screen of [ask.pending.screen120!.rows, ask.pending.screen60!.rows]) {
       const found = read(screen, question(colour))
       expect(found.dialog).toEqual({
         type: "questions",
@@ -338,7 +335,7 @@ describe("Antigravity's ask_question", () => {
   })
 
   it("sets the question aside to talk it over: its words, prefixed, through Write-in", () => {
-    const found = read(ask.pending.screen120!, question(colour))
+    const found = read(ask.pending.screen120!.rows, question(colour))
     const steps = found.keys(chat("is Red accessible?"))
     expect(sent(steps)).toEqual([
       "\x1b[B",
@@ -349,12 +346,12 @@ describe("Antigravity's ask_question", () => {
       "\r",
     ])
     const [, field, typedIn] = waits(steps)!
-    expect(field!(ask.writeIn)).toBe(true)
-    const typed = ask.writeIn.flatMap((row) =>
+    expect(field!(ask.writeIn.rows)).toBe(true)
+    const typed = ask.writeIn.rows.flatMap((row) =>
       row === "  Your answer:" ? [row, "  Let's discuss this first: is Red accessible?"] : [row],
     )
     expect(typedIn!(typed)).toBe(true)
-    expect(typedIn!(ask.writeIn)).toBe(false)
+    expect(typedIn!(ask.writeIn.rows)).toBe(false)
     // Words are needed, and plain.
     expect(found.keys(chat())).toBeUndefined()
     expect(found.keys(chat("a\nb"))).toBeUndefined()
@@ -365,58 +362,58 @@ describe("Antigravity's ask_question", () => {
       options: ["Small", "Large"],
       is_multi_select: false,
     })
-    const several = read(ask.twoQuestions.q1!, question(two))
+    const several = read(ask.twoQuestions.q1!.rows, question(two))
     expect(several.dialog).toMatchObject({ chat: null })
     expect(several.keys(chat("hm"))).toBeUndefined()
     const multi = read(
-      ask.multiSelect.screen!,
+      ask.multiSelect.screen!.rows,
       question(asking(colours(["Red", "Green", "Blue"], true))),
     )
     expect(multi.dialog).toMatchObject({ chat: null })
     expect(multi.keys(chat("hm"))).toBeUndefined()
     // Nor from a state that isn't the start.
-    const moved = ask.pending.screen120!.map((row) =>
+    const moved = ask.pending.screen120!.rows.map((row) =>
       row.replace(/^> 1\. /, "  1. ").replace(/^ {2}2\. /, "> 2. "),
     )
     expect(read(moved, question(colour)).keys(chat("hm"))).toBeUndefined()
   })
 
   it("picks an option with Down and Enter, waiting for the highlight to land", () => {
-    const found = read(ask.pending.screen120!, question(colour))
+    const found = read(ask.pending.screen120!.rows, question(colour))
     const first = found.keys(questions({ question: "1", options: ["1"] }))
     expect(sent(first)).toEqual(["\r"])
     const third = found.keys(questions({ question: "1", options: ["3"] }))
     expect(sent(third)).toEqual(["\x1b[B", "\x1b[B", "\r"])
     // It waits for the third row to be marked, and for nothing else.
     const [until] = waits(third)!
-    expect(until!(ask.pending.screen120!)).toBe(false)
-    const moved = ask.pending.screen120!.map((row) =>
+    expect(until!(ask.pending.screen120!.rows)).toBe(false)
+    const moved = ask.pending.screen120!.rows.map((row) =>
       row.replace(/^> 1\. /, "  1. ").replace(/^ {2}3\. /, "> 3. "),
     )
     expect(until!(moved)).toBe(true)
-    expect(until!(ask.writeIn)).toBe(false)
+    expect(until!(ask.writeIn.rows)).toBe(false)
   })
 
   it("types its own words into Write-in: Down to it, Enter, wait for the field, type, Enter", () => {
-    const found = read(ask.pending.screen120!, question(colour))
+    const found = read(ask.pending.screen120!.rows, question(colour))
     const steps = found.keys(questions({ question: "1", options: [], text: "Purple" }))
     expect(sent(steps)).toEqual(["\x1b[B", "\x1b[B", "\x1b[B", "\r", '"Purple"', "\r"])
     const [lands, field] = waits(steps)!
-    const fourth = ask.pending.screen120!.map((row) =>
+    const fourth = ask.pending.screen120!.rows.map((row) =>
       row.replace(/^> 1\. /, "  1. ").replace(/^ {2}4\. /, "> 4. "),
     )
     expect(lands!(fourth)).toBe(true)
     // Enter only follows its words showing in the field's own row.
     const [, , typedIn] = waits(steps)!
-    const typed = ask.writeIn
+    const typed = ask.writeIn.rows
       .map((row) => (row === "  Your answer:" ? "  Your answer:\n  Purple" : row))
       .flatMap((row) => row.split("\n"))
-    expect(typedIn!(ask.writeIn)).toBe(false)
+    expect(typedIn!(ask.writeIn.rows)).toBe(false)
     expect(typedIn!(typed)).toBe(true)
-    expect(typedIn!([...ask.writeIn, "Purple"])).toBe(false)
-    expect(lands!(ask.pending.screen120!)).toBe(false)
-    expect(field!(ask.writeIn)).toBe(true)
-    expect(field!(ask.pending.screen120!)).toBe(false)
+    expect(typedIn!([...ask.writeIn.rows, "Purple"])).toBe(false)
+    expect(lands!(ask.pending.screen120!.rows)).toBe(false)
+    expect(field!(ask.writeIn.rows)).toBe(true)
+    expect(field!(ask.pending.screen120!.rows)).toBe(false)
     // Options and words together, or words with a line break, are not an answer.
     expect(found.keys(questions({ question: "1", options: ["1"], text: "x" }))).toBeUndefined()
     expect(found.keys(questions({ question: "1", options: [], text: "a\nb" }))).toBeUndefined()
@@ -424,21 +421,23 @@ describe("Antigravity's ask_question", () => {
   })
 
   it("reads each state the keys pass through as the same dialog, with no keys of its own", () => {
-    const found = read(ask.pending.screen120!, question(colour))
-    const moved = ask.pending.screen120!.map((row) =>
+    const found = read(ask.pending.screen120!.rows, question(colour))
+    const moved = ask.pending.screen120!.rows.map((row) =>
       row.replace(/^> 1\. /, "  1. ").replace(/^ {2}2\. /, "> 2. "),
     )
-    for (const state of [moved, ask.writeIn]) {
+    for (const state of [moved, ask.writeIn.rows]) {
       const now = read(state, question(colour))
       expect(now.dialog).toEqual(found.dialog)
       expect(now.keys(questions({ question: "1", options: ["1"] }))).toBeUndefined()
     }
     // A write-in field with its keys gone, or a footer of none, is not read.
-    expect(dialogs.read(without(ask.writeIn, /enter Submit/), question(colour))).toBeUndefined()
+    expect(
+      dialogs.read(without(ask.writeIn.rows, /enter Submit/), question(colour)),
+    ).toBeUndefined()
   })
 
   it("refuses answers that don't fit its questions", () => {
-    const found = read(ask.pending.screen120!, question(colour))
+    const found = read(ask.pending.screen120!.rows, question(colour))
     expect(found.keys(questions({ question: "1", options: ["4"] }))).toBeUndefined()
     expect(found.keys(questions({ question: "1", options: ["1", "2"] }))).toBeUndefined()
     expect(found.keys(questions({ question: "2", options: ["1"] }))).toBeUndefined()
@@ -450,7 +449,7 @@ describe("Antigravity's ask_question", () => {
 
   it("toggles a multi-select's options by digit, each seen checked, then submits", () => {
     const request = question(asking(colours(["Red", "Green", "Blue"], true)))
-    const found = read(ask.multiSelect.screen!, request)
+    const found = read(ask.multiSelect.screen!.rows, request)
     expect(found.dialog).toMatchObject({
       questions: [{ multiSelect: true, text: false, options: [{ label: "Red" }, {}, {}] }],
     })
@@ -458,8 +457,8 @@ describe("Antigravity's ask_question", () => {
     expect(sent(steps)).toEqual(["1", "3", "\r"])
     const [first, third] = waits(steps)!
     const checked = (number: number) =>
-      ask.multiSelect.screen!.map((row) => row.replace(`${number}. [ ]`, `${number}. [x]`))
-    expect(first!(ask.multiSelect.screen!)).toBe(false)
+      ask.multiSelect.screen!.rows.map((row) => row.replace(`${number}. [ ]`, `${number}. [x]`))
+    expect(first!(ask.multiSelect.screen!.rows)).toBe(false)
     expect(first!(checked(1))).toBe(true)
     expect(third!(checked(1))).toBe(false)
     expect(third!(checked(3))).toBe(true)
@@ -478,7 +477,7 @@ describe("Antigravity's ask_question", () => {
       options: ["Small", "Large"],
       is_multi_select: false,
     })
-    const found = read(ask.twoQuestions.q1!, question(two))
+    const found = read(ask.twoQuestions.q1!.rows, question(two))
     expect(found.dialog).toMatchObject({
       questions: [
         { id: "1", question: "Which colour?", text: false },
@@ -491,25 +490,27 @@ describe("Antigravity's ask_question", () => {
     expect(sent(steps)).toEqual(["\x1b[B", "\r", "\x1b[B", "\r"])
     const [one, next, two2] = waits(steps)!
     // The next question must show with its own text and options, not only its number.
-    const otherText = ask.twoQuestions.q2!.map((row) => row.replace("Which size?", "Which shape?"))
-    const otherOptions = ask.twoQuestions.q2!.map((row) => row.replace("Large", "Huge"))
+    const otherText = ask.twoQuestions.q2!.rows.map((row) =>
+      row.replace("Which size?", "Which shape?"),
+    )
+    const otherOptions = ask.twoQuestions.q2!.rows.map((row) => row.replace("Large", "Huge"))
     expect(next!(otherText)).toBe(false)
     expect(next!(otherOptions)).toBe(false)
     // Nor with the highlight not back on its first option, which the Downs count from.
-    const unmarked = ask.twoQuestions.q2!.map((row) =>
+    const unmarked = ask.twoQuestions.q2!.rows.map((row) =>
       row.replace(/^> 1\. /, "  1. ").replace(/^ {2}2\. /, "> 2. "),
     )
     expect(next!(unmarked)).toBe(false)
     expect(
       one!(
-        ask.twoQuestions.q1!.map((row) =>
+        ask.twoQuestions.q1!.rows.map((row) =>
           row.replace(/^> 1\. /, "  1. ").replace(/^ {2}2\. /, "> 2. "),
         ),
       ),
     ).toBe(true)
-    expect(next!(ask.twoQuestions.q1!)).toBe(false)
-    expect(next!(ask.twoQuestions.q2!)).toBe(true)
-    expect(two2!(ask.twoQuestions.q2!)).toBe(false)
+    expect(next!(ask.twoQuestions.q1!.rows)).toBe(false)
+    expect(next!(ask.twoQuestions.q2!.rows)).toBe(true)
+    expect(two2!(ask.twoQuestions.q2!.rows)).toBe(false)
     // Words, with several questions, are not probed.
     expect(
       found.keys(
@@ -517,7 +518,7 @@ describe("Antigravity's ask_question", () => {
       ),
     ).toBeUndefined()
     // Its second question is the same dialog, but isn't where an answer starts.
-    const later = read(ask.twoQuestions.q2!, question(two))
+    const later = read(ask.twoQuestions.q2!.rows, question(two))
     expect(later.dialog).toEqual(found.dialog)
     expect(
       later.keys(questions({ question: "1", options: ["1"] }, { question: "2", options: ["1"] })),
@@ -525,15 +526,15 @@ describe("Antigravity's ask_question", () => {
   })
 
   it("is answered once no question of it shows, and not while its field is open", () => {
-    const found = read(ask.pending.screen120!, question(colour))
-    expect(found.answered(ask.pending.screen120!)).toBe(false)
-    expect(found.answered(ask.pending.screen60!)).toBe(false)
-    expect(found.answered(ask.writeIn)).toBe(false)
-    for (const screen of [gone.ask!, gone.writeIn!, gone.two!])
+    const found = read(ask.pending.screen120!.rows, question(colour))
+    expect(found.answered(ask.pending.screen120!.rows)).toBe(false)
+    expect(found.answered(ask.pending.screen60!.rows)).toBe(false)
+    expect(found.answered(ask.writeIn.rows)).toBe(false)
+    for (const screen of [gone.ask!.rows, gone.writeIn!.rows, gone.two!.rows])
       expect(found.answered(screen)).toBe(true)
     // The call's other questions are its own dialog, and so is another question.
     const other = same(
-      ask.pending.screen120!,
+      ask.pending.screen120!.rows,
       "Question 1/1: Which colour?",
       "Question 1/1: Which shape?",
     )
@@ -541,7 +542,7 @@ describe("Antigravity's ask_question", () => {
   })
 
   it("agrees with the call's questions and options, or is none", () => {
-    const screen = ask.pending.screen120!
+    const screen = ask.pending.screen120!.rows
     expect(dialogs.read(screen, question(undefined))).toBeUndefined()
     expect(dialogs.read(screen, question(asking(colours(["Red", "Green"]))))).toBeUndefined()
     expect(
@@ -571,7 +572,7 @@ describe("Antigravity's ask_question", () => {
 
   it("is none once the screen is broken", () => {
     const request = question(colour)
-    for (const screen of [ask.pending.screen120!, ask.pending.screen60!]) {
+    for (const screen of [ask.pending.screen120!.rows, ask.pending.screen60!.rows]) {
       const breaks = [
         without(screen, /^Question 1\/1: /),
         same(screen, "Question 1/1: Which colour?", "Question 1/1:"),
@@ -589,14 +590,16 @@ describe("Antigravity's ask_question", () => {
       ]
       for (const broken of breaks) expect(dialogs.read(broken, request)).toBeUndefined()
     }
-    expect(dialogs.read(ask.pending.screen120!, permission(run("echo approved")))).toBeUndefined()
-    expect(dialogs.read(command.pending.screen120!, request)).toBeUndefined()
+    expect(
+      dialogs.read(ask.pending.screen120!.rows, permission(run("echo approved"))),
+    ).toBeUndefined()
+    expect(dialogs.read(command.pending.screen120!.rows, request)).toBeUndefined()
   })
 })
 
 describe("Antigravity's plan review", () => {
   const request: RequestFacts = { kind: "plan", tool: "artifact", cwd: null, input: null }
-  const written = plan.afterWrite.screen120!
+  const written = plan.afterWrite.screen120!.rows
 
   it("is a request the screen alone tells, by its footer over an empty idle prompt", () => {
     expect(dialogs.screenRequest!(written)).toEqual({
@@ -606,13 +609,13 @@ describe("Antigravity's plan review", () => {
       subject: "1 artifact to review",
     })
     // Not while the review itself is listed, as it is no longer the prompt.
-    expect(dialogs.screenRequest!(plan.review.screen120!)).toBeUndefined()
+    expect(dialogs.screenRequest!(plan.review.screen120!.rows)).toBeUndefined()
     for (const none of [
-      gone.planApproved!,
-      gone.planRejected!,
-      gone.ask!,
-      command.pending.screen120!,
-      ask.pending.screen120!,
+      gone.planApproved!.rows,
+      gone.planRejected!.rows,
+      gone.ask!.rows,
+      command.pending.screen120!.rows,
+      ask.pending.screen120!.rows,
       [],
     ])
       expect(dialogs.screenRequest!(none)).toBeUndefined()
@@ -664,9 +667,9 @@ describe("Antigravity's plan review", () => {
     expect(found.keys(choice("feedback"))).toBeUndefined()
     expect(found.keys(choice("feedback", "a\nb"))).toBeUndefined()
     const [listed] = waits(approve)!
-    expect(listed!(plan.review.screen120!)).toBe(true)
+    expect(listed!(plan.review.screen120!.rows)).toBe(true)
     expect(listed!(written)).toBe(false)
-    expect(listed!(without(plan.review.screen120!, /^Action required/))).toBe(false)
+    expect(listed!(without(plan.review.screen120!.rows, /^Action required/))).toBe(false)
     expect(found.keys(choice("approve", "go"))).toBeUndefined()
     expect(found.keys(choice("later"))).toBeUndefined()
     expect(found.keys(questions({ question: "1", options: ["1"] }))).toBeUndefined()
@@ -675,15 +678,15 @@ describe("Antigravity's plan review", () => {
   it("is answered once the review is closed, as the turn it starts shows", () => {
     const found = read(written, request)
     expect(found.answered(written)).toBe(false)
-    expect(found.answered(plan.review.screen120!)).toBe(false)
-    expect(found.answered(gone.planApproved!)).toBe(true)
-    expect(found.answered(gone.planRejected!)).toBe(true)
+    expect(found.answered(plan.review.screen120!.rows)).toBe(false)
+    expect(found.answered(gone.planApproved!.rows)).toBe(true)
+    expect(found.answered(gone.planRejected!.rows)).toBe(true)
   })
 
   it("reads as the same request with /artifact typed or its review listed, with no keys", () => {
     const found = read(written, request)
     const typed = same(written, ">", "> /artifact")
-    for (const state of [typed, plan.review.screen120!]) {
+    for (const state of [typed, plan.review.screen120!.rows]) {
       const now = read(state, request)
       expect(now.dialog).toEqual(found.dialog)
       expect(now.keys(choice("approve"))).toBeUndefined()
@@ -713,23 +716,23 @@ describe("Antigravity's plan review", () => {
 
 describe("Antigravity 1.3.0's dialogs (fixtures/ask.probe.1.3.0.json)", () => {
   const latest = (
-    JSON.parse(
-      readFileSync(join(import.meta.dirname, "fixtures", "ask.probe.1.3.0.json"), "utf8"),
-    ) as { screens: { [name: string]: string[] } }
+    loadProbe(import.meta.dirname, "ask.probe.1.3.0.json") as {
+      screens: { [name: string]: ScreenText }
+    }
   ).screens
 
   it("read as 1.2.14's do: the same options, keys and answered", () => {
-    const found = read(latest.command!, permission(run("echo approved")))
+    const found = read(latest.command!.rows, permission(run("echo approved")))
     expect(found.dialog).toMatchObject({
       detail: "echo approved",
       options: [{}, {}, {}, { id: "4" }],
     })
     expect(sent(found.keys(choice("4")))).toEqual(["4"])
-    expect(found.answered(latest.command!)).toBe(false)
-    expect(found.answered(latest.planApproved!)).toBe(true)
+    expect(found.answered(latest.command!.rows)).toBe(false)
+    expect(found.answered(latest.planApproved!.rows)).toBe(true)
     const file = { name: "write_to_file", args: { TargetFile: "/tmp/sandbox/project/probe.txt" } }
-    expect(read(latest.write!, permission(file)).dialog).toMatchObject({ options: [{}, {}] })
-    const asked = read(latest.ask!, question(colour))
+    expect(read(latest.write!.rows, permission(file)).dialog).toMatchObject({ options: [{}, {}] })
+    const asked = read(latest.ask!.rows, question(colour))
     expect(sent(asked.keys(questions({ question: "1", options: ["2"] })))).toEqual(["\x1b[B", "\r"])
     expect(
       sent(asked.keys(questions({ question: "1", options: [], text: "Purple" }))),
@@ -737,29 +740,29 @@ describe("Antigravity 1.3.0's dialogs (fixtures/ask.probe.1.3.0.json)", () => {
     const typedIn = waits(
       asked.keys(questions({ question: "1", options: [], text: "Purple" })),
     )![2]!
-    expect(typedIn(latest.writeInTyped!)).toBe(true)
-    expect(typedIn(latest.writeIn!)).toBe(false)
-    expect(read(latest.writeIn!, question(colour)).dialog).toEqual(asked.dialog)
+    expect(typedIn(latest.writeInTyped!.rows)).toBe(true)
+    expect(typedIn(latest.writeIn!.rows)).toBe(false)
+    expect(read(latest.writeIn!.rows, question(colour)).dialog).toEqual(asked.dialog)
     expect(
-      read(latest.multi!, question(asking(colours(["Red", "Green", "Blue"], true)))).dialog,
+      read(latest.multi!.rows, question(asking(colours(["Red", "Green", "Blue"], true)))).dialog,
     ).toMatchObject({ questions: [{ multiSelect: true }] })
     const two = asking(colours(["Red", "Green"]), {
       question: "Which size?",
       options: ["Small", "Large"],
       is_multi_select: false,
     })
-    expect(read(latest.q1!, question(two)).dialog).toMatchObject({ questions: [{}, {}] })
-    expect(read(latest.q2!, question(two)).dialog).toMatchObject({ questions: [{}, {}] })
+    expect(read(latest.q1!.rows, question(two)).dialog).toMatchObject({ questions: [{}, {}] })
+    expect(read(latest.q2!.rows, question(two)).dialog).toMatchObject({ questions: [{}, {}] })
   })
 
   it("read the plan review as 1.2.14's", () => {
     const request: RequestFacts = { kind: "plan", tool: "artifact", cwd: null, input: null }
-    expect(dialogs.screenRequest!(latest.planWritten!)).toMatchObject({ kind: "plan" })
-    const found = read(latest.planWritten!, request)
+    expect(dialogs.screenRequest!(latest.planWritten!.rows)).toMatchObject({ kind: "plan" })
+    const found = read(latest.planWritten!.rows, request)
     const [listed] = waits(found.keys(choice("approve")))!
-    expect(listed!(latest.review!)).toBe(true)
-    expect(found.answered(latest.review!)).toBe(false)
-    expect(found.answered(latest.planApproved!)).toBe(true)
-    expect(dialogs.screenRequest!(latest.planApproved!)).toBeUndefined()
+    expect(listed!(latest.review!.rows)).toBe(true)
+    expect(found.answered(latest.review!.rows)).toBe(false)
+    expect(found.answered(latest.planApproved!.rows)).toBe(true)
+    expect(dialogs.screenRequest!(latest.planApproved!.rows)).toBeUndefined()
   })
 })

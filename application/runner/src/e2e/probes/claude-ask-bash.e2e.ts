@@ -25,10 +25,10 @@ describe.skipIf(!supported)("claude ask probe: Bash permission", () => {
     await t.submit("Make the file")
     await t.until(/❯ 1\. Yes/)
     await sleep(500)
-    const big = await snap(t)
+    const big = await snap(t, 120)
     t.resize(60, 20)
     await sleep(800)
-    const small = await snap(t)
+    const small = await snap(t, 60)
     t.resize(120, 40)
     await sleep(800)
     await t.until(/❯ 1\. Yes/)
@@ -38,7 +38,11 @@ describe.skipIf(!supported)("claude ask probe: Bash permission", () => {
     await sleep(500)
     const done = await snap(t)
     capture("bash", { big, small, done, log: probe.log() })
-    console.log(big.join("\n"), "\n=====\n", small.join("\n"))
+    console.log(
+      Object.values(big.rows).join("\n"),
+      "\n=====\n",
+      Object.values(small.rows).join("\n"),
+    )
     console.log(
       probe
         .log()

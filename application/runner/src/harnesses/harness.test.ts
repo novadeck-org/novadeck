@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
+import { loadProbe } from "../testing/probes.js"
 import { replyPreview, sessionStart } from "./harness.js"
 import { harnesses } from "./registry.js"
 
@@ -55,9 +55,7 @@ describe("the start of an agent's reply", () => {
 
 type Probe = { events: { event: string; payload: Report["payload"] }[] }
 const probe = (harness: string): Probe =>
-  JSON.parse(
-    readFileSync(join(import.meta.dirname, harness, "fixtures", "hooks.probe.json"), "utf8"),
-  ) as Probe
+  loadProbe(join(import.meta.dirname, harness), "hooks.probe.json") as Probe
 // A captured hook as the runner receives it.
 const report = (
   agent: AgentName,

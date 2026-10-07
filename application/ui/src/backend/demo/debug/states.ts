@@ -4,6 +4,7 @@ import type { AgentStatus, AgentTurnEnd } from "../../../model/types"
 import type { BackendAction, TerminalKey } from "../../port"
 import { terminalKeyId } from "../../registry"
 import { createDemoAgents } from "./agents"
+import { createDebugChat } from "./chat"
 import { createDemoFolders } from "./folders"
 import { createDemoNotices } from "./notices"
 import {
@@ -184,6 +185,7 @@ export const createDemoStates = (): DemoStates => {
   const { agents, openWelcome, failNext: failAgents } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
   const { pickDirectory, failNext: failPick } = createDemoFolders()
+  const chat = createDebugChat()
   const screens = createStore<ReadonlyMap<string, DemoScreen>>(new Map())
   // Sets what a terminal's screen is doing for a while, then shows its output again.
   const showScreen = (key: TerminalKey, screen: DemoScreen, ms: number): void => {
@@ -357,6 +359,7 @@ export const createDemoStates = (): DemoStates => {
         { label: "Welcome", hint: "Opens the first-run dialog", run: openWelcome },
       ],
     },
+    { title: "Chat", actions: chat.actions },
     {
       title: "Folders",
       actions: [
@@ -374,6 +377,7 @@ export const createDemoStates = (): DemoStates => {
     openWelcome,
     notices,
     pickDirectory,
+    chat: chat.wrap,
     screens,
     restart: (key, dispatch) => dispatch(backToPrompt(key)),
     Notices,

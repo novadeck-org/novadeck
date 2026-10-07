@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import headless from "@xterm/headless"
 
 import { screenText, type ScreenText } from "../terminals/screen.js"
 import { describe, expect, it } from "../test.js"
+import { loadProbe } from "../testing/probes.js"
 import { screen as screenWith } from "../testing/screens.js"
 import { box as agy, shellFooter as agyFooter } from "./agy/box.js"
 import { compact, isEmpty, sameText, wrappedRows, type BoxProfile } from "./box.js"
@@ -13,31 +13,12 @@ import { box as codex, shellFooter as codexFooter } from "./codex/box.js"
 
 // Each harness's input box, read off the screens real runs drew (fixtures/input-box.probe.json,
 // from e2e/probes/input-box.e2e.ts): the pinned version and the latest of 2026-10-07.
-type State = {
-  readonly height: number
-  readonly cursor: { readonly row: number; readonly column: number }
-  readonly rows: { readonly [row: string]: string }
-  readonly bright: { readonly [row: string]: string }
-}
 type Fixture = {
-  readonly versions: { readonly [version: string]: { readonly [name: string]: State } }
+  readonly versions: { readonly [version: string]: { readonly [name: string]: ScreenText } }
 }
 
 const fixture = (harness: string): Fixture =>
-  JSON.parse(
-    readFileSync(join(import.meta.dirname, harness, "fixtures", "input-box.probe.json"), "utf8"),
-  ) as Fixture
-
-const screenOf = ({ height, cursor, rows, bright }: State): ScreenText => {
-  const all = Array.from({ length: height }, (_, row) => rows[row] ?? "")
-  return {
-    rows: all,
-    bright: all.map((row, index) => bright[index] ?? row),
-    cursor,
-    columns: 120,
-    bracketedPaste: true,
-  }
-}
+  loadProbe<Fixture>(join(import.meta.dirname, harness), "input-box.probe.json")
 
 const hold = (...lines: string[]) => lines.join("\n")
 const three = hold("one", "two", "three")
@@ -136,7 +117,7 @@ describe.each(harnesses)("the input box of $name", ({ name, profile, versions, s
     })
 
     it.each(Object.entries(states))("reads %s", (state, expected) => {
-      const read = profile.read(screenOf(shown[state]!))
+      const read = profile.read(shown[state]!)
       expect(read, "its box is found").toBeDefined()
       if (expected === "empty") expect(isEmpty(read!), `holds ${JSON.stringify(read)}`).toBe(true)
       else if (expected === "collapsed") expect(profile.collapsed(read!)).toBe(true)
@@ -149,11 +130,11 @@ describe.each(harnesses)("the input box of $name", ({ name, profile, versions, s
 
     it("tells queued messages on the screen in the state that has them and no other", () => {
       for (const [state, screen] of Object.entries(shown))
-        expect(profile.queued(screenOf(screen)), state).toBe(state === "queued")
+        expect(profile.queued(screen), state).toBe(state === "queued")
     })
 
     it("does not take a collapsed placeholder with more text for the placeholder alone", () => {
-      const read = profile.read(screenOf(shown["10 collapsed then more"]!))
+      const read = profile.read(shown["10 collapsed then more"]!)
       expect(read).toBeDefined()
       expect(isEmpty(read!)).toBe(false)
       expect(profile.collapsed(read!)).toBe(false)
@@ -162,7 +143,7 @@ describe.each(harnesses)("the input box of $name", ({ name, profile, versions, s
 
     it("places the box where the cursor is, whatever is above it", () => {
       for (const [state, screen] of Object.entries(shown)) {
-        const read = profile.read(screenOf(screen))
+        const read = profile.read(screen)
         if (!read) continue
         expect(screen.cursor.row, state).toBeGreaterThanOrEqual(read.first)
         expect(screen.cursor.row, state).toBeLessThanOrEqual(read.last)
@@ -171,7 +152,7 @@ describe.each(harnesses)("the input box of $name", ({ name, profile, versions, s
 
     it("finds no box on a screen that shows none", () => {
       expect(profile.read(screenWith({ rows: Array<string>(40).fill("") }))).toBe(undefined)
-      const text = screenOf(shown["12 after turn"]!)
+      const text = shown["12 after turn"]!
       const noCursor = { ...text, cursor: { row: 2, column: 4 } }
       expect(profile.read(noCursor)).toBe(undefined)
     })
@@ -267,6 +248,11 @@ describe("boxes read from synthetic screens", () => {
     expect(wrappedRows("a\tb", 80)).toBe(1)
     expect(wrappedRows(`${"x".repeat(5)}\t${"y".repeat(10)}`, 12)).toBe(2)
     expect(wrappedRows("x".repeat(25), 12)).toBe(3)
+    // Typographic punctuation takes one column, as the emulator draws it; a ZWJ family two.
+    expect(wrappedRows("\u2019".repeat(40), 42)).toBe(1)
+    expect(wrappedRows("\u2014 ".repeat(20).trimEnd(), 42)).toBe(1)
+    expect(wrappedRows("\u{1f468}\u200d\u{1f469}\u200d\u{1f467}".repeat(20), 42)).toBe(1)
+    expect(wrappedRows("\u{1f468}\u200d\u{1f469}\u200d\u{1f467}".repeat(21), 42)).toBe(2)
     expect(claude.collapses(lines(4))).toBe(true)
     expect(claude.collapses(lines(3))).toBe(false)
     expect(codex.collapses(lines(30))).toBe(false)
@@ -308,11 +294,10 @@ describe("boxes read from synthetic screens", () => {
 // says it, the footer agrees, and a box whose footer disagrees reads as no box.
 type ShellCase = { step: string; version: string; shell: boolean; rows: string[] }
 const shellCases = (harness: string): ShellCase[] =>
-  (
-    JSON.parse(
-      readFileSync(join(import.meta.dirname, harness, "fixtures", "shell-mode.probe.json"), "utf8"),
-    ) as { cases: ShellCase[] }
-  ).cases
+  loadProbe<{ cases: (Omit<ShellCase, "rows"> & { screen: ScreenText })[] }>(
+    join(import.meta.dirname, harness),
+    "shell-mode.probe.json",
+  ).cases.map(({ screen: shown, ...rest }) => ({ ...rest, rows: [...shown.rows] }))
 
 /** A screen of the rows with its cursor on the box's first row, as the harness draws it. */
 const cursored = (rows: string[], framed: boolean): ScreenText => {
@@ -366,5 +351,12 @@ describe.each([
 
   it("says whether a command shown as a placeholder runs as the text it stands for", () => {
     expect(profile.shell.expands).toBe(key !== "agy")
+  })
+})
+
+describe("the viewport of Claude Code's input box", () => {
+  it("is what was probed on the screens it was, and never below one row on a small one", () => {
+    expect([24, 40, 60].map((rows) => claude.viewport!(rows))).toEqual([7, 15, 25])
+    for (const rows of [0, 4, 10, 11, 12]) expect(claude.viewport!(rows)).toBeGreaterThanOrEqual(1)
   })
 })

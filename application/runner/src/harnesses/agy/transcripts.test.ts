@@ -1,14 +1,10 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-
 import type { Report } from "../../shell/reports.js"
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import { decode } from "./decode.js"
 import { transcripts } from "./transcripts.js"
 
-const { transcript, parallel, hooks } = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "transcript.probe.json"), "utf8"),
-) as {
+const { transcript, parallel, hooks } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
   transcript: object[]
   parallel: object[]
   hooks: { event: string; payload: Report["payload"] }[]

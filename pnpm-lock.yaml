@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  '@xterm/addon-unicode-graphemes@0.4.0': b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6
   node-pty@1.2.0-beta.14: c78e0cc7eff2e13ea3521779288bbaad7b96df25030516a8aa8acd64fde92224
 
 importers:
@@ -144,7 +145,7 @@ importers:
         version: 0.14.0
       '@xterm/addon-unicode-graphemes':
         specifier: 0.4.0
-        version: 0.4.0
+        version: 0.4.0(patch_hash=b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6)
       '@xterm/headless':
         specifier: 6.0.0
         version: 6.0.0
@@ -256,7 +257,7 @@ importers:
         version: 0.11.0
       '@xterm/addon-unicode-graphemes':
         specifier: 0.4.0
-        version: 0.4.0
+        version: 0.4.0(patch_hash=b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6)
       '@xterm/addon-web-links':
         specifier: 0.12.0
         version: 0.12.0
@@ -6388,7 +6389,7 @@ snapshots:
 
   '@xterm/addon-serialize@0.14.0': {}
 
-  '@xterm/addon-unicode-graphemes@0.4.0': {}
+  '@xterm/addon-unicode-graphemes@0.4.0(patch_hash=b0a9bbbcc53e94cabc762f35be7a9d628ad75ecb84ca1e26eae1e808f27f18b6)': {}
 
   '@xterm/addon-web-links@0.12.0': {}
 

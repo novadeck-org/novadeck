@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
+import { loadProbe } from "../testing/probes.js"
 import { apply, started, subagentRef, summary, type Activity } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import type { ActivityEvent } from "./events.js"
@@ -13,9 +13,9 @@ import { harnesses } from "./registry.js"
 type Scenario = { events: { event: string; payload: Report["payload"] }[] }
 const scenario = (agent: AgentName, name: string): Scenario =>
   (
-    JSON.parse(
-      readFileSync(join(import.meta.dirname, agent, "fixtures", "interactive.probe.json"), "utf8"),
-    ) as { scenarios: { [name: string]: Scenario } }
+    loadProbe(join(import.meta.dirname, agent), "interactive.probe.json") as {
+      scenarios: { [name: string]: Scenario }
+    }
   ).scenarios[name]!
 
 /**
@@ -674,8 +674,9 @@ type HookProbe = { events: { event: string; payload: Report["payload"] }[] }
 describe("subagents from captured hooks", () => {
   for (const agent of ["claude", "codex"] as const)
     it(`start and stop under ${agent}'s root session, by their own id`, () => {
-      const { events } = JSON.parse(
-        readFileSync(join(import.meta.dirname, agent, "fixtures", "hooks.probe.json"), "utf8"),
+      const { events } = loadProbe(
+        join(import.meta.dirname, agent),
+        "hooks.probe.json",
       ) as HookProbe
       const facts = events.flatMap(({ event, payload }, seq) =>
         harnesses[agent]

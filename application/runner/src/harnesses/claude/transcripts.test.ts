@@ -1,12 +1,12 @@
-import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import { transcripts } from "./transcripts.js"
 
-const { scenarios } = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "transcript.probe.json"), "utf8"),
-) as { scenarios: { [name: string]: object[] } }
+const { scenarios } = loadProbe(import.meta.dirname, "transcript.probe.json") as {
+  scenarios: { [name: string]: object[] }
+}
 const items = (records: readonly object[]) =>
   records.flatMap((record) => transcripts.items(JSON.stringify(record)))
 
@@ -31,9 +31,9 @@ describe("Claude Code's transcript, as captured", () => {
   })
 })
 
-const shell = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "shell.probe.json"), "utf8"),
-) as { scenarios: { [name: string]: object[] } }
+const shell = loadProbe(import.meta.dirname, "shell.probe.json") as {
+  scenarios: { [name: string]: object[] }
+}
 
 describe("Claude Code's shell-mode commands, as captured", () => {
   const ran = (name: string) => items(shell.scenarios[name]!)

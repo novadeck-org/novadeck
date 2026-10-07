@@ -6,7 +6,8 @@ import { DomainError } from "../errors.js"
 import type { BoxProfile, InputBox } from "../harnesses/box.js"
 import { describe, expect, it } from "../test.js"
 import { screen as screenOf } from "../testing/screens.js"
-import { Prompts, type HoldBudget, type PromptHost } from "./prompts.js"
+import { InputQueue, type HoldBudget, type InputHold } from "./input-queue.js"
+import { Prompts, type PromptHost } from "./prompts.js"
 import type { ScreenText } from "./screen.js"
 
 /**
@@ -117,7 +118,7 @@ const terminal = (
     admit: () => {
       if (options.refuses) throw options.refuses
       admits += 1
-      if (options.refusesLater && admits > (options.laterFrom ?? 3)) throw options.refusesLater
+      if (options.refusesLater && admits > (options.laterFrom ?? 2)) throw options.refusesLater
       return profile
     },
     ringing: () =>
@@ -138,27 +139,6 @@ const terminal = (
           bracketedPaste: options.bracketedPaste ?? true,
         }),
       )
-    },
-    hold: (_, budget) => {
-      budgets.push(budget)
-      if (held || sizes) return { release: () => {}, settle: () => {}, holding: () => false }
-      holds += 1
-      held = true
-      sizes = true
-      const lapse =
-        options.holdMs === undefined ? undefined : setTimeout(() => (held = false), options.holdMs)
-      const release = () => {
-        clearTimeout(lapse)
-        held = false
-      }
-      return {
-        release,
-        settle: () => {
-          release()
-          sizes = false
-        },
-        holding: () => held,
-      }
     },
     type: (_, data) => {
       written.push(data)
@@ -198,7 +178,52 @@ const terminal = (
       return true
     },
   }
-  return { host, written, budgets, state: () => ({ held, sizes, holds }) }
+  // The resizes of a hold let go are taken over by the next one, as the manager does.
+  let current = 0
+  const hold = (budget: HoldBudget): InputHold => {
+    budgets.push(budget)
+    if (held)
+      return {
+        release: () => {},
+        settle: () => {},
+        settleAfter: () => {},
+        holding: () => false,
+        discard: () => {},
+      }
+    holds += 1
+    held = true
+    sizes = true
+    const mine = (current += 1)
+    const lapse =
+      options.holdMs === undefined ? undefined : setTimeout(() => (held = false), options.holdMs)
+    const release = () => {
+      clearTimeout(lapse)
+      if (current === mine) held = false
+    }
+    return {
+      release,
+      settle: () => {
+        release()
+        if (current === mine) sizes = false
+      },
+      settleAfter: (ms) => {
+        const timer = setTimeout(() => {
+          release()
+          if (current === mine) sizes = false
+        }, ms)
+        timer.unref()
+      },
+      holding: () => held && current === mine,
+      discard: () => {},
+    }
+  }
+  const queue = new InputQueue({ hold: (_, budget) => hold(budget) })
+  return {
+    host: Object.assign(host, { queue }),
+    written,
+    budgets,
+    state: () => ({ held, sizes, holds }),
+  }
 }
 
 const fast = { pollMs: 5, pasteMs: 150, ringMs: 100, settleMs: 40, emptyMs: 60 }
@@ -265,8 +290,12 @@ describe("prompts a TUI would read as more than a message", () => {
     const { host, written } = terminal()
     const injection = "x\x1b[201~\x15!touch /tmp/pwned\r"
     expect(refused(injection)).toBeDefined()
-    expect(await refusal(new Prompts(host, fast).prompt("t", injection))).toBe("PROMPT_REFUSED")
-    expect(await refusal(new Prompts(host, fast).prompt("t", "a\x7fb"))).toBe("PROMPT_REFUSED")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", injection))).toBe(
+      "PROMPT_REFUSED",
+    )
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "a\x7fb"))).toBe(
+      "PROMPT_REFUSED",
+    )
     expect(written).toEqual([])
     // A line feed and a tab are text; the rule judges the text trimmed, as a client sends it.
     expect(refused("one\ttwo\nthree")).toBeUndefined()
@@ -277,45 +306,51 @@ describe("prompts a TUI would read as more than a message", () => {
 describe("prompts", () => {
   it("paste a line as one bracketed paste and press Enter once the box shows it", async () => {
     const { host, written, state } = terminal()
-    await new Prompts(host, fast).prompt("t", "Hello there")
+    await new Prompts(host, host.queue, fast).prompt("t", "Hello there")
     expect(written).toEqual(["\x1b[200~Hello there\x1b[201~", "\r"])
     expect(state().held).toBe(false)
   })
 
   it("take a multi-line prompt as one paste whose line breaks are returns", async () => {
     const { host, written } = terminal()
-    await new Prompts(host, fast).prompt("t", "one\ntwo\r\nthree")
+    await new Prompts(host, host.queue, fast).prompt("t", "one\ntwo\r\nthree")
     expect(written).toEqual(["\x1b[200~one\rtwo\rthree\x1b[201~", "\r"])
   })
 
   it("send a message without the white space around it, a trailing line break included", async () => {
     const { host, written } = terminal()
-    await new Prompts(host, fast).prompt("t", "\n  Hello there \n\n")
+    await new Prompts(host, host.queue, fast).prompt("t", "\n  Hello there \n\n")
     expect(written).toEqual(["\x1b[200~Hello there\x1b[201~", "\r"])
   })
 
   it("press Enter on a long paste once the box shows only its placeholder, steady", async () => {
     const { host, written } = terminal({ takes: "placeholder" })
-    await new Prompts(host, fast).prompt("t", "one\ntwo\nthree\nfour\nfive")
+    await new Prompts(host, host.queue, fast).prompt("t", "one\ntwo\nthree\nfour\nfive")
     expect(enters(written)).toBe(1)
   })
 
   it("never take a placeholder for text a TUI would not collapse", async () => {
     const { host, written } = terminal({ takes: "placeholder" })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "Hello"))).toBe("PROMPT_FAILED")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe(
+      "PROMPT_FAILED",
+    )
     expect(enters(written)).toBe(0)
   })
 
   it("never press Enter after a paste that did not show, and leave the draft", async () => {
     const { host, written, state } = terminal({ takes: "nothing" })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "Hello there"))).toBe("PROMPT_FAILED")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello there"))).toBe(
+      "PROMPT_FAILED",
+    )
     expect(written).toEqual(["\x1b[200~Hello there\x1b[201~"])
     expect(state()).toMatchObject({ held: false, sizes: false })
   })
 
   it("never press Enter for a multi-line paste that changed nothing", async () => {
     const { host, written } = terminal({ takes: "nothing" })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "one\ntwo"))).toBe("PROMPT_FAILED")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "one\ntwo"))).toBe(
+      "PROMPT_FAILED",
+    )
     expect(enters(written)).toBe(0)
   })
 
@@ -327,13 +362,13 @@ describe("prompts", () => {
       ["Say hello", ["> Say hello", "", "Hello there."]],
     ])("send %s, where the box is empty", async (text, history) => {
       const { host, written } = terminal({ history })
-      await new Prompts(host, fast).prompt("t", text)
+      await new Prompts(host, host.queue, fast).prompt("t", text)
       expect(written).toEqual([`\x1b[200~${text}\x1b[201~`, "\r"])
     })
 
     it("send the same message twice, each with its own Enter", async () => {
       const { host, written } = terminal({ history: ["> Say hello", "Hello there."] })
-      const prompts = new Prompts(host, fast)
+      const prompts = new Prompts(host, host.queue, fast)
       await prompts.prompt("t", "Say hello")
       await prompts.prompt("t", "Say hello")
       expect(enters(written)).toBe(2)
@@ -343,7 +378,7 @@ describe("prompts", () => {
   describe("the prompt before it, whose text the TUI is still clearing", () => {
     it("is waited for, one after the other", async () => {
       const { host, written } = terminal({ clearMs: 30 })
-      const prompts = new Prompts(host, fast)
+      const prompts = new Prompts(host, host.queue, fast)
       await prompts.prompt("t", "First quick")
       await prompts.prompt("t", "Second quick")
       expect(enters(written)).toBe(2)
@@ -351,7 +386,7 @@ describe("prompts", () => {
 
     it("is waited for, queued together", async () => {
       const { host, written } = terminal({ clearMs: 30 })
-      const prompts = new Prompts(host, fast)
+      const prompts = new Prompts(host, host.queue, fast)
       await Promise.all([prompts.prompt("t", "Third one"), prompts.prompt("t", "Fourth one")])
       expect(written).toEqual([
         "\x1b[200~Third one\x1b[201~",
@@ -364,7 +399,9 @@ describe("prompts", () => {
     it("is waited for only so long, and a draft that stays is refused", async () => {
       const { host, written } = terminal({ draft: "Mine" })
       const started = Date.now()
-      expect(await refusal(new Prompts(host, fast).prompt("t", "Hello"))).toBe("CONFLICT")
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe(
+        "CONFLICT",
+      )
       expect(Date.now() - started).toBeGreaterThanOrEqual(55)
       expect(written).toEqual([])
     })
@@ -373,14 +410,16 @@ describe("prompts", () => {
   describe("an agent that exits before the text is typed", () => {
     it("never press Enter where the screen turns to a shell's prompt holding the text", async () => {
       const { host, written } = terminal({ exits: true })
-      expect(await refusal(new Prompts(host, fast).prompt("t", "Hello"))).toBe("PROMPT_FAILED")
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe(
+        "PROMPT_FAILED",
+      )
       expect(enters(written)).toBe(0)
     })
   })
 
   it("holds the person's keys for the whole wait and paste, and the resizes past the Enter", async () => {
     const { host, budgets } = terminal()
-    await new Prompts(host, fast).prompt("t", "Hello")
+    await new Prompts(host, host.queue, fast).prompt("t", "Hello")
     // The wait for an empty box, a shell command's switch and the paste's wait, and a
     // margin; then the settle.
     const inputMs = 60 + 2 * 150 + 2_000
@@ -390,26 +429,32 @@ describe("prompts", () => {
   describe("a box that holds text already", () => {
     it("refuse where it holds the person's draft, writing nothing", async () => {
       const { host, written, state } = terminal({ draft: "Say hello" })
-      expect(await refusal(new Prompts(host, fast).prompt("t", "Shall I go on"))).toBe("CONFLICT")
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Shall I go on"))).toBe(
+        "CONFLICT",
+      )
       expect(written).toEqual([])
       expect(state()).toMatchObject({ held: false, sizes: false })
     })
 
     it("refuse where it holds what a failed paste left, writing nothing", async () => {
       const { host, written } = terminal({ draft: "[Pasted text #1 +4 lines]" })
-      expect(await refusal(new Prompts(host, fast).prompt("t", "one\ntwo\nthree"))).toBe("CONFLICT")
+      expect(
+        await refusal(new Prompts(host, host.queue, fast).prompt("t", "one\ntwo\nthree")),
+      ).toBe("CONFLICT")
       expect(written).toEqual([])
     })
 
     it("refuse a draft of the very text sent, writing nothing", async () => {
       const { host, written } = terminal({ draft: "Hello" })
-      expect(await refusal(new Prompts(host, fast).prompt("t", "Hello"))).toBe("CONFLICT")
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe(
+        "CONFLICT",
+      )
       expect(written).toEqual([])
     })
 
     it("never press Enter where a draft came with the paste, merged into it", async () => {
       const { host, written } = terminal({ lateDraft: "Say hello" })
-      expect(await refusal(new Prompts(host, fast).prompt("t", "Shall I go on"))).toBe(
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Shall I go on"))).toBe(
         "PROMPT_FAILED",
       )
       expect(enters(written)).toBe(0)
@@ -417,13 +462,15 @@ describe("prompts", () => {
 
     it("refuse where the screen shows no box, writing nothing", async () => {
       const { host, written } = terminal({ noBox: true })
-      expect(await refusal(new Prompts(host, fast).prompt("t", "Hello"))).toBe("CONFLICT")
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe(
+        "CONFLICT",
+      )
       expect(written).toEqual([])
     })
 
     it("go on with the next prompt after a refused one", async () => {
       const { host, written } = terminal({ draft: "Draft" })
-      const prompts = new Prompts(host, fast)
+      const prompts = new Prompts(host, host.queue, fast)
       expect(await refusal(prompts.prompt("t", "First"))).toBe("CONFLICT")
       expect(written).toEqual([])
     })
@@ -433,7 +480,9 @@ describe("prompts", () => {
     it("is refused where it shows whole and would scroll its first row off, writing nothing", async () => {
       const { host, written, state } = terminal()
       // The screen has 15 rows, so the box has room for 12.
-      expect(await refusal(new Prompts(host, fast).prompt("t", lines(13)))).toBe("CONFLICT")
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", lines(13)))).toBe(
+        "CONFLICT",
+      )
       expect(written).toEqual([])
       expect(state()).toMatchObject({ held: false, sizes: false })
     })
@@ -442,19 +491,19 @@ describe("prompts", () => {
       const { host, written } = terminal()
       // 40 columns leave 38 for text: 6 lines of 77 characters take 18 rows.
       const text = Array.from({ length: 6 }, () => "w".repeat(77)).join("\n")
-      expect(await refusal(new Prompts(host, fast).prompt("t", text))).toBe("CONFLICT")
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", text))).toBe("CONFLICT")
       expect(written).toEqual([])
     })
 
     it("is sent where it fits", async () => {
       const { host, written } = terminal()
-      await new Prompts(host, fast).prompt("t", lines(11))
+      await new Prompts(host, host.queue, fast).prompt("t", lines(11))
       expect(enters(written)).toBe(1)
     })
 
     it("is sent where the harness collapses it to a placeholder", async () => {
       const { host, written } = terminal({ takes: "placeholder" })
-      await new Prompts(host, fast).prompt("t", lines(100))
+      await new Prompts(host, host.queue, fast).prompt("t", lines(100))
       expect(enters(written)).toBe(1)
     })
   })
@@ -474,7 +523,9 @@ describe("prompts", () => {
       ["nothing but white space", " \n\t "],
     ])("refuse %s, writing nothing", async (_, text) => {
       const { host, written } = terminal()
-      expect(await refusal(new Prompts(host, fast).prompt("t", text))).toBe("PROMPT_REFUSED")
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", text))).toBe(
+        "PROMPT_REFUSED",
+      )
       expect(written).toEqual([])
     })
 
@@ -482,7 +533,7 @@ describe("prompts", () => {
       "send %j",
       async (text) => {
         const { host, written } = terminal()
-        await new Prompts(host, fast).prompt("t", text)
+        await new Prompts(host, host.queue, fast).prompt("t", text)
         expect(enters(written)).toBe(1)
       },
     )
@@ -490,13 +541,13 @@ describe("prompts", () => {
 
   it("refuse a screen that takes no bracketed paste, writing nothing", async () => {
     const { host, written } = terminal({ bracketedPaste: false })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "Hello"))).toBe("CONFLICT")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe("CONFLICT")
     expect(written).toEqual([])
   })
 
   it("refuse as the host does, writing nothing", async () => {
     const { host, written } = terminal({ refuses: new DomainError("CONFLICT") })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "Hello"))).toBe("CONFLICT")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe("CONFLICT")
     expect(written).toEqual([])
   })
 
@@ -510,26 +561,28 @@ describe("prompts", () => {
         return host.screen("t")
       },
     }
-    expect(await refusal(new Prompts(slow, fast).prompt("t", "Hello"))).toBe("PROMPT_FAILED")
+    expect(await refusal(new Prompts(slow, host.queue, fast).prompt("t", "Hello"))).toBe(
+      "PROMPT_FAILED",
+    )
     expect(enters(written)).toBe(0)
   })
 
   it("take a line while a spinner changes the screen around its box", async () => {
     const { host, written } = terminal({ spinner: true })
-    await new Prompts(host, fast).prompt("t", "Then sum it up")
+    await new Prompts(host, host.queue, fast).prompt("t", "Then sum it up")
     expect(enters(written)).toBe(1)
   })
 
   it("give prompts to one terminal one at a time, each with its own Enter", async () => {
     const { host, written } = terminal()
-    const prompts = new Prompts(host, fast)
+    const prompts = new Prompts(host, host.queue, fast)
     await Promise.all([prompts.prompt("t", "First"), prompts.prompt("t", "Second")])
     expect(written).toEqual(["\x1b[200~First\x1b[201~", "\r", "\x1b[200~Second\x1b[201~", "\r"])
   })
 
   it("go on with the next prompt after one that failed", async () => {
     const { host, written } = terminal({ takes: "nothing" })
-    const prompts = new Prompts(host, fast)
+    const prompts = new Prompts(host, host.queue, fast)
     const first = refusal(prompts.prompt("t", "First"))
     const second = refusal(prompts.prompt("t", "Second"))
     expect([await first, await second]).toEqual(["PROMPT_FAILED", "PROMPT_FAILED"])
@@ -538,7 +591,7 @@ describe("prompts", () => {
 
   it("wait for a doorbell ring under way to end before it pastes", async () => {
     const { host, written } = terminal({ ringing: "abc", ringEnds: 40 })
-    const prompt = new Prompts(host, { ...fast, ringMs: 500 }).prompt("t", "Hello")
+    const prompt = new Prompts(host, host.queue, { ...fast, ringMs: 500 }).prompt("t", "Hello")
     await sleep(15)
     expect(written).toEqual([])
     await prompt
@@ -547,13 +600,13 @@ describe("prompts", () => {
 
   it("refuse when a ring outlasts its wait, writing nothing", async () => {
     const { host, written } = terminal({ ringing: "abc", ringEnds: 10_000 })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "Hello"))).toBe("CONFLICT")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "Hello"))).toBe("CONFLICT")
     expect(written).toEqual([])
   })
 
-  it("hold the app's resizes past its Enter, and let go for the next prompt at once", async () => {
+  it("hold the app's resizes past its Enter, which the next prompt takes over", async () => {
     const { host, state } = terminal()
-    const prompts = new Prompts(host, { ...fast, settleMs: 5_000 })
+    const prompts = new Prompts(host, host.queue, { ...fast, settleMs: 5_000 })
     await prompts.prompt("t", "First")
     expect(state()).toMatchObject({ held: false, sizes: true })
     await prompts.prompt("t", "Second")
@@ -562,7 +615,7 @@ describe("prompts", () => {
 
   it("let the app's resizes go once the wait after its Enter passed", async () => {
     const { host, state } = terminal()
-    await new Prompts(host, fast).prompt("t", "First")
+    await new Prompts(host, host.queue, fast).prompt("t", "First")
     await sleep(80)
     expect(state().sizes).toBe(false)
   })
@@ -574,26 +627,26 @@ describe("shell commands", () => {
 
   it("type the !, wait for a lone !, paste the command and press Enter", async () => {
     const { host, written, state } = terminal({ shell: true })
-    await new Prompts(host, fast).prompt("t", "  !echo hi > f ")
+    await new Prompts(host, host.queue, fast).prompt("t", "  !echo hi > f ")
     expect(written).toEqual(["!", `${bang}echo hi > f${end}`, "\r"])
     expect(state().held).toBe(false)
   })
 
   it("paste a multi-line command with its line breaks as returns", async () => {
     const { host, written } = terminal({ shell: true, takes: "box" })
-    await new Prompts(host, fast).prompt("t", "! echo a\r\necho b")
+    await new Prompts(host, host.queue, fast).prompt("t", "! echo a\r\necho b")
     expect(written).toEqual(["!", `${bang}echo a\recho b${end}`, "\r"])
   })
 
   it("press Enter for a command a TUI collapsed to a placeholder", async () => {
     const { host, written } = terminal({ shell: true, takes: "placeholder" })
-    await new Prompts(host, fast).prompt("t", "!one\ntwo\nthree")
+    await new Prompts(host, host.queue, fast).prompt("t", "!one\ntwo\nthree")
     expect(enters(written)).toBe(1)
   })
 
   it("press no Enter for a collapsed command where the placeholder itself would run", async () => {
     const { host, written } = terminal({ shell: true, takes: "placeholder", expands: false })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "!one\ntwo\nthree"))).toBe(
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!one\ntwo\nthree"))).toBe(
       "PROMPT_FAILED",
     )
     expect(enters(written)).toBe(0)
@@ -605,9 +658,9 @@ describe("shell commands", () => {
       takes: "box",
       expands: false,
       refusesLater: new DomainError("CONFLICT"),
-      laterFrom: 4,
+      laterFrom: 3,
     })
-    const failure = await new Prompts(host, fast)
+    const failure = await new Prompts(host, host.queue, fast)
       .prompt("t", "!one\ntwo")
       .catch((error: unknown) => error as DomainError)
     expect(failure).toMatchObject({ code: "PROMPT_FAILED" })
@@ -616,7 +669,7 @@ describe("shell commands", () => {
 
   it("fail where the lone ! never shows, pasting and pressing nothing more", async () => {
     const { host, written, state } = terminal({ shell: false })
-    const failure = await new Prompts(host, fast)
+    const failure = await new Prompts(host, host.queue, fast)
       .prompt("t", "!ls")
       .catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(DomainError)
@@ -628,25 +681,29 @@ describe("shell commands", () => {
 
   it("never press Enter for a command that did not show after the !", async () => {
     const { host, written } = terminal({ shell: true, takes: "nothing" })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "!ls"))).toBe("PROMPT_FAILED")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!ls"))).toBe(
+      "PROMPT_FAILED",
+    )
     expect(written).toEqual(["!", `${bang}ls${end}`])
   })
 
   it("take a command run before, whose history row is still on screen, as landed once", async () => {
     const { host, written } = terminal({ shell: true, history: ["! echo hi > f", "output"] })
-    await new Prompts(host, fast).prompt("t", "!echo hi > f")
+    await new Prompts(host, host.queue, fast).prompt("t", "!echo hi > f")
     expect(written).toEqual(["!", `${bang}echo hi > f${end}`, "\r"])
   })
 
   it("press no Enter for a repeated command that never showed again", async () => {
     const { host, written } = terminal({ shell: true, history: ["! ls"], takes: "nothing" })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "!ls"))).toBe("PROMPT_FAILED")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!ls"))).toBe(
+      "PROMPT_FAILED",
+    )
     expect(enters(written)).toBe(0)
   })
 
   it("take a command among a spinner's changes while a turn runs, queued behind it", async () => {
     const busy = terminal({ shell: true, spinner: true })
-    await new Prompts(busy.host, fast).prompt("t", "!ls")
+    await new Prompts(busy.host, busy.host.queue, fast).prompt("t", "!ls")
     expect(busy.written).toEqual(["!", `${bang}ls${end}`, "\r"])
   })
 
@@ -654,9 +711,11 @@ describe("shell commands", () => {
     const { host, written } = terminal({
       shell: true,
       refusesLater: new DomainError("CONFLICT"),
-      laterFrom: 4,
+      laterFrom: 3,
     })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "!ls"))).toBe("PROMPT_FAILED")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!ls"))).toBe(
+      "PROMPT_FAILED",
+    )
     expect(enters(written)).toBe(0)
   })
 
@@ -664,16 +723,18 @@ describe("shell commands", () => {
     const { host, written, state } = terminal({
       shell: true,
       refusesLater: new DomainError("CONFLICT"),
-      laterFrom: 3,
+      laterFrom: 2,
     })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "!rm -rf build"))).toBe("CONFLICT")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!rm -rf build"))).toBe(
+      "CONFLICT",
+    )
     expect(written).toEqual(["!", "\x7f"])
     expect(state()).toMatchObject({ held: false, sizes: false })
   })
 
   it("leave a ! that showed only after its time, which then keeps any message out", async () => {
     const { host, written } = terminal({ shell: true, bangMs: 600 })
-    const prompts = new Prompts(host, fast)
+    const prompts = new Prompts(host, host.queue, fast)
     expect(await refusal(prompts.prompt("t", "!ls"))).toBe("PROMPT_FAILED")
     await sleep(700)
     // The box is in its shell mode now: a message there would run as a command.
@@ -683,7 +744,7 @@ describe("shell commands", () => {
 
   it("refuse a message or a command where the box is in its shell mode already, writing nothing", async () => {
     const { host, written } = terminal({ shell: true, drafted: "ls" })
-    const prompts = new Prompts(host, fast)
+    const prompts = new Prompts(host, host.queue, fast)
     expect(await refusal(prompts.prompt("t", "thanks, now explain it"))).toBe("CONFLICT")
     expect(await refusal(prompts.prompt("t", "!pwd"))).toBe("CONFLICT")
     expect(written).toEqual([])
@@ -691,13 +752,15 @@ describe("shell commands", () => {
 
   it("press no Enter for a message whose box went into its shell mode as it landed", async () => {
     const { host, written } = terminal({ shellsPaste: true })
-    expect(await refusal(new Prompts(host, fast).prompt("t", "touch it.txt"))).toBe("PROMPT_FAILED")
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "touch it.txt"))).toBe(
+      "PROMPT_FAILED",
+    )
     expect(enters(written)).toBe(0)
   })
 
   it("refuse a command or a message where the box can't be read, writing nothing", async () => {
     const { host, written } = terminal({ shell: true, noBox: true })
-    const prompts = new Prompts(host, fast)
+    const prompts = new Prompts(host, host.queue, fast)
     expect(await refusal(prompts.prompt("t", "!ls"))).toBe("CONFLICT")
     expect(await refusal(prompts.prompt("t", "hello there"))).toBe("CONFLICT")
     expect(written).toEqual([])
@@ -707,7 +770,9 @@ describe("shell commands", () => {
     const { host, written } = terminal({ shell: true })
     for (const text of ["!", "! ", "!echo @", "!echo $"])
       // eslint-disable-next-line no-await-in-loop -- One at a time.
-      expect(await refusal(new Prompts(host, fast).prompt("t", text))).toBe("PROMPT_REFUSED")
+      expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", text))).toBe(
+        "PROMPT_REFUSED",
+      )
     expect(written).toEqual([])
   })
 })

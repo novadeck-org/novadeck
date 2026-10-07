@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { screenRecord } from "../../testing/probes.js"
 import { agy } from "../agents/agy.js"
 import type { DeckTerminal } from "../deck.js"
 import { describe, e2e, expect, supported, type E2E } from "../fixture.js"
@@ -217,14 +218,6 @@ const looks = async (terminal: DeckTerminal): Promise<{ wide: string; small: str
   return { wide, small }
 }
 
-const trim = (shown: string): string =>
-  shown
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-
 const record = (name: string, extra: Record<string, unknown>): void => save(`${name}.json`, extra)
 
 /** A reply calling a tool, once, for the first look at a prompt. */
@@ -246,8 +239,9 @@ const capture = async (
 ): Promise<{ wide: string; small: string }> => {
   const seen = sizes ? await looks(terminal) : { wide: await calm(terminal, 600), small: "" }
   const detail = await terminal.detail()
-  save(`${scenario}.${label}.screen-120x40.txt`, trim(seen.wide))
-  if (sizes) save(`${scenario}.${label}.screen-60x20.txt`, trim(seen.small))
+  save(`${scenario}.${label}.screen-120x40.json`, screenRecord(seen.wide, { columns: 120 }))
+  if (sizes)
+    save(`${scenario}.${label}.screen-60x20.json`, screenRecord(seen.small, { columns: 60 }))
   if (existsSync(join(probe.dir, "status.jsonl")))
     save(
       `${scenario}.${label}.status-raw.jsonl`,

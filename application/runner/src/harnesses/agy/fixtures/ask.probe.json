@@ -7,44 +7,44 @@
     "command": {
       "what": "run_command the person has no setting allowing, as the e2e seed leaves it",
       "pending": {
-        "screen120": [
-          "────────────────────────────────────────────────────────────",
-          "> Run it",
-          "",
-          "● Bash(echo approved) (ctrl+o to expand)",
-          "",
-          "Command",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          "",
-          "Requesting permission for:",
-          "   echo approved",
-          "",
-          "Run this command?",
-          "> 1. Yes, run command",
-          "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
-          "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
-          "  4. No, cancel",
-          "",
-          "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
-          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-        ],
-        "screen60": [
-          "────────────────────────────────────────────────────────────",
-          "",
-          "Requesting permission for:",
-          "   echo approved",
-          "",
-          "Run this command?",
-          "> 1. Yes, run command",
-          "  2. Yes, and always allow in this conversation for commands",
-          "that start with 'echo'",
-          "  3. Yes, and always allow for commands that start with",
-          "'echo' (Persist to settings.json)",
-          "  4. No, cancel",
-          "",
-          "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
-          "esc to cancel                           Gemini 3.1 Pro · low"
-        ],
+        "screen120": {
+          "height": 19,
+          "columns": 120,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "1": "> Run it",
+            "3": "● Bash(echo approved) (ctrl+o to expand)",
+            "5": "Command",
+            "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": "Requesting permission for:",
+            "9": "   echo approved",
+            "11": "Run this command?",
+            "12": "> 1. Yes, run command",
+            "13": "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
+            "14": "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+            "15": "  4. No, cancel",
+            "17": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+            "18": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          }
+        },
+        "screen60": {
+          "height": 15,
+          "columns": 60,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "2": "Requesting permission for:",
+            "3": "   echo approved",
+            "5": "Run this command?",
+            "6": "> 1. Yes, run command",
+            "7": "  2. Yes, and always allow in this conversation for commands",
+            "8": "that start with 'echo'",
+            "9": "  3. Yes, and always allow for commands that start with",
+            "10": "'echo' (Persist to settings.json)",
+            "11": "  4. No, cancel",
+            "13": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+            "14": "esc to cancel                           Gemini 3.1 Pro · low"
+          }
+        },
         "status": [
           {
             "agent_state": "idle"
@@ -148,25 +148,24 @@
     "write_to_file": {
       "what": "write_to_file of a plain file in the project",
       "pending": {
-        "screen120": [
-          "────────────────────────────────────────────────────────────",
-          "> Make the file",
-          "",
-          "● Create(/tmp/sandbox/project/probe.txt) (ctrl+o to expand)",
-          "",
-          "Create file",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          "",
-          "/tmp/sandbox/project/probe.txt  +1",
-          "   1 +  hello",
-          "",
-          "Allow creation of this file?",
-          "> 1. Yes, allow creation",
-          "  2. No, deny creation",
-          "",
-          "  ↑/↓ Navigate · tab Amend · f full diff",
-          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-        ],
+        "screen120": {
+          "height": 17,
+          "columns": 120,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "1": "> Make the file",
+            "3": "● Create(/tmp/sandbox/project/probe.txt) (ctrl+o to expand)",
+            "5": "Create file",
+            "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": "/tmp/sandbox/project/probe.txt  +1",
+            "9": "   1 +  hello",
+            "11": "Allow creation of this file?",
+            "12": "> 1. Yes, allow creation",
+            "13": "  2. No, deny creation",
+            "15": "  ↑/↓ Navigate · tab Amend · f full diff",
+            "16": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          }
+        },
         "hooks": [
           {
             "event": "PreInvocation"
@@ -224,44 +223,42 @@
     "ask_question": {
       "what": "ask_question, one single-select question",
       "pending": {
-        "screen120": [
-          "────────────────────────────────────────────────────────────",
-          "> Ask me",
-          "",
-          "? Which colour?",
-          "",
-          "Question",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          "",
-          "Question 1/1: Which colour?",
-          "",
-          "> 1. Red",
-          "  2. Green",
-          "  3. Blue",
-          "  4. Write-in...",
-          "",
-          "  ↑/↓ Navigate · enter Select · esc Skip",
-          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-        ],
-        "screen60": [
-          "─────────────────────────────────────────────────────────",
-          "> Ask me",
-          "",
-          "? Which colour?",
-          "",
-          "Question",
-          "────────────────────────────────────────────────────────────",
-          "",
-          "Question 1/1: Which colour?",
-          "",
-          "> 1. Red",
-          "  2. Green",
-          "  3. Blue",
-          "  4. Write-in...",
-          "",
-          "  ↑/↓ Navigate · enter Select · esc Skip",
-          "esc to cancel                           Gemini 3.1 Pro · low"
-        ],
+        "screen120": {
+          "height": 17,
+          "columns": 120,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "1": "> Ask me",
+            "3": "? Which colour?",
+            "5": "Question",
+            "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": "Question 1/1: Which colour?",
+            "10": "> 1. Red",
+            "11": "  2. Green",
+            "12": "  3. Blue",
+            "13": "  4. Write-in...",
+            "15": "  ↑/↓ Navigate · enter Select · esc Skip",
+            "16": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          }
+        },
+        "screen60": {
+          "height": 17,
+          "columns": 60,
+          "rows": {
+            "0": "─────────────────────────────────────────────────────────",
+            "1": "> Ask me",
+            "3": "? Which colour?",
+            "5": "Question",
+            "6": "────────────────────────────────────────────────────────────",
+            "8": "Question 1/1: Which colour?",
+            "10": "> 1. Red",
+            "11": "  2. Green",
+            "12": "  3. Blue",
+            "13": "  4. Write-in...",
+            "15": "  ↑/↓ Navigate · enter Select · esc Skip",
+            "16": "esc to cancel                           Gemini 3.1 Pro · low"
+          }
+        },
         "status": [
           {
             "agent_state": "working"
@@ -305,87 +302,78 @@
         ]
       },
       "multiSelect": {
-        "screen": [
-          "────────────────────────────────────────────────────────────",
-          "> Ask me",
-          "",
-          "? Which colour?",
-          "",
-          "Question",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          "",
-          "Question 1/1: Which colour?",
-          "",
-          "> 1. [ ] Red",
-          "  2. [ ] Green",
-          "  3. [ ] Blue",
-          "  4. Write-in...",
-          "",
-          "  ↑/↓ Navigate · space Toggle · enter Submit · esc Skip",
-          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-        ]
+        "screen": {
+          "height": 17,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "1": "> Ask me",
+            "3": "? Which colour?",
+            "5": "Question",
+            "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": "Question 1/1: Which colour?",
+            "10": "> 1. [ ] Red",
+            "11": "  2. [ ] Green",
+            "12": "  3. [ ] Blue",
+            "13": "  4. Write-in...",
+            "15": "  ↑/↓ Navigate · space Toggle · enter Submit · esc Skip",
+            "16": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          }
+        }
       },
       "twoQuestions": {
-        "q1": [
-          "────────────────────────────────────────────────────────────",
-          "> Ask me",
-          "",
-          "? Which colour?",
-          "? Which size?",
-          "",
-          "Question",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          "",
-          "Question 1/2: Which colour?",
-          "",
-          "> 1. Red",
-          "  2. Green",
-          "  3. Write-in...",
-          "",
-          "  ↑/↓ Navigate · → Next · enter Select · esc Skip",
-          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-        ],
-        "q2": [
-          "────────────────────────────────────────────────────────────",
-          "> Ask me",
-          "",
-          "? Which colour?",
-          "? Which size?",
-          "",
-          "Question",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          "",
-          "Question 2/2: Which size?",
-          "",
-          "> 1. Small",
-          "  2. Large",
-          "  3. Write-in...",
-          "",
-          "  ↑/↓ Navigate · ← Back · enter Submit All · esc Skip",
-          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-        ]
+        "q1": {
+          "height": 17,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "1": "> Ask me",
+            "3": "? Which colour?",
+            "4": "? Which size?",
+            "6": "Question",
+            "7": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": "Question 1/2: Which colour?",
+            "11": "> 1. Red",
+            "12": "  2. Green",
+            "13": "  3. Write-in...",
+            "15": "  ↑/↓ Navigate · → Next · enter Select · esc Skip",
+            "16": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          }
+        },
+        "q2": {
+          "height": 17,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "1": "> Ask me",
+            "3": "? Which colour?",
+            "4": "? Which size?",
+            "6": "Question",
+            "7": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "9": "Question 2/2: Which size?",
+            "11": "> 1. Small",
+            "12": "  2. Large",
+            "13": "  3. Write-in...",
+            "15": "  ↑/↓ Navigate · ← Back · enter Submit All · esc Skip",
+            "16": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          }
+        }
       },
-      "writeIn": [
-        "────────────────────────────────────────────────────────────",
-        "> Ask me",
-        "",
-        "? Which colour?",
-        "",
-        "Question",
-        "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-        "",
-        "Question 1/1: Which colour?",
-        "",
-        "  1. Red",
-        "  2. Green",
-        "  3. Blue",
-        "> 4. Write-in...",
-        "",
-        "  Your answer:",
-        "",
-        "  enter Submit · esc Back",
-        "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-      ],
+      "writeIn": {
+        "height": 19,
+        "rows": {
+          "0": "────────────────────────────────────────────────────────────",
+          "1": "> Ask me",
+          "3": "? Which colour?",
+          "5": "Question",
+          "6": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+          "8": "Question 1/1: Which colour?",
+          "10": "  1. Red",
+          "11": "  2. Green",
+          "12": "  3. Blue",
+          "13": "> 4. Write-in...",
+          "15": "  Your answer:",
+          "17": "  enter Submit · esc Back",
+          "18": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        }
+      },
       "results": {
         "digit 1": "A1: Red",
         "Down+Enter": "A1: Green",
@@ -397,19 +385,21 @@
     "plan_feedback": {
       "what": "write_to_file of implementation_plan.md with ArtifactMetadata.RequestFeedback true",
       "afterWrite": {
-        "screen120": [
-          "────────────────────────────────────────────────────────────",
-          "> Plan it",
-          "",
-          "● Edit(~/.gemini/antigravity-cli/brain/3bc11b00-fd34-4791-a10c-855d7414bc04/implementation_plan.md) (ctrl+o to expand)",
-          "",
-          "  Planned.",
-          "                                                                                        1 artifact · /artifact to review",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          ">",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
-        ],
+        "screen120": {
+          "height": 11,
+          "columns": 120,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "1": "> Plan it",
+            "3": "● Edit(~/.gemini/antigravity-cli/brain/3bc11b00-fd34-4791-a10c-855d7414bc04/implementation_plan.md) (ctrl+o to expand)",
+            "5": "  Planned.",
+            "6": "                                                                                        1 artifact · /artifact to review",
+            "7": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": ">",
+            "9": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "10": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+          }
+        },
         "status": [
           {
             "agent_state": "reviewing",
@@ -438,24 +428,24 @@
         ]
       },
       "review": {
-        "screen120": [
-          "────────────────────────────────────────────────────────────",
-          "> Plan it",
-          "",
-          "● Edit(~/.gemini/antigravity-cli/brain/acedbb2d-bc35-4ad8-886b-e3788affaffd/implementation_plan.md) (ctrl+o to expand)",
-          "",
-          "  Planned.",
-          "                                                                                        1 artifact · /artifact to review",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          ">",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          "Action required (1 left)",
-          "› □ new implementation_plan.md   open  approve reject",
-          "",
-          "Keyboard: ↑/↓ Navigate  y/n Approve/reject  shift+a Approve all  p Preview  ctrl+g open in editor  esc Done",
-          "",
-          "                                                                                                    Gemini 3.1 Pro · low"
-        ]
+        "screen120": {
+          "height": 16,
+          "columns": 120,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "1": "> Plan it",
+            "3": "● Edit(~/.gemini/antigravity-cli/brain/acedbb2d-bc35-4ad8-886b-e3788affaffd/implementation_plan.md) (ctrl+o to expand)",
+            "5": "  Planned.",
+            "6": "                                                                                        1 artifact · /artifact to review",
+            "7": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": ">",
+            "9": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "10": "Action required (1 left)",
+            "11": "› □ new implementation_plan.md   open  approve reject",
+            "13": "Keyboard: ↑/↓ Navigate  y/n Approve/reject  shift+a Approve all  p Preview  ctrl+g open in editor  esc Done",
+            "15": "                                                                                                    Gemini 3.1 Pro · low"
+          }
+        }
       },
       "approved": [
         {
@@ -518,17 +508,20 @@
         "ask_question allow": "modal still shown"
       },
       "whileHolding": {
-        "screen120": [
-          "────────────────────────────────────────────────────────────",
-          "> Run it",
-          "",
-          "● Bash(echo approved) (ctrl+o to expand)",
-          "⣟  Running command...",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          ">",
-          "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
-          "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-        ],
+        "screen120": {
+          "height": 9,
+          "columns": 120,
+          "rows": {
+            "0": "────────────────────────────────────────────────────────────",
+            "1": "> Run it",
+            "3": "● Bash(echo approved) (ctrl+o to expand)",
+            "4": "⣟  Running command...",
+            "5": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "6": ">",
+            "7": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "8": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          }
+        },
         "status": [
           {
             "agent_state": "authenticating"
@@ -559,139 +552,129 @@
     },
     "answered": {
       "what": "the screen after each dialog was answered: the dialog gone, its answer in the history (captured 2026-10-06 with the keys Down+Enter, digit 1, a typed write-in, y and n in the artifact review)",
-      "ask": [
-        "──────────────────────────────────────────────────────",
-        "> Ask me",
-        "",
-        "? Which colour?",
-        "> Red",
-        "",
-        "  Noted.",
-        "",
-        "──────────────────────────────────────────────────────",
-        ">",
-        "──────────────────────────────────────────────────────",
-        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
-      ],
-      "two": [
-        "──────────────────────────────────────────────────────",
-        "> Ask me",
-        "",
-        "? Which colour?",
-        "> Green",
-        "? Which size?",
-        "> Large",
-        "",
-        "  Noted.",
-        "",
-        "──────────────────────────────────────────────────────",
-        ">",
-        "──────────────────────────────────────────────────────",
-        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
-      ],
-      "writeIn": [
-        "──────────────────────────────────────────────────────",
-        "> Ask me",
-        "",
-        "? Which colour?",
-        "> Purple",
-        "",
-        "  Noted.",
-        "",
-        "──────────────────────────────────────────────────────",
-        ">",
-        "──────────────────────────────────────────────────────",
-        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
-      ],
-      "planApproved": [
-        "──────────────────────────────────────────────────────",
-        "> Plan it",
-        "",
-        "● Edit(~/.gemini/antigravity-cli/brain/<conversation>/implementation_plan.md) (ctrl+o to expand)",
-        "",
-        "  Planned.",
-        "",
-        "> /artifact",
-        "  ⎿  Review submitted",
-        "",
-        "──────────────────────────────────────────────────────",
-        "> [Approved] implementation_plan.md",
-        "",
-        "  Reacted.",
-        "",
-        "──────────────────────────────────────────────────────",
-        ">",
-        "──────────────────────────────────────────────────────",
-        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
-      ],
-      "planRejected": [
-        "──────────────────────────────────────────────────────",
-        "> Plan it",
-        "",
-        "● Edit(~/.gemini/antigravity-cli/brain/<conversation>/implementation_plan.md) (ctrl+o to expand)",
-        "",
-        "  Planned.",
-        "",
-        "> /artifact",
-        "  ⎿  Review submitted",
-        "",
-        "──────────────────────────────────────────────────────",
-        "> [Rejected] implementation_plan.md",
-        "",
-        "  Reacted.",
-        "",
-        "──────────────────────────────────────────────────────",
-        ">",
-        "──────────────────────────────────────────────────────",
-        "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
-      ]
+      "ask": {
+        "height": 12,
+        "rows": {
+          "0": "──────────────────────────────────────────────────────",
+          "1": "> Ask me",
+          "3": "? Which colour?",
+          "4": "> Red",
+          "6": "  Noted.",
+          "8": "──────────────────────────────────────────────────────",
+          "9": ">",
+          "10": "──────────────────────────────────────────────────────",
+          "11": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+        }
+      },
+      "two": {
+        "height": 14,
+        "rows": {
+          "0": "──────────────────────────────────────────────────────",
+          "1": "> Ask me",
+          "3": "? Which colour?",
+          "4": "> Green",
+          "5": "? Which size?",
+          "6": "> Large",
+          "8": "  Noted.",
+          "10": "──────────────────────────────────────────────────────",
+          "11": ">",
+          "12": "──────────────────────────────────────────────────────",
+          "13": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+        }
+      },
+      "writeIn": {
+        "height": 12,
+        "rows": {
+          "0": "──────────────────────────────────────────────────────",
+          "1": "> Ask me",
+          "3": "? Which colour?",
+          "4": "> Purple",
+          "6": "  Noted.",
+          "8": "──────────────────────────────────────────────────────",
+          "9": ">",
+          "10": "──────────────────────────────────────────────────────",
+          "11": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+        }
+      },
+      "planApproved": {
+        "height": 19,
+        "rows": {
+          "0": "──────────────────────────────────────────────────────",
+          "1": "> Plan it",
+          "3": "● Edit(~/.gemini/antigravity-cli/brain/<conversation>/implementation_plan.md) (ctrl+o to expand)",
+          "5": "  Planned.",
+          "7": "> /artifact",
+          "8": "  ⎿  Review submitted",
+          "10": "──────────────────────────────────────────────────────",
+          "11": "> [Approved] implementation_plan.md",
+          "13": "  Reacted.",
+          "15": "──────────────────────────────────────────────────────",
+          "16": ">",
+          "17": "──────────────────────────────────────────────────────",
+          "18": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+        }
+      },
+      "planRejected": {
+        "height": 19,
+        "rows": {
+          "0": "──────────────────────────────────────────────────────",
+          "1": "> Plan it",
+          "3": "● Edit(~/.gemini/antigravity-cli/brain/<conversation>/implementation_plan.md) (ctrl+o to expand)",
+          "5": "  Planned.",
+          "7": "> /artifact",
+          "8": "  ⎿  Review submitted",
+          "10": "──────────────────────────────────────────────────────",
+          "11": "> [Rejected] implementation_plan.md",
+          "13": "  Reacted.",
+          "15": "──────────────────────────────────────────────────────",
+          "16": ">",
+          "17": "──────────────────────────────────────────────────────",
+          "18": "? for shortcuts                                                                                     Gemini 3.1 Pro · low"
+        }
+      }
     },
     "twin": {
       "what": "two identical run_command calls at once: the first one's dialog, and the twin's once the first was answered with 1",
-      "first": [
-        "──────────────────────────────────────────────────────",
-        "> Run it",
-        "",
-        "● Bash(echo same)",
-        "○ Bash(echo same) (ctrl+o to expand)",
-        "",
-        "Command",
-        "──────────────────────────────────────────────────────",
-        "",
-        "Requesting permission for:",
-        "   echo same",
-        "",
-        "Run this command?",
-        "> 1. Yes, run command",
-        "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
-        "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
-        "  4. No, cancel",
-        "",
-        "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
-        "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-      ],
-      "second": [
-        "──────────────────────────────────────────────────────",
-        "> Run it",
-        "",
-        "● Bash(echo same)",
-        "● Bash(echo same) (ctrl+o to expand)",
-        "",
-        "Command",
-        "──────────────────────────────────────────────────────",
-        "",
-        "Requesting permission for:",
-        "   echo same",
-        "",
-        "Run this command?",
-        "> 1. Yes, run command",
-        "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
-        "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
-        "  4. No, cancel",
-        "",
-        "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
-        "esc to cancel                                                                                       Gemini 3.1 Pro · low"
-      ]
+      "first": {
+        "height": 20,
+        "rows": {
+          "0": "──────────────────────────────────────────────────────",
+          "1": "> Run it",
+          "3": "● Bash(echo same)",
+          "4": "○ Bash(echo same) (ctrl+o to expand)",
+          "6": "Command",
+          "7": "──────────────────────────────────────────────────────",
+          "9": "Requesting permission for:",
+          "10": "   echo same",
+          "12": "Run this command?",
+          "13": "> 1. Yes, run command",
+          "14": "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
+          "15": "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+          "16": "  4. No, cancel",
+          "18": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+          "19": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        }
+      },
+      "second": {
+        "height": 20,
+        "rows": {
+          "0": "──────────────────────────────────────────────────────",
+          "1": "> Run it",
+          "3": "● Bash(echo same)",
+          "4": "● Bash(echo same) (ctrl+o to expand)",
+          "6": "Command",
+          "7": "──────────────────────────────────────────────────────",
+          "9": "Requesting permission for:",
+          "10": "   echo same",
+          "12": "Run this command?",
+          "13": "> 1. Yes, run command",
+          "14": "  2. Yes, and always allow in this conversation for commands that start with 'echo'",
+          "15": "  3. Yes, and always allow for commands that start with 'echo' (Persist to settings.json)",
+          "16": "  4. No, cancel",
+          "18": "  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command",
+          "19": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+        }
+      }
     }
   }
 }

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
@@ -6,6 +6,7 @@ import type { AgentName } from "@novadeck/protocol"
 
 import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
+import { loadProbe } from "../testing/probes.js"
 import type { HarnessEvent } from "./events.js"
 import {
   continuationPrompt,
@@ -206,9 +207,9 @@ describe("each harness's hook registrations", () => {
 type Scenario = { events: { event: string; payload: Report["payload"] }[] }
 const scenario = (agent: AgentName, name: string): Scenario =>
   (
-    JSON.parse(
-      readFileSync(join(import.meta.dirname, agent, "fixtures", "interactive.probe.json"), "utf8"),
-    ) as { scenarios: { [name: string]: Scenario } }
+    loadProbe(join(import.meta.dirname, agent), "interactive.probe.json") as {
+      scenarios: { [name: string]: Scenario }
+    }
   ).scenarios[name]!
 
 const decode = (agent: AgentName, event: string, payload: Report["payload"]) =>

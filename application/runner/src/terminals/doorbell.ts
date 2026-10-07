@@ -2,6 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import { doorbellLine } from "../harnesses/harness.js"
 import { coalesced } from "./coalesce.js"
+import type { InputEntry, InputQueue } from "./input-queue.js"
 import { bracketedPaste, calmMs, checkPaste, freshNonce, gate } from "./ring.js"
 import type { ScreenText } from "./screen.js"
 
@@ -28,16 +29,6 @@ export type DoorbellHost = {
   readonly foreground: (terminalId: string) => Promise<boolean | undefined>
   /** When its window was last resized, in epoch milliseconds; 0 before any resize. */
   readonly resizedAt: (terminalId: string) => number
-  /**
-   * Holds the person's input to the terminal until it is released, and the app's resizes
-   * of it until the hold settles, which releases the input too; a safety cap lapses each.
-   * `holding` says the input is still held.
-   */
-  readonly hold: (terminalId: string) => {
-    readonly release: () => void
-    readonly settle: () => void
-    readonly holding: () => boolean
-  }
   /** Writes to the terminal's shell; false once it is gone. */
   readonly write: (terminalId: string, data: string) => boolean
 }
@@ -60,13 +51,23 @@ export type DoorbellOptions = {
   readonly confirmMs?: number
 }
 
+// The longest a ring holds the person's input, in milliseconds: a safety cap, well beyond
+// its test paste.
+const inputCapMs = 3_000
+
+// The longest it holds the app's resizes, in milliseconds: a safety cap beyond the wait for
+// the ring's prompt to confirm it.
+const sizeCapMs = 8_000
+
 /**
  * Wakes idle agents (see docs/agent-messaging.md, "The doorbell"): once messaging says a
  * terminal may be rung and its screen has been still for a while, it pastes the line as a
  * test, presses Enter only when the line landed alone, and lets the ring fail when no
  * doorbell prompt confirms it. It never presses a key after a failure, and knows nothing
  * of how any harness draws its screen. Each change to a terminal's screen or messages
- * looks again, coalesced per terminal per tick.
+ * looks again, coalesced per terminal per tick. A ring takes its turn in the terminal's
+ * input queue, after the prompts, answers and interrupts before it, and looks at the
+ * screen once more when its turn comes.
  */
 export class Doorbell {
   private readonly now: () => number
@@ -93,6 +94,7 @@ export class Doorbell {
 
   constructor(
     private readonly host: DoorbellHost,
+    private readonly queue: InputQueue,
     options: DoorbellOptions = {},
   ) {
     this.now = options.now ?? Date.now
@@ -144,57 +146,77 @@ export class Doorbell {
 
   private async check(terminalId: string): Promise<void> {
     if (this.closed || this.checking.has(terminalId)) return
-    // Any harness's screen changes for a while after a turn, or a start: no ring before it
-    // settles.
-    const since = this.host.settledSince(terminalId)
-    const settling = since === undefined ? 0 : since + this.settleMs - this.now()
-    if (settling > 0) return this.later(terminalId, settling)
-    if (!this.host.ringable(terminalId)) return
     this.checking.add(terminalId)
     try {
-      const screen = await this.host.screen(terminalId)
-      if (!screen) return
-      const text = screen.rows.join("\n")
-      const now = this.now()
-      let still = this.still.get(terminalId)
-      if (still?.text !== text) {
-        still = { text, since: now }
-        this.still.set(terminalId, still)
-      }
-      // A resize ends the calm too: the TUI may not have redrawn for it yet.
-      const calm = now - Math.max(still.since, this.host.resizedAt(terminalId))
-      if (calm < this.calmMs) return this.later(terminalId, this.calmMs - calm)
-      const foreground = await this.host.foreground(terminalId)
-      const verdict = gate(
-        {
-          ringable: this.host.ringable(terminalId),
-          calmMs: calm,
-          bracketedPaste: screen.bracketedPaste,
-          foreground,
-        },
-        this.calmMs,
-      )
-      if (verdict === "open") await this.ring(terminalId, now - calm)
+      if ((await this.open(terminalId)) === undefined) return
+      await this.queue.run(terminalId, (entry) => this.ring(entry, terminalId))
     } finally {
       this.checking.delete(terminalId)
     }
   }
 
   /**
-   * Rings once: the test paste, with the person's input held until its Enter, and the
+   * When the screen's calm began, if the terminal may be rung now: messaging says so, the
+   * settle window has passed, and the screen has been still for a while, takes a bracketed
+   * paste and is the foreground's. Otherwise undefined, with a later look where one is due.
+   */
+  private async open(terminalId: string): Promise<number | undefined> {
+    // Any harness's screen changes for a while after a turn, or a start: no ring before it
+    // settles.
+    const since = this.host.settledSince(terminalId)
+    const settling = since === undefined ? 0 : since + this.settleMs - this.now()
+    if (settling > 0) {
+      this.later(terminalId, settling)
+      return undefined
+    }
+    if (!this.host.ringable(terminalId)) return undefined
+    const screen = await this.host.screen(terminalId)
+    if (!screen) return undefined
+    const text = screen.rows.join("\n")
+    const now = this.now()
+    let still = this.still.get(terminalId)
+    if (still?.text !== text) {
+      still = { text, since: now }
+      this.still.set(terminalId, still)
+    }
+    // A resize ends the calm too: the TUI may not have redrawn for it yet.
+    const calm = now - Math.max(still.since, this.host.resizedAt(terminalId))
+    if (calm < this.calmMs) {
+      this.later(terminalId, this.calmMs - calm)
+      return undefined
+    }
+    const foreground = await this.host.foreground(terminalId)
+    const verdict = gate(
+      {
+        ringable: this.host.ringable(terminalId),
+        calmMs: calm,
+        bracketedPaste: screen.bracketedPaste,
+        foreground,
+      },
+      this.calmMs,
+    )
+    return verdict === "open" ? now - calm : undefined
+  }
+
+  /**
+   * Rings once, in its turn: the test paste, with the person's input held until its Enter, and the
    * app's resizes until its prompt confirms it or it fails; Enter only once the line shows alone, twice running, and while the hold is
-   * still in force; then a wait for its doorbell prompt. A resize since the calm began
-   * (`calmSince`) puts the ring off untried. A ring abandoned on
+   * still in force; then a wait for its doorbell prompt. The entries before it may have
+   * changed the screen, so the terminal is looked at again first. A resize since the calm began
+   * puts the ring off untried. A ring abandoned on
    * the way fails, leaving its line, if it landed, as the person's draft.
    */
-  private async ring(terminalId: string, calmSince: number): Promise<void> {
+  private async ring(entry: InputEntry, terminalId: string): Promise<void> {
+    if (this.closed) return
+    const calmSince = await this.open(terminalId)
+    if (calmSince === undefined) return
     const nonce = freshNonce()
     const line = doorbellLine(nonce)
     // Only a Ready terminal may lose a block of text as the line lands, as Codex's logo.
     const vanish = this.host.ready(terminalId)
     if (this.host.resizedAt(terminalId) > calmSince) return this.later(terminalId, this.calmMs)
     if (!this.host.ring(terminalId, nonce)) return
-    const hold = this.host.hold(terminalId)
+    const hold = entry.hold({ inputMs: inputCapMs, sizeMs: sizeCapMs })
     let pressed = false
     try {
       const before = await this.host.screen(terminalId)
@@ -221,6 +243,12 @@ export class Doorbell {
           if (this.now() >= until) break
         }
       }
+    } catch (error) {
+      // A throw (the screen's) fails the ring as any other end does: the nonce no longer
+      // blocks prompts and answers, and the resizes go on.
+      hold.settle()
+      this.host.ringFailed(terminalId, nonce)
+      throw error
     } finally {
       hold.release()
     }

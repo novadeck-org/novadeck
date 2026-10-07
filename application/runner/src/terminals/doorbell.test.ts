@@ -5,6 +5,7 @@ import { vi } from "vitest"
 import { describe, expect, it } from "../test.js"
 import { screen } from "../testing/screens.js"
 import { Doorbell, type DoorbellHost } from "./doorbell.js"
+import { InputQueue } from "./input-queue.js"
 
 /**
  * A terminal as the doorbell sees it: a screen that a paste changes as `takes` says,
@@ -26,6 +27,8 @@ const terminal = (
     ready?: boolean
     /** Whether its first screen draws a logo, far from its box, only while the box is empty. */
     logo?: boolean
+    /** Its screen can't be read once a ring is under way. */
+    screenThrowsWhileRinging?: boolean
     /** Resizes it as the foreground is looked at, once: after the calm, before the ring. */
     resizeAtForeground?: boolean
   } = {},
@@ -63,6 +66,7 @@ const terminal = (
       failed.push(nonce)
     },
     screen: async () => {
+      if (options.screenThrowsWhileRinging && ringing !== undefined) throw new Error("no screen")
       const text = screen({ rows: [...rows], bracketedPaste: options.bracketedPaste ?? true })
       if (options.screenMs) await sleep(options.screenMs)
       return text
@@ -75,6 +79,18 @@ const terminal = (
       return Promise.resolve(options.foreground)
     },
     resizedAt: () => resizedAt,
+    write: (_, data) => {
+      written.push(data)
+      // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
+      const pasted = /^\x1b\[200~(.*)\x1b\[201~$/.exec(data)?.[1]
+      if (pasted) pastedAt ??= Date.now()
+      if (pasted && options.takes !== "nothing") rows[6] = `> ${pasted}`
+      if (pasted && options.takes === "elsewhere") rows[0] = "popup closed"
+      if (pasted && options.logo) rows[2] = ""
+      return true
+    },
+  }
+  const queue = new InputQueue({
     hold: () => {
       holds += 1
       held = true
@@ -91,22 +107,14 @@ const terminal = (
           release()
           sizes = false
         },
+        settleAfter: () => {},
         holding: () => held,
+        discard: () => {},
       }
     },
-    write: (_, data) => {
-      written.push(data)
-      // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
-      const pasted = /^\x1b\[200~(.*)\x1b\[201~$/.exec(data)?.[1]
-      if (pasted) pastedAt ??= Date.now()
-      if (pasted && options.takes !== "nothing") rows[6] = `> ${pasted}`
-      if (pasted && options.takes === "elsewhere") rows[0] = "popup closed"
-      if (pasted && options.logo) rows[2] = ""
-      return true
-    },
-  }
+  })
   return {
-    host,
+    host: Object.assign(host, { queue }),
     rows,
     written,
     failed,
@@ -122,9 +130,30 @@ const fast = { calmMs: 30, pollMs: 5, pasteMs: 100, confirmMs: 100 }
 const enters = (written: readonly string[]) => written.filter((data) => data === "\r").length
 
 describe("the doorbell", () => {
+  it("rings only once the entry ahead of it in the terminal's input queue is done, never between its steps", async () => {
+    const { host, written } = terminal()
+    const doorbell = new Doorbell(host, host.queue, fast)
+    // An answer, and the words that follow it, are one entry: the screen is calm, and the
+    // ring due, for longer than the pause between them.
+    const events: string[] = []
+    const ahead = host.queue.run("t", async () => {
+      events.push("answer")
+      await sleep(150)
+      events.push("words")
+      await sleep(10)
+    })
+    doorbell.changed("t")
+    await sleep(120)
+    expect(written).toEqual([])
+    await ahead
+    await vi.waitFor(() => expect(enters(written)).toBe(1))
+    expect(events).toEqual(["answer", "words"])
+    doorbell.close()
+  })
+
   it("rings a calm, ringable terminal: the test paste, then Enter once it landed alone", async () => {
     const { host, written, state, confirm, failed } = terminal()
-    const doorbell = new Doorbell(host, fast)
+    const doorbell = new Doorbell(host, host.queue, fast)
     doorbell.changed("t")
     await vi.waitFor(() => expect(enters(written)).toBe(1))
     expect(written[0]).toMatch(
@@ -141,7 +170,7 @@ describe("the doorbell", () => {
 
   it("holds the app's resizes past its Enter until its prompt confirms the ring", async () => {
     const { host, written, state, confirm } = terminal()
-    const doorbell = new Doorbell(host, { ...fast, confirmMs: 1_000 })
+    const doorbell = new Doorbell(host, host.queue, { ...fast, confirmMs: 1_000 })
     doorbell.changed("t")
     await vi.waitFor(() => expect(enters(written)).toBe(1))
     // The person's keys go on after the Enter; the app's sizes wait for the prompt.
@@ -156,13 +185,13 @@ describe("the doorbell", () => {
 
   it("lets the app's resizes go once a ring fails, pressed or not", async () => {
     const swallowed = terminal({ takes: "nothing" })
-    const refused = new Doorbell(swallowed.host, fast)
+    const refused = new Doorbell(swallowed.host, swallowed.host.queue, fast)
     refused.changed("t")
     await vi.waitFor(() => expect(swallowed.failed).toHaveLength(1))
     expect(swallowed.state().sizes).toBe(false)
     refused.close()
     const unconfirmed = terminal()
-    const lapsed = new Doorbell(unconfirmed.host, fast)
+    const lapsed = new Doorbell(unconfirmed.host, unconfirmed.host.queue, fast)
     lapsed.changed("t")
     await vi.waitFor(() => expect(enters(unconfirmed.written)).toBe(1))
     expect(unconfirmed.state().sizes).toBe(true)
@@ -171,14 +200,30 @@ describe("the doorbell", () => {
     lapsed.close()
   })
 
+  it("fails a ring and lets the resizes go when reading the screen throws once it is under way", async () => {
+    const { host, state, failed } = terminal({ screenThrowsWhileRinging: true })
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const doorbell = new Doorbell(host, host.queue, fast)
+      doorbell.changed("t")
+      await vi.waitFor(() => expect(failed).toHaveLength(1))
+      expect(state().ringing).toBeUndefined()
+      expect(state().sizes).toBe(false)
+      expect(state().held).toBe(false)
+      doorbell.close()
+    } finally {
+      log.mockRestore()
+    }
+  })
+
   it("takes a first screen's logo vanishing as the line lands only when the terminal is Ready", async () => {
     const ready = terminal({ logo: true, ready: true })
-    const rung = new Doorbell(ready.host, fast)
+    const rung = new Doorbell(ready.host, ready.host.queue, fast)
     rung.changed("t")
     await vi.waitFor(() => expect(enters(ready.written)).toBe(1))
     rung.close()
     const settled = terminal({ logo: true })
-    const refused = new Doorbell(settled.host, fast)
+    const refused = new Doorbell(settled.host, settled.host.queue, fast)
     refused.changed("t")
     await vi.waitFor(() => expect(settled.failed).toHaveLength(1))
     expect(enters(settled.written)).toBe(0)
@@ -187,7 +232,7 @@ describe("the doorbell", () => {
 
   it("abandons a ring whose hold lapsed before its Enter, pressing nothing", async () => {
     const { host, written, failed, state } = terminal({ holdMs: 40, screenMs: 30 })
-    const doorbell = new Doorbell(host, fast)
+    const doorbell = new Doorbell(host, host.queue, fast)
     doorbell.changed("t")
     await vi.waitFor(() => expect(failed).toHaveLength(1))
     expect(written).toHaveLength(1)
@@ -198,7 +243,7 @@ describe("the doorbell", () => {
 
   it("waits for its screen to settle after its turn before it looks", async () => {
     const { host, written } = terminal({ settledAt: Date.now() })
-    const doorbell = new Doorbell(host, { ...fast, settleMs: 300 })
+    const doorbell = new Doorbell(host, host.queue, { ...fast, settleMs: 300 })
     doorbell.changed("t")
     await sleep(200)
     expect(written).toEqual([])
@@ -208,7 +253,7 @@ describe("the doorbell", () => {
 
   it("waits for the screen to be still for its calm period", async () => {
     const { host, rows, written } = terminal()
-    const doorbell = new Doorbell(host, { ...fast, calmMs: 200 })
+    const doorbell = new Doorbell(host, host.queue, { ...fast, calmMs: 200 })
     doorbell.changed("t")
     await sleep(100)
     rows[1] = "a clock ticked"
@@ -221,7 +266,7 @@ describe("the doorbell", () => {
 
   it("counts a resize as an end to the calm, as the screen may not have redrawn for it yet", async () => {
     const { host, written, resize } = terminal()
-    const doorbell = new Doorbell(host, { ...fast, calmMs: 200 })
+    const doorbell = new Doorbell(host, host.queue, { ...fast, calmMs: 200 })
     doorbell.changed("t")
     await sleep(100)
     resize()
@@ -233,7 +278,7 @@ describe("the doorbell", () => {
 
   it("puts off, untried, a ring whose terminal was resized after its calm, and rings once calm again", async () => {
     const { host, written, failed, state } = terminal({ resizeAtForeground: true })
-    const doorbell = new Doorbell(host, { ...fast, calmMs: 100 })
+    const doorbell = new Doorbell(host, host.queue, { ...fast, calmMs: 100 })
     doorbell.changed("t")
     await vi.waitFor(() => expect(enters(written)).toBe(1), { timeout: 1_000 })
     const { rings, pastedAt, resizedAt } = state()
@@ -248,7 +293,7 @@ describe("the doorbell", () => {
   it("presses nothing when a menu or approval swallows the paste, and fails the ring", async () => {
     for (const takes of ["nothing", "elsewhere"] as const) {
       const { host, written, failed, state } = terminal({ takes })
-      const doorbell = new Doorbell(host, fast)
+      const doorbell = new Doorbell(host, host.queue, fast)
       doorbell.changed("t")
       // eslint-disable-next-line no-await-in-loop -- One terminal at a time.
       await vi.waitFor(() => expect(failed).toHaveLength(1))
@@ -261,7 +306,7 @@ describe("the doorbell", () => {
 
   it("fails a ring no doorbell prompt confirms, and never presses Enter again", async () => {
     const { host, written, failed } = terminal()
-    const doorbell = new Doorbell(host, fast)
+    const doorbell = new Doorbell(host, host.queue, fast)
     doorbell.changed("t")
     await vi.waitFor(() => expect(failed).toHaveLength(1))
     expect(enters(written)).toBe(1)
@@ -275,7 +320,7 @@ describe("the doorbell", () => {
   it("keeps its gate shut without bracketed paste, off the foreground, or with nothing to ring", async () => {
     for (const options of [{ bracketedPaste: false }, { foreground: false }, { ringable: false }]) {
       const { host, written } = terminal(options)
-      const doorbell = new Doorbell(host, fast)
+      const doorbell = new Doorbell(host, host.queue, fast)
       doorbell.changed("t")
       // eslint-disable-next-line no-await-in-loop -- One terminal at a time.
       await sleep(120)
@@ -286,7 +331,7 @@ describe("the doorbell", () => {
 
   it("rings where the platform can't tell the foreground", async () => {
     const { host, written } = terminal({ foreground: undefined })
-    const doorbell = new Doorbell(host, fast)
+    const doorbell = new Doorbell(host, host.queue, fast)
     doorbell.changed("t")
     await vi.waitFor(() => expect(enters(written)).toBe(1))
     doorbell.close()

@@ -12,4 +12,5 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - "@types/node@26.6.2"
 patchedDependencies:
+  "@xterm/addon-unicode-graphemes@0.4.0": patches/@xterm__addon-unicode-graphemes@0.4.0.patch
   node-pty@1.2.0-beta.14: patches/node-pty@1.2.0-beta.14.patch

@@ -145,6 +145,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     agents: states.agents,
     notices: states.notices,
     pickDirectory: states.pickDirectory,
+    ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
     DebugPanel: createDebugPanel({
       launch,
       shell,

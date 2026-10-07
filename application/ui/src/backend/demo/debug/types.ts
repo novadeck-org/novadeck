@@ -62,6 +62,10 @@ export type DemoStates = {
   readonly openWelcome: () => void
   readonly notices: NonNullable<Backend["notices"]>
   readonly pickDirectory: NonNullable<Backend["pickDirectory"]>
+  // The demo's conversations, with what the panel arms for the chat's next send.
+  readonly chat: (
+    conversations: NonNullable<Backend["conversations"]>,
+  ) => NonNullable<Backend["conversations"]>
   readonly screens: DemoScreens
   // A fresh shell in place of an ended one, through the backend's sink.
   readonly restart: (key: TerminalKey, dispatch: BackendSink["dispatch"]) => void

@@ -11,6 +11,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import { afterAll } from "vitest"
 
+import { screenRecord, type ScreenRecord } from "../../testing/probes.js"
 import { codex } from "../agents/codex.js"
 import type { DeckTerminal } from "../deck.js"
 import { poll } from "../deck.js"
@@ -201,15 +202,23 @@ const settled = async (t: DeckTerminal, forMs = 800): Promise<string> => {
   return last.shown
 }
 
-const rows = (screen: string): string[] => screen.split("\n").filter((line) => line.trim() !== "")
+/** The screen's non-blank rows, as the probe fixture keeps a screen (`columns` where it is known). */
+const rows = (screen: string, columns?: number): ScreenRecord =>
+  screenRecord(
+    screen
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .join("\n"),
+    { columns },
+  )
 
 /** The screen's non-blank rows at 120x40 and again at 60x20. */
-const shoot = async (t: DeckTerminal): Promise<{ wide: string[]; narrow: string[] }> => {
+const shoot = async (t: DeckTerminal): Promise<{ wide: ScreenRecord; narrow: ScreenRecord }> => {
   t.resize(120, 40)
-  const wide = rows(await settled(t))
+  const wide = rows(await settled(t), 120)
   t.resize(60, 20)
   await sleep(500)
-  const narrow = rows(await settled(t))
+  const narrow = rows(await settled(t), 60)
   t.resize(120, 40)
   await sleep(500)
   await settled(t)

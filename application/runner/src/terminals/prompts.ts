@@ -4,6 +4,7 @@ import { normalisedText, promptRefusal, shellCommand } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import { isEmpty, sameText, wrappedRows, type BoxProfile } from "../harnesses/box.js"
+import type { HoldBudget, InputEntry, InputQueue } from "./input-queue.js"
 import { bracketedPaste } from "./ring.js"
 import type { ScreenText } from "./screen.js"
 
@@ -23,27 +24,11 @@ export type PromptHost = {
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
   readonly screen: (terminalId: string) => Promise<ScreenText | undefined>
   /**
-   * Holds the person's input to the terminal for at most `inputMs`, and its window's
-   * resizes for at most `sizeMs` or until `settle`, which releases the input too.
-   * `holding` says the input is still held.
-   */
-  readonly hold: (
-    terminalId: string,
-    budget: HoldBudget,
-  ) => {
-    readonly release: () => void
-    readonly settle: () => void
-    readonly holding: () => boolean
-  }
-  /**
    * Writes keys to the agent as the person's, through the bookkeeping their own keys get,
    * ahead of anything their held input waits to send; false once the terminal is gone.
    */
   readonly type: (terminalId: string, data: string) => boolean
 }
-
-/** How long a hold's safety caps let it last, in milliseconds. */
-export type HoldBudget = { readonly inputMs: number; readonly sizeMs: number }
 
 export type PromptOptions = {
   /** How often the screen is looked at after the paste, in milliseconds. */
@@ -77,8 +62,9 @@ const inPaste = (text: string): string => text.replace(/\r\n?|\n/g, "\r")
  * same bookkeeping the person's keys get. The harness's adapter reads the box (see
  * `harnesses/box.ts`): the paste goes in only where it is empty, so it never merges into
  * a draft, and Enter only where it holds nothing else. It never presses Enter after a
- * failed check: the text stays as a draft. Prompts to one terminal go one at a time, and
- * wait for a doorbell ring under way, so the two never share a box. A shell command (`!`
+ * failed check: the text stays as a draft. Prompts to one terminal take their turn in the
+ * terminal's input queue, with answers, interrupts and the doorbell's rings, and wait for a
+ * ring's prompt to be confirmed, so none of them share a box. A shell command (`!`
  * and a command) goes the way a person types it, which every harness takes: the `!` as a
  * key, then, once the box reads empty in its shell mode, the command as the paste, and
  * Enter once the box holds exactly it. A message never goes into a box in its shell mode,
@@ -92,13 +78,10 @@ export class Prompts {
   private readonly settleMs: number
   private readonly emptyMs: number
   private readonly budget: HoldBudget
-  /** The latest prompt of each terminal that is not yet done. */
-  private readonly tails = new Map<string, Promise<void>>()
-  /** Lets go of the resizes each terminal's latest prompt holds, until they lapse. */
-  private readonly settles = new Map<string, () => void>()
 
   constructor(
     private readonly host: PromptHost,
+    private readonly queue: InputQueue,
     options: PromptOptions = {},
   ) {
     this.pollMs = options.pollMs ?? 50
@@ -114,7 +97,8 @@ export class Prompts {
   }
 
   /**
-   * Gives the terminal's agent `text` as a prompt, once those before it are done. Refuses
+   * Gives the terminal's agent `text` as a prompt, once those before it in the terminal's
+   * input queue are done. Refuses, in its turn,
    * as `admit` says, with `CONFLICT` too where the screen takes no bracketed paste, or its
    * input box is not on it, holds a draft already, or has no room on the screen for the text; `PROMPT_REFUSED` for text a TUI
    * would take for more than a message (`promptRefusal`); `PROMPT_FAILED` where the paste
@@ -122,35 +106,46 @@ export class Prompts {
    * typed `!`), leaving what landed of it as a draft. All but the last write nothing.
    */
   async prompt(terminalId: string, text: string): Promise<void> {
+    this.refuse(text)
+    await this.queue.run(terminalId, (entry) => this.give(entry, terminalId, text))
+  }
+
+  /**
+   * Gives the prompt as the entry of the terminal's input queue that already holds its turn,
+   * as the words that follow an answer, which are one entry with it.
+   */
+  async promptIn(entry: InputEntry, terminalId: string, text: string): Promise<void> {
+    this.refuse(text)
+    await this.give(entry, terminalId, text)
+  }
+
+  /** The shape of the text is refused at call time; `admit` is asked in the entry's turn. */
+  private refuse(text: string): void {
     const refusal = promptRefusal(text, { shell: true })
     if (refusal !== undefined) throw new DomainError("PROMPT_REFUSED", refusal)
-    this.host.admit(terminalId)
-    const previous = this.tails.get(terminalId) ?? Promise.resolve()
+  }
+
+  private async give(entry: InputEntry, terminalId: string, text: string): Promise<void> {
     // A message's edges are no part of it, and no harness shows them: the cursor of a
     // trailing line break would sit below its box.
     const command = shellCommand(text)
-    const run = previous.then(() =>
-      command === undefined
-        ? this.send(terminalId, normalisedText(text).trim(), false)
-        : this.send(terminalId, command, true),
-    )
-    const tail = run.then(
-      () => {},
-      () => {},
-    )
-    this.tails.set(terminalId, tail)
-    void tail.then(() => {
-      if (this.tails.get(terminalId) === tail) this.tails.delete(terminalId)
-    })
-    return await run
+    return command === undefined
+      ? await this.send(entry, terminalId, normalisedText(text).trim(), false)
+      : await this.send(entry, terminalId, command, true)
   }
 
   /** `text` is the message, or with `shell` the command after its `!`. */
-  private async send(terminalId: string, text: string, shell: boolean): Promise<void> {
+  private async send(
+    entry: InputEntry,
+    terminalId: string,
+    text: string,
+    shell: boolean,
+  ): Promise<void> {
     await this.ringDone(terminalId)
     const profile = this.host.admit(terminalId)
     // The person's keys are held from before the box is looked at, so none comes between.
-    const hold = await this.held(terminalId)
+    const hold = entry.hold(this.budget)
+    if (!hold.holding()) throw new DomainError("TERMINAL_NOT_FOUND")
     let pressed = false
     // Whether the box showed the command only as a placeholder its shell would run as text.
     let unexpanded = false
@@ -242,44 +237,8 @@ export class Prompts {
       throw this.failed()
     }
     // A resize as the turn starts may crash a TUI, as the doorbell's ring found of Codex.
-    // The next prompt there needs no wait for it.
-    const timer = setTimeout(() => this.settle(terminalId), this.settleMs)
-    timer.unref()
-    this.settles.set(terminalId, () => {
-      clearTimeout(timer)
-      hold.settle()
-    })
-  }
-
-  /** Lets go of the window's resizes held after the last prompt's Enter, if any still are. */
-  private settle(terminalId: string): void {
-    const settle = this.settles.get(terminalId)
-    this.settles.delete(terminalId)
-    settle?.()
-  }
-
-  /**
-   * The person's input held for the paste's time and a margin, as long text takes longer
-   * to draw. A hold in force is the doorbell's ring waiting for its prompt, which a prompt
-   * waits out for as long as it does a ring.
-   */
-  private async held(terminalId: string): Promise<ReturnType<PromptHost["hold"]>> {
-    this.settle(terminalId)
-    const until = Date.now() + this.ringMs
-    for (;;) {
-      const hold = this.host.hold(terminalId, this.budget)
-      if (hold.holding()) return hold
-      if (Date.now() >= until)
-        throw new DomainError(
-          "CONFLICT",
-          "Another prompt, answer or message holds the agent's input.",
-          undefined,
-          "held",
-        )
-      // eslint-disable-next-line no-await-in-loop -- The hold is tried in turn.
-      await sleep(this.pollMs)
-      this.host.admit(terminalId)
-    }
+    // The next entry there takes this hold over, with the resizes it holds.
+    hold.settleAfter(this.settleMs)
   }
 
   /**

@@ -1,14 +1,16 @@
-import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../test.js"
+import { loadProbe } from "../testing/probes.js"
 import type { HarnessEvent } from "./events.js"
 import { harnesses } from "./registry.js"
 import { lastReply, withReplies } from "./replies.js"
 
-const { transcript: steps } = JSON.parse(
-  readFileSync(join(import.meta.dirname, "agy", "fixtures", "transcript.probe.json"), "utf8"),
+const { transcript: steps } = loadProbe(
+  join(import.meta.dirname, "agy"),
+  "transcript.probe.json",
 ) as { transcript: object[] }
 const items = harnesses.agy.transcripts!.items
 

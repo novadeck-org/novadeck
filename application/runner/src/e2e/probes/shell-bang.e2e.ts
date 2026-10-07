@@ -9,6 +9,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { screenRecord } from "../../testing/probes.js"
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate, text } from "../model/script.js"
@@ -68,7 +69,7 @@ for (const setup of setups) {
       const file = (name: string) => existsSync(join(run.sandbox.project, name))
       const look = async (label: string) => {
         out[label] = {
-          screen: await t.screen(),
+          screen: screenRecord(await t.screen()),
           activity: t.summary().agent,
         }
       }

@@ -2,6 +2,7 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
+import type { ScreenRecord } from "../../testing/probes.js"
 import { claude } from "../agents/claude.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { answers, own, result } from "../scenarios.js"
@@ -51,7 +52,7 @@ describe.skipIf(!supported)("claude ask probe: channel relay and elicitation", (
       )
       const t = await run.deck.open(command)
       await sleep(8000)
-      const shots: Record<string, string[]> = { start: await snap(t) }
+      const shots: Record<string, ScreenRecord> = { start: await snap(t) }
       // Dev-channel warning dialog, if shown.
       if (/Channels are not currently available/.test(await t.screen())) {
         // Probed 2026-10-06, 2.1.287: with an API key and the fake model the gate is closed,

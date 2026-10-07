@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { dialogs } from "../../harnesses/claude/dialogs.js"
+import type { ScreenRecord } from "../../testing/probes.js"
 import { claude } from "../agents/claude.js"
 import type { DeckTerminal } from "../deck.js"
 import { describe, e2e, supported } from "../fixture.js"
@@ -53,13 +54,13 @@ const form = (name: string, message: string, schema: object, drive?: Drive) =>
       await t.submit("Ask now")
       await t.until(new RegExp(message.slice(0, 12)), 30_000)
       await sleep(900)
-      const screens: Record<string, string[]> = { "120x40": await snap(t) }
+      const screens: Record<string, ScreenRecord> = { "120x40": await snap(t, 120) }
       t.resize(60, 20)
       await sleep(900)
-      screens["60x20"] = await snap(t)
+      screens["60x20"] = await snap(t, 60)
       t.resize(120, 40)
       await sleep(900)
-      const steps: Record<string, string[]> = {}
+      const steps: Record<string, ScreenRecord> = {}
       const shot = async (label: string, wait = 700) => {
         await sleep(wait)
         steps[label] = await snap(t)

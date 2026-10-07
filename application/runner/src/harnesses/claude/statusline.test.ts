@@ -1,14 +1,10 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-
 import type { Report } from "../../shell/reports.js"
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import { decode } from "./decode.js"
 
 type Window = { used_percentage: number; resets_at: number }
-const { payload } = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "statusline.probe.json"), "utf8"),
-) as {
+const { payload } = loadProbe(import.meta.dirname, "statusline.probe.json") as {
   payload: Report["payload"] & {
     context_window: {
       context_window_size: number

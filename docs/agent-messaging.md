@@ -710,7 +710,10 @@ text in `record.screen` (`@xterm/headless`), with its paste mode. The ring, in o
    only this check keeps a ring off it; Windows has none (see [Per harness](#per-harness)).
    A gate that fails presses nothing and is tried again on the next change to the screen
    or the terminal's messages.
-5. **Test paste.** With the person's input to the terminal held for the whole ring,
+5. **Test paste.** Once its turn comes in the terminal's input queue (the prompts,
+   answers and interrupts given before it are done, and an answer and the words that
+   follow it never have a ring between them), and the screen still passes the checks
+   above, with the person's input to the terminal held for the whole ring,
    until after its Enter, and the app's resizes of it too, the latest applied once the
    ring is confirmed or fails, as a resize redraws the screen mid-check and would fail the
    ring (a pane changing size, the companion bar opening, a font size), and one landing as

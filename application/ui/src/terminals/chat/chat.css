@@ -826,6 +826,12 @@
   gap: 8px;
   color: var(--_muted);
 }
+.chat-error[data-terminal] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .chat-error {
   margin-top: 0;
   margin-bottom: 6px;

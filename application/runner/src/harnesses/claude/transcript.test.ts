@@ -1,13 +1,9 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
-
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import { transcriptEvents } from "./transcript.js"
 
 type Probe = { scenarios: { [name: string]: object[] } }
-const probe = JSON.parse(
-  readFileSync(join(import.meta.dirname, "fixtures", "transcript.probe.json"), "utf8"),
-) as Probe
+const probe = loadProbe(import.meta.dirname, "transcript.probe.json") as Probe
 const session = { sessionId: "s", instance: "7" }
 const all = (name: string) =>
   probe.scenarios[name]!.flatMap((record) => transcriptEvents(JSON.stringify(record), session))

@@ -58,6 +58,9 @@ export class FakeTui {
   }
 }
 
+// Text with each run of white space as one space, as the field shows words typed into it.
+const spaced = (text: string): string => text.replace(/\s+/g, " ").trim()
+
 /** Reads the fake dialog for a request whose input names its command. */
 export const fakeAdapter = (): DialogAdapter => ({
   read: (rows, facts): DialogRead | undefined => {
@@ -89,6 +92,12 @@ export const fakeAdapter = (): DialogAdapter => ({
               why: "the text field",
             },
             { type: answer.text },
+            {
+              until: (now) =>
+                now.some((row) => spaced(row).startsWith(`> ${spaced(answer.text!)}`)),
+              timeoutMs: 500,
+              why: "the words in the text field",
+            },
             { press: "\r" },
           ]
         }

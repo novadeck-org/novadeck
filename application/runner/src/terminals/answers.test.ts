@@ -7,6 +7,7 @@ import { fakeAdapter, FakeTui } from "../testing/dialogs.js"
 import { screen } from "../testing/screens.js"
 import { Answers, type AnswerHost } from "./answers.js"
 import { identified } from "./dialogs.js"
+import { InputQueue } from "./input-queue.js"
 
 const facts: RequestFacts = {
   kind: "permission",
@@ -31,6 +32,8 @@ const terminal = (
     chat?: "field" | "prompt" | null
     /** Its keys come with a few hundred seconds' worth of waits, which hold at once. */
     longSteps?: boolean
+    /** Its keys type words with no check after that they showed. */
+    unchecked?: boolean
     /** Whether the other request "r2" still waits. */
     twinWaits?: () => boolean
     /** Other requests waiting. */
@@ -44,6 +47,10 @@ const terminal = (
     refusals?: DomainError[]
     /** Whether the agent's turn runs, per its hooks. */
     working?: boolean
+    /** When the agent's running turn began, on the clock of `Date.now`. */
+    turnStartedAt?: () => number | undefined
+    /** How long a turn is left to run before the first key, in milliseconds; 10 by default. */
+    settleMs?: number
     /** Runs after each write, as the TUI redraws. */
     after?: (tui: FakeTui) => void
   } = {},
@@ -96,6 +103,18 @@ const terminal = (
         },
       }
     }
+    if (options.unchecked)
+      return {
+        read: (rows, each) => {
+          const read = plain.read(rows, each)
+          return (
+            read && {
+              ...read,
+              keys: (answer) => read.keys(answer)?.filter((step) => !("until" in step)),
+            }
+          )
+        },
+      }
     if (options.longSteps)
       return {
         read: (rows, each) => {
@@ -154,27 +173,19 @@ const terminal = (
           : undefined,
     ringing: () => undefined,
     screen: () => Promise.resolve(tui.screen()),
-    hold: () => {
-      holds += 1
-      return {
-        release: () => calls.push("release"),
-        settle: () => (settled += 1),
-        holding: () => true,
-        discard: () => calls.push("discard"),
-      }
-    },
     type: (_terminal, data) => {
       tui.write(data)
       options.after?.(tui)
       return true
     },
-    prompt: (_terminal, text) => {
+    prompt: (_entry, _terminal, text) => {
       calls.push(`prompt ${text}`)
       const refusal = options.refusals?.shift()
       if (refusal) return Promise.reject(refusal)
       return options.promptFails ? Promise.reject(new Error("no")) : Promise.resolve()
     },
     working: () => options.working ?? false,
+    turnStartedAt: () => options.turnStartedAt?.(),
     closed: () => closed,
     answered: (_terminal, ref) => options.answeredRefs?.includes(ref) ?? false,
     shown: () => options.shown ?? true,
@@ -191,19 +202,36 @@ const terminal = (
       busy += on ? 1 : -1
     },
   }
-  const answers = new Answers(host, {
+  const queue = new InputQueue({
+    hold: () => {
+      holds += 1
+      let released = false
+      return {
+        release: () => {
+          if (!released) calls.push("release")
+          released = true
+        },
+        settle: () => (settled += 1),
+        settleAfter: (ms) => void setTimeout(() => (settled += 1), ms).unref(),
+        holding: () => true,
+        discard: () => calls.push("discard"),
+      }
+    },
+  })
+  const answers = new Answers(host, queue, {
     stillMs: 5,
     readMs: 100,
     pollMs: 5,
     answeredMs: 100,
     typedMs: 100,
-    settleMs: 10,
+    settleMs: options.settleMs ?? 10,
     followMs: 200,
     calmMs: 200,
   })
   return {
     tui,
     answers,
+    queue,
     calls,
     locks,
     read: () => adapter().read(tui.rows(), facts),
@@ -242,7 +270,7 @@ const fails = async (run: Promise<unknown>): Promise<string> => {
 }
 
 // A refusal of the words that follow an answer, for the reason given.
-const refusal = (reason: "pending" | "ringing" | "held" | "draft" | "no-box") =>
+const refusal = (reason: "pending" | "draft" | "no-box") =>
   new DomainError("CONFLICT", "no", undefined, reason)
 
 // The answer that picks option 3 of the dialog read, with words that follow it.
@@ -261,6 +289,59 @@ describe("answering a request through its dialog", () => {
     expect(calls).toEqual(["discard", "release", "done"])
     expect(holds()).toBe(1)
     expect(busy()).toBe(0)
+  })
+
+  it("presses nothing until the turn that put the dialog up has run for the settle time", async () => {
+    const began = Date.now()
+    let firstKey: number | undefined
+    const { tui, answers } = terminal({
+      settleMs: 150,
+      turnStartedAt: () => began,
+      after: () => (firstKey ??= Date.now()),
+    })
+    await give(tui, answers, { type: "choice", option: "2" })
+    // A timer may fire a millisecond early.
+    expect(firstKey! - began).toBeGreaterThanOrEqual(148)
+    expect(tui.written).toEqual(["2"])
+  })
+
+  it("waits for no turn that has not begun, or began long ago", async () => {
+    for (const turnStartedAt of [undefined, Date.now() - 60_000]) {
+      const started = Date.now()
+      let firstKey: number | undefined
+      const { tui, answers } = terminal({
+        settleMs: 150,
+        turnStartedAt: () => turnStartedAt,
+        after: () => (firstKey ??= Date.now()),
+      })
+      // eslint-disable-next-line no-await-in-loop -- One after the other, as timed.
+      await give(tui, answers, { type: "choice", option: "2" })
+      expect(firstKey! - started).toBeLessThan(100)
+    }
+  })
+
+  it("waits no longer than the settle time for a turn that began, by the clock, in the future", async () => {
+    const started = Date.now()
+    let firstKey: number | undefined
+    const { tui, answers } = terminal({
+      settleMs: 150,
+      turnStartedAt: () => started + 60_000,
+      after: () => (firstKey ??= Date.now()),
+    })
+    await give(tui, answers, { type: "choice", option: "2" })
+    expect(firstKey! - started).toBeLessThan(1_000)
+  })
+
+  it("refuses a dialog read for a request that registered during the turn's settle wait", async () => {
+    const others: { ref: string; facts: RequestFacts }[] = []
+    const { tui, answers } = terminal({
+      settleMs: 100,
+      turnStartedAt: () => Date.now(),
+      others,
+    })
+    setTimeout(() => others.push({ ref: "r2", facts: { ...facts, cwd: "/elsewhere" } }), 30)
+    expect(await fails(give(tui, answers, { type: "choice", option: "1" }))).toBe("CONFLICT")
+    expect(tui.written).toEqual([])
   })
 
   it("opens a field, types the person's words as one bracketed paste and presses Enter", async () => {
@@ -463,6 +544,14 @@ describe("answering a request through its dialog", () => {
     expect(locks).toEqual([])
   })
 
+  it("presses nothing where its adapter would type words without checking they showed", async () => {
+    const { tui, answers } = terminal({ unchecked: true })
+    await expect(
+      give(tui, answers, { type: "choice", option: "3", text: "words" }),
+    ).rejects.toThrow("without a check")
+    expect(tui.written).toEqual([])
+  })
+
   it("is ANSWER_FAILED where typed text never shows, pressing no Enter", async () => {
     const { tui, answers } = terminal()
     // The field takes keys but draws none of the text.
@@ -493,7 +582,12 @@ describe("answering a request through its dialog", () => {
 
   it("refuses an answer that outlasts the longest the keys can be held", async () => {
     const t = terminal()
-    const short = new Answers(t.host, { stillMs: 5, readMs: 100, pollMs: 5, holdMs: 1_000 })
+    const short = new Answers(t.host, t.queue, {
+      stillMs: 5,
+      readMs: 100,
+      pollMs: 5,
+      holdMs: 1_000,
+    })
     expect(
       await fails(
         short.answer("t", "r1", {
@@ -659,17 +753,14 @@ describe("answering a request through its dialog", () => {
   })
 
   describe("the words that follow an answer", () => {
-    it.each(["pending", "ringing", "held"] as const)(
-      "are tried again while the refusal is %s, which clears by itself",
-      async (reason) => {
-        const { answers, calls, read } = terminal({
-          prompting: true,
-          refusals: [refusal(reason), refusal(reason)],
-        })
-        await answers.answer("t", "r1", choose(read))
-        expect(calls.filter((call) => call.startsWith("prompt"))).toHaveLength(3)
-      },
-    )
+    it("are tried again while a request is still pending, which clears by itself", async () => {
+      const { answers, calls, read } = terminal({
+        prompting: true,
+        refusals: [refusal("pending"), refusal("pending")],
+      })
+      await answers.answer("t", "r1", choose(read))
+      expect(calls.filter((call) => call.startsWith("prompt"))).toHaveLength(3)
+    })
 
     it.each(["draft", "no-box"] as const)(
       "fail at once as WORDS_NOT_SENT where the refusal is %s",
@@ -686,6 +777,18 @@ describe("answering a request through its dialog", () => {
         refusals: Array.from({ length: 1_000 }, () => refusal("pending")),
       })
       expect(await fails(answers.answer("t", "r1", choose(read)))).toBe("WORDS_NOT_SENT")
+    })
+
+    it("are one entry of the terminal's input queue with their answer: nothing comes between", async () => {
+      const { answers, queue, calls, read } = terminal({ prompting: true })
+      const answered = answers.answer("t", "r1", choose(read))
+      // Queued behind the answer as it begins, as a doorbell ring or a prompt would be.
+      const other = queue.run("t", () => Promise.resolve(void calls.push("other entry")))
+      await Promise.all([answered, other])
+      expect(calls.indexOf("prompt do it differently")).toBeGreaterThan(-1)
+      expect(calls.indexOf("other entry")).toBeGreaterThan(
+        calls.indexOf("prompt do it differently"),
+      )
     })
 
     it("wait for the screen to settle before they go, longer while a turn runs", async () => {
@@ -731,7 +834,7 @@ describe("waiting for an agent's screen to settle before words follow an answer"
   type Calm = { calm: (id: string) => Promise<void> }
   /** Answers on a screen that `drawing` changes on each look, with the default waits. */
   const settling = (options: { working?: boolean; drawing?: boolean; gone?: boolean }) => {
-    const { host } = terminal({ working: options.working ?? false })
+    const { host, queue } = terminal({ working: options.working ?? false })
     let looks = 0
     const answers = new Answers(
       {
@@ -742,6 +845,7 @@ describe("waiting for an agent's screen to settle before words follow an answer"
           return Promise.resolve(screen({ rows: [options.drawing ? `tick ${looks}` : "still"] }))
         },
       },
+      queue,
       {},
     )
     return (answers as unknown as Calm).calm("t")

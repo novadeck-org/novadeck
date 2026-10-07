@@ -144,6 +144,60 @@ for (const setup of setups) {
       await through(t1, ["working", "settled"], { after: next })
     })
 
+    it("clears a long prompt put back in the box, though it shows only its tail, and gives nothing back", async ({
+      e2e: run,
+    }) => {
+      const held = gate()
+      run.model.use(
+        replies("Carry on", "Carried on."),
+        own(async (call) => {
+          if (!asked(call, "Hold on")) return undefined
+          await held.opened
+          return { text: "Too late." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const calls = run.model.mark()
+      const mark = t1.mark()
+      const long = ["Hold on", ...Array.from({ length: 24 }, (_, i) => `line ${i + 2} of it`)]
+
+      await t1.prompt(long.join("\n"))
+      await run.model.waitFor((call) => !call.side && latest(call).includes("Hold on"), {
+        after: calls,
+      })
+      await t1.reached("working", { after: mark })
+      const stopped = await t1.interrupt()
+      // Let go only once the agent has taken the Escape: Antigravity and Codex take the key a
+      // moment after it is written, and a reply let go before then still draws, its turn
+      // finished (probes/interrupt-held-reply.e2e.ts). Their own account of the
+      // interruption says they took it; Claude Code's is the prompt gone from the screen,
+      // which the runner clears from its box before `interrupt` resolves.
+      const account = setup.interrupted("Hold on")
+      await t1.poll(
+        async () => {
+          const shown = await t1.screen()
+          // Only Claude Code's account is the prompt gone: elsewhere a tall prompt's first
+          // line may scroll off before the key is taken.
+          const gone = setup.agent === "claude" && !shown.includes("Hold on")
+          return account.test(shown) || gone ? true : undefined
+        },
+        "the harness to take the interrupt",
+        30_000,
+      )
+      held.open()
+      await sleep(1500)
+
+      // The prompt is the chat's already: none of it goes back to the draft.
+      expect(stopped.returned).toBeNull()
+      expect(await t1.screen()).not.toContain("Too late.")
+
+      // The box is empty: the next prompt goes alone, as a normal turn.
+      const next = t1.mark()
+      await t1.prompt("Carry on")
+      await t1.until("Carried on.")
+      await through(t1, ["working", "settled"], { after: next })
+    })
+
     it("sends nothing for a Stop while idle, however often, so no picker opens", async ({
       e2e: run,
     }) => {

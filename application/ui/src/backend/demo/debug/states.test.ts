@@ -92,6 +92,7 @@ describe("demo states", () => {
       "New terminals",
       "Notices",
       "Agents",
+      "Chat",
       "Folders",
     ])
     for (const action of states.groups.flatMap((group) => group.actions))

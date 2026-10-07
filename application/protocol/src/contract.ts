@@ -40,6 +40,7 @@ import {
   voiceState,
   voiceTranscript,
   voiceUnavailable,
+  conflictReason,
   workspaceSession,
 } from "./schemas.js"
 
@@ -49,7 +50,8 @@ export const errors = {
   NOT_FOUND: { status: 404 },
   INVALID_DIRECTORY: { status: 400 },
   INVALID_FILE: { status: 400 },
-  CONFLICT: { status: 409 },
+  // Optional data says why, for typing into an agent's terminal (`conflictReason`).
+  CONFLICT: { status: 409, data: conflictReason.optional() },
   RESOURCE_LIMIT: { status: 429 },
   TERMINAL_LIMIT: { status: 429 },
   TERMINAL_NOT_FOUND: { status: 404 },

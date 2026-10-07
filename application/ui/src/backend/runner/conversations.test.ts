@@ -2,7 +2,7 @@ import type { AgentDetail, TranscriptChange, TranscriptItem } from "@novadeck/pr
 import { RunnerError } from "@novadeck/protocol/client"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { WordsLost } from "../../model/conversation"
+import { SettleInTerminal, WordsLost } from "../../model/conversation"
 import { promptRefusal } from "../../model/prompt-refusal"
 import { describe, expect, it } from "../../test"
 import {
@@ -492,10 +492,7 @@ describe("the runner's conversations", () => {
     it.each([
       ["DISCONNECTED", "The runner is offline."],
       ["CLOSED", "The runner is offline."],
-      [
-        "CONFLICT",
-        "The agent can't take a prompt right now. It may be waiting for your answer in the terminal.",
-      ],
+      ["CONFLICT", "The agent can't take that right now. Check its terminal."],
       ["PROMPT_REFUSED", promptRefusal],
       ["PROMPT_FAILED", "The prompt didn't land in the agent's box. It may be there as a draft."],
       ["INTERNAL_SERVER_ERROR", "Couldn't reach the agent."],
@@ -505,12 +502,31 @@ describe("the runner's conversations", () => {
       await expect(conversations.send(key, "hi")).rejects.toThrow(message)
     })
 
-    it("says the runner's own reason for a refusal, where it gives one", async () => {
+    it("words a conflict by the reason the runner gives, offering the terminal where it settles there", async () => {
       const { conversations, streams } = setup()
-      streams.prompt.mockRejectedValue(
-        new RunnerError("CONFLICT", "The agent's input box holds a draft: clear it first."),
-      )
-      await expect(conversations.send(key, "hi")).rejects.toThrow("holds a draft")
+      const failing = async (data: unknown): Promise<unknown> => {
+        streams.prompt.mockRejectedValueOnce(
+          new RunnerError("CONFLICT", "The runner's own words", { data }),
+        )
+        return conversations.send(key, "hi").catch((failure: unknown) => failure)
+      }
+      const draft = await failing({ reason: "draft" })
+      expect(draft).toBeInstanceOf(SettleInTerminal)
+      expect(draft).toHaveProperty("message", expect.stringContaining("already holds text"))
+      const ringing = await failing({ reason: "ringing" })
+      expect(ringing).not.toBeInstanceOf(SettleInTerminal)
+      expect(ringing).toHaveProperty("message", expect.stringContaining("in a moment"))
+      // A reason this client doesn't know is none: the terminal is where to look.
+      const unknown = await failing({ reason: "new-one" })
+      expect(unknown).toBeInstanceOf(SettleInTerminal)
+      expect(unknown).toHaveProperty("message", expect.not.stringContaining("own words"))
+      const none = await failing({ reason: "no-agent" })
+      expect(none).toBeInstanceOf(SettleInTerminal)
+      expect(none).toHaveProperty("message", "No agent is running in this terminal.")
+    })
+
+    it("says the runner's own reason for a refused prompt, where it gives one", async () => {
+      const { conversations, streams } = setup()
       streams.prompt.mockRejectedValue(
         new RunnerError("PROMPT_REFUSED", "A message can't hold control characters."),
       )
@@ -542,10 +558,20 @@ describe("the runner's conversations", () => {
 
     it("tells the person why an interrupt didn't go", async () => {
       const { conversations, streams } = setup()
-      streams.interrupt.mockRejectedValue(new RunnerError("CONFLICT"))
-      await expect(conversations.interrupt(key)).rejects.toThrow(
-        "The agent can't take a prompt right now. It may be waiting for your answer in the terminal.",
+      streams.interrupt.mockRejectedValue(
+        new RunnerError("CONFLICT", "No agent is running in this terminal.", {
+          data: { reason: "no-box" },
+        }),
       )
+      await expect(conversations.interrupt(key)).rejects.toThrow("can't find the agent's input box")
+      streams.interrupt.mockRejectedValue(
+        new RunnerError("CONFLICT", "A request waits.", { data: { reason: "pending" } }),
+      )
+      await expect(conversations.interrupt(key)).rejects.toThrow("Answer it first, then stop it")
+      streams.interrupt.mockRejectedValue(
+        new RunnerError("CONFLICT", "Ringing.", { data: { reason: "ringing" } }),
+      )
+      await expect(conversations.interrupt(key)).rejects.toThrow("Stop it again in a moment")
       streams.interrupt.mockRejectedValue(new Error("boom"))
       await expect(conversations.interrupt(key)).rejects.toThrow("Couldn't stop the agent.")
     })
@@ -615,6 +641,18 @@ describe("the runner's conversations", () => {
         action: "accept",
         values: { name: "api", replicas: 3, dry: true },
       })
+    })
+
+    it("words an answer's conflict by its reason, where the runner gives one", async () => {
+      const { conversations, streams } = setup()
+      streams.answer.mockRejectedValue(
+        new RunnerError("CONFLICT", "A message's doorbell is ringing the agent.", {
+          data: { reason: "ringing" },
+        }),
+      )
+      await expect(
+        conversations.answer(key, "r", { type: "choice", dialog: "d1", option: "1" }),
+      ).rejects.toThrow("Try the answer again in a moment")
     })
 
     it.each([

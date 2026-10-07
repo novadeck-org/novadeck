@@ -947,6 +947,19 @@ describe("terminal attachment and recovery API", () => {
   })
 })
 
+describe("agents API", () => {
+  it("says why a prompt conflicts as the error's data", async ({ resources }) => {
+    const app = await fixture(resources)
+    const { client } = await app.connect()
+    const { session } = await app.setup(client)
+    const terminal = await client.terminals.create(shell(session.id))
+
+    await expect(
+      client.agents.prompt({ terminalId: terminal.id, text: "hello" }),
+    ).rejects.toMatchObject({ code: "CONFLICT", data: { reason: "no-agent" } })
+  })
+})
+
 describe("voice input API", () => {
   it("says why voice input is unavailable as the error's data", async ({ resources }) => {
     const app = await fixture(resources)

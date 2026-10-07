@@ -2,6 +2,7 @@ import { posix, win32 } from "node:path"
 
 import type { RequestAnswer } from "@novadeck/protocol"
 
+import { cells } from "../../terminals/width.js"
 import type { DialogAdapter, DialogRead, KeyStep, ReadDialog, RequestFacts } from "../dialogs.js"
 import { elicitationTool } from "./decode.js"
 
@@ -510,7 +511,7 @@ const diffIs = (
         marker: first.marker,
         number: first.number,
         pieces: [first.text.trimEnd()],
-        full: [row.length === cols],
+        full: [cells(row) === cols],
       })
       continue
     }
@@ -520,7 +521,7 @@ const diffIs = (
     const before = lines.at(-1)
     if (!more || text === undefined || !before) return false
     before.pieces.push(text.trimEnd())
-    before.full.push(row.length === cols)
+    before.full.push(cells(row) === cols)
   }
   if (!marked) {
     const content = contentLines(input.content, 8)

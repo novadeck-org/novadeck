@@ -1,6 +1,7 @@
 import { ArrowUp, Square, X } from "lucide-react"
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 
+import { SettleInTerminal } from "../../model/conversation"
 import {
   controlHint,
   hasControlCharacters,
@@ -16,8 +17,13 @@ import type { ComposerMode } from "./mode-state"
 // The most a reply to the agent's question carries.
 const replyMax = 16_384
 
-const reason = (failure: unknown): string =>
-  failure instanceof Error && failure.message ? failure.message : "It didn't go through."
+// What a failure says, and whether the person settles it in the agent's terminal.
+type Failure = { readonly text: string; readonly terminal: boolean }
+
+const failed = (failure: unknown): Failure => ({
+  text: failure instanceof Error && failure.message ? failure.message : "It didn't go through.",
+  terminal: failure instanceof SettleInTerminal,
+})
 
 // Where the person writes to the agent. Enter sends what's typed into the agent's own
 // box; Shift+Enter starts a new line. The words leave the box as they go, which is free for
@@ -38,6 +44,7 @@ export const Composer = ({
   focusInput,
   onInputFocused,
   onCancelReply,
+  onOpenTerminal,
   refused: refusedText,
 }: {
   // The agent it writes to, for the box's name.
@@ -58,12 +65,14 @@ export const Composer = ({
   readonly focusInput: boolean
   readonly onInputFocused: () => void
   readonly onCancelReply: () => void
+  // Shows the agent's terminal, where the person settles what failed there.
+  readonly onOpenTerminal: () => void
   // Whether a message would be refused for its shape, as the backend says.
   readonly refused: Refused
 }): React.JSX.Element => {
   const input = useRef<HTMLTextAreaElement>(null)
   const [stopping, setStopping] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<Failure | null>(null)
   const mounted = useRef(true)
   useEffect(() => {
     mounted.current = true
@@ -102,7 +111,7 @@ export const Composer = ({
     if (!text || sending || refused) return
     setError(null)
     onSend(text).catch((failure: unknown) => {
-      if (mounted.current) setError(reason(failure))
+      if (mounted.current) setError(failed(failure))
     })
   }
   const stop = (): void => {
@@ -113,7 +122,7 @@ export const Composer = ({
       (failure: unknown) => {
         if (!mounted.current) return
         setStopping(false)
-        setError(reason(failure))
+        setError(failed(failure))
       },
     )
   }
@@ -131,8 +140,13 @@ export const Composer = ({
       }}
     >
       {error && (
-        <p className="chat-error" role="alert">
-          {error}
+        <p className="chat-error" role="alert" data-terminal={error.terminal || undefined}>
+          <span>{error.text}</span>
+          {error.terminal && (
+            <button type="button" className="button quiet nodrag nopan" onClick={onOpenTerminal}>
+              Open terminal
+            </button>
+          )}
         </p>
       )}
       {replying && (

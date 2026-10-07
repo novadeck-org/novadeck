@@ -6,6 +6,7 @@
     "0.159.3": {
       "1 ready empty": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2
@@ -60,6 +61,7 @@
       },
       "2 ready first key": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 3
@@ -79,6 +81,7 @@
       },
       "4 draft pasted": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 21
@@ -98,6 +101,7 @@
       },
       "5 draft typed": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 13
@@ -117,6 +121,7 @@
       },
       "6 short pasted": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 4
@@ -136,6 +141,7 @@
       },
       "7 three lines": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 7
@@ -157,6 +163,7 @@
       },
       "8 wrapped line": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 112
@@ -179,6 +186,7 @@
       },
       "9 long collapsed": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 29
@@ -198,6 +206,7 @@
       },
       "10 collapsed then more": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 10
@@ -218,6 +227,7 @@
       },
       "size 10 lines": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 15
@@ -246,6 +256,7 @@
       },
       "size 25 lines": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 15
@@ -289,6 +300,7 @@
       },
       "size 300 chars": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 67
@@ -310,6 +322,7 @@
       },
       "size 700 chars": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 19
@@ -335,6 +348,7 @@
       },
       "size 1500 chars": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 29
@@ -354,6 +368,7 @@
       },
       "12 after turn": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2
@@ -380,6 +395,7 @@
       },
       "13 draft after turn": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 18
@@ -405,6 +421,7 @@
       },
       "14 mid-turn empty": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2
@@ -435,6 +452,7 @@
       },
       "15 mid-turn short pasted": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 4
@@ -464,6 +482,7 @@
       },
       "16 mid-turn three lines": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 7
@@ -495,6 +514,7 @@
       },
       "17 mid-turn long collapsed": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 29
@@ -524,6 +544,7 @@
       },
       "text indented": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 5
@@ -546,6 +567,7 @@
       },
       "text emoji": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 34
@@ -565,6 +587,7 @@
       },
       "queued": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2
@@ -593,6 +616,7 @@
       },
       "queued steered": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2
@@ -623,6 +647,7 @@
     "0.160.1": {
       "1 ready empty": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2
@@ -677,6 +702,7 @@
       },
       "2 ready first key": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 3
@@ -696,6 +722,7 @@
       },
       "4 draft pasted": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 21
@@ -715,6 +742,7 @@
       },
       "5 draft typed": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 13
@@ -734,6 +762,7 @@
       },
       "6 short pasted": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 4
@@ -753,6 +782,7 @@
       },
       "7 three lines": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 7
@@ -774,6 +804,7 @@
       },
       "8 wrapped line": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 112
@@ -796,6 +827,7 @@
       },
       "9 long collapsed": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 29
@@ -815,6 +847,7 @@
       },
       "10 collapsed then more": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 10
@@ -835,6 +868,7 @@
       },
       "size 10 lines": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 15
@@ -863,6 +897,7 @@
       },
       "size 25 lines": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 15
@@ -906,6 +941,7 @@
       },
       "size 300 chars": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 67
@@ -927,6 +963,7 @@
       },
       "size 700 chars": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 19
@@ -952,6 +989,7 @@
       },
       "size 1500 chars": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 29
@@ -971,6 +1009,7 @@
       },
       "12 after turn": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2
@@ -997,6 +1036,7 @@
       },
       "13 draft after turn": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 18
@@ -1022,6 +1062,7 @@
       },
       "14 mid-turn empty": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2
@@ -1052,6 +1093,7 @@
       },
       "15 mid-turn short pasted": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 4
@@ -1081,6 +1123,7 @@
       },
       "16 mid-turn three lines": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 7
@@ -1112,6 +1155,7 @@
       },
       "17 mid-turn long collapsed": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 29
@@ -1141,6 +1185,7 @@
       },
       "text indented": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 5
@@ -1163,6 +1208,7 @@
       },
       "text emoji": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 34
@@ -1182,6 +1228,7 @@
       },
       "queued": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2
@@ -1210,6 +1257,7 @@
       },
       "queued steered": {
         "height": 40,
+        "columns": 120,
         "cursor": {
           "row": 36,
           "column": 2

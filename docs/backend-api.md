@@ -728,9 +728,16 @@ command not found`, from somewhere between 900 and 1,500 characters, or 8 and 16
   takes the `!` back out where the box reads in its shell mode and empty, which leaves the
   mode in all three, idle or mid-turn.
 
-  Prompts to one terminal go one at a time, in order, and one given while an answer to a
-  request goes there waits for it and the words that follow it; one that meets a doorbell ring under
-  way waits for it, up to 10 s (`CONFLICT` after). Both keys go through the bookkeeping the
+  Everything that puts keys in one terminal's agent box takes its turn in that terminal's
+  input queue (`terminals/input-queue.ts`), one entry at a time, in the order it came:
+  prompts, answers (an answer and the words that follow it are one entry), interrupts and
+  the messaging doorbell's rings. So a prompt given while an answer to a request goes
+  there waits for it and the words that follow it, and a ring never comes between them;
+  terminals' queues don't wait for each other. The agent and the pending request are
+  looked at in the prompt's turn, not when it is called: only the text's shape
+  (`PROMPT_REFUSED`) is refused at once, so a prompt given during an answer is not refused
+  for the request that answer is for. A prompt that meets a doorbell ring
+  whose prompt is yet to confirm it waits for it, up to 10 s (`CONFLICT` after). Both keys go through the bookkeeping the
   person's own do (`Terminals.keyed`): what messaging and the doorbell see of the box and
   its Enter, the person's prompt attributed from the harness's transcript, the terminal
   named from its first prompt. A prompt given while the agent works behaves as typing it
@@ -738,7 +745,8 @@ command not found`, from somewhere between 900 and 1,500 characters, or 8 and 16
   messages") and run it as its own turn once the turn ends; Codex shows it as "Messages to
   be submitted after next tool call", submitting it into the running turn then, or at its
   end when no tool follows. Each shows up as a separate user item in the transcript. The
-  window's resizes are held until a second after the Enter, or the next prompt. The
+  window's resizes are held until a second after the Enter; the next entry of the queue takes
+  them over and keeps that deadline, so one that is refused at once lets none go earlier. The
   client's `agents.prompt(terminalId, text)` is that call.
 
 - A request's `dialog` in `agents.detail` is what its harness's adapter (`harnesses/<harness>/dialogs.ts`,
@@ -771,90 +779,75 @@ command not found`, from somewhere between 900 and 1,500 characters, or 8 and 16
   ones the person saw.
 - `agents.answer({ terminalId, request, answer })` answers a request through its dialog
   as the person would with its keys. `request` is its ref from `agents.detail`; `answer`
-  is `{ type: "choice", option, text? }` (an option of `choices` by its id, with words for
-  an option that takes them) or `{ type: "questions", answers: [{ question, options, text? }] }`
-  (per question, by ids, the options picked and/or the person's own words); both carry
-  `dialog`. The runner holds the person's keys, waits for the screen to hold still on two reads
-  100 ms apart, reads it (again for up to 3 s before refusing a dialog that may be half drawn), has the adapter recognise the dialog in full as the
-  request's (its question and options, its command or file, against what the hook said),
-  presses the keys the adapter says for the answer (digits as the screen numbers them, text as
-  one bracketed paste where the screen takes it, and the next key only once the text, or its
-  start, shows on the screen; a text the TUI may collapse shows by the screen changing and holding still), waiting on the adapter's own checks of the screen between moves, and waits up to 5 s, on a screen that held still on two reads, for the adapter to see the
-  dialog gone as the answer should have it go, or for the request to be gone (its hook said it
-  was answered). What the person typed meanwhile is dropped, not replayed after, and counted as theirs
-  only if delivered; the terminal's own replies (cursor-position and device-attribute
-  answers and focus reports) are never held, but the mouse's wheel and motion reports, which Claude Code
-  and Codex turn on tracking for while a dialog shows, are dropped while the answer holds the person's keys, never replayed after. The hold, and the
-  window's resizes with it, last as long as the answer's waits need (up to 10 minutes), not the
-  doorbell's and prompts' short caps. An answer also counts as taken where the screen no
-  longer reads as the request's dialog and reads as another waiting request's (queued
-  permissions), and an answer to a request whose dialog shows `raw` without a lock (the
-  screen reads as nothing now) is a `CONFLICT` that locks nothing. Requests of the same agent (root, or the same subagent) that ask the very same (kind,
-  tool, input and the directory their hook said, else the terminal's) and read the same
-  dialog are interchangeable: the dialog shows on each, an
-  answer goes through either, and the hook of either resolving counts as taken, leaving the
-  request the answer went through waiting where the same dialog shows again at once (a
-  harness folds identical calls into one request, as Codex's queue of two identical
-  commands does, so the second is answered through it again). Requests that differ in
-  any of those, a subagent's and the root's among them, stay unanswerable while one screen
-  reads for both. A twin's vanishing counts as taken only where the screen moved on from the
-  dialog read before the keys. A `questions` dialog whose `chat` is not null may be set aside to talk it over
-  first, with `{ type: "chat", dialog, text? }`: its keys come from the adapter as any answer's;
-  where `chat` is `prompt` the words are sent as the agent's next prompt once the dialog took
-  the key (as a `prompt` option's are), where it is `field` they are typed into the dialog and
-  are needed; where it is null, or a `field` has no words, the answer is a `CONFLICT` pressing
-  nothing. What an adapter reads is cut to the protocol's limits before it shows (a long question or
-  description), but for a `choices` `detail` past 4 KiB, which is never approved from a cut view: it
-  reads as nothing and shows raw, and a dialog whose ids or counts exceed them reads as nothing
-  and shows raw. A request raw for good (locked) still keeps another's identical-looking dialog
-  from being answerable; an answered one doesn't. The screen is read once more right before the
-  first key, and a dialog that no longer reads with the answer's `id` is `DIALOG_CHANGED`,
-  pressing nothing. Words holding control characters (other than tab and line breaks, which CRLF and CR are
-  among) are a `CONFLICT`, and follow-up words a prompt can't carry (`PROMPT_REFUSED`, as `agents.prompt`
-  has it) are refused before any key is pressed, and a form's `values` take at most 16 fields. Request dialogs only show raw, for want of one the adapter reads, once the screen has
-  been still for 1.5 s and the request pending for 2 s: a harness may run its hooks (ours included)
-  before it draws a dialog, its screen showing only work meanwhile, and none is then to read. A `form` dialog (an MCP
-  server's elicitation: its message and fields, each `text`, `number`, `boolean` or
-  `choice`, with whether it is required) is answered with `{ type: "form", dialog, action:
-"accept", values }`, a value per field id, or `action: "decline"`; the adapter's keys get the
-  whole answer, and a harness that raises no request for a form (Codex) shows none. Adapters get the session's
-  working directory (`cwd`) with each request, to resolve the paths a dialog shows. Each key goes through the
-  person's key bookkeeping, as `agents.prompt`'s do. Answers to one terminal go one at a time. A
-  request the agent doesn't have is `NOT_FOUND`. An answer whose `dialog` is not the id the screen reads
-  now is `DIALOG_CHANGED`: nothing is pressed or locked, and the next `agents.detail` has the new read. `CONFLICT`, with nothing pressed, is a dialog that
-  isn't on screen, that the adapter doesn't recognise as the request's (the request's dialog
-  turns `raw`, `unrecognized`, if one had shown), that reads for another request waiting too (nothing
-  can tell whose it is: no dialog on the terminal is answerable then, and each shows `raw`), an answer whose waits outlast the 10 minutes the keys can be held, an answer the dialog can't take, a harness without
-  an adapter, a request answered or turned raw already, or a doorbell ring or hold on the
-  person's keys that outlasts 10 s. `ANSWER_FAILED` is keys pressed without the dialog going as
-  expected, or a screen that never showed what its next move needs; its dialog turns `raw`, `failed`. After either
-  the runner never presses for that request again. Where the option chosen takes the
-  person's words as the agent's next prompt (`prompt`, as Codex's "No, and tell Codex
-  what to do differently" and Antigravity's feedback), the runner gives them as
-  one once the dialog took its key and the screen settled, trying again for up to 10 s while
-  the agent can't take a prompt yet for a reason that clears by itself (a request still
-  pending, a doorbell ring, another hold), and at once giving up on one that won't (a draft
-  in the box, no box, too tall, its shell mode); then the call fails `WORDS_NOT_SENT` though the dialog was answered (the words' paste may still sit in the agent's own input box as a draft, where its Enter was refused for a request that came meanwhile). The client's
+  names the dialog it answers by its `id` (`dialog`) and is one of:
+  - `{ type: "choice", dialog, option, text? }`: an option of `choices` by its id, with
+    words for an option that takes them;
+  - `{ type: "questions", dialog, answers: [{ question, options, text? }] }`: per question,
+    by ids, the options picked and/or the person's own words;
+  - `{ type: "chat", dialog, text? }`: a `questions` dialog whose `chat` is not null set
+    aside to talk it over, its words sent as the agent's next prompt (`prompt`) or typed
+    into the dialog's field (`field`, where they are needed);
+  - `{ type: "form", dialog, action: "accept", values }` (a value per field id, at most 16)
+    or `{ type: "form", dialog, action: "decline" }` for an MCP server's form.
+
+  It guarantees that nothing is pressed unless the dialog on screen, read once more right
+  before the first key, is the one the answer names; that what the person typed meanwhile
+  is dropped, never replayed after; that the runner never presses again for a request
+  whose answer failed (its dialog turns `raw`, `failed`); and that the answer, with any
+  words that follow it as the agent's next prompt (a `prompt` option's or a `chat`'s), takes
+  one turn in the terminal's input queue, so nothing else is typed between them (see
+  `agents.prompt`). Where the option chosen sends words as the agent's next prompt, they are
+  given once the dialog took its key. Errors:
+  - `NOT_FOUND`: the agent has no such request.
+  - `DIALOG_CHANGED`: the screen no longer reads with the answer's `dialog`; nothing is
+    pressed or locked, and the next `agents.detail` has the new read.
+  - `CONFLICT`: nothing pressed. The dialog isn't on screen, isn't recognised as the
+    request's, or reads for another request too; the dialog can't take that answer; words
+    hold control characters (other than tab and line breaks, CRLF and CR among them); the
+    request was answered or turned raw already; the harness has no adapter; the waits
+    outlast what the keys can be held for; or a doorbell ring awaiting confirmation
+    outlasts 10 s (`ringing`, its only `reason`: see the errors below). A dialog that isn't
+    on screen, or isn't recognised as the request's, turns the request's dialog `raw`,
+    `unrecognized`, if one had shown; one dialog reading for more than one request makes
+    each of them show `raw`, answerable through none. A failure before any key was pressed
+    (the screen never showed what the first move needs, the request no longer waiting) is
+    a `CONFLICT` too, and locks the request `raw`, `unrecognized` as well. After any lock
+    the runner never presses for the request again. An answer to a request that shows
+    `raw` without a lock (the screen reads as nothing now) is a `CONFLICT` that locks
+    nothing.
+  - `PROMPT_REFUSED`: words that follow as a prompt are ones `agents.prompt` refuses,
+    judged before any key.
+  - `ANSWER_FAILED`: keys were pressed and the dialog didn't go as expected, or the screen
+    never showed what the next move needs; the request's dialog turns `raw`, `failed`.
+  - `WORDS_NOT_SENT`: the dialog was answered, but the words that follow it did not reach
+    the agent (they may sit in its input box as a draft).
+
+  How the runner reads the dialog, presses its keys and confirms it went is in
+  [Harness adapters, Answer driver](harness-adapters.md#answer-driver). The client's
   `agents.answer(terminalId, request, answer)` is that call.
+
 - `agents.interrupt({ terminalId })` presses Escape in the terminal's agent, which stops
   its turn in every harness (the turn ends without a normal Stop: its activity is
-  `unknown` until the next prompt, see `agent-messaging.md`); `CONFLICT` without an agent
-  bound, or one showing its own prompt. It presses the key only while the agent's activity
+  `unknown` until the next prompt, see `agent-messaging.md`); `CONFLICT` (`no-agent`)
+  without an agent bound or showing its own prompt, or (`pending`) with one that waits on
+  the person's answer to a request. It presses the key only while the agent's activity
   is `working`; otherwise it resolves having sent nothing, as the turn is already over (a
   Stop clicked as the turn ends, or a second one), since Escape at an idle prompt does
-  nothing the chat wants and two of them open Claude Code's rewind picker. Interrupts of
-  one terminal go one at a time, each looking at the activity only a second after the
-  one before, so a double Stop sends one Escape. It waits for the person's input to be
-  let go, as held for a prompt's paste or the doorbell's test paste, for as long as that
-  hold's own cap allows (about 10 s for a prompt's, 3 s for a ring's), so its
-  Escape never cuts into one. It goes through the person's key bookkeeping too:
+  nothing the chat wants and two of them open Claude Code's rewind picker. It takes its
+  turn in the terminal's input queue, so its Escape never cuts into a prompt's paste, an
+  answer's keys or a ring's test paste; those of one terminal are each given a second
+  after the one before to show its turn ended before the next looks at the activity, so a
+  double Stop sends one Escape. It goes through the person's key bookkeeping too:
   the turn ends as an Escape of theirs ends it. The harness takes the key a moment later.
   Claude Code puts a prompt interrupted before any reply back in its box as a draft (Codex
   and Antigravity leave it echoed above their box, which stays empty; probed); the runner
   leaves the box as it was before the turn's prompt. Where the box read empty before the
   Escape, it looks up to 2 s at the box through the harness's adapter, and when the box
-  holds exactly the turn's prompt as its hooks told it (or the placeholder for a long
-  one), steady on two reads, it writes the adapter's clear keys, a double Escape for
+  holds exactly the turn's prompt as its hooks told it (Claude Code puts a long one back
+  as its text, never as a placeholder; probed), or, in Claude Code's, a box as tall as its
+  screen lets it be (the harness's `viewport`; none is taken for full on a screen too small
+  to know it) whose text ends with the turn's prompt, as only the tail of a prompt taller
+  than that shows, steady on two reads, it writes the adapter's clear keys, a double Escape for
   Claude Code (never pressed over an empty box, where it opens Claude Code's rewind
   picker, nor over text the person had typed or merged in, which is left). A harness
   without clear keys has nothing pressed.
@@ -949,6 +942,15 @@ command not found`, from somewhere between 900 and 1,500 characters, or 8 and 16
 Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
 `INVALID_DIRECTORY`, `INVALID_FILE`, `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,
 `INVALID_CURSOR`, `UPLOAD_TOO_LARGE`, `RESOURCE_LIMIT` (too many calls in flight; retry later),
-`TERMINAL_LIMIT` (the runner's terminal cap is reached), and `SLOW_CONSUMER`. The
-schemas and contract in
+`TERMINAL_LIMIT` (the runner's terminal cap is reached), and `SLOW_CONSUMER`. A
+`CONFLICT` about typing into an agent's terminal (`agents.prompt`, `agents.answer`,
+`agents.interrupt`) carries `{ reason }` as its data (`conflictReason`) where one applies:
+`agents.prompt` and `agents.interrupt` give one for every conflict about typing into the
+terminal, and `agents.answer` only `ringing` (a doorbell ring that outlasts 10 s), its
+other conflicts carrying none. `pending` (a request waits on the person), `ringing` or
+`no-paste` clear by themselves or by answering, while `draft`, `shell`, `too-tall`,
+`no-box` (the agent's input box is not found on its screen) and `no-agent` (no agent runs
+in the terminal) are for the person to settle in the terminal. Other conflicts carry no
+data, and a client takes a reason it doesn't know as none, so it words each one itself,
+by what the person did (send, stop, answer), rather than showing the runner's message. The schemas and contract in
 `application/protocol/src/` are the authoritative API definition.

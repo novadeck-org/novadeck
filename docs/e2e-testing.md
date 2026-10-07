@@ -600,6 +600,50 @@ for (const setup of setups) {
   screen; read the screen for what only it shows, such as a reply rendered, or the
   harness's own first screen (`banner`).
 
+## Probe fixtures
+
+The probes under `src/e2e/probes/` record what a real harness showed, and the adapters'
+tests replay it from `harnesses/<agent>/fixtures/*.probe.json` and
+`terminals/fixtures/doorbell-<agent>.json`. Every screen in them has one shape, a
+`ScreenRecord` (`src/testing/probes.ts`), the one the input-box probe first used:
+
+```json
+{
+  "height": 40,
+  "columns": 120,
+  "cursor": { "row": 36, "column": 2 },
+  "rows": { "1": "  >_ OpenAI Codex (v0.159.3)", "36": "› Ask Codex to do anything" },
+  "bright": { "36": "›" }
+}
+```
+
+- `rows` is sparse: only rows that show anything, by row number, as `screenText` reads
+  them. `height` is how many rows the record holds, the screen's own or, for a probe that
+  only had the screen's text, those up to the last that shows anything.
+- `bright` holds only the rows whose dim cells blank some of their text (a placeholder
+  suggestion), as they read undimmed; every other row reads as `rows` does.
+- `columns`, `cursor` and `bracketedPaste` are optional, kept where the probe knew them.
+  Read back, they default as `testing/screens.ts` does: 80 columns, the cursor on the last
+  row that shows anything, bracketed paste on. `styles` is a probe's note on each row's
+  style runs, for a reader's eyes; no test reads it.
+- A screen sits wherever its fixture needs it (`screens.wide`, `steps[].screen`, a doorbell
+  pair's `before` and `after`), beside whatever else the probe saw (hooks, status lines,
+  what the model received). That stays as the probe wrote it.
+
+**Reading:** `loadProbe<T>(folder, name)` reads `<folder>/fixtures/<name>` and gives every
+`ScreenRecord` in it back as the `ScreenText` it recorded; `T` is the test's own account
+of the rest. Every test that reads a probe fixture goes through it, screens or not.
+**Writing:** a probe makes a record with `screenRecord(screenText(terminal))`, or
+`screenRecord(text, { columns })` where it only has the screen's text, and puts it in what
+it writes. A fixture is that output copied in, scrubbed of the sandbox's paths.
+
+Not screens, so not in this shape: the hook payloads, status lines, transcripts, rollouts
+and `exec` events (`hooks`, `statusline`, `transcript`, `rollout`, `plan`, `exec`,
+`shell`, `interactive`, `modes` probes) are the harness's own records, whose shape is the
+harness's. Those probes' fixtures are read with `loadProbe` too, but hold no screen to
+convert. The model fixtures under `src/e2e/model/fixtures` are recorded HTTP requests, not
+probe output, and keep their own loader.
+
 ## Adding a harness
 
 1. Pin it in `harnesses.json` (an npm package, or an archive with its SHA-512) and make

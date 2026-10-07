@@ -1,15 +1,9 @@
-import {
-  appendFileSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs"
+import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../../test.js"
+import { loadProbe } from "../../testing/probes.js"
 import { apply, started } from "../activity.js"
 import type { HarnessEvent } from "../events.js"
 import { followRollout, followSubagent, rolloutEvents, subagentEvents } from "./rollout.js"
@@ -20,7 +14,7 @@ type Record_ = {
   payload: { type?: string } & Record<string, unknown>
 }
 const records = (
-  JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "rollout.probe.json"), "utf8")) as {
+  loadProbe(import.meta.dirname, "rollout.probe.json") as {
     records: Record_[]
   }
 ).records
@@ -123,9 +117,10 @@ describe("a Codex turn's end, as its rollout records it", () => {
 })
 
 describe("Codex in Plan Mode, as captured", () => {
-  const plan = JSON.parse(
-    readFileSync(join(import.meta.dirname, "fixtures", "plan.probe.json"), "utf8"),
-  ) as { records: object[]; hooks: { event: string; permission_mode: string | null }[] }
+  const plan = loadProbe(import.meta.dirname, "plan.probe.json") as {
+    records: object[]
+    hooks: { event: string; permission_mode: string | null }[]
+  }
   const events = plan.records.flatMap((record) => rolloutEvents(JSON.stringify(record), session))
 
   it("plans, as its rollout says and its hooks do not", () => {
@@ -153,9 +148,9 @@ describe("following a Codex rollout", () => {
     const path = join(directory, "rollout.jsonl")
     // As captured: Codex writes the turn's start in Plan Mode, then its SessionStart hook
     // binds the session.
-    const plan = JSON.parse(
-      readFileSync(join(import.meta.dirname, "fixtures", "plan.probe.json"), "utf8"),
-    ) as { records: { timestamp: string }[] }
+    const plan = loadProbe(import.meta.dirname, "plan.probe.json") as {
+      records: { timestamp: string }[]
+    }
     writeFileSync(path, plan.records.map((record) => `${JSON.stringify(record)}\n`).join(""))
     const bound = Date.parse(plan.records[0]!.timestamp) + 380
     const controller = new AbortController()
