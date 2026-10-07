@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { promptRefused } from "./prompt-refusal"
 
-describe("A text the agent would read as a command or a file pick", () => {
+describe("The demo's rule for a text the agent would read as a command or a file pick", () => {
   it.each([
     "/tmp is full",
     "  !ls",

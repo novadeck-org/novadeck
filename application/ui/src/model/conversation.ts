@@ -1,3 +1,4 @@
+import type { Refused } from "./prompt-refusal"
 import type { Store } from "./store"
 
 // The conversation of the agent a terminal runs, as the agent's own records tell it: its
@@ -187,6 +188,11 @@ export type Conversations = {
   // keys, resolving once it took. Rejects as `send` does; a dialog that can't be answered
   // safely turns `raw`, for the person to answer in the terminal.
   readonly answer: (key: ConversationKey, request: string, answer: ChatAnswer) => Promise<void>
+  // Whether `send`, or an answer's words that go on as a prompt, would be refused for the
+  // text's shape, so the chat warns before it sends. Text that is nothing but white space
+  // isn't refused here, though `send` refuses it: the chat sends no empty message, and an
+  // option's words are optional, so there is nothing to warn about yet.
+  readonly refused: Refused
 }
 
 // What `Conversations.answer` rejects with when the answer took but the words that follow

@@ -11,12 +11,18 @@ import {
 
 import { WordsLost, type ChatAnswer, type Conversation } from "../../model/conversation"
 import { agentName, groupItems, turnStatus } from "../../model/conversation-turns"
-import { shellCommand } from "../../model/prompt-refusal"
+import { shellCommand, type Refused } from "../../model/prompt-refusal"
 import type { Store } from "../../model/store"
 import type { AgentStatus } from "../../model/types"
-import { chatAnswer, oneLine, wordsOf } from "./answers"
+import { wordsOf } from "./answers"
 import { Composer } from "./Composer"
-import type { ChatReplyTo } from "./mode-state"
+import {
+  composerState,
+  sameReply,
+  type ChatReply,
+  type ChatReplyTo,
+  type ChatSend,
+} from "./mode-state"
 import { Requests } from "./Requests"
 import { Transcript } from "./Transcript"
 
@@ -39,7 +45,7 @@ export const ChatView = ({
   onDraft,
   replyTo,
   onReplyTo,
-  onDraftSent,
+  sending,
   onSend,
   onInterrupt,
   onAnswer,
@@ -47,6 +53,7 @@ export const ChatView = ({
   onWordsLost,
   focusInput,
   onInputFocused,
+  refused,
 }: {
   readonly conversation: Store<Conversation>
   readonly terminalName: string
@@ -60,9 +67,11 @@ export const ChatView = ({
   // The question the draft replies to, or that it is held, kept with the draft by the owner.
   readonly replyTo: ChatReplyTo | null
   readonly onReplyTo: (to: ChatReplyTo | null) => void
-  // The draft went to the agent: the owner clears it, if it still holds those words.
-  readonly onDraftSent: (text: string) => void
-  readonly onSend: (text: string) => Promise<void>
+  // The words from the box on their way to the agent, if any, which the owner keeps.
+  readonly sending: ChatSend | null
+  // Sends the box's words, as a prompt or as the reply `to` names: the owner takes them
+  // out of the draft as they go, and puts them back should they not arrive.
+  readonly onSend: (text: string, to: ChatReply | null) => Promise<void>
   readonly onInterrupt: () => Promise<void>
   readonly onAnswer: (request: string, answer: ChatAnswer) => Promise<void>
   readonly onAnswerInTerminal: () => void
@@ -70,6 +79,8 @@ export const ChatView = ({
   readonly onWordsLost: (words: string) => void
   readonly focusInput: boolean
   readonly onInputFocused: () => void
+  // Whether text would be refused as a message for its shape, as the backend says.
+  readonly refused: Refused
 }): React.JSX.Element => {
   const {
     agent: harness,
@@ -129,56 +140,31 @@ export const ChatView = ({
   // A shell command went to an agent that keeps no record of it in its conversation
   // (Antigravity): its output shows only in the terminal.
   const [unrecorded, setUnrecorded] = useState(false)
-  const alive = useRef(true)
-  // Counts the times words were handed back, so a send that began before one can't clear it.
-  const handedBack = useRef(0)
-  useEffect(() => {
-    alive.current = true
-    return () => {
-      alive.current = false
-    }
-  }, [])
   const answer = useCallback(
     (request: string, reply: ChatAnswer): Promise<void> =>
       onAnswer(request, reply).catch((failure: unknown) => {
         if (failure instanceof WordsLost) {
           const words = wordsOf(reply)
-          handedBack.current += 1
           if (words) onWordsLost(words)
-          if (alive.current) setLost(words !== "")
+          setLost(words !== "")
         }
         throw failure
       }),
     [onAnswer, onWordsLost],
   )
 
-  // The question the box answers, while the person replies to it there: one whose dialog
-  // takes the words in the agent's own field. It ends with the dialog.
-  const replying = replyTo !== null && replyTo !== "held" ? replyTo : null
-  const [replySending, setReplySending] = useState(false)
-  const reply = requests.some(
-    (request) =>
-      request.id === replying?.request &&
-      !request.answered &&
-      request.dialog?.type === "questions" &&
-      request.dialog.id === replying.dialog &&
-      request.dialog.chat === "field",
-  )
-    ? replying
-    : null
-  // The mode ends with the dialog, for good: the same dialog read again doesn't bring it
+  // What the box does with its words. Its agent's requests are known once its agent is.
+  const mode = composerState(draft, replyTo, requests, harness !== null)
+  const reply = mode === "reply" && replyTo !== null && replyTo !== "held" ? replyTo : null
+  // A reply ends with its dialog, for good: the same dialog read again doesn't bring it
   // back. Words still in the box are held, as a reply whose question went, until the
   // person edits them, whether the chat was on screen as it went or comes back after.
-  // Only once the conversation is read: a chat back on screen starts empty until its agent's
-  // requests come, which arrive with its agent.
-  const lapsed = replying !== null && reply === null && !replySending && harness !== null
-  const held = (replyTo === "held" || lapsed) && draft.trim() !== ""
-  // A reply whose conversation isn't read yet stays one, and waits for it.
-  const unread = replying !== null && harness === null
+  // Never while the reply itself is on its way, whose arrival ends it.
+  const lapsed = replyTo !== null && replyTo !== "held" && mode !== "reply" && mode !== "waiting"
+  const replyGoing = replyTo !== null && replyTo !== "held" && sameReply(sending?.to, replyTo)
   useLayoutEffect(() => {
-    if (lapsed) onReplyTo(draft.trim() !== "" ? "held" : null)
-    else if (replyTo === "held" && draft.trim() === "") onReplyTo(null)
-  }, [lapsed, replyTo, draft, onReplyTo])
+    if (lapsed && !replyGoing) onReplyTo(draft.trim() !== "" ? "held" : null)
+  }, [lapsed, replyGoing, draft, onReplyTo])
   const focusBox = (): void =>
     scroller.current
       ?.closest(".chat")
@@ -273,7 +259,7 @@ export const ChatView = ({
           focusBox()
         }}
         replying={reply?.request ?? null}
-        replySending={replySending}
+        replySending={reply !== null && replyGoing}
         onReply={(request, dialog) => {
           // A new reply takes the words in the box as its own.
           onReplyTo(dialog === null ? null : { request, dialog })
@@ -281,6 +267,7 @@ export const ChatView = ({
         }}
         // The dialog went to talk it over: the person's words go in the box, as a prompt.
         onChatting={focusBox}
+        refused={refused}
       />
       {/* Always in the page, so a screen reader announces the note as it appears. */}
       <div role="status">
@@ -312,40 +299,32 @@ export const ChatView = ({
         onDraft={(text) => {
           setLost(false)
           setUnrecorded(false)
-          if (replyTo === "held") onReplyTo(null)
+          // Words held as a reply whose question went are the person's message once edited,
+          // as the hold is written or not yet; not while that reply is on its way, whose
+          // words, should it fail, come back held.
+          if (mode === "held" && replyTo !== "held" && !replyGoing) onReplyTo(null)
           onDraft(text)
         }}
+        mode={mode}
+        sending={sending !== null}
+        replySending={replyGoing}
         working={working}
         onSend={async (text) => {
-          if (unread) throw new Error("The conversation is still loading. Send again in a moment.")
-          if (reply) {
-            // The words answer the question, in the agent's field, which takes one line.
-            setReplySending(true)
-            try {
-              await onAnswer(reply.request, chatAnswer(reply.dialog, oneLine(text)))
-            } finally {
-              if (alive.current) setReplySending(false)
-            }
-            onDraftSent(text)
-            onReplyTo(null)
-            if (alive.current) setLost(false)
-            return
-          }
-          const before = handedBack.current
-          await onSend(text)
-          if (alive.current) setUnrecorded(harness === "agy" && shellCommand(text) !== undefined)
-          // Sent: the words handed back are gone from the box, unless more came meanwhile.
-          if (alive.current && handedBack.current === before) setLost(false)
+          if (mode === "waiting")
+            throw new Error("The conversation is still loading. Send again in a moment.")
+          // The words in the box went: the note that they're there goes with them.
+          setLost(false)
+          await onSend(text, reply)
+          if (!reply) setUnrecorded(harness === "agy" && shellCommand(text) !== undefined)
         }}
         onStop={onInterrupt}
         focusInput={focusInput}
         onInputFocused={onInputFocused}
-        replying={reply !== null || unread}
-        orphaned={reply === null && held}
         onCancelReply={() => {
           onReplyTo(null)
           focusBox()
         }}
+        refused={refused}
       />
     </section>
   )

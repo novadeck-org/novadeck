@@ -64,7 +64,10 @@ its replies as formatted text, its tool calls (one line each, opening to their i
 result), other agents' messages to it, what waits on you, and whether it is working. Its
 box types a prompt into the agent's real TUI the way you would (Enter sends, Shift+Enter
 adds a line): the runner's `agents.prompt` pastes it, checks it landed in the agent's
-box, then presses Enter. **Stop** presses Escape there. The TUI keeps running underneath
+box, then presses Enter. The words leave the box as they go, and come back to it, before
+anything typed meanwhile, if they don't arrive. What you send while the agent works waits
+in its queue, as when typed in its terminal; **Stop** presses Escape there, and gives what
+waited back to the box. The TUI keeps running underneath
 at its full size, so the Chat button, or **Answer in terminal** on a request card, shows
 it again as it was. What waits on you (a permission, a plan to approve, the agent's
 questions, a form an MCP server asks you to fill) shows as a card under the conversation

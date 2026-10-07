@@ -73,6 +73,7 @@ const createServices = (
     pickDirectory: backend.pickDirectory,
     crashLoop: backend.crashLoop,
     resetTitle: backend.resetTitle,
+    conversations: backend.conversations,
     panes,
     canvas,
     effects: domEffects,

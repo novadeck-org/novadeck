@@ -8,6 +8,7 @@ import {
   type ChatRequest,
 } from "../../model/conversation"
 import { describe, expect, it } from "../../test"
+import { refusing } from "../../test/fixtures"
 import { render } from "../../test/render"
 import { againMs, Requests } from "./Requests"
 
@@ -93,6 +94,7 @@ const show = (
       replying,
       replySending,
       onReply,
+      refused: refusing("/tmp is full", "x @a "),
       onChatting,
     })
   const { container, rerender, unmount } = render(element(dialog, answered))
@@ -391,7 +393,7 @@ describe("a request's card", () => {
     expect(button(container, "Send answer").disabled).toBe(false)
   })
 
-  it("judges words as they are sent, trimmed, and not those typed into the agent's field", () => {
+  it("holds back the words the backend refuses, and not those typed into the agent's field", () => {
     const { container } = show(choices, async () => {})
     click(button(container, "No, and tell"))
     type(container.querySelector("textarea")!, "x @a ")

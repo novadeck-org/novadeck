@@ -41,7 +41,27 @@ const open = () => {
     activeSession(store.getSnapshot())!.state.roster.terminals.find(
       (terminal) => terminal.id === terminalId,
     )
-  return { chat: backend.conversations!, agent }
+  // Sets a terminal's status as the runner would report it.
+  const status = (
+    terminalId: string,
+    next: { state: "idle" } | { state: "running"; agent: { working: boolean } },
+  ) =>
+    store.transact([
+      {
+        type: "terminal/status",
+        target: { projectId: "storefront", workspaceSessionId: "initial" },
+        terminalId,
+        status: next,
+      },
+    ] as never)
+  const said = (terminalId: string) =>
+    chat
+      .conversation(key(terminalId))
+      .getSnapshot()
+      .items.filter((item) => item.role === "user")
+      .map((item) => item.text)
+  const chat = backend.conversations!
+  return { chat, agent, status, said }
 }
 
 describe("demo conversations", () => {
@@ -151,9 +171,66 @@ describe("demo conversations", () => {
     const { chat } = open()
     await expect(chat.send(key("02"), "hello")).rejects.toThrow("No agent is running")
     await expect(chat.send(key("04"), "hello")).rejects.toThrow("waiting for your answer")
-    await expect(chat.send(key("03"), "hello")).rejects.toThrow("still working")
+  })
+
+  it("queues what is sent while the agent works, and takes it once the turn ends", async () => {
+    const { chat, agent } = open()
+    const conversation = chat.conversation(key("06"))
+    const before = conversation.getSnapshot().items.length
     await chat.send(key("06"), "one")
-    await expect(chat.send(key("06"), "two")).rejects.toThrow("still working")
+    await vi.advanceTimersByTimeAsync(0)
+    await chat.send(key("06"), "two")
+    await chat.send(key("06"), "!git status")
+    await chat.send(key("06"), "three")
+    const said = () =>
+      conversation
+        .getSnapshot()
+        .items.slice(before)
+        .filter((item) => item.role === "user")
+        .map((item) => item.text)
+    expect(said()).toEqual(["one"])
+    // "two" starts the next turn; the shell command and "three" wait behind it.
+    await vi.advanceTimersByTimeAsync(demoTurnMs)
+    expect(said()).toEqual(["one", "two"])
+    expect(agent("06")).toMatchObject({ agent: { working: true } })
+    // The shell command runs, and "three" starts the turn after.
+    await vi.advanceTimersByTimeAsync(demoTurnMs)
+    expect(said()).toEqual(["one", "two", "!git status", "three"])
+    await vi.advanceTimersByTimeAsync(demoTurnMs)
+    expect(conversation.getSnapshot().items.at(-1)?.text).toBe("Done: three. Nothing else changed.")
+  })
+
+  it("takes what waits, in order, once a turn ends however it ends", async () => {
+    const { chat, status, said } = open()
+    const before = said("03").length
+    await chat.send(key("03"), "first")
+    // The turn ends without the demo's turns, as the debug panel ends one.
+    status("03", { state: "running", agent: { working: false } })
+    await chat.send(key("03"), "second")
+    await vi.advanceTimersByTimeAsync(0)
+    expect(said("03").slice(before)).toEqual(["first"])
+    await vi.advanceTimersByTimeAsync(demoTurnMs)
+    expect(said("03").slice(before)).toEqual(["first", "second"])
+  })
+
+  it("drops what waited for an agent that ended, never giving it to the next", async () => {
+    const { chat, status, said } = open()
+    await chat.send(key("03"), "stale for the old agent")
+    // The agent ends and another starts at once, with no moment between.
+    status("03", { state: "idle" })
+    status("03", { state: "running", agent: { working: false } })
+    await chat.send(key("03"), "fresh")
+    await vi.advanceTimersByTimeAsync(demoTurnMs * 3)
+    expect(said("03")).not.toContain("stale for the old agent")
+    expect(said("03")).toContain("fresh")
+  })
+
+  it("gives back what waited behind a turn when it is stopped", async () => {
+    const { chat } = open()
+    await chat.send(key("03"), "first")
+    await chat.send(key("03"), "second")
+    expect(await chat.interrupt(key("03"))).toBe("first\nsecond")
+    expect(await chat.interrupt(key("03"))).toBeNull()
   })
 
   it("answers a permission: the request goes, its tool result lands, the turn ends", async () => {

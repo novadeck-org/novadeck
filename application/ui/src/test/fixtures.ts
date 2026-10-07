@@ -1,6 +1,13 @@
 import { itemIdOf, type CompanionItem } from "../model/companion"
+import type { Refused } from "../model/prompt-refusal"
 import { createTerminalState, workspaceReducer, type WorkspaceAction } from "../model/state"
 import type { PreferencesValue, TerminalMetadata, ViewMode, Workspace } from "../model/types"
+
+// A backend's rule for a message's shape that refuses just these texts, as given.
+export const refusing =
+  (...texts: readonly string[]): Refused =>
+  (text) =>
+    texts.includes(text)
 
 // The appearance a fresh install starts with.
 export const appearance: PreferencesValue["appearance"] = { scheme: "system" }

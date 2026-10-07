@@ -4,7 +4,13 @@ import { isWindow } from "../model/roster"
 import { activeProject } from "../model/state"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "../model/types"
 import { ChatView } from "../terminals/chat/ChatView"
-import { chatAvailable, chatDraftOf, chatModeOn, chatReplyOf } from "../terminals/chat/mode-state"
+import {
+  chatAvailable,
+  chatDraftOf,
+  chatModeOn,
+  chatReplyOf,
+  chatSendOf,
+} from "../terminals/chat/mode-state"
 import { TerminalCompanion } from "../terminals/companion/TerminalCompanion"
 import { UndockedWindow } from "../terminals/companion/UndockedWindow"
 import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
@@ -197,6 +203,7 @@ export const WorkspaceTerminal = ({
   const chatShown = frame.chat?.on === true
   const draft = useUiState((state) => chatDraftOf(state.chatDrafts, chatContext, terminalId))
   const replyTo = useUiState((state) => chatReplyOf(state.chatReplies, chatContext, terminalId))
+  const sending = useUiState((state) => chatSendOf(state.chatSends, chatContext, terminalId))
   const conversation = useMemo(
     () => (chatShown ? conversations?.conversation(terminalKey) : undefined),
     [chatShown, conversations, terminalKey],
@@ -225,12 +232,8 @@ export const WorkspaceTerminal = ({
               onDraft={(text) => commands.setChatDraft(terminalId, text)}
               replyTo={replyTo}
               onReplyTo={(to) => commands.setChatReply(chatContext, terminalId, to)}
-              // Cleared even if the chat has gone from the screen meanwhile.
-              onDraftSent={(text) => commands.clearChatDraft(chatContext, terminalId, text)}
-              onSend={async (text) => {
-                await conversations!.send(terminalKey, text)
-                commands.clearChatDraft(chatContext, terminalId, text)
-              }}
+              sending={sending}
+              onSend={(text, to) => commands.sendChat(terminalKey, text, to)}
               onInterrupt={async () => {
                 const returned = await conversations!.interrupt(terminalKey)
                 // Words queued behind the stopped turn come back to the box, to send again.
@@ -241,6 +244,7 @@ export const WorkspaceTerminal = ({
               onAnswerInTerminal={() => commands.showTerminal(terminalId)}
               focusInput={wanted}
               onInputFocused={onInputFocused}
+              refused={conversations!.refused}
             />
           </div>
         )}

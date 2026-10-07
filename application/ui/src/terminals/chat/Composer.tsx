@@ -5,12 +5,13 @@ import {
   controlHint,
   hasControlCharacters,
   messageHint,
-  promptRefused,
   shellCommand,
+  type Refused,
 } from "../../model/prompt-refusal"
 import { Tooltip } from "../../ui-toolkit/Tooltip"
 import { oneLine } from "./answers"
 import { Hint } from "./Hint"
+import type { ComposerMode } from "./mode-state"
 
 // The most a reply to the agent's question carries.
 const replyMax = 16_384
@@ -19,43 +20,48 @@ const reason = (failure: unknown): string =>
   failure instanceof Error && failure.message ? failure.message : "It didn't go through."
 
 // Where the person writes to the agent. Enter sends what's typed into the agent's own
-// box; Shift+Enter starts a new line. While one goes, the box holds its text, and a
-// send that fails says why and keeps it. While it replies to the agent's question, what's
-// typed is the answer for the agent's own field, which takes one line. A message that starts
-// with `!` is a shell command, which the agent runs in its shell mode.
+// box; Shift+Enter starts a new line. The words leave the box as they go, which is free for
+// the next ones meanwhile, though those wait to be sent until the first arrive; a send that
+// fails says why, its words back in the box. Its `mode` says what the words are: while it
+// replies to the agent's question, the answer for the agent's own field, which takes one
+// line; a message that starts with `!`, a shell command the agent runs in its shell mode.
 export const Composer = ({
   label,
   draft,
   onDraft,
+  mode,
+  sending,
+  replySending,
   working,
   onSend,
   onStop,
   focusInput,
   onInputFocused,
-  replying,
-  orphaned,
   onCancelReply,
+  refused: refusedText,
 }: {
   // The agent it writes to, for the box's name.
   readonly label: string
   readonly draft: string
   readonly onDraft: (draft: string) => void
+  readonly mode: ComposerMode
+  // Whether earlier words are still on their way, which the owner keeps, and whether they
+  // are this reply's, which can't be cancelled meanwhile.
+  readonly sending: boolean
+  readonly replySending: boolean
   readonly working: boolean
-  // Resolves once the agent has it; clearing the draft is the owner's, which may outlive
-  // this box. A failure leaves the draft as it is.
+  // Resolves once the agent has it. Taking the words out of the draft, and putting them
+  // back on a failure, is the owner's, which may outlive this box.
   readonly onSend: (text: string) => Promise<void>
   readonly onStop: () => Promise<void>
   // Keyboard navigation asks for focus here; call `onInputFocused` once it's there.
   readonly focusInput: boolean
   readonly onInputFocused: () => void
-  // Sending answers the agent's question with the words, until the person cancels.
-  readonly replying: boolean
-  // The question a reply was written for went: the words wait for an edit before they go.
-  readonly orphaned: boolean
   readonly onCancelReply: () => void
+  // Whether a message would be refused for its shape, as the backend says.
+  readonly refused: Refused
 }): React.JSX.Element => {
   const input = useRef<HTMLTextAreaElement>(null)
-  const [sending, setSending] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const mounted = useRef(true)
@@ -78,32 +84,26 @@ export const Composer = ({
     box.style.height = `${box.scrollHeight}px`
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Sized to the text it holds.
   }, [draft])
+  // Sending answers the agent's question with the words, until the person cancels.
+  const replying = mode === "reply" || mode === "waiting"
+  // The question a reply was written for went: the words wait for an edit before they go.
+  const orphaned = mode === "held"
   // The agent's field takes what a prompt can't start with; only control characters stop it.
   const long = replying && oneLine(draft).trim().length > replyMax
   const refused =
     orphaned ||
-    (replying ? hasControlCharacters(draft) || long : promptRefused(draft, { shell: true }))
-  const command = replying || orphaned ? undefined : shellCommand(draft)
+    (replying ? hasControlCharacters(draft) || long : refusedText(draft, { shell: true }))
+  const command = mode === "shell" ? shellCommand(draft) : undefined
   // A `!` still waiting for its command: nothing to send yet, nothing to warn about either.
   const waiting = command === ""
   const send = (): void => {
     const text = draft.trim()
     // The draft is judged as the hint judges it, so Enter refuses what Send does.
     if (!text || sending || refused) return
-    setSending(true)
     setError(null)
-    onSend(text).then(
-      () => {
-        if (!mounted.current) return
-        // The draft goes with the send: the owner clears it, mounted or not.
-        setSending(false)
-      },
-      (failure: unknown) => {
-        if (!mounted.current) return
-        setSending(false)
-        setError(reason(failure))
-      },
-    )
+    onSend(text).catch((failure: unknown) => {
+      if (mounted.current) setError(reason(failure))
+    })
   }
   const stop = (): void => {
     if (stopping) return
@@ -142,7 +142,7 @@ export const Composer = ({
             type="button"
             className="button quiet chat-reply-cancel"
             aria-label="Cancel the reply"
-            disabled={sending}
+            disabled={replySending}
             onClick={onCancelReply}
           >
             <X size={12} aria-hidden />
@@ -193,8 +193,6 @@ export const Composer = ({
           }
           // What the agent's field takes, as the protocol carries it.
           maxLength={replying ? replyMax : undefined}
-          readOnly={sending}
-          aria-busy={sending}
           spellCheck
           onChange={(event) => {
             onDraft(event.target.value)
@@ -233,6 +231,7 @@ export const Composer = ({
               className="chat-send"
               aria-label="Send"
               disabled={empty || sending || refused}
+              aria-busy={sending || undefined}
             >
               <ArrowUp size={15} strokeWidth={2} aria-hidden />
             </button>

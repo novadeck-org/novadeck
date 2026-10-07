@@ -519,20 +519,16 @@ describe("the runner's conversations", () => {
       await expect(conversations.send(key, "hi")).rejects.toThrow("can't start with / or !")
     })
 
-    it("joins a send of the same text still under way, rather than prompting twice", async () => {
-      const { conversations, streams } = setup()
-      const finishers: (() => void)[] = []
-      streams.prompt.mockImplementationOnce(
-        () => new Promise<void>((resolve) => finishers.push(resolve)),
-      )
-      const first = conversations.send(key, "run the tests")
-      const again = conversations.send(key, "run the tests")
-      finishers[0]!()
-      await Promise.all([first, again])
-      expect(streams.prompt).toHaveBeenCalledTimes(1)
-      // Once it went, the same words are a prompt of their own.
-      await conversations.send(key, "run the tests")
-      expect(streams.prompt).toHaveBeenCalledTimes(2)
+    it("refuses a message's shape as the protocol's rule does, blank text aside", () => {
+      const { conversations } = setup()
+      expect(conversations.refused("/tmp is full")).toBe(true)
+      expect(conversations.refused("look at @src")).toBe(true)
+      expect(conversations.refused("!ls")).toBe(true)
+      expect(conversations.refused("!ls", { shell: true })).toBe(false)
+      expect(conversations.refused("!", { shell: true })).toBe(true)
+      expect(conversations.refused("tmp is full")).toBe(false)
+      // Nothing to warn of yet: the chat sends no empty message.
+      expect(conversations.refused(" \r\n")).toBe(false)
     })
 
     it("gives back the words the agent returned from its queue, or null", async () => {

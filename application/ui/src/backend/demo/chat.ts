@@ -5,12 +5,13 @@ import {
   type Conversation,
   type Conversations,
 } from "../../model/conversation"
-import { promptRefusal, promptRefused, shellCommand } from "../../model/prompt-refusal"
+import { promptRefusal, shellCommand } from "../../model/prompt-refusal"
 import type { WorkspaceSeed } from "../../model/seed"
 import { createStore, type MutableStore } from "../../model/store"
 import type { AgentStatus, TerminalMetadata, Workspace } from "../../model/types"
 import type { TerminalKey } from "../port"
 import { terminalKeyId } from "../registry"
+import { promptRefused } from "./prompt-refusal"
 import { chatAgent, chatAgents } from "./samples"
 import type { DemoDraft, DemoTranscript } from "./transcripts"
 import type { DemoTurns, TurnEvent } from "./turns"
@@ -92,7 +93,9 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
 
 // The demo's conversations: each terminal running Claude Code or Codex opens with its
 // `transcripts` entry, and a prompt sent to it drives the same simulated turn as one typed
-// in its screen, which `turns` runs. Only terminals idle at their prompt take a prompt.
+// in its screen, which `turns` runs. What is sent while its agent works waits in the agent's
+// queue, as the real agents keep it: the next goes once the turn ends, and Escape gives
+// them all back.
 export const createDemoChat = (
   seed: WorkspaceSeed,
   transcripts: Readonly<Record<string, DemoTranscript>>,
@@ -102,6 +105,12 @@ export const createDemoChat = (
   const stores = new Map<
     string,
     { key: TerminalKey; store: MutableStore<Conversation>; attended: boolean }
+  >()
+  // What each terminal's agent was sent while it worked, oldest first, and which agent it
+  // was for: a later agent in the terminal never gets it.
+  const queues = new Map<
+    string,
+    { readonly key: TerminalKey; readonly agent: string; readonly prompts: readonly string[] }
   >()
   // The terminal at the full address, in the workspace as it stands, or in the seed.
   const locate = (key: TerminalKey): Found | undefined => {
@@ -157,6 +166,60 @@ export const createDemoChat = (
         })),
       ],
     }))
+  // Gives the agent what was sent to it: a shell command runs at once, and a message
+  // starts its turn.
+  const deliver = (found: Found, prompt: string): void => {
+    const command = shellCommand(prompt)
+    if (command === undefined) {
+      turns.prompt(prompt, found.terminal, found.key)
+      return
+    }
+    // A shell command runs without a turn. Antigravity keeps no record of it; the
+    // others show the person's line and the run, as their transcripts hold them.
+    if (chatAgent(found.terminal) !== "agy")
+      append(
+        found.key,
+        text("user", `!${command}`),
+        {
+          role: "tool",
+          kind: "tool-call",
+          text: JSON.stringify({ command }),
+          tool: "Bash",
+          call: null,
+          author: null,
+        },
+        {
+          role: "tool",
+          kind: "tool-result",
+          text: "(Bash completed with no output)",
+          tool: null,
+          call: null,
+          author: null,
+        },
+      )
+  }
+  // Whether the agent can't take a prompt now: it works, or waits on the person.
+  const busy = (found: Found): boolean => {
+    const agent = agentOf(found.terminal)
+    return agent.working || agent.attention !== undefined || turns.working(found.key)
+  }
+  // Once the agent is free, it takes what waits: shell commands until a message, which
+  // starts its next turn. What waited for an agent that has gone goes with it.
+  const drain = (id: string): void => {
+    for (let entry = queues.get(id); entry; entry = queues.get(id)) {
+      const found = locate(entry.key)
+      if (!runs(found) || String(found.terminal.process) !== entry.agent) {
+        queues.delete(id)
+        return
+      }
+      if (busy(found)) return
+      const [prompt, ...rest] = entry.prompts
+      if (rest.length > 0) queues.set(id, { ...entry, prompts: rest })
+      else queues.delete(id)
+      deliver(found, prompt!)
+      if (shellCommand(prompt!) === undefined) return
+    }
+  }
   turns.watch((event: TurnEvent) => {
     const { key } = event
     if (event.type === "begin") append(key, text("user", event.prompt))
@@ -208,6 +271,7 @@ export const createDemoChat = (
   return {
     conversations: {
       conversation: storeOf,
+      refused: promptRefused,
       send: async (key, prompt) => {
         const found = agentFor(key)
         const name = chatAgents[chatAgent(found.terminal)!]
@@ -216,45 +280,31 @@ export const createDemoChat = (
           throw new Error(
             `${name} is waiting for your answer in its terminal. Answer it there first.`,
           )
-        if (agent.working || turns.working(found.key))
-          throw new Error(`${name} is still working. Stop it or wait until it finishes.`)
         if (!prompt.trim()) return
         // As the runner refuses it: text the agent would read as more than a message.
         if (promptRefused(prompt, { shell: true })) throw new Error(promptRefusal)
-        const command = shellCommand(prompt)
-        if (command !== undefined) {
-          // A shell command runs without a turn. Antigravity keeps no record of it; the
-          // others show the person's line and the run, as their transcripts hold them.
-          if (chatAgent(found.terminal) !== "agy")
-            append(
-              found.key,
-              text("user", `!${command}`),
-              {
-                role: "tool",
-                kind: "tool-call",
-                text: JSON.stringify({ command }),
-                tool: "Bash",
-                call: null,
-                author: null,
-              },
-              {
-                role: "tool",
-                kind: "tool-result",
-                text: "(Bash completed with no output)",
-                tool: null,
-                call: null,
-                author: null,
-              },
-            )
+        // Behind a turn, or behind what already waits for one, it waits its turn.
+        const id = terminalKeyId(found.key)
+        const waiting = queues.get(id)
+        if (busy(found) || waiting) {
+          queues.set(id, {
+            key: found.key,
+            agent: String(found.terminal.process),
+            prompts: [...(waiting?.prompts ?? []), prompt],
+          })
+          drain(id)
           return
         }
-        turns.prompt(prompt, found.terminal, found.key)
+        deliver(found, prompt)
       },
       interrupt: async (key) => {
         const found = agentFor(key)
+        const id = terminalKeyId(found.key)
+        const queued = queues.get(id)
+        queues.delete(id)
         turns.interrupt(found.key, agentOf(found.terminal))
-        // The demo queues nothing behind a turn: nothing comes back.
-        return null
+        // What waited behind the turn comes back, for the person to send again.
+        return queued ? queued.prompts.join("\n") : null
       },
       answer: async (key, id, answer) => {
         const found = agentFor(key)
@@ -310,6 +360,10 @@ export const createDemoChat = (
     },
     observe: (workspace) => {
       latest = workspace
+      // What waited for an agent that ended goes at once, before another can start there.
+      for (const [id, entry] of queues) if (!runs(locate(entry.key))) queues.delete(id)
+      // After the commit that freed an agent has said all it says, as its turn's reply.
+      if (queues.size > 0) queueMicrotask(() => [...queues.keys()].forEach(drain))
       for (const entry of stores.values()) {
         const { key, store } = entry
         const found = locate(key)

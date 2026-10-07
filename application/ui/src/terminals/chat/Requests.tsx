@@ -2,6 +2,7 @@ import { CircleHelp, ClipboardList, Loader, ShieldQuestion, type LucideIcon } fr
 import { useEffect, useRef, useState } from "react"
 
 import { WordsLost, type ChatAnswer, type ChatRequest } from "../../model/conversation"
+import type { Refused } from "../../model/prompt-refusal"
 import { RequestDialog } from "./RequestDialog"
 
 const kinds: Readonly<Record<ChatRequest["kind"], { title: string; Icon: LucideIcon }>> = {
@@ -29,6 +30,7 @@ const Card = ({
   replySending,
   onReply,
   onChatting,
+  refused,
 }: {
   readonly request: ChatRequest
   // The agent's name, for what waits on it.
@@ -43,6 +45,7 @@ const Card = ({
   readonly onReply: (dialog: string | null) => void
   // The dialog was set aside to talk it over: the person's next words go in the box.
   readonly onChatting: () => void
+  readonly refused: Refused
 }): React.JSX.Element => {
   const { title, Icon } = kinds[request.kind]
   const [sending, setSending] = useState(false)
@@ -186,6 +189,7 @@ const Card = ({
           replying={replying}
           onReply={onReply}
           // While the box's answer goes, the card answers nothing else.
+          refused={refused}
           sending={sending || (replying && replySending)}
           send={send}
           edited={() => {
@@ -220,6 +224,7 @@ export const Requests = ({
   replySending,
   onReply,
   onChatting,
+  refused,
 }: {
   readonly requests: readonly ChatRequest[]
   readonly agent: string
@@ -231,6 +236,8 @@ export const Requests = ({
   readonly replySending: boolean
   readonly onReply: (request: string, dialog: string | null) => void
   readonly onChatting: () => void
+  // Whether words that go on as the agent's next prompt would be refused for their shape.
+  readonly refused: Refused
 }): React.JSX.Element | null =>
   requests.length === 0 ? null : (
     <section className="chat-requests" aria-label="Waiting for you">
@@ -246,6 +253,7 @@ export const Requests = ({
           replySending={replySending}
           onReply={(dialog) => onReply(request.id, dialog)}
           onChatting={onChatting}
+          refused={refused}
         />
       ))}
     </section>

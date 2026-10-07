@@ -21,9 +21,11 @@ import {
   noChatDrafts,
   noChatReplies,
   noChatModes,
+  noChatSends,
   type ChatDrafts,
   type ChatReplies,
   type ChatModes,
+  type ChatSends,
 } from "../terminals/chat/mode-state"
 import { nextRecent, visibleSwitcher, type RecentSwitcher } from "../terminals/recent"
 import type { RenameSession } from "../terminals/rename-state"
@@ -70,6 +72,8 @@ export type UiState = {
   readonly chatDrafts: ChatDrafts
   // The question each draft replies to, or that it is held once that question went.
   readonly chatReplies: ChatReplies
+  // The words on their way from there to the agent, out of the draft until they arrive.
+  readonly chatSends: ChatSends
 }
 
 export type UiLocation = {
@@ -107,6 +111,7 @@ export const initialUi = ({
   chat: noChatModes,
   chatDrafts: noChatDrafts,
   chatReplies: noChatReplies,
+  chatSends: noChatSends,
 })
 
 export const updateShell = (ui: UiStore, change: (shell: ShellState) => ShellState): void =>

@@ -1,13 +1,14 @@
+import { noConversation, type Conversations } from "../../model/conversation"
 import type { AgentStatus } from "../../model/types"
-import { chatModeOn, chatReplyOf } from "../../terminals/chat/mode-state"
+import { chatDraftOf, chatModeOn, chatReplyOf, chatSendOf } from "../../terminals/chat/mode-state"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import { watchChatModes } from "../ui-store"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
-const open = (agent?: AgentStatus) => {
-  const app = openCommands()
+const open = (agent?: AgentStatus, conversations?: Conversations) => {
+  const app = openCommands({ conversations })
   const status = (next: AgentStatus | undefined) =>
     app.workspace.dispatch({
       type: "terminal/status",
@@ -120,17 +121,6 @@ describe("chat commands", () => {
     })
   })
 
-  context("when a shell command went while words came back before it", () => {
-    it("clears the command and keeps the words", () => {
-      const app = open({ working: false })
-      app.commands.setChatDraft("01", "also update the changelog\n!npm test")
-      app.commands.clearChatDraft("project/initial", "01", "!npm test")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({
-        "project/initial": { "01": "also update the changelog" },
-      })
-    })
-  })
-
   context("when the agent a reply was written for ends", () => {
     it("keeps the reply's hold with its words, for the next agent there, until the terminal closes", () => {
       const app = open({ working: false })
@@ -147,41 +137,119 @@ describe("chat commands", () => {
     })
   })
 
-  context("when a sent prompt's draft is cleared", () => {
-    it("clears it where it was sent, unless it has changed since", () => {
-      const app = open({ working: false })
+  context("when the draft is sent", () => {
+    const key = { ...target, terminalId: "01" }
+    const sending = () => {
+      const settle: { resolve: () => void; reject: (failure: unknown) => void }[] = []
+      const sent: string[] = []
+      const answers: unknown[] = []
+      const wait = () => new Promise<void>((resolve, reject) => settle.push({ resolve, reject }))
+      const app = open(
+        { working: false },
+        {
+          conversation: () => ({ getSnapshot: () => noConversation, subscribe: () => () => {} }),
+          send: (_key, text) => (sent.push(text), wait()),
+          interrupt: async () => null,
+          answer: (_key, request, answer) => (answers.push([request, answer]), wait()),
+          refused: () => false,
+        },
+      )
+      const draft = () => chatDraftOf(app.ui.getSnapshot().chatDrafts, "project/initial", "01")
+      const inFlight = () => chatSendOf(app.ui.getSnapshot().chatSends, "project/initial", "01")
+      return { app, settle, sent, answers, draft, inFlight }
+    }
+
+    it("takes the words out of the draft as they go, and keeps none once they arrive", async () => {
+      const { app, settle, sent, draft, inFlight } = sending()
       app.commands.setChatDraft("01", "go")
-      app.commands.clearChatDraft("project/initial", "01", "go")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({})
-      app.commands.setChatDraft("01", "going")
-      app.commands.clearChatDraft("project/initial", "01", "go")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "going" } })
+      const going = app.commands.sendChat(key, "go", null)
+      expect(draft()).toBe("")
+      expect(inFlight()).toEqual({ draft: "go", to: null })
+      app.commands.setChatDraft("01", "next")
+      settle[0]!.resolve()
+      await going
+      expect(sent).toEqual(["go"])
+      expect(inFlight()).toBeNull()
+      expect(draft()).toBe("next")
     })
 
-    it("keeps words dictated after it while it went, without the sent prompt", () => {
-      const app = open({ working: false })
-      app.commands.setChatDraft("01", "Fix the login bug and add a test")
-      app.commands.clearChatDraft("project/initial", "01", "Fix the login bug")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({
-        "project/initial": { "01": "and add a test" },
-      })
+    it("puts them back before what was typed meanwhile when they don't arrive", async () => {
+      const { app, settle, draft, inFlight } = sending()
+      app.commands.setChatDraft("01", "go")
+      const going = app.commands.sendChat(key, "go", null)
+      app.commands.appendChatDraft("project/initial", "01", "use pnpm")
+      settle[0]!.reject(new Error("The runner is offline."))
+      await expect(going).rejects.toThrow("The runner is offline.")
+      expect(draft()).toBe("go\nuse pnpm")
+      expect(inFlight()).toBeNull()
+    })
+
+    it("puts a shell command back after words that came meanwhile, so they never run as its lines", async () => {
+      const { app, settle, draft } = sending()
+      const going = app.commands.sendChat(key, "!npm test", null)
+      app.commands.setChatDraft("01", "also update the changelog")
+      settle[0]!.reject(new Error("no"))
+      await expect(going).rejects.toThrow()
+      expect(draft()).toBe("also update the changelog\n!npm test")
+    })
+
+    it("puts back the draft as it was typed, not the words as sent", async () => {
+      const { app, settle, draft } = sending()
+      app.commands.setChatDraft("01", "  go\n")
+      const going = app.commands.sendChat(key, "go", null)
+      settle[0]!.reject(new Error("no"))
+      await expect(going).rejects.toThrow()
+      expect(draft()).toBe("  go\n")
+    })
+
+    it("joins a shell command that didn't go and one typed meanwhile into one to look over", async () => {
+      const { app, settle, draft } = sending()
+      const going = app.commands.sendChat(key, "!npm test", null)
+      app.commands.setChatDraft("01", "!ls")
+      settle[0]!.reject(new Error("no"))
+      await expect(going).rejects.toThrow()
+      expect(draft()).toBe("!npm test\nls")
+    })
+
+    it("puts nothing back for a terminal that closed meanwhile", async () => {
+      const { app, settle, inFlight } = sending()
+      const going = app.commands.sendChat(key, "go", null)
+      app.workspace.dispatch({ type: "terminal/close", target, terminalId: "01" })
+      settle[0]!.reject(new Error("no"))
+      await expect(going).rejects.toThrow()
+      expect(app.ui.getSnapshot().chatDrafts).toEqual({})
+      expect(inFlight()).toBeNull()
+    })
+
+    it("sends one at a time", async () => {
+      const { app, settle, sent } = sending()
+      const first = app.commands.sendChat(key, "one", null)
+      await expect(app.commands.sendChat(key, "two", null)).rejects.toThrow("still on its way")
+      settle[0]!.resolve()
+      await first
+      expect(sent).toEqual(["one"])
+    })
+
+    it("answers the question a reply names on one line, and ends the reply once it took", async () => {
+      const { app, settle, answers } = sending()
+      const to = { request: "r1", dialog: "q1" }
+      app.commands.setChatReply("project/initial", "01", to)
+      const going = app.commands.sendChat(key, "this\none", to)
+      expect(answers).toEqual([["r1", { type: "chat", dialog: "q1", text: "this one" }]])
+      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toEqual(to)
+      settle[0]!.resolve()
+      await going
+      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBeNull()
     })
   })
 
-  context("when words were given back after a prompt's draft", () => {
-    it("clears the prompt that was sent and keeps the words", () => {
+  context("when held words are edited", () => {
+    it("lets go of the hold: they are a message now", () => {
       const app = open({ working: false })
-      app.commands.setChatDraft("01", "go")
-      app.commands.appendChatDraft("project/initial", "01", "use pnpm")
-      app.commands.clearChatDraft("project/initial", "01", "go")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "use pnpm" } })
-    })
-
-    it("does so though the sent prompt ended in spaces before them", () => {
-      const app = open({ working: false })
-      app.commands.setChatDraft("01", "go  \nuse pnpm")
-      app.commands.clearChatDraft("project/initial", "01", "go")
-      expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "use pnpm" } })
+      app.commands.setChatDraft("01", "pick X")
+      app.commands.setChatReply("project/initial", "01", "held")
+      app.commands.setChatDraft("01", "pick X please")
+      expect(chatReplyOf(app.ui.getSnapshot().chatReplies, "project/initial", "01")).toBeNull()
     })
   })
 

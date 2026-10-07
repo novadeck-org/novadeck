@@ -11,7 +11,7 @@ import {
   controlHint,
   hasControlCharacters,
   promptHint,
-  promptRefused,
+  type Refused,
 } from "../../model/prompt-refusal"
 import {
   answeredCount,
@@ -42,6 +42,8 @@ import { Hint } from "./Hint"
 // and `sending`, which holds the controls while one goes.
 
 type Controls = {
+  // Whether words that go on as the agent's next prompt would be refused for their shape.
+  readonly refused: Refused
   readonly sending: boolean
   readonly send: (answer: ChatAnswer) => void
   // The person edited something: an error shown for the last answer no longer applies.
@@ -75,6 +77,7 @@ const textHint = { field: "Type your answer…", prompt: "Tell it what to do ins
 
 const Choices = ({
   dialog,
+  refused,
   sending,
   send,
   edited,
@@ -98,7 +101,7 @@ const Choices = ({
   const open = stays ? current.id : null
   const writing = stays ? current : undefined
   // Words that go on as the agent's next prompt are checked, not those typed in its field.
-  const refusedWords = writing?.text === "prompt" && promptRefused(words)
+  const refusedWords = writing?.text === "prompt" && refused(words)
   const controlWords = writing?.text === "field" && hasControlCharacters(words)
   const blockedWords = refusedWords || controlWords
   useEffect(() => {

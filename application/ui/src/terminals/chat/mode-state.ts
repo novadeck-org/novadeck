@@ -1,10 +1,36 @@
+import type { ChatAnswer, ChatRequest } from "../../model/conversation"
 import { isAgentProgram } from "../../model/process"
+import { shellCommand } from "../../model/prompt-refusal"
 import type { TerminalMetadata } from "../../model/types"
+import { chatAnswer, oneLine } from "./answers"
+
+// A value kept for some terminals, by session context and terminal id; a terminal without
+// one has no entry, and a context without terminals none either.
+type ByTerminal<T> = Readonly<Record<string, Readonly<Record<string, T>>>>
+
+const valueOf = <T>(map: ByTerminal<T>, context: string, id: string): T | undefined =>
+  map[context]?.[id]
+
+// The map with the terminal's value set, or dropped where it is undefined; the same map
+// where that changes nothing, as `same` judges.
+const withValue = <T>(
+  map: ByTerminal<T>,
+  context: string,
+  id: string,
+  value: T | undefined,
+  same: (a: T | undefined, b: T | undefined) => boolean = Object.is,
+): ByTerminal<T> => {
+  if (same(valueOf(map, context, id), value)) return map
+  if (value !== undefined) return { ...map, [context]: { ...map[context], [id]: value } }
+  const { [id]: _gone, ...left } = map[context]!
+  const { [context]: _session, ...rest } = map
+  return Object.keys(left).length > 0 ? { ...rest, [context]: left } : rest
+}
 
 // Which terminals show their agent's conversation rather than their screen, by the
 // session context (`${projectId}/${workspaceSessionId}`) that holds them. Nothing is kept
 // for a terminal showing its screen, and none of it outlives the page.
-export type ChatModes = Readonly<Record<string, Readonly<Record<string, true>>>>
+export type ChatModes = ByTerminal<true>
 
 export const noChatModes: ChatModes = {}
 
@@ -28,13 +54,7 @@ export const setChatMode = (
   context: string,
   id: string,
   on: boolean,
-): ChatModes => {
-  if (chatModeOn(modes, context, id) === on) return modes
-  if (on) return { ...modes, [context]: { ...modes[context], [id]: true } }
-  const { [id]: _off, ...left } = modes[context]!
-  const { [context]: _session, ...rest } = modes
-  return Object.keys(left).length > 0 ? { ...rest, [context]: left } : rest
-}
+): ChatModes => withValue(modes, context, id, on ? true : undefined)
 
 // Keeps only the terminals that `keep` says still show a chat.
 export const keepChatModes = (
@@ -50,24 +70,30 @@ export const keepChatModes = (
 
 // What the person has typed in a terminal's chat and not sent, by session context and
 // terminal id. An empty draft is not kept.
-export type ChatDrafts = Readonly<Record<string, Readonly<Record<string, string>>>>
+export type ChatDrafts = ByTerminal<string>
 
 export const noChatDrafts: ChatDrafts = {}
 
 export const chatDraftOf = (drafts: ChatDrafts, context: string, id: string): string =>
-  drafts[context]?.[id] ?? ""
+  valueOf(drafts, context, id) ?? ""
 
 export const setChatDraft = (
   drafts: ChatDrafts,
   context: string,
   id: string,
   text: string,
-): ChatDrafts => {
-  if (chatDraftOf(drafts, context, id) === text) return drafts
-  if (text !== "") return { ...drafts, [context]: { ...drafts[context], [id]: text } }
-  const { [id]: _gone, ...left } = drafts[context]!
-  const { [context]: _session, ...rest } = drafts
-  return Object.keys(left).length > 0 ? { ...rest, [context]: left } : rest
+): ChatDrafts => withValue(drafts, context, id, text === "" ? undefined : text)
+
+// Words joined to a draft, each on lines of its own: `later` after `earlier`, unless
+// `earlier` is a shell command, which `later` would only make more lines of: then they go
+// before it, which makes the draft a message to look over before it is sent again. Two shell
+// commands make one of two lines, the second without its `!`, to look over before it runs.
+export const joinDraft = (earlier: string, later: string): string => {
+  if (!earlier.trim()) return later
+  if (!later.trim()) return earlier
+  if (!earlier.trimStart().startsWith("!")) return `${earlier}\n${later}`
+  if (!later.trimStart().startsWith("!")) return `${later}\n${earlier}`
+  return `${earlier}\n${later.trimStart().slice(1).trimStart()}`
 }
 
 // Keeps only the drafts of terminals that `keep` says still show a chat.
@@ -86,9 +112,14 @@ export const keepChatDrafts = (
 // request's dialog while the person replies to it there, or "held" once it went with the
 // words still in the box, which then wait for the person's edit. Kept beside the draft, so
 // it outlives the chat leaving the screen as the draft does; none is not kept.
-export type ChatReplyTo = { readonly request: string; readonly dialog: string } | "held"
+export type ChatReply = { readonly request: string; readonly dialog: string }
+export type ChatReplyTo = ChatReply | "held"
 
-export type ChatReplies = Readonly<Record<string, Readonly<Record<string, ChatReplyTo>>>>
+// The answer a reply sends: its words for the question's own field, which takes one line.
+export const replyAnswer = (to: ChatReply, text: string): ChatAnswer =>
+  chatAnswer(to.dialog, oneLine(text))
+
+export type ChatReplies = ByTerminal<ChatReplyTo>
 
 export const noChatReplies: ChatReplies = {}
 
@@ -96,12 +127,15 @@ export const chatReplyOf = (
   replies: ChatReplies,
   context: string,
   id: string,
-): ChatReplyTo | null => replies[context]?.[id] ?? null
+): ChatReplyTo | null => valueOf(replies, context, id) ?? null
 
-const sameReply = (a: ChatReplyTo | null, b: ChatReplyTo | null): boolean =>
-  a === b ||
-  (a !== null &&
-    b !== null &&
+export const sameReply = (
+  a: ChatReplyTo | null | undefined,
+  b: ChatReplyTo | null | undefined,
+): boolean =>
+  (a ?? null) === (b ?? null) ||
+  (a != null &&
+    b != null &&
     a !== "held" &&
     b !== "held" &&
     a.request === b.request &&
@@ -112,13 +146,7 @@ export const setChatReply = (
   context: string,
   id: string,
   to: ChatReplyTo | null,
-): ChatReplies => {
-  if (sameReply(chatReplyOf(replies, context, id), to)) return replies
-  if (to !== null) return { ...replies, [context]: { ...replies[context], [id]: to } }
-  const { [id]: _gone, ...left } = replies[context]!
-  const { [context]: _session, ...rest } = replies
-  return Object.keys(left).length > 0 ? { ...rest, [context]: left } : rest
-}
+): ChatReplies => withValue(replies, context, id, to ?? undefined, sameReply)
 
 // Keeps only the replies of terminals that `keep` says still show a chat.
 export const keepChatReplies = (
@@ -152,3 +180,62 @@ export const settleChatReplies = (
         )
   return next
 }
+
+// What a terminal's chat box does with its words:
+// - `message`: sends them as a prompt; `shell` as a shell command, as they start with `!`;
+// - `reply`: answers the agent's question in that question's own field;
+// - `held`: holds words written as a reply whose question went, until the person edits
+//   them, so they never go as a message unread;
+// - `waiting`: a reply whose agent's requests aren't read yet, as when the chat comes back
+//   on screen, which waits for them before anything goes.
+export type ComposerMode = "message" | "shell" | "reply" | "held" | "waiting"
+
+// Whether the question a reply answers is still asked, its dialog the same and taking the
+// words in its own field.
+export const replyOpen = (to: ChatReplyTo | null, requests: readonly ChatRequest[]): boolean =>
+  to !== null &&
+  to !== "held" &&
+  requests.some(
+    (request) =>
+      request.id === to.request &&
+      !request.answered &&
+      request.dialog?.type === "questions" &&
+      request.dialog.id === to.dialog &&
+      request.dialog.chat === "field",
+  )
+
+// The box's mode, from its draft, what the draft replies to, the agent's requests, and
+// whether those are read yet (`loaded`).
+export const composerState = (
+  draft: string,
+  replyTo: ChatReplyTo | null,
+  requests: readonly ChatRequest[],
+  loaded: boolean,
+): ComposerMode => {
+  if (replyTo !== null && replyTo !== "held") {
+    if (!loaded) return "waiting"
+    if (replyOpen(replyTo, requests)) return "reply"
+  }
+  if (replyTo !== null && draft.trim() !== "") return "held"
+  return shellCommand(draft) !== undefined ? "shell" : "message"
+}
+
+// Words on their way to a terminal's agent: the draft they were sent from, as typed, which
+// goes back in the box should they not arrive, and the question they answer, for a reply.
+export type ChatSend = { readonly draft: string; readonly to: ChatReply | null }
+
+// The words on their way to each terminal's agent, by session context and terminal id:
+// taken out of the draft as they go. A terminal sends one at a time.
+export type ChatSends = ByTerminal<ChatSend>
+
+export const noChatSends: ChatSends = {}
+
+export const chatSendOf = (sends: ChatSends, context: string, id: string): ChatSend | null =>
+  valueOf(sends, context, id) ?? null
+
+export const setChatSend = (
+  sends: ChatSends,
+  context: string,
+  id: string,
+  send: ChatSend | null,
+): ChatSends => withValue(sends, context, id, send ?? undefined)

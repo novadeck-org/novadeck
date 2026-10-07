@@ -116,13 +116,25 @@ describe("Sending a prompt from the chat", () => {
     await expect.element(composer(chat)).toHaveValue("one\ntwo")
   })
 
-  it("says why a prompt didn't go and keeps what was typed", async () => {
+  it("says why a prompt didn't go and puts it back in the box", async () => {
+    await openChatDemo()
+    // Codex in Checkout review waits for the person's answer.
+    const chat = await openChat("Checkout review")
+    await userEvent.type(composer(chat), "More please")
+    await userEvent.keyboard("{Enter}")
+    await expect.element(chat.getByRole("alert").getByText(/waiting for your answer/)).toBeVisible()
+    await expect.element(composer(chat)).toHaveValue("More please")
+  })
+
+  it("queues a prompt sent while the agent works, which Stop gives back to the box", async () => {
     await openChatDemo()
     // Claude Code in Tests still works in the background.
     const chat = await openChat("Tests")
     await userEvent.type(composer(chat), "More please")
     await userEvent.keyboard("{Enter}")
-    await expect.element(chat.getByRole("alert").getByText(/still working/)).toBeVisible()
+    await expect.element(composer(chat)).toHaveValue("")
+    await expect.element(chat.getByRole("alert")).not.toBeInTheDocument()
+    await chat.getByRole("button", { name: "Stop" }).click()
     await expect.element(composer(chat)).toHaveValue("More please")
   })
 })

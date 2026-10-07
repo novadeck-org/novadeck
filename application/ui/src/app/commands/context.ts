@@ -50,6 +50,8 @@ export type CommandContext = {
   readonly pickDirectory?: Backend["pickDirectory"] | undefined
   readonly crashLoop?: Backend["crashLoop"] | undefined
   readonly resetTitle?: Backend["resetTitle"] | undefined
+  // The agents' conversations, where the backend reads them, which the chat sends to.
+  readonly conversations?: Backend["conversations"] | undefined
   // Every terminal's companion pane, where the backend has companions.
   readonly panes?: Panes | undefined
   readonly canvas: { readonly current: CanvasHandle | null }
