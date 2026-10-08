@@ -3,6 +3,9 @@
    windows' resize grips, and the ghost of a window a drop would open. Zen
    (data-zen="true" on `.workspace`) quiets the ground.
 
+   `.workspace-background` clips what overflows it and never scrolls; its pseudo-elements
+   may extend past it.
+
    Hooks: `.workspace-background` and data-pointer-inside="true" on it;
    `.workspace-dots`, `.canvas-grid` and `.canvas-grid-spotlight` (the dot grid and its
    spotlight); `.grid-terminal` and `.canvas-node`, `.selected` when selected;

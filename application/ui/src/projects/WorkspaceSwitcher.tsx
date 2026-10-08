@@ -60,7 +60,7 @@ export const WorkspaceSwitcher = ({
               <div key={project.id} className="workspace-switcher-row group relative">
                 <Tooltip content={project.directory} placement="right-start">
                   <button
-                    className={`item workspace-switcher-project flex w-full min-w-0 items-center gap-3 px-2.5 py-[9px] text-left ${removable ? "pr-10" : ""} ${selected ? "selected" : ""}`}
+                    className={`item standalone workspace-switcher-project flex w-full min-w-0 items-center gap-3 px-2.5 py-[9px] text-left ${removable ? "pr-10" : ""} ${selected ? "selected" : ""}`}
                     type="button"
                     aria-current={selected ? "true" : undefined}
                     onClick={() => {

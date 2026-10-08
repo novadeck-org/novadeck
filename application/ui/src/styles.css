@@ -6,7 +6,7 @@
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
 /* Inter and JetBrains Mono ship with the app: the CSP only loads fonts from the app
-   itself. */
+   itself. A theme with its own face imports it in its file, as Phosphor does. */
 @import "./theme/fonts.css" layer(base);
 @import "@fontsource-variable/jetbrains-mono" layer(base);
 
@@ -55,6 +55,7 @@
 @import "./search/search.css" layer(components);
 
 @import "./theme/graphite.css" layer(themes);
+@import "./theme/phosphor.css" layer(themes);
 @import "./theme/accessibility.css" layer(accessibility);
 
 /* Only utilities the TSX arranges with: unit tests name utilities without using them,

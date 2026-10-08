@@ -217,7 +217,7 @@ export const Grid = ({
   const grid = (
     <div
       data-workspace-viewport
-      className="grid-viewport relative flex min-h-0 flex-1 overflow-hidden workspace-background"
+      className="grid-viewport relative flex min-h-0 flex-1 overflow-clip workspace-background"
       aria-label="Terminal grid"
       tabIndex={-1}
       {...backgroundPointerHandlers}

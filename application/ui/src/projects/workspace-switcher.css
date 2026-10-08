@@ -10,8 +10,9 @@
 
    Tokens, each optional (its fallback in brackets):
    --workspace-switcher-icon-fg (muted): the trigger's folder and chevron.
-   The trigger takes the ghost button's tokens; rows take --item-highlighted-bg under the
-   pointer or the keyboard, and the rule above the open-folder button --separator-bg. */
+   The trigger takes the ghost button's tokens; rows are `.item.standalone`, taking the
+   item's highlighted tokens under the pointer or the keyboard; the rule above the
+   open-folder button takes --separator-bg. */
 .workspace-switcher-trigger > svg {
   color: var(--workspace-switcher-icon-fg, var(--color-muted));
 }
@@ -19,14 +20,6 @@
   --_bg: var(--button-ghost-hover-bg, var(--color-soft));
 }
 
-.workspace-switcher-project:focus-visible {
-  --_bg: var(--item-highlighted-bg, var(--color-shell));
-}
-@media (hover: hover) {
-  .workspace-switcher-project:hover {
-    --_bg: var(--item-highlighted-bg, var(--color-shell));
-  }
-}
 /* The check that marks the current project is set in the row's text colour, not as a
    secondary icon. */
 .workspace-switcher-project > svg {
@@ -38,6 +31,15 @@
 
 .workspace-switcher-remove {
   transition: opacity var(--motion-feedback) var(--ease-interface);
+}
+/* On a highlighted row's bar, the remove button beside it takes the bar's text. */
+.workspace-switcher-project:focus-visible ~ .workspace-switcher-remove {
+  --_fg: var(--item-highlighted-fg, var(--icon-button-fg, var(--color-muted)));
+}
+@media (hover: hover) {
+  .workspace-switcher-project:hover ~ .workspace-switcher-remove {
+    --_fg: var(--item-highlighted-fg, var(--icon-button-fg, var(--color-muted)));
+  }
 }
 
 .workspace-switcher-footer {

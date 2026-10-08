@@ -5,9 +5,10 @@ import { createRoot } from "react-dom/client"
 
 import { App } from "./app/App"
 import { applyAppearance, startingAppearance } from "./theme/apply"
+import { themes } from "./theme/themes"
 
 // The scheme attribute is on <html> before the first render.
-applyAppearance(document.documentElement, startingAppearance(window))
+applyAppearance(document.documentElement, startingAppearance(window, themes))
 
 const root = document.getElementById("root")
 

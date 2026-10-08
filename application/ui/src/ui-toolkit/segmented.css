@@ -48,7 +48,7 @@
   outline-offset: var(--focus-ring-offset);
 }
 @media (hover: hover) {
-  .segment:hover {
+  .segment:hover:not([data-disabled]) {
     --_bg: var(--segmented-hover-bg, var(--color-soft));
     --_fg: var(--segmented-hover-fg, var(--color-ink));
   }

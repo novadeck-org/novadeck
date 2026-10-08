@@ -488,7 +488,7 @@ const TerminalCanvas = ({
   const canvas = (
     <div
       data-workspace-viewport
-      className="canvas-viewport relative min-h-0 flex-1 overflow-hidden touch-none workspace-background"
+      className="canvas-viewport relative min-h-0 flex-1 overflow-clip touch-none workspace-background"
       ref={container}
       style={
         {

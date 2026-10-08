@@ -1,0 +1,555 @@
+/* Phosphor, a monochrome CRT in two tubes: Phosphor Green, the P1 phosphor, and
+   Phosphor Amber, the warmer P3. Glowing text on a near-black tube, in the dark only. A
+   theme for the wow more than the workday: its terminal colours are shades of one hue,
+   as a monochrome monitor draws them, so colour no longer tells red from blue.
+
+   Both tubes share this file: the first block holds what they have in common, the CRT
+   included, which draws in each tube's own colours; each tube's block holds its palette.
+   Imported into `layer(themes)`; see docs/theming.md. */
+
+/* Share Tech Mono, the tubes' face, ships with the app (the CSP only loads fonts from the
+   app itself). Fonts are declared in a `layer(base)` import; inside `layer(themes)` that
+   nests as `themes.base`, and `@font-face` ignores layers all the same. */
+@import "@fontsource/share-tech-mono" layer(base);
+
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) {
+  color-scheme: dark;
+
+  /* Terminal: the tube's own colours, a block cursor in the text's; its ANSI shades are
+     each tube's. */
+  --terminal-bg: var(--color-paper);
+  --terminal-fg: var(--color-ink);
+  --terminal-cursor: var(--color-ink);
+  --terminal-selection: var(--color-selection);
+  /* Depth: no shadows on a tube; surfaces glow instead, faintly, at their edges. */
+  --shadow-control: 0 0 0 1px color-mix(in srgb, var(--color-strong) 10%, transparent);
+  --shadow-panel:
+    0 0 0 1px color-mix(in srgb, var(--color-strong) 12%, transparent),
+    0 0 18px color-mix(in srgb, var(--color-strong) 8%, transparent);
+  --shadow-floating:
+    0 0 0 1px color-mix(in srgb, var(--color-strong) 18%, transparent),
+    0 0 28px color-mix(in srgb, var(--color-strong) 14%, transparent);
+  --shadow-modal:
+    0 0 0 1px color-mix(in srgb, var(--color-strong) 22%, transparent),
+    0 0 48px color-mix(in srgb, var(--color-strong) 18%, transparent);
+
+  /* Shape and type: square corners, and one face for the whole tube. */
+  --radius-control: 0;
+  --radius-panel: 0;
+  --radius-popover: 0;
+  --font-sans: "Share Tech Mono", "JetBrains Mono Variable", monospace;
+  --font-mono:
+    "Share Tech Mono", "JetBrains Mono Variable", "Symbols Nerd Font Mono", "Symbols Nerd Font",
+    monospace;
+  /* Texture: no grain and no dot grid; code rains down the workspace instead. */
+  --canvas-grain-opacity: 0;
+  --canvas-dots-opacity: 0;
+  --workspace-spotlight-opacity: 0;
+  --workspace-zen-dots-opacity: 0;
+  --workspace-zen-spotlight-opacity: 0;
+
+  /* Selection glows: the beam lingers where the person is. */
+  --item-selected-indicator-shadow: 0 0 8px var(--color-strong);
+  --tabs-indicator-shadow: 0 0 8px var(--color-strong);
+
+  /* The CRT, drawn over the whole screen: the beam's lines, its glow, the tube's darker
+     corners and the bezel around it. Each is kept light enough that text holds its
+     contrast through it: the glow haloes a glyph without thickening it, the scanlines
+     darken one row in three by a fifth, and the corners fall off gently. */
+  --crt-glow: 0 0 6px color-mix(in srgb, currentColor 40%, transparent);
+  --crt-scanlines: repeating-linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0.18) 0 1px,
+    transparent 1px 3px
+  );
+  --crt-vignette: radial-gradient(
+    ellipse 120% 110% at 50% 50%,
+    transparent 55%,
+    rgb(0 0 0 / 0.4) 100%
+  );
+  --crt-bezel-shadow:
+    0 0 0 60px rgb(0 0 0), inset 0 0 6px 3px rgb(0 0 0), inset 0 0 48px 10px rgb(0 0 0 / 0.7),
+    inset 0 0 160px color-mix(in srgb, var(--color-strong) 7%, transparent);
+  --crt-refresh: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--color-strong) 3%, transparent) 50%,
+    transparent
+  );
+}
+
+/* Phosphor Green: P1. */
+:root[data-theme="phosphor-green"] {
+  /* Grounds: the tube's black with a trace of green, stepping up to the paper. */
+  --color-canvas: #020402;
+  --color-shell: #040904;
+  --color-paper: #061006;
+  --color-soft: #0c1d0e;
+  /* Text: the phosphor's own green, and a dimmer one for what is secondary. */
+  --color-ink: #7dff8a;
+  --color-muted: #3cae50;
+  /* Lines */
+  --color-line: #10331a;
+  --color-line-strong: #287537;
+  /* Emphasis: the brightest the beam draws. */
+  --color-strong: #39ff6b;
+  --color-strong-hover: #8dffa6;
+  --color-on-strong: #021004;
+  /* Overlays */
+  --color-scrim: rgb(0 6 0 / 0.65);
+  --color-selection: #134a20;
+  --color-shadow: rgb(0 0 0);
+  /* Tones: tints of the tube, each keeping its warning apart by hue as far as a green
+     monitor can. */
+  --color-success: #0d2a14;
+  --color-success-fg: #7dff8a;
+  --color-warning: #24260a;
+  --color-warning-fg: #e3ff7a;
+  --color-danger: #2c0e0a;
+  --color-danger-fg: #ff8a6a;
+  --color-note: #1c2408;
+  --color-note-fg: #c8ff6a;
+  /* Syntax: one green, from the beam's brightest to its dimmest. */
+  --color-syntax-keyword: #b8ffc2;
+  --color-syntax-string: #5fe07a;
+  --color-syntax-number: #a4ff7a;
+  --color-syntax-property: #7dffc4;
+  --color-syntax-definition: #d6ffda;
+  --color-syntax-type: #9dff9a;
+  --color-syntax-comment: #319548;
+  /* Terminal: a monochrome monitor, every colour a shade of the phosphor. */
+  --terminal-ansi-black: #1c4a26;
+  --terminal-ansi-red: #4fd06a;
+  --terminal-ansi-green: #7dff8a;
+  --terminal-ansi-yellow: #a6ff8a;
+  --terminal-ansi-blue: #3cae50;
+  --terminal-ansi-magenta: #5fe07a;
+  --terminal-ansi-cyan: #8affb0;
+  --terminal-ansi-white: #b8ffc2;
+  --terminal-ansi-black-bright: #2f7a3e;
+  --terminal-ansi-red-bright: #7dff8a;
+  --terminal-ansi-green-bright: #a8ffb0;
+  --terminal-ansi-yellow-bright: #ccffaa;
+  --terminal-ansi-blue-bright: #5fe07a;
+  --terminal-ansi-magenta-bright: #8dffa6;
+  --terminal-ansi-cyan-bright: #b8ffd8;
+  --terminal-ansi-white-bright: #e6ffe8;
+}
+
+/* Phosphor Amber: P3. */
+:root[data-theme="phosphor-amber"] {
+  /* Grounds: the tube's black with a trace of amber, stepping up to the paper. */
+  --color-canvas: #040200;
+  --color-shell: #090502;
+  --color-paper: #0e0803;
+  --color-soft: #1e1306;
+  /* Text: the phosphor's own amber, and a dimmer one for what is secondary. */
+  --color-ink: #ffb84a;
+  --color-muted: #b37a26;
+  /* Lines */
+  --color-line: #36230a;
+  --color-line-strong: #8a591a;
+  /* Emphasis: the brightest the beam draws. */
+  --color-strong: #ffa81a;
+  --color-strong-hover: #ffcd7a;
+  --color-on-strong: #140a00;
+  /* Overlays */
+  --color-scrim: rgb(6 3 0 / 0.65);
+  --color-selection: #4a2f0c;
+  --color-shadow: rgb(0 0 0);
+  /* Tones: tints of the tube, each keeping its warning apart by hue as far as an amber
+     monitor can. */
+  --color-success: #1c1c06;
+  --color-success-fg: #e2d86a;
+  --color-warning: #2a1a04;
+  --color-warning-fg: #ffd27a;
+  --color-danger: #2c0c06;
+  --color-danger-fg: #ff7a50;
+  --color-note: #261908;
+  --color-note-fg: #ffc890;
+  /* Syntax: one amber, from the beam's brightest to its dimmest. */
+  --color-syntax-keyword: #ffd9a0;
+  --color-syntax-string: #e09a3a;
+  --color-syntax-number: #ffc46a;
+  --color-syntax-property: #ffcf8a;
+  --color-syntax-definition: #ffe6c4;
+  --color-syntax-type: #ffbe70;
+  --color-syntax-comment: #aa7628;
+  /* Terminal: a monochrome monitor, every colour a shade of the phosphor. */
+  --terminal-ansi-black: #4a3010;
+  --terminal-ansi-red: #d08a2a;
+  --terminal-ansi-green: #ffb84a;
+  --terminal-ansi-yellow: #ffc870;
+  --terminal-ansi-blue: #b37a26;
+  --terminal-ansi-magenta: #e09a3a;
+  --terminal-ansi-cyan: #ffcf8a;
+  --terminal-ansi-white: #ffd9a0;
+  --terminal-ansi-black-bright: #7a5520;
+  --terminal-ansi-red-bright: #ffb84a;
+  --terminal-ansi-green-bright: #ffcf80;
+  --terminal-ansi-yellow-bright: #ffe0a8;
+  --terminal-ansi-blue-bright: #e09a3a;
+  --terminal-ansi-magenta-bright: #ffcd7a;
+  --terminal-ansi-cyan-bright: #ffe2b8;
+  --terminal-ansi-white-bright: #fff0dc;
+}
+
+/* Every line of text glows in its own colour: text-shadow inherits, so it reaches the
+   terminals too, whose DOM renderer draws spans. The tube powers on as it comes on
+   screen, at start and when the person picks it: a bright dot draws out into a line,
+   then opens into the picture. A transform and a brightness, so nothing measures again,
+   both let go once it ends, so the page keeps no layer of its own; the tube's black shows
+   around it while it opens. Switching between the tubes keeps the picture. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) {
+  background-color: rgb(0 0 0);
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) body {
+  text-shadow: var(--crt-glow);
+  animation: phosphor-power-on 0.75s cubic-bezier(0.2, 0, 0, 1) backwards;
+}
+
+/* The tube over everything, dialogs included, never in the pointer's way: scanlines,
+   vignette and bezel on one layer, and a faint band rolling down as the beam refreshes. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) body::after,
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) body::after {
+  background: var(--crt-scanlines), var(--crt-vignette);
+  box-shadow: var(--crt-bezel-shadow);
+  border-radius: 28px / 22px;
+  animation: phosphor-flicker 4s steps(1) infinite;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) body::before {
+  background: var(--crt-refresh) no-repeat;
+  background-size: 100% 18%;
+  animation: phosphor-refresh 11s linear infinite;
+}
+
+/* A terminal's own idioms, where Graphite has a designer's. */
+
+/* Inverse video: what the keyboard or pointer is on, and the chosen segment, is drawn as
+   a solid bar of the beam with the tube's black for text. The item's tokens colour its
+   text, icon and detail; the glow goes, as it would smear black on a bar. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) {
+  --item-highlighted-bg: var(--color-strong);
+  --item-highlighted-border-color: var(--color-strong);
+  --item-highlighted-fg: var(--color-on-strong);
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .item:is([data-highlighted], .standalone:focus-visible),
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .item.standalone:hover,
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .segment:is(
+    [data-state="checked"],
+    [data-selected],
+    [aria-pressed="true"],
+    :has(> input:checked)
+  ) {
+  text-shadow: none;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) {
+  --segmented-active-bg: var(--color-strong);
+  --segmented-active-fg: var(--color-on-strong);
+  --segmented-active-border-color: var(--color-strong);
+  --segmented-active-shadow: 0 0 10px color-mix(in srgb, var(--color-strong) 45%, transparent);
+}
+
+/* Labels in brackets, and a dialog's buttons in angles: [ TERMINALS ], < Cancel >. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .section-label::before {
+  content: "[ ";
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .section-label::after {
+  content: " ]";
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .modal
+  .button:not(.link, .welcome-start)::before {
+  content: "< ";
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .modal
+  .button:not(.link, .welcome-start)::after {
+  content: " >";
+}
+
+/* A block caret, blinking as the field's beam does. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  :is(input, textarea, [contenteditable="true"]) {
+  caret-shape: block;
+  caret-color: var(--color-strong);
+}
+
+/* Each window is the face of a tube, bowed toward the viewer: it is clipped to a shape
+   whose corners fall 3px by 2px inside its box and whose edges curve back out to it, so
+   a large window curves gently and a small one more, and clicks in the fallen corners
+   reach what lies behind, as they look. Its rim is a ring cut along the same curve
+   (::before), doubled on the selected window as a text interface marks the active pane;
+   the glass over it (--window-glass-image) darkens faintly toward the corners, a tenth
+   at most so text there holds 4.5:1, and catches a reflection. The window recipe puts
+   both layers over everything the window holds and lets clicks through. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) {
+  --window-border-color: transparent;
+  --window-selected-border-color: transparent;
+  --window-shadow: none;
+  --window-selected-shadow: none;
+  --window-glass-image:
+    radial-gradient(ellipse 60% 38% at 28% 10%, rgb(255 255 255 / 0.085), transparent 70%),
+    radial-gradient(farthest-corner at 50% 50%, transparent 60%, rgb(0 0 0 / 0.1) 100%);
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .terminal-window {
+  clip-path: shape(
+    from 3px 2px,
+    curve to calc(100% - 3px) 2px with 50% -2px,
+    curve to calc(100% - 3px) calc(100% - 2px) with calc(100% + 3px) 50%,
+    curve to 3px calc(100% - 2px) with 50% calc(100% + 2px),
+    curve to 3px 2px with -3px 50%,
+    close
+  );
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .terminal-window::before {
+  /* The rim lies over the glass, so the glass never dims it. */
+  z-index: 301;
+  background-color: var(--color-line-strong);
+  clip-path: shape(
+    evenodd from 3px 2px,
+    curve to calc(100% - 3px) 2px with 50% -2px,
+    curve to calc(100% - 3px) calc(100% - 2px) with calc(100% + 3px) 50%,
+    curve to 3px calc(100% - 2px) with 50% calc(100% + 2px),
+    curve to 3px 2px with -3px 50%,
+    close,
+    move to 4px 3px,
+    curve to calc(100% - 4px) 3px with 50% -1px,
+    curve to calc(100% - 4px) calc(100% - 3px) with calc(100% + 2px) 50%,
+    curve to 4px calc(100% - 3px) with 50% calc(100% + 1px),
+    curve to 4px 3px with -2px 50%,
+    close
+  );
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  :is(
+    .terminal-focused,
+    .grid-terminal.selected .terminal-window,
+    .canvas-node.selected .terminal-window
+  )::before {
+  background-color: var(--color-strong);
+  clip-path: shape(
+    evenodd from 3px 2px,
+    curve to calc(100% - 3px) 2px with 50% -2px,
+    curve to calc(100% - 3px) calc(100% - 2px) with calc(100% + 3px) 50%,
+    curve to 3px calc(100% - 2px) with 50% calc(100% + 2px),
+    curve to 3px 2px with -3px 50%,
+    close,
+    move to 4.5px 3.5px,
+    curve to calc(100% - 4.5px) 3.5px with 50% -0.5px,
+    curve to calc(100% - 4.5px) calc(100% - 3.5px) with calc(100% + 1.5px) 50%,
+    curve to 4.5px calc(100% - 3.5px) with 50% calc(100% + 0.5px),
+    curve to 4.5px 3.5px with -1.5px 50%,
+    close,
+    move to 6px 5px,
+    curve to calc(100% - 6px) 5px with 50% 1px,
+    curve to calc(100% - 6px) calc(100% - 5px) with calc(100% + 0px) 50%,
+    curve to 6px calc(100% - 5px) with 50% calc(100% - 1px),
+    curve to 6px 5px with 0px 50%,
+    close,
+    move to 7.5px 6.5px,
+    curve to calc(100% - 7.5px) 6.5px with 50% 2.5px,
+    curve to calc(100% - 7.5px) calc(100% - 6.5px) with calc(100% - 1.5px) 50%,
+    curve to 7.5px calc(100% - 6.5px) with 50% calc(100% - 2.5px),
+    curve to 7.5px 6.5px with 1.5px 50%,
+    close
+  );
+}
+
+/* Outlines a window draws for itself fall outside its clip, and one drawn inside it
+   lies under the window's own content, its header and chat included. In the tube they
+   are drawn on the glass instead, which lies over everything the window holds: the ring
+   while the person navigates the workspace, and the flash of a window just created. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  [data-navigate="true"]
+  :is(
+    .terminal-focused,
+    .grid-terminal.selected .terminal-window,
+    .canvas-node.selected .terminal-window
+  ) {
+  outline: none;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  [data-navigate="true"]
+  :is(
+    .terminal-focused,
+    .grid-terminal.selected .terminal-window,
+    .canvas-node.selected .terminal-window
+  )::after {
+  outline: 2px solid var(--workspace-navigate-ring-color, var(--color-strong));
+  outline-offset: -8px;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .terminal-window[data-new="true"] {
+  animation: none;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .terminal-window[data-new="true"]::after {
+  animation: phosphor-window-created 900ms var(--ease-interface);
+}
+@keyframes phosphor-window-created {
+  from {
+    outline: 2px solid var(--window-new-ring-color, var(--color-line-strong));
+    outline-offset: -8px;
+  }
+  to {
+    outline: 2px solid transparent;
+    outline-offset: -8px;
+  }
+}
+
+/* A request in the chat waits on the person on a tinted card, where the strong line is
+   too dim to edge its fields and buttons; they take the muted colour, 4.5:1 or more on
+   the card. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .chat-request {
+  --chat-request-field-border-color: var(--color-muted);
+  --button-border-color: var(--color-muted);
+}
+
+/* The output itself bulges, through the crt-barrel filter index.html carries. Chromium
+   bends by copying the nearest pixel, which tears text at one pixel per point, so only
+   denser screens bend; the rest keep the glass alone. The header stays flat, so its
+   buttons are where they look; within the output a click lands off from where it
+   shows, by nothing at the middle, 10px at the middle of an edge and 20px at a
+   corner. */
+@media (min-resolution: 2dppx) {
+  :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .terminal-content {
+    filter: url("#crt-barrel");
+  }
+}
+
+/* Code rains down the workspace, in two depths: near columns falling faster, far ones
+   smaller, dimmer and slower. Each depth is a tile of glyph columns, a bright head over a
+   fading trail, used as a mask over the tube's colour, so both tubes share it. It steps
+   down a glyph row at a time, as a terminal's text moves: on every ground, which clips
+   what overflows it and never scrolls, a layer one tile taller slides down with a
+   transform the compositor draws. The ground is isolated so the rain lies behind every
+   window. Reduced motion stills it; Zen quiets it. */
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .workspace-background {
+  isolation: isolate;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .workspace-background::before,
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .workspace-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--color-strong);
+  mask-repeat: repeat;
+  pointer-events: none;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .workspace-background::before {
+  top: -896px;
+  mask-image: url("../assets/phosphor-rain-near.svg");
+  mask-size: 1920px 896px;
+  opacity: 0.11;
+  animation: phosphor-rain-near 16s steps(56) infinite;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .workspace-background::after {
+  top: -720px;
+  mask-image: url("../assets/phosphor-rain-far.svg");
+  mask-size: 1920px 720px;
+  opacity: 0.06;
+  animation: phosphor-rain-far 24s steps(60) infinite;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .workspace[data-zen="true"]
+  .workspace-background::before {
+  opacity: 0.06;
+}
+:root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+  .workspace[data-zen="true"]
+  .workspace-background::after {
+  opacity: 0.03;
+}
+
+@keyframes phosphor-rain-near {
+  to {
+    transform: translateY(896px);
+  }
+}
+@keyframes phosphor-rain-far {
+  to {
+    transform: translateY(720px);
+  }
+}
+/* When the system asks for more contrast, the tube keeps its colours, shapes and idioms
+   and drops what lies over or behind the text: the glow, the scanlines, vignette and
+   refresh band, the glass, the bend and the rain. An ended window keeps its hatch. */
+@media (prefers-contrast: more) {
+  :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) body {
+    text-shadow: none;
+  }
+  :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) body::before,
+  :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) body::after,
+  :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+    .workspace-background::before,
+  :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"])
+    .workspace-background::after {
+    display: none;
+  }
+  :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) {
+    --window-glass-image: none;
+  }
+  :root:is([data-theme="phosphor-green"], [data-theme="phosphor-amber"]) .terminal-content {
+    filter: none;
+  }
+}
+
+@keyframes phosphor-power-on {
+  0% {
+    transform: scale(0.01, 0.003);
+    filter: brightness(4);
+  }
+  30% {
+    transform: scale(1, 0.003);
+    filter: brightness(3);
+  }
+  70% {
+    transform: scale(1, 1);
+    filter: brightness(1.3);
+  }
+  100% {
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes phosphor-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  31% {
+    opacity: 0.96;
+  }
+  32% {
+    opacity: 1;
+  }
+  67% {
+    opacity: 0.98;
+  }
+  68% {
+    opacity: 1;
+  }
+}
+@keyframes phosphor-refresh {
+  from {
+    background-position: 0 -20%;
+  }
+  to {
+    background-position: 0 120%;
+  }
+}

@@ -24,7 +24,7 @@ export const Focus = ({
   return (
     <div
       data-workspace-viewport
-      className="focus-stage relative min-h-0 flex-1 overflow-hidden workspace-background"
+      className="focus-stage relative min-h-0 flex-1 overflow-clip workspace-background"
       {...backgroundPointerHandlers}
       tabIndex={-1}
       onPointerDownCapture={(event) => {

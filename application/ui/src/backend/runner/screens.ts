@@ -276,14 +276,39 @@ export const createScreens = (runtime: SurfaceRuntime) => {
       { readable },
     )
     let settling: ReturnType<typeof setTimeout> | undefined
-    // A theme sets the colours and the font; a new font changes the cell size, so the
-    // terminal fits again.
-    const retheme = (): void => {
-      xterm.options.theme = themeOf(element)
-      const font = monospace(element)
-      if (xterm.options.fontFamily === font) return
+    // xterm measures its cells when its font changes, with whatever has loaded by then.
+    // It is told another family first when the family stays, since only a change makes it
+    // measure again; a new font changes the cell size, so the terminal fits again.
+    const measure = (font: string): void => {
+      if (xterm.options.fontFamily === font) xterm.options.fontFamily = "monospace"
       xterm.options.fontFamily = font
       followed.refit()
+    }
+    // The theme's font, once it has loaded: a bundled font still on its way arrives later,
+    // and the terminal keeps the font it has until then. One that fails to load is taken
+    // all the same, so the family falls back as the browser would.
+    let awaited: string | undefined
+    const takeFont = (): void => {
+      const font = monospace(element)
+      const fonts = element.ownerDocument.fonts as FontFaceSet | undefined
+      if (!fonts || fonts.check(`${xterm.options.fontSize}px ${font}`)) {
+        awaited = undefined
+        if (xterm.options.fontFamily !== font) measure(font)
+        return
+      }
+      if (awaited === font) return
+      awaited = font
+      const settle = (): void => {
+        if (gone || awaited !== font) return
+        awaited = undefined
+        measure(font)
+      }
+      fonts.load(`${xterm.options.fontSize}px ${font}`).then(settle, settle)
+    }
+    // A theme sets the colours and the font.
+    const retheme = (): void => {
+      xterm.options.theme = themeOf(element)
+      takeFont()
     }
     // A host opened before it had a slot took the page's colours and font; once in one,
     // it takes its region's.
@@ -298,21 +323,9 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     })
     resizes.observe(element)
     window.addEventListener(themeChangeEvent, retheme)
-    // xterm measures its cells once, with whatever font has loaded by then; a bundled font
-    // still on its way arrives later, so the terminal measures and fits again once it has.
-    const fonts = element.ownerDocument.fonts as FontFaceSet | undefined
-    const face = `${xterm.options.fontSize}px ${xterm.options.fontFamily}`
-    if (fonts && !fonts.check(face))
-      fonts.load(face).then(
-        () => {
-          if (gone) return
-          const font = monospace(element)
-          xterm.options.fontFamily = "monospace"
-          xterm.options.fontFamily = font
-          followed.refit()
-        },
-        () => {},
-      )
+    // The terminal opened in its font whether it had loaded or not; one still on its way
+    // is measured again once it arrives.
+    takeFont()
     runtime.screen(key, "mounted")
     entry.dispose = () => {
       runtime.screen(key, "gone")

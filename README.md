@@ -649,13 +649,13 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `ui-toolkit/`                                      | Reusable controls, direct Ark UI imports, and the shared recipes they draw with.        |
 | `test/`                                            | Unit-test fixtures, a jsdom render helper, a command harness, and the port contract.    |
 | `assets/`                                          | Static files referenced from CSS.                                                       |
-| `theme/`                                           | Tailwind's layout-only theme, token defaults, the Graphite theme, `apply.ts`.           |
+| `theme/`                                           | Tailwind's layout-only theme, token defaults, Graphite and Phosphor, `apply.ts`.        |
 | `styles.css`                                       | The cascade order, every recipe, theme and vendor sheet in its layer, Tailwind sources. |
 | `specs/`                                           | Behaviour specs for the whole UI, run in a real browser.                                |
 
 Imports point down the layers. `model/` imports nothing else, not even packages,
-apart from the scheme types, and `theme/` imports nothing at all; every layer
-that composes the page may use it, adapters included, and
+apart from the scheme and theme manifest types, and `theme/` imports nothing at
+all; every layer that composes the page may use it, adapters included, and
 [docs/theming.md](docs/theming.md) is its contract with components.
 `backend/` builds on `model/` and uses React only for the port's types; adapters
 may add `ui-toolkit/`. `interaction/` builds on `model/` and imports no packages;

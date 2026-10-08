@@ -5,12 +5,17 @@
    shows the focus ring inside its edge. Its icon is secondary and its detail text muted.
 
    Hooks: :hover; :focus-visible; data-highlighted (Ark's highlight); data-selected,
-   present or "true"; data-disabled. Parts: a leading `svg`, `.item-detail`.
+   present or "true"; data-disabled. Parts: a leading `svg`, `.item-detail`. Variant:
+   `.standalone`, an item no Ark list manages, which is highlighted under the pointer or
+   the keyboard all the same. Highlighted, then, is `[data-highlighted]`,
+   `.standalone:hover` or `.standalone:focus-visible`.
 
    Tokens, each optional (its fallback in brackets):
    --item-radius (radius-control), --item-icon-fg (muted), --item-detail-fg (muted).
    --item-hover-bg (soft), --item-hover-border-color (transparent): under the pointer.
-   --item-highlighted-bg (shell), --item-highlighted-border-color (line): highlighted.
+   --item-highlighted-bg (shell), --item-highlighted-border-color (line),
+   --item-highlighted-fg (the item's own text): highlighted; its icon and detail take it
+   too while highlighted, over --item-icon-fg and --item-detail-fg.
    --item-selected-bg (paper), --item-selected-border-color (line),
    --item-selected-shadow (shadow-control), --item-selected-indicator-bg (strong):
    selected, and its bar. --item-selected-indicator-shadow (none): a glow around the bar.
@@ -20,6 +25,8 @@
   --_border-color: transparent;
   --_shadow: none;
   --_indicator-opacity: 0;
+  --_icon-fg: var(--item-icon-fg, var(--color-muted));
+  --_detail-fg: var(--item-detail-fg, var(--color-muted));
   position: relative;
   border: var(--border-width) solid var(--_border-color);
   border-radius: var(--item-radius, var(--radius-control));
@@ -51,10 +58,10 @@
 }
 .item > svg {
   flex-shrink: 0;
-  color: var(--item-icon-fg, var(--color-muted));
+  color: var(--_icon-fg);
 }
 .item-detail {
-  color: var(--item-detail-fg, var(--color-muted));
+  color: var(--_detail-fg);
 }
 @media (hover: hover) {
   .item:hover {
@@ -62,9 +69,21 @@
     --_border-color: var(--item-hover-border-color, transparent);
   }
 }
-.item[data-highlighted] {
+.item:is([data-highlighted], :where(.standalone:focus-visible)) {
   --_bg: var(--item-highlighted-bg, var(--color-shell));
   --_border-color: var(--item-highlighted-border-color, var(--color-line));
+  --_icon-fg: var(--item-highlighted-fg, var(--item-icon-fg, var(--color-muted)));
+  --_detail-fg: var(--item-highlighted-fg, var(--item-detail-fg, var(--color-muted)));
+  color: var(--item-highlighted-fg, inherit);
+}
+@media (hover: hover) {
+  .item:where(.standalone):hover {
+    --_bg: var(--item-highlighted-bg, var(--color-shell));
+    --_border-color: var(--item-highlighted-border-color, var(--color-line));
+    --_icon-fg: var(--item-highlighted-fg, var(--item-icon-fg, var(--color-muted)));
+    --_detail-fg: var(--item-highlighted-fg, var(--item-detail-fg, var(--color-muted)));
+    color: var(--item-highlighted-fg, inherit);
+  }
 }
 .item[data-selected]:not([data-selected="false"]) {
   --_bg: var(--item-selected-bg, var(--color-paper));

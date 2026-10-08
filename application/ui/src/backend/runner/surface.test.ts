@@ -129,28 +129,39 @@ const ended = (terminal: Partial<TerminalMetadata>) => {
   return { page, bar, restarts, connection }
 }
 
-// The page's font set while the bundled mono is on its way: it arrives when the test says.
+// The page's font set while the bundled mono is on its way: it arrives, or fails to, when
+// the test says.
 const loading = () => {
   const arrival = later<FontFace[]>()
+  let refuse: ((reason: Error) => void) | undefined
+  const loaded = new Promise<FontFace[]>((resolve, reject) => {
+    refuse = reject
+    void arrival.promise.then(resolve)
+  })
   const original = Object.getOwnPropertyDescriptor(document, "fonts")
   Object.defineProperty(document, "fonts", {
     configurable: true,
-    value: { check: () => false, load: () => arrival.promise },
+    value: { check: () => false, load: () => loaded },
   })
   const restore = () => {
     if (original) Object.defineProperty(document, "fonts", original)
     else delete (document as { fonts?: unknown }).fonts
   }
-  return { arrive: () => arrival.give([]), restore }
+  return {
+    arrive: () => arrival.give([]),
+    fail: () => refuse?.(new Error("The font did not load")),
+    restore,
+  }
 }
-// Records each font family xterm is told to use after it opens, in order.
-const fontChanges = () => {
+// Records each font family xterm is told to use after it opens, in order: every
+// terminal's, or only those `counts` picks.
+const fontChanges = (counts: (terminal: Terminal) => boolean = () => true) => {
   const changes: string[] = []
   const options = Object.getOwnPropertyDescriptor(Terminal.prototype, "options")!.get!
   vi.spyOn(Terminal.prototype, "options", "get").mockImplementation(function (this: Terminal) {
     return new Proxy(options.call(this), {
       set: (target, name, value) => {
-        if (name === "fontFamily") changes.push(value as string)
+        if (name === "fontFamily" && counts(this)) changes.push(value as string)
         return Reflect.set(target, name, value)
       },
     })
@@ -546,6 +557,64 @@ describe("runner terminal surface", () => {
       } finally {
         root.style.removeProperty("--font-mono")
         font.restore()
+      }
+    })
+
+    it("keeps its font until a new theme's font arrives, then measures once", async () => {
+      const opened: Terminal[] = []
+      const originalOpen = Terminal.prototype.open
+      vi.spyOn(Terminal.prototype, "open").mockImplementation(function (this: Terminal, element) {
+        opened.push(this)
+        return originalOpen.call(this, element)
+      })
+      const root = document.documentElement
+      root.style.setProperty("--font-mono", "Old Mono")
+      // Screens earlier tests left open take the theme too; only this one counts.
+      const changes = fontChanges((terminal) => opened.includes(terminal))
+      let font: ReturnType<typeof loading> | undefined
+      try {
+        show(starting().runtime)
+        font = loading()
+        const before = changes.length
+
+        root.style.setProperty("--font-mono", "New Mono")
+        act(() => void window.dispatchEvent(new CustomEvent(themeChangeEvent)))
+        act(() => void window.dispatchEvent(new CustomEvent(themeChangeEvent)))
+        expect(changes.slice(before)).toEqual([])
+
+        await act(async () => font?.arrive())
+
+        expect(changes.slice(before)).toEqual(["New Mono"])
+      } finally {
+        root.style.removeProperty("--font-mono")
+        font?.restore()
+      }
+    })
+
+    it("takes a new theme's font that fails to load, so the family falls back", async () => {
+      const opened: Terminal[] = []
+      const originalOpen = Terminal.prototype.open
+      vi.spyOn(Terminal.prototype, "open").mockImplementation(function (this: Terminal, element) {
+        opened.push(this)
+        return originalOpen.call(this, element)
+      })
+      const root = document.documentElement
+      root.style.setProperty("--font-mono", "Old Mono")
+      const changes = fontChanges((terminal) => opened.includes(terminal))
+      let font: ReturnType<typeof loading> | undefined
+      try {
+        show(starting().runtime)
+        font = loading()
+        const before = changes.length
+
+        root.style.setProperty("--font-mono", "New Mono")
+        act(() => void window.dispatchEvent(new CustomEvent(themeChangeEvent)))
+        await act(async () => font?.fail())
+
+        expect(changes.slice(before)).toEqual(["New Mono"])
+      } finally {
+        root.style.removeProperty("--font-mono")
+        font?.restore()
       }
     })
 

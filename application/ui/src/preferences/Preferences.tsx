@@ -5,6 +5,7 @@ import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
 import { viewModes } from "../model/state"
 import type { PreferencesValue } from "../model/types"
+import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
 import { Checkbox } from "../ui-toolkit/Checkbox"
 import { Dialog } from "../ui-toolkit/Dialog"
 import { SegmentGroup } from "../ui-toolkit/SegmentGroup"
@@ -20,6 +21,7 @@ import {
 } from "./settings"
 import { VoiceInput, type VoiceAddon } from "./VoiceInput"
 
+const themeItems = themes.map(({ id, name }) => ({ label: name, value: id }))
 const schemeItems = [
   { label: "System", value: "system" },
   { label: "Light", value: "light" },
@@ -132,6 +134,10 @@ export const Preferences = ({
   }
   const lastView = value.enabledViews.length === 1
   const { appearance } = value
+  const theme: ThemeEntry<ThemeId> =
+    themes.find((entry) => entry.id === appearance.theme) ?? themes[0]
+  // A theme drawn in one scheme leaves nothing to choose.
+  const onlyScheme = theme.schemes.length === 1 ? theme.schemes[0] : undefined
   return (
     <Dialog
       open={open}
@@ -181,21 +187,47 @@ export const Preferences = ({
           <TabPanel value="general" className={panelClasses}>
             <Section title="Appearance">
               <div className={settingsCardClasses}>
+                <Select
+                  className={`preference-row ${settingRowClasses} [&_[data-part=trigger]]:w-36`}
+                  label="Theme"
+                  items={themeItems}
+                  // A saved theme the app doesn't have shows as the one drawn, Graphite,
+                  // without being chosen, so picking Graphite saves it.
+                  value={theme.id === appearance.theme ? theme.id : ""}
+                  placeholder={theme.name}
+                  onValueChange={(id) => {
+                    const chosen = themes.find((entry) => entry.id === id)
+                    if (chosen)
+                      onChange({ ...value, appearance: { ...appearance, theme: chosen.id } })
+                  }}
+                  open={open && tab === "general" && openSelect === "theme"}
+                  onOpenChange={(expanded) => setOpenSelect(expanded ? "theme" : null)}
+                  portalContainer={dialog}
+                />
+                {/* A disabled fieldset disables the segment group inside it. */}
                 <fieldset
                   className={`preference-row ${settingRowClasses} m-0 min-w-0`}
                   aria-labelledby="theme-scheme-label"
                   aria-describedby="theme-scheme-description"
+                  disabled={onlyScheme !== undefined}
                 >
                   <SettingText
                     id="theme-scheme-label"
                     label="Mode"
-                    description="Follow the system, or stay light or dark."
+                    description={
+                      onlyScheme
+                        ? `${theme.name} comes only in ${onlyScheme}.`
+                        : "Follow the system, or stay light or dark."
+                    }
                     descriptionId="theme-scheme-description"
                   />
+                  {/* Remounted when the theme's schemes change, so it shows the forced mode,
+                      and the saved one again, as its checked inputs would not follow. */}
                   <SegmentGroup
+                    key={onlyScheme ?? "free"}
                     label="Mode"
                     items={[...schemeItems]}
-                    value={appearance.scheme}
+                    value={onlyScheme ?? appearance.scheme}
                     onValueChange={(next) => {
                       const scheme = schemeItems.find((item) => item.value === next)?.value
                       if (scheme) onChange({ ...value, appearance: { ...appearance, scheme } })

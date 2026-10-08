@@ -23,9 +23,12 @@
    values; a literal colour is restated in dark unless it truly holds in both (the
    contract test checks this). Dark restates every foundation token (the contract
    requires it) and only the component tokens whose value differs. Change a step in both.
+   Every rule is scoped to Graphite, which applies when no theme is set or `data-theme` is
+   `graphite`, so another theme starts from the recipes' fallbacks instead of inheriting
+   these tokens. The `:where()` adds no specificity.
    Imported into `layer(themes)`; see docs/theming.md. */
 
-:root {
+:root:where(:not([data-theme]), [data-theme="graphite"]) {
   color-scheme: light;
 
   /* Grounds */
@@ -38,7 +41,7 @@
   --color-muted: #5c5a55;
   /* Lines */
   --color-line: oklch(from var(--color-paper) calc(l - 0.072) c h);
-  --color-line-strong: #c3beb5;
+  --color-line-strong: #837e76;
   /* Emphasis: a deep teal, 4.7:1 on the paper, so it reads as a line or a ring too. */
   --color-strong: #007a72;
   --color-strong-hover: #00665f;
@@ -216,7 +219,7 @@
 }
 
 /* Dark: slate grounds, greys with a trace of blue, and the cyan as the strong colour. */
-:root[data-scheme="dark"] {
+:root:where(:not([data-theme]), [data-theme="graphite"])[data-scheme="dark"] {
   color-scheme: dark;
 
   /* Grounds */
@@ -229,7 +232,7 @@
   --color-muted: #a2a6af;
   /* Lines */
   --color-line: oklch(from var(--color-paper) calc(l + 0.074) c h);
-  --color-line-strong: #45484f;
+  --color-line-strong: #6e7179;
   /* Emphasis: an electric cyan, kept to the few things it marks. */
   --color-strong: #00e5d6;
   --color-strong-hover: #5cefe4;
@@ -362,11 +365,11 @@
 
 /* The welcome's start button is the dialog's one primary action, so it takes the accent
    as its fill, where the logo and icon tiles carry it only in their glyph. */
-.welcome-start {
+:root:where(:not([data-theme]), [data-theme="graphite"]) .welcome-start {
   --brand-tile-bg: linear-gradient(180deg, #00877e, var(--color-strong));
   --brand-tile-fg: var(--color-on-strong);
   --brand-tile-border-color: transparent;
 }
-:root[data-scheme="dark"] .welcome-start {
+:root:where(:not([data-theme]), [data-theme="graphite"])[data-scheme="dark"] .welcome-start {
   --brand-tile-bg: linear-gradient(180deg, #2ef0e2, #00d6c8);
 }

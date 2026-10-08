@@ -4,7 +4,7 @@ import { applyAppearance } from "../theme/apply"
 
 import "../styles.css"
 
-applyAppearance(document.documentElement, { scheme: "light" })
+applyAppearance(document.documentElement, { theme: "graphite", scheme: "light" })
 
 beforeEach(() => {
   localStorage.clear()

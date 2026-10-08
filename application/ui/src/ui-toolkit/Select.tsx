@@ -12,6 +12,8 @@ export type SelectProps = {
   variant?: "field" | "icon"
   items: SelectOption[]
   value: string
+  // Shown while no item is the value.
+  placeholder?: string
   onValueChange?: (value: string) => void
   disabled?: boolean
   open?: boolean
@@ -25,6 +27,7 @@ export const Select = ({
   variant = "field",
   items,
   value,
+  placeholder,
   onValueChange,
   disabled,
   open,
@@ -65,7 +68,10 @@ export const Select = ({
               : "field flex min-h-8 min-w-30 items-center justify-between gap-4 px-2.5 py-1.75 text-control"
           }
         >
-          <ArkSelect.ValueText className={variant === "icon" ? "sr-only" : "truncate"} />
+          <ArkSelect.ValueText
+            className={variant === "icon" ? "sr-only" : "truncate"}
+            placeholder={placeholder}
+          />
           <ArkSelect.Indicator className="field-indicator">
             <ChevronDown size={13} aria-hidden="true" />
           </ArkSelect.Indicator>

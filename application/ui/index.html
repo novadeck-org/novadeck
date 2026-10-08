@@ -12,6 +12,31 @@
     <script src="./theme-boot.js"></script>
   </head>
   <body>
+    <!-- SVG filters a theme may apply by id, since Chromium applies only filters in the
+         page itself; see docs/theming.md. crt-barrel bulges an element like a tube's
+         face, by the same pixels whatever its size, so a large element bends gently and a
+         small one more: crt-barrel.png says how far each point samples from (red across,
+         green down). -->
+    <svg class="theme-filters" aria-hidden="true" width="0" height="0" style="position: absolute">
+      <filter
+        id="crt-barrel"
+        x="0"
+        y="0"
+        width="1"
+        height="1"
+        primitiveUnits="userSpaceOnUse"
+        color-interpolation-filters="sRGB"
+      >
+        <feImage href="./crt-barrel.png" preserveAspectRatio="none" result="map" />
+        <feDisplacementMap
+          in="SourceGraphic"
+          in2="map"
+          scale="40"
+          xChannelSelector="R"
+          yChannelSelector="G"
+        />
+      </filter>
+    </svg>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

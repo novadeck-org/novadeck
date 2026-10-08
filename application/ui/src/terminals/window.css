@@ -7,10 +7,16 @@
    `.terminal-compact` (Grid, Canvas); a selected window is `.terminal-focused`, or sits
    in a `.grid-terminal.selected` or `.canvas-node.selected`. Parts: `.terminal-header`,
    `.terminal-heading` (whose ::before is the selection bar and ::after the phase line),
-   `.terminal-title`, `.terminal-host` (the terminal's content, and
+   `.terminal-title`, `.terminal-content` (the terminal's output, which a theme may
+   filter), `.terminal-host` (the terminal's content, and
    `.terminal-stats` over it: what the agent runs on, its `.terminal-stats-runs` and its
-   context's `.terminal-stats-ring`), `.terminal-actions`,
-   `.terminal-rename-input`.
+   context's `.terminal-stats-ring`), `.terminal-actions`, `.terminal-rename-input`.
+
+   Layers: the window is positioned, and its `::after` is always the glass, a layer
+   over everything the window holds (z-index 300, above the taskbar's 60, the chat's 10,
+   the dictation strip's 11 and a plan's menus' 201), which lets clicks through. Its
+   `::before` is a second layer at that level, empty and free for a theme (the glass
+   lies over it). An ended window's hatch is drawn in the glass, above the rest.
 
    Tokens, each optional (its fallback in brackets):
    --window-bg (paper), --window-fg (ink), --window-border-color (line),
@@ -39,7 +45,8 @@
    the line while an agent's reply waits unread.
    --window-phase-failed-border-color (danger-fg): the line where its turn ended on an
    error.
-   --window-ended-image (a faint ink hatch): laid over an ended window.
+   --window-glass-image (none): the glass over the window, such as a reflection.
+   --window-ended-image (a faint ink hatch): laid over an ended window, above the glass.
    --window-ended-border-style (solid): an ended window's outline.
    --window-ended-content-opacity (0.55): an ended terminal's output.
    --window-new-ring-color (line-strong): the outline a new window flashes once. */
@@ -54,9 +61,26 @@
   background-color: var(--window-bg, var(--color-paper));
   color: var(--window-fg, var(--color-ink));
   box-shadow: var(--_shadow);
+  position: relative;
+  /* Its own stacking, so its layers lie over what it holds and never over a neighbour. */
+  isolation: isolate;
   transition:
     border-color var(--motion-state) var(--ease-interface),
     box-shadow var(--motion-state) var(--ease-interface);
+}
+/* Two layers over everything the window holds, its chat (z-index 10), dictation strip
+   (11), taskbar (60) and a plan's menus (201) included: the glass (::after), and a free
+   layer for a theme (::before). Both let clicks through. */
+.terminal-window::before,
+.terminal-window::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+}
+.terminal-window::after {
+  background-image: var(--window-glass-image, none);
 }
 .terminal-header {
   --_bg: var(--window-header-bg, var(--window-bg, var(--color-paper)));
@@ -214,27 +238,23 @@
    dots while the shell starts, dashes once it has ended, muted dashes while Novadeck
    can't hear from its agent, and nothing while idle.
    Reduced motion holds the sweep still. */
-/* An ended terminal is hatched across its window; the hatch lies over its output, which
-   is drawn on an opaque canvas, and lets clicks through. The hatch is drawn from ink,
-   so it reads on a light ground and a dark one alike. */
+/* An ended terminal is hatched across its window; the hatch lies in the glass, over its
+   output, which is drawn on an opaque canvas, and above the glass image. The hatch is
+   drawn from ink, so it reads on a light ground and a dark one alike. */
 .terminal-window[data-terminal-phase="ended"] {
   --_border-style: var(--window-ended-border-style, solid);
-  position: relative;
 }
 .terminal-window[data-terminal-phase="ended"]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background-image: var(
-    --window-ended-image,
-    repeating-linear-gradient(
-      135deg,
-      transparent 0 6px,
-      color-mix(in srgb, var(--color-ink) 3.5%, transparent) 6px 7px
-    )
-  );
-  pointer-events: none;
+  background-image:
+    var(
+      --window-ended-image,
+      repeating-linear-gradient(
+        135deg,
+        transparent 0 6px,
+        color-mix(in srgb, var(--color-ink) 3.5%, transparent) 6px 7px
+      )
+    ),
+    var(--window-glass-image, none);
 }
 /* The phase line is a border, like the header's hairline beneath it, so both snap to
    the same device pixel at any display scale or Canvas zoom. */
