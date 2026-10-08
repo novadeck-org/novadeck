@@ -55,9 +55,22 @@ const steady = 1000
  */
 const choose = async (
   terminal: DeckTerminal,
-  { select, trusts }: FolderQuestion,
+  { select, trusts, probe }: FolderQuestion,
 ): Promise<void> => {
   if (select === "") return
+  // A key that takes shows the TUI reads, which the Enter that follows needs.
+  if (probe) {
+    const moved = () =>
+      terminal.until(probe.moved, 1000).then(
+        () => true,
+        () => false,
+      )
+    for (let tries = 0; tries < 20; tries += 1) {
+      terminal.press(probe.away)
+      // eslint-disable-next-line no-await-in-loop -- Each look waits on the key before.
+      if (await moved()) break
+    }
+  }
   for (let tries = 0; tries < 10; tries += 1) {
     // eslint-disable-next-line no-await-in-loop -- Each look waits on the one before.
     if (trusts.test(await terminal.screen())) {
@@ -71,6 +84,28 @@ const choose = async (
     // eslint-disable-next-line no-await-in-loop -- As above.
     await terminal.until(trusts, 1000).catch(() => undefined)
   }
+}
+
+/**
+ * Leaves a review screen with its `skip` keys, pressed again while it shows: a TUI may
+ * draw it before it reads keys, dropping one pressed then.
+ */
+const leave = async (
+  terminal: DeckTerminal,
+  { shows, skip }: { readonly shows: RegExp; readonly skip: string },
+): Promise<void> => {
+  for (let tries = 0; tries < 10; tries += 1) {
+    // eslint-disable-next-line no-await-in-loop -- Each look waits on the key before.
+    await terminal.escape(skip)
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if (!shows.test(await terminal.screen())) return
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    await sleep(steady)
+    // A late redraw may have left it since: another key would land on the prompt.
+    // eslint-disable-next-line no-await-in-loop -- As above.
+    if (!shows.test(await terminal.screen())) return
+  }
+  throw new Error(`${terminal.handle} still shows ${String(shows)} after ${skip} pressed 10 times`)
 }
 
 for (const setup of setups) {
@@ -522,7 +557,7 @@ for (const setup of setups) {
           // eslint-disable-next-line no-await-in-loop -- One review at a time.
           await one.until(hooks!.shows, 60_000)
           // eslint-disable-next-line no-await-in-loop -- As above.
-          await one.escape(hooks!.skip)
+          await leave(one, hooks!)
         }
         await prompted(t1, setup)
         const calls = run.model.mark()

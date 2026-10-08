@@ -298,10 +298,12 @@ for (const setup of setups) {
   - `background`: `start(call)` is a reply starting work that outlives the turn (a
     background subagent or task) whose end wakes the agent again; `owns(call)` tells
     that work's model calls from the agent's own, so a rule can hold them at a `gate()`.
-  - `trust.folder`: `{ shows, select, trusts }`, its folder-trust question as
+  - `trust.folder`: `{ shows, select, trusts, probe? }`, its folder-trust question as
     `folderTrusted: false` shows it: text it shows whatever is selected, the keys that
     select the trusting option (`""` when the question shows it selected), and that
-    option as shown selected, for `confirm`.
+    option as shown selected, for `confirm`. `probe` (`{ away, moved }`) is for a TUI
+    that draws the question before it reads keys: another option is selected until the
+    screen shows it moved, and `select`, which can't then be `""`, puts it back.
   - `trust.hooks`: `{ shows, skip }`, its hooks-review screen and the keys that leave it
     without trusting Novadeck's hooks, as `hooksTrusted: false` shows it.
   - `rewind`: `{ shows, swallows }`, what Esc-Esc (two Escapes about 300 ms apart, sent
@@ -779,6 +781,12 @@ probe output, and keep their own loader.
   `prefix_rule(pattern = ["codex", "exec"], decision = "allow")`) lets `codex exec` run
   unasked, for `shell`; so allowed, the nested Codex reached the fake model and wrote its
   rollout in its home.
+- **Its startup screens.** Seeded `folderTrusted: false`, the project is made a Git
+  repository: Codex 0.160.1 and later ask "Trust this folder?" only in one, where
+  0.159.3 asked of any folder. Codex draws that question and "Hooks need review" before
+  it reads keys, and drops a key pressed then, so the folder question's selection is
+  moved away and back (Down, Up) before Enter, and the review's Esc is pressed again
+  while it still shows.
 - **Hook trust.** Codex runs a plugin's hooks only once trusted, and Novadeck counts
   its prompt only then. Once the plugin is connected, `connected` starts the pinned
   `codex app-server` and makes the calls its "Hooks need review" screen makes:
@@ -806,7 +814,8 @@ probe output, and keep their own loader.
     there whatever its trust. The nested Codex's hooks run with the agent's thread in
     `CODEX_THREAD_ID`, so its decoder takes nothing of them.
   - _`/side`_: typed and submitted, it shows a side conversation, its footer saying "Side
-    from main thread · ctrl+/ to switch · ctrl+c to close"; ctrl+c goes back to the root.
+    from main thread · ctrl+/ to switch · ctrl+c to close" (0.161.0 spells the keys `^/`
+    and `^c`); ctrl+c goes back to the root.
     Its thread is ephemeral: its first prompt fires a `SessionStart` saying `fork`, and
     every hook of it gives `transcript_path` as null.
   - _Fork_: `codex fork` shows its "Fork a previous session" picker, latest first, each

@@ -29,8 +29,9 @@ const it = e2e(codex)
 /** Ten rows in a row holding braille, as Codex draws its logo. */
 const logo = /(?:^.*[⠀-⣿].*\n){10}/m
 
-// What its footer says while it shows a `/side` conversation (0.159.3).
-const side = /Side from main thread · ctrl\+\/ to switch · ctrl\+c to close/
+// What its footer says while it shows a `/side` conversation: its keys are spelled out in
+// 0.159.3 (ctrl+/) and abbreviated in 0.161.0 (^/).
+const side = /Side from main thread · (?:ctrl\+|\^)\/ to switch · (?:ctrl\+|\^)c to close/
 
 // How long a terminal is watched for a binding that mustn't change once a turn is done.
 const quiet = 3000

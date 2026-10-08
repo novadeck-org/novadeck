@@ -1,6 +1,7 @@
-import { spawn } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import { promisify } from "node:util"
 
 import { trustedIn } from "../../harnesses/codex/trust.js"
 import type { DeckTerminal } from "../deck.js"
@@ -174,12 +175,17 @@ export const codex: AgentSetup = {
       "nothing it starts wakes it once its turn has ended (probed 2026-10-02, 0.159.3)",
   },
   // Its folder-trust question, "Trust this folder?", has trusting it selected, and its
-  // "Hooks need review" screen says "esc skip", which goes on without trusting them.
+  // "Hooks need review" screen says "esc skip", which goes on without trusting them. It
+  // draws the question before it reads keys, and drops the Enter pressed then (a third
+  // to a half of those pressed at the instant it drew, none of those 10 ms or more later;
+  // probed 2026-10-08, 0.159.3 and 0.161.0), so the selection is moved away and back
+  // first (Down, Up). A review's Esc is pressed again while it shows.
   trust: {
     folder: {
       shows: /› 1\. Trust and continue/,
-      select: "",
+      select: "\x1b[A",
       trusts: /› 1\. Trust and continue/,
+      probe: { away: "\x1b[B", moved: /› 2\. /u },
     },
     hooks: { shows: /Hooks need review/, skip: "\x1b" },
   },
@@ -193,6 +199,14 @@ export const codex: AgentSetup = {
       join(home, "config.toml"),
       config(sandbox, model.url, seed?.folderTrusted !== false),
     )
+    // It asks about a folder only if a git repository, since 0.160.1 (probed 2026-10-08):
+    // 0.159.3 asked about any folder. Without the repository, a newer Codex shows its
+    // prompt at once, and a test of the question waits for one that never comes.
+    if (seed?.folderTrusted === false)
+      await promisify(execFile)("git", ["init", "--quiet"], {
+        cwd: sandbox.project,
+        env: sandbox.env,
+      })
     // Codex syncs OpenAI's curated plugins from GitHub at start, and only without a copy
     // of its own falls back to an archive from chatgpt.com; an empty copy keeps it off
     // that host. The GitHub attempts are refused by the fake model's proxy.

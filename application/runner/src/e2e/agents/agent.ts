@@ -44,11 +44,19 @@ export type FolderQuestion = {
   readonly shows: RegExp
   /**
    * The keys that select the option trusting the folder, pressed without Enter (Down),
-   * or "" when the question shows that option selected.
+   * or "" when the question shows that option selected and needs no key (and no `probe`).
    */
   readonly select: string
   /** That option as the screen shows it selected, which `confirm` takes. */
   readonly trusts: RegExp
+  /**
+   * For a TUI that draws the question before it reads keys, and drops the Enter pressed
+   * then: `away` selects another option (Down), `moved` is the screen showing it
+   * selected. A key seen to take proves the TUI reads, so `select` pressed after puts
+   * the selection back, and the Enter that follows lands. It needs a `select` that isn't
+   * "", which is what puts the selection back.
+   */
+  readonly probe?: { readonly away: string; readonly moved: RegExp }
 }
 
 /** The traits a scenario may need of a setup, which a harness may not have. */
