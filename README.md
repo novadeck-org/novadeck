@@ -144,7 +144,9 @@ at another window altogether, its terminal is marked done until you look: a smal
 line under the header beside a "Done · reply unread" chip ("Done" on a compact one). A
 command it left running, such as a dev server, doesn't hold that back. The mark clears
 once that terminal is the selected one of the session on screen while Novadeck's window
-has focus, or once its agent starts another turn. The desktop app also shows one system
+has focus, or once its agent starts another turn. A completed turn is marked, and
+announced, about 0.7 s after it ends, in case its harness then says your Escape stopped
+it. The desktop app also shows one system
 notification for each such finish, "t1 is done: <its name>", with the start of the
 agent's last reply (Claude Code's and Codex's Stop hooks name it; Antigravity's
 transcript records it); clicking it brings Novadeck to the front with that terminal

@@ -138,6 +138,12 @@ export type ActivityEvent = {
    * says, as Claude Code's Escape before its first reply. Started when the key came.
    */
   | { readonly type: "turn-escaped" }
+  /**
+   * The window the harness has to say how the turn the person's Escape ended, at
+   * `startedAt`, ended has passed (`escapeVerdictMs`): a Stop it reported meanwhile is the
+   * turn's end, else the Escape stands.
+   */
+  | { readonly type: "turn-escape-lapsed" }
   | { readonly type: "file-touched"; readonly actor: string | null; readonly path: string }
   | {
       readonly type: "attention-requested"

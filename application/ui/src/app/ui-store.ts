@@ -1,6 +1,8 @@
 import {
   agentWorking,
+  finishGraceMs,
   finishNotice,
+  standingFinish,
   sightTurnEnd,
   type AgentFinish,
   type SeenEnd,
@@ -318,10 +320,12 @@ export const watchFinishes = (
   workspace: Store<Workspace>,
   ui: UiStore,
   notify?: FinishNotify,
+  graceMs = finishGraceMs,
 ): (() => void) => {
   let previous = workspace.getSnapshot()
   let terminals = new Map<string, TerminalMetadata>()
   const seen = new Map<string, SeenEnd>()
+  const waiting = new Set<ReturnType<typeof setTimeout>>()
   const setUnread = (change: (unread: Unread) => Unread): void =>
     void ui.update((state) => {
       const unread = change(state.unread)
@@ -355,13 +359,38 @@ export const watchFinishes = (
     if (snapshot.projects === previous.projects) return look()
     previous = snapshot
     const { finished, working } = sight()
-    const looking = viewing(snapshot, ui.getSnapshot())
     setUnread((current) => {
       let unread = keepUnread(current, (context, id) => terminals.has(`${context}/${id}`))
       for (const key of working) {
         const terminal = terminals.get(key)!
         unread = clearUnread(unread, contextOf(key, terminal), terminal.id)
       }
+      return viewUnread(unread, viewing(snapshot, ui.getSnapshot()))
+    })
+    for (const each of finished) {
+      // A completed end waits, in case its harness then says the person's Escape stopped
+      // the turn (see `finishGraceMs`); one that failed was there.
+      if (each.finish.failed || graceMs <= 0) announce([each])
+      else {
+        const at = seen.get(each.key)
+        const timer = setTimeout(() => {
+          waiting.delete(timer)
+          const current = terminals.get(each.key)
+          const finish =
+            current && at !== null && at !== undefined ? standingFinish(current, at) : undefined
+          if (current && finish) announce([{ key: each.key, terminal: current, finish }])
+        }, graceMs)
+        waiting.add(timer)
+      }
+    }
+  }
+  // Marks and notifies the finishes, unless the person looks at that terminal.
+  const announce = (
+    finished: readonly { key: string; terminal: TerminalMetadata; finish: AgentFinish }[],
+  ): void => {
+    const looking = viewing(workspace.getSnapshot(), ui.getSnapshot())
+    setUnread((current) => {
+      let unread = current
       for (const { key, terminal, finish } of finished)
         unread = markUnread(
           unread,
@@ -379,5 +408,8 @@ export const watchFinishes = (
     }
   }
   const stops = [workspace.subscribe(follow), ui.subscribe(look)]
-  return () => stops.forEach((stop) => stop())
+  return () => {
+    stops.forEach((stop) => stop())
+    waiting.forEach(clearTimeout)
+  }
 }

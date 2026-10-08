@@ -101,6 +101,15 @@ export type Harness = {
    * docs/harness-coverage.md, "Activity").
    */
   readonly wakes: boolean
+  /**
+   * Whether it says more of how a turn ended than its Stop hook, after the person's
+   * Escape: Claude Code's transcript and Codex's `Interrupt` hook and rollout record the
+   * interruption or the finish, and their Stop fires for a turn they took the key just
+   * after the reply of, so the Stop alone is not the end. Antigravity fires its Stop only
+   * for a turn that finished, so there it is (see docs/harness-coverage.md, "Escape against
+   * a reply on its way").
+   */
+  readonly records: boolean
   /** How it takes part in agents' messaging: what its hooks print, and how it behaves. */
   readonly messaging: MessagingProfile
   /** How its input box reads off its screen, which a prompt checks before and after it pastes. */

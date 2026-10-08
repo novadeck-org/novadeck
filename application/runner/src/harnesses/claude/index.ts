@@ -146,6 +146,7 @@ export const claude = {
   // Its hooks, transcript and status line; see docs/harness-coverage.md.
   // A background subagent's or command's end starts a turn with a task notification.
   wakes: true,
+  records: true,
   coverage: {
     session: "partial",
     activity: "partial",

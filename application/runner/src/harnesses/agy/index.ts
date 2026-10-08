@@ -133,6 +133,7 @@ export const agy = {
   // Its hooks and status line, which name no subagents; see docs/harness-coverage.md.
   // A background subagent's end wakes it with a message saying it went idle.
   wakes: true,
+  records: false,
   coverage: {
     session: "partial",
     activity: "partial",

@@ -828,7 +828,12 @@ command not found`, from somewhere between 900 and 1,500 characters, or 8 and 16
 
 - `agents.interrupt({ terminalId })` presses Escape in the terminal's agent, which stops
   its turn in every harness (the turn ends without a normal Stop: its activity is
-  `unknown` until the next prompt, see `agent-messaging.md`); `CONFLICT` (`no-agent`)
+  `unknown` until the next prompt, see `agent-messaging.md`, and the agent's `lastTurn`
+  reads `interrupted`). The harness has the last word: one that had the model's reply
+  before it took the key finishes the turn all the same, and the turn's `lastTurn` then
+  reads `completed` with that reply, as for any finished turn, once the harness has said
+  so (at once for Antigravity's Stop or a record of the finish, else about 1.5 s after the
+  key at most; see `agent-messaging.md`). `CONFLICT` (`no-agent`)
   without an agent bound or showing its own prompt, or (`pending`) with one that waits on
   the person's answer to a request. It presses the key only while the agent's activity
   is `working`; otherwise it resolves having sent nothing, as the turn is already over (a

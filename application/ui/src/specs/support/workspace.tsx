@@ -61,22 +61,28 @@ export const layoutSettled = async (): Promise<void> => {
 
 /**
  * Confirms that something does not happen: the element stays absent for several
- * rendered frames, so a reaction the app defers by a frame or two still fails the check.
+ * rendered frames, so a reaction the app defers by a frame or two still fails the check,
+ * and for at least `ms` milliseconds, for one it defers by a timer.
  */
-export const expectStaysAbsent = async (locator: Locator, frames = 10): Promise<void> => {
+export const expectStaysAbsent = async (
+  locator: Locator,
+  { frames = 10, ms = 0 }: { readonly frames?: number; readonly ms?: number } = {},
+): Promise<void> => {
   let absent = 0
   let appeared = false
+  const since = performance.now()
   await expect
     .poll(
       async () => {
         await nextFrame()
         appeared ||= locator.query() !== null
         absent += 1
-        return !appeared && absent >= frames
+        return appeared || (absent >= frames && performance.now() - since >= ms)
       },
-      { message: `${locator.selector} appeared` },
+      { message: `${locator.selector} appeared`, timeout: ms + 5000 },
     )
     .toBe(true)
+  expect(appeared, `${locator.selector} appeared`).toBe(false)
 }
 
 /**

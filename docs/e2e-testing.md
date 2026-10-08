@@ -464,6 +464,14 @@ for (const setup of setups) {
   - _Interrupt_: with the reply held, `interrupt()` ends the turn without a normal Stop
     (Unknown), the harness says it was interrupted before the held reply is let go,
     which never shows; the next prompt's turn settles.
+- **The Escape race** (`escape-race.e2e.ts`), a raw Escape pressed as a held reply is
+  let go, a few ms ahead of it where that loses the key (per harness; probed): retried
+  until the reply wins, the turn reads `completed` with that reply as `lastTurn` once the
+  harness has had its say (the runner's 1.5 s window, waited out); every attempt, won or
+  lost, reads as the screen shows it ended (interrupted where the Escape stands), and an
+  Escape that ended the turn first never reads completed before the harness's
+  interruption. The activity's transitions are unit-tested; which side wins is the
+  harness's.
 - **The answers' scenarios** (`answers.e2e.ts`), `agents.answer` as the chat's request
   cards call it, through each harness's dialog adapter: a permission allowed, refused, and
   refused with the person's words (sent as the next prompt where the dialog takes none);

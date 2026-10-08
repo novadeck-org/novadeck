@@ -172,7 +172,8 @@ describe("An agent that finishes", () => {
       await promptBuild()
       const window = terminal("Build")
       await expect.element(window, { timeout: 5000 }).toHaveAttribute("data-terminal-phase", "idle")
-      await expectStaysAbsent(window.getByText("Done · reply unread"))
+      // Past the grace a completed end waits before it is marked (`finishGraceMs`).
+      await expectStaysAbsent(window.getByText("Done · reply unread"), { ms: 1500 })
       expect(tabDescription("Build")).toBeNull()
     })
   })

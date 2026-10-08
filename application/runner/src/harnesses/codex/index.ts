@@ -130,6 +130,7 @@ export const codex = {
   // Nothing it starts wakes it once its turn has ended (probed 2026-10-02, 0.159.3): a
   // subagent or a command left running finishes with the root idle.
   wakes: false,
+  records: true,
   coverage: {
     session: "partial",
     activity: "partial",

@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, vi } from "vitest"
+
 import { createWorkspaceStore } from "../model/store"
 import type { AgentStatus } from "../model/types"
 import { context, describe, expect, it } from "../test"
@@ -181,7 +183,7 @@ describe("switcher watch", () => {
 describe("finish watch", () => {
   const target = { projectId: "project", workspaceSessionId: "initial" }
   // A workspace whose terminal 02 runs a working agent, terminal 01 selected.
-  const setup = (notifyFinished = true) => {
+  const setup = (notifyFinished = true, graceMs = 0) => {
     const workspace = createWorkspaceStore(workspaceFixture())
     const ui = createUiStore({
       ...initial(),
@@ -206,9 +208,9 @@ describe("finish watch", () => {
     })
     select("01")
     status("02", { working: true })
-    const stop = watchFinishes(workspace, ui, (notice) => notices.push(notice))
+    const stop = watchFinishes(workspace, ui, (notice) => notices.push(notice), graceMs)
     const unread = () => ui.getSnapshot().unread
-    const finish = (at = 10, outcome: "completed" | "failed" = "completed") =>
+    const finish = (at = 10, outcome: "completed" | "failed" | "interrupted" = "completed") =>
       status("02", { working: false, lastTurn: { outcome, reply: "All green.", at } })
     return { workspace, ui, notices, status, select, unread, finish, stop }
   }
@@ -257,6 +259,59 @@ describe("finish watch", () => {
       expect(notices).toHaveLength(2)
       expect(unread()).toEqual({ "project/initial": { "02": "done" } })
       stop()
+    })
+  })
+
+  context("when its harness may yet say the person's Escape stopped the turn", () => {
+    beforeEach(() => void vi.useFakeTimers())
+    afterEach(() => void vi.useRealTimers())
+
+    it("waits out the grace before it marks the end unread and notifies", () => {
+      const { notices, unread, finish, stop } = setup(true, 700)
+      finish()
+      vi.advanceTimersByTime(699)
+      expect(unread()).toEqual({})
+      expect(notices).toEqual([])
+      vi.advanceTimersByTime(1)
+      expect(unread()).toEqual({ "project/initial": { "02": "done" } })
+      expect(notices).toHaveLength(1)
+      stop()
+    })
+
+    it("neither marks nor notifies when the same turn's end turns interrupted meanwhile", () => {
+      const { notices, unread, finish, stop } = setup(true, 700)
+      finish(10)
+      vi.advanceTimersByTime(300)
+      finish(20, "interrupted")
+      vi.advanceTimersByTime(1000)
+      expect(unread()).toEqual({})
+      expect(notices).toEqual([])
+      stop()
+    })
+
+    it("neither marks nor notifies when the agent works again meanwhile", () => {
+      const { notices, unread, finish, status, stop } = setup(true, 700)
+      finish(10)
+      status("02", { working: true })
+      vi.advanceTimersByTime(1000)
+      expect(unread()).toEqual({})
+      expect(notices).toEqual([])
+      stop()
+    })
+
+    it("marks a failed end at once", () => {
+      const { unread, finish, stop } = setup(true, 700)
+      finish(10, "failed")
+      expect(unread()).toEqual({ "project/initial": { "02": "failed" } })
+      stop()
+    })
+
+    it("drops what waits when it stops", () => {
+      const { notices, finish, stop } = setup(true, 700)
+      finish()
+      stop()
+      vi.advanceTimersByTime(1000)
+      expect(notices).toEqual([])
     })
   })
 

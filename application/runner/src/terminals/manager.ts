@@ -35,6 +35,7 @@ import { readRequest, type PresentAnswer } from "../companions/request.js"
 import { DomainError } from "../errors.js"
 import {
   apply,
+  escapeVerdictMs,
   started as fresh,
   summary as activitySummary,
   type Activity,
@@ -317,6 +318,8 @@ type Record = {
   title?: string
   /** Reads the latest title again once the person's keys pause, while hooks are untrusted. */
   recheck?: NodeJS.Timeout | undefined
+  /** Waits out the harness's say on how the turn the person's Escape ended ended. */
+  verdict?: NodeJS.Timeout | undefined
   /** Shows the agent's prompt ready again, once an Enter there started nothing. */
   readyReturn?: NodeJS.Timeout | undefined
   /** Whether its title said a turn runs since the person's Enter at its ready prompt. */
@@ -3030,7 +3033,11 @@ export class Terminals {
         before.sessionId === next.binding.sessionId
       if (!same) {
         record.activity = next.binding
-          ? fresh(event.startedAt, harnesses[next.binding.agent].wakes)
+          ? fresh(
+              event.startedAt,
+              harnesses[next.binding.agent].wakes,
+              harnesses[next.binding.agent].records,
+            )
           : null
         record.telemetry = null
         this.follow(record, event)
@@ -3601,7 +3608,32 @@ export class Terminals {
   private escaped(record: Record): void {
     const { binding } = record
     const event = binding && this.messaging.escaped(record.summary.id, binding)
-    if (event && this.applyFact(record, event)) this.publishAgent(record, false)
+    if (!event) return
+    if (this.applyFact(record, event)) this.publishAgent(record, false)
+    this.awaitVerdict(record, event)
+  }
+
+  /**
+   * The harness has `escapeVerdictMs` to say how the turn the Escape ended ended, as its
+   * reply may have reached it first. Once that passes, a Stop it reported meanwhile is the
+   * turn's end, else the Escape stands.
+   */
+  private awaitVerdict(record: Record, { agent, sessionId, instance, startedAt }: ActivityEvent) {
+    if (record.verdict) clearTimeout(record.verdict)
+    record.verdict = setTimeout(() => {
+      record.verdict = undefined
+      const { binding } = record
+      if (!binding || binding.sessionId !== sessionId || this.stopping) return
+      const lapsed: ActivityEvent = {
+        type: "turn-escape-lapsed",
+        agent,
+        sessionId,
+        instance,
+        startedAt,
+      }
+      if (this.applyFact(record, lapsed)) this.publishAgent(record, false)
+    }, escapeVerdictMs)
+    record.verdict.unref()
   }
 
   /** Applies what the bound session's hooks or records said; true when it changed. */

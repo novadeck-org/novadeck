@@ -289,6 +289,27 @@ the opener's, and `describe` names the caller's own terminal (see
   denied tool fire no Stop in Antigravity, and its status line then reads idle exactly
   as after a completed turn, so an idle status line with no fresh root Stop is an
   abnormal end, never a completion.
+  The person's Escape ends the turn for the activity at once (below, "Unknown"), and its
+  harness has the last word on whether it took the key: a model reply that reaches it just
+  before the key finishes the turn all the same. The turn then reads `completed`, with
+  that reply as `lastTurn`, so the finish notification and "done · unread" fire as for any
+  finished turn. A root Stop the harness reported since the key says so, counting if it
+  started before the key, after the turn's start (hooks are told after the key was), and
+  never one of an earlier turn, or of a turn another id than Codex's records name. Claude
+  Code and Codex fire their Stop where they took the key just after the reply too, then
+  record the interruption (Claude Code's transcript; Codex's `Interrupt` and
+  `turn_aborted`; probed), so there the Stop is held until the harness has said more: its
+  record of the finish (`stop_hook_summary`, `task_complete`) settles the turn
+  completed at once, its record of the interruption keeps it interrupted, and with
+  neither within `escapeVerdictMs` (1.5 s from the key) the Stop stands as the end.
+  Antigravity fires no Stop for a turn it stopped, so its Stop is the end at once. With no
+  Stop in the window the turn stays interrupted, and a Stop after it ends the turn as any
+  other. A turn taken as completed is corrected to interrupted by its harness's record of
+  the interruption told within the window, and a Stop Novadeck continued after the Escape
+  continues the turn as it would have. A Stop that reached the runner before the key is a
+  plain finish, which Codex's `Interrupt` can then turn interrupted; clients hold a finish
+  notification and the unread mark for a short grace (`finishGraceMs`, 700 ms) and drop
+  them if the same turn's end turns interrupted meanwhile.
 - **A root turn event** is a decoded turn event, from any source the adapters read
   (hooks, Antigravity's status line, Claude Code's transcript for interrupts), of the
   terminal's bound agent instance and its root session: not of a nested agent run
@@ -538,7 +559,8 @@ facts above, so the prompt's emptiness is known before any message arrives:
   ring at worst. An Escape after the person's Enter, heard before that prompt's hook but
   coming after the hook started, may have cancelled its turn the same way: that prompt
   starts the turn as Unknown, its box a draft. Either way the agent's activity shows the
-  turn ended too, so the UI no longer shows it working. Elsewhere Escape changes nothing. No
+  turn ended too (interrupted, until its harness says otherwise: see "The agent's
+  activity"), so the UI no longer shows it working. Elsewhere Escape changes nothing. No
   doorbell; the next root turn event moves it on. It keeps the turn's counts, so a Stop
   that raced the status line, arriving just after it, is still that turn's Stop: it
   can't be continued past the limit, nor despite the person's queued prompt. An idle

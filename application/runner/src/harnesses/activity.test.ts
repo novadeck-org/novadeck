@@ -5,7 +5,7 @@ import type { AgentName } from "@novadeck/protocol"
 import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
 import { loadProbe } from "../testing/probes.js"
-import { apply, started, subagentRef, summary, type Activity } from "./activity.js"
+import { apply, escapeVerdictMs, started, subagentRef, summary, type Activity } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import type { ActivityEvent } from "./events.js"
 import { harnesses } from "./registry.js"
@@ -1046,6 +1046,232 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: "Second.",
       at: 5,
+    })
+  })
+})
+
+const outcome = (activity: Activity) => summary(activity).lastTurn
+
+describe("a turn the person's Escape ended", () => {
+  const binding: Binding = { agent: "claude", sessionId: "s", instance: "7" }
+  type Fields = Parameters<typeof fact>[0]
+  const on = (activity: Activity, fields: object) =>
+    apply(activity, binding, fact(fields as Fields))!
+  const turn = (activity: Activity, startedAt: number) =>
+    on(activity, { type: "turn-started", cause: "prompt", startedAt })
+  const stop = (activity: Activity, startedAt: number, extra: object = {}) =>
+    on(activity, { type: "turn-ended", outcome: "completed", startedAt, ...extra })
+  const escaped = (activity: Activity, startedAt: number) =>
+    on(activity, { type: "turn-escaped", startedAt })
+  const lapsed = (activity: Activity, startedAt: number) =>
+    on(activity, { type: "turn-escape-lapsed", startedAt })
+
+  // A turn that started at 10, its Escape at 20.
+  const stopped = escaped(turn(started(0), 10), 20)
+
+  it("reads interrupted from the Escape at once, before its harness says anything", () => {
+    expect(summary(stopped)).toMatchObject({ state: "idle" })
+    expect(outcome(stopped)).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+  })
+
+  it("reads completed once the window passes with a Stop told since, its reply as the last turn's", () => {
+    const told = stop(stopped, 25, { reply: "Too late." })
+    // Claude Code's Stop fires too when it took the Escape just after the reply: not yet.
+    expect(outcome(told)).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+    expect(outcome(lapsed(told, 20))).toEqual({
+      outcome: "completed",
+      reply: "Too late.",
+      at: 25,
+    })
+  })
+
+  it("reads completed at once on the Stop of a harness with no other word on the turn", () => {
+    const antigravity = escaped(turn(started(0, true, false), 10), 20)
+    expect(outcome(stop(antigravity, 25, { reply: "Too late." }))).toEqual({
+      outcome: "completed",
+      reply: "Too late.",
+      at: 25,
+    })
+    // Nor is there a window left to wait out.
+    expect(lapsed(stop(antigravity, 25), 20)).toBeUndefined()
+  })
+
+  it("reads completed at once when the harness's own record says the turn finished", () => {
+    const told = stop(stopped, 25, { reply: "Too late." })
+    expect(outcome(stop(told, 30, { recorded: true }))).toEqual({
+      outcome: "completed",
+      reply: "Too late.",
+      at: 25,
+    })
+    // Its record with no Stop told yet is the end too.
+    expect(outcome(stop(stopped, 30, { recorded: true }))).toEqual({
+      outcome: "completed",
+      reply: null,
+      at: 30,
+    })
+  })
+
+  it("counts a Stop that started before the key, though told after it, as the same turn's", () => {
+    const told = stop(stopped, 19, { reply: "Too late." })
+    expect(outcome(lapsed(told, 20))).toEqual({ outcome: "completed", reply: "Too late.", at: 21 })
+  })
+
+  it("reads interrupted when the harness records the interruption, though a Stop came first", () => {
+    const told = stop(stopped, 25, { reply: "Too late." })
+    const interrupted = stop(told, 30, { outcome: "interrupted" })
+    expect(outcome(interrupted)).toEqual({ outcome: "interrupted", reply: null, at: 30 })
+    // Nothing is left to lapse, so the Stop held before is never the end.
+    expect(lapsed(interrupted, 20)).toBeUndefined()
+    // Nor does a record of the interruption: it names the Escape's own end.
+    const recorded = stop(told, 30, { outcome: "interrupted", recorded: true })
+    expect(outcome(recorded)).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+    expect(lapsed(recorded, 20)).toBeUndefined()
+  })
+
+  it("reads interrupted when the harness says so with no Stop", () => {
+    const interrupted = stop(stopped, 22, { outcome: "interrupted" })
+    expect(outcome(interrupted)).toEqual({ outcome: "interrupted", reply: null, at: 22 })
+  })
+
+  it("reads interrupted when the window passes with nothing said", () => {
+    const quiet = lapsed(stopped, 20)
+    expect(outcome(quiet)).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+    // The window is closed: a lapse again changes nothing.
+    expect(
+      apply(quiet, binding, fact({ type: "turn-escape-lapsed", startedAt: 20 })),
+    ).toBeUndefined()
+  })
+
+  it("does not count a Stop from an earlier turn", () => {
+    const earlier = turn(stop(turn(started(0), 1), 5, { reply: "First." }), 10)
+    const second = escaped(earlier, 20)
+    // The earlier turn's Stop, told late: it started before this turn did.
+    expect(
+      apply(second, binding, fact({ type: "turn-ended", outcome: "completed", startedAt: 8 })),
+    ).toBeUndefined()
+    expect(outcome(lapsed(second, 20))).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+    // Codex names the turn each record is of.
+    const codex: Binding = { agent: "codex", sessionId: "s", instance: "7" }
+    const named = apply(
+      apply(
+        started(0, false),
+        codex,
+        fact({ agent: "codex", type: "turn-started", startedAt: 10, turn: "t2" }),
+      )!,
+      codex,
+      fact({ agent: "codex", type: "turn-escaped", startedAt: 20 }),
+    )!
+    expect(
+      apply(
+        named,
+        codex,
+        fact({
+          agent: "codex",
+          type: "turn-ended",
+          outcome: "completed",
+          startedAt: 25,
+          turn: "t1",
+        }),
+      ),
+    ).toBeUndefined()
+  })
+
+  it("leaves a lapse of an earlier Escape, and a Stop after the window, to the turn they belong to", () => {
+    const quiet = lapsed(stopped, 20)
+    // A reply the harness took a long time to finish still ends the turn, as before.
+    expect(outcome(stop(quiet, 40, { reply: "Late." }))).toEqual({
+      outcome: "completed",
+      reply: "Late.",
+      at: 40,
+    })
+    // A new turn's own Escape is not closed by the earlier one's lapse.
+    const next = escaped(turn(quiet, 50), 60)
+    expect(
+      apply(next, binding, fact({ type: "turn-escape-lapsed", startedAt: 20 })),
+    ).toBeUndefined()
+  })
+
+  it("goes on with a Stop Novadeck continued after the Escape, held or settled", () => {
+    const continued = (activity: Activity, at: number) =>
+      on(activity, { type: "turn-continued", startedAt: at })
+    // Claude Code: the Stop is held; its record of the continued Stop ends nothing.
+    const held = continued(stop(stopped, 25, { reply: "First." }), 25)
+    expect(summary(held)).toMatchObject({ state: "working", lastTurn: null })
+    expect(held).toMatchObject({ continued: true, skips: 1, turnAt: 25 })
+    expect(
+      apply(
+        held,
+        binding,
+        fact({ type: "turn-ended", outcome: "completed", startedAt: 30, recorded: true }),
+      ),
+    ).toMatchObject({ state: "working", skips: 0 })
+    // Antigravity: its Stop settled the turn at once, though it started before the key.
+    const antigravity = escaped(turn(started(0, true, false), 10), 20)
+    const settled = continued(stop(antigravity, 19, { reply: "First." }), 19)
+    expect(summary(settled)).toMatchObject({ state: "working", lastTurn: null })
+    expect(settled).toMatchObject({ continued: true, skips: 1, turnAt: 19 })
+    // Should the continuation lapse, the Stop's end stands.
+    expect(outcome(on(settled, { type: "turn-lapsed", startedAt: 19 }))).toMatchObject({
+      outcome: "completed",
+      reply: "First.",
+    })
+  })
+
+  it("corrects a turn taken as completed when the harness then records its interruption", () => {
+    const completed = lapsed(stop(stopped, 30, { reply: "Too late." }), 20)
+    expect(outcome(completed)).toMatchObject({ outcome: "completed" })
+    // Claude Code's marker, polled after the window's lapse; Codex's record with no hook.
+    for (const extra of [{}, { recorded: true }]) {
+      const corrected = stop(completed, 110, { outcome: "interrupted", ...extra })
+      expect(outcome(corrected)).toMatchObject({ outcome: "interrupted", reply: null })
+      expect(outcome(corrected)!.at).toBeGreaterThan(outcome(completed)!.at)
+    }
+    // A record long after the key is not this turn's.
+    expect(
+      apply(
+        completed,
+        binding,
+        fact({
+          type: "turn-ended",
+          outcome: "interrupted",
+          recorded: true,
+          startedAt: 20 + escapeVerdictMs + 1,
+        }),
+      ),
+    ).toBeUndefined()
+  })
+
+  it("takes a failed end after the Escape as the turn's", () => {
+    expect(outcome(stop(stopped, 25, { outcome: "failed" }))).toMatchObject({ outcome: "failed" })
+  })
+
+  it("keeps a record's turn and word that it was recorded, so the hook's Stop says more of the end", () => {
+    const recorded = stop(stopped, 30, { recorded: true, reply: "Done." })
+    expect(outcome(recorded)).toEqual({ outcome: "completed", reply: "Done.", at: 30 })
+    expect(recorded.lastTurn?.recorded).toBe(true)
+    expect(outcome(stop(recorded, 35, { reply: "Done, fully." }))).toEqual({
+      outcome: "completed",
+      reply: "Done, fully.",
+      at: 30,
+    })
+  })
+
+  it("gives up the Escape when the turn goes on, so its Stop ends it as any other", () => {
+    const asking = on(stopped, {
+      type: "attention-requested",
+      requestId: "a",
+      actor: null,
+      toolName: "Bash",
+      kind: "permission",
+      subject: null,
+      choices: [],
+      startedAt: 30,
+    })
+    expect(summary(asking).state).toBe("working")
+    expect(outcome(stop(asking, 40, { reply: "Done." }))).toEqual({
+      outcome: "completed",
+      reply: "Done.",
+      at: 40,
     })
   })
 })
