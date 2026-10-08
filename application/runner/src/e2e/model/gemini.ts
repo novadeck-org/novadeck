@@ -64,37 +64,45 @@ const resultOf = (response: unknown): string => {
 const lazy = "call_mcp_tool"
 
 // The name Antigravity gives an MCP tool it loads eagerly, as a tool of its own.
-const mcpName = (server: string, tool: string): string => `mcp_${server}_${tool}`
+const mcpPrefix = "mcp_"
+const mcpName = (server: string, tool: string): string => `${mcpPrefix}${server}_${tool}`
+
+type McpTool = { readonly server: string; readonly tool: string; readonly eager: boolean }
 
 /**
- * The MCP tools Antigravity loads lazily, by the names it would give them loaded eagerly,
- * each with its server and tool: its system prompt lists them under `<mcp_servers>`, a
- * `# <server>` heading over its `Eager:` and `Lazy:` tools.
+ * The MCP tools Antigravity loads, by the names it gives them loaded eagerly, each with
+ * its server and tool and whether it loaded it eagerly: its system prompt lists them
+ * under `<mcp_servers>`, a `# <server>` heading over its `Eager:` and `Lazy:` tools.
+ * 1.2.14 loads Novadeck's lazily, but now and then eagerly (seen 2026-10-08 twice in
+ * about 150 stress runs of a test opening terminals in a folder it didn't trust yet;
+ * what makes it do so is unknown).
  */
-const lazyTools = (system: string): ReadonlyMap<string, { server: string; tool: string }> => {
+const mcpTools = (system: string): ReadonlyMap<string, McpTool> => {
   const listed = /<mcp_servers>([\s\S]*?)<\/mcp_servers>/.exec(system)?.[1] ?? ""
-  const tools = new Map<string, { server: string; tool: string }>()
+  const tools = new Map<string, McpTool>()
   let server = ""
   let section = ""
   for (const line of listed.split("\n").map((one) => one.trim())) {
     if (line.startsWith("```")) continue
     if (line.startsWith("# ")) [server, section] = [line.slice(2), ""]
     else if (/^(Eager|Lazy):$/.test(line)) section = line
-    else if (server && section === "Lazy:" && /^[\w.-]+$/.test(line))
-      tools.set(mcpName(server, line), { server, tool: line })
+    else if (server && section && /^[\w.-]+$/.test(line))
+      tools.set(mcpName(server, line), { server, tool: line, eager: section === "Eager:" })
   }
   return tools
 }
 
-// A tool call as the model made it, a lazy MCP tool's by the name it would have eagerly.
+// A tool call as the model made it, a lazy MCP tool's by the name it would have eagerly,
+// and an eager one's without the summary Antigravity asked of it beside its arguments.
 const callOf = (call: { id?: string | undefined; name: string; args?: unknown }) => {
   const args = record(call.args)
   const lazyCall =
     call.name === lazy && typeof args.ServerName === "string" && typeof args.ToolName === "string"
+  const { toolSummary: _, ...arguments_ } = args
   return {
     id: call.id ?? call.name,
     name: lazyCall ? mcpName(String(args.ServerName), String(args.ToolName)) : call.name,
-    input: lazyCall ? record(args.Arguments) : args,
+    input: lazyCall ? record(args.Arguments) : call.name.startsWith(mcpPrefix) ? arguments_ : args,
   }
 }
 
@@ -132,11 +140,11 @@ const conversation = (contents: readonly z.infer<typeof content>[]): Turn[] =>
   }, [])
 
 /**
- * The call a `generateContent` request makes for `model`. Its tools are those declared
- * and, when it offers `call_mcp_tool`, the MCP tools that reaches, by the names they
- * would have loaded eagerly, so a rule finds Novadeck's `send` however it is loaded. One
- * that offers no tools is the harness's own, as Antigravity's title call is: its agent's
- * turns always offer them.
+ * The call a `generateContent` request makes for `model`. Its tools are those declared,
+ * eagerly loaded MCP tools among them, and, when it offers `call_mcp_tool`, the lazy MCP
+ * tools that reaches, by the names they would have loaded eagerly, so a rule finds
+ * Novadeck's `send` however it is loaded. One that offers no tools is the harness's own,
+ * as Antigravity's title call is: its agent's turns always offer them.
  */
 export const parse = (model: string, body: unknown): Call => {
   const request = generate.parse(body)
@@ -144,7 +152,9 @@ export const parse = (model: string, body: unknown): Call => {
   const declared = (request.tools ?? []).flatMap((tool) =>
     (tool.functionDeclarations ?? []).map((declaration) => declaration.name),
   )
-  const reached = declared.includes(lazy) ? [...lazyTools(system).keys()] : []
+  const reached = declared.includes(lazy)
+    ? [...mcpTools(system)].filter(([, one]) => !one.eager).map(([name]) => name)
+    : []
   const tools = [...declared, ...reached.filter((name) => !declared.includes(name))]
   return {
     api: "gemini",
@@ -158,11 +168,17 @@ export const parse = (model: string, body: unknown): Call => {
 
 /**
  * A tool call as Antigravity takes it: a lazy MCP tool's through `call_mcp_tool`, with
- * the summary and action it asks of every call, and any other as itself.
+ * the summary and action it asks of that call; an eager one's as a tool of its own, with
+ * the summary it asks of it beside the tool's arguments, refusing the call without one
+ * ("missing property 'toolSummary'") or with an action ("'toolAction' not allowed"); and
+ * any other as itself.
  */
 const functionCallOf = (call: Call, name: string, input: Readonly<Record<string, unknown>>) => {
-  const target = call.tools.includes(lazy) ? lazyTools(call.system).get(name) : undefined
+  const target = mcpTools(call.system).get(name)
   if (!target) return { id: id("call"), name, args: input }
+  const toolSummary = `${target.tool} call`
+  if (target.eager) return { id: id("call"), name, args: { ...input, toolSummary } }
+  if (!call.tools.includes(lazy)) return { id: id("call"), name, args: input }
   return {
     id: id("call"),
     name: lazy,
@@ -170,7 +186,7 @@ const functionCallOf = (call: Call, name: string, input: Readonly<Record<string,
       ServerName: target.server,
       ToolName: target.tool,
       Arguments: input,
-      toolSummary: `${target.tool} call`,
+      toolSummary,
       toolAction: `Calling ${target.tool}`,
     },
   }

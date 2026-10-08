@@ -595,6 +595,14 @@ for (const setup of setups) {
             await prompted(t1, setup)
             const from1 = t1.mark()
             await t1.submit("Tell t2 hello")
+            // The send was taken, so t2 holds the message: one its harness refused (as
+            // Antigravity does a call missing what it asks of it) fails here, saying why.
+            const sending = await run.model.waitFor(
+              (call) =>
+                !call.side && result(call) !== undefined && calledLast(call) === tool(call, "send"),
+              { after: calls },
+            )
+            expect(result(sending)).toMatch(/to t2 is queued/)
             await t1.until("Told t2.")
             await t1.reached("settled", { after: from1 })
             await t2.reached(holds("t1", "t2", "queued"))

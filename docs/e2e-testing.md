@@ -845,8 +845,16 @@ probe output, and keep their own loader.
   call with no tools, so `side`. MCP tools are lazy: it offers one `call_mcp_tool` and
   lists Novadeck's tools in its system prompt, so the dialect offers them by the names
   Antigravity gives tools it loads (`mcp_novadeck_novadeck_send`), and encodes a call to
-  one as `call_mcp_tool`. A `PreInvocation` hook's message arrives as a user content just
-  after the prompt.
+  one as `call_mcp_tool`. Now and then it loads them eagerly instead (seen 2026-10-08
+  twice in about 150 runs of a test opening terminals in a folder it didn't trust yet;
+  what makes it do so is unknown): its system prompt lists them under `Eager:`, it
+  declares each as a tool of its own and offers no `call_mcp_tool`. A call to one then
+  needs a `toolSummary` beside its arguments and no `toolAction`, which Antigravity
+  refuses as invalid arguments otherwise; the dialect reads either listing and gives
+  each call what it needs. A server's `tools` entry with `{ "eager": true }` for each of
+  its tools in its `mcp_config.json` loaded them eagerly in every run that had it, which
+  reproduces it. A `PreInvocation` hook's message arrives as a user content just after
+  the prompt.
 - **Refused tunnels.** Its feature flags (`antigravity-unleash.goog`) and telemetry
   (`play.googleapis.com`) go through the proxy, which refuses them; they are its setup's
   `refused`.
