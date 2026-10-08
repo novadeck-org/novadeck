@@ -196,6 +196,13 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
         "toolu_03a",
         "Command running in background with ID: b7k2xq9. Output is being written to: /tmp/claude/tasks/b7k2xq9.output",
       ),
+      use("toolu_03x", "mcp__plugin_novadeck_novadeck__agents", {}),
+      got("toolu_03x", "t1 claude (this terminal)\nt2 codex: Review the checkout change"),
+      use("toolu_03y", "mcp__plugin_novadeck_novadeck__send", {
+        to: "t2",
+        text: "The suite is running here. Hold your checkout tests until it ends.",
+      }),
+      got("toolu_03y", "Sent to t2."),
       use("toolu_03b", "Task", {
         description: "Find flaky tests in cart specs",
         subagent_type: "general-purpose",
@@ -251,6 +258,11 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
         "call_04a",
         "Chunk ID: 8f2c1d\nWall time: 0.0000 seconds\nProcess exited with code 0\nOriginal token count: 41\nOutput:\n src/checkout/total.ts    | 14 +++++++-------\n src/checkout/address.ts  | 32 ++++++++++++++++++++++++++++++++\n 2 files changed, 39 insertions(+), 7 deletions(-)\n",
       ),
+      use("call_04n", "mcp__novadeck__open_terminal", {
+        agent: "claude",
+        message: "Check that the export job still rounds cents the old way.",
+      }),
+      got("call_04n", "Opened a new terminal t3."),
       use("call_04b", "update_plan", {
         plan: [
           { step: "Read the diff", status: "completed" },
@@ -328,6 +340,41 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
   "05": {
     items: written("05", now, [
       user("Why does the runtime log every request twice? Find it and fix it."),
+      use("step:1a", "call_mcp_tool", {
+        ServerName: JSON.stringify("novadeck_novadeck"),
+        ToolName: JSON.stringify("send"),
+        Arguments: { to: "t1", text: "Looking into the double logging now." },
+        toolSummary: JSON.stringify("Tell t1 what I'm doing"),
+        toolAction: JSON.stringify("Calling send"),
+      }),
+      got("step:1a", "Sent to t1."),
+      use("step:1b", "mcp_novadeck_novadeck_describe", {
+        title: "Request logging",
+        summary: "Finds why the runtime logs every request twice.",
+        toolSummary: JSON.stringify("Title this terminal"),
+      }),
+      got("step:1b", "Titled."),
+      say("Before I dig in, I'll close the idle terminal and check what is on show."),
+      use("step:1c", "call_mcp_tool", {
+        ServerName: JSON.stringify("novadeck_novadeck"),
+        ToolName: JSON.stringify("close_terminal"),
+        Arguments: { to: "t3" },
+        toolSummary: JSON.stringify("Close the idle terminal"),
+        toolAction: JSON.stringify("Calling close_terminal"),
+      }),
+      got("step:1c", "Closed t3."),
+      use("step:1d", "mcp_novadeck_novadeck_showing", {
+        toolSummary: JSON.stringify("See what is shown"),
+      }),
+      got("step:1d", "Nothing is shown beside this terminal."),
+      use("step:1e", "call_mcp_tool", {
+        ServerName: JSON.stringify("deploy"),
+        ToolName: JSON.stringify("list_targets"),
+        Arguments: {},
+        toolSummary: JSON.stringify("List the deploy targets"),
+        toolAction: JSON.stringify("Calling list_targets"),
+      }),
+      got("step:1e", "staging\nproduction"),
       say("I'll search for where the request logger is registered."),
       use("step:2", "run_command", {
         CommandLine: JSON.stringify("grep -rn requestLogger src/runtime"),

@@ -1,7 +1,7 @@
 import { afterEach } from "vitest"
 
 import { context, describe, expect, it } from "../test"
-import { classifyKeyTarget, insideOwnKeys } from "./dom"
+import { classifyKeyTarget, focusZenCreate, insideOwnKeys } from "./dom"
 
 afterEach(() => document.body.replaceChildren())
 
@@ -31,5 +31,59 @@ describe("key targets", () => {
       expect(classifyKeyTarget(target).editing).toBe(false)
       expect(insideOwnKeys(target)).toBe(false)
     })
+  })
+})
+
+describe("focusing Zen's controls after they mount", () => {
+  it("focuses the control when focus was left on the page", () => {
+    mount('<button data-workspace-zen-create data-target type="button">New</button>')
+    focusZenCreate()
+    expect(document.activeElement).toBe(document.querySelector("[data-target]"))
+  })
+
+  it("takes it from the control it replaces, as it unmounts", () => {
+    mount(
+      '<button data-workspace-zen-create data-target type="button">New</button><button data-workspace-zen-enter type="button">Zen</button>',
+    )
+    document.querySelector<HTMLElement>("[data-workspace-zen-enter]")!.focus()
+    focusZenCreate()
+    expect(document.activeElement).toBe(document.querySelector("[data-target]"))
+  })
+
+  it("takes it from a control that became inert", () => {
+    mount(
+      '<button data-workspace-zen-create data-target type="button">New</button><div inert><button data-other type="button">Prefs</button></div>',
+    )
+    const hidden = document.querySelector<HTMLElement>("[data-other]")!
+    Object.defineProperty(document, "activeElement", { configurable: true, get: () => hidden })
+    try {
+      focusZenCreate()
+    } finally {
+      delete (document as { activeElement?: unknown }).activeElement
+    }
+    expect(document.activeElement).toBe(document.querySelector("[data-target]"))
+  })
+
+  it("takes it from a control that became disabled", () => {
+    mount(
+      '<button data-workspace-zen-create data-target type="button">New</button><button data-other disabled type="button">Switch</button>',
+    )
+    const disabled = document.querySelector<HTMLElement>("[data-other]")!
+    Object.defineProperty(document, "activeElement", { configurable: true, get: () => disabled })
+    try {
+      focusZenCreate()
+    } finally {
+      delete (document as { activeElement?: unknown }).activeElement
+    }
+    expect(document.activeElement).toBe(document.querySelector("[data-target]"))
+  })
+
+  it("leaves focus where a key moved it before the frame", () => {
+    mount(
+      '<button data-workspace-zen-create type="button">New</button><button data-target type="button">Other</button>',
+    )
+    document.querySelector<HTMLElement>("[data-target]")!.focus()
+    focusZenCreate()
+    expect(document.activeElement).toBe(document.querySelector("[data-target]"))
   })
 })

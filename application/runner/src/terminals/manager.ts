@@ -1306,6 +1306,10 @@ export class Terminals {
           )
         return profile
       },
+      bound: (terminalId) => {
+        const record = this.live(terminalId)
+        return record === undefined || record.binding !== null
+      },
       ringing: (terminalId) => this.messaging.ringing(terminalId),
       screen: (terminalId) => this.screenOf(terminalId),
       type: (terminalId, data) => {

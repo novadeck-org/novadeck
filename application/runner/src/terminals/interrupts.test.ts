@@ -43,7 +43,7 @@ const terminal = (
     },
     collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
     ...(options.clear === false ? {} : { clear: () => CLEAR }),
-    shell: { expands: true, footer: () => false },
+    shell: { expands: true, starts: false, footer: () => false },
     queued: () => options.queued === true,
     collapses: () => false,
     ...(options.viewport === undefined ? {} : { viewport: () => options.viewport! }),

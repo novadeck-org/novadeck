@@ -15,7 +15,7 @@ import type { ScreenText } from "./screen.js"
  * mode), the rest indented, the lowest such row the box, and `[Pasted text #1 +4 lines]`
  * for a collapsed paste.
  */
-const profileOf = (expands: boolean): BoxProfile => ({
+const profileOf = (expands: boolean, starts = false): BoxProfile => ({
   read: (screen: ScreenText): InputBox | undefined => {
     const first = screen.rows.findLastIndex((row) => row.startsWith("> ") || row.startsWith("!"))
     if (first < 0) return undefined
@@ -26,7 +26,7 @@ const profileOf = (expands: boolean): BoxProfile => ({
     return { text: lines.join("\n").trimEnd(), mode, first, last }
   },
   collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
-  shell: { expands, footer: () => false },
+  shell: { expands, starts, footer: () => false },
   queued: () => false,
   collapses: (text) => text.length > 500,
   room: (rows) => rows - 3,
@@ -71,6 +71,10 @@ const terminal = (
     shellsPaste?: boolean
     /** Whether its shell mode runs a command shown as a placeholder as the command. */
     expands?: boolean
+    /** How long after the first look the session binds, in milliseconds; bound from the start if absent. */
+    bindsMs?: number
+    /** Whether a shell command starts the session (the box profile's `shell.starts`). */
+    startsOnShell?: boolean
     /** The nonce of a ring under way, which `ringEnds` ms from the first look ends. */
     ringing?: string
     ringEnds?: number
@@ -83,12 +87,15 @@ const terminal = (
   let bash = options.drafted !== undefined
   if (options.drafted !== undefined) box = [options.drafted]
   let admits = 0
-  const profile = profileOf(options.expands ?? true)
+  const profile = profileOf(options.expands ?? true, options.startsOnShell ?? false)
   const marker = (first: boolean, line: string): string =>
     first ? `${bash ? "!" : ">"} ${line}` : `  ${line}`
   const written: string[] = []
   const started = Date.now()
   let looks = 0
+  const bindStart = Date.now()
+  // How many writes had gone out when the session was first seen bound.
+  let writesAtBind: number | undefined
   let held = false
   let sizes = false
   let holds = 0
@@ -120,6 +127,12 @@ const terminal = (
       admits += 1
       if (options.refusesLater && admits > (options.laterFrom ?? 2)) throw options.refusesLater
       return profile
+    },
+    bound: () => {
+      const is =
+        options.bindsMs === undefined || (looks > 0 && Date.now() - bindStart >= options.bindsMs)
+      if (is && writesAtBind === undefined) writesAtBind = written.length
+      return is
     },
     ringing: () =>
       options.ringing !== undefined && Date.now() - started < (options.ringEnds ?? 0)
@@ -223,6 +236,7 @@ const terminal = (
     written,
     budgets,
     state: () => ({ held, sizes, holds }),
+    writesAtBind: () => writesAtBind,
   }
 }
 
@@ -419,11 +433,11 @@ describe("prompts", () => {
 
   it("holds the person's keys for the whole wait and paste, and the resizes past the Enter", async () => {
     const { host, budgets } = terminal()
-    await new Prompts(host, host.queue, fast).prompt("t", "Hello")
+    await new Prompts(host, host.queue, { ...fast, bindMs: 300 }).prompt("t", "Hello")
     // The wait for an empty box, a shell command's switch and the paste's wait, and a
-    // margin; then the settle.
+    // margin; then the wait for a session to bind, and the settle.
     const inputMs = 60 + 2 * 150 + 2_000
-    expect(budgets).toEqual([{ inputMs, sizeMs: inputMs + 40 }])
+    expect(budgets).toEqual([{ inputMs, sizeMs: inputMs + 300 + 40 }])
   })
 
   describe("a box that holds text already", () => {
@@ -578,6 +592,42 @@ describe("prompts", () => {
     const prompts = new Prompts(host, host.queue, fast)
     await Promise.all([prompts.prompt("t", "First"), prompts.prompt("t", "Second")])
     expect(written).toEqual(["\x1b[200~First\x1b[201~", "\r", "\x1b[200~Second\x1b[201~", "\r"])
+  })
+
+  it("hold the next prompt until the session of a first one binds", async () => {
+    const { host, written, writesAtBind } = terminal({ bindsMs: 80 })
+    const prompts = new Prompts(host, host.queue, fast)
+    await Promise.all([prompts.prompt("t", "First"), prompts.prompt("t", "Second")])
+    expect(written).toEqual(["\x1b[200~First\x1b[201~", "\r", "\x1b[200~Second\x1b[201~", "\r"])
+    // The session was seen bound with only the first's paste and Enter written: the
+    // second's paste came after.
+    expect(writesAtBind()).toBe(2)
+  })
+
+  it("go on without a session that never binds", async () => {
+    const { host, written } = terminal({ bindsMs: 60_000 })
+    await new Prompts(host, host.queue, { ...fast, bindMs: 40 }).prompt("t", "First")
+    expect(enters(written)).toBe(1)
+  })
+
+  it("not wait for a session after a paste that failed", async () => {
+    const { host } = terminal({ takes: "nothing", bindsMs: 60_000 })
+    const started = Date.now()
+    expect(
+      await refusal(new Prompts(host, host.queue, { ...fast, bindMs: 2_000 }).prompt("t", "First")),
+    ).toBe("PROMPT_FAILED")
+    expect(Date.now() - started).toBeLessThan(1_000)
+  })
+
+  it("wait for a session after a shell command only where it starts one", async () => {
+    const waits = async (startsOnShell: boolean): Promise<number> => {
+      const { host } = terminal({ shell: true, startsOnShell, bindsMs: 60_000 })
+      const started = Date.now()
+      await new Prompts(host, host.queue, { ...fast, bindMs: 300 }).prompt("t", "!echo hi")
+      return Date.now() - started
+    }
+    expect(await waits(false)).toBeLessThan(250)
+    expect(await waits(true)).toBeGreaterThanOrEqual(300)
   })
 
   it("go on with the next prompt after one that failed", async () => {

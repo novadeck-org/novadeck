@@ -42,6 +42,13 @@ const dayFolders = (folder: string): string[] => {
   return [...new Set([...later, ...recent])]
 }
 
+// A call's tool as `mcp__<server>__<tool>`, the way Codex names it elsewhere: its rollout
+// records an MCP tool's server apart, as the call's `namespace` (`mcp__novadeck`).
+const toolName = (payload: Record<string, unknown>): unknown =>
+  typeof payload.namespace === "string" && typeof payload.name === "string"
+    ? `${payload.namespace.replace(/_+$/, "")}__${payload.name}`
+    : payload.name
+
 /**
  * Codex's transcripts are its rollouts: the session's, and one per subagent, named for
  * its thread and kept under the day it started, its parent's or a later one. Each response item holds the person's or the
@@ -97,7 +104,7 @@ export const transcripts: NonNullable<Harness["transcripts"]> = {
             "assistant",
             "tool-call",
             textOf(payload.type === "function_call" ? payload.arguments : payload.input),
-            { at: time, tool: payload.name, call: payload.call_id },
+            { at: time, tool: toolName(payload), call: payload.call_id },
           ),
         ]
       case "function_call_output":

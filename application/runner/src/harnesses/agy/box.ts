@@ -22,7 +22,7 @@ export const shellFooter = (rows: readonly string[]): boolean => {
 export const box: BoxProfile = {
   read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
   // Enter would run a command shown as a placeholder as the placeholder's own text.
-  shell: { expands: false, footer: shellFooter },
+  shell: { expands: false, starts: true, footer: shellFooter },
   collapsed: ({ text }) => /^\[Pasted text #\d+ (?:\+\d+ lines?|\d+ chars?)\]$/.test(text.trim()),
   // 15 lines showed whole, even of 100 characters each; 16 did not. One line of 1,000
   // characters showed whole, 1,024 did not.

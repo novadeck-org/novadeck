@@ -23,7 +23,7 @@ export const shellFooter = (rows: readonly string[]): boolean => {
 export const box: BoxProfile = {
   read: (screen) => agreeing(ruledBox(screen, markers), shellFooter(screen.rows)),
   // Enter runs a command shown as a placeholder as the text it stands for.
-  shell: { expands: true, footer: shellFooter },
+  shell: { expands: true, starts: false, footer: shellFooter },
   collapsed: ({ text }) => /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/.test(text.trim()),
   // Escape twice, over text seen in the box only; it clears a restored prompt or the queued
   // messages an Escape put back, of any number of lines (probed 2026-10-07).

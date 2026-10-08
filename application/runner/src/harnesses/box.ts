@@ -55,6 +55,12 @@ export type BoxProfile = {
   readonly shell: {
     readonly expands: boolean
     /**
+     * Whether a command given to an agent with no session yet starts its conversation
+     * (Antigravity: probed 2026-10-08, a `!` command creates it and binds the session);
+     * Codex's runs without a session (it binds none), and Claude Code binds before any.
+     */
+    readonly starts: boolean
+    /**
      * Whether the harness's footer rows say the box is in its shell mode: the cross-check
      * of the marker, for the box reader and for tests that only have a screen's text.
      */

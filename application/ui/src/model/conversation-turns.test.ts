@@ -191,6 +191,109 @@ describe("a tool call's summary", () => {
     })
   })
 
+  context("for Novadeck's own tools", () => {
+    const send = { to: "t2", text: "Tests are green.\nShip it." }
+    const labelled = { kind: "agent", title: "Messaged t2", detail: "Tests are green." }
+
+    it("reads Claude Code's plugin tools", () => {
+      expect(toolSummary("mcp__plugin_novadeck_novadeck__send", JSON.stringify(send))).toEqual(
+        labelled,
+      )
+    })
+
+    it("reads Codex's namespaced tools", () => {
+      expect(toolSummary("mcp__novadeck__send", JSON.stringify(send))).toEqual(labelled)
+      expect(toolSummary("mcp__novadeck.send", JSON.stringify(send))).toEqual(labelled)
+    })
+
+    it("reads Antigravity's lazy call, its arguments as an object or as text", () => {
+      const lazy = { ServerName: "novadeck_novadeck", ToolName: "send", toolAction: "Calling send" }
+      expect(toolSummary("call_mcp_tool", JSON.stringify({ ...lazy, Arguments: send }))).toEqual(
+        labelled,
+      )
+      expect(
+        toolSummary("call_mcp_tool", JSON.stringify({ ...lazy, Arguments: JSON.stringify(send) })),
+      ).toEqual(labelled)
+    })
+
+    it("reads Antigravity's eagerly loaded tools", () => {
+      expect(
+        toolSummary(
+          "mcp_novadeck_novadeck_send",
+          JSON.stringify({ ...send, toolSummary: "send call" }),
+        ),
+      ).toEqual(labelled)
+    })
+
+    it.each([
+      ["agents", {}, "agent", "Listed agents", ""],
+      [
+        "open_terminal",
+        { agent: "codex", message: "Fix the lint\nerrors" },
+        "agent",
+        "Opened a terminal",
+        "codex: Fix the lint",
+      ],
+      ["open_terminal", { command: "pnpm dev" }, "agent", "Opened a terminal", "pnpm dev"],
+      ["close_terminal", { to: "t3" }, "agent", "Closed t3", ""],
+      ["show", { url: "http://localhost:5173/" }, "web", "Showed", "http://localhost:5173/"],
+      ["show", { path: "/a/b/c/d/mock.png" }, "read", "Showed", "…/c/d/mock.png"],
+      ["showing", {}, "read", "Checked what's shown", ""],
+      [
+        "describe",
+        { title: "Cart fix", summary: "x" },
+        "agent",
+        "Described this terminal",
+        "Cart fix",
+      ],
+    ])("labels %s", (tool, input, kind, title, detail) => {
+      const expected = { kind, title, detail }
+      expect(toolSummary(`mcp__plugin_novadeck_novadeck__${tool}`, JSON.stringify(input))).toEqual(
+        expected,
+      )
+      expect(
+        toolSummary(
+          "call_mcp_tool",
+          JSON.stringify({ ServerName: "novadeck_novadeck", ToolName: tool, Arguments: input }),
+        ),
+      ).toEqual(expected)
+    })
+
+    it("shows another server's lazy tool by its name and server", () => {
+      expect(
+        toolSummary(
+          "call_mcp_tool",
+          JSON.stringify({ ServerName: "db", ToolName: "query", Arguments: { query: "select 1" } }),
+        ),
+      ).toEqual({ kind: "other", title: "query", detail: "db" })
+    })
+
+    it("leaves a server only named like Novadeck's alone", () => {
+      for (const name of [
+        "mcp__plugin_acme_novadeck__send",
+        "mcp__my_novadeck__send",
+        "mcp__novadeck_extra__send",
+      ]) {
+        expect(toolSummary(name, JSON.stringify(send))).toMatchObject({ title: name })
+      }
+      expect(
+        toolSummary(
+          "call_mcp_tool",
+          JSON.stringify({ ServerName: "my_novadeck", ToolName: "send", Arguments: send }),
+        ),
+      ).toEqual({ kind: "other", title: "send", detail: "my_novadeck" })
+    })
+
+    it("leaves another server's tool, and a Novadeck tool it doesn't know, as they are", () => {
+      expect(toolSummary("mcp__db__send", JSON.stringify({ to: "t2" }))).toMatchObject({
+        title: "mcp__db__send",
+      })
+      expect(toolSummary("mcp__plugin_novadeck_novadeck__new", "{}")).toMatchObject({
+        title: "mcp__plugin_novadeck_novadeck__new",
+      })
+    })
+  })
+
   context("for a tool it doesn't know", () => {
     it("shows its name and the first thing its input says", () => {
       expect(toolSummary("mcp__db__query", JSON.stringify({ query: "select 1" }))).toEqual({

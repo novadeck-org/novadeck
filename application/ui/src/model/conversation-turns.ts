@@ -265,6 +265,9 @@ const count = (value: unknown, one: string, many = `${one}s`): string =>
 // thing their input says.
 export const toolSummary = (tool: string, input: string): ToolSummary => {
   const fields = parseFields(input)
+  const mcp = mcpCall(tool, fields)
+  const mcpKnown = mcp && mcpSummary(mcp)
+  if (mcpKnown) return mcpKnown
   const known = knownTool(tool.toLowerCase(), fields, input)
   if (known) return known
   const detail =
@@ -284,6 +287,106 @@ export const toolSummary = (tool: string, input: string): ToolSummary => {
     kind: "other",
     title: tool,
     detail: detail ? shortenIf(detail) : "",
+  }
+}
+
+// An MCP tool call, with the server it went to where the name says it.
+type McpCall = {
+  // Antigravity's lazy call, which hides the server and the tool in its arguments.
+  readonly lazy: boolean
+  readonly server: string
+  readonly tool: string
+  readonly fields: Fields | null
+}
+
+// Antigravity encodes a lazily loaded MCP tool as `call_mcp_tool` with the server, the
+// tool and its arguments (an object, or JSON text) as arguments of its own.
+const lazyMcp = "call_mcp_tool"
+
+// The server and tool a name says, as each harness spells it: Claude Code's
+// `mcp__plugin_novadeck_novadeck__send`, Codex's `mcp__novadeck__send` (its rollout
+// gives the namespace `mcp__novadeck` and the tool `send` apart) or `mcp__novadeck.send`,
+// and Antigravity's eagerly loaded `mcp_novadeck_novadeck_send`.
+const mcpCall = (tool: string, fields: Fields | null): McpCall | undefined => {
+  if (tool === lazyMcp) {
+    const server = textField(fields, "ServerName")
+    const name = textField(fields, "ToolName")
+    if (!server || !name) return undefined
+    const args = fields?.Arguments
+    return {
+      lazy: true,
+      server,
+      tool: name,
+      fields: typeof args === "string" ? parseFields(unquote(args)) : isFields(args) ? args : null,
+    }
+  }
+  const named =
+    /^mcp__(.+?)__(.+)$/.exec(tool) ??
+    /^mcp__([^.]+)\.(.+)$/.exec(tool) ??
+    /^mcp_(novadeck_novadeck)_(.+)$/.exec(tool)
+  return named ? { lazy: false, server: named[1]!, tool: named[2]!, fields } : undefined
+}
+
+const isFields = (value: unknown): value is Fields =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+// The names Novadeck's server goes by: Claude Code's plugin, Codex's namespace and
+// Antigravity's (lazy `ServerName` and eager prefix alike).
+const novadeckServers: ReadonlySet<string> = new Set([
+  "plugin_novadeck_novadeck",
+  "novadeck",
+  "novadeck_novadeck",
+])
+
+const isNovadeck = (server: string): boolean => novadeckServers.has(server)
+
+const mcpSummary = ({ lazy, server, tool, fields }: McpCall): ToolSummary | undefined => {
+  const known = isNovadeck(server) ? novadeckTool(tool, fields) : undefined
+  // Another server's lazy tool shows its name and server; an eager one's name says both.
+  return known ?? (lazy ? { kind: "other", title: tool, detail: server } : undefined)
+}
+
+// Novadeck's own MCP tools: the agent works with the person's other terminals.
+const novadeckTool = (tool: string, fields: Fields | null): ToolSummary | undefined => {
+  const text = (...keys: string[]): string => oneLine(textField(fields, ...keys))
+  switch (tool) {
+    case "send":
+      return {
+        kind: "agent",
+        title: `Messaged${text("to") ? ` ${text("to")}` : ""}`,
+        detail: text("text"),
+      }
+    case "agents":
+      return { kind: "agent", title: "Listed agents", detail: "" }
+    case "open_terminal": {
+      const agent = text("agent")
+      const task = text("message")
+      return {
+        kind: "agent",
+        title: "Opened a terminal",
+        detail: agent ? (task ? `${agent}: ${task}` : agent) : text("command", "title", "cwd"),
+      }
+    }
+    case "close_terminal":
+      return {
+        kind: "agent",
+        title: `Closed${text("to") ? ` ${text("to")}` : " a terminal"}`,
+        detail: "",
+      }
+    case "show": {
+      const url = text("url")
+      return {
+        kind: url ? "web" : "read",
+        title: "Showed",
+        detail: url || shortPath(text("path")),
+      }
+    }
+    case "showing":
+      return { kind: "read", title: "Checked what's shown", detail: "" }
+    case "describe":
+      return { kind: "agent", title: "Described this terminal", detail: text("title") }
+    default:
+      return undefined
   }
 }
 

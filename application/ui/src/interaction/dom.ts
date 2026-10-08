@@ -92,10 +92,25 @@ export const focusTerminalTab = (id: string): void =>
     ?.focus({ preventScroll: true })
 export const focusWorkspaceViewport = (): void =>
   document.querySelector<HTMLElement>("[data-workspace-viewport]")?.focus({ preventScroll: true })
+// Whether an element can still hold focus: shown, and not inert.
+const usable = (element: Element): boolean =>
+  element.isConnected &&
+  !element.closest("[inert]") &&
+  !element.matches(":disabled") &&
+  (typeof element.checkVisibility !== "function" || element.checkVisibility())
+
+// Focus that waits a frame for a control to mount, taken only while focus is still where
+// the control it replaces left it: on the page itself, on that control as it unmounts, or
+// on one the change hides or disables, which can no longer hold it. A key pressed in
+// between wins.
+const focusStranded = (selector: string, leftFrom: string): void => {
+  const active = document.activeElement
+  if (active && active !== document.body && !active.matches(leftFrom) && usable(active)) return
+  document.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true })
+}
 export const focusZenCreate = (): void =>
-  document.querySelector<HTMLElement>("[data-workspace-zen-create]")?.focus({ preventScroll: true })
-export const focusZenEnter = (): void =>
-  document.querySelector<HTMLElement>("[data-workspace-zen-enter]")?.focus({ preventScroll: true })
+  focusStranded("[data-workspace-zen-create]", "[data-workspace-zen-enter]")
+export const focusZenEnter = (): void => focusStranded("[data-workspace-zen-enter]", ".zen-exit")
 
 export const focusTerminalInput = (id: string): boolean => {
   const input = terminalElement(id)?.querySelector<HTMLElement>("[data-terminal-input]")

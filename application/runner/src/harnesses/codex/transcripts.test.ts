@@ -120,6 +120,19 @@ describe("Codex's rollout records", () => {
     expect(call).toMatchObject({ tool: "shell", text: '{"cmd":"ls"}' })
     expect(output).toMatchObject({ text: "a\nb", call: call?.call })
   })
+
+  it("name an MCP tool's call for its server, as its rollout gives it apart", () => {
+    const [call] = items([
+      item({
+        type: "function_call",
+        name: "send",
+        namespace: "mcp__novadeck",
+        arguments: '{"to":"t2","text":"hi"}',
+        call_id: "c1",
+      }),
+    ])
+    expect(call).toMatchObject({ tool: "mcp__novadeck__send" })
+  })
 })
 
 describe("Codex's transcripts", () => {

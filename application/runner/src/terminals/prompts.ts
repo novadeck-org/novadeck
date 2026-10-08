@@ -19,6 +19,11 @@ export type PromptHost = {
    * leaves a screen that box is not found on.
    */
   readonly admit: (terminalId: string) => BoxProfile
+  /**
+   * Whether the terminal's agent has a session bound: false for an agent shown at its
+   * prompt whose first session its first prompt starts (see `admit`).
+   */
+  readonly bound: (terminalId: string) => boolean
   /** The nonce of the doorbell ring under way there, if any. */
   readonly ringing: (terminalId: string) => string | undefined
   /** The screen once it has drawn all pending output; undefined once the terminal is gone. */
@@ -39,6 +44,8 @@ export type PromptOptions = {
   readonly ringMs?: number
   /** How long after its Enter the window's resizes stay held, in milliseconds. */
   readonly settleMs?: number
+  /** How long a first prompt's session is waited on to bind after its Enter, in milliseconds. */
+  readonly bindMs?: number
   /** How long a box holding text is waited on to read empty before the prompt is refused. */
   readonly emptyMs?: number
 }
@@ -77,6 +84,7 @@ export class Prompts {
   private readonly ringMs: number
   private readonly settleMs: number
   private readonly emptyMs: number
+  private readonly bindMs: number
   private readonly budget: HoldBudget
 
   constructor(
@@ -89,11 +97,13 @@ export class Prompts {
     this.ringMs = options.ringMs ?? 10_000
     this.settleMs = options.settleMs ?? 1_000
     this.emptyMs = options.emptyMs ?? 3_000
+    this.bindMs = options.bindMs ?? 5_000
     // The held phase is the wait for the box to read empty, for a shell command's `!` to
     // switch it, and for the paste to show, with a margin; the window's resizes stay held a
     // while longer, past the Enter.
     const inputMs = this.emptyMs + 2 * this.pasteMs + 2_000
-    this.budget = { inputMs, sizeMs: inputMs + this.settleMs }
+    // The resizes stay held through the wait for a session to bind, too.
+    this.budget = { inputMs, sizeMs: inputMs + this.bindMs + this.settleMs }
   }
 
   /**
@@ -143,6 +153,9 @@ export class Prompts {
   ): Promise<void> {
     await this.ringDone(terminalId)
     const profile = this.host.admit(terminalId)
+    // The first prompt of an agent shown before its session binds starts that session, as a
+    // shell command does only where its harness starts one for it.
+    const starts = !this.host.bound(terminalId) && (!shell || profile.shell.starts)
     // The person's keys are held from before the box is looked at, so none comes between.
     const hold = entry.hold(this.budget)
     if (!hold.holding()) throw new DomainError("TERMINAL_NOT_FOUND")
@@ -236,6 +249,12 @@ export class Prompts {
         )
       throw this.failed()
     }
+    // The next prompt waits until the session it started is there: an agent given one while
+    // it still starts its conversation may start another with it, and the first is lost
+    // (Antigravity 1.2.14, 160 ms apart: about 1 in 60 CI runs, a few percent under heavy
+    // local load). A session that binds late holds up whatever is queued behind this
+    // prompt, a prompt, a Stop or a doorbell ring, for up to `bindMs`.
+    if (starts) await this.bindDone(terminalId)
     // A resize as the turn starts may crash a TUI, as the doorbell's ring found of Codex.
     // The next entry there takes this hold over, with the resizes it holds.
     hold.settleAfter(this.settleMs)
@@ -317,6 +336,15 @@ export class Prompts {
 
   private failed(): DomainError {
     return new DomainError("PROMPT_FAILED", "The prompt did not show in the agent's input box.")
+  }
+
+  /** Waits for the agent's session to bind; one that never does is no failure of the prompt. */
+  private async bindDone(terminalId: string): Promise<void> {
+    const until = Date.now() + this.bindMs
+    while (!this.host.bound(terminalId) && Date.now() < until) {
+      // eslint-disable-next-line no-await-in-loop -- The binding is looked at in turn.
+      await sleep(this.pollMs)
+    }
   }
 
   /** Waits for the ring under way, if any, to end; a ring that outlasts it is a conflict. */
