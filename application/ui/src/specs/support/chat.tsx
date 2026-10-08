@@ -3,25 +3,28 @@ import { page, type Locator } from "vitest/browser"
 
 import { openWorkspace, terminal, terminalTab } from "./workspace"
 
-// Vocabulary for a terminal's chat view: the toggle in its header, the conversation, the
-// composer and the cards for what waits on the person.
+// Vocabulary for a terminal's chat view: the conversation, the composer and the cards for
+// what waits on the person.
 
-/** Opens the agents demo, whose agents have conversations, past the first-run welcome. */
-export const openChatDemo = async (route = "/"): Promise<void> => {
+/**
+ * Opens the agents demo, whose agents have conversations, past the first-run welcome; with
+ * the chat view on, as Preferences → Addons turns it on, unless `chatView` is false.
+ */
+export const openChatDemo = async (route = "/", { chatView = true } = {}): Promise<void> => {
+  localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView }))
   await openWorkspace(`${route}?demo=agents`)
   const skip = page.getByRole("button", { name: "Skip for now" })
   if (await skip.query()) await skip.click()
 }
 
-/** The header's switch between a terminal and its chat. */
-export const chatToggle = (name: string): Locator =>
-  terminal(name).getByRole("button", { name: `Chat view: ${name}`, exact: true })
+/** A terminal's chat, where it shows. */
+export const chatOf = (name: string): Locator =>
+  terminal(name).getByRole("region", { name: `${name} chat`, exact: true })
 
-/** Selects a terminal and shows its chat. */
+/** Selects a terminal, which shows its chat. */
 export const openChat = async (name: string): Promise<Locator> => {
   await terminalTab(name).click()
-  await chatToggle(name).click()
-  const chat = terminal(name).getByRole("region", { name: `${name} chat`, exact: true })
+  const chat = chatOf(name)
   await expect.element(chat).toBeVisible()
   return chat
 }

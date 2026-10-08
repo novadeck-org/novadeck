@@ -14,6 +14,8 @@ export type PopoverProps = {
   // What its trigger's tooltip says, while the popover is closed. The trigger's Ark data
   // attributes are then the tooltip's: style its open state by aria-expanded.
   tooltip?: string
+  // Where it opens from its trigger: below by default, or above for one at the bottom.
+  placement?: "bottom-start" | "top-end"
 }
 
 export const Popover = ({
@@ -24,6 +26,7 @@ export const Popover = ({
   children,
   className,
   tooltip,
+  placement = "bottom-start",
 }: PopoverProps): React.JSX.Element => {
   // One id for the trigger, which a tooltip around it shares: the popover places itself
   // and hands focus back by it.
@@ -34,7 +37,7 @@ export const Popover = ({
       open={open}
       onOpenChange={({ open: next }) => onOpenChange(next)}
       positioning={{
-        placement: "bottom-start",
+        placement,
         strategy: "fixed",
         gutter: 10,
         overflowPadding: 12,

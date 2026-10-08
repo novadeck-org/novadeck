@@ -17,6 +17,17 @@ export const readWindowedView = (): WindowedView => {
   }
 }
 
+// The order the person left the footer's subscriptions in, by program.
+export const subscriptionOrderStorageKey = "novadeck.subscription-order"
+export const readSubscriptionOrder = (): readonly string[] => {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(subscriptionOrderStorageKey) ?? "[]")
+    return Array.isArray(stored) ? stored.filter((each) => typeof each === "string") : []
+  } catch {
+    return []
+  }
+}
+
 export const writeSidebarCollapsed = (collapsed: boolean): void => {
   try {
     localStorage.setItem(collapsedStorageKey, String(collapsed))
@@ -30,5 +41,13 @@ export const writeWindowedView = (view: WindowedView): void => {
     localStorage.setItem(windowedStorageKey, view)
   } catch {
     /* Remains available for this session when storage is unavailable. */
+  }
+}
+
+export const writeSubscriptionOrder = (order: readonly string[]): void => {
+  try {
+    localStorage.setItem(subscriptionOrderStorageKey, JSON.stringify(order))
+  } catch {
+    /* The order holds for this session when storage is unavailable. */
   }
 }

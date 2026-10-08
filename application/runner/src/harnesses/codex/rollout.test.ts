@@ -54,6 +54,26 @@ describe("Codex's rollout, as captured", () => {
     ])
   })
 
+  it("reports a turn's model and reasoning effort", () => {
+    const context = records.find(({ type }) => type === "turn_context")!
+    const { model, effort } = context.payload as { model: string; effort: string }
+    expect(rolloutEvents(JSON.stringify(context), session)).toEqual([
+      {
+        type: "telemetry-observed",
+        agent: "codex",
+        sessionId: "s",
+        instance: "7",
+        startedAt: Date.parse(context.timestamp),
+        model,
+        effort,
+      },
+    ])
+    expect(model).toBeTruthy()
+    // A turn context that names neither says nothing.
+    const bare = { ...context, payload: { turn_id: "t" } }
+    expect(rolloutEvents(JSON.stringify(bare), session)).toEqual([])
+  })
+
   it("says whether a turn plans, from the mode it starts in", () => {
     const starting = records.find(
       (record) => (record.payload as { type?: string }).type === "task_started",
@@ -84,7 +104,10 @@ describe("Codex's rollout, as captured", () => {
   it("says nothing of other records", () => {
     const told = new Set(["task_started", "task_complete"])
     for (const record of records.filter(
-      (each) => each !== count && !told.has((each.payload as { type?: string }).type ?? ""),
+      (each) =>
+        each !== count &&
+        each.type !== "turn_context" &&
+        !told.has((each.payload as { type?: string }).type ?? ""),
     ))
       expect(rolloutEvents(JSON.stringify(record), session)).toEqual([])
   })

@@ -7,7 +7,6 @@ import { workspaceFromSeed, WorkspaceSeedError, type WorkspaceSeed, viewOf } fro
 
 const terminals = [terminalFixture(1, "~/one"), terminalFixture(2, "~/one")]
 const canvasLayout = {
-  minimized: {},
   geometry: { "01": { position: { x: 80, y: 80 }, width: 550, height: 400 } },
 }
 const defaults = { view: "focus", windowedView: "canvas", now: 1_000 } as const

@@ -65,7 +65,6 @@ export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
     directory: "~/projects/website",
   }
   const canvasLayout: CanvasLayout = {
-    minimized: {},
     geometry: Object.fromEntries(
       terminals.map((terminal, index) => [
         terminal.id,

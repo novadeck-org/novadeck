@@ -809,8 +809,12 @@ const installVoice = async (): Promise<void> => {
   await preferencesDialog().getByRole("tab", { name: "Addons" }).click()
   const addons = preferencesDialog().getByRole("tabpanel", { name: "Addons" })
   await addons.getByRole("button", { name: "Install" }).click()
+  // Only an installed card offers Uninstall; the switch shows before the install too.
   await expect
-    .element(addons.getByRole("switch", { name: "Enabled" }), { timeout: 10_000 })
+    .element(addons.getByRole("button", { name: "Uninstall" }), { timeout: 10_000 })
+    .toBeVisible()
+  await expect
+    .element(addons.getByRole("switch", { name: "Enabled" }))
     .toHaveAttribute("aria-checked", "true")
   await press("{Escape}")
   await expect.element(preferencesDialog()).not.toBeInTheDocument()
@@ -822,6 +826,8 @@ const releaseKeys = "{/M}{/Shift}{/Control}"
 /** The dictation status line, once it says `text`. */
 const saying = (text: string | RegExp): Locator =>
   page.getByRole("status").filter({ hasText: text })
+/** Where an element stacks among its siblings' layer. */
+const layer = (element: Element): number => Number(getComputedStyle(element).zIndex)
 const wait = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds))
 
@@ -839,6 +845,38 @@ describe("dictation", () => {
 
       await expect.element(saying("Preferences → Addons")).toBeVisible()
       expect(microphone.live()).toBe(0)
+      // The terminal's strip opens Addons, where voice input is set up.
+      await saying("Preferences → Addons").getByRole("button", { name: "Open Addons" }).click()
+      await expect
+        .element(preferencesDialog().getByRole("tab", { name: "Addons" }))
+        .toHaveAttribute("aria-selected", "true")
+    })
+  })
+
+  context("before voice input is installed", () => {
+    it("offers an agent's microphone, which opens Addons, until turned off there", async () => {
+      // The agents demo, whose Checkout implementation runs Claude Code.
+      await openWorkspace("/?demo=agents")
+      const skip = page.getByRole("button", { name: "Skip for now" })
+      if (await skip.query()) await skip.click()
+      await terminalTab("Checkout implementation").click()
+      // Until voice input is installed, it says what it does: lead to the setup.
+      const mic = terminal("Checkout implementation").getByRole("button", {
+        name: "Set up voice input for Checkout implementation",
+      })
+      await mic.click()
+      const dialog = preferencesDialog()
+      await expect
+        .element(dialog.getByRole("tab", { name: "Addons" }))
+        .toHaveAttribute("aria-selected", "true")
+      expect(microphone.live()).toBe(0)
+
+      const enabled = dialog.getByRole("switch", { name: "Enabled" })
+      await expect.element(enabled).toHaveAttribute("aria-checked", "true")
+      await enabled.click()
+      await expect.element(enabled).toHaveAttribute("aria-checked", "false")
+      await press("{Escape}")
+      await expect.element(mic).not.toBeInTheDocument()
     })
   })
 
@@ -873,7 +911,7 @@ describe("dictation", () => {
       await commandInput("Checkout implementation").click()
 
       await press(`${dictateKeys}${releaseKeys}`)
-      await expect.element(saying("Press again to stop")).toBeVisible()
+      await expect.element(saying("Esc discard")).toBeVisible()
       await expect.element(saying("0:02")).toBeVisible()
       expect(microphone.live()).toBe(1)
 
@@ -882,6 +920,29 @@ describe("dictation", () => {
       await expect
         .element(commandInput("Checkout implementation"))
         .toHaveValue("Add a retry to the checkout request and run the tests.")
+    })
+
+    it("shows its strip over a terminal's chat, not under it", async () => {
+      localStorage.setItem("novadeck.preferences", JSON.stringify({ chatView: true }))
+      await openWorkspace("/?demo=agents")
+      const skip = page.getByRole("button", { name: "Skip for now" })
+      if (await skip.query()) await skip.click()
+      await installVoice()
+      await terminalTab("Checkout implementation").click()
+      const chat = terminal("Checkout implementation").getByRole("region", {
+        name: "Checkout implementation chat",
+      })
+      await expect.element(chat).toBeVisible()
+
+      await press(dictateKeys)
+      const strip = saying("Release to send")
+      await expect.element(strip).toBeVisible()
+      // Stacked above the chat pane, which shares its layer over the terminal's content.
+      const pane = terminal("Checkout implementation")
+        .element()
+        .querySelector("[data-workspace-chat]")!
+      expect(layer(strip.element())).toBeGreaterThan(layer(pane))
+      await press(releaseKeys)
     })
 
     it("drops the recording on Escape and releases the microphone", async () => {

@@ -99,6 +99,8 @@ export type WorkspaceAction =
       terminal: TerminalMetadata
       gridLayouts?: GridLayouts
       canvasGeometry?: CanvasLayout["geometry"][string]
+      // Its size on Canvas, where the caller measured the stage.
+      canvasSize?: { width: number; height: number }
       // The terminal to place it beside; the selected one by default.
       anchor?: string
       // Whether it becomes the session's selection, as it does by default.
@@ -135,6 +137,8 @@ export type WorkspaceAction =
       window: CompanionWindowMeta
       gridLayouts?: GridLayouts
       canvasGeometry?: CanvasLayout["geometry"][string]
+      // Its size on Canvas, where the caller measured the stage.
+      canvasSize?: { width: number; height: number }
       anchor?: string
     }
   // The person closes an item, and the window it's in: it's gone.
@@ -196,7 +200,6 @@ export type WorkspaceAction =
       view: WindowedView
       preset: SizePreset
     }
-  | { type: "grid/minimize"; target: WorkspaceTarget; terminalId: string }
 
 export const createWorkspaceSession = (
   input: WorkspaceSessionInput,
@@ -422,7 +425,7 @@ const undockItem = (
   state: WorkspaceState,
   action: Extract<WorkspaceAction, { type: "item/undock" }>,
 ): WorkspaceState => {
-  const { itemId, window, gridLayouts, canvasGeometry } = action
+  const { itemId, window, gridLayouts, canvasGeometry, canvasSize } = action
   const item = state.items.find((each) => each.id === itemId)
   if (!item || window.itemId !== itemId || hasTile(state.roster, window.id)) return state
   const left = unhold(unfresh(state, itemId), item)
@@ -437,6 +440,7 @@ const undockItem = (
       anchor: tiles.find((tile) => tile.id === beside) ?? tiles.at(-1),
       gridLayouts,
       canvasGeometry,
+      canvasSize,
     }),
     selected: window.id,
   }
@@ -616,6 +620,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
             anchor,
             gridLayouts: action.gridLayouts,
             canvasGeometry: action.canvasGeometry,
+            canvasSize: action.canvasSize,
           }),
           selected: action.select === false ? state.selected : action.terminal.id,
         }
@@ -780,18 +785,6 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
                   ...layout.sizePresets[action.view],
                   [action.terminalId]: action.preset,
                 },
-              },
-            }))
-          : state,
-      )
-    case "grid/minimize":
-      return updateTarget(workspace, action.target, (state) =>
-        hasTile(state.roster, action.terminalId)
-          ? updateLayout(state, (layout) => ({
-              ...layout,
-              gridMinimized: {
-                ...layout.gridMinimized,
-                [action.terminalId]: !layout.gridMinimized[action.terminalId],
               },
             }))
           : state,

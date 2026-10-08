@@ -53,11 +53,32 @@ describe("the demo's voice input", () => {
 
   it("refuses a model that is not installed", () => {
     const voice = createDemoVoice()
-    voice.set({ enabled: true })
+    voice.set({ model: "small" })
     expect(voice.state.getSnapshot()).toMatchObject({
-      enabled: false,
+      model: "turbo",
       failure: "That model isn't installed.",
     })
+  })
+
+  it("keeps an off chosen during a first install, as the runner", async () => {
+    const voice = createDemoVoice({ step: 10, transcribe: 10 })
+    voice.install("turbo")
+    voice.set({ enabled: false })
+    await vi.advanceTimersByTimeAsync(100)
+    expect(voice.state.getSnapshot()).toMatchObject({
+      installed: ["turbo"],
+      enabled: false,
+      wanted: false,
+    })
+  })
+
+  it("is wanted until turned off, and turned on before an install is wanted again", () => {
+    const voice = createDemoVoice()
+    expect(voice.state.getSnapshot()).toMatchObject({ enabled: false, wanted: true })
+    voice.set({ enabled: false })
+    expect(voice.state.getSnapshot()).toMatchObject({ enabled: false, wanted: false })
+    voice.set({ enabled: true })
+    expect(voice.state.getSnapshot()).toMatchObject({ enabled: false, wanted: true })
   })
 
   it("answers a canned transcript shortly after a clip ends", async () => {

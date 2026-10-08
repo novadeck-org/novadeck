@@ -84,6 +84,11 @@ export type Activity = {
   readonly idled: boolean
   readonly background: Background | null
   /**
+   * How many subagents the running turn's latest working status line counts running; zero
+   * once the turn ends, whose `background` tells what runs on then.
+   */
+  readonly running: number
+  /**
    * Whether work a turn leaves running wakes the agent once done, as Claude Code's and
    * Antigravity's does and Codex's never does: where nothing says what runs, its
    * subagents still running count.
@@ -158,6 +163,7 @@ export const started = (at: number, wakes = true, records = true): Activity => (
   turnAt: at,
   idled: false,
   background: null,
+  running: 0,
   wakes,
   records,
   turn: null,
@@ -285,6 +291,7 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
     idled: false,
     continued: false,
     listed: false,
+    running: 0,
     lastTurn: {
       outcome: event.outcome,
       reply: event.reply ?? null,
@@ -545,6 +552,7 @@ export const apply = (
         turnAt: event.startedAt,
         idled: false,
         background: null,
+        running: 0,
         turn: event.turn ?? null,
         continued: false,
         skips: 0,
@@ -563,6 +571,7 @@ export const apply = (
         state: "idle",
         pending: outliving(activity.pending, activity.subagents),
         continued: false,
+        running: 0,
       }
     case "turn-idle": {
       // Idle after the turn's Stop says nothing new of the turn; without one, the turn
@@ -587,6 +596,7 @@ export const apply = (
         turnAt: event.startedAt,
         idled: true,
         background: waiting(activity, activity.subagents, event.background),
+        running: 0,
         listed: true,
         // An Escape or a refusal, which only an idle status line tells.
         lastTurn: { outcome: "unknown", reply: null, at: event.startedAt, recorded: false },
@@ -603,6 +613,7 @@ export const apply = (
         turnAt: event.startedAt,
         idled: false,
         background: waiting(activity, activity.subagents),
+        running: 0,
         lastTurn: {
           outcome: "interrupted",
           reply: null,
@@ -617,13 +628,19 @@ export const apply = (
           },
         },
       }
-    case "turn-working":
+    case "turn-working": {
       // Working after the idle that ended its turn, and newer than it: that idle was stale,
       // and the turn goes on. After a Stop it says nothing new. The turn's fence stays at the
-      // idle, so a Stop whose hook started before this snapshot still ends it.
+      // idle, so a Stop whose hook started before this snapshot still ends it. Within a
+      // running turn it only tells how many subagents run, newer than the turn's start by
+      // the fence above; one that comes late, after a Stop, is ignored with the rest.
+      const running = event.running ?? 0
+      if (activity.state === "working")
+        return activity.running === running ? undefined : { ...activity, running }
       if (activity.state !== "idle" || !activity.idled || event.startedAt <= activity.turnAt)
         return undefined
-      return { ...activity, state: "working", idled: false }
+      return { ...activity, state: "working", idled: false, running }
+    }
     case "turn-ended":
       return turnEnded(activity, event)
     case "turn-escape-lapsed": {
@@ -702,6 +719,8 @@ const asked = (
  * exists counts as one until a status line has counted them. Other work it left running,
  * as a command, shows in `background`, but never keeps it working: a dev server may run
  * for ever. How its latest turn ended shows once none runs, a continued one included.
+ * `background` shows what the ended turn left running, and while it runs, the subagents a
+ * status line counts running.
  */
 export const summary = ({
   state,
@@ -709,6 +728,7 @@ export const summary = ({
   subagents,
   planning,
   background,
+  running,
   listed,
   lastTurn,
 }: Activity): AgentActivity => ({
@@ -717,10 +737,15 @@ export const summary = ({
     (background !== null && (background.agents > 0 || (background.more === true && !listed)))
       ? "working"
       : "idle",
+  // While its turn runs, only the subagents its status line counts running.
   background:
-    state === "working" || !background
-      ? null
-      : { agents: background.agents, tasks: background.tasks },
+    state === "working"
+      ? running > 0
+        ? { agents: running, tasks: 0 }
+        : null
+      : !background
+        ? null
+        : { agents: background.agents, tasks: background.tasks },
   planning,
   attention: { pending: pending.length, kind: pending[0]?.kind ?? null },
   subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),

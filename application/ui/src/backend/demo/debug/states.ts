@@ -269,7 +269,7 @@ export const createDemoStates = (): DemoStates => {
         agentAction("Subagents", "Three subagents while it works", () => withSubagents),
         agentAction(
           "Finishing subagents",
-          "Turn over, two subagents run on; it works until they finish",
+          "Two subagents run, mid-turn or after it; it works until they finish",
           () => finishingSubagents,
         ),
         agentAction(
@@ -284,12 +284,8 @@ export const createDemoStates = (): DemoStates => {
         ),
         agentAction("Context and limits", "Usage in its tooltip and status", withUsage),
         agentAction("Context, size unknown", "ctx in tokens, no limits", () => contextOnly),
-        endingAction(
-          "completed",
-          "Turn completed",
-          "Works, then done · unread when you look elsewhere",
-        ),
-        endingAction("failed", "Turn failed", "Works, then error · unread when you look elsewhere"),
+        endingAction("completed", "Turn completed", "Works, then done when you look elsewhere"),
+        endingAction("failed", "Turn failed", "Works, then failed when you look elsewhere"),
         endingAction("interrupted", "Turn interrupted", "Works, then rests; no unread mark"),
         endingAction("unknown", "Turn ended, unknown", "Works, then goes idle with no reply"),
         onSelected(

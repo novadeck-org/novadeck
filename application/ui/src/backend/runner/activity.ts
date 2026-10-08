@@ -52,8 +52,16 @@ const agentStatus = (
         },
       }
     : {}),
-  ...(telemetry && (telemetry.context || telemetry.limits.length > 0)
-    ? { usage: { context: telemetry.context, limits: telemetry.limits } }
+  ...(telemetry &&
+  (telemetry.context || telemetry.limits.length > 0 || telemetry.model || telemetry.effort)
+    ? {
+        usage: {
+          context: telemetry.context,
+          limits: telemetry.limits,
+          model: telemetry.model,
+          effort: telemetry.effort,
+        },
+      }
     : {}),
 })
 

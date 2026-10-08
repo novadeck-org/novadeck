@@ -1,7 +1,8 @@
 import { vi } from "vitest"
 
 import type { TerminalKey } from "../../backend/port"
-import { chatDraftOf, setChatDraft, setChatMode } from "../../terminals/chat/mode-state"
+import type { TerminalMetadata } from "../../model/types"
+import { chatDraftOf, setChatDraft } from "../../terminals/chat/mode-state"
 import { describe, expect, it } from "../../test"
 import { appearance } from "../../test/fixtures"
 import { createUiStore, initialUi, type UiStore } from "../ui-store"
@@ -9,6 +10,16 @@ import { dictateInto } from "./dictation"
 
 const key: TerminalKey = { projectId: "project", workspaceSessionId: "initial", terminalId: "01" }
 const context = "project/initial"
+const agent: TerminalMetadata = {
+  id: "01",
+  name: "Terminal 01",
+  directory: "/",
+  command: "zsh",
+  process: "claude",
+  state: "running",
+  agent: { working: false },
+}
+const terminalOf = (): TerminalMetadata => agent
 
 const ui = (): UiStore =>
   createUiStore(
@@ -32,28 +43,33 @@ const ui = (): UiStore =>
         appearance,
         notifyFinished: true,
         ligatures: false,
+        chatView: false,
       },
     }),
   )
+
+const chatOn = (store: UiStore): void => {
+  store.update((state) => ({ ...state, preferences: { ...state.preferences, chatView: true } }))
+}
 
 describe("dictated words", () => {
   it("are typed into a terminal showing its screen", () => {
     const store = ui()
     const typeInto = vi.fn<(key: TerminalKey, text: string) => boolean>(() => true)
-    expect(dictateInto(store, typeInto)(key, "run the tests")).toBe(true)
+    expect(dictateInto(store, typeInto, terminalOf)(key, "run the tests")).toBe(true)
     expect(typeInto).toHaveBeenCalledWith(key, "run the tests")
     expect(chatDraftOf(store.getSnapshot().chatDrafts, context, "01")).toBe("")
   })
 
   it("go into the chat's box after what is there, where the terminal shows its chat", () => {
     const store = ui()
+    chatOn(store)
     store.update((state) => ({
       ...state,
-      chat: setChatMode(state.chat, context, "01", true),
       chatDrafts: setChatDraft(state.chatDrafts, context, "01", "Please"),
     }))
     const typeInto = vi.fn<(key: TerminalKey, text: string) => boolean>(() => true)
-    expect(dictateInto(store, typeInto)(key, "run the tests")).toBe(true)
+    expect(dictateInto(store, typeInto, terminalOf)(key, "run the tests")).toBe(true)
     expect(typeInto).not.toHaveBeenCalled()
     expect(chatDraftOf(store.getSnapshot().chatDrafts, context, "01")).toBe("Please run the tests")
   })

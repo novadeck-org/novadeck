@@ -148,21 +148,6 @@ describe("Grid view", () => {
     })
   })
 
-  context("when resizing a minimized terminal", () => {
-    it("restores the terminal", async () => {
-      await openGrid()
-      await page.getByRole("button", { name: "Minimize Tests" }).click()
-      await expect.element(commandInput("Tests")).not.toBeInTheDocument()
-
-      await resizeButton("Make full width", "Tests").click()
-
-      await expect
-        .element(page.getByRole("button", { name: "Minimize Tests" }))
-        .toHaveAttribute("aria-expanded", "true")
-      await expect.element(commandInput("Tests")).toBeVisible()
-    })
-  })
-
   context("when the terminals do not all fit on screen", () => {
     afterEach(async () => {
       await page.viewport(1440, 900)

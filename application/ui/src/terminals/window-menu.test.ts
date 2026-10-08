@@ -18,7 +18,7 @@ describe("a window's menu", () => {
       labels(
         windowMenu({ terminal: named, onRename: ignore, onResetTitle: ignore, onClose: ignore }),
       ),
-    ).toEqual(["Rename", "Reset to automatic", "Close"])
+    ).toEqual(["Named by you (disabled)", "Rename", "Reset to automatic", "Close"])
   })
 
   context("for a window undocked from a terminal's companion", () => {

@@ -309,17 +309,39 @@ describe("installing voice input", () => {
 })
 
 describe("voice input settings", () => {
-  it("refuses a model, or turning on, that is not installed", async ({ resources }) => {
+  it("refuses a model that is not installed", async ({ resources }) => {
     const { voice } = await setup(resources)
 
     await expect(voice.set({ model: "turbo" })).rejects.toThrowError(
       expect.objectContaining({ code: "CONFLICT" }),
     )
+    await expect(voice.set({ language: "pl" })).resolves.toBeUndefined()
+    expect(voice.state()).toMatchObject({ language: "pl", enabled: false })
+  })
+
+  it("refuses turning on a chosen model that went missing while another is installed", async ({
+    resources,
+  }) => {
+    const { voice, store } = await installed(resources)
+    await voice.set({ enabled: false })
+    store.saveVoiceSettings({ model: "turbo" })
     await expect(voice.set({ enabled: true })).rejects.toThrowError(
       expect.objectContaining({ code: "CONFLICT" }),
     )
-    await expect(voice.set({ language: "pl" })).resolves.toBeUndefined()
-    expect(voice.state()).toMatchObject({ language: "pl", enabled: false })
+  })
+
+  it("is wanted until turned off, installed or not, and stays off until turned on", async ({
+    resources,
+  }) => {
+    const { voice, store } = await setup(resources)
+    expect(voice.state()).toMatchObject({ enabled: false, wanted: true })
+
+    await voice.set({ enabled: false })
+    expect(voice.state()).toMatchObject({ enabled: false, wanted: false })
+    // Turned on before an install, it is wanted again, and the install will turn it on.
+    await voice.set({ enabled: true, language: "pl" })
+    expect(voice.state()).toMatchObject({ enabled: false, wanted: true, language: "pl" })
+    expect(store.voiceEnabledChoice()).toBeUndefined()
   })
 
   it("turns off and on, and chooses among installed models", async ({ resources }) => {
@@ -773,7 +795,29 @@ describe("the switch of voice input", () => {
     expect(voice.state().enabled).toBe(false)
   })
 
-  it("stays off by choice through another install, and is forgotten by an uninstall", async ({
+  it("keeps an off chosen during a first install, and lets a first install undo an earlier off", async ({
+    resources,
+  }) => {
+    const first = await setup(resources, { catalog: await modelCatalog(resources) })
+    await first.voice.set({ enabled: false })
+    await first.voice.install("small")
+    // The install says it is wanted, whatever came before.
+    expect(first.voice.state().wanted).toBe(true)
+    await first.voice.settled()
+    expect(first.voice.state()).toMatchObject({ enabled: true, wanted: true })
+
+    const second = await setup(resources, { catalog: await modelCatalog(resources) })
+    await second.voice.install("small")
+    await second.voice.set({ enabled: false })
+    await second.voice.settled()
+    expect(second.voice.state()).toMatchObject({
+      installed: ["small"],
+      enabled: false,
+      wanted: false,
+    })
+  })
+
+  it("stays off by choice through another install, and off after an uninstall until the next", async ({
     resources,
   }) => {
     const { voice, store } = await setup(resources, { catalog: await modelCatalog(resources) })
@@ -785,11 +829,12 @@ describe("the switch of voice input", () => {
     await voice.settled()
     expect(store.voiceEnabledChoice()).toBe(false)
 
+    // Removing it says the person doesn't want it; installing it again says they do.
     await voice.uninstall()
-    expect(store.voiceEnabledChoice()).toBeUndefined()
+    expect(voice.state()).toMatchObject({ enabled: false, wanted: false })
     await voice.install("small")
     await voice.settled()
-    expect(voice.state().enabled).toBe(true)
+    expect(voice.state()).toMatchObject({ enabled: true, wanted: true })
   })
 })
 

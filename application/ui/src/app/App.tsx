@@ -145,7 +145,7 @@ export const WorkspaceApp = (): React.JSX.Element => {
         </div>
         <WorkspaceFooter />
         <WorkspaceOverlays />
-        {voice && <DictationOverlay view={voice.view} level={voice.level} />}
+        {voice && <DictationOverlay view={voice.view} level={voice.level} docks={voice.docks} />}
         <DebugSection />
       </main>
     </DictationContext.Provider>

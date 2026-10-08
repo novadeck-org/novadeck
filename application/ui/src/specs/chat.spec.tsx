@@ -1,34 +1,46 @@
 import { describe as context, describe, expect, it } from "vitest"
-import { userEvent } from "vitest/browser"
+import { page, userEvent } from "vitest/browser"
 
-import {
-  chatToggle,
-  composer,
-  conversation,
-  openChat,
-  openChatDemo,
-  requestCard,
-} from "./support/chat"
+import { chatOf, composer, conversation, openChat, openChatDemo, requestCard } from "./support/chat"
 import { chooseView, commandInput, terminal, terminalTab } from "./support/workspace"
 
-describe("A terminal's chat toggle", () => {
-  it("shows for a terminal running an agent and not for another", async () => {
+// Turns the chat view on or off in Preferences → Addons, and closes Preferences.
+const setChatView = async (on: boolean): Promise<void> => {
+  await page.getByRole("button", { name: "Workspace preferences" }).click()
+  const dialog = page.getByRole("dialog", { name: "Preferences" })
+  await dialog.getByRole("tab", { name: "Addons" }).click()
+  const chatView = dialog.getByRole("switch", { name: "Open agents in chat" })
+  await chatView.click()
+  await expect.element(chatView).toHaveAttribute("aria-checked", String(on))
+  await userEvent.keyboard("{Escape}")
+  await expect.element(dialog).not.toBeInTheDocument()
+}
+
+describe("The chat view", () => {
+  it("shows the chat of a terminal running an agent and not of another", async () => {
     await openChatDemo()
-    await terminalTab("Checkout implementation").click()
-    await expect.element(chatToggle("Checkout implementation")).toBeVisible()
+    await openChat("Checkout implementation")
     await terminalTab("Dev server").click()
-    await expect.element(chatToggle("Dev server")).not.toBeInTheDocument()
+    await expect.element(commandInput("Dev server")).toBeVisible()
+    await expect.element(chatOf("Dev server")).not.toBeInTheDocument()
   })
 
-  it("switches to the chat and back to the terminal, which keeps its output", async () => {
-    await openChatDemo()
-    const chat = await openChat("Build")
-    await expect.element(chat.getByText("It passes now.", { exact: false })).toBeVisible()
-    await expect.element(chatToggle("Build")).toHaveAttribute("aria-pressed", "true")
-    await chatToggle("Build").click()
-    await expect.element(chat).not.toBeInTheDocument()
-    await expect.element(chatToggle("Build")).toHaveAttribute("aria-pressed", "false")
+  it("shows no chat while it is off", async () => {
+    await openChatDemo("/", { chatView: false })
+    await terminalTab("Build").click()
     await expect.element(commandInput("Build")).toBeVisible()
+    await expect.element(chatOf("Build")).not.toBeInTheDocument()
+  })
+
+  it("turns on from Preferences → Addons, and off again back to the terminal's output", async () => {
+    await openChatDemo("/", { chatView: false })
+    await terminalTab("Build").click()
+    await setChatView(true)
+    await expect
+      .element(chatOf("Build").getByText("It passes now.", { exact: false }))
+      .toBeVisible()
+    await setChatView(false)
+    await expect.element(chatOf("Build")).not.toBeInTheDocument()
     await expect
       .element(terminal("Build").getByText("Added the order summary", { exact: false }))
       .toBeVisible()
@@ -211,7 +223,6 @@ describe("A request that waits on the person", () => {
       await expect.element(card.getByRole("button", { name: "Yes, proceed" })).toBeVisible()
       await card.getByRole("button", { name: "Answer in terminal" }).click()
       await expect.element(chat).not.toBeInTheDocument()
-      await expect.element(chatToggle("Checkout review")).toHaveAttribute("aria-pressed", "false")
       await expect.element(commandInput("Checkout review")).toHaveFocus()
     })
   })
@@ -405,8 +416,7 @@ describe("A request that waits on the person", () => {
 describe("The chat in other views", () => {
   it("fills a Grid window and keeps the composer usable", async () => {
     await openChatDemo("/projects/storefront/sessions/initial/grid")
-    await chatToggle("Build").click()
-    const chat = terminal("Build").getByRole("region", { name: "Build chat" })
+    const chat = chatOf("Build")
     await expect.element(chat).toBeVisible()
     await expect.element(composer(chat)).toBeVisible()
   })

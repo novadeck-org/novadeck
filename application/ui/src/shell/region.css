@@ -1,7 +1,8 @@
 /* The region recipe: the app's chrome. The header (`.app-header`, with the `.brand`
    link home), the footer (`.app-footer`, its `.footer-running` count, the
    `.footer-navigate` note while the person navigates the workspace, `.footer-status`
-   and `.footer-action`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
+   and `.footer-action`, and the account's subscriptions, `.footer-usage`, a pill each with
+   its `.usage-popover`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
    (`.sidebar`), which on narrow screens opens as a `.sidebar-drawer`. Each region is a
    ground with an edge toward the workspace.
 
@@ -85,6 +86,114 @@
   .footer-action:hover {
     text-decoration: underline;
   }
+}
+/* The account's subscriptions at the footer's end (SubscriptionUsage.tsx): a pill for
+   each agent's, its icon, its most used window as a bar, and that window's name and
+   share, in the footer's quiet mono. Pressed, a pill opens its own `.usage-popover`;
+   dragged, or moved from its menu, it moves among the others (`.footer-usage-sortable`,
+   data-dragging while it's carried). */
+.footer-usage {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.footer-usage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-block: -3px;
+  padding: 3px 6px;
+  border-radius: var(--radius-control);
+  color: inherit;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.footer-usage-pill:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+}
+@media (hover: hover) {
+  .app-footer:not([data-tone]) .footer-usage-pill:hover {
+    background-color: var(--color-soft);
+    color: var(--color-ink);
+  }
+}
+.app-footer:not([data-tone]) .footer-usage-pill[aria-expanded="true"] {
+  background-color: var(--color-soft);
+  color: var(--color-ink);
+}
+.footer-usage-pill .usage-bar {
+  width: 28px;
+}
+/* A pill being dragged rises over the footer, as the taskbar's icons do. */
+.footer-usage-sortable {
+  display: inline-flex;
+}
+.footer-usage-sortable[data-dragging] {
+  z-index: 1;
+}
+.footer-usage-sortable[data-dragging] .footer-usage-pill {
+  background-color: var(--color-soft);
+  color: var(--color-ink);
+  cursor: grabbing;
+}
+/* A window's share as a bar: a track in the line grey, filled in the text's colour. */
+.usage-bar {
+  position: relative;
+  display: inline-block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background-color: var(--color-line);
+}
+.usage-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+  background-color: currentColor;
+  opacity: 0.75;
+}
+/* The detail: the agent's name, then a row per window with its bar, share and reset. */
+.usage-popover {
+  width: 18rem;
+}
+.usage-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  font-size: var(--text-control);
+}
+.usage-agent-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--color-ink);
+  font-size: var(--text-control);
+  font-weight: 600;
+}
+.usage-row {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  gap: 2px 8px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+.usage-row .usage-bar {
+  width: 100%;
+  color: var(--color-muted);
+}
+.usage-row-share {
+  color: var(--color-ink);
+  text-align: right;
+}
+.usage-row-reset {
+  grid-column: 2 / 4;
 }
 
 .sidebar-tools {

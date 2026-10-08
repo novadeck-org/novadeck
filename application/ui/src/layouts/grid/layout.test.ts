@@ -4,7 +4,7 @@ import type { GridLayouts, TerminalMetadata } from "../../model/types"
 import {
   dropLayout,
   dropPlaceholder,
-  expandedGridLayouts,
+  savedGridLayouts,
   gridColumns,
   toggleGridWidth,
   visibleGridLayouts,
@@ -28,30 +28,16 @@ const saved: GridLayouts = {
 
 describe("saved Grid arrangements", () => {
   it("hiding compacts visible cards without replacing saved hidden positions", () => {
-    const projected = visibleGridLayouts(terminals, saved, {}, { one: true })
+    const projected = visibleGridLayouts(terminals, saved, { one: true })
     expect(projected.desktop?.map((item) => item.i)).toEqual(["two"])
     expect(projected.desktop?.[0]?.y).toBe(0)
-    expect(expandedGridLayouts(projected, saved, terminals, {}, { one: true })).toBe(saved)
-    const restored = visibleGridLayouts(terminals, saved, {})
+    expect(savedGridLayouts(projected, saved, terminals, { one: true })).toBe(saved)
+    const restored = visibleGridLayouts(terminals, saved)
     expect(restored.desktop?.find((item) => item.i === "two")?.y).toBe(18)
   })
 
-  it("retains expanded height when a minimized terminal is moved", () => {
-    const projected = visibleGridLayouts(terminals, saved, { one: true })
-    const moved = {
-      desktop: (projected.desktop ?? []).map((item) =>
-        item.i === "one" ? { ...item, x: 6 } : item,
-      ),
-    }
-    const result = expandedGridLayouts(moved, saved, terminals, { one: true })
-    const terminal = result.desktop?.find((item) => item.i === "one")
-    expect(terminal?.x).toBe(6)
-    expect(terminal?.h).toBe(18)
-    expect(terminal?.maxH).toBeUndefined()
-  })
-
   it("restores each breakpoint's original width and height after full width", () => {
-    const expanded = toggleGridWidth("one", true, terminals, saved, { one: true }, {})
+    const expanded = toggleGridWidth("one", true, terminals, saved, {})
     for (const [breakpoint, columns] of Object.entries(gridColumns)) {
       expect(
         expanded.layouts[breakpoint as keyof GridLayouts]?.find((item) => item.i === "one")?.w,
@@ -64,7 +50,6 @@ describe("saved Grid arrangements", () => {
       false,
       terminals,
       expanded.layouts,
-      {},
       {},
       expanded.restoreWidths ?? {},
     )

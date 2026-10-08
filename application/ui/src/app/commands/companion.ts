@@ -1,6 +1,7 @@
 import { isOnBar, windowOfItem, type ItemId } from "../../model/companion"
 import type { BarKey } from "../../model/companion-bar"
 import { addCompactGridTerminal } from "../../model/layout/grid-placement"
+import { canvasNewTerminalSize } from "../../model/layout/terminal-size"
 import {
   droppedCanvasGeometry,
   dropOnGrid,
@@ -104,6 +105,7 @@ export const createCompanionCommands = (
             window,
             gridLayouts: place && "grid" in place ? dropOnGrid(grid, window.id, place.grid) : grid,
             anchor: "terminalId" in item.holder ? item.holder.terminalId : item.from.terminalId,
+            canvasSize: canvasNewTerminalSize(effects.stageSize()),
             ...(place && "canvas" in place
               ? { canvasGeometry: droppedCanvasGeometry(place.canvas) }
               : {}),

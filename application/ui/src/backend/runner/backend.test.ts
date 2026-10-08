@@ -242,7 +242,6 @@ describe("runner backend", () => {
           layout: (layout) => ({
             ...layout,
             viewport: { x: -120, y: 40, zoom: 0.8 },
-            minimized: { [second.id]: true },
             geometry: {
               ...layout.geometry,
               [first.id]: { position: { x: 310, y: 95 }, width: 640, height: 420 },
@@ -257,7 +256,6 @@ describe("runner backend", () => {
           preset: "large",
         },
         { type: "terminal/visibility", target, terminalId: second.id, hidden: true },
-        { type: "grid/minimize", target, terminalId: first.id },
         {
           type: "view/change",
           target,

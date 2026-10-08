@@ -23,15 +23,14 @@ const TerminalNodeView = ({ id, data, selected }: NodeProps<TerminalNode>): Reac
       data-preview={data.preview}
       inert={data.hiding}
       aria-hidden={data.hiding}
-      className={`canvas-node h-full w-full ${selected ? "selected" : ""} ${data.compactHeader ? "compact-header" : ""} ${data.minimized ? "minimized" : ""}`}
+      className={`canvas-node h-full w-full ${selected ? "selected" : ""} ${data.compactHeader ? "compact-header" : ""}`}
       onContextMenu={(event) => event.stopPropagation()}
     >
       <div className="terminal-visibility relative h-full w-full" data-hiding={data.hiding}>
         <NodeResizeControl
           position="bottom-right"
           minWidth={320}
-          minHeight={data.minimized ? 0 : 200}
-          {...(data.minimized ? { resizeDirection: "horizontal" as const } : {})}
+          minHeight={200}
           autoScale={false}
           className="terminal-resize-grip nodrag nopan"
           onResizeStart={data.onResizeStart}

@@ -99,7 +99,6 @@ const layoutKeys = [
   "canvas",
   "grid",
   "gridRestoreWidths",
-  "gridMinimized",
   "sizePresets",
   "hidden",
 ] as const satisfies readonly (keyof TerminalLayout)[]
@@ -109,7 +108,7 @@ const layoutKeys = [
 const layout = (value: unknown): TerminalLayout | undefined => {
   if (!isObject(value) || !layoutKeys.every((key) => isObject(value[key]))) return undefined
   const { canvas, sizePresets } = value as Json & { canvas: Json; sizePresets: Json }
-  if (!isObject(canvas.minimized) || !isObject(canvas.geometry)) return undefined
+  if (!isObject(canvas.geometry)) return undefined
   if (!isObject(sizePresets.canvas) || !isObject(sizePresets.grid)) return undefined
   return value as TerminalLayout
 }

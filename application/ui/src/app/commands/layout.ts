@@ -20,7 +20,6 @@ export type LayoutCommands = {
     terminalId: string,
     change: { layouts: GridLayouts; restoreWidths: GridRestoreWidths | null },
   ) => void
-  readonly toggleGridMinimized: (target: WorkspaceTarget, terminalId: string) => void
   readonly setSizePreset: (
     target: WorkspaceTarget,
     terminalId: string,
@@ -41,8 +40,6 @@ export const createLayoutCommands = ({
     void workspace.dispatch({ type: "grid/layouts", target, layouts }),
   toggleGridWidth: (target, terminalId, change) =>
     void workspace.dispatch({ type: "grid/size-toggle", target, terminalId, change }),
-  toggleGridMinimized: (target, terminalId) =>
-    void workspace.dispatch({ type: "grid/minimize", target, terminalId }),
   setSizePreset: (target, terminalId, view, preset) =>
     void workspace.dispatch({ type: "terminal/size-preset", target, terminalId, view, preset }),
   setVisibility: (target, terminalId, hidden) =>

@@ -12,6 +12,7 @@ const preferences: PreferencesValue = {
   appearance,
   notifyFinished: true,
   ligatures: false,
+  chatView: false,
 }
 const target = { projectId: "project", workspaceSessionId: "initial" }
 const fixture = (): Workspace => ({

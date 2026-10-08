@@ -200,20 +200,6 @@ export const describeBackendContract = (name: string, options: BackendContractOp
         expect(root.querySelectorAll("[data-terminal-input]")).toHaveLength(1)
       })
 
-      it("hides and disables its content while minimized", () => {
-        const { root } = withTerminal().mount({ minimized: true })
-        expect(root.hidden).toBe(true)
-        expect(root.getAttribute("aria-hidden")).toBe("true")
-        expect(root.hasAttribute("inert")).toBe(true)
-      })
-
-      it("stays painted while a clipped minimize animates, but out of reach", () => {
-        const { root } = withTerminal().mount({ minimized: true, clipContent: true })
-        expect(root.hidden).toBe(false)
-        expect(root.getAttribute("aria-hidden")).toBe("true")
-        expect(root.hasAttribute("inert")).toBe(true)
-      })
-
       it("keeps plain wheel scrolling to itself and lets zoom gestures through", () => {
         const { root, container } = withTerminal().mount()
         const reached: boolean[] = []

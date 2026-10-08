@@ -173,6 +173,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           onClose={closeDialog}
           {...(transcripts ? { transcripts } : {})}
           notices={backend.notices !== undefined}
+          chat={backend.conversations !== undefined}
           {...(voice ? { voice } : {})}
           {...(backend.agents
             ? { agents: { list: agents.list, onChange: backend.agents.set } }

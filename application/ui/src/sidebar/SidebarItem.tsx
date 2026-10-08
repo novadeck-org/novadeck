@@ -14,6 +14,7 @@ export const SidebarItem = ({
   name,
   icon,
   detail,
+  below,
   selected,
   selectLabel,
   tooltip,
@@ -33,9 +34,12 @@ export const SidebarItem = ({
   name: string
   icon: ReactNode
   detail: ReactNode
+  // Under the detail line, such as rows of what the item runs.
+  below?: ReactNode
   selected: boolean
   selectLabel: string
-  tooltip: string
+  // On hover, where a row has more to say than it shows.
+  tooltip?: string
   description?: string
   // Beside the name, as a count of what waits there.
   badge?: ReactNode
@@ -56,6 +60,37 @@ export const SidebarItem = ({
   const describers =
     describedBy && [description && descriptionId, describedBy].filter(Boolean).join(" ")
   const nameClasses = `truncate text-body leading-[18px] ${emphasized ? "font-bold" : "font-medium"}`
+  const select = (
+    <button
+      ref={handleRef}
+      hidden={editing}
+      className="sidebar-item-select flex min-w-0 flex-1 items-start gap-2 px-2.5 py-[9px] text-left"
+      type="button"
+      aria-label={selectLabel}
+      aria-description={describedBy ? undefined : description}
+      aria-describedby={describers || undefined}
+      aria-current={selected ? "true" : undefined}
+      onClick={onSelect}
+    >
+      <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center">
+        {icon}
+      </span>
+      <span className="sidebar-item-copy flex min-w-0 flex-1 flex-col gap-1">
+        {badge ? (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <strong className={nameClasses}>{name}</strong>
+            {badge}
+          </span>
+        ) : (
+          <strong className={nameClasses}>{name}</strong>
+        )}
+        <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-caption leading-[18px] [.sidebar-item:has(.sidebar-item-actions)_&]:pr-[var(--_sidebar-actions-space,52px)]">
+          {detail}
+        </span>
+        {below}
+      </span>
+    </button>
+  )
   return (
     <div
       {...attributes}
@@ -63,36 +98,13 @@ export const SidebarItem = ({
       className={`${sidebarItemClasses} ${editing ? "flex-col" : ""} ${className}`}
       data-selected={selected}
     >
-      <Tooltip content={tooltip} placement="right-start" disabled={editing}>
-        <button
-          ref={handleRef}
-          hidden={editing}
-          className="sidebar-item-select flex min-w-0 flex-1 items-start gap-2 px-2.5 py-[9px] text-left"
-          type="button"
-          aria-label={selectLabel}
-          aria-description={describedBy ? undefined : description}
-          aria-describedby={describers || undefined}
-          aria-current={selected ? "true" : undefined}
-          onClick={onSelect}
-        >
-          <span className="sidebar-item-icon flex h-[18px] w-3.5 shrink-0 items-center justify-center">
-            {icon}
-          </span>
-          <span className="sidebar-item-copy flex min-w-0 flex-1 flex-col gap-1">
-            {badge ? (
-              <span className="flex min-w-0 items-center gap-1.5">
-                <strong className={nameClasses}>{name}</strong>
-                {badge}
-              </span>
-            ) : (
-              <strong className={nameClasses}>{name}</strong>
-            )}
-            <span className="sidebar-item-detail item-detail flex h-6 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-caption leading-[18px] [.sidebar-item:has(.sidebar-item-actions)_&]:pr-[var(--_sidebar-actions-space,52px)]">
-              {detail}
-            </span>
-          </span>
-        </button>
-      </Tooltip>
+      {tooltip ? (
+        <Tooltip content={tooltip} placement="right-start" disabled={editing}>
+          {select}
+        </Tooltip>
+      ) : (
+        select
+      )}
       {describedBy && description && (
         <span id={descriptionId} hidden>
           {description}

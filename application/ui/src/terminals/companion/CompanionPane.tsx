@@ -1,4 +1,4 @@
-import { AppWindow } from "lucide-react"
+import { AppWindow, PanelRightClose } from "lucide-react"
 import { lazy, Suspense, useRef, type ReactNode } from "react"
 
 import { pathOf, notePattern, notesIn, type CompanionItem } from "../../model/companion"
@@ -59,17 +59,37 @@ const PlanOutline = ({
   )
 }
 
-// Undocks what the pane shows into a window of its own, at the end of its header.
-const UndockButton = ({ onUndock }: { onUndock: () => void }): React.JSX.Element => (
+// What the pane does with what it shows, at the end of its header: undocks it into a
+// window of its own, where it can, and minimizes the pane back to the taskbar, as Escape
+// does.
+const PaneActions = ({
+  onUndock,
+  onHide,
+}: {
+  onUndock: (() => void) | undefined
+  onHide: () => void
+}): React.JSX.Element => (
   <span className="artifact-actions">
-    <Tooltip content="Undock to its own window">
+    {onUndock && (
+      <Tooltip content="Undock to its own window">
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Undock to its own window"
+          onClick={onUndock}
+        >
+          <AppWindow size={13} strokeWidth={1.75} aria-hidden />
+        </button>
+      </Tooltip>
+    )}
+    <Tooltip content="Minimize to the taskbar · Esc">
       <button
         type="button"
         className="icon-button"
-        aria-label="Undock to its own window"
-        onClick={onUndock}
+        aria-label="Minimize to the taskbar"
+        onClick={onHide}
       >
-        <AppWindow size={13} strokeWidth={1.75} aria-hidden />
+        <PanelRightClose size={13} strokeWidth={1.75} aria-hidden />
       </button>
     </Tooltip>
   </span>
@@ -213,17 +233,17 @@ const MemberTab = ({
   target,
   mail,
   peerName,
-  onUndock,
+  actions,
 }: {
   member: BarMember
   panes: Panes
   target: WorkspaceTarget
   mail: MailHandle
   peerName: (handle: string) => string | undefined
-  onUndock: (() => void) | undefined
+  actions: ReactNode
 }): React.JSX.Element => {
-  if (member.kind === "messages") return <MessagesView mail={mail} peerName={peerName} />
-  const actions = onUndock && <UndockButton onUndock={onUndock} />
+  if (member.kind === "messages")
+    return <MessagesView mail={mail} peerName={peerName} actions={actions} />
   return member.item.kind === "plan" ? (
     <PlanTab panes={panes} target={target} item={member.item} actions={actions} />
   ) : (
@@ -270,7 +290,7 @@ export const CompanionPane = ({
       target={target}
       mail={mail}
       peerName={peerName}
-      onUndock={undock}
+      actions={<PaneActions onUndock={undock} onHide={onHide} />}
     />
   )
   return (

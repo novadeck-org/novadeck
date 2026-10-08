@@ -18,6 +18,9 @@ export type VoiceState = {
   readonly installed: readonly VoiceModel[]
   // Whether the person turned voice input on; it needs `model` installed.
   readonly enabled: boolean
+  // Whether the person wants voice input, installed or not: until they turn it off, the
+  // app offers it, as a microphone that leads to its install.
+  readonly wanted: boolean
   readonly model: VoiceModel
   // `auto`, or a language code such as "en" or "pl".
   readonly language: string

@@ -10,7 +10,6 @@ import {
   tabDescription,
   terminal,
   terminalTab,
-  tooltipOf,
 } from "./support/workspace"
 
 const agentSwitch = (scope: Locator, name: "Claude Code" | "Codex" | "Antigravity"): Locator =>
@@ -33,7 +32,9 @@ describe("An agent waiting on the person", () => {
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
     const tab = page.getByRole("button", { name: "Select Checkout review" })
-    await expect.poll(() => tabDescription("Checkout review")).toBe("Needs permission")
+    await expect
+      .poll(() => tabDescription("Checkout review"))
+      .toBe("Needs permission, 2 subagents: 2 explorer")
     await tab.click()
     await expect
       .element(page.getByRole("region", { name: "Checkout review terminal" }))
@@ -42,7 +43,7 @@ describe("An agent waiting on the person", () => {
 })
 
 describe("An agent that plans", () => {
-  it("says so beside a focused window's name, and that its plan waits for review", async () => {
+  it("says that its plan waits for review, on its tab and window", async () => {
     // The demo's Claude Code planned, and waits for the person to review the plan.
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
@@ -52,26 +53,48 @@ describe("An agent that plans", () => {
     await tab.click()
     const window = page.getByRole("region", { name: "Checkout implementation terminal" })
     await expect.element(window).toHaveAttribute("aria-description", "Plan ready for review")
-    await expect.element(window.getByText("planning", { exact: true })).toBeVisible()
+    // Whether it plans is its own terminal's to show, not its window's header.
+    await expect.element(window.getByText("planning", { exact: true })).not.toBeInTheDocument()
   })
 })
 
 describe("An agent's subagents", () => {
-  it("count beside a focused window's name, their kinds on hover", async () => {
+  it("are marked on its tab, and listed by kind under it while it's selected", async () => {
+    // The demo's Codex runs two explorers.
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    const tab = terminalTab("Checkout review")
+    const row = () => tab.element().closest(".terminal-tab")!
+    await expect.poll(() => row().getAttribute("data-terminal-subagents")).toBe("working")
+    expect(row().querySelectorAll(".terminal-tab-subagents .terminal-tab-subagent")).toHaveLength(2)
+    await expect.element(tab.getByText("explorer").first()).not.toBeVisible()
+    await tab.click()
+    await expect.element(tab.getByText("explorer").first()).toBeVisible()
+    await expect.element(tab.getByText("explorer").nth(1)).toBeVisible()
+    // The rows take the place of the marks on its line.
+    await expect
+      .poll(() => row().querySelector(".terminal-tab-subagents")!.getBoundingClientRect().width)
+      .toBe(0)
+    // A command its turn left running is no subagent.
+    const build = terminalTab("Build").element().closest(".terminal-tab")!
+    expect(build.hasAttribute("data-terminal-subagents")).toBe(false)
+  })
+
+  it("are counted on its tab, and left to its terminal in its window", async () => {
     // The demo's Codex runs two explorers.
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
     await page.getByRole("button", { name: "Select Checkout review" }).click()
     const window = page.getByRole("region", { name: "Checkout review terminal" })
-    expect(await tooltipOf(window.getByText("2 subagents"))).toBe("2 explorer")
-    await chooseView("Grid")
+    await expect.poll(() => tabDescription("Checkout review")).toContain("2 subagents")
     await expect.element(window.getByText("2 subagents")).not.toBeInTheDocument()
   })
 })
 
 describe("An agent whose turn left work running", () => {
-  it("works on, counting that work beside a focused window's name", async () => {
+  it("works on, counting that work on its tab", async () => {
     // The demo's Claude Code waits on two subagents and a command it started.
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
@@ -79,10 +102,8 @@ describe("An agent whose turn left work running", () => {
     await page.getByRole("button", { name: "Select Tests" }).click()
     const window = page.getByRole("region", { name: "Tests terminal" })
     await expect.element(window).toHaveAttribute("data-terminal-phase", "running")
-    expect(await tooltipOf(window.getByText("2 agents · 1 task"))).toBe(
-      "Its turn is over, but subagents it started still run: it works on until they finish",
-    )
-    await expect.element(window.getByText("2 subagents")).not.toBeInTheDocument()
+    await expect.poll(() => tabDescription("Tests")).toContain("2 agents · 1 task")
+    await expect.element(window.getByText("2 agents · 1 task")).not.toBeInTheDocument()
   })
 
   it("is idle beside a command it left running, which shows but never keeps it working", async () => {
@@ -93,9 +114,6 @@ describe("An agent whose turn left work running", () => {
     await page.getByRole("button", { name: "Select Build" }).click()
     const window = page.getByRole("region", { name: "Build terminal" })
     await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
-    expect(await tooltipOf(window.getByText("1 task"))).toBe(
-      "Its turn is over; work it started runs on in the background",
-    )
   })
 })
 
@@ -133,13 +151,17 @@ describe("An agent that finishes", () => {
       await terminalTab("Tests").click()
       await expect
         .poll(() => tabDescription("Build"), { timeout: 5000 })
-        .toBe("Done · reply unread")
-      await expect.element(terminalTab("Build").getByText("done · unread")).toBeVisible()
+        // The command its turn left running still counts.
+        .toBe("Done · reply unread, 1 task")
+      const row = terminalTab("Build").element().closest(".terminal-tab")!
+      expect(row.getAttribute("data-terminal-phase")).toBe("done")
+      // Beside its program, how long ago it finished.
+      await expect.element(terminalTab("Build").getByText("now", { exact: true })).toBeVisible()
       await terminalTab("Build").click()
       const window = terminal("Build")
       await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
       await expect.element(window.getByText("Done · reply unread")).not.toBeInTheDocument()
-      expect(tabDescription("Build")).toBeNull()
+      expect(tabDescription("Build")).toBe("1 task")
     })
 
     it("shows it on a window in view, and clears once the person selects it", async () => {
@@ -149,8 +171,8 @@ describe("An agent that finishes", () => {
       const window = terminal("Build")
       await expect.element(window, { timeout: 5000 }).toHaveAttribute("data-terminal-phase", "done")
       await expect.element(window).toHaveAttribute("aria-description", "Done · reply unread")
-      // A compact window keeps room for its name: its chip says only that it's done.
-      await expect.element(window.getByText("Done", { exact: true })).toBeVisible()
+      // Its phase line marks it, its name bold; its description says it in words.
+      await expect.element(window.getByText("Done", { exact: true })).not.toBeInTheDocument()
       await terminalTab("Build").click()
       await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
     })
@@ -174,23 +196,86 @@ describe("An agent that finishes", () => {
       await expect.element(window, { timeout: 5000 }).toHaveAttribute("data-terminal-phase", "idle")
       // Past the grace a completed end waits before it is marked (`finishGraceMs`).
       await expectStaysAbsent(window.getByText("Done · reply unread"), { ms: 1500 })
-      expect(tabDescription("Build")).toBeNull()
+      // Only the command its turn left running.
+      expect(tabDescription("Build")).toBe("1 task")
     })
   })
 })
 
-describe("An agent's usage", () => {
-  it("shows beside a focused window's name, and leaves compact windows their name", async () => {
-    // The demo's Codex reports its context and a five-hour window.
+describe("An agent's model and context", () => {
+  it("show as a ring over its terminal's top right, in words as the ring is hovered", async () => {
+    // The demo's Codex reports its model, effort and context, and a five-hour window.
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
     await page.getByRole("button", { name: "Select Checkout review" }).click()
     const window = page.getByRole("region", { name: "Checkout review terminal" })
-    await expect.element(window.getByText("ctx 15% · 5h 40%")).toBeVisible()
+    const ring = window.getByRole("img", {
+      name: "gpt-6-astra · high, Context 15% full · 30k of 200k tokens",
+    })
+    const words = window.getByText("gpt-6-astra (high)")
+    const share = window.getByText("15% (30k/200k)")
+    await expect.element(ring).toBeVisible()
+    // The rest of the header leaves the words folded away.
+    await userEvent.hover(window.getByRole("heading", { name: "Checkout review" }))
+    await expect.element(words).not.toBeVisible()
+    await userEvent.hover(ring)
+    await expect.element(words).toBeVisible()
+    await expect.element(share).toBeVisible()
+    // Its rate limits stay out of the window.
+    await expect.element(window.getByText(/5h 40%/)).not.toBeInTheDocument()
     await chooseView("Grid")
-    await expect.element(window.getByText("ctx 15% · 5h 40%")).not.toBeInTheDocument()
-    await expect.element(window.getByRole("heading", { name: "Checkout review" })).toBeVisible()
+    await userEvent.hover(ring)
+    await expect.element(words).toBeVisible()
+  })
+})
+
+describe("The account's subscriptions", () => {
+  it("show as a pill each in the footer, each naming its busiest window and opening its own", async () => {
+    // The demo's Claude Code and Codex report their five-hour and weekly windows.
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    const pills = page.getByRole("group", { name: "Subscriptions" }).getByRole("button")
+    expect(pills.elements().map((pill) => pill.getAttribute("aria-label"))).toEqual([
+      "Claude Code subscription: 5h 42% used",
+      "Codex subscription: 5h 40% used",
+    ])
+
+    await pills.first().click()
+
+    const claude = page.getByRole("dialog", { name: "Claude Code subscription" })
+    await expect.element(claude.getByText("18%")).toBeVisible()
+    await expect.element(claude.getByText(/^resets in 2h 1\dm · /)).toBeVisible()
+    await expect.element(claude.getByText("Codex")).not.toBeInTheDocument()
+  })
+
+  it("stay where the person moves them, from a pill's menu or by dragging it", async () => {
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    const pills = page.getByRole("group", { name: "Subscriptions" }).getByRole("button")
+    const order = () =>
+      pills.elements().map((pill) => pill.getAttribute("aria-label")!.split(" ")[0])
+    expect(order()).toEqual(["Claude", "Codex"])
+
+    await pills.first().click({ button: "right" })
+    await page.getByRole("menuitem", { name: "Move right" }).click()
+    await expect.poll(order).toEqual(["Codex", "Claude"])
+
+    // Kept for the next visit.
+    expect(JSON.parse(localStorage.getItem("novadeck.subscription-order") ?? "null")).toEqual([
+      "codex",
+      "claude",
+    ])
+
+    const box = pills.first().element().getBoundingClientRect()
+    await userEvent.dragAndDrop(pills.first(), pills.nth(1), {
+      sourcePosition: { x: box.width / 2, y: box.height / 2 },
+      targetPosition: { x: box.width - 4, y: box.height / 2 },
+      steps: 12,
+    })
+    await expect.poll(order).toEqual(["Claude", "Codex"])
   })
 })
 

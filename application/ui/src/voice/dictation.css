@@ -15,7 +15,17 @@
    --dictation-shadow (shadow-floating), --dictation-radius (radius-panel): the pill.
    --dictation-muted-fg (muted): its hint and time.
    --dictation-recording-fg (danger-fg): the mic while recording, its meter, and the mic
-   button's recording tint. --dictation-error-fg (danger-fg): the icon of a failure. */
+   button's recording tint. --dictation-error-fg (danger-fg): the icon of a failure.
+   --dictation-done-fg (strong): the icon of words typed in.
+
+   A terminal's window shows the same in a strip along an edge of its content,
+   `.dictation-strip`, with the same hooks plus data-tone="done" and data-edge="top" |
+   "bottom". Parts: `.dictation-dot` (recording), `.dictation-wave` (its `i` bars, each
+   from `--dictation-bar`, 0 to 1), `.dictation-text`, `.dictation-shimmer`,
+   `.dictation-setup` (the Addons button), and the overlay's icon, hint and elapsed time,
+   whose `data-ending` marks a clip's last seconds.
+   --dictation-strip-bg (the window header's bg), --dictation-strip-border-color (line):
+   the strip. --dictation-error-bg (danger-fg at 9% over the strip): a failure's strip. */
 
 @layer components {
   .dictation-overlay {
@@ -50,8 +60,124 @@
   .dictation-overlay[data-phase="recording"] .dictation-icon {
     color: var(--dictation-recording-fg, var(--color-danger-fg));
   }
-  .dictation-overlay[data-tone="error"] .dictation-icon {
+  .dictation-overlay[data-tone="error"] .dictation-icon,
+  .dictation-strip[data-tone="error"] .dictation-icon {
     color: var(--dictation-error-fg, var(--color-danger-fg));
+  }
+  .dictation-overlay[data-tone="done"] .dictation-icon,
+  .dictation-strip[data-tone="done"] .dictation-icon {
+    color: var(--dictation-done-fg, var(--color-strong));
+  }
+  .dictation-strip[data-tone="hint"] .dictation-icon {
+    color: var(--dictation-muted-fg, var(--color-muted));
+  }
+
+  .dictation-strip {
+    --_bg: var(--dictation-strip-bg, var(--window-header-bg, var(--color-paper)));
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* Over the chat too, which covers the terminal's content at z-index 10. */
+    z-index: 11;
+    display: flex;
+    height: calc(var(--spacing) * 8.5);
+    align-items: center;
+    gap: calc(var(--spacing) * 2.5);
+    padding: 0 calc(var(--spacing) * 3);
+    border-top: var(--border-width) solid var(--dictation-strip-border-color, var(--color-line));
+    background-color: var(--_bg);
+    color: var(--dictation-fg, var(--color-ink));
+    font-size: var(--text-caption);
+    overflow: hidden;
+    white-space: nowrap;
+    pointer-events: none;
+    translate: 0 0;
+    opacity: 1;
+    transition:
+      translate 180ms cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 180ms ease-out;
+    @starting-style {
+      translate: 0 100%;
+      opacity: 0;
+    }
+  }
+  .dictation-strip[data-edge="top"] {
+    top: 0;
+    bottom: auto;
+    border-top: 0;
+    border-bottom: var(--border-width) solid var(--dictation-strip-border-color, var(--color-line));
+    @starting-style {
+      translate: 0 -100%;
+    }
+  }
+  .dictation-strip[hidden] {
+    display: none;
+  }
+  .dictation-strip[data-phase="recording"] {
+    border-color: color-mix(
+      in srgb,
+      var(--dictation-recording-fg, var(--color-danger-fg)) 45%,
+      var(--color-line)
+    );
+  }
+  .dictation-strip[data-tone="error"] {
+    background-color: var(
+      --dictation-error-bg,
+      color-mix(in srgb, var(--color-danger-fg) 9%, var(--_bg))
+    );
+  }
+  .dictation-dot {
+    width: calc(var(--spacing) * 1.75);
+    height: calc(var(--spacing) * 1.75);
+    flex: none;
+    border-radius: 999px;
+    background-color: var(--dictation-recording-fg, var(--color-danger-fg));
+  }
+  .dictation-wave {
+    display: flex;
+    height: calc(var(--spacing) * 4);
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    overflow: hidden;
+  }
+  .dictation-wave > i {
+    width: 2px;
+    height: calc(3px + (100% - 3px) * var(--dictation-bar, 0));
+    flex: none;
+    border-radius: 2px;
+    background-color: var(--dictation-recording-fg, var(--color-danger-fg));
+  }
+  .dictation-strip .dictation-hint {
+    display: inline-flex;
+    min-width: 0;
+    overflow: hidden;
+    align-items: center;
+    gap: calc(var(--spacing) * 1);
+  }
+  .dictation-elapsed[data-ending] {
+    color: var(--dictation-recording-fg, var(--color-danger-fg));
+  }
+  .dictation-text {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dictation-setup {
+    flex: none;
+    pointer-events: auto;
+    color: var(--color-strong);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .dictation-setup:focus-visible {
+    outline: 2px solid var(--color-strong);
+    outline-offset: 2px;
   }
   .dictation-meter {
     display: inline-block;
@@ -90,6 +216,21 @@
     .dictation-spin {
       animation: dictation-spin 1s linear infinite;
     }
+    .dictation-dot {
+      animation: dictation-pulse 1.2s ease-in-out infinite;
+    }
+    .dictation-shimmer {
+      background: linear-gradient(
+          90deg,
+          var(--color-muted) 0%,
+          var(--color-ink) 50%,
+          var(--color-muted) 100%
+        )
+        0 0 / 200% 100%;
+      background-clip: text;
+      color: transparent;
+      animation: dictation-shimmer 1.4s linear infinite;
+    }
     .icon-button.dictation-active::after {
       animation: dictation-pulse 1.2s ease-in-out infinite;
     }
@@ -97,6 +238,14 @@
   @media (prefers-reduced-motion: reduce) {
     .dictation-meter > i {
       transition: none;
+    }
+    .dictation-strip {
+      transition: none;
+    }
+  }
+  @keyframes dictation-shimmer {
+    to {
+      background-position: -200% 0;
     }
   }
   @keyframes dictation-spin {

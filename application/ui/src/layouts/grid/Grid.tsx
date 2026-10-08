@@ -33,7 +33,7 @@ import { useTerminalVisibility } from "../useTerminalVisibility"
 import {
   dropLayout,
   dropPlaceholder,
-  expandedGridLayouts,
+  savedGridLayouts,
   gridColumns,
   toggleGridWidth,
   type GridWidthToggle,
@@ -57,10 +57,8 @@ type Props = {
   onSelect: (id: string) => void
   layouts: GridLayouts
   onLayoutsChange: (layouts: GridLayouts) => void
-  minimized: Record<string, boolean>
   hidden: Record<string, boolean>
   preview: string
-  onMinimize: (id: string) => void
   onCreate: () => void
   render: (terminal: Tile, controls: TerminalLayoutControls) => ReactNode
 }
@@ -75,10 +73,8 @@ export const Grid = ({
   onSelect,
   layouts,
   onLayoutsChange,
-  minimized,
   hidden,
   preview,
-  onMinimize,
   onCreate,
   render,
 }: Props): React.JSX.Element => {
@@ -124,8 +120,8 @@ export const Grid = ({
     }
   }, [mounted, navigation, selected, width, containerRef, resized])
   const current = useMemo(
-    () => visibleGridLayouts(terminals, layouts, minimized, removed),
-    [terminals, layouts, minimized, removed],
+    () => visibleGridLayouts(terminals, layouts, removed),
+    [terminals, layouts, removed],
   )
   // Something dragged off a terminal's taskbar can be dropped on the grid. While it's over
   // the grid's free space, a placeholder window sits in the grid under the pointer, and the
@@ -170,17 +166,15 @@ export const Grid = ({
         if (offered.current?.grid === current && offered.current.key === key)
           return offered.current.place
         const others = dropped.layout.filter((item) => item.i !== dropPlaceholder)
-        // Saved as the layout is, with minimized windows at their full height and hidden
-        // ones where they were.
+        // Saved as the layout is, with hidden windows where they were.
         const saved =
-          expandedGridLayouts({ [breakpoint]: others }, layouts, terminals, minimized, removed)[
-            breakpoint
-          ] ?? others
+          savedGridLayouts({ [breakpoint]: others }, layouts, terminals, removed)[breakpoint] ??
+          others
         const place: WindowPlace = { grid: { breakpoint, layout: saved, cell } }
         offered.current = { grid: current, key, place }
         return place
       }),
-    [session, containerRef, current, layouts, terminals, minimized, removed, width],
+    [session, containerRef, current, layouts, terminals, removed, width],
   )
   const dropPlace = useDrag((drag) => (drag?.place && "grid" in drag.place ? drag.place : null))
   const dropName = useDrag((drag) => drag?.name ?? "")
@@ -192,10 +186,9 @@ export const Grid = ({
       visibleGridLayouts(
         [...terminals, { id: dropPlaceholder }],
         dropOnGrid(layouts, dropPlaceholder, dropPlace.grid),
-        minimized,
         removed,
       ),
-    [dropPlace, terminals, layouts, minimized, removed],
+    [dropPlace, terminals, layouts, removed],
   )
   const showing = dropPreview ?? current
 
@@ -214,29 +207,11 @@ export const Grid = ({
     (id: string): void => {
       if (!width) return
       const expand = presets[id] !== "large"
-      const change = toggleGridWidth(
-        id,
-        expand,
-        terminals,
-        layouts,
-        minimized,
-        removed,
-        restoreWidths[id],
-      )
+      const change = toggleGridWidth(id, expand, terminals, layouts, removed, restoreWidths[id])
       onToggleWidth(id, change)
       setResizeRequest({ id, navigation })
     },
-    [
-      width,
-      minimized,
-      terminals,
-      layouts,
-      removed,
-      navigation,
-      presets,
-      restoreWidths,
-      onToggleWidth,
-    ],
+    [width, terminals, layouts, removed, navigation, presets, restoreWidths, onToggleWidth],
   )
 
   const grid = (
@@ -294,7 +269,7 @@ export const Grid = ({
               onLayoutChange={(_, next) => {
                 // Room made for a placeholder isn't the person's layout until it's dropped.
                 if (dropPreview) return
-                const saved = expandedGridLayouts(next, layouts, terminals, minimized, removed)
+                const saved = savedGridLayouts(next, layouts, terminals, removed)
                 if (saved !== layouts) onLayoutsChange(saved)
               }}
             >
@@ -302,7 +277,7 @@ export const Grid = ({
                 .filter((terminal) => !removed[terminal.id])
                 .map((terminal) => (
                   <div
-                    className={`grid-terminal flex min-h-0 flex-col ${selected === terminal.id ? "selected" : ""} ${minimized[terminal.id] ? "minimized" : ""}`}
+                    className={`grid-terminal flex min-h-0 flex-col ${selected === terminal.id ? "selected" : ""}`}
                     key={terminal.id}
                     data-grid-terminal={terminal.id}
                     data-preview={preview === terminal.id}
@@ -315,12 +290,6 @@ export const Grid = ({
                       data-hiding={hidden[terminal.id] ?? false}
                     >
                       {render(terminal, {
-                        minimize: {
-                          minimized: minimized[terminal.id] ?? false,
-                          // Keep output painted while the grid's height transition clips it away.
-                          clipContent: true,
-                          onToggle: () => onMinimize(terminal.id),
-                        },
                         onResizePreset: () => resizeToViewport(terminal.id),
                       })}
                     </div>

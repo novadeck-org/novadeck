@@ -96,6 +96,7 @@ export const Preferences = ({
   agents,
   voice,
   notices = false,
+  chat = false,
 }: {
   open: boolean
   tab: PreferencesTab
@@ -109,6 +110,8 @@ export const Preferences = ({
   transcripts?: { readonly enabled: boolean; readonly onChange: (enabled: boolean) => void }
   // Whether the page can show desktop notifications, as the desktop app can.
   notices?: boolean
+  // Whether the backend reads agents' conversations, which the chat view shows.
+  chat?: boolean
   // Agents whose sessions resume once connected; absent where the backend has none.
   agents?: {
     readonly list: readonly AgentSwitch[]
@@ -320,6 +323,32 @@ export const Preferences = ({
             )}
           </TabPanel>
           <TabPanel value="addons" className={panelClasses}>
+            <Section
+              title="Chat view"
+              description="Show agents as a conversation instead of their terminal."
+            >
+              <div className={settingsCardClasses}>
+                <div className={`preference-row ${settingRowClasses}`}>
+                  <SettingText
+                    id="chat-view-label"
+                    label="Open agents in chat"
+                    description={
+                      chat
+                        ? "Every terminal running a supported agent shows its chat. Answer there, or in the terminal when the chat can't."
+                        : "Not available here."
+                    }
+                    descriptionId="chat-view-description"
+                  />
+                  <Switch
+                    checked={value.chatView}
+                    onChange={(chatView) => onChange({ ...value, chatView })}
+                    labelledBy="chat-view-label"
+                    describedBy="chat-view-description"
+                    disabled={!chat}
+                  />
+                </div>
+              </div>
+            </Section>
             <Section
               title="Voice input"
               description="Speak prompts into agent terminals. Speech is transcribed on this computer and never leaves it."

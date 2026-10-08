@@ -1,16 +1,12 @@
-import { useCallback, useMemo, type ReactNode } from "react"
+import { useCallback, useContext, useMemo, type ReactNode } from "react"
 
+import { shortcutBindings } from "../interaction/shortcuts"
+import { agentStats } from "../model/agent-usage"
 import { isWindow } from "../model/roster"
 import { activeProject } from "../model/state"
 import type { CompanionWindowMeta, TerminalMetadata, Tile } from "../model/types"
 import { ChatView } from "../terminals/chat/ChatView"
-import {
-  chatAvailable,
-  chatDraftOf,
-  chatModeOn,
-  chatReplyOf,
-  chatSendOf,
-} from "../terminals/chat/mode-state"
+import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "../terminals/chat/mode-state"
 import { TerminalCompanion } from "../terminals/companion/TerminalCompanion"
 import { UndockedWindow } from "../terminals/companion/UndockedWindow"
 import { presentedProgram, terminalProfile, windowProfile } from "../terminals/processes/profiles"
@@ -22,8 +18,10 @@ import {
   type TerminalLayoutControls,
   type WindowShellProps,
 } from "../terminals/WindowShell"
+import { WindowStats } from "../terminals/WindowStats"
+import { DictationStrip } from "../voice/DictationStrip"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
-import { useMicButton } from "./controller/dictation"
+import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
 import {
   currentContext,
@@ -41,7 +39,7 @@ import { useTerminalBar } from "./terminal-bar"
 // undocked from a companion: its header, its menu, and the controls its layout offers.
 const useWindowFrame = (
   tile: Tile,
-  { minimize, onFlyTo, onResizePreset }: TerminalLayoutControls,
+  { onFlyTo, onResizePreset }: TerminalLayoutControls,
 ): Omit<WindowShellProps, "children" | "icon"> => {
   const { backend, commands } = useWorkspaceServices()
   const { setSelected, openWindowed, openFocus, close, startRename, openSwitcher } = commands
@@ -57,13 +55,12 @@ const useWindowFrame = (
       large: state.view !== "focus" && state.layout.sizePresets[state.view][id] === "large",
     }
   }, shallowEqual)
-  const { fresh, rename, enabledViews, unread, chatOn } = useUiState(
+  const { fresh, rename, enabledViews, unread } = useUiState(
     (state) => ({
       fresh: state.created?.context === context && state.created.id === id,
       rename: state.rename?.context === context && state.rename.id === id ? state.rename : null,
       enabledViews: state.preferences.enabledViews,
       unread: unreadEnd(state.unread, context, id),
-      chatOn: chatModeOn(state.chat, context, id),
     }),
     shallowEqual,
   )
@@ -71,11 +68,6 @@ const useWindowFrame = (
   const destination = windowedDestination(windowedView, enabledViews)
   const windowedLabel = destination === "canvas" ? "Canvas" : "Grid"
   const dockIn = useDockTarget(tile)
-  // A terminal whose agent has a conversation to show, on a backend that reads it.
-  const chat =
-    backend.conversations && !isWindow(tile) && chatAvailable(tile)
-      ? { on: chatOn, onToggle: () => commands.toggleChat(id) }
-      : undefined
   return {
     terminal: tile,
     active,
@@ -94,10 +86,8 @@ const useWindowFrame = (
       onClose: () => close(id),
     }),
     compact,
-    ...(chat ? { chat } : {}),
     switcher: { onOpen: (button) => openSwitcher(id, button) },
     onClose: () => close(id),
-    ...(minimize ? { minimize } : {}),
     ...(onFlyTo ? { onFlyTo } : {}),
     ...(onResizePreset
       ? {
@@ -154,9 +144,10 @@ export const WorkspaceTerminal = ({
   readonly terminal: TerminalMetadata
   readonly controls: TerminalLayoutControls
 }): React.JSX.Element => {
-  const { minimize, onReveal } = controls
-  const { backend, commands, panes } = useWorkspaceServices()
+  const { onReveal } = controls
+  const { backend, commands, panes, navigation } = useWorkspaceServices()
   const { setKeyboardFocus } = commands
+  const dictation = useContext(DictationContext)
   const terminalId = terminal.id
   // Each terminal selects only what concerns it, so a rename keystroke or a keyboard
   // focus change re-renders just the terminals involved.
@@ -189,10 +180,10 @@ export const WorkspaceTerminal = ({
   const { bar, items, fresh } = useTerminalBar(terminalId)
   const { icon: Icon, Body } = terminalProfile(terminal)
   const processWindow = presentedProgram(terminal)
-  const dictation = useMicButton(terminal, terminalKey)
+  const mic = useMicButton(terminal, terminalKey)
   const frame: Omit<WindowShellProps, "children"> = {
     ...useWindowFrame(terminal, controls),
-    ...(dictation ? { dictation } : {}),
+    ...(mic ? { dictation: mic } : {}),
     icon: <Icon size={14} strokeWidth={1.5} />,
     ...(processWindow ? { processWindow } : {}),
   }
@@ -200,16 +191,21 @@ export const WorkspaceTerminal = ({
   // keeps its dimensions and its emulator its state. The content is inert beneath, where
   // neither focus nor typing can reach it, and the chat's box takes keyboard focus.
   const conversations = backend.conversations
-  const chatShown = frame.chat?.on === true
+  // A terminal whose agent has a conversation to show, with the chat view on, on a backend
+  // that reads it.
+  const showChat = useUiState(
+    (state) =>
+      conversations !== undefined &&
+      chatShown(state.preferences.chatView, state.answering, chatContext, terminal),
+  )
   const draft = useUiState((state) => chatDraftOf(state.chatDrafts, chatContext, terminalId))
   const replyTo = useUiState((state) => chatReplyOf(state.chatReplies, chatContext, terminalId))
   const sending = useUiState((state) => chatSendOf(state.chatSends, chatContext, terminalId))
   const conversation = useMemo(
-    () => (chatShown ? conversations?.conversation(terminalKey) : undefined),
-    [chatShown, conversations, terminalKey],
+    () => (showChat ? conversations?.conversation(terminalKey) : undefined),
+    [showChat, conversations, terminalKey],
   )
   const wanted = keyboardFocus?.view === view && active
-  const hidden = minimize?.minimized === true && !minimize.clipContent
   const withChat = (content: ReactNode): ReactNode =>
     conversations ? (
       <div className="chat-host relative flex min-h-0 min-w-0 flex-1 flex-col">
@@ -218,9 +214,6 @@ export const WorkspaceTerminal = ({
           <div
             className="chat-pane absolute inset-0 z-10 nodrag nopan nowheel"
             data-workspace-chat=""
-            hidden={hidden}
-            aria-hidden={minimize?.minimized}
-            inert={minimize?.minimized}
           >
             <ChatView
               conversation={conversation}
@@ -250,8 +243,8 @@ export const WorkspaceTerminal = ({
         )}
         <div
           className="flex min-h-0 min-w-0 flex-1 flex-col"
-          aria-hidden={chatShown || undefined}
-          inert={chatShown}
+          aria-hidden={showChat || undefined}
+          inert={showChat}
         >
           {content}
         </div>
@@ -259,6 +252,26 @@ export const WorkspaceTerminal = ({
     ) : (
       content
     )
+  const stats = agentStats(terminal)
+  // The terminal's content, with what its agent runs on floating over its top right while
+  // the terminal shows, not its chat, and voice input's strip along an edge while it
+  // dictates into the terminal. The host is there whatever runs, so the content never
+  // remounts as an agent starts.
+  const hosted = (content: ReactNode): ReactNode => (
+    <div className="terminal-host relative flex min-h-0 min-w-0 flex-1 flex-col">
+      {Body ? <Body>{content}</Body> : content}
+      {stats && !showChat && <WindowStats stats={stats} />}
+      {dictation && (
+        <DictationStrip
+          controller={dictation}
+          terminalKey={terminalKey}
+          edge={showChat ? "top" : "bottom"}
+          stopKeys={shortcutBindings().voice.display}
+          onSetup={() => navigation.go({ dialog: "preferences", section: "addons" })}
+        />
+      )}
+    </div>
+  )
   // One shell element whatever runs, so only the body around the content changes.
   const renderWindow = (surface: ReactNode): ReactNode => {
     const content = withChat(surface)
@@ -272,20 +285,16 @@ export const WorkspaceTerminal = ({
             companionKey={terminalKey}
             view={view}
             onReveal={onReveal}
-            minimized={minimize?.minimized}
-            clipContent={minimize?.clipContent}
             bar={bar}
             items={items}
             fresh={fresh}
             terminalName={(id) => terminalName[id]}
             commands={commands}
           >
-            {Body ? <Body>{content}</Body> : content}
+            {hosted(content)}
           </TerminalCompanion>
-        ) : Body ? (
-          <Body>{content}</Body>
         ) : (
-          content
+          hosted(content)
         )}
       </WindowShell>
     )
@@ -296,9 +305,7 @@ export const WorkspaceTerminal = ({
       terminal={terminal}
       projectName={projectName}
       fontSize={fontSize}
-      minimized={minimize?.minimized}
-      clipContent={minimize?.clipContent}
-      focusInput={wanted && !chatShown}
+      focusInput={wanted && !showChat}
       onInputFocused={onInputFocused}
       renderWindow={renderWindow}
     />

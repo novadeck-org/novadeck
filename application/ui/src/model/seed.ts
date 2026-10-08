@@ -122,10 +122,8 @@ const laidOutIds = (layout: WorkspaceState["layout"], order: readonly string[]):
   new Set([
     ...order,
     ...Object.keys(layout.canvas.geometry),
-    ...Object.keys(layout.canvas.minimized),
     ...Object.values(layout.grid).flatMap((items) => (items ?? []).map((item) => item.i)),
     ...Object.keys(layout.gridRestoreWidths),
-    ...Object.keys(layout.gridMinimized),
     ...Object.keys(layout.sizePresets.canvas),
     ...Object.keys(layout.sizePresets.grid),
     ...Object.keys(layout.hidden),

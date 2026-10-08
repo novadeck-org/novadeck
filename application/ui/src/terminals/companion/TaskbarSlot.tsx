@@ -17,7 +17,9 @@ import type { Panes } from "./state"
 import { ArtifactPreview, MailThumb, PlanThumb } from "./thumbs"
 
 // One icon on a terminal's taskbar: its button, the peek above it with a card for each
-// thing behind it, and its menu, which is also the keyboard's way to all the peek offers.
+// thing behind it, and its menu. One thing's menu offers all that can be done with it; a
+// stack's only what's done with all of it, and each of its things to open, which is the
+// keyboard's way to them as the peek is the pointer's.
 
 // What the taskbar does for its icons.
 export type SlotActions = {
@@ -91,26 +93,18 @@ const stackNames: Record<StackKind, { readonly one: string; readonly many: strin
   page: { one: "page", many: "Pages" },
 }
 
-// What can be done with one item, from its menu: in a stack, each named.
-const memberMenu = (member: BarMember, actions: SlotActions, named: boolean): ContextMenuItem[] => {
+// What can be done with one item, from its menu.
+const memberMenu = (member: BarMember, actions: SlotActions): ContextMenuItem[] => {
   const placed = member.kind === "item" && member.placed
-  const name = named
-    ? ` ${lookOf(member.kind === "item" ? { ...member, placed: false } : member, actions).name}`
-    : ""
   const origin = placed ? actions.originOf(member) : undefined
-  const from = named && placed ? ` from ${origin ?? "another terminal"}` : ""
   return [
-    {
-      value: `open-${member.key}`,
-      label: `Open${name}${from}`,
-      onSelect: () => actions.open(member.key),
-    },
+    { value: `open-${member.key}`, label: "Open", onSelect: () => actions.open(member.key) },
     // Something placed here goes back to its terminal while that's open.
     ...(placed && origin
       ? [
           {
             value: `send-back-${member.key}`,
-            label: named ? `Send${name} back to ${origin}` : `Send back to ${origin}`,
+            label: `Send back to ${origin}`,
             onSelect: () => actions.sendBack(member),
           },
         ]
@@ -118,18 +112,39 @@ const memberMenu = (member: BarMember, actions: SlotActions, named: boolean): Co
         ? [
             {
               value: `window-${member.key}`,
-              label: named ? `Undock${name} to its own window` : "Undock to its own window",
+              label: "Undock to its own window",
               onSelect: () => actions.undock(member),
             },
           ]
         : []),
-    {
-      value: `close-${member.key}`,
-      label: `Close${name}${from}`,
-      onSelect: () => actions.close(member),
-    },
+    { value: `close-${member.key}`, label: "Close", onSelect: () => actions.close(member) },
   ]
 }
+
+// What's done with a whole stack, from its menu, beside moving it: each of its things to
+// open, by name, and closing all of them.
+const stackMenu = (
+  members: readonly BarMember[],
+  one: string,
+  actions: SlotActions,
+): { readonly open: ContextMenuItem; readonly close: ContextMenuItem } => ({
+  open: {
+    value: "open",
+    label: "Open",
+    items: members.map((member) => ({
+      value: `open-${member.key}`,
+      label: lookOf(member, actions).name,
+      onSelect: () => actions.open(member.key),
+    })),
+  },
+  close: {
+    value: "close-all",
+    label: `Close ${members.length} ${one}s`,
+    onSelect: () => {
+      for (const member of members) actions.close(member)
+    },
+  },
+})
 
 // The messages' count waiting for their agent, or the pause mark.
 const MailCount = ({ mail }: { mail: MailHandle }): React.JSX.Element | null =>
@@ -196,6 +211,7 @@ export const TaskbarSlot = ({
   const fresh = slot.members.some(isNew)
   const shown = slot.members.find((member) => member.key === showing)
   const names = slot.stack && stackNames[slot.stack]
+  const stack = stackMenu(slot.members, names ? names.one : "item", actions)
   const messages = single?.kind === "messages"
   const mailLabel = actions.mail.badge
     ? `, ${mailBadgeLabel(actions.mail.badge)}`
@@ -206,10 +222,10 @@ export const TaskbarSlot = ({
     <ContextMenu
       label={`${single ? look.name : names!.many} actions`}
       items={
+        // Close stays last, after moving.
         single
-          ? // Close stays last, after moving.
-            memberMenu(single, actions, false).toSpliced(-1, 0, ...moving)
-          : [...slot.members.flatMap((member) => memberMenu(member, actions, true)), ...moving]
+          ? memberMenu(single, actions).toSpliced(-1, 0, ...moving)
+          : [stack.open, ...moving, stack.close]
       }
       trigger={
         <span className="plan-tb-slot">

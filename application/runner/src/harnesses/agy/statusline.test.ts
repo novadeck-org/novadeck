@@ -75,7 +75,7 @@ describe("Antigravity's status line, as captured", () => {
     // Working never starts a turn, as it may come just after the turn's Stop: it resumes
     // only one an older idle ended, and settles a confirmation the turn waited on.
     expect(activity(working!)).toEqual([
-      { type: "turn-working", ...conversation, startedAt: 5 },
+      { type: "turn-working", ...conversation, startedAt: 5, running: 0 },
       {
         type: "attention-resolved",
         ...conversation,
@@ -88,7 +88,7 @@ describe("Antigravity's status line, as captured", () => {
       },
     ])
     expect(activity(confirming!)).toEqual([
-      { type: "turn-working", ...conversation, startedAt: 5 },
+      { type: "turn-working", ...conversation, startedAt: 5, running: 0 },
       {
         type: "attention-requested",
         ...conversation,
@@ -158,6 +158,34 @@ describe("Antigravity's status line, as captured", () => {
       limits: [{ minutes: null, used: 0.5, resetsAt: null }],
     })
     expect(JSON.stringify(decode(report(sparse)))).not.toContain("person@example.com")
+  })
+
+  it("reads the model from every hook, splitting a trailing reasoning level off as the effort", () => {
+    const hook = (modelName: string): Report => ({
+      ...report({ conversationId: "c1", modelName }),
+      event: "PreInvocation",
+    })
+    const observed = (modelName: string) =>
+      decode(hook(modelName)).find(({ type }) => type === "telemetry-observed")
+    expect(observed("gemini-3.8-flash-high")).toMatchObject({
+      sessionId: "c1",
+      model: "gemini-3.8-flash",
+      effort: "high",
+    })
+    // A name without a level clears the last model's.
+    expect(observed("gemini-3.8-flash")).toMatchObject({ model: "gemini-3.8-flash", effort: null })
+    expect(observed("gemini-3.8-flash-turbo")).toMatchObject({
+      model: "gemini-3.8-flash-turbo",
+      effort: null,
+    })
+    // A blank name, or one that could reorder what is shown beside it, is none.
+    expect(observed("   ")).toBeUndefined()
+    expect(observed("gemini\u202eevil")).toBeUndefined()
+    expect(observed("\u200b")).toBeUndefined()
+    expect(observed("a\u2028b")).toBeUndefined()
+    expect(decode({ ...hook("x"), payload: { conversationId: "c1" } })).not.toContainEqual(
+      expect.objectContaining({ type: "telemetry-observed" }),
+    )
   })
 
   it("keep a terminal's activity true to the agent, whatever order their hooks start in", () => {
@@ -268,6 +296,115 @@ describe("Antigravity's status line, as captured", () => {
     expect(run([preInvocation, report(idle!, 3), report(working!, 4)])).toBe("working")
   })
 })
+describe("Antigravity's status line, listing its subagents", () => {
+  const { payloads: snapshots } = JSON.parse(
+    readFileSync(join(import.meta.dirname, "fixtures", "subagents.probe.json"), "utf8"),
+  ) as { payloads: Report["payload"][] }
+  const conversationId = snapshots[0]!.conversation_id as string
+  const binding = { agent: "agy", sessionId: conversationId, instance: "7" } as const
+  // Snapshots in the order captured: idle, then working with none, one, two running, the
+  // list's order flipping; the root's Stop between the 6th and 7th, whose idle lists one
+  // still running; a wake turn, in which the other ends; idle.
+  const [idle, none, one, two, mixed, flipped, rest, woken, wokenFlipped, done, over] = snapshots
+  const hook = (event: string, seq: number, payload: Report["payload"]): Report => ({
+    ...report({ conversationId, ...payload }, seq),
+    event,
+  })
+  const preInvocation = (seq: number) => hook("PreInvocation", seq, { invocationNum: 0 })
+  const stop = (seq: number, fullyIdle: boolean) => hook("Stop", seq, { fullyIdle })
+  // The activity as clients see it after each report, in the order given.
+  const seen = (reports: Report[]) =>
+    reports.reduce(
+      (state, reported) => {
+        const next = decode(reported)
+          .filter((event): event is ActivityEvent =>
+            ["turn-started", "turn-ended", "turn-idle", "turn-working"].includes(event.type),
+          )
+          .reduce((each, event) => applyActivity(each, binding, event) ?? each, state.activity)
+        return { activity: next, shown: [...state.shown, summary(next)] }
+      },
+      { activity: started(0), shown: [] as ReturnType<typeof summary>[] },
+    ).shown
+  const counts = (reports: Report[]) =>
+    seen(reports).map(({ state, background }) => [state, background?.agents ?? null])
+
+  it("counts the subagents running by status, whatever order it lists them in", () => {
+    const decoded = (payload: Report["payload"]) =>
+      decode(report(payload)).find(({ type }) => type === "turn-working")
+    expect(decoded(none!)).toMatchObject({ running: 0 })
+    expect(decoded(one!)).toMatchObject({ running: 1 })
+    expect(decoded(two!)).toMatchObject({ running: 2 })
+    expect(decoded(mixed!)).toMatchObject({ running: 1 })
+    expect(decoded(flipped!)).toMatchObject({ running: 1 })
+    expect(decoded(done!)).toMatchObject({ running: 0 })
+  })
+
+  it("shows the subagents running while the turn does, and after it, through a wake turn", () => {
+    const reports = [
+      report(idle!, 10),
+      preInvocation(15),
+      report(none!, 20),
+      report(one!, 30),
+      report(two!, 40),
+      report(mixed!, 50),
+      report(flipped!, 60),
+      stop(65, false),
+      report(rest!, 70),
+      preInvocation(75),
+      report(woken!, 80),
+      report(wokenFlipped!, 90),
+      report(done!, 100),
+      stop(105, true),
+      report(over!, 110),
+    ]
+    expect(counts(reports)).toEqual([
+      ["idle", null],
+      ["working", null],
+      ["working", null],
+      ["working", 1],
+      ["working", 2],
+      ["working", 1],
+      ["working", 1],
+      // The Stop says only that something runs on, until the idle line counts it.
+      ["working", 0],
+      ["working", 1],
+      // The wake turn: what runs shows from its first working snapshot.
+      ["working", null],
+      ["working", 1],
+      ["working", 1],
+      ["working", null],
+      ["idle", null],
+      ["idle", null],
+    ])
+  })
+
+  it("lets no working snapshot of an earlier turn show a count, or a Stop's turn resume", () => {
+    // Drawn after the Stop's hook started, it is stale: the turn stays over.
+    expect(
+      counts([preInvocation(1), report(none!, 2), stop(65, false), report(two!, 66)]).at(-1),
+    ).toEqual(["working", 0])
+    expect(seen([preInvocation(1), stop(2, true), report(two!, 3)]).at(-1)).toMatchObject({
+      state: "idle",
+      background: null,
+    })
+    // Drawn before the wake turn's first call, it counts nothing of it; the next
+    // snapshot corrects one that arrives later.
+    expect(
+      counts([
+        preInvocation(1),
+        stop(2, false),
+        report(rest!, 3),
+        preInvocation(10),
+        report(two!, 9),
+        report(done!, 11),
+      ]).slice(-2),
+    ).toEqual([
+      ["working", null],
+      ["working", null],
+    ])
+  })
+})
+
 type Fixture = { root: string; install: Install; settings: string }
 
 const it = base.extend<{ fixture: Fixture }>({

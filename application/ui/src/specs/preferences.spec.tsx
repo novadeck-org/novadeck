@@ -234,9 +234,10 @@ describe("Preferences Addons", () => {
       await addons().getByRole("button", { name: "Uninstall" }).click()
       await confirm.getByRole("button", { name: "Uninstall" }).click()
       await expect.element(addons().getByRole("button", { name: "Install" })).toBeVisible()
+      // Removing it says it isn't wanted: it stays off, and the app stops offering it.
       await expect
         .element(addons().getByRole("switch", { name: "Enabled" }))
-        .not.toBeInTheDocument()
+        .toHaveAttribute("aria-checked", "false")
     })
   })
 

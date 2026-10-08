@@ -1,5 +1,5 @@
 import { context, describe, expect, it } from "../test"
-import { subagentsBadge, subagentsDetail } from "./agent-subagents"
+import { subagentMarks, subagentsBadge, subagentsDetail } from "./agent-subagents"
 import type { TerminalMetadata } from "./types"
 
 const terminal = (subagents?: { id: string; type: string | null }[]): TerminalMetadata => ({
@@ -28,7 +28,7 @@ const waiting = (agents: number, tasks: number): TerminalMetadata => ({
 })
 
 describe("an agent's subagents", () => {
-  it("count in its window's header", () => {
+  it("count in its tab's tooltip", () => {
     expect(subagentsBadge(terminal())).toBeUndefined()
     expect(subagentsBadge(terminal([{ id: "a", type: "explorer" }]))).toBe("1 subagent")
     expect(
@@ -42,7 +42,7 @@ describe("an agent's subagents", () => {
   })
 
   context("while its turn is over and what that left running runs on", () => {
-    it("counts that work in its window's header instead", () => {
+    it("counts that work in its tab's tooltip instead", () => {
       expect(subagentsBadge(waiting(3, 1))).toBe("3 agents · 1 task")
       expect(subagentsBadge(waiting(1, 0))).toBe("1 agent")
       expect(subagentsBadge(waiting(0, 2))).toBe("2 tasks")
@@ -52,7 +52,7 @@ describe("an agent's subagents", () => {
 
     it("says on hover whether it works on until that work finishes", () => {
       expect(subagentsDetail(waiting(1, 0))).toBe(
-        "Its turn is over, but subagents it started still run: it works on until they finish",
+        "Subagents it started still run: it works on until they finish",
       )
       const command: TerminalMetadata = {
         ...waiting(0, 1),
@@ -78,5 +78,39 @@ describe("an agent's subagents", () => {
         ]),
       ),
     ).toBe("2 explorer, 1 worker, 1 subagent")
+  })
+
+  context("marked one by one on its tab", () => {
+    it("by kind, as the harness calls them, spinning while it works on", () => {
+      expect(subagentMarks(terminal())).toBeUndefined()
+      expect(
+        subagentMarks(
+          terminal([
+            { id: "a", type: "explorer" },
+            { id: "b", type: null },
+          ]),
+        ),
+      ).toEqual({ kinds: ["explorer", null], working: true })
+    })
+
+    it("counts what its turn left running where the harness names no kinds", () => {
+      expect(subagentMarks(waiting(3, 1))).toEqual({
+        kinds: ["explorer", null, null],
+        working: true,
+      })
+      const resting: TerminalMetadata = {
+        ...waiting(0, 0),
+        state: "running",
+        agent: { working: false, background: { agents: 2, tasks: 0 } },
+      }
+      expect(subagentMarks(resting)).toEqual({ kinds: [null, null], working: false })
+      // A command its turn left running is no subagent.
+      expect(
+        subagentMarks({
+          ...resting,
+          agent: { working: false, background: { agents: 0, tasks: 1 } },
+        }),
+      ).toBeUndefined()
+    })
   })
 })

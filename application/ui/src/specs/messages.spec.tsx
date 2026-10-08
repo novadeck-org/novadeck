@@ -4,11 +4,11 @@ import { page, userEvent, type Locator } from "vitest/browser"
 import {
   messageItems,
   messagesButton,
+  namedBy,
   openMessages,
   openMessagesDemo,
   pauseSwitch,
   tabMenu,
-  tabTooltip,
   thread,
 } from "./support/messages"
 import { confirmClose, sidebarRenameField, tabAction } from "./support/terminals"
@@ -24,7 +24,7 @@ describe("Messages waiting for an agent", () => {
     // Codex has one message being delivered and one queued; what it sent doesn't count.
     await expect
       .poll(() => description("Checkout review"))
-      .toBe("Needs permission, 2 messages waiting")
+      .toBe("Needs permission, 2 messages waiting, 2 subagents: 2 explorer")
     // The dev server's message is gone, never waiting.
     expect(description("Dev server")).toBeNull()
   })
@@ -144,22 +144,24 @@ describe("Pausing messaging", () => {
     await expect.poll(() => textOf(items.nth(2))).toMatch(/Delivering/)
     await expect
       .poll(() => description("Checkout review"))
-      .toBe("Needs permission, 2 messages waiting, held while messaging is paused")
+      .toBe(
+        "Needs permission, 2 messages waiting, held while messaging is paused, 2 subagents: 2 explorer",
+      )
     await pause.click()
     await expect.poll(() => textOf(items.nth(3))).toMatch(/Waiting/)
     await expect.element(pane.getByRole("status")).not.toBeInTheDocument()
     await expect
       .poll(() => description("Checkout review"))
-      .toBe("Needs permission, 2 messages waiting")
+      .toBe("Needs permission, 2 messages waiting, 2 subagents: 2 explorer")
   })
 })
 
 describe("Who named a terminal", () => {
-  it("shows in its tab's tooltip", async () => {
+  it("shows in its tab's menu", async () => {
     await openMessagesDemo()
-    await expect.poll(() => tabTooltip("Checkout implementation")).toMatch(/\nNamed by you\n/)
-    expect(await tabTooltip("Checkout review")).toMatch(/\nNamed by the agent in t1\n/)
-    expect(await tabTooltip("Tests")).toMatch(/\nNamed after its first prompt\n/)
+    expect(await namedBy("Checkout implementation")).toBe("Named by you")
+    expect(await namedBy("Checkout review")).toBe("Named by the agent in t1")
+    expect(await namedBy("Tests")).toBe("Named after its first prompt")
   })
 
   it("can be handed back to Novadeck from the tab's menu when the person named it", async () => {
@@ -167,7 +169,7 @@ describe("Who named a terminal", () => {
     const menu = await tabMenu("Checkout implementation")
     await menu.getByRole("menuitem", { name: "Reset to automatic" }).click()
     await expect.element(terminalTab("Checkout flow")).toBeVisible()
-    await expect.poll(() => tabTooltip("Checkout flow")).toMatch(/\nNamed by the agent in t1\n/)
+    expect(await namedBy("Checkout flow")).toBe("Named by the agent in t1")
     // A name Novadeck gave has nothing to hand back.
     const automatic = await tabMenu("Checkout flow")
     await expect.element(automatic.getByRole("menuitem", { name: "Rename" })).toBeVisible()
@@ -231,6 +233,6 @@ describe("Who named a terminal", () => {
     // The menu closes and hands focus to the tab's name field.
     await expect.element(sidebarRenameField("Checkout review")).toHaveFocus()
     await userEvent.keyboard("Review{Enter}")
-    await expect.poll(() => tabTooltip("Review")).toMatch(/\nNamed by you\n/)
+    expect(await namedBy("Review")).toBe("Named by you")
   })
 })

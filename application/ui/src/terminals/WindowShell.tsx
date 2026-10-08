@@ -1,5 +1,4 @@
 import {
-  MessageSquare,
   Minimize2,
   Scaling,
   Shrink,
@@ -7,32 +6,20 @@ import {
   UnfoldHorizontal,
   ArrowUpRight,
   Mic,
-  Minus,
-  Plus,
   X,
 } from "lucide-react"
 import { useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
-import { nextReset, usageBadge, usageDetail } from "../model/agent-usage"
 import { isWindow } from "../model/roster"
 import { attentionText, doneText, terminalPhase, unheardText } from "../model/terminal-ending"
 import type { Tile, WindowedView } from "../model/types"
 import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
-import { useRenderAt } from "./use-render-at"
-
-export type MinimizeControls = {
-  minimized: boolean
-  clipContent?: boolean
-  onToggle: () => void
-}
 
 // What a layout contributes to each terminal it places.
 export type TerminalLayoutControls = {
-  readonly minimize?: MinimizeControls
   readonly onFlyTo?: () => void
   readonly onResizePreset?: (button: HTMLButtonElement) => void
   // Frames the terminal together with content hanging past its right edge.
@@ -41,10 +28,13 @@ export type TerminalLayoutControls = {
 
 const headerActionClasses = "icon-button dim"
 
-// The mic button an agent's header offers while voice input is ready: click to start
-// recording into the terminal, and again to send.
+// The mic button an agent's header offers while the person wants voice input: once it is
+// ready, click to start recording into the terminal, and again to send; before, the click
+// leads to its install.
 export type DictationControls = {
   readonly recording: boolean
+  // False until voice input is installed and on; absent means ready.
+  readonly ready?: boolean
   readonly onToggle: () => void
 }
 
@@ -64,7 +54,6 @@ export type WindowShellProps = {
   large?: boolean
   windowed?: { destination: string; onOpen: () => void }
   onClose?: () => void
-  minimize?: MinimizeControls
   dictation?: DictationControls
   compact?: boolean
   active?: boolean
@@ -79,9 +68,6 @@ export type WindowShellProps = {
   onRenameCancel: () => void
   // The window's own actions, on its header's right-click, as on its sidebar tab's.
   menu?: ContextMenuItem[]
-  // Present while its agent has a conversation to show: whether the window shows it in
-  // place of the terminal, and the switch between the two.
-  chat?: { on: boolean; onToggle: () => void }
 }
 
 // The window every terminal shares, whatever program runs in it.
@@ -98,7 +84,6 @@ export const WindowShell = ({
   large = false,
   onClose,
   windowed,
-  minimize,
   dictation,
   compact = false,
   active = false,
@@ -110,7 +95,6 @@ export const WindowShell = ({
   onRenameSave,
   onRenameCancel,
   menu,
-  chat,
 }: WindowShellProps): React.JSX.Element => {
   const resizeLabel = large
     ? resizeView === "grid"
@@ -138,10 +122,6 @@ export const WindowShell = ({
   const ignoreDoubleClickUntil = useRef(0)
   const renaming = Boolean(rename)
   const shell = isWindow(terminal) ? undefined : terminal
-  useRenderAt(shell && nextReset(shell))
-  const usage = shell && usageBadge(shell)
-  const subagents = shell && subagentsBadge(shell)
-  const planning = shell?.state === "running" && shell.agent?.planning === true
   const phase = shell ? terminalPhase(shell, unread !== undefined) : "idle"
   const failed = unread === "failed"
   // What the agent waits on the person for, that Novadeck can't hear from it, or that it
@@ -270,83 +250,31 @@ export const WindowShell = ({
           )}
         </>
       </div>
-      {phase === "done" && (
-        // Said in full as the window's description; a compact window keeps its name.
-        <span className="terminal-done ml-auto shrink-0 text-caption" aria-hidden>
-          {compact ? (failed ? "Error" : "Done") : doneText(failed)}
-        </span>
-      )}
-      {(planning || usage || subagents) && !compact && (
-        // Whether the agent plans, its subagents, context and busiest rate limit, in
-        // full on hover. Only a focused window has room beside its name; a compact one
-        // leaves them to its tab's tooltip.
-        <span className="terminal-metadata ml-auto flex min-w-0 items-center gap-2 overflow-hidden text-caption">
-          {planning && (
-            <Tooltip content="Planning, not changing anything yet">
-              <span className="terminal-planning shrink-0">planning</span>
-            </Tooltip>
-          )}
-          {shell && subagents && (
-            <Tooltip content={subagentsDetail(shell)}>
-              <span className="terminal-subagents shrink-0">{subagents}</span>
-            </Tooltip>
-          )}
-          {shell && usage && (
-            <Tooltip content={usageDetail(shell)}>
-              <span className="terminal-usage min-w-0 truncate">{usage}</span>
-            </Tooltip>
-          )}
-        </span>
-      )}
       <span className="terminal-actions flex shrink-0 items-center">
         {dictation && (
           <Tooltip
             content={
-              dictation.recording
-                ? "Stop and send"
-                : `Dictate · hold ${shortcutBindings().voice.display.join(" ")}`
+              dictation.ready === false
+                ? "Dictate · set up in Addons"
+                : dictation.recording
+                  ? "Stop and send"
+                  : `Dictate · hold ${shortcutBindings().voice.display.join(" ")}`
             }
           >
             <button
               className={`${headerActionClasses} dictation-action nodrag nopan ${dictation.recording ? "dictation-active" : ""}`}
-              aria-label={`Dictate into ${terminal.name}`}
-              aria-pressed={dictation.recording}
+              aria-label={
+                dictation.ready === false
+                  ? `Set up voice input for ${terminal.name}`
+                  : `Dictate into ${terminal.name}`
+              }
+              aria-pressed={dictation.ready === false ? undefined : dictation.recording}
               onClick={(event) => {
                 event.stopPropagation()
                 dictation.onToggle()
               }}
             >
               <Mic size={12} />
-            </button>
-          </Tooltip>
-        )}
-        {chat && (
-          <Tooltip content={chat.on ? "Show terminal" : "Show chat"}>
-            <button
-              className={`${headerActionClasses} terminal-view-action nodrag nopan`}
-              aria-label={`Chat view: ${terminal.name}`}
-              aria-pressed={chat.on}
-              onClick={(event) => {
-                event.stopPropagation()
-                chat.onToggle()
-              }}
-            >
-              <MessageSquare size={13} />
-            </button>
-          </Tooltip>
-        )}
-        {minimize && (
-          <Tooltip content={minimize.minimized ? "Restore" : "Minimize"}>
-            <button
-              className={`${headerActionClasses} terminal-view-action nodrag nopan`}
-              aria-label={`${minimize.minimized ? "Restore" : "Minimize"} ${terminal.name}`}
-              aria-expanded={!minimize.minimized}
-              onClick={(event) => {
-                event.stopPropagation()
-                minimize.onToggle()
-              }}
-            >
-              {minimize.minimized ? <Plus size={12} /> : <Minus size={12} />}
             </button>
           </Tooltip>
         )}

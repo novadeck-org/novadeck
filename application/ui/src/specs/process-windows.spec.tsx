@@ -25,9 +25,6 @@ describe("process windows", () => {
       await terminalTab(name).click()
       await expect.element(terminal(name)).toHaveAttribute("data-process-window", program)
       await expect.element(commandInput(name)).toHaveValue(`Draft for ${program}`)
-      await headerAction(name, `Minimize ${name}`).click()
-      await expect.element(commandInput(name)).not.toBeInTheDocument()
-      await headerAction(name, `Restore ${name}`).click()
       await expect.element(commandInput(name)).toBeVisible()
 
       await chooseView("Focus")

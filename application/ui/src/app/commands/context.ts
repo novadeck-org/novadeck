@@ -40,6 +40,9 @@ export type CommandEffects = {
   readonly desktop: () => boolean
   readonly now: () => number
   readonly newId: () => string
+  // The workspace stage's size, which Canvas's viewport is in any view; undefined before
+  // it's laid out.
+  readonly stageSize: () => { readonly width: number; readonly height: number } | undefined
 }
 
 export type CommandContext = {

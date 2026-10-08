@@ -71,6 +71,7 @@ const uiWith = (appearance: PreferencesValue["appearance"]): UiStore =>
         appearance,
         notifyFinished: true,
         ligatures: false,
+        chatView: false,
       },
     }),
   )

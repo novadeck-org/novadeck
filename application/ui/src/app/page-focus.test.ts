@@ -47,6 +47,7 @@ const ui = () =>
         appearance,
         notifyFinished: true,
         ligatures: false,
+        chatView: false,
       },
     }),
   )

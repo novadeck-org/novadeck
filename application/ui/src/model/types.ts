@@ -15,6 +15,9 @@ export type PreferencesValue = {
   // Whether monospace text joins pairs such as => and != into one glyph. Off by default:
   // a terminal shows what a program printed.
   ligatures: boolean
+  // Whether a terminal an agent runs in shows its conversation rather than its screen, on
+  // a backend that reads conversations.
+  chatView: boolean
 }
 export type Project = { id: string; name: string; directory: string }
 
@@ -27,6 +30,7 @@ export type AgentStatus = {
   readonly working: boolean
   // What its ended turn left running that wakes it once done, counted: subagents, and
   // other tasks such as commands. Both zero where its harness says only that work runs.
+  // While its turn runs, the subagents its harness counts running, where it does.
   readonly background?: { readonly agents: number; readonly tasks: number }
   readonly planning?: true
   readonly attention?: {
@@ -60,6 +64,9 @@ export type AgentUsage = {
     readonly used: number
     readonly resetsAt: number | null
   }[]
+  // The model it runs and the reasoning effort it was set to, where its harness says.
+  readonly model: string | null
+  readonly effort: string | null
 }
 
 // What a terminal's process is doing. Exit and failure details replace each other.
@@ -104,7 +111,6 @@ export type TerminalMetadata = {
 
 export type CanvasLayout = {
   viewport?: { x: number; y: number; zoom: number }
-  minimized: Record<string, boolean>
   geometry: Record<
     string,
     {
@@ -168,7 +174,6 @@ export type TerminalLayout = {
   readonly canvas: CanvasLayout
   readonly grid: GridLayouts
   readonly gridRestoreWidths: Record<string, GridRestoreWidths>
-  readonly gridMinimized: Record<string, boolean>
   readonly sizePresets: Record<WindowedView, Record<string, SizePreset>>
   readonly hidden: Record<string, boolean>
 }

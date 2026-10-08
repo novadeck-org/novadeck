@@ -483,6 +483,7 @@ describe("workspace commands", () => {
         appearance,
         notifyFinished: true,
         ligatures: false,
+        chatView: false,
       })
       expect(app.state().view).not.toBe("grid")
       expect(app.shell().revealCanvas).toBe(false)

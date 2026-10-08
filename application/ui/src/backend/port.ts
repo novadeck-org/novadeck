@@ -22,8 +22,6 @@ export type { TerminalKey }
 // - Its root carries `nodrag nopan`, so Canvas does not drag or pan from the content,
 //   and stops `wheel` propagation without Ctrl/Meta, so scrolling output does not
 //   zoom the canvas while pinch and Ctrl+wheel still do.
-// - It sets `hidden={minimized && !clipContent}`, `aria-hidden` and `inert` from
-//   `minimized`; Grid keeps a minimizing surface painted while its height animates.
 // - The element that takes typed input carries `data-terminal-input`, so shortcuts
 //   treat it as terminal input and search returns focus to it.
 // - Its own styles may key off the frame's `terminal-compact` (Grid and Canvas) and
@@ -41,9 +39,6 @@ export type TerminalSurfaceProps = {
   readonly projectName: string
   // The terminal font size from Preferences, in CSS pixels.
   readonly fontSize: number
-  // Undefined when the layout offers no minimize control (Focus).
-  readonly minimized?: boolean | undefined
-  readonly clipContent?: boolean | undefined
   // True while keyboard navigation asks the surface to focus its input.
   readonly focusInput: boolean
   // Stable across renders; call it after focusing the input.

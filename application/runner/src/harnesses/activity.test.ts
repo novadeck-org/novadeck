@@ -925,6 +925,40 @@ describe("an agent waiting on what its turn left running", () => {
     expect(listed(ended(working, 2, false), 3, 1)).toBeUndefined()
   })
 
+  it("shows the subagents a working status line counts while the turn runs, until it ends", () => {
+    const agy: Binding = { agent: "agy", sessionId: "s", instance: "7" }
+    const working = (activity: Activity, startedAt: number, running: number) =>
+      apply(activity, agy, fact({ agent: "agy", type: "turn-working", startedAt, running }))
+    const begun = apply(
+      started(0),
+      agy,
+      fact({ agent: "agy", type: "turn-started", startedAt: 1 }),
+    )!
+    expect(summary(begun).background).toBeNull()
+    const two = working(begun, 2, 2)!
+    expect(summary(two)).toMatchObject({ state: "working", background: { agents: 2, tasks: 0 } })
+    // Said again, it changes nothing; a later count replaces it, and none clears it.
+    expect(working(two, 3, 2)).toBeUndefined()
+    expect(summary(working(two, 3, 1)!).background).toEqual({ agents: 1, tasks: 0 })
+    expect(summary(working(two, 3, 0)!).background).toBeNull()
+    // One from before the turn started is a fact of an earlier turn.
+    expect(working(begun, 0, 2)).toBeUndefined()
+    // The turn's end drops it, whatever a later working snapshot says.
+    const ended = apply(
+      two,
+      agy,
+      fact({
+        agent: "agy",
+        type: "turn-ended",
+        outcome: "completed",
+        startedAt: 4,
+        background: { agents: 0, tasks: 0 },
+      }),
+    )!
+    expect(summary(ended)).toMatchObject({ state: "idle", background: null })
+    expect(working(ended, 5, 2)).toBeUndefined()
+  })
+
   it("ends a turn its records tell ended, once, leaving its hook's Stop to say what runs", () => {
     const running = subagentStarted(turn(started(0), 1), "a", 2)
     const recorded = stop(running, 5, { recorded: true })!

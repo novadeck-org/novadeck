@@ -6,6 +6,7 @@ import { decode } from "./decode.js"
 type Window = { used_percentage: number; resets_at: number }
 const { payload } = loadProbe(import.meta.dirname, "statusline.probe.json") as {
   payload: Report["payload"] & {
+    model: { display_name: string }
     context_window: {
       context_window_size: number
       current_usage: Record<string, number>
@@ -38,6 +39,15 @@ describe("Claude Code's status line, as captured", () => {
           capacity: payload.context_window.context_window_size,
         },
       },
+    ])
+  })
+
+  it("gives the model's display name, and its effort level, none where the payload has none", () => {
+    // None clears the last model's, as after a switch to a model without levels.
+    expect(decode(report)).toMatchObject([{ model: payload.model.display_name, effort: null }])
+    const effort = { ...payload, effort: { level: "xhigh" } }
+    expect(decode({ ...report, payload: effort })).toMatchObject([
+      { model: payload.model.display_name, effort: "xhigh" },
     ])
   })
 

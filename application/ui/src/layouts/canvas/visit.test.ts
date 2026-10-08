@@ -27,6 +27,19 @@ describe("a Canvas camera visit", () => {
     expect(visit.visiting).toBe(false)
   })
 
+  it("rests where it began, whether flying there, visiting, or flying back", () => {
+    const visit = createCanvasVisit()
+    expect(visit.home).toBeNull()
+    const flight = visit.begin("one", origin, destination)!
+    expect(visit.home).toEqual(origin)
+    visit.finish(flight)
+    expect(visit.home).toEqual(origin)
+    const back = visit.back()!
+    expect(visit.home).toEqual(origin)
+    visit.finish(back)
+    expect(visit.home).toBeNull()
+  })
+
   it("starts a visit to another terminal from the current camera", () => {
     const visit = createCanvasVisit()
     visit.finish(visit.begin("one", origin, destination)!)

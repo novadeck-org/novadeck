@@ -14,8 +14,7 @@ to fit the canvas viewport. Repeat the gesture on the same terminal to return to
 previous camera position and zoom. Manual pan or zoom (including keyboard shortcuts),
 Fit all, sidebar camera navigation, leaving Canvas, or switching sessions clears that
 return point. Flying to a different terminal starts a new visit from the current camera.
-Repeated double gestures during a flight are ignored. Minimized terminals restore first;
-returning the camera does not minimize them again. The header's arrow opens Focus view.
+Repeated double gestures during a flight are ignored. The header's arrow opens Focus view.
 
 Click **New terminal** or use its keyboard shortcut to create and select a terminal
 immediately in any view, with or without Zen, ready to type in; F2 renames it. Focus
@@ -117,7 +116,7 @@ minimum terminal dimensions. Double-click the enlarged terminal header to fill m
 of the viewport. Canvas grows or shrinks around the terminal's center
 without changing the camera. In Grid, **Make full width** fills the available columns;
 **Restore width** returns to the width at each breakpoint from before that click,
-preserving terminal height. Resizing restores minimized terminals.
+preserving terminal height.
 Preset choices are remembered per terminal, session, and view. New terminals start
 compact: 600×400 in Canvas and compact column width in Grid, with no placement preview.
 
@@ -525,7 +524,7 @@ text. A page shows as a snapshot until the pane hosts a browser.
 **Undock to its own window**, in a plan's or a viewer's header or an icon's right-click,
 moves a plan or what the agent showed out of the pane into a window of its own beside
 the terminal; a plan stays editable there. It joins the sidebar and every view like a
-terminal: rename, hide, minimize, resize, reorder, Focus and close all work. While it's
+terminal: rename, hide, resize, reorder, Focus and close all work. While it's
 undocked, the terminal's taskbar leaves it out. **Dock in** the terminal it came from,
 on the window's right-click, closes the window and opens the item in that terminal's
 pane again; once that terminal has closed, Dock in shows disabled. Closing the window

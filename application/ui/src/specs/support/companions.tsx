@@ -56,6 +56,18 @@ export const chooseFromIconMenu = async (
   await menu.getByRole("menuitem", { name: action, exact: true }).click()
 }
 
+/** Picks one thing from a submenu of an icon's menu, such as a stack's `Open` and a file. */
+export const chooseFromIconSubmenu = async (
+  name: string,
+  label: string,
+  submenu: string,
+  action: string,
+): Promise<void> => {
+  const menu = await iconMenu(name, label)
+  await menu.getByRole("menuitem", { name: submenu, exact: true }).click()
+  await page.getByRole("menuitem", { name: action, exact: true }).click()
+}
+
 /** Opens the menu of a window's sidebar tab, which a window undocked from a taskbar has too. */
 export const windowMenu = async (name: string): Promise<Locator> => {
   await terminalTab(name).click({ button: "right" })

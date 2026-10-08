@@ -95,7 +95,9 @@ const vendors: Record<string, readonly string[]> = {
   "@lezer": ["terminals/companion/plan-editor/", "terminals/companion/highlight.ts"],
   "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
-  "@dnd-kit": ["terminals/"],
+  // Terminals' tabs, windows and taskbars, and the footer's subscriptions, which reorder
+  // as the taskbar's icons do.
+  "@dnd-kit": ["terminals/", "shell/SubscriptionUsage.tsx"],
   "react-router": ["app/", "shell/"],
   "react-dom": ["layouts/transition.ts", "main.tsx", "test/"],
   // The runner client, its test runner, and the terminal emulator serve one adapter.

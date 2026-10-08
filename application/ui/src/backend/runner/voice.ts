@@ -29,6 +29,8 @@ export const noVoice: VoiceState = {
   available: true,
   installed: [],
   enabled: false,
+  // Nothing is offered until the runner says it is wanted.
+  wanted: false,
   model: "turbo",
   language: "auto",
   sizes: { engine: 0, turbo: 0, small: 0 },

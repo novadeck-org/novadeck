@@ -7,8 +7,10 @@
    `.terminal-compact` (Grid, Canvas); a selected window is `.terminal-focused`, or sits
    in a `.grid-terminal.selected` or `.canvas-node.selected`. Parts: `.terminal-header`,
    `.terminal-heading` (whose ::before is the selection bar and ::after the phase line),
-   `.terminal-title`, `.terminal-metadata`, `.terminal-done` (the chip a done window shows
-   beside its name), `.terminal-actions`, `.terminal-rename-input`.
+   `.terminal-title`, `.terminal-host` (the terminal's content, and
+   `.terminal-stats` over it: what the agent runs on, its `.terminal-stats-runs` and its
+   context's `.terminal-stats-ring`), `.terminal-actions`,
+   `.terminal-rename-input`.
 
    Tokens, each optional (its fallback in brackets):
    --window-bg (paper), --window-fg (ink), --window-border-color (line),
@@ -18,8 +20,8 @@
    --window-header-bg (the window's bg), --window-header-border-color (line): the header
    and its hairline. --window-header-icon-fg (muted): the icons in it.
    --window-selected-header-bg (the header's bg): the selected window's header.
-   --window-metadata-fg (muted), --window-metadata-font (mono): planning, subagents and
-   usage beside the name.
+   --window-metadata-fg (muted), --window-metadata-font (mono): what the agent runs on,
+   over its terminal.
    --window-indicator-bg (the sidebar item's --item-selected-indicator-bg, then strong):
    the selection bar at the header's leading edge. --window-indicator-shadow (the sidebar
    item's --item-selected-indicator-shadow, then none): a glow around it.
@@ -34,10 +36,9 @@
    --window-phase-unheard-border-color (muted): the line while Novadeck can't hear from an
    agent.
    --window-phase-done-border-color (success-fg), --window-phase-done-border-width (2px):
-   the line while an agent's reply waits unread. --window-done-bg (success),
-   --window-done-fg (success-fg): the chip that says so.
-   --window-phase-failed-border-color (danger-fg), --window-failed-bg (danger),
-   --window-failed-fg (danger-fg): the line and chip where its turn ended on an error.
+   the line while an agent's reply waits unread.
+   --window-phase-failed-border-color (danger-fg): the line where its turn ended on an
+   error.
    --window-ended-image (a faint ink hatch): laid over an ended window.
    --window-ended-border-style (solid): an ended window's outline.
    --window-ended-content-opacity (0.55): an ended terminal's output.
@@ -76,9 +77,96 @@
 :where(.terminal-actions) {
   @apply gap-1;
 }
-.terminal-metadata {
+/* What the agent runs on, floating over its terminal's top right (WindowStats.tsx), over
+   the agent's old scrollback, away from the window's buttons and from its prompt below:
+   a ring for how full its context is, faint at rest on a soft backing in the terminal's
+   ground, so it reads over text without looking like a button. Hovered or focused, it comes up and the model, its effort and the context in
+   words slide out leftwards over the terminal, no wider than it. Without a pointer that
+   hovers it stays up, its words a tap away. */
+.terminal-host {
+  container-type: inline-size;
+}
+.terminal-stats {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 8px;
+  gap: 8px;
+  max-width: calc(100cqw - 16px);
+  padding: 6px 8px;
+  border-radius: var(--radius-control);
+  background-color: color-mix(in srgb, var(--terminal-bg, var(--color-paper)) 85%, transparent);
   color: var(--window-metadata-fg, var(--color-muted));
   font-family: var(--window-metadata-font, var(--font-mono));
+  font-size: var(--text-caption);
+  white-space: nowrap;
+}
+/* Opened up, its backing turns solid and feathers out a little, so the words never mix
+   with the text beneath. */
+.terminal-stats:is(:hover, :focus) {
+  background-color: var(--terminal-bg, var(--color-paper));
+  box-shadow: 0 0 6px 6px var(--terminal-bg, var(--color-paper));
+}
+.terminal-stats:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+}
+/* Its two groups of words, set apart by space alone: each holds its detail in brackets.
+   Short of room, the context's ends in an ellipsis first, its share still showing. */
+.terminal-stats-runs {
+  display: flex;
+  min-width: 0;
+  gap: 14px;
+  overflow: hidden;
+}
+.terminal-stats-runs > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.terminal-stats-runs > span:first-child:not(:last-child) {
+  flex-shrink: 0;
+}
+/* Folded away, the words hide once they've faded, so nothing finds them. */
+.terminal-stats[data-ring] .terminal-stats-runs {
+  max-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    max-width var(--motion-state) var(--ease-interface),
+    opacity var(--motion-state) var(--ease-interface),
+    visibility 0s linear var(--motion-state);
+}
+.terminal-stats[data-ring]:is(:hover, :focus) .terminal-stats-runs {
+  max-width: 24rem;
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.terminal-stats-ring {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  transform: rotate(-90deg);
+}
+.terminal-stats-ring circle {
+  fill: none;
+  stroke-width: 2.25;
+}
+.terminal-stats-ring-track {
+  stroke: var(--color-line);
+}
+.terminal-stats-ring-fill {
+  stroke: var(--window-metadata-fg, var(--color-muted));
+  stroke-linecap: round;
+}
+@media (hover: hover) {
+  .terminal-stats {
+    opacity: 0.5;
+    transition: opacity var(--motion-feedback) var(--ease-interface);
+  }
+  .terminal-stats:is(:hover, :focus) {
+    opacity: 1;
+  }
 }
 /* The name being edited, in the header and in a sidebar tab: bare text in place. */
 .terminal-rename-input {
@@ -197,24 +285,15 @@
   border-top-color: var(--window-phase-ended-border-color, var(--color-strong));
 }
 /* An agent that finished while the person looked elsewhere: a solid line in the success
-   colour, and a chip beside its name, bold (WindowShell.tsx), until they look. */
+   colour, or the danger colour where its turn ended on an error, and its name bold
+   (WindowShell.tsx), until they look. The line alone marks it, as it does an agent
+   waiting on them; its description says it in words. */
 .terminal-window[data-terminal-phase="done"] .terminal-heading::after {
   border-top: var(--window-phase-done-border-width, 2px) solid
     var(--window-phase-done-border-color, var(--color-success-fg));
 }
-.terminal-done {
-  border-radius: 999px;
-  padding: 1px 8px;
-  background-color: var(--window-done-bg, var(--color-success));
-  color: var(--window-done-fg, var(--color-success-fg));
-  font-weight: 600;
-}
 .terminal-window[data-terminal-failed="true"] .terminal-heading::after {
   border-top-color: var(--window-phase-failed-border-color, var(--color-danger-fg));
-}
-.terminal-window[data-terminal-failed="true"] .terminal-done {
-  background-color: var(--window-failed-bg, var(--color-danger));
-  color: var(--window-failed-fg, var(--color-danger-fg));
 }
 .terminal-window[data-terminal-phase="unheard"] .terminal-heading::after {
   border-top-style: dashed;

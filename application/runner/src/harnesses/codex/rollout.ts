@@ -4,7 +4,14 @@ import type { AgentTelemetry } from "@novadeck/protocol"
 
 import type { HarnessEvent } from "../events.js"
 import { followLines } from "../follow.js"
-import { bounded, replied, type Harness, type Run, type WrittenPlan } from "../harness.js"
+import {
+  bounded,
+  shortName,
+  replied,
+  type Harness,
+  type Run,
+  type WrittenPlan,
+} from "../harness.js"
 import { transcripts } from "./transcripts.js"
 
 type Limit = AgentTelemetry["limits"][number]
@@ -41,13 +48,18 @@ const limit = (window: unknown): Limit | undefined => {
  * which fires no hook (0.159.3), or `turn_aborted`. Those end the turn `recorded`, should
  * its hook's report never come. Codex may write a turn's records long after the turn
  * (the failed turns before a session's first good one came together), so only its id
- * says which turn ended.
+ * says which turn ended. Each turn's `turn_context` names its `model` and reasoning
+ * `effort`.
  */
 export const rolloutEvents = (
   line: string,
   { sessionId, instance }: Pick<Run, "sessionId" | "instance">,
 ): readonly HarnessEvent[] => {
-  if (!/"(token_count|task_started|item_completed|task_complete|turn_aborted)"/.test(line))
+  if (
+    !/"(token_count|task_started|item_completed|task_complete|turn_aborted|turn_context)"/.test(
+      line,
+    )
+  )
     return []
   let record: unknown
   try {
@@ -57,11 +69,23 @@ export const rolloutEvents = (
   }
   if (typeof record !== "object" || record === null) return []
   const { type, timestamp, payload } = record as Record<string, unknown>
-  if (type !== "event_msg" || typeof timestamp !== "string") return []
+  if (typeof timestamp !== "string") return []
   const fields = (payload ?? {}) as Record<string, unknown>
   const startedAt = Date.parse(timestamp)
   if (!Number.isFinite(startedAt)) return []
   const base = { agent: "codex", sessionId, instance, startedAt } as const
+  if (type === "turn_context") {
+    const { model, effort } = fields
+    // A turn that names its model names its effort too, none clearing the last model's.
+    const level = shortName(effort, 32) ?? null
+    const name = shortName(model, 128)
+    const named = {
+      ...(name && { model: name, effort: level }),
+      ...(level !== null && { effort: level }),
+    }
+    return Object.keys(named).length > 0 ? [{ type: "telemetry-observed", ...base, ...named }] : []
+  }
+  if (type !== "event_msg") return []
   switch (fields.type) {
     case "token_count":
       return [telemetry(base, fields)]
@@ -145,14 +169,21 @@ const telemetry = (
  * then each record appended.
  */
 export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) => {
-  // The latest of each kind the backlog held, until it has all been read.
+  // The latest of each kind the backlog held, until it has all been read. A turn's model
+  // is a kind of its own, apart from the token counts.
   let backlog: Map<string, HarnessEvent> | undefined = new Map()
   return followLines(
     run.transcript,
     signal,
     (line) => {
       for (const event of rolloutEvents(line, run))
-        if (backlog) backlog.set(event.type, event)
+        if (backlog)
+          backlog.set(
+            event.type === "telemetry-observed" && (event.model !== undefined || event.effort)
+              ? "model"
+              : event.type,
+            event,
+          )
         else emit(event)
     },
     {
@@ -161,13 +192,14 @@ export const followRollout: NonNullable<Harness["watch"]> = (run, signal, emit) 
         if (!backlog) return
         // The mode holds until the next turn says otherwise, so it holds now, when the
         // binding that would otherwise predate it began; the rest keep their age.
+        // Oldest first, as telemetry older than the last it took is turned away.
         const now = Date.now()
-        for (const event of backlog.values())
-          emit(
-            event.type === "mode-observed"
-              ? { ...event, startedAt: Math.max(event.startedAt, now) }
-              : event,
-          )
+        const held = [...backlog.values()].map((event) =>
+          event.type === "mode-observed"
+            ? { ...event, startedAt: Math.max(event.startedAt, now) }
+            : event,
+        )
+        for (const event of held.toSorted((a, b) => a.startedAt - b.startedAt)) emit(event)
         backlog = undefined
       },
     },

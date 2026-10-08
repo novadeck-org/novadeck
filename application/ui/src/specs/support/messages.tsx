@@ -1,7 +1,7 @@
 import { expect } from "vitest"
-import { page, type Locator } from "vitest/browser"
+import { page, userEvent, type Locator } from "vitest/browser"
 
-import { openWorkspace, terminal, terminalTab, tooltipOf } from "./workspace"
+import { openWorkspace, terminal, terminalTab } from "./workspace"
 
 // Vocabulary for agents' messages: the counts on terminals' tabs, a terminal's messages
 // in its companion pane, and who named a terminal.
@@ -13,8 +13,16 @@ export const openMessagesDemo = async (route = "/"): Promise<void> => {
   if (await skip.query()) await skip.click()
 }
 
-/** The tooltip a terminal's tab shows on hover. */
-export const tabTooltip = (name: string): Promise<string> => tooltipOf(terminalTab(name))
+/** Who named a terminal, as its tab's menu says in a line to read rather than choose. */
+export const namedBy = async (name: string): Promise<string | null> => {
+  const menu = await tabMenu(name)
+  const line = menu.getByRole("menuitem").first()
+  await expect.element(line).toBeVisible()
+  const text = line.element().hasAttribute("data-disabled") ? line.element().textContent : null
+  await userEvent.keyboard("{Escape}")
+  await expect.element(menu).not.toBeInTheDocument()
+  return text
+}
 
 /** The Messages button in a terminal's taskbar. */
 export const messagesButton = (name: string): Locator =>

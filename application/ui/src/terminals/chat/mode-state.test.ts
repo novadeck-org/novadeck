@@ -5,35 +5,36 @@ import {
   joinDraft,
   chatAvailable,
   chatDraftOf,
-  chatModeOn,
+  answeringInTerminal,
+  chatShown,
   keepChatDrafts,
-  keepChatModes,
+  keepTerminalAnswers,
   noChatDrafts,
-  noChatModes,
+  noTerminalAnswers,
+  setAnsweringInTerminal,
   setChatDraft,
-  setChatMode,
 } from "./mode-state"
 
-describe("chat modes", () => {
-  it("turn on and off by session and terminal", () => {
-    const on = setChatMode(noChatModes, "p/s", "01", true)
-    expect(chatModeOn(on, "p/s", "01")).toBe(true)
-    expect(chatModeOn(on, "p/s", "02")).toBe(false)
-    expect(chatModeOn(on, "p/other", "01")).toBe(false)
-    expect(setChatMode(on, "p/s", "01", false)).toEqual(noChatModes)
+describe("answers in the terminal", () => {
+  it("are kept by session and terminal", () => {
+    const on = setAnsweringInTerminal(noTerminalAnswers, "p/s", "01", true)
+    expect(answeringInTerminal(on, "p/s", "01")).toBe(true)
+    expect(answeringInTerminal(on, "p/s", "02")).toBe(false)
+    expect(answeringInTerminal(on, "p/other", "01")).toBe(false)
+    expect(setAnsweringInTerminal(on, "p/s", "01", false)).toEqual(noTerminalAnswers)
   })
 
   it("change nothing when already as asked", () => {
-    expect(setChatMode(noChatModes, "p/s", "01", false)).toBe(noChatModes)
-    const on = setChatMode(noChatModes, "p/s", "01", true)
-    expect(setChatMode(on, "p/s", "01", true)).toBe(on)
+    expect(setAnsweringInTerminal(noTerminalAnswers, "p/s", "01", false)).toBe(noTerminalAnswers)
+    const on = setAnsweringInTerminal(noTerminalAnswers, "p/s", "01", true)
+    expect(setAnsweringInTerminal(on, "p/s", "01", true)).toBe(on)
   })
 
   it("keep only the terminals that still qualify", () => {
-    let modes = setChatMode(noChatModes, "p/s", "01", true)
-    modes = setChatMode(modes, "p/s", "02", true)
-    expect(keepChatModes(modes, (_, id) => id === "02")).toEqual({ "p/s": { "02": true } })
-    expect(keepChatModes(modes, () => true)).toBe(modes)
+    let answers = setAnsweringInTerminal(noTerminalAnswers, "p/s", "01", true)
+    answers = setAnsweringInTerminal(answers, "p/s", "02", true)
+    expect(keepTerminalAnswers(answers, (_, id) => id === "02")).toEqual({ "p/s": { "02": true } })
+    expect(keepTerminalAnswers(answers, () => true)).toBe(answers)
   })
 
   context("for a terminal", () => {
@@ -44,6 +45,15 @@ describe("chat modes", () => {
       // Antigravity reports nothing, but its program says an agent runs.
       expect(chatAvailable({ ...terminal, process: "agy", state: "running" })).toBe(true)
       expect(chatAvailable({ ...terminal, state: "idle" })).toBe(false)
+    })
+
+    it("shows its chat with the chat view on, unless the person answers in the terminal", () => {
+      const running = { ...terminal, state: "running" as const, agent: { working: false } }
+      const answering = setAnsweringInTerminal(noTerminalAnswers, "p/s", "01", true)
+      expect(chatShown(true, noTerminalAnswers, "p/s", running)).toBe(true)
+      expect(chatShown(false, noTerminalAnswers, "p/s", running)).toBe(false)
+      expect(chatShown(true, answering, "p/s", running)).toBe(false)
+      expect(chatShown(true, noTerminalAnswers, "p/s", { ...terminal, state: "idle" })).toBe(false)
     })
   })
 })

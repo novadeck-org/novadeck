@@ -3,8 +3,7 @@ import { Check, Eye, EyeOff, Pencil, X, type LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
-import { subagentsBadge, subagentsDetail } from "../model/agent-subagents"
-import { nextReset, usageDetail } from "../model/agent-usage"
+import { subagentMarks, subagentsBadge, subagentsDetail } from "../model/agent-subagents"
 import { mailBadgeLabel, type MailBadge } from "../model/messages"
 import { isWindow } from "../model/roster"
 import {
@@ -15,11 +14,12 @@ import {
   terminalPhase,
   unheardText,
 } from "../model/terminal-ending"
-import { titleSourceText } from "../model/title-source"
+import { nextTurnAge, turnAge } from "../model/turn-age"
 import type { Tile } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
 import { ContextMenu } from "../ui-toolkit/ContextMenu"
 import { Tooltip } from "../ui-toolkit/Tooltip"
+import { SubagentBranches, SubagentLine } from "./TabSubagents"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 import { tabInstructionsId } from "./TerminalTabs"
 import { useRenderAt } from "./use-render-at"
@@ -81,19 +81,32 @@ export const TerminalTab = ({
   const shell = isWindow(tile) ? undefined : tile
   const icon = <Icon size={14} strokeWidth={1.5} />
   // The detail line shows the phase: a glyph (a spinner while a program runs) beside
-  // the program, or a note while the shell starts. A tab that has ended is hatched (styles.css); the
-  // tooltip and assistive technology say how it ended.
+  // the program, or a note while the shell starts. A tab that has ended is hatched (styles.css);
+  // assistive technology says how it ended.
   const phase = shell ? terminalPhase(shell, unread !== undefined) : "idle"
   const failed = unread === "failed"
   const ending = shell && terminalEnding(shell)
   const ended = ending ? endingText(ending) : undefined
   // What the agent waits on the person for, or that Novadeck can't hear from it, said like
-  // an ending: in the tooltip and to assistive technology.
+  // an ending, to assistive technology.
   const waiting = shell && (attentionText(shell) ?? unheardText(shell))
   const note = ended ?? waiting ?? (phase === "done" ? doneText(failed) : undefined)
-  const named = terminal.titleSource ? titleSourceText(terminal.titleSource) : undefined
   const messages = mail ? mailBadgeLabel(mail) : undefined
-  const description = [note, messages].filter(Boolean).join(", ")
+  // The subagents its agent runs: marked on its line, their kinds under it while selected,
+  // and counted in words wherever it marks them.
+  const subagents = shell && subagentsBadge(shell)
+  const marks = shell && subagentMarks(shell)
+  // Their kinds in words, as the marks and rows under the line are only drawn; work its
+  // harness only counts has no kinds to name, so its count says it all.
+  const counted = shell?.state === "running" && shell.agent?.background !== undefined
+  // Work with no subagents in it, as commands left running, has no mark but still counts.
+  const kinds =
+    subagents && shell
+      ? marks && !counted
+        ? `${subagents}: ${subagentsDetail(shell)}`
+        : subagents
+      : undefined
+  const description = [note, messages, kinds].filter(Boolean).join(", ")
   const menu = windowMenu({
     terminal,
     onRename: onBeginRename,
@@ -101,14 +114,12 @@ export const TerminalTab = ({
     dockIn,
     onClose,
   })
-  useRenderAt(shell && nextReset(shell))
-  const usage = shell && usageDetail(shell)
-  const subagents = shell && subagentsBadge(shell)
-  const subagentKinds = shell && subagents ? `${subagents}: ${subagentsDetail(shell)}` : undefined
-  const planning = shell?.state === "running" && shell.agent?.planning ? "Planning" : undefined
-  // A window runs no program; its tab says where it came from instead.
+  // How long ago a done tab's agent finished, beside its program, kept current.
+  const finished = phase === "done" ? shell : undefined
+  const age = finished && turnAge(finished)
+  useRenderAt(finished && nextTurnAge(finished))
+  // A window runs no program.
   const process = shell?.process ?? ""
-  const place = shell ? `${shell.directory} · ${shell.process}` : "Undocked window"
   const { ref, handleRef, isDragSource } = useSortable({
     id: terminal.id,
     index,
@@ -132,20 +143,25 @@ export const TerminalTab = ({
             {phase === "starting" ? (
               <span className="terminal-tab-starting truncate italic">starting…</span>
             ) : phase === "done" ? (
-              // The tab's line is short beside its actions: the words in full are its
-              // description's.
-              <span className="terminal-tab-done truncate">
-                {failed ? "error · unread" : "done · unread"}
-              </span>
+              // How its turn ended is its glyph's (tabs.css), in words its description's;
+              // beside its program, how long ago, set apart by colour alone, as the line
+              // fits "claude" and "now" but no dot between.
+              <>
+                <span className="terminal-tab-process truncate">{process}</span>
+                {age && <span className="terminal-tab-age shrink-0">{age}</span>}
+              </>
             ) : (
-              <span className="terminal-tab-process truncate">{process}</span>
+              <>
+                <span className="terminal-tab-process truncate">{process}</span>
+                {marks && <SubagentLine marks={marks} />}
+              </>
             )}
           </>
         }
+        {...(marks && !editing ? { below: <SubagentBranches marks={marks} /> } : {})}
         selected={selected}
         emphasized={phase === "done"}
         selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
-        tooltip={`${terminal.name}${named ? `\n${named}` : ""}\n${place}${note ? `\n${note}` : ""}${messages ? `\n${messages}` : ""}${planning ? `\n${planning}` : ""}${subagentKinds ? `\n${subagentKinds}` : ""}${usage ? `\n${usage}` : ""}`}
         {...(description ? { description } : {})}
         {...(companion ? { badge: companion } : {})}
         describedBy={tabInstructionsId}
@@ -156,6 +172,7 @@ export const TerminalTab = ({
         {...(phase === "attention" && shell?.state === "running" && shell.agent?.attention
           ? { "data-terminal-attention": shell.agent.attention.kind }
           : {})}
+        {...(marks ? { "data-terminal-subagents": marks.working ? "working" : "background" } : {})}
         data-terminal-hidden={hidden}
 
         className={`terminal-tab [--_sidebar-actions-space:76px] ${selected ? "selected" : ""} ${editing ? "editing" : ""} ${isDragSource ? "dragging" : ""}`}

@@ -18,6 +18,8 @@ import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
 import { createMockTerminal, demoSeed } from "./samples"
+import { createShowcase } from "./showcase/simulation"
+import { storefrontArtifacts } from "./showcase/storefront"
 import { agentTranscripts, type DemoTranscript } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
 import { createDemoVoice } from "./voice"
@@ -220,6 +222,45 @@ export const withConversations = (
   }
 }
 
+// The agents demo's storefront terminals hold what their agents showed, on their bars,
+// to open, peek at and move; nothing there changes.
+const withStorefrontArtifacts = (backend: Backend): Backend => {
+  const session = { projectId: "storefront", workspaceSessionId: "initial" }
+  const showcase = createShowcase({
+    agents: [],
+    shown: Object.entries(storefrontArtifacts).map(([terminalId, artifacts]) => ({
+      key: { ...session, terminalId },
+      handle: `t${Number(terminalId)}`,
+      artifacts,
+    })),
+  })
+  return {
+    ...backend,
+    companions: showcase,
+    seed: {
+      ...backend.seed,
+      projects: backend.seed.projects.map((project) =>
+        project.id !== session.projectId
+          ? project
+          : {
+              ...project,
+              sessions: project.sessions.map((each) =>
+                each.id === session.workspaceSessionId ? { ...each, items: showcase.items } : each,
+              ),
+            },
+      ),
+    },
+    start: (sink) => {
+      const stop = backend.start?.(sink)
+      const stopShowcase = showcase.start(sink.dispatch, () => [])
+      return () => {
+        stop?.()
+        stopShowcase()
+      }
+    },
+  }
+}
+
 // The demos with no content showcase: the plain one, the agents', the agents' with
 // messages between them, and the plain one with its first-run welcome dialog open.
 export type PlainVariant = "plain" | "agents" | "messages" | "welcome"
@@ -245,7 +286,9 @@ export const plainDemo = (variant: PlainVariant, runtime?: DemoSurfaceRuntime): 
       turns,
     )
   return withConversations(
-    variant === "agents" ? { ...backend, seed: demoSeed(now, true) } : backend,
+    variant === "agents"
+      ? withStorefrontArtifacts({ ...backend, seed: demoSeed(now, true) })
+      : backend,
     transcripts,
     turns,
   )

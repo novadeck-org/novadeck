@@ -235,7 +235,7 @@ which shows but keeps nothing working (see
 [Harness coverage](harness-coverage.md#working-past-a-turns-end)). A recognized agent
 (Claude Code, Codex or Antigravity in the foreground) with disabled or untrusted
 hooks is Not reporting: a muted "○" in its tab and a muted dashed line on its window,
-said in words to its tooltip and assistive technology, not process-derived running.
+said in words to assistive technology, not process-derived running.
 An agent that finished while the person looked elsewhere is done, its reply unread: a
 green "●" in its tab and a solid green line on its window, until they look at that
 terminal or it starts another turn. That mark is the client's own, from
@@ -445,6 +445,14 @@ Besides the facts shared with the agent model, decoders give
 - `turn-idle` is Antigravity's status line showing idle, however its turn ended, with
   `background` while a subagent still runs; without a Stop since the turn began, the
   turn ended abnormally (an Esc or a denial).
+- `turn-working` is Antigravity's status line showing work. Within a running turn its
+  `running` counts the subagents still running, which shows as the activity's
+  `background` while the turn runs; after a Stop it is ignored.
+- `telemetry-observed` may name the session's `model` and `effort`: Claude Code's status
+  line, Antigravity's hooks' `modelName` (a trailing reasoning level split off as the
+  effort), and Codex's `turn_context`. A named model without a level clears the last
+  one's; a record of the model alone keeps a clock of its own, apart from the tokens and
+  quotas (`telemetry.ts`).
 - `file-touched` names a file an actor wrote or edited, from its write and edit tools,
   for the folders a session works in.
 - `session-observed` has `compacted` when the harness says it compacted the session's

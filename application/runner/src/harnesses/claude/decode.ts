@@ -15,6 +15,7 @@ import {
   text,
   withMode,
   type WrittenPlan,
+  shortName,
 } from "../harness.js"
 import { at as writtenAt, record } from "../items.js"
 
@@ -224,8 +225,10 @@ const windows = { five_hour: 300, seven_day: 10_080 } as const
 
 /**
  * The status line Claude Code runs in Novadeck's shells hands over what no other source
- * says: the context window's size beside what it holds, and the account's five-hour and
- * seven-day rate limits, used percentage and reset time in epoch seconds.
+ * says: the context window's size beside what it holds, the account's five-hour and
+ * seven-day rate limits, used percentage and reset time in epoch seconds, and the model's
+ * display name with its reasoning effort level, which it leaves out for a model without
+ * one.
  */
 const statusLine = (
   base: { agent: "claude"; sessionId: string; instance: string | null; startedAt: number },
@@ -242,6 +245,11 @@ const statusLine = (
     .filter((each): each is number => each !== undefined)
   const capacity = count(window.context_window_size)
   const limits = (payload.rate_limits ?? {}) as Record<string, unknown>
+  const model = shortName(
+    (payload.model as { display_name?: unknown } | undefined)?.display_name,
+    128,
+  )
+  const effort = shortName((payload.effort as { level?: unknown } | undefined)?.level, 32)
   const known = Object.entries(windows).flatMap(([name, minutes]) => {
     const { used_percentage: used, resets_at: resets } = (limits[name] ?? {}) as Record<
       string,
@@ -265,6 +273,9 @@ const statusLine = (
         },
       }),
       ...(payload.rate_limits !== undefined && { limits: known }),
+      // A model with no effort parameter has no level, so a named model clears the last.
+      ...(model !== undefined && { model, effort: effort ?? null }),
+      ...(model === undefined && effort !== undefined && { effort }),
     },
   ]
 }

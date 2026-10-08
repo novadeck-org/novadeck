@@ -33,7 +33,7 @@ import type { Work } from "../terminals/work.js"
 export type VoiceSettingsChange = {
   readonly [K in Exclude<keyof VoiceSettings, "enabled">]?: VoiceSettings[K] | undefined
 } & {
-  /** `null` forgets the choice, as when voice input is removed. */
+  /** `null` forgets the choice, as when it is turned on before an install. */
   readonly enabled?: boolean | null | undefined
 }
 
@@ -831,7 +831,8 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
 
   /**
    * Whether the person chose voice input on or off: `undefined` until they, or an install,
-   * did, so that an install turns it on and a person's own off survives installs.
+   * did. A first install forgets an earlier off and turns it on; an off chosen during it,
+   * or before a later model's install, survives.
    */
   voiceEnabledChoice(): boolean | undefined {
     const row = this.queries.get`SELECT value FROM settings WHERE key = 'voice.enabled'` as

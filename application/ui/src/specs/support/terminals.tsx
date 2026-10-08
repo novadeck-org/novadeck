@@ -2,7 +2,7 @@ import { page, type Locator } from "vitest/browser"
 
 import { sidebar, terminal, terminalTab } from "./workspace"
 
-// Vocabulary for creating, renaming, hiding, minimizing, and closing terminals.
+// Vocabulary for creating, renaming, hiding, and closing terminals.
 
 export const newTerminalButton = (): Locator =>
   sidebar().getByRole("button", { name: "New terminal" })
@@ -23,7 +23,7 @@ export const anyRenameField = (): Locator => page.getByRole("textbox", { name: /
 export const tabAction = (label: string): Locator =>
   sidebar().getByRole("button", { name: label, exact: true })
 
-/** A terminal header action such as `Close Dev server` or `Minimize Dev server`. */
+/** A terminal header action such as `Close Dev server` or `Focus Dev server`. */
 export const headerAction = (name: string, label: string): Locator =>
   terminal(name).getByRole("button", { name: label, exact: true })
 

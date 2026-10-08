@@ -1,0 +1,177 @@
+{
+  "harness": "agy",
+  "version": "1.2.16",
+  "source": "captured",
+  "how": "the JSON Antigravity gave a status line command in an interactive session whose root started two subagents, one quick and one running a long command, and ended its turn while the long one ran, which woke it; only the snapshots where the state or the subagents' statuses changed, the order of its list included; conversation ids, paths, roles replaced, other fields left out",
+  "payloads": [
+    {
+      "agent_state": "idle",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project"
+    },
+    {
+      "agent_state": "working",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project"
+    },
+    {
+      "agent_state": "working",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "First subagent's task",
+          "status": "running"
+        }
+      ]
+    },
+    {
+      "agent_state": "working",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "First subagent's task",
+          "status": "running"
+        },
+        {
+          "name": "self",
+          "role": "Second subagent's task",
+          "status": "running"
+        }
+      ]
+    },
+    {
+      "agent_state": "working",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "First subagent's task",
+          "status": "completed"
+        },
+        {
+          "name": "self",
+          "role": "Second subagent's task",
+          "status": "running"
+        }
+      ]
+    },
+    {
+      "agent_state": "working",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "Second subagent's task",
+          "status": "running"
+        },
+        {
+          "name": "self",
+          "role": "First subagent's task",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "agent_state": "idle",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "First subagent's task",
+          "status": "completed"
+        },
+        {
+          "name": "self",
+          "role": "Second subagent's task",
+          "status": "running"
+        }
+      ]
+    },
+    {
+      "agent_state": "working",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "First subagent's task",
+          "status": "completed"
+        },
+        {
+          "name": "self",
+          "role": "Second subagent's task",
+          "status": "running"
+        }
+      ]
+    },
+    {
+      "agent_state": "working",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "Second subagent's task",
+          "status": "running"
+        },
+        {
+          "name": "self",
+          "role": "First subagent's task",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "agent_state": "working",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "Second subagent's task",
+          "status": "completed"
+        },
+        {
+          "name": "self",
+          "role": "First subagent's task",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "agent_state": "idle",
+      "conversation_id": "00000000-0000-4000-8000-000000000001",
+      "session_id": "00000000-0000-4000-8000-000000000001",
+      "cwd": "/home/user/project",
+      "subagents": [
+        {
+          "name": "self",
+          "role": "Second subagent's task",
+          "status": "completed"
+        },
+        {
+          "name": "self",
+          "role": "First subagent's task",
+          "status": "completed"
+        }
+      ]
+    }
+  ]
+}

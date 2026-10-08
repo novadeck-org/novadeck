@@ -24,7 +24,9 @@ export type SampleArtifacts = {
   readonly next: readonly SampleArtifact[]
 }
 
-const ready = (content: Extract<ItemContent, { state: "ready" }>["content"]): ItemContent => ({
+export const ready = (
+  content: Extract<ItemContent, { state: "ready" }>["content"],
+): ItemContent => ({
   state: "ready",
   stamp: "1",
   content,
@@ -33,7 +35,7 @@ const ready = (content: Extract<ItemContent, { state: "ready" }>["content"]): It
 const studio = "~/projects/studio"
 
 // A file's lines as the pane loads them: all of a short file, pointing at `from`–`to`.
-const fileLines = (
+export const fileLines = (
   path: string,
   lines: readonly string[],
   pointed: { readonly from: number; readonly to: number; readonly firstLine?: number },
@@ -60,7 +62,7 @@ const clay = "#c4704f"
 const sand = "#b9ae8e"
 const serif = 'font-family="Georgia, serif"'
 
-const svg = (width: number, height: number, body: string): string =>
+export const svg = (width: number, height: number, body: string): string =>
   `data:image/svg+xml,${encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 800 450">${body}</svg>`,
   )}`

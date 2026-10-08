@@ -4,11 +4,13 @@ import type { TerminalKey } from "../../backend/port"
 import { tilesOf } from "../../model/roster"
 import { activeProject } from "../../model/state"
 import type { TerminalMetadata } from "../../model/types"
-import { chatDraftOf, chatModeOn, setChatDraft } from "../../terminals/chat/mode-state"
+import { chatDraftOf, chatShown, setChatDraft } from "../../terminals/chat/mode-state"
+import type { DictationControls } from "../../terminals/WindowShell"
 import { isAgentTerminal } from "../../voice/agent-terminal"
 import { startCapture } from "../../voice/capture"
 import {
   createDictation,
+  dictationKey,
   dictationPrompt,
   voiceReady,
   type DictationController,
@@ -22,11 +24,19 @@ export const DictationContext = createContext<DictationController | undefined>(u
 
 // Where dictated words go: a terminal showing its agent's chat takes them in the chat's box,
 // after what is there, for the person to send; any other takes them typed into it.
+// `terminalOf` finds the terminal a key names, on a backend that reads conversations.
 export const dictateInto =
-  (ui: UiStore, typeInto: (key: TerminalKey, text: string) => boolean) =>
+  (
+    ui: UiStore,
+    typeInto: (key: TerminalKey, text: string) => boolean,
+    terminalOf: (key: TerminalKey) => TerminalMetadata | undefined,
+  ) =>
   (key: TerminalKey, text: string): boolean => {
     const context = `${key.projectId}/${key.workspaceSessionId}`
-    if (!chatModeOn(ui.getSnapshot().chat, context, key.terminalId)) return typeInto(key, text)
+    const terminal = terminalOf(key)
+    const { preferences, answering } = ui.getSnapshot()
+    if (!terminal || !chatShown(preferences.chatView, answering, context, terminal))
+      return typeInto(key, text)
     ui.update((state) => {
       const draft = chatDraftOf(state.chatDrafts, context, key.terminalId)
       const next =
@@ -53,7 +63,15 @@ export const useDictationController = ({
       typeInto &&
       createDictation({
         voice,
-        typeInto: dictateInto(ui, typeInto),
+        typeInto: dictateInto(ui, typeInto, (key) =>
+          backend.conversations
+            ? workspace
+                .getSnapshot()
+                .projects.find((project) => project.id === key.projectId)
+                ?.history.find((session) => session.id === key.workspaceSessionId)
+                ?.state.roster.terminals.find((each) => each.id === key.terminalId)
+            : undefined,
+        ),
         startCapture,
         promptFor: (key) => {
           const snapshot = workspace.getSnapshot()
@@ -67,7 +85,7 @@ export const useDictationController = ({
         now: domEffects.now,
         after: domEffects.after,
       }),
-    [voice, typeInto, workspace, ui],
+    [voice, typeInto, backend.conversations, workspace, ui],
   )
   useEffect(() => () => controller?.dictation.cancel(), [controller])
   return controller
@@ -76,12 +94,13 @@ export const useDictationController = ({
 const never = (): (() => void) => () => {}
 
 // What a terminal's header needs for its mic button, or undefined where the button
-// doesn't show: not an agent, or voice input off or without its model.
+// doesn't show: not an agent, no voice input on this machine, or the person turned it
+// off. Until voice input is ready the button opens Addons, where it is installed.
 export const useMicButton = (
   terminal: TerminalMetadata,
   key: TerminalKey,
-): { readonly recording: boolean; readonly onToggle: () => void } | undefined => {
-  const { backend } = useWorkspaceServices()
+): DictationControls | undefined => {
+  const { backend, navigation } = useWorkspaceServices()
   const controller = useContext(DictationContext)
   const state = useSyncExternalStore(
     backend.voice?.state.subscribe ?? never,
@@ -91,9 +110,19 @@ export const useMicButton = (
     controller?.view.subscribe ?? never,
     () => controller?.view.getSnapshot() ?? null,
   )
-  if (!controller || !state || !voiceReady(state) || !isAgentTerminal(terminal)) return undefined
+  if (!controller || !state || !state.available || !state.wanted || !isAgentTerminal(terminal))
+    return undefined
+  if (!voiceReady(state))
+    return {
+      recording: false,
+      ready: false,
+      onToggle: () => navigation.go({ dialog: "preferences", section: "addons" }),
+    }
   return {
-    recording: view?.phase === "recording" && view.target?.terminalId === key.terminalId,
+    recording:
+      view?.phase === "recording" &&
+      view.target !== null &&
+      dictationKey(view.target) === dictationKey(key),
     onToggle: () => controller.dictation.toggle(key),
   }
 }

@@ -70,8 +70,9 @@ export const agentActivity = z.strictObject({
   state: z.enum(["working", "idle", "unknown"]),
   // What its ended turn left running that wakes it once done: subagents, which keep it
   // working, and other tasks such as commands, which don't, as one may run for ever,
-  // counted; both zero where its harness says only that something runs. Null while its
-  // turn runs, and once nothing it started runs.
+  // counted; both zero where its harness says only that something runs. While its turn
+  // runs, only the subagents its harness counts running then, as Antigravity's do; null
+  // otherwise, and once nothing it started runs.
   background: z
     .strictObject({
       agents: z.number().int().nonnegative(),
@@ -129,6 +130,10 @@ export const agentTelemetry = z.strictObject({
       }),
     )
     .max(8),
+  // The model it runs, in its harness's words (a display name where it gives one), and
+  // the reasoning effort it was set to; null where its harness doesn't say.
+  model: z.string().min(1).max(128).nullable(),
+  effort: z.string().min(1).max(32).nullable(),
 })
 
 // A runner-issued reference to an agent's actor or request: clients compare it, and
@@ -637,6 +642,9 @@ export const voiceState = z.strictObject({
   installed: z.array(voiceModel),
   // Whether the person turned voice input on; it needs `model` installed.
   enabled: z.boolean(),
+  // Whether the person wants voice input, installed or not: until they turn it off, the
+  // app offers it, as a microphone that leads to its install.
+  wanted: z.boolean(),
   model: voiceModel,
   language: voiceLanguage,
   // Download sizes in bytes: the engine for this platform, and each model.

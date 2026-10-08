@@ -12,11 +12,14 @@ export type TooltipProps = {
   placement?: "bottom" | "right-start"
 }
 
-// How long the pointer rests on a trigger before its tooltip opens.
+// How long the pointer rests on a trigger before its tooltip opens, and how long it
+// lingers once the pointer leaves, so a pointer that slips off doesn't lose it.
 const restDelay = 400
+const closeDelay = 375
 
 // A tooltip by its trigger: it opens once the pointer rests there, or at once for
-// keyboard focus, and closes as the pointer leaves, the focus moves, or it's pressed.
+// keyboard focus, and closes a moment after the pointer leaves, as the focus moves, or
+// as it's pressed.
 // Its text keeps the lines it's given.
 export const Tooltip = ({
   content,
@@ -38,7 +41,7 @@ export const Tooltip = ({
         if (!next || !resting.over()) setOpen(next)
       }}
       openDelay={restDelay}
-      closeDelay={100}
+      closeDelay={closeDelay}
       positioning={{ placement, gutter: 6, strategy: "fixed" }}
       lazyMount
       unmountOnExit

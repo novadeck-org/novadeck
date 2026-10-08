@@ -125,7 +125,9 @@ describe("dictation state", () => {
     it("says why and stays idle", () => {
       const { state, effects } = play(press(0, { readiness: off }))
       expect(state).toEqual(idle)
-      expect(effects).toEqual([[{ kind: "hint", text: off.ready ? "" : off.hint }]])
+      expect(effects).toEqual([
+        [{ kind: "hint", text: off.ready ? "" : off.hint, target, setup: true }],
+      ])
     })
 
     it("asks for a terminal when none is selected", () => {

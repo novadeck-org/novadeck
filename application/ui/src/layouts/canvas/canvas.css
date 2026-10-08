@@ -82,19 +82,6 @@
     flex-shrink: 1;
     padding: 0;
   }
-  .canvas-node.minimized .terminal-header {
-    --_border-color: transparent;
-  }
-  .canvas-node.minimized .terminal-resize-grip {
-    width: 16px;
-    padding-right: 3px;
-    padding-left: 0;
-    cursor: ew-resize;
-  }
-  .canvas-node.minimized.compact-header .terminal-resize-grip {
-    height: 12px;
-    padding-bottom: 1px;
-  }
   .canvas-node .terminal-content {
     overscroll-behavior: contain;
   }

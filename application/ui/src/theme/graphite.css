@@ -67,12 +67,12 @@
   --color-syntax-definition: #4a4fb0;
   --color-syntax-type: #8a5300;
   --color-syntax-comment: var(--color-muted);
-  /* Terminal: the paper and ink, a block cursor in the accent, and ANSI hues that read
+  /* Terminal: the paper and ink, a block cursor in the ink, and ANSI hues that read
      on the paper: each at 5:1 or more, each bright one at 4.5:1 or more, and white a
      grey here, so text a program prints in it still reads (its bright at about 4:1). */
   --terminal-bg: var(--color-paper);
   --terminal-fg: var(--color-ink);
-  --terminal-cursor: var(--color-strong);
+  --terminal-cursor: var(--color-ink);
   --terminal-selection: var(--color-selection);
   --terminal-ansi-black: #181816;
   --terminal-ansi-red: #b02a22;
@@ -258,7 +258,7 @@
   /* Terminal: ANSI black stays a step above the paper, so text drawn in it shows. */
   --terminal-bg: var(--color-paper);
   --terminal-fg: var(--color-ink);
-  --terminal-cursor: var(--color-strong);
+  --terminal-cursor: var(--color-ink);
   --terminal-selection: var(--color-selection);
   --terminal-ansi-black: #4f5259;
   --terminal-ansi-red: #e5807a;

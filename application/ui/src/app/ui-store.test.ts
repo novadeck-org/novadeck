@@ -37,6 +37,7 @@ const initial = (): UiState =>
       appearance,
       notifyFinished: true,
       ligatures: false,
+      chatView: false,
     },
   })
 

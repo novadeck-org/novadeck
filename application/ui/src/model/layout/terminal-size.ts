@@ -23,16 +23,20 @@ const ratioSize = (fallback: Dimensions, viewport?: Dimensions): Dimensions => {
   }
 }
 
+// A window new to Canvas opens in the viewport's ratio, as an enlarged one does, at the
+// area it would have had.
 export const canvasNewTerminalSize = (
   viewport: Dimensions | undefined,
-  matchViewport: boolean,
   fallback: Dimensions = { width: 600, height: 400 },
-): Dimensions => (matchViewport ? ratioSize(fallback, viewport) : fallback)
+): Dimensions => ratioSize(fallback, viewport)
 
-export const canvasPresetSize = (preset: SizePreset, viewport?: Dimensions): Dimensions => {
-  if (preset === "small") return { width: 600, height: 400 }
-  return ratioSize({ width: 1200, height: 800 }, viewport)
-}
+// Both presets take the viewport's ratio where it's given, each at its own area, so
+// compact gives back the shape a new window opens in.
+export const canvasPresetSize = (preset: SizePreset, viewport?: Dimensions): Dimensions =>
+  ratioSize(
+    preset === "small" ? { width: 600, height: 400 } : { width: 1200, height: 800 },
+    viewport,
+  )
 
 export const gridPresetWidth = (columns: number, preset: SizePreset): number =>
   preset === "large" ? columns : Math.max(4, Math.floor(columns / 2))

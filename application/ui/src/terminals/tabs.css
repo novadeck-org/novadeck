@@ -5,24 +5,31 @@
    Hooks on `.terminal-tab`: data-terminal-phase="idle" | "done" | "running" | "starting" |
    "attention" | "unheard" | "ended", data-terminal-attention="question" | "permission",
    data-terminal-hidden="true" | "false", data-terminal-failed="true" (a done tab whose turn
-   ended on an error). Parts: `.terminal-glyph`,
-   `.terminal-tab-process`, `.terminal-tab-starting`, `.terminal-tab-done` (what a done
-   tab says in its program's place), `.terminal-tab-action` (an
+   ended on an error), data-terminal-subagents="working" | "background" (its agent runs
+   subagents, working on while they do, or they run on without it). Parts: `.terminal-glyph`,
+   `.terminal-tab-process`, `.terminal-tab-starting`, `.terminal-tab-age` (how long ago
+   a done tab's agent finished, after its program), `.terminal-tab-action` (an
    `.icon-button.small.dim.quiet`, pressed while it hides the tab but looking as it does
    at rest, so a hidden tab doesn't draw the eye; `.terminal-tab-revealed` on Hide and
    Rename, which show under the pointer or with keyboard focus), `.terminal-tab-kinds`
    (what its companion bar holds, at the end of the name's line), each
    `.terminal-tab-kind` data-state="new" | "seen",
+   `.terminal-tab-subagents` (a mark for each subagent after the program:
+   `.terminal-tab-subagents-rule`, each `.terminal-tab-subagent`,
+   `.terminal-tab-subagents-more`), `.terminal-tab-branches` (its subagents under its line,
+   unfolded while it's selected: `.terminal-tab-branches-fold`, each row's
+   `.terminal-tab-branch` and mark),
    `.terminal-tab-rename`, `.terminal-tab-empty`.
 
    Tokens, each optional (its fallback in brackets):
    --tab-glyph-fg (ink): the phase glyph. --tab-starting-fg (muted): the glyph while the
    shell starts. --tab-attention-fg (warning-fg): the glyph while an agent waits.
    --tab-unheard-fg (muted): the glyph while Novadeck can't hear from an agent.
-   --tab-done-fg (success-fg): the glyph and the words while an agent's reply waits unread.
+   --tab-done-fg (success-fg): the glyph while an agent's reply waits unread.
    --tab-failed-fg (danger-fg): the same, where its turn ended on an error.
+   --tab-age-fg (muted): how long ago it finished.
    --tab-process-font (mono): the program and the glyph.
-   --tab-active-process-fg (ink): the program while it runs or waits.
+   --tab-active-process-fg (ink): the program while it runs, waits or is done.
    --tab-ended-image (the window's --window-ended-image, a faint ink hatch),
    --tab-ended-fg (muted): an ended tab, and its name and icon.
    --tab-hidden-opacity (0.5): a tab hidden from Grid and Canvas.
@@ -30,6 +37,8 @@
    --tab-kind-fg (muted), --tab-kind-opacity (icon-button-dim-opacity, then 0.5): what's
    on the bar and seen. --tab-kind-new-opacity (1): something not yet opened, and the
    messages while some wait. --tab-kind-new-bg (ink): the dot on it.
+   --tab-subagent-fg (muted): a subagent's mark, and its row under the selected tab.
+   --tab-subagent-rule-fg (line-strong): the rule before the marks, and the branches.
    --tab-empty-fg (muted): the note in an empty list. */
 .icon-button.terminal-tab-action:focus-visible {
   outline-offset: -2px;
@@ -53,10 +62,16 @@
 }
 .terminal-glyph,
 .terminal-tab-process,
-.terminal-tab-starting {
+.terminal-tab-starting,
+.terminal-tab-subagents,
+.terminal-tab-branches {
   font-family: var(--tab-process-font, var(--font-mono));
 }
-.terminal-tab:is([data-terminal-phase="running"], [data-terminal-phase="attention"])
+.terminal-tab:is(
+    [data-terminal-phase="running"],
+    [data-terminal-phase="attention"],
+    [data-terminal-phase="done"]
+  )
   .sidebar-item-select
   .terminal-tab-process {
   color: var(--tab-active-process-fg, var(--color-ink));
@@ -99,8 +114,9 @@
 /* A tab reads its terminal's phase as text: a braille spinner beside a running program,
    as command-line tools show work, and a faint hatch once it has ended. Each tab keeps a
    one-glyph slot before its program, so the text never shifts. Only what needs a look
-   is marked: a spinner while a program runs, a dot while the shell starts, and a cross
-   once it has ended; an idle tab leaves it blank. Reduced motion holds the spinner
+   is marked: a spinner while a program runs, a dot while the shell starts, a check or
+   a cross while a finished agent's reply waits, and a cross once it has ended; an idle
+   tab leaves it blank. Reduced motion holds the spinner
    still. */
 .terminal-glyph {
   color: var(--tab-glyph-fg, var(--color-ink));
@@ -124,22 +140,26 @@
 .terminal-tab[data-terminal-phase="unheard"] .terminal-glyph::before {
   content: "○";
 }
-/* An agent that finished while the person looked elsewhere: a small dot in the success
-   colour and its words where the program was, its name bold (TerminalTab.tsx), until
-   they look. */
-.terminal-tab[data-terminal-phase="done"] :is(.terminal-glyph, .terminal-tab-done) {
+/* An agent that finished while the person looked elsewhere is marked as one waiting on
+   them is: a bold glyph, "✓" in the success colour, or "✗" in the danger colour where
+   its turn ended on an error. Its program stays beside it, its name bold
+   (TerminalTab.tsx), with how long ago it finished, until they look. */
+.terminal-tab[data-terminal-phase="done"] .terminal-glyph {
   color: var(--tab-done-fg, var(--color-success-fg));
-}
-.terminal-tab[data-terminal-phase="done"][data-terminal-failed="true"]
-  :is(.terminal-glyph, .terminal-tab-done) {
-  color: var(--tab-failed-fg, var(--color-danger-fg));
-}
-.terminal-tab[data-terminal-phase="done"] .terminal-tab-done {
-  font-weight: 600;
+  font-weight: 700;
 }
 .terminal-tab[data-terminal-phase="done"] .terminal-glyph::before {
-  content: "●";
-  font-size: 0.75em;
+  content: "✓";
+}
+.terminal-tab[data-terminal-phase="done"][data-terminal-failed="true"] .terminal-glyph {
+  color: var(--tab-failed-fg, var(--color-danger-fg));
+}
+.terminal-tab[data-terminal-phase="done"][data-terminal-failed="true"] .terminal-glyph::before {
+  content: "✗";
+}
+.terminal-tab-age {
+  font-family: var(--tab-process-font, var(--font-mono));
+  color: var(--tab-age-fg, var(--color-muted));
 }
 /* An agent waiting on the person is marked in the warning colour: "?" for a question,
    "!" for a permission. */
@@ -188,6 +208,71 @@
   90% {
     content: "⠏";
   }
+}
+/* The subagents its agent runs, marked after its program as its phase is before it: a
+   spinner each, a step quieter than the phase glyph, while the agent works on until they
+   finish; a hollow mark each while they run on without it. Under the tab, a row for
+   each, branching from the agent, in their place while it's selected. */
+.terminal-tab-subagents,
+.terminal-tab-branches {
+  color: var(--tab-subagent-fg, var(--color-muted));
+}
+.terminal-tab-subagents-rule,
+.terminal-tab-branch {
+  color: var(--tab-subagent-rule-fg, var(--color-line-strong));
+}
+.terminal-tab-subagent::before {
+  content: "◌";
+}
+.terminal-tab[data-terminal-subagents="working"] .terminal-tab-subagent::before {
+  content: "⠋";
+  animation: terminal-spin 800ms steps(1) infinite;
+  animation-delay: inherit;
+}
+/* The rows fold away under a tab that isn't selected: their track shrinks to nothing,
+   they fade, and once folded they hide, so nothing finds them. Selecting the tab unfolds
+   them the same way back; the spinners rest while folded. */
+.terminal-tab-branches {
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--motion-layout) var(--ease-interface),
+    visibility 0s linear var(--motion-layout);
+}
+.terminal-tab-branches-fold {
+  opacity: 0;
+  transition: opacity var(--motion-layout) var(--ease-interface);
+}
+.terminal-tab.selected .terminal-tab-branches {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.terminal-tab.selected .terminal-tab-branches-fold {
+  opacity: 1;
+}
+.terminal-tab:not(.selected) .terminal-tab-branches .terminal-tab-subagent::before {
+  animation-play-state: paused;
+}
+/* The marks on its line hand over to the rows: they fold away as the rows unfold, and
+   come back as they fold. */
+.terminal-tab-subagents {
+  grid-template-columns: 1fr;
+  transition:
+    grid-template-columns var(--motion-layout) var(--ease-interface),
+    opacity var(--motion-layout) var(--ease-interface);
+}
+.terminal-tab.selected:has(.terminal-tab-branches) .terminal-tab-subagents {
+  grid-template-columns: 0fr;
+  opacity: 0;
+}
+.terminal-tab.selected .terminal-tab-subagents .terminal-tab-subagent::before {
+  animation-play-state: paused;
+}
+/* Its actions stay beside its line, however tall the rows make the tab. */
+.terminal-tab:has(.terminal-tab-branches) .sidebar-item-actions {
+  top: 33px;
+  bottom: auto;
 }
 /* An ended terminal is hatched in its tab, as across its window. */
 .terminal-tab[data-terminal-phase="ended"] {

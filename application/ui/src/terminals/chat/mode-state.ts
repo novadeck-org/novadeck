@@ -27,46 +27,64 @@ const withValue = <T>(
   return Object.keys(left).length > 0 ? { ...rest, [context]: left } : rest
 }
 
-// Which terminals show their agent's conversation rather than their screen, by the
-// session context (`${projectId}/${workspaceSessionId}`) that holds them. Nothing is kept
-// for a terminal showing its screen, and none of it outlives the page.
-export type ChatModes = ByTerminal<true>
-
-export const noChatModes: ChatModes = {}
-
 // Whether a terminal has a conversation to show: an agent runs in it, as its status says
 // or, where Novadeck hears nothing from the agent (Antigravity without hooks), as its
 // foreground program does. Once the agent ends, so does the chat.
 export const chatAvailable = (terminal: TerminalMetadata): boolean =>
   terminal.state === "running" && (terminal.agent !== undefined || isAgentProgram(terminal.process))
 
-// Whether a terminal's chat choice is kept: while an agent runs, and through a restart (`starting`, as when the runner is reached again), which says
-// nothing of whether the agent is gone. They go once the terminal settles on something
+// Whether a terminal's chat is kept: while an agent runs, and through a restart
+// (`starting`, as when the runner is reached again), which says nothing of whether the
+// agent is gone. They go once the terminal settles on something
 // else, or closes.
 export const chatKept = (terminal: TerminalMetadata): boolean =>
   chatAvailable(terminal) || terminal.state === "starting"
 
-export const chatModeOn = (modes: ChatModes, context: string, id: string): boolean =>
-  modes[context]?.[id] === true
+// The terminals showing their screen though the chat view is on, by the session context
+// (`${projectId}/${workspaceSessionId}`) that holds them: the person went to answer their
+// agent there. None of it outlives the page.
+export type TerminalAnswers = ByTerminal<true>
 
-export const setChatMode = (
-  modes: ChatModes,
+export const noTerminalAnswers: TerminalAnswers = {}
+
+export const answeringInTerminal = (
+  answers: TerminalAnswers,
+  context: string,
+  id: string,
+): boolean => answers[context]?.[id] === true
+
+export const setAnsweringInTerminal = (
+  answers: TerminalAnswers,
   context: string,
   id: string,
   on: boolean,
-): ChatModes => withValue(modes, context, id, on ? true : undefined)
+): TerminalAnswers => {
+  const next = withValue(answers, context, id, on ? true : undefined)
+  // None left is none at all, which spares the watcher its work.
+  return Object.keys(next).length > 0 ? next : noTerminalAnswers
+}
 
-// Keeps only the terminals that `keep` says still show a chat.
-export const keepChatModes = (
-  modes: ChatModes,
+// Keeps only the terminals that `keep` says are still answered in.
+export const keepTerminalAnswers = (
+  answers: TerminalAnswers,
   keep: (context: string, id: string) => boolean,
-): ChatModes => {
-  let next = modes
-  for (const [context, ids] of Object.entries(modes))
+): TerminalAnswers => {
+  let next = answers
+  for (const [context, ids] of Object.entries(answers))
     for (const id of Object.keys(ids))
-      if (!keep(context, id)) next = setChatMode(next, context, id, false)
+      if (!keep(context, id)) next = setAnsweringInTerminal(next, context, id, false)
   return next
 }
+
+// Whether a terminal shows its agent's conversation rather than its screen: the chat view
+// is on, an agent runs in it, and the person hasn't gone to its screen to answer it.
+export const chatShown = (
+  chatView: boolean,
+  answers: TerminalAnswers,
+  context: string,
+  terminal: TerminalMetadata,
+): boolean =>
+  chatView && chatAvailable(terminal) && !answeringInTerminal(answers, context, terminal.id)
 
 // What the person has typed in a terminal's chat and not sent, by session context and
 // terminal id. An empty draft is not kept.

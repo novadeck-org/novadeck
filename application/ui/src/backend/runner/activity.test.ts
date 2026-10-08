@@ -157,6 +157,8 @@ describe("terminal activity", () => {
       const telemetry = {
         context: { occupied: 1_000, capacity: 200_000 },
         limits: [{ minutes: 300, used: 0.4, resetsAt: null }],
+        model: "gpt-6-astra",
+        effort: "high",
       }
       const status = terminalActivity(
         summary({

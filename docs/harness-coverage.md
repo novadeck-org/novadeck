@@ -14,11 +14,11 @@ Evidence:
   the claims below that rest on them.
 - **Documented** means the harness's own documentation, not yet seen in a run.
 
-| Harness     | Version   | How it was measured                                                                                                                                                                                                                                                                    |
-| ----------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code | 2.1.285   | Probed: `claude -p`, and the interactive TUI driven in a PTY, both with every hook event registered through `--settings`. Documented: hooks, status line, agent view and monitoring references.                                                                                        |
-| Codex       | 0.158.0   | Probed: `codex exec --json` and its rollout file, and the interactive TUI driven in a PTY, with hooks in a throwaway `CODEX_HOME` holding only the probe's hooks (`--dangerously-bypass-hook-trust`). Documented: hooks reference, generated hook and app-server schemas.              |
-| Antigravity | 1.2.12–13 | Probed: `agy -p` and the interactive TUI driven in a PTY, in a scratch workspace whose `.agents/hooks.json` registered every event (the CLI updated itself to 1.2.13 between runs). Documented: the CLI's bundled `hooks.md`, the status line and title references, the CLI changelog. |
+| Harness     | Version   | How it was measured                                                                                                                                                                                                                                                                                                                       |
+| ----------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code | 2.1.285   | Probed: `claude -p`, and the interactive TUI driven in a PTY, both with every hook event registered through `--settings`. Documented: hooks, status line, agent view and monitoring references.                                                                                                                                           |
+| Codex       | 0.158.0   | Probed: `codex exec --json` and its rollout file, and the interactive TUI driven in a PTY, with hooks in a throwaway `CODEX_HOME` holding only the probe's hooks (`--dangerously-bypass-hook-trust`). Documented: hooks reference, generated hook and app-server schemas.                                                                 |
+| Antigravity | 1.2.12–16 | Probed: `agy -p` and the interactive TUI driven in a PTY, in a scratch workspace whose `.agents/hooks.json` registered every event (the CLI updated itself to 1.2.13 between runs); later runs, up to 1.2.16, used a throwaway `HOME`. Documented: the CLI's bundled `hooks.md`, the status line and title references, the CLI changelog. |
 
 ## Matrix
 
@@ -127,7 +127,8 @@ In the probe, a background subagent's result began a second turn with its own `U
 - **Status line:** the JSON on stdin has
   - `cost.total_cost_usd` (a client-side estimate),
   - `context_window` (size, `used_percentage`, current usage),
-  - `rate_limits.five_hour` and `rate_limits.seven_day`, each with `used_percentage` (0–100) and `resets_at` (epoch seconds).
+  - `rate_limits.five_hour` and `rate_limits.seven_day`, each with `used_percentage` (0–100) and `resets_at` (epoch seconds),
+  - `model.display_name`, and `effort.level` (`low` to `max`), which the statusline docs (https://code.claude.com/docs/en/statusline) say is absent for a model without an effort parameter; the probe fixture predates it.
 - `rate_limits` appears only for subscription accounts, and only after the first response. A missing window is unknown, not zero.
 - No other source carries rate limits.
 
@@ -202,6 +203,7 @@ In the probe, a background subagent's result began a second turn with its own `U
 
 - `info.total_token_usage` (cumulative for the thread) and `info.last_token_usage` (the latest response): input, cached, cache write, output, reasoning and total tokens.
 - `info.model_context_window`.
+- `turn_context` (a separate rollout record, one per turn) names the turn's `model` and `effort` (probed).
 - `rate_limits.primary` and `rate_limits.secondary`, each with `used_percent` (0–100, probed), `window_minutes` and `resets_at` (epoch seconds, probed). `secondary` can be null.
 
 Other facts:
@@ -242,7 +244,7 @@ Other facts:
 - Denying a confirmation fires nothing more for that turn: no `PostToolUse`, `PostInvocation` or `Stop` (probed).
 - Esc fires nothing: pressed during a reply, no `PostInvocation` or `Stop` followed; pressed while an approved command ran in the foreground, no `PostToolUse` or `Stop` followed (probed). The transcript drops the cancelled steps.
 - An approved command still running after about 2 s moves to the background: the turn ends with `Stop` and `fullyIdle: false` while it runs (probed). `run_command`'s `WaitMsBeforeAsync` sets how long it waits first, from 500 ms. The command's end wakes the agent with a message, starting a turn of its own (probed 2026-10-04, 1.2.14).
-- A subagent from `invoke_subagent` runs on after the root's `Stop` (`fullyIdle: false`), and its end wakes the root the same way. The status line lists it under `subagents` (`{name, role, status}`, `running` then `completed`), but never lists a command it backgrounded (probed 2026-10-04, 1.2.14).
+- A subagent from `invoke_subagent` runs on after the root's `Stop` (`fullyIdle: false`), and its end wakes the root the same way. The status line lists it under `subagents` (`{name, role, status}`, `running` then `completed`), but never lists a command it backgrounded (probed 2026-10-04, 1.2.14). The list is on `working` snapshots too, not only `idle` ones: a live interactive session whose root started two subagents saw `idle` `[]`, `working` `[]`, then `working` with one and two `running`, one `completed`, the root's `Stop` (`fullyIdle: false`) and an `idle` still listing one `running`, a `working` wake turn with it still `running`, then both `completed` and `idle` (71 snapshots, 1.2.16, probed 2026-10-07). The list's order flips between snapshots, so count by `status`, never position, and a `completed` entry stays listed. Print mode (`agy -p`) never leaves `initializing`, so it shows none of this.
 
 **Attention.**
 
@@ -274,6 +276,8 @@ Other facts:
 - `context_window` (size, used percentage, token totals),
 - `quota` per model (`remaining_fraction`, `reset_time`, `reset_in_seconds`),
 - `cost`, `task_count` and `pending_input_count`.
+
+The model is not in it: every hook's `modelName` names it, as `gemini-3.8-flash-high`. Novadeck reads a trailing `minimal`, `low`, `medium`, `high` or `xhigh` as the reasoning effort, an inference from the names seen.
 
 It also carries the account's `email`, which must not leave the adapter.
 
@@ -325,13 +329,13 @@ subagents it started run on, which wake it once done: Working ends only once its
 turn has ended and no subagent of it still runs. Other work a turn leaves running, as a
 command run in the background, shows as left running (a badge, "1 task"), but keeps
 nothing working: a dev server, a watcher or `tail -f` may run for ever. `wakes` on each
-harness says whether anything wakes it.
+harness says whether anything wakes it. Antigravity's status line counts its running subagents while the turn runs too, so they show as left running mid-turn and through a wake turn, where Claude Code's and Codex's show only once the turn has ended.
 
-| Harness     | What a turn leaves running                                                                                       | How Novadeck counts it                                                                                                                                                      |
-| ----------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code | Background subagents and commands, listed by `Stop`, each waking it once done                                    | `Stop`'s running `background_tasks`: `subagent` ones as agents, which keep it working, the rest as tasks, which don't; where no `Stop` says, its running subagents          |
-| Codex       | Nothing that wakes it: its subagents and commands finish with the root idle                                      | Never waits: its turn's end is the end of Working                                                                                                                           |
-| Antigravity | Subagents and backgrounded commands, which `Stop` says only exist (`fullyIdle: false`), each waking it once done | Working until its next idle status line counts its running `subagents`, then only while it counts one; what else `Stop` said runs shows as background work, keeping nothing |
+| Harness     | What a turn leaves running                                                                                       | How Novadeck counts it                                                                                                                                                                                                                                            |
+| ----------- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code | Background subagents and commands, listed by `Stop`, each waking it once done                                    | `Stop`'s running `background_tasks`: `subagent` ones as agents, which keep it working, the rest as tasks, which don't; where no `Stop` says, its running subagents                                                                                                |
+| Codex       | Nothing that wakes it: its subagents and commands finish with the root idle                                      | Never waits: its turn's end is the end of Working                                                                                                                                                                                                                 |
+| Antigravity | Subagents and backgrounded commands, which `Stop` says only exist (`fullyIdle: false`), each waking it once done | While the turn runs, its working status line's running `subagents`, shown as `background`; after `Stop`, working until its next idle status line counts them, then only while it counts one; what else `Stop` said runs shows as background work, keeping nothing |
 
 The wait ends with the turn the work's end starts, at that turn's own end with nothing
 running, or with any later turn, as the person's. Antigravity's idle status line

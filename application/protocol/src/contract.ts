@@ -360,10 +360,12 @@ export const contract = {
     install: procedure.input(z.strictObject({ model: voiceModel })).output(z.void()),
     // Stops an install, keeping what had finished before it. Nothing installing is fine.
     cancel: procedure.input(z.void()).output(z.void()),
-    // Removes the engine and every model, and turns voice input off.
+    // Removes the engine and every model, and turns voice input off by choice: it is no
+    // longer wanted, until the next install.
     uninstall: procedure.input(z.void()).output(z.void()),
-    // Changes the settings given; the others stay. Turning voice input on, or choosing a
-    // model, that is not installed is a CONFLICT.
+    // Changes the settings given; the others stay. Turning voice input on before any
+    // install says it is wanted, for the install to turn on; turning it on with only
+    // another model installed, or choosing a model that is not installed, is a CONFLICT.
     set: procedure.input(voiceSettings.partial()).output(z.void()),
     // Adds audio to a clip being recorded, which the client names: 16 kHz mono 16-bit
     // little-endian PCM, base64, at the byte `offset` into the clip. Audio past

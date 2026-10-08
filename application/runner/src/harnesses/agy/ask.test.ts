@@ -94,7 +94,11 @@ describe("Antigravity's PreToolUse", () => {
   it("asks nothing for any other call, which the person's policy may allow", () => {
     const payload = pre(scenarios.command)
     expect(attention(decode(report("PreToolUse", payload)))).toEqual([])
-    expect(decode(report("PreToolUse", payload))).toMatchObject([{ type: "session-observed" }])
+    // Beside the session, only the model it names, as every hook's model name is.
+    expect(decode(report("PreToolUse", payload))).toMatchObject([
+      { type: "session-observed" },
+      { type: "telemetry-observed" },
+    ])
     expect(attention(decode(report("PreToolUse", { conversationId: "c" })))).toEqual([])
   })
 

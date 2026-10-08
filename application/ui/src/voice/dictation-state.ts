@@ -58,7 +58,14 @@ export type DictationEffect =
   | { readonly kind: "discard" }
   // Forgets a transcription under way: whatever it returns is thrown away.
   | { readonly kind: "drop" }
-  | { readonly kind: "hint"; readonly text: string }
+  // Something to tell the person, about the terminal they meant to dictate into where there
+  // is one; `setup` where voice input isn't ready, which Preferences → Addons sets up.
+  | {
+      readonly kind: "hint"
+      readonly text: string
+      readonly target?: TerminalKey
+      readonly setup?: true
+    }
 
 export type Step = { readonly state: Dictating; readonly effects: readonly DictationEffect[] }
 
@@ -71,7 +78,11 @@ const begin = (
   now: number,
   readiness: Readiness,
 ): Step => {
-  if (!readiness.ready) return { state: idle, effects: [{ kind: "hint", text: readiness.hint }] }
+  if (!readiness.ready)
+    return {
+      state: idle,
+      effects: [{ kind: "hint", text: readiness.hint, ...(target && { target }), setup: true }],
+    }
   if (!target)
     return {
       state: idle,

@@ -26,9 +26,7 @@ export const useCanvasGeometry = (
           ...geometryRef.current[id],
           position: currentNode.position,
           ...(currentNode.width ? { width: currentNode.width } : {}),
-          ...(!currentNode.data.minimized && currentNode.height
-            ? { height: currentNode.height }
-            : {}),
+          ...(currentNode.height ? { height: currentNode.height } : {}),
         }
       }
       updateNode(id, (node) => ({ ...node, className: "resizing" }))
@@ -42,19 +40,18 @@ export const useCanvasGeometry = (
       const currentNode = getNode(id)
       if (!currentNode) return
       resizing.current.delete(id)
-      const isMinimized = currentNode.data.minimized
       const next = {
         ...geometryRef.current[id],
         position: currentNode.position,
         width: Math.max(336, snap(width)),
-        ...(!isMinimized ? { height: Math.max(216, snap(height)) } : {}),
+        height: Math.max(216, snap(height)),
       }
       geometryRef.current[id] = next
       dirtyGeometry.current.add(id)
       updateNode(id, (current) => ({
         ...current,
         width: next.width,
-        ...(!isMinimized ? { height: next.height } : {}),
+        height: next.height,
         className: "",
       }))
       commitGeometry([id])
@@ -81,12 +78,11 @@ export const useCanvasGeometry = (
         }
         if (change.type === "dimensions" && change.dimensions && resizing.current.has(change.id)) {
           const current = geometryRef.current[change.id]
-          const isMinimized = getNode(change.id)?.data.minimized ?? false
           geometryRef.current[change.id] = {
             ...current,
             position: current?.position ?? getNode(change.id)?.position ?? { x: 0, y: 0 },
             width: change.dimensions.width,
-            ...(!isMinimized ? { height: change.dimensions.height } : {}),
+            height: change.dimensions.height,
           }
           dirtyGeometry.current.add(change.id)
           if (change.resizing === false)

@@ -22,7 +22,7 @@ export const useCanvasPersistence = ({
   terminals,
   onLayoutChange,
 }: Pick<CanvasProps, "layout" | "terminals" | "onLayoutChange">): CanvasPersistence => {
-  const { getNode, getViewport } = useReactFlow<TerminalNode>()
+  const { getViewport } = useReactFlow<TerminalNode>()
   const geometryRef = useRef<CanvasLayout["geometry"]>({ ...layout.geometry })
   const dirtyGeometry = useRef(new Set<string>())
   const resizing = useRef(new Set<string>())
@@ -94,14 +94,11 @@ export const useCanvasPersistence = ({
         const current = geometryRef.current[id]
         if (!current) continue
         const isResizing = resizing.current.has(id)
-        const isMinimized = getNode(id)?.data.minimized ?? false
         geometryRef.current[id] = {
           ...current,
           position: { x: snap(current.position.x), y: snap(current.position.y) },
           ...(isResizing && current.width ? { width: Math.max(336, snap(current.width)) } : {}),
-          ...(isResizing && !isMinimized && current.height
-            ? { height: Math.max(216, snap(current.height)) }
-            : {}),
+          ...(isResizing && current.height ? { height: Math.max(216, snap(current.height)) } : {}),
         }
       }
       resizing.current.clear()
@@ -111,7 +108,7 @@ export const useCanvasPersistence = ({
         commitViewport()
       }
     },
-    [commitGeometry, commitViewport, getNode, getViewport, trackViewport],
+    [commitGeometry, commitViewport, getViewport, trackViewport],
   )
 
   useEffect(() => {

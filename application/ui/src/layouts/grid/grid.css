@@ -25,12 +25,9 @@
     @apply z-3;
     transition: opacity var(--motion-state) var(--ease-interface);
   }
-  /* Match the collapsed three-row card, including its outer borders, in both states. */
+  /* A fixed header height keeps the card's outer borders aligned with the grid's rows. */
   .terminal-grid .grid-terminal .terminal-header {
     height: 54px;
-  }
-  .grid-terminal.minimized .terminal-header {
-    --_border-color: transparent;
   }
   .terminal-grid .terminal-header {
     touch-action: none;
@@ -47,13 +44,6 @@
   .terminal-grid:has(.grid-terminal.resizing),
   .terminal-grid:has(.grid-terminal.resizing) * {
     user-select: none;
-  }
-  .terminal-grid .grid-terminal.minimized .react-resizable-handle {
-    width: 16px;
-    cursor: ew-resize;
-  }
-  .terminal-grid .grid-terminal.minimized .react-resizable-handle::after {
-    right: 3px;
   }
   .terminal-grid .react-resizable-handle::after {
     right: 7px;

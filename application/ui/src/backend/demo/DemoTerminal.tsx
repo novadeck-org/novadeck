@@ -42,8 +42,6 @@ const DemoTerminalSurface = ({
   onScrollChange,
   focusInput,
   onInputFocused,
-  minimized,
-  clipContent,
   intro,
   session,
 }: DemoTerminalSurfaceProps): React.JSX.Element => {
@@ -62,14 +60,14 @@ const DemoTerminalSurface = ({
     onInputFocused()
   }, [focusInput, onInputFocused])
   useEffect(() => {
-    if (!output.current || minimized) return
+    if (!output.current) return
     const changed =
       previousOutput.current.length !== entries.length || previousOutput.current.cleared !== cleared
     output.current.scrollTop = changed
       ? output.current.scrollHeight
       : (savedScroll.current ?? (entries.length || cleared ? output.current.scrollHeight : 0))
     previousOutput.current = { length: entries.length, cleared }
-  }, [entries.length, cleared, minimized])
+  }, [entries.length, cleared])
   useEffect(() => {
     const element = frame.current ?? output.current
     if (!element) return
@@ -84,9 +82,6 @@ const DemoTerminalSurface = ({
   // frames the output, so the lock and the ending bar stay put while the output scrolls.
   const root = {
     "data-terminal-content": "",
-    hidden: minimized && !clipContent,
-    "aria-hidden": minimized,
-    inert: minimized,
   }
   const scroller = (
     <div
@@ -94,7 +89,6 @@ const DemoTerminalSurface = ({
       {...(session ? {} : root)}
       className={`terminal-content demo-output min-h-0 flex-1 overflow-auto [&_strong]:font-semibold${session ? "" : " nodrag nopan"}${ending ? " mb-7" : ""}`}
       onScroll={(event) => {
-        if (minimized) return
         savedScroll.current = event.currentTarget.scrollTop
         onScrollChange(event.currentTarget.scrollTop)
       }}

@@ -40,5 +40,9 @@ export const windowProfile = (
   icon: !item || item.kind === "plan" ? FileText : iconOf({ kind: item.kind, name: item.name }),
 })
 
+// The icon a program presents with, by its name: a plain terminal's for one without a
+// profile.
+export const programIcon = (program: string): LucideIcon => (profiles.get(program) ?? fallback).icon
+
 export const terminalProfile = (terminal: TerminalMetadata): ProcessProfile =>
   profiles.get(presentedProgram(terminal) ?? "") ?? fallback

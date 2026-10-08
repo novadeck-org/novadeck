@@ -11,6 +11,7 @@ export const readPreferences = (): PreferencesValue => {
     appearance: defaultPreference,
     notifyFinished: true,
     ligatures: false,
+    chatView: false,
   }
   try {
     const saved = JSON.parse(
@@ -26,6 +27,7 @@ export const readPreferences = (): PreferencesValue => {
       notifyFinished:
         typeof saved?.notifyFinished === "boolean" ? saved.notifyFinished : defaults.notifyFinished,
       ligatures: typeof saved?.ligatures === "boolean" ? saved.ligatures : defaults.ligatures,
+      chatView: typeof saved?.chatView === "boolean" ? saved.chatView : defaults.chatView,
     }
   } catch {
     return defaults

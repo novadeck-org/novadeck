@@ -41,8 +41,6 @@ export const createRunnerTerminal = (
     terminalKey,
     terminal,
     fontSize,
-    minimized,
-    clipContent,
     focusInput,
     onInputFocused,
     renderWindow,
@@ -181,9 +179,6 @@ export const createRunnerTerminal = (
             ref={onRootMount}
             data-terminal-content
             className="terminal-content runner-terminal nodrag nopan relative flex min-h-0 flex-1 flex-col"
-            hidden={minimized && !clipContent}
-            aria-hidden={minimized}
-            inert={minimized}
             data-locked={locked || undefined}
           >
             <div ref={onHostMount} className="flex min-h-0 flex-1 flex-col" />

@@ -1,14 +1,17 @@
 import { noConversation, type Conversations } from "../../model/conversation"
 import type { AgentStatus } from "../../model/types"
-import { chatDraftOf, chatModeOn, chatReplyOf, chatSendOf } from "../../terminals/chat/mode-state"
+import { chatDraftOf, chatReplyOf, chatSendOf, chatShown } from "../../terminals/chat/mode-state"
 import { context, describe, expect, it } from "../../test"
 import { openCommands } from "../../test/commands"
 import { watchChatModes } from "../ui-store"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
-const open = (agent?: AgentStatus, conversations?: Conversations) => {
+const waiting: AgentStatus = { working: true, attention: { kind: "permission", count: 1 } }
+
+const open = (agent?: AgentStatus, conversations?: Conversations, chatView = true) => {
   const app = openCommands({ conversations })
+  app.ui.update((state) => ({ ...state, preferences: { ...state.preferences, chatView } }))
   const status = (next: AgentStatus | undefined) =>
     app.workspace.dispatch({
       type: "terminal/status",
@@ -20,49 +23,63 @@ const open = (agent?: AgentStatus, conversations?: Conversations) => {
   return {
     ...app,
     status,
-    on: () => chatModeOn(app.ui.getSnapshot().chat, "project/initial", "01"),
+    on: () => {
+      const { preferences, answering } = app.ui.getSnapshot()
+      const terminal = app.workspace
+        .getSnapshot()
+        .projects[0]!.history[0]!.state.roster.terminals.find((each) => each.id === "01")!
+      return chatShown(preferences.chatView, answering, "project/initial", terminal)
+    },
   }
 }
 
 describe("chat commands", () => {
-  context("when toggling a terminal whose agent runs", () => {
-    it("shows its chat, then its screen, each time moving typing there", () => {
-      const app = open({ working: false })
-      app.commands.toggleChat("01")
-      expect(app.on()).toBe(true)
-      expect(app.shell().keyboardFocus).toEqual({ id: "01", view: "grid" })
-      app.commands.toggleChat("01")
-      expect(app.on()).toBe(false)
+  context("with the chat view on", () => {
+    it("shows the chat of a terminal whose agent runs, and none for one without", () => {
+      expect(open({ working: false }).on()).toBe(true)
+      expect(open().on()).toBe(false)
     })
 
-    it("selects the terminal", () => {
-      const app = open({ working: false })
+    it("shows its screen to answer in the terminal, selecting it and moving typing there", () => {
+      const app = open(waiting)
       app.commands.setSelected("02")
-      app.commands.toggleChat("01")
-      expect(app.urls.at(-1)).toContain("terminal=01")
-    })
-
-    it("shows its screen to answer in the terminal", () => {
-      const app = open({ working: false })
-      app.commands.toggleChat("01")
       app.commands.showTerminal("01")
       expect(app.on()).toBe(false)
+      expect(app.urls.at(-1)).toContain("terminal=01")
       expect(app.shell().keyboardFocus).toEqual({ id: "01", view: "grid" })
+    })
+
+    it("shows the chat again once the agent no longer waits on the person", () => {
+      const app = open(waiting)
+      const stop = watchChatModes(app.workspace, app.ui)
+      app.commands.showTerminal("01")
+      app.status({ ...waiting })
+      expect(app.on()).toBe(false)
+      app.status({ working: true })
+      expect(app.on()).toBe(true)
+      stop()
+    })
+
+    it("has nothing to answer in a terminal that isn't there", () => {
+      const app = open({ working: false })
+      app.commands.showTerminal("missing")
+      expect(app.ui.getSnapshot().answering).toEqual({})
+    })
+
+    it("shows every chat afresh once the chat view is turned off and on again", () => {
+      const app = open(waiting)
+      app.commands.showTerminal("01")
+      const { preferences } = app.ui.getSnapshot()
+      app.commands.updatePreferences({ ...preferences, chatView: false })
+      expect(app.on()).toBe(false)
+      app.commands.updatePreferences({ ...preferences, chatView: true })
+      expect(app.on()).toBe(true)
     })
   })
 
-  context("for a terminal without an agent", () => {
-    it("has no chat to show", () => {
-      const app = open()
-      app.commands.toggleChat("01")
-      expect(app.on()).toBe(false)
-      expect(app.shell().keyboardFocus).toBeNull()
-    })
-
-    it("has none for a terminal that isn't there", () => {
-      const app = open({ working: false })
-      app.commands.toggleChat("missing")
-      expect(app.ui.getSnapshot().chat).toEqual({})
+  context("with the chat view off", () => {
+    it("shows no chat", () => {
+      expect(open({ working: false }, undefined, false).on()).toBe(false)
     })
   })
 
@@ -254,22 +271,30 @@ describe("chat commands", () => {
   })
 
   context("when the agent ends", () => {
-    it("shows the terminal again, and a later agent starts on its screen", () => {
+    it("shows the terminal again, and a later agent's chat", () => {
       const app = open({ working: false })
       const stop = watchChatModes(app.workspace, app.ui)
-      app.commands.toggleChat("01")
-      expect(app.on()).toBe(true)
       app.status(undefined)
       expect(app.on()).toBe(false)
       app.status({ working: true })
-      expect(app.on()).toBe(false)
+      expect(app.on()).toBe(true)
       stop()
     })
 
-    it("keeps the chat through a restart, and drops it once the terminal settles elsewhere", () => {
-      const app = open({ working: false })
+    it("starts a later agent in its chat though the person answered the last in the terminal", () => {
+      const app = open(waiting)
       const stop = watchChatModes(app.workspace, app.ui)
-      app.commands.toggleChat("01")
+      app.commands.showTerminal("01")
+      app.status(undefined)
+      app.status({ working: false })
+      expect(app.on()).toBe(true)
+      stop()
+    })
+
+    it("keeps an answer in the terminal through a restart, and the draft past the agent", () => {
+      const app = open(waiting)
+      const stop = watchChatModes(app.workspace, app.ui)
+      app.commands.showTerminal("01")
       app.commands.setChatDraft("01", "draft")
       app.workspace.dispatch({
         type: "terminal/status",
@@ -277,28 +302,16 @@ describe("chat commands", () => {
         terminalId: "01",
         status: { state: "starting" },
       })
-      expect(app.on()).toBe(true)
-      expect(app.ui.getSnapshot().chatDrafts).not.toEqual({})
-      app.status({ working: false })
-      expect(app.on()).toBe(true)
+      expect(app.ui.getSnapshot().answering).not.toEqual({})
       app.workspace.dispatch({
         type: "terminal/status",
         target,
         terminalId: "01",
         status: { state: "exited", exitCode: 0, signal: null },
       })
-      expect(app.on()).toBe(false)
+      expect(app.ui.getSnapshot().answering).toEqual({})
       // The words typed stay, for whatever runs there next.
       expect(app.ui.getSnapshot().chatDrafts).toEqual({ "project/initial": { "01": "draft" } })
-      stop()
-    })
-
-    it("keeps the chat while the agent runs on", () => {
-      const app = open({ working: false })
-      const stop = watchChatModes(app.workspace, app.ui)
-      app.commands.toggleChat("01")
-      app.status({ working: true })
-      expect(app.on()).toBe(true)
       stop()
     })
   })

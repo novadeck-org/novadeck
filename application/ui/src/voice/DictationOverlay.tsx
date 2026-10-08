@@ -1,8 +1,8 @@
-import { Loader, Mic, TriangleAlert } from "lucide-react"
+import { Check, Loader, Mic, TriangleAlert } from "lucide-react"
 import { useEffect, useState, useSyncExternalStore } from "react"
 
 import type { Store } from "../model/store"
-import type { DictationView } from "./dictation"
+import { dictationKey, type DictationView } from "./dictation"
 
 import "./dictation.css"
 
@@ -17,7 +17,11 @@ const Elapsed = ({ since }: { readonly since: number }): React.JSX.Element => {
     const timer = setInterval(() => setNow(Date.now()), 250)
     return () => clearInterval(timer)
   }, [])
-  return <span className="dictation-elapsed">{clock(now - since)}</span>
+  return (
+    <span className="dictation-elapsed" aria-hidden>
+      {clock(now - since)}
+    </span>
+  )
 }
 
 const Meter = ({ level }: { readonly level: Store<number> }): React.JSX.Element => {
@@ -33,19 +37,28 @@ const Meter = ({ level }: { readonly level: Store<number> }): React.JSX.Element 
   )
 }
 
-// A small status line at the window's foot while a clip records or transcribes, and for a
-// moment after a failure or a hint. It takes no focus and no pointer, so typing, and the
+// A small status line at the app's foot while a clip records or transcribes, and for a
+// moment after, for what no terminal's window shows itself (`docks`): a terminal that
+// closed, or none chosen. It takes no focus and no pointer, so typing, and the
 // keys that end a clip, stay where they were; it is a live region, not a dialog, so
 // keyboard routing doesn't count it among the overlays that hold keys.
 export const DictationOverlay = ({
   view,
   level,
+  docks,
 }: {
   readonly view: Store<DictationView>
   readonly level: Store<number>
+  readonly docks: Store<ReadonlyMap<string, number>>
 }): React.JSX.Element => {
-  const { phase, mode, startedAt, notice } = useSyncExternalStore(view.subscribe, view.getSnapshot)
-  const shown = phase !== "idle" || notice !== null
+  const { phase, target, mode, startedAt, notice } = useSyncExternalStore(
+    view.subscribe,
+    view.getSnapshot,
+  )
+  const docked = useSyncExternalStore(docks.subscribe, docks.getSnapshot)
+  const about = phase !== "idle" ? target : notice?.target
+  const shown =
+    (phase !== "idle" || notice !== null) && !(about && (docked.get(dictationKey(about)) ?? 0) > 0)
   return (
     <div
       className="dictation-overlay"
@@ -76,6 +89,8 @@ export const DictationOverlay = ({
         <>
           {notice.tone === "error" ? (
             <TriangleAlert size={14} className="dictation-icon" aria-hidden />
+          ) : notice.tone === "done" ? (
+            <Check size={14} className="dictation-icon" aria-hidden />
           ) : (
             <Mic size={14} className="dictation-icon" aria-hidden />
           )}

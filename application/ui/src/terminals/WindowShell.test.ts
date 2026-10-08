@@ -32,9 +32,6 @@ const renderFrame = (
   return container
 }
 
-const chatButton = (frame: HTMLElement): HTMLButtonElement | null =>
-  frame.querySelector('button[aria-label="Chat view: Terminal 01"]')
-
 describe("terminal frame header", () => {
   context("when the shell ended", () => {
     it("leaves how it ended to the terminal's own bar and names only the terminal", () => {
@@ -48,22 +45,6 @@ describe("terminal frame header", () => {
       expect(frame.querySelector("section")?.getAttribute("aria-label")).toBe(
         "Terminal 01 terminal",
       )
-    })
-  })
-
-  context("when its agent has a conversation", () => {
-    it("offers the chat as a toggle that says whether it shows", () => {
-      const toggles: string[] = []
-      const frame = renderFrame(terminalFixture(1, "~/p"), {
-        chat: { on: true, onToggle: () => toggles.push("toggle") },
-      })
-      expect(chatButton(frame)?.getAttribute("aria-pressed")).toBe("true")
-      chatButton(frame)!.click()
-      expect(toggles).toEqual(["toggle"])
-    })
-
-    it("offers nothing where there is none", () => {
-      expect(chatButton(renderFrame(terminalFixture(1, "~/p")))).toBeNull()
     })
   })
 })

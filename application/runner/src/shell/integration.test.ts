@@ -1016,6 +1016,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       .toEqual({
         context: { occupied: 30_000, capacity: 200_000 },
         limits: [{ minutes: 300, used: 0.4, resetsAt: 1_800_000_000_000 }],
+        model: null,
+        effort: null,
       })
   })
 

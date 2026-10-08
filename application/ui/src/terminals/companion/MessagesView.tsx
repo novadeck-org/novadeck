@@ -1,5 +1,5 @@
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react"
-import { useEffect, useId, useRef } from "react"
+import { useEffect, useId, useRef, type ReactNode } from "react"
 
 import type { AgentMessage, MessageThread } from "../../model/messages"
 import { Switch } from "../../ui-toolkit/Switch"
@@ -153,9 +153,12 @@ const ThreadItem = ({
 export const MessagesView = ({
   mail,
   peerName,
+  actions,
 }: {
   mail: MailHandle
   peerName: (handle: string) => string | undefined
+  // What the pane does, at the end of the header.
+  actions?: ReactNode
 }): React.JSX.Element => {
   const label = useId()
   const hint = useId()
@@ -181,6 +184,7 @@ export const MessagesView = ({
             pending={mail.pending}
           />
         </span>
+        {actions}
       </div>
       {mail.error && (
         <p className="mail-error" data-tone="danger" role="alert">

@@ -12,7 +12,6 @@ const session = (): WorkspaceSession => {
     "canvas",
     {
       canvasLayout: {
-        minimized: { "02": true },
         viewport: { x: 1, y: 2, zoom: 0.5 },
         geometry: {
           "01": { position: { x: 10, y: 20 }, width: 400, height: 300, dragging: true },
@@ -39,7 +38,6 @@ describe("saved session state", () => {
         state: { order: ["02", "01"], view: "canvas", windowedView: "canvas", selected: "02" },
       })
       expect(saved?.state.layout.canvas.viewport).toEqual({ x: 1, y: 2, zoom: 0.5 })
-      expect(saved?.state.layout.canvas.minimized).toEqual({ "02": true })
     })
 
     it("leaves out the terminals, which the runner keeps, and gestures in progress", () => {

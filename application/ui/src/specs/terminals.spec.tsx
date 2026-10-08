@@ -36,7 +36,6 @@ import {
   terminalTabNames,
   visibleTerminalCounts,
   view,
-  tooltipOf,
 } from "./support/workspace"
 
 const views = ["Focus", "Grid", "Canvas"] as const
@@ -560,26 +559,6 @@ describe("a tab's actions", () => {
     await expect.poll(() => [opacity(hide), opacity(rename)]).toEqual([1, 1])
     expect(opacity(close)).toBe(1)
   })
-
-  it("keep telling a screen reader how to reorder the tab once its tooltip has shown", async () => {
-    await openWorkspace()
-    const tab = terminalTab("Dev server")
-    const instructions = (): string | null => {
-      const id = tab.element().getAttribute("aria-describedby")
-      return id ? (document.getElementById(id)?.textContent ?? null) : null
-    }
-    await expect.poll(instructions).toMatch(/^Press Enter to select a terminal\./)
-
-    await tooltipOf(tab)
-    await userEvent.unhover(tab)
-    await expect
-      .poll(() =>
-        document.querySelector('[data-scope="tooltip"][data-part="content"][data-state="open"]'),
-      )
-      .toBeNull()
-
-    expect(instructions()).toMatch(/^Press Enter to select a terminal\./)
-  })
 })
 
 describe("hiding terminals from Grid and Canvas", () => {
@@ -747,57 +726,6 @@ describe("hiding terminals from Grid and Canvas", () => {
       await terminalTab("Tests").click()
       await expect.element(terminal("Dev server")).toBeVisible()
       await expect.element(terminalTab("Dev server")).toBeVisible()
-    })
-  })
-})
-
-describe("minimizing Grid terminals", () => {
-  context("when clicking Minimize in the header", () => {
-    it("folds the terminal and offers Restore", async () => {
-      await openWorkspace()
-      await chooseView("Grid")
-      const minimize = headerAction("Dev server", "Minimize Dev server")
-      await expect.element(minimize).toHaveAttribute("aria-expanded", "true")
-
-      await minimize.click()
-
-      const restore = headerAction("Dev server", "Restore Dev server")
-      await expect.element(restore).toHaveAttribute("aria-expanded", "false")
-      await expect.element(commandInput("Dev server")).not.toBeInTheDocument()
-      await expect.element(headerName("Dev server")).toBeVisible()
-    })
-  })
-
-  context("when clicking Restore", () => {
-    it("unfolds the terminal with its draft intact", async () => {
-      await openWorkspace()
-      await chooseView("Grid")
-      await commandInput("Dev server").fill("unfinished command")
-      await headerAction("Dev server", "Minimize Dev server").click()
-      await expect.element(commandInput("Dev server")).not.toBeInTheDocument()
-
-      await headerAction("Dev server", "Restore Dev server").click()
-
-      await expect
-        .element(headerAction("Dev server", "Minimize Dev server"))
-        .toHaveAttribute("aria-expanded", "true")
-      await expect.element(commandInput("Dev server")).toHaveValue("unfinished command")
-    })
-  })
-
-  context("when leaving Grid and coming back", () => {
-    it("keeps the terminal minimized", async () => {
-      await openWorkspace()
-      await chooseView("Grid")
-      await headerAction("Dev server", "Minimize Dev server").click()
-      await expect.element(headerAction("Dev server", "Restore Dev server")).toBeVisible()
-
-      await chooseView("Focus")
-      await chooseView("Grid")
-
-      await expect
-        .element(headerAction("Dev server", "Restore Dev server"))
-        .toHaveAttribute("aria-expanded", "false")
     })
   })
 })

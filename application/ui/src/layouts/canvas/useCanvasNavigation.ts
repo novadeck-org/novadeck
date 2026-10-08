@@ -15,11 +15,11 @@ import type { createCanvasVisit } from "./visit"
 
 type NavigationProps = Pick<
   CanvasProps,
-  "navigation" | "selected" | "hidden" | "fitOnNavigate" | "revealOnMount"
+  "navigation" | "selected" | "hidden" | "fitOnNavigate" | "revealOnMount" | "fitOnMount"
 > & {
   initialViewport: CanvasViewport | undefined
-  viewportWidth: number
-  viewportHeight: number
+  // Read when needed: it changes every frame while the sidebar slides.
+  viewportSize: () => { width: number; height: number }
   container: RefObject<HTMLDivElement | null>
   geometryRef: RefObject<CanvasLayout["geometry"]>
   createdPositions: RefObject<Map<string, XYPosition>>
@@ -34,9 +34,9 @@ export const useCanvasNavigation = ({
   hidden,
   fitOnNavigate,
   revealOnMount,
+  fitOnMount,
   initialViewport,
-  viewportWidth,
-  viewportHeight,
+  viewportSize,
   container,
   geometryRef,
   createdPositions,
@@ -45,7 +45,7 @@ export const useCanvasNavigation = ({
 }: NavigationProps) => {
   const { fitView, getNode, getViewport, setCenter } = useReactFlow<TerminalNode>()
   const initialized = useNodesInitialized()
-  // Returning to Canvas restores its camera; only new sidebar requests recenter it.
+  // Canvas sets its camera as it opens (below); only new sidebar requests recenter it.
   const lastNavigation = useRef(initialViewport ? navigation : 0)
   useEffect(() => {
     if (
@@ -71,6 +71,7 @@ export const useCanvasNavigation = ({
       const margin = 24 / viewport.zoom
       const left = -viewport.x / viewport.zoom
       const top = -viewport.y / viewport.zoom
+      const { width: viewportWidth, height: viewportHeight } = viewportSize()
       const right = (viewportWidth - viewport.x) / viewport.zoom
       const bottom = (viewportHeight - viewport.y) / viewport.zoom
       if (
@@ -97,7 +98,7 @@ export const useCanvasNavigation = ({
       return
     }
     const targetZoom = getViewport().zoom
-    const center = centerOf(node, targetZoom)
+    const center = centerOf(node)
     void setCenter(center.x, center.y, { zoom: targetZoom, duration, interpolate: "linear" })
   }, [
     initialized,
@@ -110,19 +111,22 @@ export const useCanvasNavigation = ({
     getViewport,
     setCenter,
     visit,
-    viewportHeight,
-    viewportWidth,
+    viewportSize,
     geometryRef,
     pointerCreated,
     createdPositions,
   ])
 
+  // Canvas opened from another view frames every visible window, however its camera was
+  // left; a terminal opened into it is revealed instead. Otherwise, as on returning to a
+  // session, it keeps the camera it was left with.
   const initializeViewport = (instance: ReactFlowInstance<TerminalNode>) => {
-    if (!container.current || (initialViewport && !revealOnMount)) return
-    const selectedNode = navigation ? instance.getNode(selected) : undefined
+    const framing = fitOnMount && !revealOnMount
+    if (!container.current || (initialViewport && !revealOnMount && !framing)) return
+    const selectedNode = navigation && !framing ? instance.getNode(selected) : undefined
     const target = selectedNode?.hidden ? undefined : selectedNode
     if (initialViewport && target && !fitOnNavigate) {
-      const center = centerOf(target, initialViewport.zoom)
+      const center = centerOf(target)
       lastNavigation.current = navigation
       void instance.setCenter(center.x, center.y, { zoom: initialViewport.zoom })
       return

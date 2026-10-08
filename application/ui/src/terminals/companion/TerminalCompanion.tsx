@@ -133,8 +133,6 @@ export const TerminalCompanion = ({
   view,
   onReveal,
   children,
-  minimized,
-  clipContent,
   bar,
   items,
   fresh,
@@ -149,8 +147,6 @@ export const TerminalCompanion = ({
   view: ViewMode
   onReveal?: TerminalLayoutControls["onReveal"]
   children: ReactNode
-  minimized?: boolean | undefined
-  clipContent?: boolean | undefined
   // The bar as the person arranged it, the items on it, and which of them are new.
   bar: Bar
   items: readonly CompanionItem[]
@@ -174,7 +170,7 @@ export const TerminalCompanion = ({
   const plans = usePlans(panes, planIds)
   const tab = shownTab(bar, members)
   // Open while there's something to show.
-  const open = bar.open && !minimized && tab !== null
+  const open = bar.open && tab !== null
   const showing = open ? tab : null
   const member = members.find((each) => each.key === tab)
   // Who showed what's here, by its main plan's agent.
@@ -271,13 +267,7 @@ export const TerminalCompanion = ({
     onHide: () => commands.closeBarPane(terminal),
   }
   return (
-    <div
-      className="terminal-plan"
-      data-plan-open={open}
-      hidden={minimized && !clipContent}
-      aria-hidden={minimized}
-      inert={minimized}
-    >
+    <div className="terminal-plan" data-plan-open={open}>
       {shown.mounted && presentation === "split" ? (
         <SplitPane view={paneView} terminalView={view} presence={shown}>
           {children}

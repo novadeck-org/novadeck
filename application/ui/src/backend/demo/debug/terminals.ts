@@ -137,8 +137,8 @@ export const withSubagents: AgentStatus = {
   ],
 }
 
-// What its turn left running: subagents it works on until they finish, or work that
-// runs on without it, counted or not.
+// Subagents it runs, counted, in the middle of its turn or after it: it works until they
+// finish. Else work its turn left that runs on without it, counted or not.
 export const finishingSubagents: AgentStatus = {
   working: true,
   background: { agents: 2, tasks: 0 },
@@ -155,13 +155,20 @@ export const withUsage = (now: number): AgentStatus => ({
       { minutes: 300, used: 0.42, resetsAt: now + 2 * 3_600_000 },
       { minutes: 10_080, used: 0.78, resetsAt: now + 3 * 86_400_000 },
     ],
+    model: "gpt-6-astra",
+    effort: "medium",
   },
 })
 
 // How much its context holds, where its harness doesn't say of how much.
 export const contextOnly: AgentStatus = {
   working: false,
-  usage: { context: { occupied: 84_000, capacity: null }, limits: [] },
+  usage: {
+    context: { occupied: 84_000, capacity: null },
+    limits: [],
+    model: "Opus 5.5",
+    effort: null,
+  },
 }
 
 const replies: Record<AgentTurnEnd["outcome"], string | undefined> = {

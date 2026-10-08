@@ -12,6 +12,7 @@ const preferences: PreferencesValue = {
   appearance,
   notifyFinished: true,
   ligatures: false,
+  chatView: false,
 }
 const base = "/projects/project/sessions/initial/grid"
 

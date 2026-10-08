@@ -87,7 +87,6 @@ describe("workspace commands", () => {
     const terminal = terminalFixture(1, "~/project")
     const canvasLayout = {
       geometry: { "01": { position: { x: 200, y: 300 }, width: 600, height: 400 } },
-      minimized: {},
     }
     const terminalState = createTerminalState([terminal], "canvas", "canvas", { canvasLayout })
     expect(terminalState.layout.canvas).toBe(canvasLayout)
@@ -115,7 +114,7 @@ describe("workspace commands", () => {
     expect(added.layout.canvas.geometry["02"]!.position).toEqual({ x: 900, y: 500 })
     expect(added.layout.grid.desktop!.map((item) => item.i)).toEqual(["02"])
     expect(added.layout.sizePresets).toEqual({ canvas: { "02": "small" }, grid: { "02": "small" } })
-    expect(added.layout).toMatchObject({ hidden: {}, gridMinimized: {}, gridRestoreWidths: {} })
+    expect(added.layout).toMatchObject({ hidden: {}, gridRestoreWidths: {} })
   })
 
   it("places a terminal added without geometry beside the selected one on Canvas", () => {
@@ -132,7 +131,6 @@ describe("workspace commands", () => {
     const seeded = state(workspace)
     const canvas = {
       geometry: { "01": { position: { x: 1, y: 1 } } },
-      minimized: { "01": true },
     }
     const grid = { desktop: [{ i: "01", x: 0, y: 0, w: 3, h: 4 }] }
     workspace.projects[0]!.history[0]!.state = {
@@ -142,7 +140,6 @@ describe("workspace commands", () => {
         canvas,
         grid,
         hidden: { "01": true },
-        gridMinimized: { "01": true },
         gridRestoreWidths: { "01": { desktop: 3 } },
         sizePresets: { canvas: { "01": "large" }, grid: { "01": "large" } },
       },
@@ -153,10 +150,9 @@ describe("workspace commands", () => {
       selected: "",
       roster: { terminals: [], windows: [], order: [] },
       layout: {
-        canvas: { geometry: {}, minimized: {} },
+        canvas: { geometry: {} },
         grid: { desktop: [] },
         hidden: {},
-        gridMinimized: {},
         gridRestoreWidths: {},
         sizePresets: { canvas: {}, grid: {} },
       },
@@ -168,11 +164,10 @@ describe("workspace commands", () => {
       target,
       layout: canvas,
     })
-    expect(state(delayedCanvas).layout.canvas).toEqual({ geometry: {}, minimized: {} })
+    expect(state(delayedCanvas).layout.canvas).toEqual({ geometry: {} })
     const late: WorkspaceAction[] = [
       { type: "terminal/visibility", target, terminalId: "01", hidden: true },
       { type: "terminal/size-preset", target, terminalId: "01", view: "grid", preset: "large" },
-      { type: "grid/minimize", target, terminalId: "01" },
     ]
     for (const action of late) expect(workspaceReducer(delayedCanvas, action)).toBe(delayedCanvas)
   })

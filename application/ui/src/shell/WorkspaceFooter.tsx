@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 // How the backend link is doing, most severe first: "ok" shows nothing.
 export type FooterStatus = "restarting" | "unavailable" | "reconnecting" | "ok"
@@ -23,6 +23,7 @@ export const WorkspaceFooter = ({
   status,
   navigate = false,
   onRetry,
+  usage,
 }: {
   readonly hidden: boolean
   // The person is navigating the workspace rather than typing in a terminal.
@@ -32,6 +33,8 @@ export const WorkspaceFooter = ({
   readonly status: FooterStatus
   // Offered while the runner keeps crashing: starts the terminals over.
   readonly onRetry?: (() => void) | undefined
+  // The account's subscriptions, at its end before the status.
+  readonly usage?: ReactNode
 }): React.JSX.Element => {
   const [previous, setPrevious] = useState(status)
   const [recovered, setRecovered] = useState(false)
@@ -68,22 +71,25 @@ export const WorkspaceFooter = ({
           </span>
         )}
       </span>
-      <span className="footer-status flex items-center gap-1.5 font-bold">
-        <span role="status" aria-live={current?.tone === "danger" ? "assertive" : "polite"}>
-          {current?.text}
+      <span className="flex items-center gap-4">
+        {usage}
+        <span className="footer-status flex items-center gap-1.5 font-bold">
+          <span role="status" aria-live={current?.tone === "danger" ? "assertive" : "polite"}>
+            {current?.text}
+          </span>
+          {status === "restarting" && onRetry && (
+            <>
+              <span aria-hidden="true">·</span>
+              <button
+                type="button"
+                className="footer-action cursor-pointer font-bold"
+                onClick={onRetry}
+              >
+                Try again
+              </button>
+            </>
+          )}
         </span>
-        {status === "restarting" && onRetry && (
-          <>
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              className="footer-action cursor-pointer font-bold"
-              onClick={onRetry}
-            >
-              Try again
-            </button>
-          </>
-        )}
       </span>
     </footer>
   )

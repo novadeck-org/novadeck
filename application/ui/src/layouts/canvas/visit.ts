@@ -15,6 +15,11 @@ export const createCanvasVisit = () => {
     get visiting(): boolean {
       return origin !== null || active !== null
     },
+    // Where the camera rests once the visit is over: where it began, or where a flight
+    // back is headed; null outside a visit.
+    get home(): Viewport | null {
+      return origin?.viewport ?? active?.viewport ?? null
+    },
     begin(id: string, current: Viewport, destination: Viewport): Flight | null {
       if (active) return null
       if (origin?.id === id) {

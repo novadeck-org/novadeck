@@ -130,7 +130,7 @@ export const agy = {
   settings: statusLineSettings(cli),
   resume: (session) => ["agy", "--conversation", session],
   transcripts,
-  // Its hooks and status line, which name no subagents; see docs/harness-coverage.md.
+  // Its hooks name no subagents; its status line counts them; see docs/harness-coverage.md.
   // A background subagent's end wakes it with a message saying it went idle.
   wakes: true,
   records: false,

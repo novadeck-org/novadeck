@@ -7,7 +7,6 @@ import type { TerminalLayoutControls } from "../../terminals/WindowShell"
 export type TerminalNode = Node<
   {
     compactHeader: boolean
-    minimized: boolean
     hiding: boolean
     preview: boolean
     focusRequest: number | null
@@ -20,8 +19,9 @@ export type CanvasProps = {
   presets: Record<string, SizePreset>
   onPresetChange: (id: string, preset: SizePreset) => void
   layout: CanvasLayout
-  matchCreatedTerminalRatio: boolean
   revealOnMount: boolean
+  // Opened from another view: it frames every visible window as it mounts.
+  fitOnMount: boolean
   fitOnNavigate: boolean
   onLayoutChange: Dispatch<SetStateAction<CanvasLayout>>
   terminals: readonly Tile[]

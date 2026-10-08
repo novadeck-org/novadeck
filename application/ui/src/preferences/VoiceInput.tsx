@@ -207,6 +207,22 @@ export const VoiceInput = ({
   if (!installed.length)
     return (
       <div className={settingsCardClasses}>
+        {/* Wanted until turned off: the app offers it, as a microphone in agent terminals
+            that leads here, and an install turns it on. */}
+        <div className={rowClasses}>
+          <span className="flex min-w-0 flex-col gap-1">
+            <span id="voice-enabled">Enabled</span>
+            <span id="voice-enabled-description" className={noteClasses}>
+              Shows a microphone in agent terminals. Dictation works once it's installed.
+            </span>
+          </span>
+          <Switch
+            checked={state.wanted}
+            onChange={(enabled) => actions.set({ enabled })}
+            labelledBy="voice-enabled"
+            describedBy="voice-enabled-description"
+          />
+        </div>
         <ModelChoice
           label="Model"
           choices={models}

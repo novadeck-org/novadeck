@@ -1,5 +1,6 @@
 import type { TerminalRequest } from "../../backend/port"
 import { addCompactGridTerminal } from "../../model/layout/grid-placement"
+import { canvasNewTerminalSize } from "../../model/layout/terminal-size"
 import { tilesOf } from "../../model/roster"
 import { activeProject, type WorkspaceAction } from "../../model/state"
 import type {
@@ -11,6 +12,7 @@ import type {
   WorkspaceSession,
   WorkspaceTarget,
 } from "../../model/types"
+import { noTerminalAnswers } from "../../terminals/chat/mode-state"
 import {
   currentContext,
   currentState,
@@ -249,7 +251,12 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       const snapshot = workspace.getSnapshot()
       const { view } = currentState(snapshot)
       effects.cancelTransition()
-      ui.update((state) => ({ ...state, preferences: next }))
+      // Turning the chat view on or off starts every terminal afresh on it.
+      ui.update((state) => ({
+        ...state,
+        preferences: next,
+        ...(next.chatView !== state.preferences.chatView && { answering: noTerminalAnswers }),
+      }))
       workspace.dispatch({
         type: "preferences/reconcile",
         target: currentTarget(snapshot),
@@ -321,6 +328,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           target,
           terminal,
           gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
+          canvasSize: canvasNewTerminalSize(effects.stageSize()),
         },
       ]
       navigateWorkspace(actions, { panel: "terminals" })
@@ -347,6 +355,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         target,
         terminal,
         gridLayouts: addCompactGridTerminal(tilesOf(roster), layout.grid, terminal),
+        canvasSize: canvasNewTerminalSize(effects.stageSize()),
         anchor: request.from,
         select: request.focus,
       }

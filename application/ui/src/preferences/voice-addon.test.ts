@@ -8,6 +8,7 @@ const state: VoiceState = {
   available: true,
   installed: [],
   enabled: false,
+  wanted: true,
   model: "turbo",
   language: "auto",
   sizes: { engine: 28 * megabyte, turbo: 1600 * megabyte, small: 190 * megabyte },
