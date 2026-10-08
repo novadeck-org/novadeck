@@ -1,6 +1,6 @@
 import { isAgentProgram } from "../../../model/process"
 import { createStore } from "../../../model/store"
-import type { AgentStatus, AgentTurnEnd } from "../../../model/types"
+import type { AgentStatus, AgentTurnEnd, Workspace } from "../../../model/types"
 import type { BackendAction, TerminalKey } from "../../port"
 import { terminalKeyId } from "../../registry"
 import { createDemoAgents } from "./agents"
@@ -104,6 +104,55 @@ const endingAction = (outcome: AgentTurnEnd["outcome"], label: string, hint: str
     context.dispatch(agentIn(key, terminalOf(context.workspace(), key), working))
     endLater(key, outcome, context)
   })
+
+// The first live terminal of another project's open session: where an agent can wait or
+// finish while the person looks at the project on screen, for the switcher to mark.
+const elsewhere = (workspace: Workspace | undefined): TerminalKey | undefined => {
+  for (const project of workspace?.projects ?? []) {
+    if (project.id === workspace?.activeProjectId) continue
+    const session = project.history.find((each) => each.id === project.activeSessionId)
+    const terminal = session?.state.roster.terminals.find(
+      (each) => each.state !== "exited" && each.state !== "failed",
+    )
+    if (session && terminal)
+      return { projectId: project.id, workspaceSessionId: session.id, terminalId: terminal.id }
+  }
+  return undefined
+}
+
+// An action on a terminal in another project, or the note that asks for one.
+const inAnotherProject = (
+  label: string,
+  hint: string,
+  run: (
+    key: TerminalKey,
+    context: DemoActionContext & { readonly dispatch: NonNullable<DemoActionContext["dispatch"]> },
+  ) => void,
+): DemoAction => ({
+  label,
+  hint,
+  run: (context) => {
+    const key = elsewhere(context.workspace())
+    if (!key) return context.note("Add another project with a terminal first.")
+    if (!context.dispatch) return
+    run(key, { ...context, dispatch: context.dispatch })
+  },
+})
+
+const elsewhereAgent = (label: string, hint: string, status: AgentStatus): DemoAction =>
+  inAnotherProject(label, hint, (key, { dispatch, workspace }) =>
+    dispatch(agentIn(key, terminalOf(workspace(), key), status)),
+  )
+
+const elsewhereEnding = (outcome: "completed" | "failed", label: string): DemoAction =>
+  inAnotherProject(
+    label,
+    `Works, then ${outcome === "completed" ? "done" : "failed"}: the switcher marks it until you look`,
+    (key, context) => {
+      context.dispatch(agentIn(key, terminalOf(context.workspace(), key), working))
+      endLater(key, outcome, context)
+    },
+  )
 
 // A terminal that is added and then fails to start.
 const failingTerminal = (label: string, hint: string, message: string, wait = 0): DemoAction => ({
@@ -292,6 +341,32 @@ export const createDemoStates = (): DemoStates => {
           "Unheard agent",
           "Claude Code with no word from its hooks",
           (key, { dispatch }) => dispatch(unheardAgent(key, "claude")),
+        ),
+      ],
+    },
+    {
+      title: "Another project",
+      actions: [
+        elsewhereAgent(
+          "Needs permission",
+          "The switcher's dot and row show !",
+          asking("permission", 1),
+        ),
+        elsewhereAgent(
+          "Asks a question",
+          "The switcher's dot and row show ?",
+          asking("question", 1),
+        ),
+        elsewhereAgent(
+          "Plan ready for review",
+          "The switcher's dot and row show !",
+          asking("plan", 1),
+        ),
+        elsewhereEnding("completed", "Turn completed"),
+        elsewhereEnding("failed", "Turn failed"),
+        elsewhereAgent("Working", "A spinner on its row; no dot", working),
+        inAnotherProject("Back at the prompt", "Its mark clears", (key, { dispatch }) =>
+          dispatch(backToPrompt(key)),
         ),
       ],
     },

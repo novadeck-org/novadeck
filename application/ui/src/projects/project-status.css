@@ -1,0 +1,56 @@
+/* What a project's terminals show at a glance, marked as a terminal tab marks its phase:
+   `.project-status-mark`, a glyph in the mono face, sits in the dropdown's rows and the
+   header's chips, and `.project-status-dot` is the dot over the switcher's button. The
+   parent says which: data-project-status="question" | "attention" | "failed" | "done" |
+   "running" on the element that holds the mark.
+
+   "?" or "!" while an agent waits on the person, "✗" or "✓" while a finished agent's reply
+   waits unread, a spinner while one works (the chips and the dot leave that one out, so
+   the header stays still while agents work).
+
+   Tokens, each optional (its fallback in brackets):
+   --project-status-attention-fg (warning-fg): the mark while an agent waits.
+   --project-status-done-fg (success-fg): the mark while a reply waits unread.
+   --project-status-failed-fg (danger-fg): the same, where its turn ended on an error.
+   --project-status-running-fg (ink): the spinner. */
+.project-status-mark {
+  flex: none;
+  width: 1ch;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-align: center;
+}
+[data-project-status="question"] > .project-status-mark::before {
+  content: "?";
+}
+[data-project-status="attention"] > .project-status-mark::before {
+  content: "!";
+}
+[data-project-status="failed"] > .project-status-mark::before {
+  content: "✗";
+}
+[data-project-status="done"] > .project-status-mark::before {
+  content: "✓";
+}
+[data-project-status="running"] > .project-status-mark {
+  font-weight: 400;
+}
+[data-project-status="running"] > .project-status-mark::before {
+  content: "⠋";
+  animation: terminal-spin 800ms steps(1) infinite;
+}
+
+/* The tones, set on the mark by its parent so no other child of it takes them. */
+[data-project-status="question"] > :is(.project-status-mark, .project-status-dot),
+[data-project-status="attention"] > :is(.project-status-mark, .project-status-dot) {
+  color: var(--project-status-attention-fg, var(--color-warning-fg));
+}
+[data-project-status="failed"] > :is(.project-status-mark, .project-status-dot) {
+  color: var(--project-status-failed-fg, var(--color-danger-fg));
+}
+[data-project-status="done"] > :is(.project-status-mark, .project-status-dot) {
+  color: var(--project-status-done-fg, var(--color-success-fg));
+}
+[data-project-status="running"] > :is(.project-status-mark, .project-status-dot) {
+  color: var(--project-status-running-fg, var(--color-ink));
+}

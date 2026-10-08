@@ -12,6 +12,12 @@ import type {
   WorkspaceSession,
   WorkspaceTarget,
 } from "../../model/types"
+import {
+  moveProject as arrangeMove,
+  stepProject as arrangeStep,
+  togglePin,
+  type ProjectArrangement,
+} from "../../projects/project-arrangement"
 import { noTerminalAnswers } from "../../terminals/chat/mode-state"
 import {
   currentContext,
@@ -46,6 +52,13 @@ export type WorkspaceCommands = ShellCommands &
     readonly openFolder: () => Promise<void>
     // Removes a project and closes its terminals; the last project stays.
     readonly removeProject: (id: string) => void
+    // Moves a project to this place in the switcher's list, pinned ones first: pinned
+    // when dropped among them, unpinned among the rest.
+    readonly moveProject: (id: string, index: number) => void
+    // Steps a project one place up or down that list; across the rule it pins or unpins.
+    readonly stepProject: (id: string, by: -1 | 1) => void
+    // Pins a project, or unpins it if pinned; no more than the limit can be pinned.
+    readonly toggleProjectPin: (id: string) => void
     // Selects a terminal and brings it into view, optionally fitting Canvas around it.
     readonly select: (id: string, fit?: boolean) => void
     readonly setSelected: (terminal: string) => void
@@ -99,6 +112,17 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
   const shell = createShellCommands(ctx)
   const rename = createRenameCommands(ctx)
   const recent = createRecentCommands(ctx)
+  // Rearranges the switcher's projects from the latest of both stores.
+  const arrange = (
+    change: (projects: Workspace["projects"], current: ProjectArrangement) => ProjectArrangement,
+  ): void =>
+    void ui.update((state) => {
+      const projectArrangement = change(workspace.getSnapshot().projects, state.projectArrangement)
+      return projectArrangement === state.projectArrangement
+        ? state
+        : { ...state, projectArrangement }
+    })
+
   const preferences = (): PreferencesValue => ui.getSnapshot().preferences
 
   const setSelected = (terminal: string): void => go({ terminal })
@@ -247,6 +271,10 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
         },
       ])
     },
+    moveProject: (id, index) =>
+      arrange((projects, current) => arrangeMove(projects, current, id, index)),
+    stepProject: (id, by) => arrange((projects, current) => arrangeStep(projects, current, id, by)),
+    toggleProjectPin: (id) => arrange((projects, current) => togglePin(projects, current, id)),
     updatePreferences: (next) => {
       const snapshot = workspace.getSnapshot()
       const { view } = currentState(snapshot)

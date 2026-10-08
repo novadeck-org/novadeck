@@ -1,0 +1,59 @@
+/* The pinned projects after the switcher in the header: `.project-chips` is the group,
+   set off from the switcher by a rule on its left, and each `.project-chip` a quiet text
+   button for one project: muted text at rest, ink under the pointer, with a soft fill
+   as a ghost button has. A project's mark (`.project-status-mark`, with the glyphs and tones
+   of project-status.css) goes before its name, while an agent waits on the person or a
+   finished agent's reply waits unread; a project only working shows none.
+
+   The current project's chip stands raised, as a selected item does: the paper, an
+   outline and ink text.
+
+   Hooks: on a chip, aria-current="true" for the current project;
+   data-project-status="question" | "attention" | "failed" | "done" (never "running"),
+   which fills the chip so it draws the eye; on the
+   group, data-empty="true" while no chip fits, which takes the rule away.
+
+   Tokens, each optional (its fallback in brackets):
+   --project-chip-fg (muted), --project-chip-hover-fg (ink): the name at rest, and under
+   the pointer or focus.
+   --project-chip-hover-bg (soft): the fill under the pointer.
+   --project-chip-attention-bg (--project-chip-hover-bg): the fill while a chip's project
+   needs the person.
+   --project-chip-radius (radius-control)
+   --project-chip-current-bg (paper), --project-chip-current-border-color (line),
+   --project-chip-current-fg (ink): the current project's chip.
+   The rule on the left takes --separator-bg (line). */
+.project-chips {
+  border-left: var(--border-width) solid var(--separator-bg, var(--color-line));
+  /* The rule spans the chips' height, not the header's. */
+  min-height: 1.25rem;
+}
+.project-chips[data-empty="true"] {
+  border-left-color: transparent;
+}
+.project-chip {
+  --_fg: var(--project-chip-fg, var(--color-muted));
+  --_bg: transparent;
+  border-radius: var(--project-chip-radius, var(--radius-control));
+  background-color: var(--_bg);
+  color: var(--_fg);
+}
+.project-chip[data-project-status] {
+  --_bg: var(--project-chip-attention-bg, var(--project-chip-hover-bg, var(--color-soft)));
+}
+.project-chip[aria-current="true"] {
+  --_bg: var(--project-chip-current-bg, var(--color-paper));
+  --_fg: var(--project-chip-current-fg, var(--color-ink));
+  box-shadow: inset 0 0 0 var(--border-width)
+    var(--project-chip-current-border-color, var(--color-line));
+  cursor: default;
+}
+.project-chip:focus-visible {
+  --_fg: var(--project-chip-hover-fg, var(--color-ink));
+}
+@media (hover: hover) {
+  .project-chip:not([aria-current="true"]):hover {
+    --_bg: var(--project-chip-hover-bg, var(--color-soft));
+    --_fg: var(--project-chip-hover-fg, var(--color-ink));
+  }
+}

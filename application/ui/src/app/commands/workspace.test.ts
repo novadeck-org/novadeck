@@ -12,6 +12,16 @@ const terminal = (app: ReturnType<typeof openCommands>, id: string) =>
 
 afterEach(() => void vi.useRealTimers())
 
+// The fixture's project and two folders opened after it, as ids in the runner's order.
+const three = async () => {
+  const folders = ["/work/storefront/", "/work/blog/"]
+  const app = openCommands({ pickDirectory: () => Promise.resolve(folders.shift()!) })
+  await app.commands.openFolder()
+  await app.commands.openFolder()
+  const ids = app.workspace.getSnapshot().projects.map((each) => each.id)
+  return { app, ids, arrangement: () => app.ui.getSnapshot().projectArrangement }
+}
+
 // A workspace whose first terminal runs a program.
 const running = () => {
   const workspace = workspaceFixture()
@@ -194,6 +204,39 @@ describe("workspace commands", () => {
       const before = app.workspace.getSnapshot()
       app.commands.removeProject("project")
       expect(app.workspace.getSnapshot()).toBe(before)
+    })
+  })
+
+  context("when arranging projects", () => {
+    it("pins a project, then unpins it", async () => {
+      const { app, ids, arrangement } = await three()
+      app.commands.toggleProjectPin(ids[2]!)
+      expect(arrangement().pinned).toEqual([ids[2]])
+      app.commands.toggleProjectPin(ids[2]!)
+      expect(arrangement().pinned).toEqual([])
+    })
+
+    it("moves a project to a place in the list", async () => {
+      const { app, ids, arrangement } = await three()
+      app.commands.moveProject(ids[2]!, 0)
+      expect(arrangement()).toEqual({ order: [ids[2], ids[0], ids[1]], pinned: [] })
+    })
+
+    it("steps a project, pinning it in place on the way up from the top", async () => {
+      const { app, ids, arrangement } = await three()
+      app.commands.stepProject(ids[1]!, -1)
+      expect(arrangement().order).toEqual([ids[1], ids[0], ids[2]])
+      app.commands.stepProject(ids[1]!, -1)
+      expect(arrangement().pinned).toEqual([ids[1]])
+    })
+
+    it("keeps the arrangement when nothing changes", async () => {
+      const { app, ids, arrangement } = await three()
+      const before = arrangement()
+      app.commands.stepProject(ids[2]!, 1)
+      app.commands.moveProject("gone", 0)
+      app.commands.toggleProjectPin("gone")
+      expect(arrangement()).toBe(before)
     })
   })
 

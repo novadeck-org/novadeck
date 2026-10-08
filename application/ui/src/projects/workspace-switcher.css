@@ -1,15 +1,31 @@
 /* The workspace switcher in the header: a ghost button (`.workspace-switcher-trigger`)
    that opens a popover of projects. Each `.workspace-switcher-project` is an item,
    tinted as the keyboard or the pointer reaches it, with the project's folder as its
-   `.item-detail` in the mono face; a `.workspace-switcher-remove` icon button shows on
-   the row under the pointer. Under a rule, `.workspace-switcher-new` opens a folder: a
+   `.item-detail` in the mono face; the `.workspace-switcher-action` icon buttons, pin and
+   remove, show on the row under the pointer (a pin button that can't act, at the pin
+   limit, takes --icon-button-disabled-opacity and the not-allowed pointer). Pinned projects come first under a
+   `.workspace-switcher-label`, closed by a `.workspace-switcher-rule`, and a mark
+   (`.workspace-switcher-pinned`) follows their names; rows drag into any order, which
+   pins or unpins across the rule. Under a rule, `.workspace-switcher-new` opens a folder: a
    `.button.quiet`.
 
-   Hooks: on the trigger, aria-expanded="true" while the popover is open; on a row,
-   aria-current="true" for the current project.
+   Each row marks what its project's terminals show, the most pressing of them, with
+   `.project-status-mark`, and the trigger's `.workspace-switcher-dot` (also a
+   `.project-status-dot`) marks what another project has waiting on the person; a project
+   only working doesn't mark it. Their glyphs and tones are project-status.css's.
+
+   Hooks: on a row, data-pinned="true" for a pinned project and data-dragging="true" while
+   it is dragged. On the trigger, aria-expanded="true" while the popover is open; on a row,
+   aria-current="true" for the current project. On the trigger and on a row,
+   data-project-status="question" | "attention" | "failed" | "done" | "running" (never
+   "running" on the trigger), which the status mark inside reads.
 
    Tokens, each optional (its fallback in brackets):
    --workspace-switcher-icon-fg (muted): the trigger's folder and chevron.
+   --workspace-switcher-pin-fg (muted): the mark by a pinned project's name.
+   --workspace-switcher-drag-shadow (shadow-control): the row being dragged.
+   --workspace-switcher-dot-ring (the header's --region-header-bg, then paper): the ring
+   that sets the dot off the folder.
    The trigger takes the ghost button's tokens; rows are `.item.standalone`, taking the
    item's highlighted tokens under the pointer or the keyboard; the rule above the
    open-folder button takes --separator-bg. */
@@ -29,19 +45,60 @@
   font-family: var(--font-mono);
 }
 
-.workspace-switcher-remove {
+.workspace-switcher-action {
   transition: opacity var(--motion-feedback) var(--ease-interface);
 }
-/* On a highlighted row's bar, the remove button beside it takes the bar's text. */
-.workspace-switcher-project:focus-visible ~ .workspace-switcher-remove {
+/* A pin button that can't act shows as a disabled icon button does, even on the row
+   under the pointer, and the pointer over it says it won't. */
+.workspace-switcher-row:hover .workspace-switcher-action:disabled {
+  opacity: var(--icon-button-disabled-opacity, 0.25);
+}
+.icon-button.workspace-switcher-action:disabled {
+  cursor: not-allowed;
+}
+/* On a highlighted row's bar, the buttons beside it take the bar's text. */
+.workspace-switcher-row:has(.workspace-switcher-project:focus-visible) .workspace-switcher-action {
   --_fg: var(--item-highlighted-fg, var(--icon-button-fg, var(--color-muted)));
 }
 @media (hover: hover) {
-  .workspace-switcher-project:hover ~ .workspace-switcher-remove {
+  .workspace-switcher-row:has(.workspace-switcher-project:hover) .workspace-switcher-action {
     --_fg: var(--item-highlighted-fg, var(--icon-button-fg, var(--color-muted)));
   }
 }
 
+/* The mark by a pinned project's name stays quiet; a row being dragged lifts above the
+   others and keeps its tint. */
+.workspace-switcher-pinned {
+  color: var(--workspace-switcher-pin-fg, var(--color-muted));
+}
+.workspace-switcher-row[data-dragging="true"] {
+  z-index: 1;
+}
+.workspace-switcher-row[data-dragging="true"] > .workspace-switcher-project {
+  background-color: var(--item-highlighted-bg, var(--color-soft));
+  box-shadow: var(--workspace-switcher-drag-shadow, var(--shadow-control));
+}
+
+/* The rule that closes the pinned group. */
+.workspace-switcher-rule {
+  margin: 2px 5px;
+  border: 0;
+  border-top: var(--border-width) solid var(--separator-bg, var(--color-line));
+}
+
 .workspace-switcher-footer {
   border-top: var(--border-width) solid var(--separator-bg, var(--color-line));
+}
+
+/* The dot on the trigger: over the folder's corner, ringed in the header's ground. */
+.workspace-switcher-dot {
+  position: absolute;
+  top: 9px;
+  left: 18px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px
+    var(--workspace-switcher-dot-ring, var(--region-header-bg, var(--color-paper)));
+  background-color: currentColor;
 }

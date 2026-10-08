@@ -13,11 +13,12 @@ import type {
   TerminalKey,
 } from "../port"
 import { createDemoChat } from "./chat"
+import { agentSays, turnEnded } from "./debug/terminals"
 import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
-import { createMockTerminal, demoSeed } from "./samples"
+import { createMockTerminal, demoFinishes, demoSeed } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { storefrontArtifacts } from "./showcase/storefront"
 import { agentTranscripts, type DemoTranscript } from "./transcripts"
@@ -263,6 +264,34 @@ const withStorefrontArtifacts = (backend: Backend): Backend => {
   }
 }
 
+// How long after the agents demo opens its agents in other projects finish.
+const finishAfterMs = 2500
+
+// The agents demo, whose agents in design-system and infra end their turn a moment after
+// it opens (see `demoFinishes`), so the switcher marks their projects done and failed.
+const withFinishes = (backend: Backend): Backend => ({
+  ...backend,
+  start: (sink) => {
+    const stop = backend.start?.(sink)
+    const timer = setTimeout(
+      () =>
+        sink.dispatch(
+          demoFinishes.flatMap(({ projectId, terminalId, outcome }) =>
+            agentSays(
+              { projectId, workspaceSessionId: "initial", terminalId },
+              turnEnded(outcome, Date.now()),
+            ),
+          ),
+        ),
+      finishAfterMs,
+    )
+    return () => {
+      clearTimeout(timer)
+      stop?.()
+    }
+  },
+})
+
 // The demos with no content showcase: the plain one, the agents', the agents' with
 // messages between them, and the plain one with its first-run welcome dialog open.
 export type PlainVariant = "plain" | "agents" | "messages" | "welcome"
@@ -283,13 +312,13 @@ export const plainDemo = (variant: PlainVariant, runtime?: DemoSurfaceRuntime): 
   const transcripts = agentTranscripts(now)
   if (variant === "messages")
     return withConversations(
-      withMessages({ ...backend, seed: demoSeed(now, true) }, now),
+      withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now)),
       transcripts,
       turns,
     )
   return withConversations(
     variant === "agents"
-      ? withStorefrontArtifacts({ ...backend, seed: demoSeed(now, true) })
+      ? withFinishes(withStorefrontArtifacts({ ...backend, seed: demoSeed(now, true) }))
       : backend,
     transcripts,
     turns,

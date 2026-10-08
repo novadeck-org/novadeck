@@ -181,7 +181,23 @@ their content and layout and remain available in Focus view.
 Showing and hiding use a short fade and scale transition; reduced motion skips it.
 Switching terminal tabs in Focus uses the same transition.
 
-The project switcher in the top bar removes a project from its row's trash icon, after
+The project switcher in the top bar lists every project with what its agents show: the
+most pressing of its terminals' marks, as their tabs have them ("?" or "!" while an
+agent waits on you, "✓" or "✗" while a finished agent's reply waits unread, a spinner
+while one works). A dot on the switcher's button marks what another project has
+waiting on you, in that mark's colour; projects only working don't light it. The list
+grows to 560px before it scrolls.
+
+Drag projects into any order, or move the focused one with Alt+Up and Alt+Down. Pin up
+to three with the pin beside a row's trash icon: pinned projects lead the list, and
+dragging one across the rule below them pins or unpins it. Pinned projects also show as
+chips beside the switcher, the current one raised, each with its mark (except the spinner);
+a click switches to it. Chips that don't fit stay hidden, and the dot covers them
+again; below 702px there are none. The order and the pins are kept in this browser or
+app (`novadeck.project-arrangement` in local storage), not shared with other clients
+of the runner.
+
+The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
 The runner forgets the project with its sessions, what its agents showed and the
 windows undocked from them, and its agents' messages, so it stays gone after a reload. While the runner can't be reached, the app keeps asking until it
@@ -554,7 +570,9 @@ it; Escape closes it too. The runner has no panel. The top line shows the demo v
 connection state, the crash-loop count, and the terminal count.
 
 `?demo=` in the address's hash picks the variant: `showcase` (the default, with the
-sample agents' plans and artifacts), `plain`, `agents`, `messages` or `welcome`. The
+sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
+an agent in a state of its own: waiting, asking, working, and two that finish done and
+failed a moment after it opens, for the project switcher), `messages` or `welcome`. The
 Demo group switches between them without reloading, and the browser tab remembers the
 last one chosen.
 
@@ -581,6 +599,9 @@ last one chosen.
   restarts them.
 - **Sessions:** mark the selected terminal running, then start a fresh session, to see
   the sessions panel count it.
+- **Another project:** make the agent in the first terminal of another project wait
+  for a permission, ask a question, wait on a plan, finish or fail its turn (after
+  3 s), work, or go back to its prompt, for the project switcher's marks and dot.
 - **Selected terminal, Agent, New terminals, Notices, Agents, Folders:** put a
   terminal, an agent, the notifications and the pickers in each of their states.
   The "Turn" actions end after 3 s, and "Agent finishes elsewhere" needs the
@@ -707,8 +728,9 @@ state from `shell/shell-state.ts`, the rename in progress, the recent-terminal
 switcher and each session's most-recent order, the new-terminal highlight, whether the
 page has focus, and the terminals whose agent finished unseen (`terminals/unread-state.ts`,
 kept by `watchFinishes`, which also asks the backend's `notices` for a notification).
-It starts over on reload apart from preferences and the collapsed sidebar, which
-store subscriptions persist. Another subscription saves the active session's
+It starts over on reload apart from preferences, the collapsed sidebar and the
+project arrangement (the switcher's order and pins, `novadeck.project-arrangement`),
+which store subscriptions persist. Another subscription saves the active session's
 windowed view from the workspace store, and a new App seeds sessions with it. The
 companion panes' store in `terminals/companion/state.ts` holds what the panes load,
 by item: each plan as the person edits it, what each item last loaded, and the secret

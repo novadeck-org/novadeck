@@ -1,7 +1,8 @@
-import { describe as context, describe, expect, it } from "vitest"
+import { describe as context, describe, expect, it, onTestFinished } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { escapeFrom, expectFocusWithin, preferencesDialog } from "./support/keyboard"
+import { workspaceSwitcher } from "./support/sessions"
 import {
   chooseView,
   commandInput,
@@ -39,6 +40,37 @@ describe("An agent waiting on the person", () => {
     await expect
       .element(page.getByRole("region", { name: "Checkout review terminal" }))
       .toHaveAttribute("aria-description", "Needs permission")
+  })
+
+  context("in another project", () => {
+    it("marks the switcher with the most pressing, and each project's row", async () => {
+      // The demo's other projects: api-service's agents wait on a plan and a permission,
+      // docs-site's asks a question, mobile-app's works, design-system's and infra's work
+      // and then finish, done and failed, a moment after the demo opens.
+      await openWorkspace("/?demo=agents")
+      const skip = page.getByRole("button", { name: "Skip for now" })
+      if (await skip.query()) await skip.click()
+      const trigger = workspaceSwitcher()
+
+      await expect.element(trigger).toHaveAttribute("data-project-status", "question")
+      await expect
+        .element(trigger)
+        .toHaveAttribute("aria-description", "Another project: Asks a question")
+      await trigger.click()
+      const menu = page.getByRole("dialog", { name: "Switch workspace" })
+      const row = (name: string): Locator =>
+        menu.getByRole("button", { name: new RegExp(`^${name} `) })
+      await expect.element(row("api-service")).toHaveAttribute("aria-description", "Needs you")
+      await expect.element(row("docs-site")).toHaveAttribute("aria-description", "Asks a question")
+      await expect.element(row("mobile-app")).toHaveAttribute("aria-description", "Working")
+      await expect
+        .element(row("design-system"), { timeout: 10_000 })
+        .toHaveAttribute("aria-description", "Done · reply unread")
+      await expect
+        .element(row("infra"), { timeout: 10_000 })
+        .toHaveAttribute("aria-description", "Stopped with an error · reply unread")
+      await expect.element(row("dotfiles")).not.toHaveAttribute("data-project-status")
+    })
   })
 })
 
@@ -399,5 +431,45 @@ describe("Connecting agents", () => {
     await openWorkspace()
     await expectStaysAbsent(welcome())
     expect(welcome().query()).toBeNull()
+  })
+})
+
+describe("A pinned project", () => {
+  it("shows as a chip in the header, and the switcher's dot leaves it out", async () => {
+    // Pinned, docs-site shows beside the switcher, its agent asking a question; the dot
+    // leaves it out, so it shows the next most pressing: api-service's waiting agents.
+    localStorage.setItem(
+      "novadeck.project-arrangement",
+      JSON.stringify({ order: ["docs-site"], pinned: ["docs-site"] }),
+    )
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    const chip = page
+      .getByRole("group", { name: "Pinned projects" })
+      .getByRole("button", { name: "docs-site" })
+    await expect.element(chip).toHaveAttribute("aria-description", "Asks a question")
+    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "attention")
+
+    // Switching to it keeps its chip in place, marked current; the others still wait
+    // in the dot.
+    await chip.click()
+    await expect.element(workspaceSwitcher()).toHaveTextContent("docs-site")
+    await expect.element(chip).toHaveAttribute("aria-current", "true")
+    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status")
+  })
+
+  it("leaves the header where its chip doesn't fit, and the dot covers it again", async () => {
+    localStorage.setItem(
+      "novadeck.project-arrangement",
+      JSON.stringify({ order: ["docs-site"], pinned: ["docs-site"] }),
+    )
+    await page.viewport(860, 900)
+    onTestFinished(() => page.viewport(1440, 900))
+    await openWorkspace("/?demo=agents")
+    const skip = page.getByRole("button", { name: "Skip for now" })
+    if (await skip.query()) await skip.click()
+    await expect.element(workspaceSwitcher()).toHaveAttribute("data-project-status", "question")
+    await expect.element(page.getByRole("button", { name: "docs-site" })).not.toBeInTheDocument()
   })
 })

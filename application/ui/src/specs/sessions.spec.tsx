@@ -1,11 +1,12 @@
 import { afterEach, describe as context, describe, expect, it } from "vitest"
-import { page } from "vitest/browser"
+import { page, userEvent, type Locator } from "vitest/browser"
 
 import { escapeFrom, pressShortcut } from "./support/keyboard"
 import {
   currentSessionName,
   emptyWorkspace,
   expectCurrentSession,
+  listedProjects,
   newSessionName,
   pressNewSession,
   run,
@@ -21,12 +22,15 @@ import {
   expectStaysAbsent,
   isMac,
   openWorkspace,
+  press,
   sidebar,
   sidebarPanel,
   terminal,
   terminalTab,
   view,
 } from "./support/workspace"
+
+const switchMenu = (): Locator => page.getByRole("dialog", { name: "Switch workspace" })
 
 describe("projects", () => {
   context("when opening the Switch workspace menu", () => {
@@ -63,6 +67,124 @@ describe("projects", () => {
 
       await expect.element(menu).not.toBeInTheDocument()
       await expect.element(trigger).toHaveFocus()
+    })
+  })
+
+  context("when pinning projects", () => {
+    // The demo's projects after its first two, as the switcher lists them.
+    const others = ["docs-site", "mobile-app", "design-system", "infra", "dotfiles"]
+
+    it("moves a pinned project to a Pinned group at the top, and back on unpin", async () => {
+      await openWorkspace()
+      await workspaceSwitcher().click()
+      await expect
+        .element(switchMenu().getByText("Pinned", { exact: true }))
+        .not.toBeInTheDocument()
+      expect(listedProjects()).toEqual(["storefront", "api-service", ...others])
+
+      await switchMenu().getByRole("button", { name: "Pin api-service" }).click()
+
+      await expect.element(switchMenu().getByText("Pinned", { exact: true })).toBeVisible()
+      expect(listedProjects()).toEqual(["api-service", "storefront", ...others])
+
+      await switchMenu().getByRole("button", { name: "Unpin api-service" }).click()
+
+      await expect
+        .element(switchMenu().getByText("Pinned", { exact: true }))
+        .not.toBeInTheDocument()
+    })
+
+    it("moves the focused project with Alt and the arrows, keeping the focus on it", async () => {
+      await openWorkspace()
+      await workspaceSwitcher().click()
+      const storefront = switchMenu().getByRole("button", { name: /^storefront / })
+      storefront.element().focus()
+
+      await press("{Alt>}{ArrowDown}{/Alt}")
+
+      await expect.poll(listedProjects).toEqual(["api-service", "storefront", ...others])
+      await expect.element(switchMenu().getByRole("button", { name: /^storefront / })).toHaveFocus()
+
+      await press("{Alt>}{ArrowUp}{/Alt}")
+
+      await expect.poll(listedProjects).toEqual(["storefront", "api-service", ...others])
+      await expect.element(switchMenu().getByRole("button", { name: /^storefront / })).toHaveFocus()
+    })
+
+    it("pins the top project with Alt and Up when nothing is pinned", async () => {
+      await openWorkspace()
+      await workspaceSwitcher().click()
+      switchMenu()
+        .getByRole("button", { name: /^storefront / })
+        .element()
+        .focus()
+
+      await press("{Alt>}{ArrowUp}{/Alt}")
+
+      await expect
+        .element(switchMenu().getByRole("button", { name: "Unpin storefront" }))
+        .toBeVisible()
+    })
+
+    it("pins and unpins in place when Alt and an arrow cross the rule", async () => {
+      await openWorkspace()
+      await workspaceSwitcher().click()
+      await switchMenu().getByRole("button", { name: "Pin api-service" }).click()
+      const row = (name: string): Locator =>
+        switchMenu().getByRole("button", { name: new RegExp(`^${name} `) })
+      row("storefront").element().focus()
+
+      await press("{Alt>}{ArrowUp}{/Alt}")
+
+      await expect
+        .element(switchMenu().getByRole("button", { name: "Unpin storefront" }))
+        .toBeVisible()
+      await expect.poll(listedProjects).toEqual(["api-service", "storefront", ...others])
+      await expect.element(row("storefront")).toHaveFocus()
+
+      await press("{Alt>}{ArrowDown}{/Alt}")
+
+      await expect
+        .element(switchMenu().getByRole("button", { name: "Pin storefront" }))
+        .toBeVisible()
+      await expect.poll(listedProjects).toEqual(["api-service", "storefront", ...others])
+      await expect.element(row("storefront")).toHaveFocus()
+    })
+
+    it("pins a project dragged above the rule and keeps the menu open", async () => {
+      await openWorkspace()
+      await workspaceSwitcher().click()
+      await switchMenu().getByRole("button", { name: "Pin api-service" }).click()
+      const row = (name: string): Locator =>
+        switchMenu().getByRole("button", { name: new RegExp(`^${name} `) })
+      const { height } = row("api-service").element().getBoundingClientRect()
+
+      await userEvent.dragAndDrop(row("storefront"), row("api-service"), {
+        targetPosition: { x: 40, y: height / 4 },
+        steps: 20,
+      })
+
+      await expect.poll(listedProjects).toEqual(["storefront", "api-service", ...others])
+      await expect
+        .element(switchMenu().getByRole("button", { name: "Unpin storefront" }))
+        .toBeInTheDocument()
+      await expect.element(switchMenu()).toBeVisible()
+    })
+
+    it("keeps the focus in the menu, on the dragged project, after a drag", async () => {
+      await openWorkspace()
+      await workspaceSwitcher().click()
+      await switchMenu().getByRole("button", { name: "Pin api-service" }).click()
+      const row = (name: string): Locator =>
+        switchMenu().getByRole("button", { name: new RegExp(`^${name} `) })
+      const { height } = row("api-service").element().getBoundingClientRect()
+
+      await userEvent.dragAndDrop(row("storefront"), row("api-service"), {
+        targetPosition: { x: 40, y: height / 4 },
+        steps: 20,
+      })
+
+      await expect.element(row("storefront")).toHaveFocus()
     })
   })
 

@@ -6,15 +6,21 @@ import {
   Settings2,
   SquareDashedMousePointer,
 } from "lucide-react"
-import { useSyncExternalStore } from "react"
+import { useMemo, useState, useSyncExternalStore } from "react"
 import { Link } from "react-router"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import type { Project, ViewMode } from "../model/types"
+import { arrangeProjects, type ProjectArrangement } from "../projects/project-arrangement"
+import type { ProjectStatus } from "../projects/project-status"
+import { ProjectChips } from "../projects/ProjectChips"
 import { WorkspaceSwitcher } from "../projects/WorkspaceSwitcher"
-import { DeckMark, DeckWordmark } from "../ui-toolkit/DeckLogo"
+import { DeckMark } from "../ui-toolkit/DeckLogo"
 import { SegmentGroup } from "../ui-toolkit/SegmentGroup"
 import { Tooltip } from "../ui-toolkit/Tooltip"
+
+const noProjects: Project[] = []
+const noIds: readonly string[] = []
 
 const iconOnlyQuery = "(max-width: 701px)"
 const subscribe = (notify: () => void): (() => void) => {
@@ -36,6 +42,11 @@ export const WorkspaceHeader = ({
   enabledViews,
   projects,
   project,
+  statuses,
+  arrangement,
+  onProjectMove,
+  onProjectStep,
+  onProjectTogglePin,
   onProjectSelect,
   onOpenFolder,
   onProjectRemove,
@@ -50,6 +61,13 @@ export const WorkspaceHeader = ({
   enabledViews: ViewMode[]
   projects: Project[]
   project: Project
+  // What each project's terminals show, by its id, where they show anything.
+  statuses: Readonly<Record<string, ProjectStatus>>
+  // How the person arranged the projects, and the intents to change it.
+  arrangement: ProjectArrangement
+  onProjectMove: (id: string, index: number) => void
+  onProjectStep: (id: string, by: -1 | 1) => void
+  onProjectTogglePin: (id: string) => void
   onProjectSelect: (id: string) => void
   // Absent where no folder can be opened; the switcher then shows it disabled.
   onOpenFolder?: (() => void) | undefined
@@ -61,6 +79,13 @@ export const WorkspaceHeader = ({
   onZen: () => void
 }): React.JSX.Element => {
   const iconOnly = useSyncExternalStore(subscribe, isIconOnly)
+  // The pinned projects show as chips, where there's room, the current one among them
+  // marked as such; the switcher's dot then leaves them out.
+  const chips = useMemo(
+    () => (iconOnly ? noProjects : arrangeProjects(projects, arrangement).pinned),
+    [iconOnly, projects, arrangement],
+  )
+  const [shownChips, setShownChips] = useState<readonly string[]>(noIds)
   const searchShortcut = shortcutBindings().find.display.join(" ")
   // With one view left there's nothing to switch to: the switch goes, and Zen joins the
   // actions on the right.
@@ -85,20 +110,28 @@ export const WorkspaceHeader = ({
       className="app-header max-[1001px]:gap-3 max-[701px]:h-15 max-[701px]:px-3 max-[701px]:gap-2 max-[335px]:px-1 h-16 shrink-0 items-center gap-6 px-4 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
     >
       <div className="header-workspace max-[701px]:gap-2 flex min-w-0 items-center gap-4">
-        <Link
-          to={homeTo}
-          className="brand max-[701px]:w-auto max-[701px]:text-[17px] max-[701px]:gap-[7px] min-[702px]:max-[1001px]:[&>span:last-child]:hidden flex shrink-0 items-center gap-2 text-[16px] font-semibold"
-          aria-label="novadeck. home"
-        >
+        <Link to={homeTo} className="brand flex shrink-0 items-center" aria-label="novadeck. home">
           <DeckMark size={28} className="brand-symbol" />
-          <DeckWordmark />
         </Link>
         <WorkspaceSwitcher
           projects={projects}
           current={project}
+          statuses={statuses}
+          arrangement={arrangement}
           onSelect={onProjectSelect}
+          onMove={onProjectMove}
+          onStep={onProjectStep}
+          onTogglePin={onProjectTogglePin}
           onOpenFolder={onOpenFolder}
           onRemove={onProjectRemove}
+          dotIgnores={iconOnly ? noIds : shownChips}
+        />
+        <ProjectChips
+          projects={chips}
+          current={project.id}
+          statuses={statuses}
+          onSelect={onProjectSelect}
+          onShown={setShownChips}
         />
       </div>
       <div

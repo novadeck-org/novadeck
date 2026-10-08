@@ -18,6 +18,14 @@ export const switchProject = async (name: string): Promise<void> => {
   await expect.element(workspaceSwitcher()).toHaveTextContent(name)
 }
 
+/** The names of the projects in the open Switch workspace menu, top to bottom. */
+export const listedProjects = (): string[] =>
+  page
+    .getByRole("dialog", { name: "Switch workspace" })
+    .getByRole("button", { name: /~\// })
+    .elements()
+    .map((row) => row.querySelector("strong")!.textContent!.trim())
+
 export const savedSessions = (): Locator => page.getByRole("list", { name: "Saved sessions" })
 
 /** A session's entry in the Sessions sidebar. */

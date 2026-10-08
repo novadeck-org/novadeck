@@ -89,6 +89,7 @@ describe("demo states", () => {
       "All at once",
       "Selected terminal",
       "Agent",
+      "Another project",
       "New terminals",
       "Notices",
       "Agents",
@@ -97,6 +98,29 @@ describe("demo states", () => {
     ])
     for (const action of states.groups.flatMap((group) => group.actions))
       expect(action.hint).not.toBe("")
+  })
+
+  context("in another project", () => {
+    it("acts on its first terminal, not the one on screen", async () => {
+      const { states, actionContext, terminal } = panel("04")
+      const group = states.groups.find((each) => each.title === "Another project")!
+      const action = (label: string) => group.actions.find((each) => each.label === label)!
+      const other = initial.projects[1]!
+      const otherTerminal = () =>
+        actionContext
+          .workspace()!
+          .projects[1]!.history.find((each) => each.id === other.activeSessionId)!.state.roster
+          .terminals[0]!
+      expect(other.id).not.toBe(project.id)
+
+      await action("Needs permission").run(actionContext)
+      expect(otherTerminal()).toMatchObject({ agent: { attention: { kind: "permission" } } })
+      expect(terminal("04")).not.toHaveProperty("agent")
+
+      await action("Turn completed").run(actionContext)
+      vi.runAllTimers()
+      expect(otherTerminal()).toMatchObject({ agent: { lastTurn: { outcome: "completed" } } })
+    })
   })
 
   context("with no terminal selected", () => {

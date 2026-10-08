@@ -1,6 +1,6 @@
 import type { WorkspaceSeed } from "../../model/seed"
 import { sessionName } from "../../model/session-name"
-import type { CanvasLayout, Project, TerminalMetadata } from "../../model/types"
+import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "../../model/types"
 
 // The sample transcript a demo terminal opens with, unless an agent runs in it.
 export type SampleOutput = "shell" | "server" | "tests" | "git" | "logs" | "build"
@@ -122,15 +122,53 @@ export const demoCanvasLayout = (): CanvasLayout => ({
   ),
 })
 
+const sample = (name: string): Project => ({ id: name, name, directory: `~/projects/${name}` })
+
+// The sample projects. In the agents demo the first two run the full set of agents; each
+// of the others has one agent in its first terminal, in a state of its own, so the
+// switcher shows every mark a project can have (see `projectAgents`); dotfiles runs none.
 export const initialProjects: Project[] = [
-  { id: "storefront", name: "storefront", directory: "~/projects/storefront" },
-  { id: "api-service", name: "api-service", directory: "~/projects/api-service" },
+  sample("storefront"),
+  sample("api-service"),
+  sample("docs-site"),
+  sample("mobile-app"),
+  sample("design-system"),
+  sample("infra"),
+  sample("dotfiles"),
 ]
 
-export const projectTerminals = (project: Project, agents = false): TerminalMetadata[] =>
-  terminals.map((terminal) => ({
+const showcased = new Set(["storefront", "api-service"])
+
+// What the agent in each other project's first terminal says as the agents demo opens:
+// one asking a question, and ones working; of these, the agents `demoFinishes` names end
+// their turn a moment later, for the switcher to mark done or failed until looked at.
+const projectAgents: Readonly<Record<string, AgentStatus>> = {
+  "docs-site": { working: true, attention: { kind: "question", count: 1 } },
+  "mobile-app": { working: true },
+  "design-system": { working: true },
+  infra: { working: true },
+}
+
+// The agents demo's agents that end their turn once it has opened, as one finishing while
+// the person looks elsewhere: completed in design-system, failed in infra.
+export const demoFinishes: readonly {
+  readonly projectId: string
+  readonly terminalId: string
+  readonly outcome: "completed" | "failed"
+}[] = [
+  { projectId: "design-system", terminalId: "01", outcome: "completed" },
+  { projectId: "infra", terminalId: "01", outcome: "failed" },
+]
+
+export const projectTerminals = (project: Project, withAgents = false): TerminalMetadata[] => {
+  const agents = withAgents && showcased.has(project.id)
+  const single = withAgents ? projectAgents[project.id] : undefined
+  return terminals.map((terminal) => ({
     ...terminal,
     directory: terminal.directory.replace(/^~\/projects\/[^/]+/, project.directory),
+    ...(single && terminal.id === "01"
+      ? { command: "claude", process: "claude", state: "running" as const, agent: single }
+      : {}),
     // Claude Code planned, and waits for the person to review the plan.
     ...(agents && terminal.id === "01"
       ? {
@@ -211,6 +249,7 @@ export const projectTerminals = (project: Project, agents = false): TerminalMeta
       ? { command: "agy", process: "agy", state: "running" as const }
       : {}),
   }))
+}
 
 // Each sample project opens one session with the stable ID "initial".
 export const demoSeed = (now: number, agents = false): WorkspaceSeed => ({
