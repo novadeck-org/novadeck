@@ -95,9 +95,12 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
         data: join(sandbox.root, "data"),
         project: sandbox.project,
         env,
+        model,
         // A restart fails on any process the closed runner left in the sandbox.
         leftovers: () => reap(sandbox),
       })
+      // A wait for a model call that never comes shows what the terminals were doing.
+      model.explain(() => deck.report())
       let open = true
       const close = async () => {
         if (!open) return
@@ -127,6 +130,8 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
           .filter((stray) => hosts.has(stray.split(" ")[1] ?? ""))
           .map((stray) => `a request tried the real API: ${stray}`),
         ...model.errors.map((error) => `the fake model failed on a request: ${error}`),
+        // Reported here too when a wait failed with it: a test may have swallowed that.
+        ...(model.rejection() ? [model.rejection()!] : []),
         ...changed().map((path) => `the developer's harness home changed: ${path}`),
         ...leftovers.map((one) => `a process outlived the deck in the sandbox: ${one}`),
       ]

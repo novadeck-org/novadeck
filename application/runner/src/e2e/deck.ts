@@ -185,6 +185,11 @@ export type Deck = {
    * first runner are gone; their saved records stay for `restore`.
    */
   readonly restart: () => Promise<void>
+  /**
+   * What each terminal of the runner wired now is doing and its screen's last rows, for a
+   * failure that isn't a wait on one terminal, such as one for a model call. Bounded.
+   */
+  readonly report: () => Promise<string>
   readonly close: () => Promise<void>
 }
 
@@ -209,6 +214,15 @@ export type DeckOptions = {
    * restart fails on any. Without it, a restart looks for nothing.
    */
   readonly leftovers?: () => Promise<readonly string[]>
+  /**
+   * The fake model the harnesses talk to (see `FakeModel`), for the terminals' waits: a
+   * wait fails at once with `rejection`, the harness refusing a call the model made, and
+   * a wait that fails otherwise quotes the model's `trail`. Without it, they do neither.
+   */
+  readonly model?: {
+    readonly rejection: () => string | undefined
+    readonly trail: () => string
+  }
 }
 
 /**
@@ -282,6 +296,10 @@ export type Screen = {
   readonly enter: () => void
   /** What its agent is doing, as a failure states it. */
   readonly state?: () => string
+  /** What the fake model has seen, as a failure quotes it (see `DeckOptions.model`). */
+  readonly trail?: () => string
+  /** Why waiting is pointless, when it is: the wait fails at once with it. */
+  readonly fault?: () => string | undefined
 }
 
 /**
@@ -315,13 +333,15 @@ const unread = (cause: unknown): string =>
 
 /**
  * A failed wait's error, its message followed by what the terminal's agent is doing
- * (`state`, when given) and its screen as it is now, so a timeout shows what the terminal
- * was doing instead; a screen that can't be read says why.
+ * (`state`, when given), its screen as it is now and the fake model's latest calls
+ * (`trail`, when given), so a timeout shows what the terminal and its model were doing
+ * instead; a screen or trail that can't be read says why.
  */
 export const withScreen = async (
   error: unknown,
   screen: () => Promise<string>,
   state?: () => string,
+  trail?: () => string,
 ): Promise<Error> => {
   const message = error instanceof Error ? error.message : String(error)
   let doing = ""
@@ -332,7 +352,40 @@ export const withScreen = async (
       doing = `. Its agent: ${unread(cause)}`
     }
   const shown = await screen().then(excerpt, unread)
-  return new Error(`${message}${doing}. Its screen:\n${shown}`, { cause: error })
+  let calls = ""
+  if (trail)
+    try {
+      calls = `\n${trail()}`
+    } catch (cause) {
+      calls = `\nThe fake model's latest calls: ${unread(cause)}`
+    }
+  return new Error(`${message}${doing}. Its screen:\n${shown}${calls}`, { cause: error })
+}
+
+/**
+ * What the terminals were doing, for a failure: each one's agent and screen, in its own
+ * share of `limit` characters (3000 unless given), so the newest isn't what a cut drops.
+ * A screen over its share keeps its last rows, behind a mark.
+ */
+export const terminalsReport = (
+  terminals: readonly {
+    readonly handle: string
+    readonly doing: string
+    readonly screen: string
+  }[],
+  limit = 3000,
+): string => {
+  const share = Math.floor(limit / Math.max(terminals.length, 1))
+  return (
+    terminals
+      .map(({ handle, doing, screen }) => {
+        const head = `${handle}, its agent: ${doing}. Its screen:\n`
+        const room = Math.max(share - head.length, 0)
+        const fit = screen.length > room ? `… (cut)\n${screen.slice(screen.length - room)}` : screen
+        return head + fit
+      })
+      .join("\n") || "(no terminals)"
+  )
 }
 
 /**
@@ -341,7 +394,7 @@ export const withScreen = async (
  * bring, never what was there before it. Fails after the timeout, with the screen.
  */
 export const enterAfter = async (
-  { handle, screen, enter, state }: Screen,
+  { handle, screen, enter, state, trail, fault }: Screen,
   shows: string | RegExp,
   trigger: () => Promise<unknown>,
   timeoutMs = 30_000,
@@ -352,8 +405,9 @@ export const enterAfter = async (
     async () => (occurrences(await screen(), shows) > before ? true : undefined),
     `${handle} to show ${String(shows)} once more`,
     timeoutMs,
+    fault,
   ).catch(async (error: unknown) => {
-    throw await withScreen(error, screen, state)
+    throw await withScreen(error, screen, state, trail)
   })
   enter()
 }
@@ -361,17 +415,22 @@ export const enterAfter = async (
 /**
  * Polls `read` until it gives a value, and returns it; fails with `what` after the
  * timeout, read then when it's a function, so it can say how things stand at the end.
+ * Should `fault` say why the value can no longer come, it fails at once with that.
  */
 export const poll = async <T>(
   read: () => T | undefined | Promise<T | undefined>,
   what: string | (() => string),
   timeoutMs = 30_000,
+  fault?: () => string | undefined,
 ): Promise<T> => {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     // eslint-disable-next-line no-await-in-loop -- Polls until the value comes.
     const value = await read()
     if (value !== undefined) return value
+    const why = fault?.()
+    if (why !== undefined)
+      throw new Error(`Gave up waiting for ${typeof what === "string" ? what : what()}: ${why}`)
     // eslint-disable-next-line no-await-in-loop -- As above.
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
@@ -510,6 +569,13 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
   }
 
   let runner = await start()
+  // The terminals opened, for `report`.
+  const watched: {
+    readonly on: Runner
+    readonly handle: string
+    readonly look: () => Promise<string>
+    readonly state: () => string
+  }[] = []
   const project = await runner.store.createProject({
     id: randomUUID(),
     name: "E2E",
@@ -559,8 +625,11 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       }
     })()
     const state = () => stated(terminals.get(id).activity)
-    // A failed wait's error, with what its agent is doing and its screen.
-    const explain = (error: unknown) => withScreen(error, look, state)
+    watched.push({ on, handle: summary.handle, look, state })
+    const fault = () => options.model?.rejection()
+    const trail = options.model?.trail
+    // A failed wait's error, with what its agent is doing, its screen and its model's calls.
+    const explain = (error: unknown) => withScreen(error, look, state, trail)
     // The watch's first listing is the terminal's state as it opened.
     await history.reached(() => true, { timeoutMs: 5000 })
     // Waits until the screen passes `shows`, and returns it.
@@ -572,6 +641,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         },
         `${summary.handle} to show ${what}`,
         timeoutMs,
+        fault,
       ).catch(async (error: unknown) => {
         throw await explain(error)
       })
@@ -588,6 +658,8 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       screen: look,
       enter: () => send("\r"),
       state,
+      ...(trail && { trail }),
+      fault,
     }
     const until = (text: string | RegExp, timeoutMs = 30_000) =>
       showing(
@@ -626,7 +698,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         write("\r")
       },
       poll: (read, what, timeoutMs) =>
-        poll(read, `${summary.handle}: ${what}`, timeoutMs).catch(async (error: unknown) => {
+        poll(read, `${summary.handle}: ${what}`, timeoutMs, fault).catch(async (error: unknown) => {
           throw await explain(error)
         }),
       summary: () => terminals.get(id),
@@ -653,7 +725,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       history: history.snapshots,
       mark: history.mark,
       reached: (what, reach) =>
-        history.reached(what, reach).catch(async (error: unknown) => {
+        history.reached(what, { ...reach, fault }).catch(async (error: unknown) => {
           throw await explain(error)
         }),
     }
@@ -757,6 +829,23 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         )
       runner = await start()
       answer(runner)
+    },
+    report: async () => {
+      const open = watched.filter((one) => one.on === runner)
+      return terminalsReport(
+        await Promise.all(
+          open.map(async (one) => {
+            let doing: string
+            try {
+              doing = one.state()
+            } catch (cause) {
+              doing = unread(cause)
+            }
+            const rows = await one.look().then((shown) => excerpt(shown, 12), unread)
+            return { handle: one.handle, doing, screen: rows }
+          }),
+        ),
+      )
     },
     close: () => stop(runner),
   }

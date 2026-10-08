@@ -167,6 +167,21 @@ describe("anthropic", () => {
     expect([...counted.calls, ...listed.calls]).toEqual([])
   })
 
+  it("words only the calls Claude Code won't run as refusals, never a tool's own errors", () => {
+    const refused = [
+      "<tool_use_error>Error: No such tool available: no_such_tool</tool_use_error>",
+      "<tool_use_error>InputValidationError: Bash failed due to the following issue:\nThe required parameter `command` is missing</tool_use_error>",
+    ]
+    const tools = [
+      "<tool_use_error>File does not exist.</tool_use_error>",
+      "A message needs `to`, a terminal's handle, and its `text`.",
+      "t2 has no agent Novadeck can deliver to.",
+    ]
+
+    expect(refused.map((text) => anthropic.rejection?.test(text))).toEqual([true, true])
+    expect(tools.map((text) => anthropic.rejection?.test(text))).toEqual([false, false, false])
+  })
+
   it("takes only the Messages and Models APIs", () => {
     expect(anthropic.matches(post("/v1/messages?beta=true", {}))).toBe(true)
     expect(anthropic.matches({ method: "GET", path: "/v1/models", headers: {}, body: "" })).toBe(

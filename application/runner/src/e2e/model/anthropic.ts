@@ -180,6 +180,9 @@ const route = (path: string): string => path.split("?")[0] ?? path
 /** Anthropic's Messages API, as Claude Code speaks it. */
 export const anthropic: Dialect = {
   api: "anthropic",
+  // Claude Code's own wrapper for a call it won't run; other errors wrapped the same way,
+  // as a file not found, are the tool's.
+  rejection: /^<tool_use_error>(?:Error: No such tool available|InputValidationError)/,
   matches: (request: Request) => /^\/v1\/(messages|models)(\/|$)/.test(route(request.path)),
   handle: async (request, reply) => {
     const path = route(request.path)

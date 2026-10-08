@@ -170,6 +170,20 @@ describe("responses", () => {
     })
   })
 
+  it("words the calls Codex won't run as refusals, never a tool's own output", () => {
+    const refused = [
+      "unsupported call: no_such_tool",
+      "failed to parse function arguments: missing field `cmd` at line 1 column 2",
+    ]
+    const tools = [
+      "Wall time: 0.0049 seconds\nOutput:\nA message needs `to`, a terminal's handle, and its `text`.",
+      "Wall time: 0.01 seconds\nOutput:\nunsupported call: quoted by a command",
+    ]
+
+    expect(refused.map((text) => responses.rejection?.test(text))).toEqual([true, true])
+    expect(tools.map((text) => responses.rejection?.test(text))).toEqual([false, false])
+  })
+
   it("leaves other APIs' requests to their dialects", () => {
     expect(responses.matches(post("/v1/responses"))).toBe(true)
     expect(responses.matches(post("/v1/messages"))).toBe(false)

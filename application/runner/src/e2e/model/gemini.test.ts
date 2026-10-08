@@ -261,6 +261,20 @@ describe("gemini", () => {
     expect(calls).toEqual([])
   })
 
+  it("words Antigravity's tool validation errors as refusals, never a tool's execution errors", () => {
+    const stamp = "Created At: 2026-10-08T14:42:08+02:00\nCompleted At: 2026-10-08T14:42:08+02:00\n"
+    const refused = [
+      `${stamp}Encountered error in tool validation: unknown tool: "no_such_tool" — check spelling`,
+      `${stamp}Encountered error in tool validation: invalid arguments: - missing property 'toolSummary'`,
+    ]
+    const tools = [
+      `${stamp}Encountered error in tool execution: t2 has no agent Novadeck can deliver to.`,
+    ]
+
+    expect(refused.map((text) => gemini.rejection?.test(text))).toEqual([true, true])
+    expect(tools.map((text) => gemini.rejection?.test(text))).toEqual([false])
+  })
+
   it("matches the Gemini API's paths alone", () => {
     expect(gemini.matches(post(stream, {}))).toBe(true)
     expect(gemini.matches(post("/v1internal:loadCodeAssist", {}))).toBe(false)

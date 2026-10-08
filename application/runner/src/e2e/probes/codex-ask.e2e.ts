@@ -230,7 +230,8 @@ const lastTool = (run: E2E): string | undefined =>
 
 /** A rule: the first look at `words` answers with `reply`; the tool's result ends with "Finished". */
 const script = (words: string, reply: (call: Call) => ReturnType<Rule>): Rule[] => [
-  (call) => (asked(call, words) ? reply(call) : undefined),
+  // Never the harness's own calls, such as the title's: they offer no tools to call.
+  (call) => (!call.side && asked(call, words) ? reply(call) : undefined),
   (call) => {
     const turn = call.turns.at(-1)
     return turn?.role === "tool" ? { text: "Finished the request." } : undefined
@@ -430,6 +431,8 @@ describe.skipIf(!supported)("Codex ask surfaces (probe)", () => {
   it("request_user_input in default mode (feature off): what the model is told", async ({
     e2e: run,
   }) => {
+    // Codex refuses the call here, which is what the probe records.
+    run.model.expectRejection((one) => one.call.name === "request_user_input")
     run.model.use(
       ...script("Ask me about the button", () => ({
         calls: [{ name: "request_user_input", input: questions }],

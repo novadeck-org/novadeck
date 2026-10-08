@@ -36,6 +36,8 @@ export type ReachOptions = {
   readonly since?: number
   /** Thirty seconds unless given. */
   readonly timeoutMs?: number
+  /** Why waiting is pointless, when it is: the wait fails at once with it. */
+  readonly fault?: () => string | undefined
 }
 
 /** A test of a snapshot, named as a failed wait says what it waited for. */
@@ -117,7 +119,7 @@ export const createHistory = (handle: string): History => {
     },
     snapshots: () => snapshots,
     mark: () => snapshots.length,
-    reached: (what, { after = 0, since = after, timeoutMs = 30_000 } = {}) => {
+    reached: (what, { after = 0, since = after, timeoutMs = 30_000, fault } = {}) => {
       const matches = test(what)
       let found: Snapshot | undefined
       try {
@@ -132,6 +134,8 @@ export const createHistory = (handle: string): History => {
           `${handle} can't reach ${wanted(what)}: ${why}. ${transitions(handle, snapshots.slice(Math.max(since - 1, 0)))}`,
         )
       if (ended !== undefined) return Promise.reject(account(ended))
+      const refused = fault?.()
+      if (refused !== undefined) return Promise.reject(account(refused))
       return new Promise((resolve, reject) => {
         const waiter = {
           // A test that throws fails this wait alone, with its own error; the history and
@@ -155,8 +159,15 @@ export const createHistory = (handle: string): History => {
           },
         }
         const timer = setTimeout(() => waiter.fail(`timed out after ${timeoutMs} ms`), timeoutMs)
+        const watch = fault
+          ? setInterval(() => {
+              const why = fault()
+              if (why !== undefined) waiter.fail(why)
+            }, 100)
+          : undefined
         const settle = () => {
           clearTimeout(timer)
+          clearInterval(watch)
           waiters.delete(waiter)
         }
         waiters.add(waiter)

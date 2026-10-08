@@ -234,6 +234,9 @@ const method = /^\/v1(?:beta|alpha)?\/models\/([^/:]+):(\w+)$/
  */
 export const gemini: Dialect = {
   api: "gemini",
+  // Antigravity's validation of a call, for an unknown tool and for arguments alike;
+  // "tool execution" errors are the tool's.
+  rejection: /Encountered error in tool validation/,
   matches: (request: Request) => method.test(route(request.path)),
   handle: async (request, reply) => {
     const [, model = "", name = ""] = method.exec(route(request.path)) ?? []

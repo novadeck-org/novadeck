@@ -25,6 +25,13 @@ export type Response = {
  */
 export type Dialect = {
   readonly api: Api
+  /**
+   * How the harness words a tool result when it refuses the model's call itself, as
+   * opposed to the tool running and failing: a result of a call to a tool it doesn't have,
+   * or with arguments it won't take. Never the tool's own errors, which a scenario may
+   * provoke, or the person's refusal. Only wordings seen from the harness belong here.
+   */
+  readonly rejection?: RegExp
   /** Whether the request is one of this API's. */
   readonly matches: (request: Request) => boolean
   readonly handle: (request: Request, reply: (call: Call) => Promise<Reply>) => Promise<Response>

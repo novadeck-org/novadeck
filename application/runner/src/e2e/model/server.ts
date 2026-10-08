@@ -7,7 +7,19 @@ import { brotliDecompress, gunzip, inflate, zstdDecompress } from "node:zlib"
 import { ZodError } from "zod"
 
 import type { Dialect, Request } from "./dialect.js"
-import { answer, latest, Refusal, type Call, type Rule } from "./script.js"
+import { answer, Refusal, type Call, type Rule, type ToolCall } from "./script.js"
+
+/**
+ * A tool call the harness refused to run, as the next model call's tool result tells it:
+ * the harness rejecting the call itself, never a tool that ran and failed.
+ */
+export type Rejection = {
+  /** The model call, from 1, that carried the harness's answer. */
+  readonly number: number
+  readonly call: ToolCall
+  /** The harness's answer, whitespace collapsed. */
+  readonly text: string
+}
 
 /**
  * The fake model: one loopback HTTP server that answers every harness's API, and also
@@ -39,6 +51,28 @@ export type FakeModel = {
    */
   readonly errors: readonly string[]
   /**
+   * The tool calls the harnesses refused to run, in order (see `Dialect.rejection`). One
+   * is a bug in the fake model's call or its dialect, so any fails the test, and a wait
+   * on the deck ends at once with it (`rejection`) instead of timing out downstream.
+   */
+  readonly rejections: readonly Rejection[]
+  /** The first rejection, worded as a failure states it; undefined when there is none. */
+  readonly rejection: () => string | undefined
+  /**
+   * Has a harness's refusal of a call that `match` takes count as the scenario's own
+   * doing, as a probe provokes one to record it: it is kept in `expected`, never in
+   * `rejections`, and fails nothing. Applies to refusals seen from now on.
+   */
+  readonly expectRejection: (match: (rejection: Rejection) => boolean) => void
+  /** The refusals `expectRejection` took. */
+  readonly expected: readonly Rejection[]
+  /**
+   * The last `count` model calls (five unless given), one line each: what the call
+   * carried last, such as a tool's result and the call it answers, for a failed wait to
+   * show how the conversation went.
+   */
+  readonly trail: (count?: number) => string
+  /**
    * How many calls have been made so far: a cursor that `waitFor`'s `after` takes, to wait
    * only for a call made from now on.
    */
@@ -52,6 +86,13 @@ export type FakeModel = {
     match: (call: Call) => boolean,
     options?: { readonly after?: number; readonly timeoutMs?: number },
   ) => Promise<Call>
+  /**
+   * Has a failed `waitFor` say more than the calls: `describe` is asked when one times
+   * out (and given `timeoutMs`, five seconds unless given, to answer), for what the
+   * test's other side shows, such as the terminals' screens. Replaces any given before.
+   * What it says should be short; past 6000 characters it is cut.
+   */
+  readonly explain: (describe: () => Promise<string>, timeoutMs?: number) => void
   /** Adds rules ahead of the ones given before. */
   readonly use: (...rules: Rule[]) => void
   readonly close: () => Promise<void>
@@ -131,15 +172,43 @@ const failure = (error: unknown): string => {
   )
 }
 
-// One line per call for a timeout's message: whether it was a side call, and what the
-// person or a hook last said in it.
-const outline = (calls: readonly Call[]): string =>
-  calls
-    .map(
-      (call, index) =>
-        `  ${index + 1}. ${call.side ? "(side) " : ""}${JSON.stringify(latest(call).slice(-160))}`,
-    )
-    .join("\n") || "  (none)"
+const clip = (text: string, length: number): string => {
+  const flat = text.replace(/\s+/g, " ").trim()
+  return flat.length > length ? `${flat.slice(0, length)}…` : flat
+}
+
+// A tool call as a line shows it: its name and arguments, cut short.
+const shown = (call: ToolCall): string => `${call.name} ${clip(JSON.stringify(call.input), 100)}`
+
+// The tool calls a model call's new results answer: the turns after the model last spoke.
+const fresh = (call: Call): readonly (Call["turns"][number] & { readonly role: "tool" })[] =>
+  call.turns
+    .slice(call.turns.findLastIndex((turn) => turn.role === "assistant") + 1)
+    .filter((turn) => turn.role === "tool")
+
+// The call a tool turn answers, by its id.
+const answered = (call: Call, id: string): ToolCall =>
+  call.turns
+    .flatMap((turn) => (turn.role === "assistant" ? turn.calls : []))
+    .find((one) => one.id === id) ?? { id, name: "?", input: {} }
+
+// What a rejection says: the call the model made and the harness's answer to it.
+const wording = ({ number, call, text }: Rejection): string =>
+  `The harness refused a tool call the fake model made: ${shown(call)}. Model call ${number} carries its answer: ${JSON.stringify(clip(text, 300))}`
+
+// One line for a call in the trail: its number, and what it carried last.
+const line = (call: Call, number: number, rejected: ReadonlySet<string>): string => {
+  const last = call.turns.at(-1)
+  const side = call.side ? "(side) " : ""
+  if (last?.role === "tool") {
+    const more = fresh(call).length - 1
+    const refused = rejected.has(last.id) ? " (refused)" : ""
+    return `  ${number}. ${side}result of ${shown(answered(call, last.id))}${refused}: ${JSON.stringify(clip(last.text, 200))}${more > 0 ? ` (+${more} more results)` : ""}`
+  }
+  if (last?.role === "assistant")
+    return `  ${number}. ${side}assistant ${JSON.stringify(clip(last.text, 100))}`
+  return `  ${number}. ${side}user ${JSON.stringify(clip(last?.text ?? "", 160))}`
+}
 
 /**
  * Starts the fake model on a free loopback port. A proxy's request (CONNECT, or one for
@@ -154,8 +223,17 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
   const strays: string[] = []
   const errors: string[] = []
   let foreign = 0
+  let describe: (() => Promise<string>) | undefined
+  let describeMs = 5000
   let rules: readonly Rule[] = options.rules ?? []
-  const waiters = new Set<(index: number, call: Call) => void>()
+  const rejections: Rejection[] = []
+  const expected: Rejection[] = []
+  const expecting: ((rejection: Rejection) => boolean)[] = []
+  const rejected = new Set<string>()
+  const waiters = new Set<{
+    readonly see: (index: number, call: Call) => void
+    readonly stop: () => void
+  }>()
 
   // Counts a request carrying a credential that isn't the fake one, and says so.
   const trespasses = (request: IncomingMessage): boolean => {
@@ -168,7 +246,30 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
   // test can see a call whose reply a rule holds.
   const reply = (call: Call) => {
     calls.push(call)
-    for (const waiter of waiters) waiter(calls.length - 1, call)
+    // A result the dialect words as a refusal of the call itself, seen once however often
+    // the harness sends the conversation again.
+    const pattern = options.dialects.find((one) => one.api === call.api)?.rejection
+    const refused = pattern
+      ? fresh(call).filter((turn) => pattern.test(turn.text) && !rejected.has(turn.id))
+      : []
+    let unexpected = 0
+    for (const turn of refused) {
+      rejected.add(turn.id)
+      const rejection = {
+        number: calls.length,
+        call: answered(call, turn.id),
+        text: clip(turn.text, 300),
+      }
+      if (expecting.some((match) => match(rejection))) expected.push(rejection)
+      else {
+        rejections.push(rejection)
+        unexpected += 1
+      }
+    }
+    for (const waiter of waiters) {
+      waiter.see(calls.length - 1, call)
+      if (unexpected > 0) waiter.stop()
+    }
     return answer(rules, call)
   }
 
@@ -250,6 +351,18 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
   })
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 
+  const trail = (count = 5): string =>
+    calls.length === 0
+      ? "No model calls yet."
+      : [
+          `Last ${Math.min(count, calls.length)} of ${calls.length} model calls:`,
+          ...calls
+            .slice(-count)
+            .map((call, index) =>
+              line(call, calls.length - Math.min(count, calls.length) + index + 1, rejected),
+            ),
+        ].join("\n")
+
   return {
     url,
     proxy: url,
@@ -266,27 +379,62 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
     get errors() {
       return errors
     },
+    get rejections() {
+      return rejections
+    },
+    get expected() {
+      return expected
+    },
+    rejection: () => (rejections[0] ? wording(rejections[0]) : undefined),
+    expectRejection: (match) => {
+      expecting.push(match)
+    },
+    trail,
     mark: () => calls.length,
     waitFor: (match, { after = 0, timeoutMs = 60_000 } = {}) => {
       const made = calls.find((call, index) => index >= after && match(call))
       if (made) return Promise.resolve(made)
+      if (rejections[0]) return Promise.reject(new Error(wording(rejections[0])))
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           waiters.delete(waiter)
-          reject(
-            new Error(
-              `No matching model call${after > 0 ? ` from call ${after + 1} on` : ""} in ${timeoutMs} ms. Calls:\n${outline(calls)}`,
-            ),
+          const message = `No matching model call${after > 0 ? ` from call ${after + 1} on` : ""} in ${timeoutMs} ms.\n${trail(8)}`
+          if (!describe) return reject(new Error(message))
+          // What the terminals showed at the end, which may say why the call never came.
+          const timedOut = new Promise<string>((done) =>
+            setTimeout(() => done("(took too long to read)"), describeMs).unref(),
           )
+          // A describer that throws at once fails like one that rejects.
+          Promise.race([Promise.resolve().then(describe), timedOut])
+            .catch((cause: unknown) => `(can't be read: ${failure(cause)})`)
+            .then((more) =>
+              reject(
+                new Error(
+                  `${message}\nThe terminals:\n${more.length > 6000 ? `${more.slice(0, 6000)}… (cut)` : more}`,
+                ),
+              ),
+            )
         }, timeoutMs)
-        const waiter = (index: number, call: Call) => {
-          if (index < after || !match(call)) return
-          clearTimeout(timer)
-          waiters.delete(waiter)
-          resolve(call)
+        const waiter = {
+          see: (index: number, call: Call) => {
+            if (index < after || !match(call)) return
+            clearTimeout(timer)
+            waiters.delete(waiter)
+            resolve(call)
+          },
+          // The harness refused a call: the call waited for may never come.
+          stop: () => {
+            clearTimeout(timer)
+            waiters.delete(waiter)
+            reject(new Error(wording(rejections[0]!)))
+          },
         }
         waiters.add(waiter)
       })
+    },
+    explain: (describer, timeoutMs = 5000) => {
+      describe = describer
+      describeMs = timeoutMs
     },
     use: (...added) => {
       rules = [...added, ...rules]

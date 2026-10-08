@@ -389,9 +389,38 @@ for (const setup of setups) {
   failures, and those of `until`, `confirm` and `t.poll(read, what)`, end with what its
   agent is doing (`working, 1 request waiting (permission)`) and the terminal's screen
   as it is then, its non-blank rows and at most the last 30 (`withScreen` in `deck.ts`),
-  so a wait that times out also shows what the terminal was doing instead. A scenario
+  so a wait that times out also shows what the terminal was doing instead, and then
+  the fake model's last five calls, one line each (`model.trail()`): what each carried
+  last, such as a tool's result beside the call it answers, cut short. A scenario
   waits on something of a terminal through `t.poll`, never the bare `poll`. A test that
   throws fails its own wait, with its error, and no other.
+- **A wait for a model call explains itself from the terminal side too.** The fixture
+  gives the fake model `deck.report()` (`model.explain`), so `model.waitFor` failing with
+  "No matching model call" also lists `model.trail(8)` and then "The terminals:", each
+  terminal's agent state and the last 12 rows of its screen, each in its own share of 3000
+  characters (a screen over its share keeps its last rows behind "… (cut)"): a dialog
+  still open there, an Enter that went nowhere, show at once. The describer has five
+  seconds to answer, and the whole account is cut at 6000 characters.
+- **Refused calls fail the scenario at once.** A result a dialect words as its harness
+  refusing the model's call itself (`Dialect.rejection`), as opposed to a tool that ran
+  and failed, is recorded in `model.rejections` when the call carrying it arrives. The
+  deck's waits (`until`, `reached`, `through`, `poll`, `confirm`, `submit`) and
+  `model.waitFor` then fail within a tenth of a second, naming the call and the harness's
+  answer, instead of timing out downstream. The test also fails at its end with the
+  refusal, even when a wait already failed with it, so a test that catches that wait's
+  error can't hide it. A probe that provokes one on purpose says so with
+  `model.expectRejection(match)`, which keeps matching refusals out of `rejections`
+  (in `model.expected`). A rule that answers with a tool call must skip side calls, as
+  `own` does: they offer no tools, so the harness refuses the call. The wordings seen,
+  probed in the sandbox: Claude Code's
+  `<tool_use_error>` for an unknown tool (`Error: No such tool available`) or arguments
+  it won't take (`InputValidationError`), Codex's `unsupported call: <tool>` and `failed
+to parse function arguments`, and Antigravity's `Encountered error in tool validation`,
+  for both. Not refusals, so the scenarios that provoke them keep working: a tool's own
+  errors (Novadeck's "has no agent Novadeck can deliver to", Antigravity's `Encountered
+error in tool execution`, Claude Code's other `<tool_use_error>`s such as a missing
+  file) and the person denying a tool, whose result never reaches the model. A new
+  harness's `rejection` comes from probing it, never from a guess.
 - **Holding a turn** pins down how something travels. The round trip holds t2's answer
   at a `gate()` until t1's turn has ended Settled, and asserts t1 is then rung, rather
   than reached by its Stop continuation.

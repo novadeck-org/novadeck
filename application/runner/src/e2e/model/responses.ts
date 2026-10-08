@@ -286,6 +286,8 @@ const route = (path: string): string => path.split("?")[0] ?? path
  */
 export const responses: Dialect = {
   api: "responses",
+  // Codex's answers to a call to a tool it has none of, and to arguments its tool can't parse.
+  rejection: /^(?:unsupported call: |failed to parse function arguments)/,
   matches: (request) => {
     const path = route(request.path)
     return path === "/v1/responses" || path.endsWith("/backend-api/plugins/featured")

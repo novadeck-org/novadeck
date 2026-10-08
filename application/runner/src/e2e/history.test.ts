@@ -115,6 +115,25 @@ describe("createHistory", () => {
     await expect(history.reached("working")).rejects.toThrow(/its terminal is gone/)
     expect(history.mark()).toBe(1)
   })
+  it("fails a wait at once when the fault says it is pointless, a state met first still counts", async () => {
+    const history = createHistory("t2")
+    history.push(listing("ready"))
+    let fault: string | undefined
+    const pending = history.reached("working", { timeoutMs: 20_000, fault: () => fault })
+
+    fault = "the harness refused a tool call"
+
+    await expect(pending).rejects.toThrow(
+      "t2 can't reach working: the harness refused a tool call. t2: ready",
+    )
+    await expect(history.reached("working", { fault: () => fault })).rejects.toThrow(
+      /the harness refused a tool call/,
+    )
+    await expect(history.reached("ready", { fault: () => fault })).resolves.toMatchObject({
+      index: 0,
+    })
+  })
+
   it("fails only the wait whose test throws, with the test's own error", async () => {
     const history = createHistory("t2")
     history.push(listing("ready"))
