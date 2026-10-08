@@ -5,12 +5,17 @@ export type Lease = {
   readonly id: string
   readonly terminalId: string
   readonly messages: readonly string[]
-  readonly kind: "stop" | "prompt"
+  readonly kind: "stop" | "prompt" | "midturn"
   /** The delivery's epoch it was leased in. */
   readonly epoch: number
   readonly background: boolean
   /** The delivery it printed, wrapped. */
   readonly text: string
+  /**
+   * What its turn is given again on each later call once it is printed, where its harness's
+   * injected messages last one call (Antigravity's): this delivery, and any it joined.
+   */
+  readonly keeps?: string
 }
 
 /**

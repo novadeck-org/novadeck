@@ -68,6 +68,7 @@ export const runnerTerminal = (
     directory: summary.cwd,
     command: summary.command ?? "",
     handle: summary.handle,
+    ...(summary.ledBy ? { ledBy: summary.ledBy } : {}),
     titleSource: summary.titleSource,
   }
   if (!summary.started) return { ...identity, ...restored(summary), process: "", state: "starting" }

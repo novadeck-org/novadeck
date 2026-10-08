@@ -101,6 +101,16 @@
 :where(.terminal-actions) {
   @apply gap-1;
 }
+/* Who directs the terminal (WindowShell.tsx): "led by t1 · Planner" beside its name, in the
+   quiet metadata voice, the first to give way when the header is short of room. */
+.terminal-lead {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--window-metadata-fg, var(--color-muted));
+  font-family: var(--window-metadata-font, var(--font-mono));
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+}
 /* What the agent runs on, floating over its terminal's top right (WindowStats.tsx), over
    the agent's old scrollback, away from the window's buttons and from its prompt below:
    a ring for how full its context is, faint at rest on a soft backing in the terminal's

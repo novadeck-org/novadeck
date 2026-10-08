@@ -398,5 +398,6 @@ transcript and Codex's rollout still give one.
 - Codex: whether internal threads fire `SubagentStart`; network approvals; a subagent's approval dialog.
 - Windows: Novadeck registers no PreToolUse hook for Antigravity until a Windows probe shows its command can't deny tools, so `ask_question` isn't detected there, and its command and file confirmations carry no tool input, which shows them raw; a hook launcher path with spaces isn't supported in any agent's `cmd` command.
 - Antigravity: subagent hooks, the status line after an Esc, and compaction's rewrite of the transcript.
+- The lead's messages mid-turn (see agent-messaging.md): probed end to end against the fake model (`src/e2e/lead.e2e.ts`, Claude Code 2.1.287, Codex 0.159.3, Antigravity 1.2.14): the request after the worker's next root tool call carries the lead's message, as a system message after the tool result in Claude Code, developer context in Codex, and an injected step in Antigravity. Antigravity's joined delivery is sized by its printed bytes, within 8 KB. Still to probe: `PostToolUseFailure` (one with `is_interrupt: true` delivers nothing), and Codex's hosted tools, which fire no `PostToolUse`.
 - The status line bridge in a live Novadeck terminal, for Claude Code and Antigravity.
 - macOS and Windows: the hook's process ancestry, and every probe above.

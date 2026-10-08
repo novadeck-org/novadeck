@@ -4,7 +4,7 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import type { Binding } from "../harnesses/bindings.js"
 import type { ActivityEvent, Background, HarnessEvent } from "../harnesses/events.js"
-import { silentFor } from "../harnesses/harness.js"
+import { silentFor, type MessagingProfile } from "../harnesses/harness.js"
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import type { HookAnswer } from "../shell/reports.js"
@@ -12,6 +12,7 @@ import {
   continues,
   phaseOf,
   ringableSince,
+  midTurnCall,
   route,
   running,
   transition,
@@ -39,6 +40,8 @@ import {
   threadBetween,
   undelivered,
   waiting,
+  markLength,
+  newMark,
   wrap,
   type Message,
   type Thread,
@@ -61,6 +64,14 @@ export type Scope = { readonly projectId: string; readonly sessionId: string }
 type Live = Scope & {
   readonly terminalId: string
   readonly handle: string
+  /**
+   * The handle of the terminal whose agent leads this one: it opened this terminal with a
+   * brief, and directs its work. It belongs to the terminal, not to a session, so it
+   * outlasts a `/clear` or a restart of either agent, and ends when this terminal's agent
+   * exits (`endLead`). It means anything only while a running terminal in the same
+   * project and session has that handle (handles are never reused there): its running lead.
+   */
+  ledBy: string | null
   /** Its root session, as the terminal manager follows it. */
   root: Root | null
   delivery: Delivery
@@ -196,16 +207,40 @@ const refused = (reason: string) => ({ ok: false, reason }) as const
 // Closed, messaging keeps nothing more, so a message then would be lost, not queued.
 const stopping = "Novadeck is stopping and couldn't keep the message; send it again once it's back."
 
+/** What an ask's handlers share: its terminal, root, harness profile and the hook's report. */
+type Asked = {
+  readonly live: Live
+  readonly root: Root
+  readonly profile: MessagingProfile
+  readonly silent: HookAnswer
+  readonly events: readonly HarnessEvent[]
+  readonly event: string
+  /** Whether its deadline leaves time to lease and print. */
+  readonly time: boolean
+}
+
+/** Whether a message is its recipient's lead's, as fixed when it was sent. */
+const isFromLead = (message: Message): boolean => message.fromLead
+
+/** What a turn already given a delivery prints beside a new one, as Antigravity's does. */
+const joined = (kept: string | undefined, text: string): string =>
+  kept ? `${kept}\n${text}` : text
+
 /** When a thread's latest message was sent. */
 const latest = (thread: MessageThread): number => thread.messages.at(-1)?.sentAt ?? 0
 
 /** The bytes the largest of a message's deliveries on its own would print, in any harness. */
 const deliveredBytes = (message: Message): number => {
-  const text = wrap([message])
+  // As a lead's, which carries the longer note and a mark: it may be one when it arrives.
+  const text = wrap([message], () => true, "x".repeat(markLength))
   return Math.max(
     ...allAgents.flatMap((agent) => {
       const { messaging } = harnesses[agent]
-      return [byteLength(messaging.stop(text)), byteLength(messaging.prompt(text))]
+      // A tool-call hook carries a lead's message, under each name its events have.
+      const tools = Object.entries(messaging.asks)
+        .filter(([, kind]) => kind === "tool")
+        .map(([event]) => byteLength(messaging.call?.(text, event) ?? ""))
+      return [byteLength(messaging.stop(text)), byteLength(messaging.prompt(text)), ...tools]
     }),
   )
 }
@@ -279,15 +314,17 @@ export class Messaging {
   }
 
   /**
-   * A terminal starts, or starts again, with the handle its record keeps. It sees, and is
-   * seen by, the terminals of its project and Novadeck session.
+   * A terminal starts, or starts again, with the handle its record keeps, and the handle of
+   * the terminal that leads it (`ledBy`), if one does. It sees, and is seen by, the
+   * terminals of its project and Novadeck session.
    */
-  register(terminalId: string, scope: Scope, handle: string): void {
+  register(terminalId: string, scope: Scope, handle: string, ledBy: string | null): void {
     if (this.live.has(terminalId)) return
     this.live.set(terminalId, {
       terminalId,
       ...scope,
       handle,
+      ledBy,
       root: null,
       delivery: unbound,
       expecting: null,
@@ -297,6 +334,45 @@ export class Messaging {
       lapsed: false,
       prompt: null,
     })
+  }
+
+  /**
+   * The terminal's lead ends, as its agent exits: messages sent after are a peer's. Its
+   * lead's brief still waiting for the terminal's first session (queued or held, bound to
+   * none) is gone, and its sender told, as no session it was for will bind; what already
+   * belongs to a session stays, with the authority it had when sent.
+   */
+  endLead(terminalId: string): void {
+    const live = this.live.get(terminalId)
+    if (!live) return
+    live.ledBy = null
+    for (const message of this.messages.values())
+      if (
+        message.to.terminalId === terminalId &&
+        message.to.sessionId === null &&
+        message.fromLead &&
+        (message.state === "queued" || message.state === "held")
+      )
+        this.gone(message)
+  }
+
+  /**
+   * The handle of the running terminal that leads the terminal, if there is one: the one
+   * its `ledBy` names, still running in its project and session.
+   */
+  leadOf(terminalId: string): string | undefined {
+    const live = this.live.get(terminalId)
+    return live && this.scoped(live).find((peer) => this.leads(live, peer))?.handle
+  }
+
+  /** Whether `lead` is the running lead of `worker`. */
+  private leads(worker: Live, lead: Live): boolean {
+    return (
+      worker.ledBy !== null &&
+      worker.ledBy === lead.handle &&
+      worker.projectId === lead.projectId &&
+      worker.sessionId === lead.sessionId
+    )
   }
 
   /**
@@ -428,11 +504,12 @@ export class Messaging {
   }
 
   /**
-   * What a Stop or prompt-time hook prints, as it asks once its report is applied: the
-   * messages waiting for the terminal's root session, leased to it, when its report is a
-   * root turn event that may take them and its `deadline` leaves time to print them. A
-   * harness whose injected messages last one call gets a turn's delivery again on each
-   * later call of it.
+   * What a Stop, prompt-time or tool-call hook prints, as it asks once its report is
+   * applied: the messages waiting for the terminal's root session, leased to it, when its
+   * report is a root turn event that may take them and its `deadline` leaves time to print
+   * them. A harness whose injected messages last one call gets a turn's delivery again on
+   * each later call of it. At a root tool call, or a later model call of such a harness,
+   * only the lead's messages are leased: what directs the worker reaches it mid-turn.
    */
   ask(
     terminalId: string,
@@ -463,32 +540,80 @@ export class Messaging {
         : undefined
     for (const event of report.events) if (event !== stop) this.turn(live, event)
     if (!root) return silent
-    const time = report.deadline - this.now() >= leaseMargin
-    if (stop) {
-      const background = runsOn(stop.background)
-      const lease = time && continues(live.delivery) && this.lease(live, root, "stop", background)
-      this.step(live, {
-        type: "stop",
-        continued: Boolean(lease),
-        background,
-        at: this.now(),
-        startedAt: stop.startedAt,
-      })
-      return lease ? { leaseId: lease.id, stdout: profile.stop(lease.text) } : silent
+    const asked = {
+      live,
+      root,
+      profile,
+      silent,
+      events: report.events,
+      event: report.event,
+      time: report.deadline - this.now() >= leaseMargin,
     }
-    if (kind !== "prompt") return silent
-    const start = report.events.find(
+    if (kind === "stop") return this.askStop(asked, stop)
+    return kind === "tool" ? this.askTool(asked) : this.askPrompt(asked)
+  }
+
+  /**
+   * A root Stop: the turn continues with the messages waiting, when it may, else ends. A
+   * report with no root Stop of the session says nothing.
+   */
+  private askStop(
+    { live, root, profile, silent, time }: Asked,
+    stop: Extract<HarnessEvent, { type: "turn-ended" }> | undefined,
+  ): HookAnswer {
+    if (!stop) return silent
+    const background = runsOn(stop.background)
+    const lease =
+      time &&
+      continues(live.delivery) &&
+      this.lease(live, root, { kind: "stop", background, print: profile.stop })
+    this.step(live, {
+      type: "stop",
+      continued: Boolean(lease),
+      background,
+      at: this.now(),
+      startedAt: stop.startedAt,
+    })
+    return lease ? { leaseId: lease.id, stdout: profile.stop(lease.text) } : silent
+  }
+
+  /**
+   * A root turn's start, or a later model call of it: what waits goes with the prompt. A
+   * harness whose injected messages last one call also gets the turn's delivery again, with
+   * the lead's messages that came since joined to it.
+   */
+  private askPrompt({ live, root, profile, silent, events, time }: Asked): HookAnswer {
+    const start = events.find(
       (event): event is Extract<HarnessEvent, { type: "turn-started" }> =>
         event.type === "turn-started" && rootedIn(root, event),
     )
     if (!start) return silent
     // A later model call of the turn sees again what its first was given.
     const kept = profile.reinjectPerCall
-      ? this.leases.recall(terminalId, live.delivery.epoch)
+      ? this.leases.recall(live.terminalId, live.delivery.epoch)
       : undefined
     const again = kept === undefined ? undefined : profile.prompt(kept)
-    if (start.cause === "call") return again ? { leaseId: null, stdout: again } : silent
-    const lease = time && this.lease(live, root, "prompt", false)
+    if (start.cause === "call") {
+      const print = (text: string) => profile.prompt(joined(kept, text))
+      const added =
+        time && running(live.delivery)
+          ? this.lease(live, root, {
+              kind: "midturn",
+              print,
+              only: isFromLead,
+              keeps: (text) => joined(kept, text),
+            })
+          : undefined
+      if (added) return { leaseId: added.id, stdout: print(added.text) }
+      return again ? { leaseId: null, stdout: again } : silent
+    }
+    const lease =
+      time &&
+      this.lease(live, root, {
+        kind: "prompt",
+        print: profile.prompt,
+        ...(profile.reinjectPerCall && { keeps: (text: string) => text }),
+      })
     if (lease) return { leaseId: lease.id, stdout: profile.prompt(lease.text) }
     if (again) return { leaseId: null, stdout: again }
     if (start.cause !== "doorbell") return silent
@@ -496,11 +621,32 @@ export class Messaging {
     // they still wait; one with none left, as when they went another way, that none do.
     const waits = [...this.messages.values()].some(
       (message) =>
-        message.to.terminalId === terminalId &&
+        message.to.terminalId === live.terminalId &&
         undelivered(message) &&
         this.addressed(message, root),
     )
     return { leaseId: null, stdout: profile.prompt(waits ? stillWaiting : nothingWaiting) }
+  }
+
+  /**
+   * A root tool call finished, in a turn that runs: the lead's messages waiting go beside
+   * its result, as its harness reads them. A peer's wait for the turn's end.
+   */
+  private askTool({ live, root, profile, silent, events, event, time }: Asked): HookAnswer {
+    const { call } = profile
+    // Only the root agent's own call, not a failure that was an abort (the person's Esc ends
+    // the turn, and a tool's cancel is no call to answer in).
+    const called = events.some(
+      (each) =>
+        each.type === "attention-resolved" &&
+        each.actor === null &&
+        each.interrupted !== true &&
+        rootedIn(root, each),
+    )
+    if (!call || !called || !time || !running(live.delivery)) return silent
+    const print = (text: string) => call(text, event)
+    const lease = this.lease(live, root, { kind: "midturn", print, only: isFromLead })
+    return lease ? { leaseId: lease.id, stdout: print(lease.text) } : silent
   }
 
   /**
@@ -515,9 +661,7 @@ export class Messaging {
       const message = this.messages.get(id)
       if (message?.state === "leased") this.put({ ...message, state: "delivered", deliveredAt: at })
     }
-    const root = this.live.get(terminalId)?.root
-    if (lease.kind === "prompt" && root && harnesses[root.agent].messaging.reinjectPerCall)
-      this.leases.remember(terminalId, lease.epoch, lease.text)
+    if (lease.keeps !== undefined) this.leases.remember(terminalId, lease.epoch, lease.keeps)
   }
 
   /**
@@ -657,7 +801,15 @@ export class Messaging {
         handle: found.handle,
         agent: found.root?.agent ?? found.shown?.agent ?? null,
       }
-    return refused(unknownHandle(to, live.handle, this.peers(live, about), this.now()))
+    return refused(
+      unknownHandle(
+        to,
+        live.handle,
+        this.peers(live, about),
+        this.now(),
+        this.leadOf(live.terminalId) ?? null,
+      ),
+    )
   }
 
   /**
@@ -708,7 +860,13 @@ export class Messaging {
     const recipient = this.scoped(live).find((peer) => peer.handle === parsed.data.to)
     if (!recipient)
       return refused(
-        unknownHandle(parsed.data.to, live.handle, this.peers(live, about), this.now()),
+        unknownHandle(
+          parsed.data.to,
+          live.handle,
+          this.peers(live, about),
+          this.now(),
+          this.leadOf(live.terminalId) ?? null,
+        ),
       )
     const root = recipient.root
     if (!root && !recipient.shown && recipient.untrusted)
@@ -733,6 +891,10 @@ export class Messaging {
           allowed: hopsPerRelease,
           lastAt: now,
         }
+    // Its authority is fixed now: from the recipient's running lead, it is marked so when
+    // delivered, and never awaits release, whatever happens to the lead after.
+    const fromLead = this.leads(recipient, live)
+    const toLead = this.leads(live, recipient)
     const message: Message = {
       ...this.draft(live, text, {
         terminalId: recipient.terminalId,
@@ -748,7 +910,9 @@ export class Messaging {
         agent,
         sessionId: root?.sessionId ?? null,
       },
-      state: waiting({ hop: thread.hops }, thread, this.paused),
+      fromLead,
+      toLead,
+      state: waiting({ hop: thread.hops, fromLead, toLead }, thread, this.paused),
     }
     const vetted = this.vet(message)
     if (!vetted.ok) return vetted
@@ -803,6 +967,8 @@ export class Messaging {
       state: "queued",
       deliveredAt: null,
       notified: false,
+      fromLead: false,
+      toLead: false,
     }
   }
 
@@ -874,6 +1040,7 @@ export class Messaging {
       if (message.state === "gone" && !message.notified) this.put({ ...message, notified: true })
     const text = renderAgents({
       handle: live.handle,
+      lead: this.leadOf(live.terminalId) ?? null,
       peers: this.peers(live, about),
       messages: mine.map((message) => ({ message, hold: this.holdOf(message) })),
       unbound: live.root === null,
@@ -1052,6 +1219,7 @@ export class Messaging {
         busy: peer.delivery.state === "working" || about(peer.terminalId)?.working === true,
         where: about(peer.terminalId),
         withYou: lastBetween(this.messages.values(), live.terminalId, peer),
+        lead: this.leadOf(peer.terminalId) ?? null,
       }),
     )
   }
@@ -1065,10 +1233,17 @@ export class Messaging {
     }
     if (message.state !== "queued") return base
     const agent = recipient.root?.agent ?? recipient.shown?.agent
+    const profile = agent ? harnesses[agent].messaging : undefined
     return {
       ...base,
-      route: agent
-        ? route(recipient.delivery, harnesses[agent].messaging.silentOnFailure)
+      route: profile
+        ? route(
+            recipient.delivery,
+            profile.silentOnFailure,
+            isFromLead(message)
+              ? midTurnCall(profile.call !== undefined, profile.reinjectPerCall)
+              : undefined,
+          )
         : "when its agent starts: rung once Novadeck sees it at its prompt, else at its first turn",
     }
   }
@@ -1102,41 +1277,51 @@ export class Messaging {
   }
 
   /**
-   * Leases the messages waiting for the root session, as many as one delivery carries
-   * once printed as its harness reads it, until the hook acknowledges them; none when
-   * none wait.
+   * Leases the messages waiting for the root session (those `only` takes, where it is
+   * given), as many as one delivery carries once `print` prints it as its harness reads it,
+   * until the hook acknowledges them; none when none wait. `keeps` is what the turn is given
+   * again on each later call once printed, where its harness's injected messages last one.
    */
   private lease(
     live: Live,
     root: Root,
-    kind: Lease["kind"],
-    background: boolean,
+    options: {
+      readonly kind: Lease["kind"]
+      readonly background?: boolean
+      readonly print: (text: string) => string
+      readonly only?: (message: Message) => boolean
+      readonly keeps?: (text: string) => string
+    },
   ): Lease | undefined {
     // Once closed, nothing is saved, so no ack could record a delivery: the next runner
     // would deliver again what a hook printed now. Its messages wait for that runner.
     if (this.closed) return undefined
+    const { kind, background = false, print, only = () => true, keeps } = options
     const queued = [...this.messages.values()]
       .filter(({ state, ...message }) => state === "queued" && this.addressed(message, root))
-      .filter(({ to }) => to.terminalId === live.terminalId)
+      .filter((message) => message.to.terminalId === live.terminalId && only(message))
       .toSorted((a, b) => a.sentAt - b.sentAt)
-    const { messaging } = harnesses[root.agent]
-    const encode = kind === "stop" ? messaging.stop : messaging.prompt
-    const messages = deliveryOf(
-      queued,
-      (taken) => byteLength(encode(wrap(taken))) <= maxDeliveryBytes,
-    )
-    if (messages.length === 0) return undefined
+    if (queued.length === 0) return undefined
+    // One mark for the delivery, which marks its lead's messages. What counts is the bytes
+    // printed, escaped as the harness reads them.
+    const mark = newMark()
+    const prints = (taken: readonly Message[]) => byteLength(print(wrap(taken, isFromLead, mark)))
+    const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)
+    // The first always goes, as it fits alone; beside what the turn holds it may not.
+    if (messages.length === 0 || prints(messages) > maxDeliveryBytes) return undefined
     for (const message of messages) {
       this.everLeased.add(message.id)
       this.put({ ...message, state: "leased" })
     }
+    const text = wrap(messages, isFromLead, mark)
     return this.leases.grant({
       terminalId: live.terminalId,
       messages: messages.map((message) => message.id),
       kind,
       epoch: live.delivery.epoch,
       background,
-      text: wrap(messages),
+      text,
+      ...(keeps && { keeps: keeps(text) }),
     })
   }
 

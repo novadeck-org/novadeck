@@ -90,6 +90,25 @@ export const alertOpen = (ui: UiState, workspace: Workspace): boolean =>
 export const terminalNames = (workspace: Workspace): Readonly<Record<string, string>> =>
   Object.fromEntries(currentState(workspace).roster.terminals.map((each) => [each.id, each.name]))
 
+// The leads of the current session's terminals that run, by terminal id: each lead's
+// handle and name. A terminal whose lead is closed, exited or not yet started has none.
+export const runningLeads = (
+  workspace: Workspace,
+): Readonly<Record<string, { readonly handle: string; readonly name: string }>> => {
+  const { terminals } = currentState(workspace).roster
+  return Object.fromEntries(
+    terminals.flatMap((each) => {
+      if (!each.ledBy) return []
+      const lead = terminals.find(
+        (other) =>
+          other.handle === each.ledBy &&
+          (other.state === "idle" || other.state === "running" || other.state === "finished"),
+      )
+      return lead ? [[each.id, { handle: each.ledBy, name: lead.name }]] : []
+    }),
+  )
+}
+
 // The current session's terminals' names, by handle, which name the agents its messages
 // are with.
 export const handleNames = (workspace: Workspace): Readonly<Record<string, string>> =>

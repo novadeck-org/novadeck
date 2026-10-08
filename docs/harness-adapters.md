@@ -493,14 +493,23 @@ shared code names a harness:
 
 ```ts
 type MessagingProfile = {
-  /** The hook events that ask, and when each fires: as a turn ends, or as a prompt starts it. */
-  readonly asks: { readonly [event: string]: "stop" | "prompt" }
-  /** What a hook prints with nothing to deliver, as it does without Novadeck. */
-  readonly silent: (event: string) => string
+  /**
+   * The hook events that ask, and when each fires: as a turn ends, as a prompt starts it,
+   * or as a tool call of the turn finishes (`tool`, which delivers only the lead's messages).
+   */
+  readonly asks: { readonly [event: string]: "stop" | "prompt" | "tool" }
+  /** What a hook prints with nothing to deliver, by event and for any other (`*`). */
+  readonly silent: { readonly "*": string; readonly [event: string]: string }
   /** A Stop's answer that continues the turn with a delivery. */
   readonly stop: (delivery: string) => string
   /** A prompt's answer that adds a delivery to what the model sees, apart from the prompt. */
   readonly prompt: (delivery: string) => string
+  /**
+   * A tool call's answer, for the hook `event` that asked, that adds a delivery to what the
+   * model reads next, beside the tool's result. Present exactly where `asks` has a `tool`
+   * event; Antigravity's PreInvocation asks before every model call already.
+   */
+  readonly call?: (delivery: string, event: string) => string
   /** Whether a prompt-time delivery lasts one model call, so each later call gets it again. */
   readonly reinjectPerCall: boolean
   /** Which session its messages are for: the one bound, or the one its status line names. */
@@ -525,11 +534,21 @@ type MessagingProfile = {
 }
 ```
 
-| Harness     | `asks`                     | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `typedEntry`             | `initialPrompt`                        |
-| ----------- | -------------------------- | ----------------- | ------------- | ---------- | ----------------- | ------------------------ | -------------------------------------- |
-| Claude Code | `Stop`, `UserPromptSubmit` | no                | `binding`     | none       | no                | none: hooks name prompts | `claude "<line>"`                      |
-| Codex       | `Stop`, `UserPromptSubmit` | no                | `binding`     | Tab        | yes               | none: hooks name prompts | `codex "<line>"`                       |
-| Antigravity | `Stop`, `PreInvocation`    | yes               | `status-line` | none       | no                | `USER_INPUT` steps       | `agy -i "<line>"`, in a trusted folder |
+| Harness     | `asks`                                                                                    | `call` | `reinjectPerCall` | `root`        | `queueKey` | `silentOnFailure` | `typedEntry`             | `initialPrompt`                        |
+| ----------- | ----------------------------------------------------------------------------------------- | ------ | ----------------- | ------------- | ---------- | ----------------- | ------------------------ | -------------------------------------- |
+| Claude Code | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` and `PostToolUseFailure` (tool) | yes    | no                | `binding`     | none       | no                | none: hooks name prompts | `claude "<line>"`                      |
+| Codex       | `Stop` (stop), `UserPromptSubmit` (prompt), `PostToolUse` (tool)                          | yes    | no                | `binding`     | Tab        | yes               | none: hooks name prompts | `codex "<line>"`                       |
+| Antigravity | `Stop` (stop), `PreInvocation` (prompt)                                                   | none   | yes               | `status-line` | none       | no                | `USER_INPUT` steps       | `agy -i "<line>"`, in a trusted folder |
+
+`call` exists exactly when `asks` has a `tool` entry. A `tool` event fires as a root tool
+call finishes, and delivers only the lead's messages, beside the tool's result (see
+[agent-messaging.md](agent-messaging.md#the-leads-messages-mid-turn)); `call` encodes
+that answer, given the hook's own event name, as both Claude Code's tool events and
+Codex's `PostToolUse` take `{"hookSpecificOutput":{"hookEventName":…,"additionalContext":…}}`.
+Antigravity has none: its `PreInvocation` asks before every model call, so its
+`reinjectPerCall` delivery already carries a lead's message mid-turn. Only `Stop` and
+`prompt` events wait the long limit; the relay's `relay.json` lists just those, and a
+`tool` event keeps the short one.
 
 The terminal manager follows each terminal's root session as its profile's `root`
 says (`harnesses/roots.ts`): the bound session; or, for `status-line`, a guess (the

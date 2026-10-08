@@ -37,7 +37,7 @@ describe("each harness's hook answers", () => {
   it("continue a Claude Code or Codex Stop with a block, and add prompt-time context", () => {
     for (const agent of ["claude", "codex"] as const) {
       const answers = harnesses[agent].messaging
-      expect(answers.asks).toEqual({ Stop: "stop", UserPromptSubmit: "prompt" })
+      expect(answers.asks).toMatchObject({ Stop: "stop", UserPromptSubmit: "prompt" })
       expect(line(answers.stop(delivery))).toEqual({ decision: "block", reason: delivery })
       expect(line(answers.prompt(delivery))).toEqual({
         hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
@@ -45,7 +45,22 @@ describe("each harness's hook answers", () => {
       // With nothing to deliver they print nothing, as without Novadeck.
       expect(silentFor(answers, "Stop")).toBe("")
       expect(silentFor(answers, "UserPromptSubmit")).toBe("")
+      expect(silentFor(answers, "PostToolUse")).toBe("")
     }
+  })
+
+  it("ask at a Claude Code or Codex tool call, and add context beside its result", () => {
+    expect(harnesses.claude.messaging.asks).toEqual({
+      Stop: "stop",
+      UserPromptSubmit: "prompt",
+      PostToolUse: "tool",
+      PostToolUseFailure: "tool",
+    })
+    expect(harnesses.codex.messaging.asks).toEqual({
+      Stop: "stop",
+      UserPromptSubmit: "prompt",
+      PostToolUse: "tool",
+    })
   })
 
   it("continue an Antigravity Stop, inject at its model calls, and always print JSON", () => {

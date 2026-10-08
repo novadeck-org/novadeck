@@ -61,6 +61,8 @@ export type WindowShellProps = {
   // Its agent finished while the person looked elsewhere, on its own or on an error: the
   // window says so until they look.
   unread?: "done" | "failed" | undefined
+  // The terminal that directs this one's work while it runs, by its handle and name.
+  lead?: { handle: string; name: string }
   rename: TerminalRename | null
   onBeginRename: () => void
   onRenameDraft: (value: string) => void
@@ -89,6 +91,7 @@ export const WindowShell = ({
   active = false,
   fresh = false,
   unread,
+  lead,
   rename,
   onBeginRename,
   onRenameDraft,
@@ -247,6 +250,13 @@ export const WindowShell = ({
               onCancel={onRenameCancel}
               className="terminal-rename-input w-full min-w-0 text-body leading-4 font-medium nodrag nopan"
             />
+          )}
+          {lead && !renaming && (
+            <Tooltip content={`Directed by the agent in ${lead.handle}`}>
+              <span className="terminal-lead nodrag nopan" data-terminal-lead={lead.handle}>
+                led by {lead.handle} · {lead.name}
+              </span>
+            </Tooltip>
           )}
         </>
       </div>

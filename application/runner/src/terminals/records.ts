@@ -22,6 +22,12 @@ export type SavedTerminal = {
   readonly naming: Naming
   /** The handle of the terminal whose agent opened it; null otherwise. */
   readonly openedBy: string | null
+  /**
+   * The handle of its lead: the terminal whose agent opened it with a brief to run an
+   * agent there (`open_terminal` with `agent` and `message`); null otherwise, even for a
+   * terminal an agent opened for a command or a plain shell.
+   */
+  readonly ledBy: string | null
   /** The command it was opened to run; null for a plain shell. */
   readonly command: string | null
   /** The program in its foreground when its shell was last seen. */
@@ -42,8 +48,8 @@ export type SavedTerminal = {
 /** A terminal as listed: all but its transcript. */
 export type ListedTerminal = Omit<SavedTerminal, "transcript">
 
-/** A terminal's handle, what names it, and who opened it. */
-export type TerminalIdentity = Pick<SavedTerminal, "handle" | "naming" | "openedBy">
+/** A terminal's handle, what names it, and who opened it and who leads it. */
+export type TerminalIdentity = Pick<SavedTerminal, "handle" | "naming" | "openedBy" | "ledBy">
 
 /** Where the runner saves terminals: its metadata store. */
 export type TerminalRecords = {

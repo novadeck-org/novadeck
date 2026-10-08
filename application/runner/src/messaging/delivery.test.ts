@@ -1,6 +1,8 @@
+import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it } from "../test.js"
 import {
   continues,
+  midTurnCall,
   maxContinuations,
   pendingEnter,
   ringableSince,
@@ -600,15 +602,42 @@ describe("keys while a request waits on the person", () => {
 
 describe("when a message would reach an agent", () => {
   it("says so in send's words for each state", () => {
-    expect(route(bound, false)).toBe("when its agent's first turn starts")
-    expect(route(transition(unbound, announced), false)).toBe("ringing it now")
-    expect(route(working, false)).toBe("when its current turn ends")
+    expect(route(bound, false, undefined)).toBe("when its agent's first turn starts")
+    expect(route(transition(unbound, announced), false, undefined)).toBe("ringing it now")
+    expect(route(working, false, undefined)).toBe("when its current turn ends")
     // Codex sends nothing when a turn fails.
-    expect(route(working, true)).toBe("at its turn's end or its next prompt")
-    expect(route(transition(working, background), false)).toBe("when its next turn starts")
-    expect(route(settled, false)).toBe("ringing it now")
+    expect(route(working, true, undefined)).toBe("at its turn's end or its next prompt")
+    expect(route(transition(working, background), false, undefined)).toBe(
+      "when its next turn starts",
+    )
+    expect(route(settled, false, undefined)).toBe("ringing it now")
     for (const state of [drafting, unknown])
-      expect(route(state, false)).toBe("when the person next submits a prompt there")
+      expect(route(state, false, undefined)).toBe("when the user next submits a prompt there")
+  })
+})
+
+// Where a lead's message reaches a harness's running turn, from its profile.
+const midTurnOf = ({ messaging }: (typeof harnesses)["claude"]) =>
+  midTurnCall(messaging.call !== undefined, messaging.reinjectPerCall)
+
+describe("when a lead's message would reach a running turn", () => {
+  it("names the call each harness delivers it at", () => {
+    expect(midTurnOf(harnesses.claude)).toBe("tool call")
+    expect(midTurnOf(harnesses.codex)).toBe("tool call")
+    expect(midTurnOf(harnesses.agy)).toBe("model call")
+    expect(midTurnCall(false, false)).toBeUndefined()
+  })
+
+  it("tells the lead's message it reaches a running turn at its next tool call", () => {
+    expect(route(working, false, "tool call")).toBe("at its next tool call")
+    expect(route(working, false, "model call")).toBe("at its next model call")
+    expect(route(working, true, "tool call")).toBe("at its next tool call")
+    // Nothing runs to call a tool: it waits as any message does.
+    expect(route(settled, false, "tool call")).toBe("ringing it now")
+    expect(route(transition(working, background), false, "tool call")).toBe(
+      "when its next turn starts",
+    )
+    expect(route(drafting, false, "tool call")).toBe("when the user next submits a prompt there")
   })
 })
 

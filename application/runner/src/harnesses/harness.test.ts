@@ -5,6 +5,7 @@ import type { AgentName } from "@novadeck/protocol"
 import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
 import { loadProbe } from "../testing/probes.js"
+import type { HarnessEvent } from "./events.js"
 import { replyPreview, sessionStart } from "./harness.js"
 import { harnesses } from "./registry.js"
 
@@ -179,6 +180,69 @@ describe("the harness registry", () => {
   it("gives Codex a shim everywhere, and Claude Code one outside Windows", () => {
     expect(shimmed("linux")).toEqual(["claude", "codex"])
     expect(shimmed("win32")).toEqual(["codex"])
+  })
+})
+
+const parse = (line: string | undefined) => JSON.parse(line ?? "null") as unknown
+
+describe("a harness's mid-turn delivery", () => {
+  it("adds a tool call's delivery as the hook's own additional context", () => {
+    expect(parse(harnesses.claude.messaging.call?.("m", "PostToolUse"))).toEqual({
+      hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: "m" },
+    })
+    // A failed tool's hook is its own event, and names it so.
+    expect(parse(harnesses.claude.messaging.call?.("m", "PostToolUseFailure"))).toEqual({
+      hookSpecificOutput: { hookEventName: "PostToolUseFailure", additionalContext: "m" },
+    })
+    expect(parse(harnesses.codex.messaging.call?.("m", "PostToolUse"))).toEqual({
+      hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: "m" },
+    })
+  })
+
+  it("asks at the tool-call hooks it adds context in, never at a PreToolUse", () => {
+    expect(harnesses.claude.messaging.asks).toMatchObject({
+      PostToolUse: "tool",
+      PostToolUseFailure: "tool",
+    })
+    expect(harnesses.codex.messaging.asks).toMatchObject({ PostToolUse: "tool" })
+    for (const agent of ["claude", "codex", "agy"] as const)
+      expect(harnesses[agent].messaging.asks.PreToolUse).toBeUndefined()
+  })
+
+  it("has a tool-call encoder exactly where it asks at a tool call", () => {
+    for (const { messaging } of Object.values(harnesses))
+      expect(messaging.call !== undefined).toBe(Object.values(messaging.asks).includes("tool"))
+  })
+})
+
+// A Claude Code PostToolUseFailure, as its decoder reads it.
+const failure = (payload: object): HarnessEvent[] =>
+  harnesses.claude.decode({
+    terminalId: "x",
+    token: "0".repeat(48),
+    agent: "claude",
+    event: "PostToolUseFailure",
+    seq: 1,
+    instance: null,
+    env: { cursor: false },
+    payload: {
+      session_id: "00000000-0000-4000-8000-000000000001",
+      tool_name: "Bash",
+      tool_input: { command: "sleep 9" },
+      error: "aborted",
+      ...payload,
+    },
+  }) as HarnessEvent[]
+
+describe("a Claude Code tool failure", () => {
+  it("is marked interrupted when the harness says it reached it as an abort", () => {
+    expect(failure({ is_interrupt: true })[0]).toMatchObject({
+      type: "attention-resolved",
+      actor: null,
+      interrupted: true,
+    })
+    expect(failure({ is_interrupt: false })[0]).not.toHaveProperty("interrupted")
+    expect(failure({})[0]).not.toHaveProperty("interrupted")
   })
 })
 

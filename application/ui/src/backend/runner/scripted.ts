@@ -73,6 +73,7 @@ export const keptSummary = (
   title: "Terminal 01",
   titleSource: { kind: "default" },
   handle: "t1",
+  ledBy: null,
   started: false,
   command: null,
   lastProgram: null,

@@ -1,7 +1,8 @@
 //! An agent hook, run by a connected agent's Novadeck plugin: the relay sends what the
 //! hook knows to the runner of the terminal it runs in, unread, and prints what the
 //! runner answers, exactly as the agent expects. A Stop or prompt-time hook's answer may
-//! deliver agents' messages under a lease, which the relay acknowledges once printed.
+//! deliver agents' messages under a lease, which the relay acknowledges once printed; so may
+//! a tool-call hook's, which the runner answers at once.
 //! Claude Code's status line runs through the hook too: the relay runs the person's own,
 //! as their settings name it, beside the report, and prints it. Outside Novadeck's
 //! terminals, or when the runner can't be reached, it prints only what its agent needs,
@@ -9,9 +10,9 @@
 //! must say "ask" or Antigravity denies the tool.
 //!
 //! What it knows of the agents comes from that configuration, `relay.json` beside it,
-//! which the runner writes: which events ask, which variables tell agents apart, and what
-//! each agent needs printed without Novadeck. Nothing here names an agent but Claude Code,
-//! whose status line only the relay can run.
+//! which the runner writes: which events wait the long limit (`asks`), which variables
+//! tell agents apart, and what each agent needs printed without Novadeck. Nothing here
+//! names an agent but Claude Code, whose status line only the relay can run.
 
 use std::env;
 use std::io::{self, Read, Write};
@@ -54,7 +55,9 @@ impl Config {
         }
     }
 
-    /// Whether `agent`'s `event` asks the runner what to print.
+    /// Whether `agent`'s `event` is listed in `asks`, the events that wait the long limit for
+    /// the runner's answer. Every hook is sent to the runner and printed its answer; this only
+    /// sets how long it may take.
     fn asks(&self, agent: &str, event: &str) -> bool {
         self.asks
             .get(agent)
@@ -94,9 +97,11 @@ impl Config {
     }
 
     /// How long a hook may take, from its start: Claude Code's status line the longest,
-    /// as it runs the person's own; a hook that asks, long enough for the runner to lease
-    /// and answer by its deadline; any other only reports, which the runner answers at
-    /// once. The relay tells the runner its deadline, so the runner never leases past it.
+    /// as it runs the person's own; a hook in `asks` (a Stop or prompt-time one), long enough
+    /// for the runner to lease and answer by its deadline; any other, a tool-call hook
+    /// among them, the short limit of a report, as the runner answers it at once, with
+    /// messages to print or none. The relay tells the runner its deadline for every hook,
+    /// so the runner never leases past it.
     pub fn limit(&self, agent: &str, event: &str) -> Duration {
         Duration::from_millis(match (agent, event) {
             ("claude", "StatusLine") => 5_000,

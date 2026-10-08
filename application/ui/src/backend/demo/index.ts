@@ -149,6 +149,8 @@ export const withMessages = (backend: Backend, now: number): Backend => {
         terminals: session.terminals.map((terminal) => ({
           ...terminal,
           handle: `t${Number(terminal.id)}`,
+          // The agent that named the checkout review opened it.
+          ...(terminal.id === "04" ? { ledBy: "t1" } : {}),
           ...(namings[terminal.id] ? { titleSource: namings[terminal.id]!.source } : {}),
         })),
       })),

@@ -44,15 +44,18 @@ const hook = (platform: NodeJS.Platform, event: string): string =>
     : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" codex ${event} || true`
 
 // A Stop's reason continues the turn as a user-role hook prompt, which the delivery's
-// wrapper still attributes to its sender; a prompt's context is a developer message.
+// wrapper still attributes to its sender; a prompt's context is a developer message, and
+// so is a PostToolUse's, which the model reads on its next request.
 const messaging: MessagingProfile = {
-  asks: { Stop: "stop", UserPromptSubmit: "prompt" },
+  asks: { Stop: "stop", UserPromptSubmit: "prompt", PostToolUse: "tool" },
   silent: { "*": "" },
   stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
   prompt: (delivery) =>
     `${JSON.stringify({
       hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
     })}\n`,
+  call: (delivery, event) =>
+    `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`,
   reinjectPerCall: false,
   root: "binding",
   queueKey: "\t",

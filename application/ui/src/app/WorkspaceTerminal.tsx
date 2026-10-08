@@ -28,6 +28,7 @@ import {
   currentState,
   currentTarget,
   handleNames,
+  runningLeads,
   sameTarget,
   shallowEqual,
   terminalNames,
@@ -163,6 +164,7 @@ export const WorkspaceTerminal = ({
   const chatContext = `${projectId}/${workspaceSessionId}`
   const terminalName = useWorkspaceState(terminalNames, shallowEqual)
   const names = useWorkspaceState(handleNames, shallowEqual)
+  const lead = useWorkspaceState((workspace) => runningLeads(workspace)[terminalId], shallowEqual)
   const { keyboardFocus, fontSize } = useUiState(
     (state) => ({
       keyboardFocus:
@@ -183,6 +185,7 @@ export const WorkspaceTerminal = ({
   const mic = useMicButton(terminal, terminalKey)
   const frame: Omit<WindowShellProps, "children"> = {
     ...useWindowFrame(terminal, controls),
+    ...(lead ? { lead } : {}),
     ...(mic ? { dictation: mic } : {}),
     icon: <Icon size={14} strokeWidth={1.5} />,
     ...(processWindow ? { processWindow } : {}),

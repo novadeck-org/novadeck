@@ -104,6 +104,9 @@ export type TerminalMetadata = {
   restoredProcess?: string
   // The handle agents message it by, such as `t3`, where its backend has one.
   handle?: string
+  // The handle of the terminal whose agent opened it with a brief, its lead, as its
+  // backend last said; null once that ended. Whether the lead runs is the roster's to say.
+  ledBy?: string | null
   // Who its name is from, where its backend tells.
   titleSource?: TitleSource
   // Never present: a window has one, which tells tiles apart (see `isWindow`).

@@ -185,6 +185,8 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           // in review.
           loose: tool === "AskUserQuestion" || tool === "ExitPlanMode",
           outcome: "allowed",
+          // A failure that reached it as an abort: the person's Esc, not a tool's error.
+          ...(payload.is_interrupt === true && { interrupted: true as const }),
         },
         ...drafted(base, actor, tool, payload),
         ...touched(base, actor, tool, payload.tool_input),

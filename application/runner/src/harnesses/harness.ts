@@ -196,8 +196,11 @@ export type Harness = {
  * its screen: the doorbell's checks are the same for every TUI.
  */
 export type MessagingProfile = {
-  /** The hook events that ask, and when each fires: as a turn ends, or as a prompt starts it. */
-  readonly asks: { readonly [event: string]: "stop" | "prompt" }
+  /**
+   * The hook events that ask, and when each fires: as a turn ends, as a prompt starts it, or
+   * as a tool call of the turn finishes (`tool`, which delivers only the lead's messages).
+   */
+  readonly asks: { readonly [event: string]: "stop" | "prompt" | "tool" }
   /**
    * What a hook prints with nothing to deliver, as it does without Novadeck: by event, and
    * for any other (`*`). The relay prints the same when Novadeck can't answer.
@@ -207,6 +210,13 @@ export type MessagingProfile = {
   readonly stop: (delivery: string) => string
   /** A prompt's answer that adds a delivery to what the model sees, apart from the prompt. */
   readonly prompt: (delivery: string) => string
+  /**
+   * A tool call's answer, for the hook `event` that asked, that adds a delivery to what the
+   * model reads next, beside the tool's result, while its turn runs. Present exactly where
+   * `asks` has a `tool` event; Antigravity's PreInvocation asks before every model call
+   * already.
+   */
+  readonly call?: (delivery: string, event: string) => string
   /**
    * Whether a prompt-time delivery lasts only for the model call it was printed for, so
    * each later call of the turn gets it again, as in Antigravity.

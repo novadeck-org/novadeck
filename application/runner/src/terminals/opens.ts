@@ -117,7 +117,13 @@ export const prune = (budgets: Map<string, readonly number[]>, now: number, wind
  * Who asked for a terminal: its terminal's handle, the title it asked for, if any, and the
  * command it starts there, whose prompt is never the person's.
  */
-export type Opener = { readonly by: string; readonly title?: string; readonly command?: string }
+export type Opener = {
+  readonly by: string
+  readonly title?: string
+  readonly command?: string
+  /** Whether it opened the terminal with a brief for an agent there, so it leads it. */
+  readonly withBrief: boolean
+}
 
 /**
  * How a request went: answered; sent to nobody, as no client follows; or left without an

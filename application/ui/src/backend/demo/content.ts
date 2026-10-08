@@ -37,6 +37,7 @@ export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
       id: "03",
       name: "Refactor auth",
       handle: "t3",
+      ledBy: "t1",
       titleSource: { kind: "agent", by: "t1" },
       command: "claude",
       process: "claude",

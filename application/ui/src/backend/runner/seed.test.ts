@@ -22,6 +22,7 @@ const summary = (
   title: `Terminal ${n}`,
   titleSource: { kind: "default" },
   handle: `t${n}`,
+  ledBy: null,
   started: true,
   command: null,
   lastProgram: null,

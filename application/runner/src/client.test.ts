@@ -509,6 +509,8 @@ describe("runner client project removal", () => {
         state: "delivered",
         deliveredAt: Date.now(),
         notified: false,
+        fromLead: false,
+        toLead: false,
       })
     }
     const saved = crypto.randomUUID()
@@ -521,6 +523,7 @@ describe("runner client project removal", () => {
       handle: `t${earlier.nextTerminalNumber(sessions.removed)}`,
       naming: { person: null, agent: null, summary: null },
       openedBy: null,
+      ledBy: null,
       command: null,
       lastProgram: null,
       work: null,

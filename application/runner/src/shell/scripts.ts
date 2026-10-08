@@ -279,13 +279,22 @@ const silentAnswers = Object.fromEntries(
 )
 
 /**
- * What the relay knows of the agents, as `relay.json` holds it: which events ask, as
- * each waits longer for its answer, what of a hook's environment it forwards, and what
- * each prints without Novadeck.
+ * What the relay knows of the agents, as `relay.json` holds it: which events wait the long
+ * limit for the runner's answer (`asks`: a Stop, or a prompt-time hook, which may hold
+ * messages for a lease), what of a hook's environment it forwards, and what each prints
+ * without Novadeck. Every hook is sent to the runner and printed what it answers, so a
+ * tool-call hook (which asks the runner for the lead's messages, with a deadline) is not
+ * listed: it runs after every tool, is answered at once, and keeps a report's short limit,
+ * so a runner that can't answer holds a tool up 2 s at most, not 4.
  */
 export const relayConfig = {
   asks: Object.fromEntries(
-    agents.map((agent) => [agent, Object.keys(harnesses[agent].messaging.asks)]),
+    agents.map((agent) => [
+      agent,
+      Object.entries(harnesses[agent].messaging.asks)
+        .filter(([, kind]) => kind !== "tool")
+        .map(([event]) => event),
+    ]),
   ),
   env: [...hookVariables],
   fallbacks: silentAnswers,

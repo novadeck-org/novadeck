@@ -46,15 +46,24 @@ const hook = (platform: NodeJS.Platform, event: string): string =>
     : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude ${event} || true`
 
 // A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
-// a prompt's context is an attachment beside the prompt, never the prompt itself.
+// a prompt's context is an attachment beside the prompt, never the prompt itself; a tool
+// call's context (PostToolUse, or PostToolUseFailure) is a system reminder next to the
+// tool's result, which the model reads on its next request.
 const messaging: MessagingProfile = {
-  asks: { Stop: "stop", UserPromptSubmit: "prompt" },
+  asks: {
+    Stop: "stop",
+    UserPromptSubmit: "prompt",
+    PostToolUse: "tool",
+    PostToolUseFailure: "tool",
+  },
   silent: { "*": "" },
   stop: (delivery) => `${JSON.stringify({ decision: "block", reason: delivery })}\n`,
   prompt: (delivery) =>
     `${JSON.stringify({
       hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: delivery },
     })}\n`,
+  call: (delivery, event) =>
+    `${JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: delivery } })}\n`,
   reinjectPerCall: false,
   root: "binding",
   silentOnFailure: false,

@@ -77,10 +77,13 @@ export const addTerminal = (
   terminals: [...roster.terminals, terminal],
 })
 
-type TerminalFacts = Pick<TerminalMetadata, "name" | "directory" | "handle" | "titleSource">
+type TerminalFacts = Pick<
+  TerminalMetadata,
+  "name" | "directory" | "handle" | "titleSource" | "ledBy"
+>
 
 // What the backend says of a terminal now: its name or directory, its handle, and who
-// its name is from.
+// its name is from, and its lead (null once it has none).
 export const updateTerminal = (
   roster: TerminalRoster,
   terminalId: string,
@@ -88,13 +91,14 @@ export const updateTerminal = (
 ): TerminalRoster => {
   const current = roster.terminals.find((terminal) => terminal.id === terminalId)
   if (!current) return roster
-  const { name, directory, handle, titleSource } = change
+  const { name, directory, handle, titleSource, ledBy } = change
   const facts: Partial<TerminalFacts> = {
     ...(name !== undefined && name !== current.name && { name }),
     ...(directory !== undefined && directory !== current.directory && { directory }),
     ...(handle !== undefined && handle !== current.handle && { handle }),
     ...(titleSource !== undefined &&
       !sameTitleSource(titleSource, current.titleSource) && { titleSource }),
+    ...(ledBy !== undefined && ledBy !== (current.ledBy ?? null) && { ledBy }),
   }
   if (!Object.keys(facts).length) return roster
   return {
@@ -232,6 +236,7 @@ const withStatus = (terminal: TerminalMetadata, status: TerminalStatus): Termina
     ...(restoredProcess ? { restoredProcess } : {}),
     // Who it is and who named it outlive any status.
     ...(terminal.handle !== undefined ? { handle: terminal.handle } : {}),
+    ...(terminal.ledBy ? { ledBy: terminal.ledBy } : {}),
     ...(terminal.titleSource ? { titleSource: terminal.titleSource } : {}),
     ...statusFields(status),
   }

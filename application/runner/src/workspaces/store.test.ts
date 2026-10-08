@@ -344,6 +344,7 @@ const numbered = (id: string, handle: string) => ({
   handle,
   naming: { person: null, agent: null, summary: null },
   openedBy: null,
+  ledBy: null,
   command: null,
   lastProgram: null,
   work: null,
@@ -369,6 +370,7 @@ describe("saved terminals", () => {
         summary: "Builds the API.",
       },
       openedBy: "t2",
+      ledBy: "t2",
       command: "claude",
       lastProgram: "claude",
       work: {
@@ -395,6 +397,7 @@ describe("saved terminals", () => {
       // What names it, each layer and who gave it, survives a reload, as who opened it does.
       naming: terminal.naming,
       openedBy: "t2",
+      ledBy: "t2",
     })
     if (process.platform !== "win32") expect(statSync(path).mode & 0o777).toBe(0o600)
     reopened.clearTranscripts()
@@ -415,6 +418,7 @@ describe("saved terminals", () => {
       handle: "t1",
       naming: { person: null, agent: null, summary: null },
       openedBy: null,
+      ledBy: null,
       command: null,
       lastProgram: null,
       work: null,
@@ -440,6 +444,7 @@ describe("saved terminals", () => {
         handle: `t${index + 1}`,
         naming: { person: null, agent: null, summary: null },
         openedBy: null,
+        ledBy: null,
         command: null,
         lastProgram: null,
         work: null,
@@ -483,6 +488,7 @@ describe("saved terminals", () => {
       handle: "t1",
       naming: { person: null, agent: null, summary: null },
       openedBy: null,
+      ledBy: null,
       command: null,
       lastProgram: null,
       work: null,
@@ -523,6 +529,8 @@ const message = (id: string, state: Message["state"]): Message => ({
   state,
   deliveredAt: null,
   notified: false,
+  fromLead: false,
+  toLead: false,
 })
 
 describe("the mailbox", () => {
@@ -533,7 +541,8 @@ describe("the mailbox", () => {
     const path = join(directory(), "workspace.sqlite")
     const original = store(path)
     original.saveMessage(message("m-1", "queued"))
-    original.saveMessage(message("m-2", "held"))
+    // One from its recipient's lead, which keeps that.
+    original.saveMessage({ ...message("m-2", "held"), fromLead: true, toLead: true })
     // One for a terminal's first session, which no agent there has bound yet.
     const waiting = message("m-3", "queued")
     original.saveMessage({ ...waiting, to: { ...waiting.to, sessionId: null } })
@@ -563,6 +572,7 @@ describe("the mailbox", () => {
       handle: "t1",
       naming: { person: null, agent: null, summary: null },
       openedBy: null,
+      ledBy: null,
       command: null,
       lastProgram: null,
       work: null,
@@ -576,7 +586,7 @@ describe("the mailbox", () => {
         deliveredAt: 9,
         notified: true,
       },
-      message("m-2", "held"),
+      { ...message("m-2", "held"), fromLead: true, toLead: true },
       { ...waiting, to: { ...waiting.to, sessionId: null } },
     ])
     expect(reopened.threads()).toEqual([{ ...thread, allowed: 14 }])
@@ -606,6 +616,7 @@ const keptTerminal = (workspace: WorkspaceStore, sessionId: string, handle: stri
     handle,
     naming: { person: null, agent: null, summary: null },
     openedBy: null,
+    ledBy: null,
     command: null,
     lastProgram: null,
     work: null,

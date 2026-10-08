@@ -269,7 +269,12 @@ describe("agent hook", () => {
       let failed: Error | undefined
       child.stdin.on("error", (error) => (failed = error))
       child.on("exit", () => resolve(failed))
-      child.stdin.end(JSON.stringify({ hook_event_name: "Stop", padding: "x".repeat(500_000) }))
+      child.stdin.end(
+        JSON.stringify({
+          hook_event_name: "Stop",
+          padding: "x".repeat(500_000),
+        }),
+      )
     })
     expect(written).toBeUndefined()
   })
@@ -366,7 +371,11 @@ describe("agent hook", () => {
   }, 15_000)
 
   it("answers Antigravity with JSON, letting its policy decide on tools", async ({ fixture }) => {
-    const payload = { conversationId: session, workspacePaths: ["/work"], modelName: "auto" }
+    const payload = {
+      conversationId: session,
+      workspacePaths: ["/work"],
+      modelName: "auto",
+    }
     expect(await fixture.hook("agy", payload, {}, "PreInvocation")).toBe(0)
     expect(await fixture.hook("agy", payload, {}, "PreToolUse")).toBe(0)
     expect(await fixture.hook("agy", payload, { NOVADECK_TERMINAL_ID: "" }, "PreToolUse")).toBe(0)
@@ -380,7 +389,9 @@ describe("agent hook", () => {
       const home = mkdtempSync(join(tmpdir(), "novadeck-claude-home-"))
       writeFileSync(
         join(home, "settings.json"),
-        JSON.stringify({ statusLine: { type: "command", command: "cat >/dev/null; echo mine" } }),
+        JSON.stringify({
+          statusLine: { type: "command", command: "cat >/dev/null; echo mine" },
+        }),
       )
       const printed = await fixture.run(
         "claude",
@@ -439,7 +450,10 @@ describe("agent hook", () => {
       writeFileSync(
         join(home, "settings.json"),
         JSON.stringify({
-          statusLine: { type: "command", command: "cat >/dev/null; (sleep 30 &); echo bg" },
+          statusLine: {
+            type: "command",
+            command: "cat >/dev/null; (sleep 30 &); echo bg",
+          },
         }),
       )
       const printed = await fixture.run(
@@ -462,7 +476,9 @@ describe("agent hook", () => {
       resources.defer(() => rmSync(home, { recursive: true, force: true }))
       writeFileSync(
         join(home, "settings.json"),
-        JSON.stringify({ statusLine: { type: "command", command: "cat >/dev/null; echo mine" } }),
+        JSON.stringify({
+          statusLine: { type: "command", command: "cat >/dev/null; echo mine" },
+        }),
       )
       const printed = await fixture.run(
         "claude",
@@ -536,6 +552,30 @@ describe("agent hook asking", () => {
     ])
   })
 
+  it("asks at a tool call too, in the short wait of a report, printing the runner's answer", async ({
+    fixture,
+  }) => {
+    const stdout = `${JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+        additionalContext: "<novadeck-messages/>",
+      },
+    })}\n`
+    fixture.answer.current = { leaseId: lease, stdout }
+    const payload = {
+      hook_event_name: "PostToolUse",
+      session_id: session,
+      tool_name: "Bash",
+    }
+    await expect(fixture.run("claude", payload, {}, "PostToolUse")).resolves.toBe(stdout)
+    await expect.poll(() => fixture.acks).toEqual([{ terminalId, token, leaseId: lease }])
+    // A hook that runs after every tool never holds one up for an ask's 4 s.
+    const [asked] = fixture.deadlines
+    expect(asked?.event).toBe("PostToolUse")
+    expect(asked!.deadline - asked!.seq).toBeLessThanOrEqual(2_000)
+    expect(asked!.deadline - asked!.seq).toBeGreaterThan(1_000)
+  })
+
   it("only reports the hooks that don't ask", async ({ fixture }) => {
     fixture.answer.current = { leaseId: lease, stdout: "x" }
     await expect(fixture.run("claude", start(), {}, "SessionStart")).resolves.toBe("")
@@ -586,7 +626,11 @@ describe("reading a relay's hook", () => {
     ]
     expect(relayHook(hook({ ancestors }))?.report.instance).toBe("20")
     expect(relayHook(hook({ ancestors: [{ pid: 10, name: "sh" }] }))?.report.instance).toBe(null)
-    const claude = hook({ agent: "claude", ancestors, env: { CLAUDE_PID: "4242" } })
+    const claude = hook({
+      agent: "claude",
+      ancestors,
+      env: { CLAUDE_PID: "4242" },
+    })
     expect(relayHook(claude)?.report.instance).toBe("4242")
   })
 
@@ -623,8 +667,29 @@ describe("reading a relay's hook", () => {
       for (const [event, text] of Object.entries(harnesses[agent].messaging.silent)) {
         expect(relayConfig.fallbacks[agent]?.[event]).toBe(text.trimEnd())
       }
-      expect(relayConfig.asks[agent]).toEqual(Object.keys(harnesses[agent].messaging.asks))
+      // A tool call's hook asks the runner but keeps the relay's short wait.
+      expect(relayConfig.asks[agent]).toEqual(
+        Object.entries(harnesses[agent].messaging.asks)
+          .filter(([, kind]) => kind !== "tool")
+          .map(([event]) => event),
+      )
     }
+  })
+
+  it("asks at a tool call's hook, with time left to print and acknowledge", () => {
+    expect(relayHook(hook({ agent: "claude", event: "PostToolUse", seq: 1_000 }))?.deadline).toBe(
+      4_500,
+    )
+    expect(
+      relayHook(
+        hook({
+          agent: "codex",
+          event: "PostToolUse",
+          seq: 1_000,
+          deadline: 3_000,
+        }),
+      )?.deadline,
+    ).toBe(2_500)
   })
 
   it("reads nothing of an unknown agent or a payload agents don't send", async () => {

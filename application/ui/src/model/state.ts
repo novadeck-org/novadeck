@@ -116,6 +116,8 @@ export type WorkspaceAction =
       name?: string
       directory?: string
       handle?: string
+      // Null once it has no lead.
+      ledBy?: string | null
       titleSource?: TitleSource
     }
   | { type: "terminal/close"; target: WorkspaceTarget; terminalId: string }
@@ -636,6 +638,7 @@ export const workspaceReducer = (workspace: Workspace, action: WorkspaceAction):
           ...(action.name !== undefined && { name: action.name }),
           ...(action.directory !== undefined && { directory: action.directory }),
           ...(action.handle !== undefined && { handle: action.handle }),
+          ...(action.ledBy !== undefined && { ledBy: action.ledBy }),
           ...(action.titleSource !== undefined && { titleSource: action.titleSource }),
         })
         return roster === state.roster ? state : { ...state, roster }

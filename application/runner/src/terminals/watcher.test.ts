@@ -10,6 +10,7 @@ const terminal = (id: string, changes: Partial<TerminalSummary> = {}): TerminalS
   titleSource: { kind: "default" },
   handle: "t1",
   started: true,
+  ledBy: null,
   command: null,
   lastProgram: null,
   cwd: "/tmp",

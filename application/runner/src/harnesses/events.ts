@@ -188,6 +188,8 @@ export type ActivityEvent = {
       readonly toolName: string
       readonly loose: boolean
       readonly outcome: "allowed"
+      /** Whether the call failed as an abort, as Claude Code's `is_interrupt` says. */
+      readonly interrupted?: true
     }
   | {
       readonly type: "subagent-started"

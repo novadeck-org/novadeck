@@ -9,6 +9,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   title: "Terminal 01",
   titleSource: { kind: "default" },
   handle: "t1",
+  ledBy: null,
   started: true,
   command: null,
   lastProgram: null,

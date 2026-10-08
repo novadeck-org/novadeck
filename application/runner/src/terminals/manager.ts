@@ -386,6 +386,19 @@ type Record = {
    */
   submitted: boolean
   /**
+   * Whether the shell was given a command to run at its first prompt (an agent opened or
+   * resumed there) that has not been seen to end: the next prompt is then the first after
+   * it ran, unless typing cancelled it.
+   */
+  startupRuns: boolean
+  /**
+   * The process of a bound agent whose shell prompt came back while it still lived
+   * (suspended, as by Ctrl+Z), kept while its lead waits to see whether it returns: a
+   * later prompt with no session bound and that process gone ends the lead. Cleared when
+   * a session binds again, or the lead ends.
+   */
+  suspended: string | null
+  /**
    * Whether the person pressed Enter at the agent's own prompt shown before any session
    * bound: its first prompt's hooks bind it, so until then nothing says it is idle.
    */
@@ -802,9 +815,11 @@ export class Terminals {
       // A concurrent creation may have taken the id meanwhile.
       this.available(input.id)
       // Read again after every wait above: a rename meanwhile, as from another window,
-      // stands. Nothing waits between this and saving it, and a
-      // terminal that can't be numbered fails before its shell starts.
-      const kept = input.restore ? this.identity(input.id) : undefined
+      // stands. Nothing waits between this and saving it, and a terminal that can't be
+      // numbered fails before its shell starts. Only one saved for this session counts:
+      // another's handle and opener mean nothing here, and must never give a terminal
+      // there a lead.
+      const kept = saved ? this.identity(input.id) : undefined
       // Every new terminal draws its session's next number, for its handle, `t3`, and its
       // default title, "Terminal 03", even one given its own title.
       const number = kept ? undefined : (drawn ?? this.nextNumber(input.sessionId))
@@ -815,6 +830,7 @@ export class Terminals {
       if (input.title !== undefined) naming = renamedTo(naming, input.title)
       if (opener?.title !== undefined) naming = openedWith(naming, opener.title, opener.by)
       const openedBy = kept?.openedBy ?? opener?.by ?? null
+      const ledBy = kept ? kept.ledBy : opener?.withBrief ? opener.by : null
       const work = saved?.work ?? null
       const titled = this.titled(naming, { work, handle, openedBy })
       const resume =
@@ -836,6 +852,7 @@ export class Terminals {
           sessionId: input.sessionId,
           ...titled,
           handle,
+          ledBy,
           started: true,
           command: input.command ?? saved?.command ?? null,
           lastProgram: saved?.lastProgram ?? null,
@@ -870,6 +887,7 @@ export class Terminals {
         origin,
         agents: saved?.agents ?? {},
         binding: null,
+        suspended: null,
         activity: null,
         telemetry: null,
         watching: null,
@@ -880,6 +898,7 @@ export class Terminals {
         changed: false,
         savedAt: 0,
         submitted: started.resumes,
+        startupRuns: started.resumes,
         readyEntered: false,
         naming,
         nudges: noNudges,
@@ -895,7 +914,11 @@ export class Terminals {
         seenEntry: undefined,
       }
       this.records.set(record.summary.id, record)
+      // Restored as a shell that resumes nothing, there is no agent left to lead.
+      const unled = record.summary.ledBy !== null && !started.resumes
+      if (unled) record.summary = { ...record.summary, ledBy: null }
       this.register(record, expectedAgent(input.command, input.resume))
+      if (unled) this.messaging.endLead(record.summary.id)
       // The resumed agent shows its own history; a shell that resumes none, the transcript.
       const shown = saved?.transcript && !started.resumes && this.transcripts
       if (shown) this.show(record, saved.transcript!, new Date(saved.savedAt))
@@ -948,6 +971,7 @@ export class Terminals {
       sessionId: terminal.sessionId,
       ...this.titled(terminal.naming, terminal),
       handle: terminal.handle,
+      ledBy: terminal.ledBy,
       started: false,
       command: terminal.command,
       lastProgram: terminal.lastProgram,
@@ -1003,7 +1027,14 @@ export class Terminals {
    */
   private register(record: Record, agent: AgentName | null): void {
     const { id, sessionId, handle } = record.summary
-    this.messaging.register(id, { projectId: this.projectOf(sessionId), sessionId }, handle)
+    // Its lead is the agent in the terminal that opened it with a brief, until the agent
+    // it leads exits.
+    this.messaging.register(
+      id,
+      { projectId: this.projectOf(sessionId), sessionId },
+      handle,
+      record.summary.ledBy,
+    )
     this.messaging.expect(id, agent)
   }
 
@@ -1172,8 +1203,12 @@ export class Terminals {
     // Typing before the shell resumes its agent cancels the resume, so the shell gets
     // what was typed. A cancelled resume leaves its session free for another terminal.
     const claim = record.resumeClaim
-    if (this.cancelResume(record) && claim && this.claims.get(claim) === record.summary.id)
-      this.claims.delete(claim)
+    if (this.cancelResume(record)) {
+      record.startupRuns = false
+      // The person took the terminal over before its agent ever ran: nothing to lead.
+      this.endLead(record)
+      if (claim && this.claims.get(claim) === record.summary.id) this.claims.delete(claim)
+    }
     if (/[\r\n]/.test(data)) record.submitted = true
     if (keys.some(({ kind }) => kind === "enter") && this.readyOf(record)) this.readyEnter(record)
     this.messaging.keys(
@@ -1673,6 +1708,7 @@ export class Terminals {
           } satisfies TerminalSummary,
           foreground: undefined,
           binding: null,
+          suspended: null,
           root: null,
           held: null,
           seenEntry: undefined,
@@ -1688,10 +1724,14 @@ export class Terminals {
           exitQueued: false,
           closing: undefined,
           submitted: started.resumes,
+          startupRuns: started.resumes,
           readyEntered: false,
         })
         // The earlier shell's screen shows above the new one's.
         if (earlier) this.show(record, earlier, null)
+        // Restarted to resume the worker's agent session, it stays led; restarted as a plain
+        // shell, there is no agent left to lead.
+        if (!started.resumes) this.endLead(record)
         this.register(record, input.resume ?? null)
         this.listen(record)
         this.announce(record)
@@ -2159,13 +2199,16 @@ export class Terminals {
         by: record.summary.handle,
         ...(request.title !== undefined && { title: request.title }),
         ...(command !== undefined && { command }),
+        // Only an agent opened with a brief is led by the one that opened it.
+        withBrief: request.agent !== undefined,
       },
     )
     let task: SendAnswer | undefined
     if (asked.type === "answered" && "terminalId" in asked.answer) {
       this.openers.set(asked.answer.terminalId, charged)
       const opened = this.records.get(asked.answer.terminalId)
-      // The task goes to the first session of the agent it starts there, from the opener.
+      // The task goes to the first session of the agent it starts there, from the opener,
+      // which leads that terminal: it is the lead's first message.
       if (opened && request.message !== undefined) {
         // Its first typed entry is this line, where a transcript tells its prompts.
         if (started.prompted && started.nonce) opened.startedWith = started.nonce
@@ -2887,9 +2930,23 @@ export class Terminals {
     record.promptedAt = Date.now()
     record.submitted = false
     record.readyEntered = false
-    this.cancelResume(record)
+    // Whether the startup command (an agent opened or resumed there) ran, so this prompt
+    // is the first after it ended.
+    const ran = record.startupRuns && !this.cancelResume(record)
+    record.startupRuns = false
     record.changed = true
     const moved = cwd !== record.summary.cwd
+    const { binding } = record
+    // The agent it was started to run left without ever binding a session (a failed
+    // login, Ctrl-C at startup, a declined trust): the lead it had ends with it. One bound
+    // ends the lead only once its process is gone; suspended with Ctrl+Z it still runs,
+    // and comes back with `fg`. A process Novadeck can't name can't be told suspended.
+    if (binding === null) {
+      // Or the agent a Ctrl+Z left suspended, found gone with no session bound since.
+      if (ran || (record.suspended !== null && !alive(record.suspended))) this.endLead(record)
+    } else if (binding.instance && alive(binding.instance)) {
+      record.suspended = binding.instance
+    } else this.endLead(record)
     this.endBinding(record)
     // An agent whose prompt showed, with no session bound, left with it.
     this.messaging.unshown(record.summary.id)
@@ -3028,6 +3085,13 @@ export class Terminals {
       const before = record.binding
       record.agents = next.sessions
       record.binding = next.binding
+      if (next.binding !== null) {
+        // After a suspended agent, a binding is that agent back from `fg`, or another the
+        // person started at the prompt, which its lead never directed.
+        if (record.suspended !== null && next.binding.instance !== record.suspended)
+          this.endLead(record)
+        record.suspended = null
+      }
       changed = true
       // A newly bound session waits for its first prompt; one still bound keeps its activity.
       const same =
@@ -3500,6 +3564,8 @@ export class Terminals {
     const { binding } = record
     if (!binding?.instance || alive(binding.instance)) return false
     record.left = binding
+    // The agent's process is gone: the lead it had ends with it.
+    this.endLead(record)
     return this.endBinding(record)
   }
 
@@ -3512,6 +3578,19 @@ export class Terminals {
       left.sessionId === event.sessionId &&
       (event.instance === null || event.instance === left.instance)
     )
+  }
+
+  /**
+   * Ends the terminal's lead, as the agent it led exited: kept, shown to watchers, and
+   * told to messaging, so what the former lead sends reads as a peer's from then on.
+   */
+  private endLead(record: Record): void {
+    if (record.summary.ledBy === null) return
+    record.summary = { ...record.summary, ledBy: null }
+    record.suspended = null
+    this.messaging.endLead(record.summary.id)
+    this.save(record, false)
+    this.announce(record)
   }
 
   /**
@@ -3831,6 +3910,7 @@ export class Terminals {
         handle: record.summary.handle,
         naming: record.naming,
         openedBy: record.openedBy,
+        ledBy: record.summary.ledBy,
         work: record.work,
         command: record.summary.command,
         lastProgram: record.summary.lastProgram,

@@ -401,6 +401,10 @@ export const terminalSummary = z.strictObject({
   // as saved, as after the runner restarted, has none until a client restores it, with
   // `create` and `restore`.
   started: z.boolean(),
+  // The handle of the terminal whose agent opened this one with a brief, its lead; null
+  // when none. It changes only when the lead is set or ended, as when the agent here
+  // exits, not while the lead's terminal runs or stops.
+  ledBy: handle.nullable(),
   // The command it was opened to run at its first prompt; null for a plain shell.
   command: startupCommand.nullable(),
   // The program in its foreground when its shell was last seen, which a fresh shell

@@ -659,12 +659,31 @@ const keyed = (delivery: Delivery, submits: boolean, at: number | null): Deliver
 export const continues = (delivery: Delivery): boolean =>
   stoppable(delivery) && !delivery.box.queuing && delivery.continued < maxContinuations
 
+/** The call of a running turn that a lead's message reaches its agent at, in `send`'s words. */
+export type MidTurnCall = "tool call" | "model call"
+
+/**
+ * Where a lead's message reaches the harness's agent while its turn runs: at its next tool
+ * call, or, where a hook asks before every model call (`reinjectPerCall`), its next model
+ * call; undefined where it waits for the turn's end.
+ */
+export const midTurnCall = (
+  hasToolHook: boolean,
+  reinjectPerCall: boolean,
+): MidTurnCall | undefined =>
+  hasToolHook ? "tool call" : reinjectPerCall ? "model call" : undefined
+
 /**
  * When a message sent now would reach the agent, in the words `send` answers with. A
  * harness that sends nothing when a turn fails, as Codex, may only end its turn with its
- * next prompt.
+ * next prompt. The lead's message (`midTurn`, the call its harness delivers it at, where
+ * it does) reaches a running turn at the agent's next such call instead.
  */
-export const route = (delivery: Delivery, silentOnFailure: boolean): string => {
+export const route = (
+  delivery: Delivery,
+  silentOnFailure: boolean,
+  midTurn: MidTurnCall | undefined,
+): string => {
   switch (delivery.state) {
     case "fresh":
       return "when its agent's first turn starts"
@@ -674,8 +693,9 @@ export const route = (delivery: Delivery, silentOnFailure: boolean): string => {
       return "ringing it now"
     case "working":
       if (delivery.phase === "background") return "when its next turn starts"
+      if (midTurn) return `at its next ${midTurn}`
       return silentOnFailure ? "at its turn's end or its next prompt" : "when its current turn ends"
     default:
-      return "when the person next submits a prompt there"
+      return "when the user next submits a prompt there"
   }
 }
