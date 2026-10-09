@@ -4,18 +4,22 @@ Releases from `main` are signed on every platform once the signing credentials a
 the repository's settings. Until a platform's credentials are there, its package is
 built unsigned, as before. Pull requests are never signed.
 
-| Platform | What is signed                                                                                          | How                                                |
-| -------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| macOS    | The app bundle and every binary in it, the relay included, plus the voice engine's server and libraries | Developer ID, hardened runtime, notarized, stapled |
-| Windows  | The portable executable, the app inside it, its DLLs and native modules, the relay and the voice engine | Azure Artifact Signing                             |
-| All      | Every release asset                                                                                     | GitHub build provenance attestations               |
-| All      | `SHA256SUMS`, the checksums of every asset                                                              | A detached GPG signature, `SHA256SUMS.asc`         |
+| Platform | What is signed                                                                                                                            | How                                                |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| macOS    | The app bundle and every binary in it, the relay included, plus the voice engine's server and libraries                                   | Developer ID, hardened runtime, notarized, stapled |
+| Windows  | The installer, its uninstaller, the portable executable, the app inside them, its DLLs and native modules, the relay and the voice engine | Azure Artifact Signing                             |
+| All      | Every release asset                                                                                                                       | GitHub build provenance attestations               |
+| All      | `SHA256SUMS`, the checksums of every asset                                                                                                | A detached GPG signature, `SHA256SUMS.asc`         |
 
 The release workflow turns each platform on by itself: macOS when any of its secrets is
 set, Windows when any of its `AZURE_SIGNING_*` variables is, and the checksums' signature
 when `GPG_PRIVATE_KEY` is. From then on the release
 fails and names whatever that platform still lacks, rather than shipping it unsigned. After packaging, it checks the signatures: `codesign`,
-`spctl` and `stapler` on macOS, and `Get-AuthenticodeSignature` on Windows.
+`spctl` and `stapler` on macOS, for the app in the ZIP and in the disk image, and
+`Get-AuthenticodeSignature` on Windows.
+
+The macOS disk image itself isn't signed: Gatekeeper checks the app people drag out of
+it, which carries its notarization ticket.
 
 ## macOS
 
@@ -86,8 +90,8 @@ fewer antivirus false positives.
 
 ## Checking a download on any platform
 
-Linux checks no signature when an AppImage starts, so a Linux download is checked by
-hand, and these work for the macOS and Windows packages too.
+Linux checks no signature when an AppImage starts or a deb or rpm installs, so a Linux
+download is checked by hand, and these work for the macOS and Windows packages too.
 
 Each release attests every asset it publishes. The attestation records which workflow
 run, commit and repository built a file, and is logged in Sigstore's public

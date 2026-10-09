@@ -107,12 +107,15 @@ jobs:
             target: linux
             files: |
               application/host/release/*.AppImage
+              application/host/release/*.deb
+              application/host/release/*.rpm
               application/host/release/novadeck-whisper-linux-x64.tar.gz
           - name: macOS
             os: macos-latest
             target: mac
             files: |
               application/host/release/*.zip
+              application/host/release/*.dmg
               application/host/release/novadeck-whisper-darwin-universal.tar.gz
           - name: Windows
             os: windows-latest
@@ -298,11 +301,12 @@ jobs:
       # Voice input's engine, whisper.cpp built for this platform (see application/whisper),
       # is compiled here, not by the Quality workflow's builds: it takes minutes, and its
       # archive is a release asset the app downloads, while the app ships only its manifest.
-      - name: Install Vulkan Build Dependencies (Linux)
+      # The voice engine's Vulkan backend, and rpmbuild for the rpm package.
+      - name: Install Build Dependencies (Linux)
         if: matrix.target == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libvulkan-dev glslc spirv-headers
+          sudo apt-get install -y --no-install-recommends libvulkan-dev glslc spirv-headers rpm
 
       - name: Install Vulkan SDK (Windows)
         if: matrix.target == 'win'
@@ -387,6 +391,15 @@ jobs:
           spctl --assess --type execute --verbose=2 "$bundle"
           xcrun stapler validate "$bundle"
 
+          # The disk image holds its own copy of the bundle, which people drag out of it.
+          image="$RUNNER_TEMP/novadeck-verify-image"
+          hdiutil attach -nobrowse -readonly -mountpoint "$image" "$(find application/host/release -maxdepth 1 -name '*.dmg' -print -quit)" > /dev/null
+          bundle="$(find "$image" -maxdepth 1 -name '*.app' -print -quit)"
+          codesign --verify --deep --strict --verbose=2 "$bundle"
+          spctl --assess --type execute --verbose=2 "$bundle"
+          xcrun stapler validate "$bundle"
+          hdiutil detach -force "$image" > /dev/null
+
           tar -xzf application/whisper/dist/novadeck-whisper-*.tar.gz -C "$verify/engine"
           for file in "$verify"/engine/whisper-server "$verify"/engine/*.dylib; do
             if [[ -f "$file" && ! -L "$file" ]]; then
@@ -413,94 +426,162 @@ jobs:
           }
           Write-Host "$($files.Count) files are validly signed."
 
-      - name: Smoke Test Linux Package
+      # Each package runs for ten seconds as people get it: the AppImage as it is, the deb
+      # installed, and the app from the macOS ZIP and disk image and from the Windows
+      # installer and portable executable.
+      - name: Smoke Test Linux Packages
         if: matrix.target == 'linux'
+        shell: bash
         run: |
-          artifact="$(realpath "$(find application/host/release -maxdepth 1 -name '*.AppImage' -print -quit)")"
-          test -n "$artifact"
-          chmod +x "$artifact"
-
-          unset APPDIR APPIMAGE
-          set +e
-          timeout --kill-after=5s 10s xvfb-run -a "$artifact" --appimage-extract-and-run
-          status=$?
-          set -e
-
-          if [[ "$status" -ne 124 ]]; then
-            echo "::error::The AppImage exited before the smoke-test interval (status $status)."
-            exit 1
-          fi
-
-      - name: Smoke Test macOS Package
-        if: matrix.target == 'mac'
-        timeout-minutes: 2
-        run: |
-          artifact="$(find application/host/release -maxdepth 1 -name '*.zip' -print -quit)"
-          test -n "$artifact"
-          smoke_directory="$RUNNER_TEMP/novadeck-smoke"
-          mkdir -p "$smoke_directory"
-          echo "Extracting macOS package"
-          ditto -x -k "$artifact" "$smoke_directory"
-          shopt -s nullglob
-          bundles=("$smoke_directory"/*.app)
-          if [[ "${#bundles[@]}" -ne 1 || ! -d "${bundles[0]}" ]]; then
-            echo "::error::Expected exactly one top-level macOS app bundle."
-            exit 1
-          fi
-          bundle="${bundles[0]}"
-          executable_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Contents/Info.plist")"
-          executable="$bundle/Contents/MacOS/$executable_name"
-          if [[ -z "$executable_name" || ! -x "$executable" || -d "$executable" ]]; then
-            echo "::error::The macOS bundle executable is missing or not executable."
-            exit 1
-          fi
-
-          echo "Launching $executable"
-          "$executable" &
-          pid=$!
-          sleep 10
-
-          if ! kill -0 "$pid" 2>/dev/null; then
-            wait "$pid" || true
-            echo "::error::The macOS application exited before the smoke-test interval."
-            exit 1
-          fi
-
-          echo "The macOS application stayed running for ten seconds; stopping it."
-          kill "$pid" 2>/dev/null || true
-          for _ in 1 2 3 4 5; do
-            if ! kill -0 "$pid" 2>/dev/null; then
-              break
+          release=application/host/release
+          launch() {
+            local what="$1" status
+            shift
+            set +e
+            timeout --kill-after=5s 10s xvfb-run -a "$@"
+            status=$?
+            set -e
+            if [[ "$status" -ne 124 ]]; then
+              echo "::error::The $what exited before the smoke-test interval (status $status)."
+              exit 1
             fi
-            sleep 1
-          done
-          if kill -0 "$pid" 2>/dev/null; then
-            echo "Forcing smoke-test process cleanup after five seconds."
-            kill -KILL "$pid" 2>/dev/null || true
-          fi
-          wait "$pid" || true
+          }
 
-      - name: Smoke Test Windows Package
+          artifact="$(realpath "$(find "$release" -maxdepth 1 -name '*.AppImage' -print -quit)")"
+          chmod +x "$artifact"
+          unset APPDIR APPIMAGE
+          launch AppImage "$artifact" --appimage-extract-and-run
+
+          sudo apt-get install -y "$(realpath "$(find "$release" -maxdepth 1 -name '*.deb' -print -quit)")"
+          launch "installed deb package" novadeck
+          sudo apt-get remove -y novadeck
+
+          # This runner can't install the rpm, so it checks what the rpm would install.
+          rpm="$(find "$release" -maxdepth 1 -name '*.rpm' -print -quit)"
+          rpm -qip "$rpm"
+          if ! rpm -qlp "$rpm" | grep -x /opt/novadeck/novadeck > /dev/null; then
+            echo "::error::The rpm package doesn't install /opt/novadeck/novadeck."
+            exit 1
+          fi
+
+      - name: Smoke Test macOS Packages
+        if: matrix.target == 'mac'
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          release=application/host/release
+          launch() {
+            local what="$1" bundles bundle executable_name executable pid
+            shopt -s nullglob
+            bundles=("$2"/*.app)
+            if [[ "${#bundles[@]}" -ne 1 || ! -d "${bundles[0]}" ]]; then
+              echo "::error::Expected exactly one top-level app bundle in the $what."
+              exit 1
+            fi
+            bundle="${bundles[0]}"
+            executable_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Contents/Info.plist")"
+            executable="$bundle/Contents/MacOS/$executable_name"
+            if [[ -z "$executable_name" || ! -x "$executable" || -d "$executable" ]]; then
+              echo "::error::The executable of the app in the $what is missing or not executable."
+              exit 1
+            fi
+
+            echo "Launching $executable"
+            "$executable" &
+            pid=$!
+            sleep 10
+
+            if ! kill -0 "$pid" 2>/dev/null; then
+              wait "$pid" || true
+              echo "::error::The app in the $what exited before the smoke-test interval."
+              exit 1
+            fi
+
+            echo "The app in the $what stayed running for ten seconds; stopping it."
+            kill "$pid" 2>/dev/null || true
+            for _ in 1 2 3 4 5; do
+              if ! kill -0 "$pid" 2>/dev/null; then
+                break
+              fi
+              sleep 1
+            done
+            if kill -0 "$pid" 2>/dev/null; then
+              echo "Forcing smoke-test process cleanup after five seconds."
+              kill -KILL "$pid" 2>/dev/null || true
+            fi
+            wait "$pid" || true
+          }
+
+          archive="$RUNNER_TEMP/novadeck-smoke"
+          mkdir -p "$archive"
+          echo "Extracting macOS package"
+          ditto -x -k "$(find "$release" -maxdepth 1 -name '*.zip' -print -quit)" "$archive"
+          launch ZIP "$archive"
+
+          image="$RUNNER_TEMP/novadeck-smoke-image"
+          hdiutil attach -nobrowse -readonly -mountpoint "$image" "$(find "$release" -maxdepth 1 -name '*.dmg' -print -quit)" > /dev/null
+          if [[ ! -L "$image/Applications" ]]; then
+            echo "::error::The disk image has no Applications shortcut to drag the app to."
+            exit 1
+          fi
+          launch "disk image" "$image"
+          hdiutil detach -force "$image" > /dev/null
+
+      - name: Smoke Test Windows Packages
         if: matrix.target == 'win'
         shell: pwsh
         run: |
-          $artifact = Get-ChildItem application/host/release -Filter *.exe | Select-Object -First 1
-          if ($null -eq $artifact) {
+          function Test-Launch([string] $Path, [string] $What) {
+            $process = Start-Process -FilePath $Path -PassThru
+            Start-Sleep -Seconds 10
+            $process.Refresh()
+
+            if ($process.HasExited) {
+              throw "The $What exited before the smoke-test interval with status $($process.ExitCode)."
+            }
+
+            Write-Host "The $What stayed running for ten seconds; stopping its process tree."
+            $process.Kill($true)
+            if (-not $process.WaitForExit(5000)) {
+              throw "The $What did not stop after smoke-test cleanup."
+            }
+          }
+
+          $portable = Get-ChildItem application/host/release -Filter *-portable.exe | Select-Object -First 1
+          if ($null -eq $portable) {
             throw "The portable executable was not found."
           }
+          Test-Launch $portable.FullName "portable executable"
 
-          $process = Start-Process -FilePath $artifact.FullName -PassThru
-          Start-Sleep -Seconds 10
-          $process.Refresh()
-
-          if ($process.HasExited) {
-            throw "The portable executable exited before the smoke-test interval with status $($process.ExitCode)."
+          $setup = Get-ChildItem application/host/release -Filter *-setup.exe | Select-Object -First 1
+          if ($null -eq $setup) {
+            throw "The installer was not found."
           }
+          $install = Start-Process -FilePath $setup.FullName -ArgumentList "/S" -Wait -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "The installer failed with status $($install.ExitCode)."
+          }
+          $folder = Join-Path $env:LOCALAPPDATA "Programs\novadeck"
+          $app = Join-Path $folder "novadeck.exe"
+          if (-not (Test-Path $app)) {
+            throw "The installer put no novadeck.exe in $folder."
+          }
+          Test-Launch $app "installed application"
 
-          Write-Host "The Windows application stayed running for ten seconds; stopping its process tree."
-          $process.Kill($true)
-          if (-not $process.WaitForExit(5000)) {
-            throw "The Windows application did not stop after smoke-test cleanup."
+          $uninstaller = Get-ChildItem $folder -Filter "Uninstall *.exe" | Select-Object -First 1
+          if ($null -eq $uninstaller) {
+            throw "The installer put no uninstaller in $folder."
+          }
+          $uninstall = Start-Process -FilePath $uninstaller.FullName -ArgumentList "/S" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) {
+            throw "The uninstaller failed with status $($uninstall.ExitCode)."
+          }
+          # The uninstaller runs from a copy of itself, so it may still be removing files.
+          for ($second = 0; $second -lt 30 -and (Test-Path $folder); $second++) {
+            Start-Sleep -Seconds 1
+          }
+          if (Test-Path $folder) {
+            throw "Uninstalling left $folder behind."
           }
 
       - name: Smoke Test Packaged Runner

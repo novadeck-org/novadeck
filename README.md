@@ -924,9 +924,15 @@ pnpm package:mac
 pnpm package:win
 ```
 
-Artifacts go to `application/host/release/`: a Linux x64 AppImage, a macOS
-universal ZIP, or a Windows x64 portable executable. Local builds are unsigned, so
-Gatekeeper or SmartScreen may warn. The application ID is `dev.mzpk.novadeck`.
+Artifacts go to `application/host/release/`:
+
+- Linux x64: an AppImage, and `.deb` and `.rpm` packages that install to `/opt/novadeck`.
+  Building the rpm needs `rpmbuild`, from the `rpm` package on Debian and Ubuntu.
+- macOS universal: a disk image (`.dmg`) to drag the app to Applications from, and a ZIP.
+- Windows x64: a one-click installer (`-setup.exe`) that installs for the current user
+  without an administrator prompt, and a portable executable (`-portable.exe`).
+
+Local builds are unsigned, so Gatekeeper or SmartScreen may warn. The application ID is `dev.mzpk.novadeck`.
 Releases are signed and notarized once the signing credentials are set up; see
 [docs/release-signing.md](docs/release-signing.md).
 
