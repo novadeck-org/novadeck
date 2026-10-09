@@ -89,4 +89,25 @@ describe("route reconciliation", () => {
       "/projects/project/sessions/initial/grid?terminal=01&dialog=preferences&section=shortcuts",
     )
   })
+
+  it("round-trips the sidebar panel through the URL", () => {
+    const pathname = "/projects/project/sessions/initial/grid"
+    for (const panel of ["sessions", "notifications"] as const) {
+      const { route } = resolveRoute(
+        fixture(),
+        { pathname, search: `?terminal=01&panel=${panel}` },
+        preferences,
+        1,
+      )
+      expect(route.panel).toBe(panel)
+      expect(routeUrl(route)).toBe(`${pathname}?terminal=01&panel=${panel}`)
+    }
+    const { route } = resolveRoute(
+      fixture(),
+      { pathname, search: "?terminal=01&panel=nowhere" },
+      preferences,
+      1,
+    )
+    expect(routeUrl(route)).toBe(`${pathname}?terminal=01`)
+  })
 })

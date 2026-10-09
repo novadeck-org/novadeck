@@ -152,6 +152,13 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       states,
       dispatch: () => sink?.dispatch,
       workspace: () => latest,
+      addInBackground: (to) => {
+        const target = { projectId: to.projectId, workspaceSessionId: to.workspaceSessionId }
+        const directory = latest?.projects.find((each) => each.id === to.projectId)?.directory
+        const terminal = inner.newTerminal({ target, directory: directory ?? "~" })
+        sink?.dispatch([{ type: "terminal/add", target, terminal, select: false }])
+        return { ...target, terminalId: terminal.id }
+      },
     }),
   }
 }

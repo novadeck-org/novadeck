@@ -61,6 +61,25 @@ export const terminalPhase = (terminal: TerminalMetadata, unread = false): Termi
   return "running"
 }
 
+// What a terminal asks of the person: an agent asking a question, waiting on a permission
+// or a plan to review, or one that finished while they looked elsewhere, on an error or on
+// its own. Most pressing first.
+export const terminalAsks = ["question", "permission", "plan", "failed", "done"] as const
+export type TerminalAsk = (typeof terminalAsks)[number]
+
+// What the terminal asks, as its phase reads: the kind of request it waits on, or, as its
+// reply is unread (`end`, how that turn ended), the way it finished. Undefined otherwise,
+// as for a request over an unread reply, or an ended terminal.
+export const terminalAsk = (
+  terminal: TerminalMetadata,
+  end?: "done" | "failed",
+): TerminalAsk | undefined => {
+  const phase = terminalPhase(terminal, end !== undefined)
+  if (phase === "attention")
+    return terminal.state === "running" ? terminal.agent?.attention?.kind : undefined
+  return phase === "done" ? end : undefined
+}
+
 // What a done terminal says, in words for its tab's description, its window and assistive
 // technology: done, or stopped on an error, its reply unread either way.
 export const doneText = (failed = false): string =>

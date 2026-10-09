@@ -21,12 +21,14 @@ export const createDebugPanel = ({
   states,
   dispatch,
   workspace,
+  addInBackground,
 }: {
   readonly launch: DemoLaunch
   readonly shell: DemoShell
   readonly states: DemoStates
   readonly dispatch: () => BackendSink["dispatch"] | undefined
   readonly workspace: () => Workspace | undefined
+  readonly addInBackground: DemoActionContext["addInBackground"]
 }) => {
   const { Notices } = states
   const DebugPanel = ({
@@ -63,6 +65,7 @@ export const createDebugPanel = ({
     const context = (): DemoActionContext => ({
       selected,
       addTerminal,
+      addInBackground,
       startFresh,
       dispatch: dispatch(),
       workspace,

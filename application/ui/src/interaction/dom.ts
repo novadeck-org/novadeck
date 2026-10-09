@@ -1,3 +1,5 @@
+import type { SidebarPanel } from "../model/types"
+
 // DOM contracts for keyboard policy and focus restoration. Library-specific
 // overlay markup stays here so interaction owners do not depend on it. `data-own-keys`
 // marks a region that takes its own keys, as the demo's debug panel does: the
@@ -82,10 +84,9 @@ export const classifyKeyTarget = (target: EventTarget | null): KeyTarget => ({
 export const terminalTabInteractionActive = (): boolean =>
   Boolean(document.querySelector(".terminal-tab.editing, .terminal-tab.dragging"))
 
-export const sidebarToggle = (panel: "terminals" | "sessions"): HTMLElement | null =>
+export const sidebarToggle = (panel: SidebarPanel): HTMLElement | null =>
   document.getElementById(`${panel}-toggle`)
-export const focusSidebarToggle = (panel: "terminals" | "sessions"): void =>
-  sidebarToggle(panel)?.focus()
+export const focusSidebarToggle = (panel: SidebarPanel): void => sidebarToggle(panel)?.focus()
 export const focusTerminalTab = (id: string): void =>
   document
     .querySelector<HTMLElement>(`[data-terminal-tab-id="${CSS.escape(id)}"] .sidebar-item-select`)
@@ -110,6 +111,9 @@ const focusStranded = (selector: string, leftFrom: string): void => {
 }
 export const focusZenCreate = (): void =>
   focusStranded("[data-workspace-zen-create]", "[data-workspace-zen-enter]")
+// The rail's toggle for a panel the Zen dock's bell just opened, when focus has nowhere else.
+export const focusSidebarToggleStranded = (panel: SidebarPanel): void =>
+  focusStranded(`#${panel}-toggle`, ".zen-notifications")
 export const focusZenEnter = (): void => focusStranded("[data-workspace-zen-enter]", ".zen-exit")
 
 export const focusTerminalInput = (id: string): boolean => {

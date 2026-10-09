@@ -1,9 +1,11 @@
+import type { ComponentProps } from "react"
 import { HashRouter } from "react-router"
 
 import type { CreateBackend } from "../backend/port"
 import { sidebarToggle } from "../interaction/dom"
 import { cancelTerminalTransition } from "../layouts/transition"
 import { useDesktop } from "../shell/desktop"
+import { panelLabels } from "../shell/panels"
 import { sidebarVisible } from "../shell/shell-state"
 import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
@@ -19,6 +21,7 @@ import { useWorkspaceEffects } from "./controller/useWorkspaceEffects"
 import { HeaderSection } from "./HeaderSection"
 import { currentState, currentTarget, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
+import { useNotificationBadge } from "./useNotifications"
 import { WorkspaceFooter } from "./WorkspaceFooter"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
 import { WorkspaceProvider } from "./WorkspaceProvider"
@@ -70,6 +73,16 @@ const WorkspaceEffects = (): null => {
   return null
 }
 
+// The rail and the Zen dock read the bell's badge themselves, so an unread change that leaves
+// the badge as it was re-renders neither them nor the app around them.
+const RailWithBadge = (
+  props: Omit<ComponentProps<typeof SidebarRail>, "badge">,
+): React.JSX.Element => <SidebarRail {...props} badge={useNotificationBadge()} />
+
+const ZenDockWithBadge = (
+  props: Omit<ComponentProps<typeof ZenDock>, "badge">,
+): React.JSX.Element => <ZenDock {...props} badge={useNotificationBadge()} />
+
 export const WorkspaceApp = (): React.JSX.Element => {
   const services = useWorkspaceServices()
   const { commands, canvas } = services
@@ -92,7 +105,7 @@ export const WorkspaceApp = (): React.JSX.Element => {
   const voice = useDictationController(services)
   useKeyboard(voice?.dictation)
   const sidebarRail = (mobile = false): React.JSX.Element => (
-    <SidebarRail
+    <RailWithBadge
       mobile={mobile}
       sidebarVisible={shell.sidebarVisible}
       sidebarPanel={sidebarPanel}
@@ -125,20 +138,21 @@ export const WorkspaceApp = (): React.JSX.Element => {
               if (!open) hideSidebar()
             }}
             mobileRail={sidebarRail(true)}
-            mobileLabel={sidebarPanel === "sessions" ? "Workspace sessions" : "Terminal sessions"}
+            mobileLabel={panelLabels[sidebarPanel]}
             mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
             sidebar={<SidebarSection />}
           >
             <WorkspaceStage canvas={canvas} />
           </WorkspacePanels>
           {zen && (
-            <ZenDock
+            <ZenDockWithBadge
               view={view}
               enabledViews={enabledViews}
               onCreate={() => add()}
               onViewChange={(next) => {
                 if (next !== view) changeView(next)
               }}
+              onNotifications={() => toggleSidebar("notifications")}
               onExit={exitZen}
             />
           )}

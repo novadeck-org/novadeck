@@ -12,7 +12,7 @@ import type { AgentStatus, TerminalMetadata, Workspace } from "../../model/types
 import type { TerminalKey } from "../port"
 import { terminalKeyId } from "../registry"
 import { promptRefused } from "./prompt-refusal"
-import { chatAgent, chatAgents } from "./samples"
+import { chatAgent, chatAgents, terminalSlot } from "./samples"
 import type { DemoDraft, DemoTranscript } from "./transcripts"
 import type { DemoTurns, TurnEvent } from "./turns"
 
@@ -125,7 +125,9 @@ export const createDemoChat = (
     return terminal ? { key, terminal } : undefined
   }
   const transcriptOf = (found: Found): DemoTranscript | undefined =>
-    found.key.projectId === seed.projects[0]?.id ? transcripts[found.terminal.id] : undefined
+    found.key.projectId === seed.projects[0]?.id
+      ? transcripts[terminalSlot(found.terminal.id)]
+      : undefined
   const opened = (found: Found | undefined): Conversation => {
     if (!runs(found)) return noConversation
     // The sample transcripts belong to the first project's terminals, as the engine's

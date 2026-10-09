@@ -163,8 +163,8 @@ export const noConversation: Conversation = {
   requests: [],
 }
 
-// A terminal by its full address: ids repeat across sessions and projects in some
-// backends, so a conversation is asked for by where its terminal is.
+// A terminal by its full address: a conversation is asked for by where its
+// terminal is, not by the terminal's ID alone.
 export type ConversationKey = {
   readonly projectId: string
   readonly workspaceSessionId: string

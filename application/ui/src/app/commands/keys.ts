@@ -11,7 +11,7 @@ import {
 import { nearestInDirection } from "../../model/layout/spatial"
 import { hasTile, isWindow, orderedTiles, tilesOf } from "../../model/roster"
 import { viewModes } from "../../model/state"
-import type { Tile } from "../../model/types"
+import type { SidebarPanel, Tile } from "../../model/types"
 import { sidebarVisible } from "../../shell/shell-state"
 import { cycleRecent, moveRecent } from "../../terminals/recent"
 import {
@@ -121,7 +121,7 @@ export const createKeyCommands = (
       return "handled"
     },
   })
-  const sidebar = (next: "terminals" | "sessions"): KeyCommand => ({
+  const sidebar = (next: SidebarPanel): KeyCommand => ({
     run: handled(() => {
       commands.setSwitcher(null)
       commands.toggleSidebar(next)

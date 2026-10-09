@@ -44,14 +44,26 @@
 .workspace[data-zen="true"] .grid-stage {
   padding-bottom: 5rem;
 }
+/* The dock's surface is its own layer, so it can rest dimmed while the notification bell,
+   which shows only when something waits, stays at full strength. */
 .zen-dock {
+  isolation: isolate;
   view-transition-name: zen-dock;
-  border: var(--border-width) solid var(--zen-dock-border-color, var(--color-line));
+  border: var(--border-width) solid transparent;
   border-radius: var(--zen-dock-radius, var(--radius-popover));
+  animation: zen-enter var(--motion-state) var(--ease-interface);
+}
+.zen-dock::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--border-width));
+  z-index: -1;
+  border: var(--border-width) solid var(--zen-dock-border-color, var(--color-line));
+  border-radius: inherit;
   background-color: var(--zen-dock-bg, color-mix(in srgb, var(--color-paper) 95%, transparent));
   box-shadow: var(--zen-dock-shadow, var(--shadow-control));
   backdrop-filter: blur(var(--zen-dock-blur, 8px));
-  animation: zen-enter var(--motion-state) var(--ease-interface);
+  pointer-events: none;
 }
 .zen-dock-reveal {
   display: grid;
@@ -79,13 +91,21 @@
   }
 }
 @media (hover: hover) and (pointer: fine) {
-  .zen-dock {
+  .zen-dock::before,
+  .zen-dock .zen-create,
+  .zen-dock .zen-reveal {
     opacity: var(--zen-dock-idle-opacity, 0.5);
     transition: opacity var(--motion-feedback) var(--ease-interface);
   }
-  .zen-dock[data-open="true"],
-  .zen-dock:hover,
-  .zen-dock:has(:focus-visible) {
+  .zen-dock[data-open="true"]::before,
+  .zen-dock[data-open="true"] .zen-create,
+  .zen-dock[data-open="true"] .zen-reveal,
+  .zen-dock:hover::before,
+  .zen-dock:hover .zen-create,
+  .zen-dock:hover .zen-reveal,
+  .zen-dock:has(:focus-visible)::before,
+  .zen-dock:has(:focus-visible) .zen-create,
+  .zen-dock:has(:focus-visible) .zen-reveal {
     opacity: 1;
   }
   .zen-dock .icon-button {

@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest"
 import { createTerminalState, workspaceReducer } from "../../model/state"
 import type { Workspace } from "../../model/types"
 import { createDemoEngine } from "./engine"
-import { createMockTerminal } from "./samples"
+import { createMockTerminal, demoTerminalId } from "./samples"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
-const first = { ...target, terminalId: "01" }
-const second = { ...target, terminalId: "02" }
+const first = { ...target, terminalId: demoTerminalId(target, 1) }
+const second = { ...target, terminalId: demoTerminalId(target, 2) }
 const fixture = (): Workspace => ({
   activeProjectId: "project",
   projects: [
@@ -21,7 +21,13 @@ const fixture = (): Workspace => ({
         name: id,
         visitedAt: 0,
         state: createTerminalState(
-          [createMockTerminal(1, "~/project"), createMockTerminal(2, "~/project")],
+          [1, 2].map((number) =>
+            createMockTerminal(
+              { projectId: "project", workspaceSessionId: id },
+              number,
+              "~/project",
+            ),
+          ),
           "grid",
           "grid",
         ),
@@ -65,7 +71,7 @@ describe("demo terminal engine", () => {
     workspace = workspaceReducer(workspace, {
       type: "terminal/visibility",
       target,
-      terminalId: "01",
+      terminalId: first.terminalId,
       hidden: true,
     })
     workspace = workspaceReducer(workspace, {
@@ -83,7 +89,13 @@ describe("demo terminal engine", () => {
     runtime.reconcile(workspace, [])
     expect(runtime.getSnapshot(first)).toBe(snapshot)
     expect(runtime.getSnapshot(first).draft).toBe("next command")
-    expect(runtime.getSnapshot({ ...first, workspaceSessionId: "other" }).entries).toEqual([])
+    expect(
+      runtime.getSnapshot({
+        ...first,
+        workspaceSessionId: "other",
+        terminalId: demoTerminalId({ ...target, workspaceSessionId: "other" }, 1),
+      }).entries,
+    ).toEqual([])
   })
 
   it("destroys a closed terminal and ignores its delayed callbacks", () => {
@@ -92,7 +104,7 @@ describe("demo terminal engine", () => {
     runtime.reconcile(workspace, [])
     runtime.run(first, "echo before close")
     runtime.reconcile(
-      workspaceReducer(workspace, { type: "terminal/close", target, terminalId: "01" }),
+      workspaceReducer(workspace, { type: "terminal/close", target, terminalId: first.terminalId }),
       [],
     )
     const removed = runtime.getSnapshot(first)
@@ -107,11 +119,11 @@ describe("demo terminal engine", () => {
     const workspace = fixture()
     const runtime = createDemoEngine()
     runtime.reconcile(workspace, [])
-    const third = { ...target, terminalId: "03" }
+    const third = { ...target, terminalId: demoTerminalId(target, 3) }
     const add = {
       type: "terminal/add",
       target,
-      terminal: createMockTerminal(3, "~/project"),
+      terminal: createMockTerminal(target, 3, "~/project"),
     } as const
     runtime.reconcile(workspaceReducer(workspace, add), [add])
     expect(runtime.getSnapshot(third).cleared).toBe(true)

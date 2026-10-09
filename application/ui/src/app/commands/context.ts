@@ -2,7 +2,7 @@ import type { Backend } from "../../backend/port"
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { Rect } from "../../model/layout/spatial"
 import type { WorkspaceStore } from "../../model/store"
-import type { SidebarPanel } from "../../shell/shell-state"
+import type { SidebarPanel } from "../../model/types"
 import type { Panes } from "../../terminals/companion/state"
 import type { Dictation } from "../../voice/dictation-control"
 import type { WorkspaceNavigator } from "../routing"
@@ -22,6 +22,8 @@ export type CommandEffects = {
   readonly transitionTerminal: (id: string, update: () => void) => void
   readonly cancelTransition: () => void
   readonly focusSidebarToggle: (panel: SidebarPanel) => void
+  // Focuses the panel's toggle after Zen's dock, where the person pressed, is gone.
+  readonly focusSidebarToggleStranded: (panel: SidebarPanel) => void
   readonly focusZenCreate: () => void
   readonly focusZenEnter: () => void
   readonly focusWorkspaceViewport: () => void

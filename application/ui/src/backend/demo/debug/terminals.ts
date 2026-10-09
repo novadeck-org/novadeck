@@ -1,4 +1,5 @@
 import { isAgentProgram } from "../../../model/process"
+import { terminalAsks, type TerminalAsk } from "../../../model/terminal-ending"
 import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "../../../model/types"
 import type { BackendAction, TerminalKey } from "../../port"
 
@@ -183,3 +184,95 @@ export const turnEnded = (outcome: AgentTurnEnd["outcome"], now: number): AgentS
   const reply = replies[outcome]
   return { working: false, lastTurn: { outcome, ...(reply ? { reply } : {}), at: now } }
 }
+
+// The live terminals of every session of every project but the one the person views,
+// project by project in turn, so each kind of notification lands in several projects. An
+// unread finish marks only a terminal the person doesn't look at.
+export const otherTerminals = (
+  workspace: Workspace | undefined,
+  viewed: TerminalKey | undefined,
+): TerminalKey[] => {
+  const perProject = (workspace?.projects ?? []).map((project) =>
+    project.history.flatMap((session) =>
+      session.state.roster.terminals
+        .filter(
+          (terminal) =>
+            terminal.state !== "exited" &&
+            terminal.state !== "failed" &&
+            !(
+              viewed?.projectId === project.id &&
+              viewed.workspaceSessionId === session.id &&
+              viewed.terminalId === terminal.id
+            ),
+        )
+        .map((terminal) => ({
+          projectId: project.id,
+          workspaceSessionId: session.id,
+          terminalId: terminal.id,
+        })),
+    ),
+  )
+  const keys: TerminalKey[] = []
+  for (let round = 0; perProject.some((each) => each.length > round); round += 1)
+    for (const each of perProject) if (each[round]) keys.push(each[round]!)
+  return keys
+}
+
+// The kinds of notification dealt out to `count` terminals in turn, most pressing first.
+export const dealKinds = (count: number): TerminalAsk[] =>
+  Array.from({ length: count }, (_, index) => terminalAsks[index % terminalAsks.length]!)
+
+const requests = {
+  question: "question",
+  permission: "permission",
+  plan: "plan",
+} as const
+
+// The start of a notification: a request waits at once; a finish begins as the agent
+// works, and `endNotification` ends its turn.
+export const beginNotification = (
+  kind: TerminalAsk,
+  key: TerminalKey,
+  terminal: TerminalMetadata | undefined,
+): BackendAction[] =>
+  agentIn(key, terminal, kind === "done" || kind === "failed" ? working : asking(requests[kind], 1))
+
+// The end of a finish's turn, which the app marks unread when the person looks elsewhere;
+// nothing for a request.
+export const endNotification = (
+  kind: TerminalAsk,
+  key: TerminalKey,
+  now: number,
+): BackendAction[] =>
+  kind === "done" || kind === "failed"
+    ? agentSays(key, turnEnded(kind === "done" ? "completed" : "failed", now))
+    : []
+
+// The keys of the terminals the predicate picks, in every session of every project.
+const terminalsWhere = (
+  workspace: Workspace | undefined,
+  pick: (terminal: TerminalMetadata) => boolean,
+): TerminalKey[] =>
+  workspace?.projects.flatMap((project) =>
+    project.history.flatMap((session) =>
+      session.state.roster.terminals.filter(pick).map((terminal) => ({
+        projectId: project.id,
+        workspaceSessionId: session.id,
+        terminalId: terminal.id,
+      })),
+    ),
+  ) ?? []
+
+// The terminals that ask for the person or hold a finished turn.
+export const noisyTerminals = (workspace: Workspace | undefined): TerminalKey[] =>
+  terminalsWhere(
+    workspace,
+    (terminal) =>
+      terminal.state === "running" &&
+      (terminal.agent?.attention !== undefined || terminal.agent?.lastTurn !== undefined),
+  )
+
+// The terminals back at their shell's prompt. One may still hold an unread finish from
+// the agent it ran, which only a new turn of an agent there clears.
+export const promptTerminals = (workspace: Workspace | undefined): TerminalKey[] =>
+  terminalsWhere(workspace, (terminal) => terminal.state === "idle")

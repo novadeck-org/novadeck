@@ -48,6 +48,7 @@
 @import "./layouts/workspace.css" layer(components);
 @import "./layouts/transition.css" layer(components);
 @import "./app/boot-splash.css" layer(components);
+@import "./shell/notification-badge.css" layer(components);
 @import "./shell/zen-dock.css" layer(components);
 @import "./terminals/companion/prose.css" layer(components);
 @import "./terminals/companion/syntax.css" layer(components);

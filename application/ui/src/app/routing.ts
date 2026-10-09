@@ -8,7 +8,13 @@ import {
   type WorkspaceAction,
 } from "../model/state"
 import type { WorkspaceTransaction } from "../model/store"
-import type { PreferencesValue, ViewMode, Workspace } from "../model/types"
+import {
+  sidebarPanels,
+  type PreferencesValue,
+  type SidebarPanel,
+  type ViewMode,
+  type Workspace,
+} from "../model/types"
 import { preferencesTabs, type PreferencesTab } from "../preferences/settings"
 
 export type WorkspaceRoute = {
@@ -16,7 +22,7 @@ export type WorkspaceRoute = {
   sessionId: string
   view: ViewMode
   terminal: string
-  panel: "terminals" | "sessions"
+  panel: SidebarPanel
   dialog: "search" | "preferences" | null
   section: PreferencesTab
 }
@@ -51,11 +57,15 @@ export const workspaceRoute = (workspace: Workspace): WorkspaceRoute => ({
 const sectionOf = (name: string | null): PreferencesTab =>
   preferencesTabs.find(({ id }) => id === name)?.id ?? "general"
 
+// The sidebar panel a URL names, Terminals for anything else.
+const panelOf = (name: string | null): SidebarPanel =>
+  sidebarPanels.find((panel) => panel === name) ?? "terminals"
+
 export const routeUrl = (route: WorkspaceRoute): string => {
   const search = new URLSearchParams()
   // Keep an explicit empty selection so Canvas can have no active terminal.
   search.set("terminal", route.terminal)
-  if (route.panel === "sessions") search.set("panel", route.panel)
+  if (route.panel !== "terminals") search.set("panel", route.panel)
   if (route.dialog) search.set("dialog", route.dialog)
   if (route.dialog === "preferences" && route.section !== "general")
     search.set("section", route.section)
@@ -121,7 +131,7 @@ export const resolveRoute = (
       sessionId: session.id,
       view,
       terminal,
-      panel: search.get("panel") === "sessions" ? "sessions" : "terminals",
+      panel: panelOf(search.get("panel")),
       dialog: dialog === "search" || dialog === "preferences" ? dialog : null,
       section: dialog === "preferences" ? sectionOf(search.get("section")) : "general",
     },

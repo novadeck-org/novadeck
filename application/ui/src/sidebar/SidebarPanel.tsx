@@ -14,6 +14,7 @@ export const SidebarPanel = ({
   count,
   active,
   onClose,
+  actions,
   children,
 }: {
   id: string
@@ -22,6 +23,8 @@ export const SidebarPanel = ({
   count?: number
   active: boolean
   onClose: () => void
+  // Quiet buttons beside the close button.
+  actions?: ReactNode
   children: ReactNode
 }): React.JSX.Element => (
   <section
@@ -43,16 +46,19 @@ export const SidebarPanel = ({
           {count !== undefined && <span className="sidebar-panel-count">{count}</span>}
         </h2>
       </Tooltip>
-      <Tooltip content="Hide">
-        <button
-          className="icon-button dim sidebar-close size-7"
-          type="button"
-          aria-label={`Hide ${title.toLowerCase()}`}
-          onClick={onClose}
-        >
-          <X size={15} strokeWidth={1.6} />
-        </button>
-      </Tooltip>
+      <div className="flex shrink-0 items-center gap-0.5">
+        {actions}
+        <Tooltip content="Hide">
+          <button
+            className="icon-button dim sidebar-close size-7"
+            type="button"
+            aria-label={`Hide ${title.toLowerCase()}`}
+            onClick={onClose}
+          >
+            <X size={15} strokeWidth={1.6} />
+          </button>
+        </Tooltip>
+      </div>
     </header>
     <div className="sidebar-panel-content flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
   </section>

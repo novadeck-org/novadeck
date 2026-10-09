@@ -127,8 +127,19 @@ export const chooseView = async (name: "Focus" | "Grid" | "Canvas"): Promise<voi
 
 export const sidebar = (): Locator => page.getByRole("complementary")
 
-export const sidebarPanel = (name: "Terminals" | "Sessions"): Locator =>
-  page.getByRole("radiogroup", { name: "Sidebar actions" }).getByRole("radio", { name })
+export const sidebarPanel = (name: "Terminals" | "Sessions" | "Notifications"): Locator =>
+  page
+    .getByRole("radiogroup", { name: "Sidebar actions" })
+    // The bell adds how many wait to its name, e.g. "Notifications, 3 waiting".
+    .getByRole("radio", { name: name === "Notifications" ? /^Notifications(,|$)/ : name })
+
+/** The Notifications sidebar's rows, one for each terminal that asks for the person. */
+export const notifications = (): Locator =>
+  page.getByRole("list", { name: "Notifications" }).getByRole("listitem")
+
+/** The notification about the terminal in a project, e.g. `notification("docs-site")`. */
+export const notification = (project: string): Locator =>
+  notifications().filter({ hasText: project })
 
 /** A terminal as shown in the active Focus, Grid, or Canvas view. */
 export const terminal = (name: string): Locator =>

@@ -18,7 +18,7 @@ import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
-import { createMockTerminal, demoFinishes, demoSeed } from "./samples"
+import { createMockTerminal, demoFinishes, demoSeed, demoTerminalId, terminalSlot } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { storefrontArtifacts } from "./showcase/storefront"
 import { agentTranscripts, type DemoTranscript } from "./transcripts"
@@ -31,6 +31,9 @@ const sampleAgents: readonly AgentConnection[] = [
   { agent: "codex", available: true, connected: false, busy: false },
   { agent: "agy", available: false, connected: false, busy: false },
 ]
+
+// A session by its full address: every sample project's session shares one ID.
+const addressOf = (projectId: string, sessionId: string) => `${projectId}/${sessionId}`
 
 // A self-contained backend with sample projects and simulated terminals. It keeps no
 // transcripts and connects no agents, but its settings switch like the runner's.
@@ -52,7 +55,9 @@ export const demoBackend = (
   const seed = demoSeed(Date.now())
   const numbers = new Map(
     seed.projects.flatMap((project) =>
-      project.sessions.map((session) => [session.id, session.terminals.length] as const),
+      project.sessions.map(
+        (session) => [addressOf(project.id, session.id), session.terminals.length] as const,
+      ),
     ),
   )
   let latest: Workspace | undefined
@@ -62,10 +67,16 @@ export const demoBackend = (
       const session = latest?.projects
         .find((project) => project.id === target.projectId)
         ?.history.find((each) => each.id === target.workspaceSessionId)
-      const count = session?.state.roster.terminals.length ?? 0
-      const number = Math.max(numbers.get(target.workspaceSessionId) ?? count, count) + 1
-      numbers.set(target.workspaceSessionId, number)
-      const terminal = createMockTerminal(number, directory)
+      const highest = Math.max(
+        0,
+        ...(session?.state.roster.terminals ?? []).map((terminal) =>
+          Number(terminalSlot(terminal.id)),
+        ),
+      )
+      const address = addressOf(target.projectId, target.workspaceSessionId)
+      const number = Math.max(numbers.get(address) ?? highest, highest) + 1
+      numbers.set(address, number)
+      const terminal = createMockTerminal(target, number, directory)
       return title ? { ...terminal, name: title } : terminal
     },
     commit: (workspace, actions) => {
@@ -74,8 +85,8 @@ export const demoBackend = (
       const gone = latest?.projects.filter(
         (project) => !workspace.projects.some((each) => each.id === project.id),
       )
-      for (const session of gone?.flatMap((project) => project.history) ?? [])
-        numbers.delete(session.id)
+      for (const project of gone ?? [])
+        for (const session of project.history) numbers.delete(addressOf(project.id, session.id))
       latest = workspace
       engine.reconcile(workspace, actions)
     },
@@ -135,8 +146,8 @@ const namings: Readonly<
 
 // What a reset names a sample terminal: the agent's name for the first, else the
 // session's default.
-const automaticSource = (terminalId: string): TitleSource =>
-  terminalId === "01" ? { kind: "agent", by: "t1" } : { kind: "default" }
+const automaticSource = (slot: string): TitleSource =>
+  slot === "01" ? { kind: "agent", by: "t1" } : { kind: "default" }
 
 // The agents demo with messages between its agents: handles, who named each terminal,
 // threads in every state, one held for release, and the pause switch.
@@ -149,10 +160,12 @@ export const withMessages = (backend: Backend, now: number): Backend => {
         ...session,
         terminals: session.terminals.map((terminal) => ({
           ...terminal,
-          handle: `t${Number(terminal.id)}`,
+          handle: `t${Number(terminalSlot(terminal.id))}`,
           // The agent that named the checkout review opened it.
-          ...(terminal.id === "04" ? { ledBy: "t1" } : {}),
-          ...(namings[terminal.id] ? { titleSource: namings[terminal.id]!.source } : {}),
+          ...(terminalSlot(terminal.id) === "04" ? { ledBy: "t1" } : {}),
+          ...(namings[terminalSlot(terminal.id)]
+            ? { titleSource: namings[terminalSlot(terminal.id)]!.source }
+            : {}),
         })),
       })),
     })),
@@ -175,6 +188,7 @@ export const withMessages = (backend: Backend, now: number): Backend => {
     messages: createDemoMessages(checkoutMailboxes(now, targets)),
     resetTitle: (key) => {
       const { projectId, workspaceSessionId, terminalId } = key
+      const slot = terminalSlot(terminalId)
       const window = windowReset(latest, key)
       sink?.dispatch(
         window.length
@@ -184,8 +198,8 @@ export const withMessages = (backend: Backend, now: number): Backend => {
                 type: "terminal/update",
                 target: { projectId, workspaceSessionId },
                 terminalId,
-                name: namings[terminalId]?.automatic ?? `Terminal ${terminalId}`,
-                titleSource: automaticSource(terminalId),
+                name: namings[slot]?.automatic ?? `Terminal ${slot}`,
+                titleSource: automaticSource(slot),
               },
             ],
       )
@@ -231,9 +245,9 @@ const withStorefrontArtifacts = (backend: Backend): Backend => {
   const session = { projectId: "storefront", workspaceSessionId: "initial" }
   const showcase = createShowcase({
     agents: [],
-    shown: Object.entries(storefrontArtifacts).map(([terminalId, artifacts]) => ({
-      key: { ...session, terminalId },
-      handle: `t${Number(terminalId)}`,
+    shown: Object.entries(storefrontArtifacts).map(([slot, artifacts]) => ({
+      key: { ...session, terminalId: demoTerminalId(session, Number(slot)) },
+      handle: `t${Number(slot)}`,
       artifacts,
     })),
   })

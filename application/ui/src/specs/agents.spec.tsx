@@ -165,11 +165,13 @@ describe("An agent Novadeck can't hear from", () => {
 })
 
 // The demo's Claude Code in Build is idle at its prompt; a prompt there works a moment,
-// then finishes with a reply, the command it left running still running.
-const promptBuild = async (): Promise<void> => {
+// then finishes with a reply, the command it left running still running. A `view` is
+// chosen before the prompt, so the turn's moment goes to looking away from it.
+const promptBuild = async (view?: "Grid"): Promise<void> => {
   await openWorkspace("/?demo=agents")
   const skip = page.getByRole("button", { name: "Skip for now" })
   if (await skip.query()) await skip.click()
+  if (view) await chooseView(view)
   await terminalTab("Build").click()
   await commandInput("Build").fill("Ship the docs")
   await userEvent.keyboard("{Enter}")
@@ -197,8 +199,7 @@ describe("An agent that finishes", () => {
     })
 
     it("shows it on a window in view, and clears once the person selects it", async () => {
-      await promptBuild()
-      await chooseView("Grid")
+      await promptBuild("Grid")
       await terminalTab("Tests").click()
       const window = terminal("Build")
       await expect.element(window, { timeout: 5000 }).toHaveAttribute("data-terminal-phase", "done")

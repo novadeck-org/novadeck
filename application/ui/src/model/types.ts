@@ -3,6 +3,9 @@ import type { CompanionItem, ItemId } from "./companion"
 import type { Bar } from "./companion-bar"
 
 export type ViewMode = "focus" | "grid" | "canvas"
+// The sidebar's panels, each with a toggle on the rail.
+export const sidebarPanels = ["terminals", "sessions", "notifications"] as const
+export type SidebarPanel = (typeof sidebarPanels)[number]
 export type WindowedView = Exclude<ViewMode, "focus">
 export type PreferencesValue = {
   fontSize: number

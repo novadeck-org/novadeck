@@ -24,8 +24,28 @@ const rules: Record<string, readonly string[]> = {
   "voice/": ["voice/", "model/", "ui-toolkit/"],
   "terminals/": [...base, "terminals/", "sidebar/"],
   "layouts/": [...base, "layouts/", "sidebar/", "terminals/"],
-  "shell/": [...base, "shell/", "sidebar/", "terminals/", "layouts/", "projects/"],
-  "app/": ["app/", "backend/", ...base, ...features, "terminals/", "layouts/", "shell/", "voice/"],
+  // What asks for the person across the workspace: terminals' requests and unread finishes.
+  "notifications/": [...base, "notifications/", "sidebar/", "terminals/unread-state.ts"],
+  "shell/": [
+    ...base,
+    "shell/",
+    "sidebar/",
+    "terminals/",
+    "layouts/",
+    "projects/",
+    "notifications/",
+  ],
+  "app/": [
+    "app/",
+    "backend/",
+    ...base,
+    ...features,
+    "terminals/",
+    "layouts/",
+    "shell/",
+    "voice/",
+    "notifications/",
+  ],
   // Commands are plain functions over the stores: no React, no DOM libraries.
   "app/commands/": [
     "app/commands/",
@@ -38,6 +58,8 @@ const rules: Record<string, readonly string[]> = {
     "interaction/keymap.ts",
     "shell/shell-state.ts",
     "terminals/rename-state.ts",
+    // Unread finishes, which the notification center's dismissals clear.
+    "terminals/unread-state.ts",
     // The switcher's arrangement, which commands change by its pure functions.
     "projects/project-arrangement.ts",
     "terminals/recent.ts",

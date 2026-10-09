@@ -197,6 +197,12 @@ again; below 702px there are none. The order and the pins are kept in this brows
 app (`novadeck.project-arrangement` in local storage), not shared with other clients
 of the runner.
 
+The Notifications panel (the bell on the sidebar rail) lists everything across every
+project and session that waits on you: questions, permissions and plans to review, and
+agents that finished while you looked elsewhere. Click a row to reveal its terminal;
+dismiss a finish to mark it read. A count badge on the bell, and on Zen's dock, tells how
+many wait.
+
 The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
 The runner forgets the project with its sessions, what its agents showed and the
@@ -579,6 +585,14 @@ last one chosen.
 - **All at once:** add one terminal per state, named after it, so the tabs and the
   windows in Grid and Canvas show attention, done, error, ended and the rest side by
   side. You stay on one that needs permission; the done marks land on the others.
+- **Notification center:** "Fill the notification center" has up to 12 terminals across
+  the projects ask for you (questions, permissions, plans), and after 3 s finish done or
+  failed, so the Notifications panel lists every kind and the rail badge reads 9+. It
+  adds terminals to the current session if the workspace has too few, without selecting
+  them or leaving the Notifications panel, and leaves the selected terminal alone, since
+  a finish only counts while you look elsewhere. "Clear notifications" answers every
+  request and reads every finish, a terminal back at its prompt included, for the empty
+  panel.
 - **Demo:** boot into another variant.
 - **Startup:** boot again from the splash. "Splash hold" keeps it until you press
   Escape; "Slow attach" counts terminals attaching over about 3 s; each "Boot
@@ -664,6 +678,7 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `terminals/chat/`                                  | The agent's chat: its blocks, markdown reader, tool rows, requests and the composer.    |
 | `layouts/canvas/`, `grid/`, `focus/`               | View adapters and colocated library styles.                                             |
 | `layouts/` (top level)                             | Helpers shared by views: view transitions, background gestures, visibility.             |
+| `notifications/`                                   | The notification center: what asks for the person across the workspace, and its panel.  |
 | `shell/`                                           | Header, rail, panels, zen dock, sidebar, and shell state transitions.                   |
 | `sidebar/`, `projects/`, `preferences/`, `search/` | Feature components.                                                                     |
 | `interaction/`                                     | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                   |
@@ -681,13 +696,14 @@ all; every layer that composes the page may use it, adapters included, and
 `backend/` builds on `model/` and uses React only for the port's types; adapters
 may add `ui-toolkit/`. `interaction/` builds on `model/` and imports no packages;
 features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
-`terminals/`; `shell/` may use `layouts/` and `projects/`. `app/` composes every
-feature layer and `backend/`, and within it only `app/backend.ts` imports a
+`terminals/`; `notifications/` builds on the base layers, `sidebar/` and
+`terminals/unread-state.ts`; `shell/` may use `layouts/`, `projects/` and
+`notifications/`. `app/` composes every feature layer, `notifications/` and `backend/`, and within it only `app/backend.ts` imports a
 backend adapter. `app/commands/` has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on `model/`,
 `interaction/keymap.ts`, `backend/port.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
-of `shell/` and `terminals/`, the companion panes' store and the chat's modes among them. Vendor
+of `shell/` and `terminals/` (unread finishes among them), the companion panes' store and the chat's modes among them. Vendor
 libraries stay in their adapters: XYFlow in `layouts/canvas/`, React Grid Layout
 in `layouts/grid/`, Allotment in `shell/`, dnd kit in `terminals/`, Ark UI in
 `ui-toolkit/`, React Router in `app/` and `shell/`, and React DOM in

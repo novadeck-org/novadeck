@@ -6,7 +6,7 @@ import type { WorkspaceTarget } from "./types"
 // implements this with sample agents; a runner reports the same from the agents' own
 // files and hooks, and from what they present through Novadeck's MCP server.
 
-// A terminal, as the backend port knows it: terminal IDs repeat across sessions.
+// A terminal, as the backend port knows it: a terminal is addressed by its project and session as well as its ID.
 export type CompanionKey = WorkspaceTarget & { readonly terminalId: string }
 
 export const companionKeyId = ({

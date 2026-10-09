@@ -14,6 +14,7 @@ import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoBackend, windowReset, withConversations } from "./index"
 import { createDemoMessages, studioMailbox } from "./messages"
+import { demoTerminalId, terminalSlot } from "./samples"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { devServerArtifacts } from "./showcase/artifacts"
 import { createShowcase } from "./showcase/simulation"
@@ -22,9 +23,10 @@ import { demoTurns } from "./turns"
 
 // A UI-only workspace. The previews never start processes or request a runner.
 export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
+  const session = { projectId: "studio", workspaceSessionId: "initial" }
   const terminals: TerminalMetadata[] = [
     {
-      id: "01",
+      id: demoTerminalId(session, 1),
       name: "Build Studio",
       handle: "t1",
       titleSource: { kind: "person" },
@@ -34,7 +36,7 @@ export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
       directory: "~/projects/studio",
     },
     {
-      id: "03",
+      id: demoTerminalId(session, 3),
       name: "Refactor auth",
       handle: "t3",
       ledBy: "t1",
@@ -45,7 +47,7 @@ export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
       directory: "~/projects/studio",
     },
     {
-      id: "02",
+      id: demoTerminalId(session, 2),
       name: "Dev server",
       handle: "t2",
       titleSource: { kind: "fallback" },
@@ -56,7 +58,7 @@ export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
     },
   ]
   const website: TerminalMetadata = {
-    id: "01",
+    id: demoTerminalId({ projectId: "website", workspaceSessionId: "website-initial" }, 1),
     name: "Tests",
     handle: "t1",
     titleSource: { kind: "fallback" },
@@ -99,14 +101,27 @@ export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
   // they open with their own transcripts, answer what they're told, and report their
   // plans and what they show. The dev server's terminal holds what can't show, one of
   // each reason.
-  const session = { projectId: "studio", workspaceSessionId: "initial" }
   const agents = [
-    { key: { ...session, terminalId: "01" }, handle: "t1", sample: studioAgent },
-    { key: { ...session, terminalId: "03" }, handle: "t3", sample: authAgent },
+    {
+      key: { ...session, terminalId: demoTerminalId(session, 1) },
+      handle: "t1",
+      sample: studioAgent,
+    },
+    {
+      key: { ...session, terminalId: demoTerminalId(session, 3) },
+      handle: "t3",
+      sample: authAgent,
+    },
   ]
   const showcase = createShowcase({
     agents,
-    shown: [{ key: { ...session, terminalId: "02" }, handle: "t2", artifacts: devServerArtifacts }],
+    shown: [
+      {
+        key: { ...session, terminalId: demoTerminalId(session, 2) },
+        handle: "t2",
+        artifacts: devServerArtifacts,
+      },
+    ],
   })
   const agentAt = (key: TerminalKey): SampleAgent | undefined =>
     agents.find((agent) => companionKeyId(agent.key) === companionKeyId(key))?.sample
@@ -157,7 +172,7 @@ export const contentDemo = (runtime?: DemoSurfaceRuntime): Backend => {
                 type: "terminal/update",
                 target: { projectId, workspaceSessionId },
                 terminalId,
-                name: `Terminal ${terminalId}`,
+                name: `Terminal ${terminalSlot(terminalId)}`,
                 titleSource: { kind: "default" },
               },
             ],

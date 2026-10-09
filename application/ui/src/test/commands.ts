@@ -83,6 +83,7 @@ export const openCommands = ({
     },
     cancelTransition: () => effects.push("cancel transition"),
     focusSidebarToggle: (panel) => effects.push(`focus ${panel} toggle`),
+    focusSidebarToggleStranded: (panel) => effects.push(`focus ${panel} toggle`),
     focusZenCreate: () => effects.push("focus zen create"),
     focusZenEnter: () => effects.push("focus zen enter"),
     focusWorkspaceViewport: () => effects.push("focus viewport"),

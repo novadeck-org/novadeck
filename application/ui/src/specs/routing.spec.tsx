@@ -25,8 +25,11 @@ import {
   view,
 } from "./support/workspace"
 
-const home = "/projects/storefront/sessions/initial/focus?terminal=01"
-const apiCanvas = "/projects/api-service/sessions/initial/canvas?terminal=02"
+// A demo terminal by its project and number, as its ID is made.
+const terminalOf = (projectId: string, number: number) =>
+  `${projectId}-initial-${String(number).padStart(2, "0")}`
+const home = `/projects/storefront/sessions/initial/focus?terminal=${terminalOf("storefront", 1)}`
+const apiCanvas = `/projects/api-service/sessions/initial/canvas?terminal=${terminalOf("api-service", 2)}`
 
 const preferences = () => page.getByRole("dialog", { name: "Preferences" })
 const search = () => page.getByRole("dialog", { name: "Find a terminal" })
@@ -145,9 +148,11 @@ describe("deep links", () => {
       await confirmClose()
       await expect.element(terminalTab("Runtime")).not.toBeInTheDocument()
 
-      visit(home.replace("terminal=01", "terminal=05"))
+      visit(home.replace(terminalOf("storefront", 1), terminalOf("storefront", 5)))
 
-      await expect.poll(currentRoute).toBe(home.replace("terminal=01", "terminal=06"))
+      await expect
+        .poll(currentRoute)
+        .toBe(home.replace(terminalOf("storefront", 1), terminalOf("storefront", 6)))
       await expectStaysAbsent(terminalTab("Runtime"))
     })
   })

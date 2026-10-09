@@ -1,5 +1,11 @@
 import { agentWorking } from "../model/agent-finish"
-import { doneText, terminalPhase } from "../model/terminal-ending"
+import {
+  doneText,
+  terminalAsk,
+  terminalAsks,
+  terminalPhase,
+  type TerminalAsk,
+} from "../model/terminal-ending"
 import type { WorkspaceProject } from "../model/types"
 
 // What a project's terminals show at a glance, the most pressing of them, as the switcher
@@ -8,8 +14,20 @@ import type { WorkspaceProject } from "../model/types"
 // on its own; or one still working. Undefined while none shows anything.
 export type ProjectStatus = "question" | "attention" | "failed" | "done" | "running"
 
-// Most pressing first.
-const rank: readonly ProjectStatus[] = ["question", "attention", "failed", "done", "running"]
+// The status of each thing a terminal asks: a permission and a plan both read as needing
+// the person.
+export const askStatus: Readonly<Record<TerminalAsk, ProjectStatus>> = {
+  question: "question",
+  permission: "attention",
+  plan: "attention",
+  failed: "failed",
+  done: "done",
+}
+
+// Most pressing first: what terminals ask in their order, then working.
+const rank: readonly ProjectStatus[] = [
+  ...new Set([...terminalAsks.map((ask) => askStatus[ask]), "running" as const]),
+]
 
 const pressing = (a: ProjectStatus | undefined, b: ProjectStatus | undefined) =>
   a === undefined || (b !== undefined && rank.indexOf(b) < rank.indexOf(a)) ? b : a
@@ -40,18 +58,12 @@ export const projectStatus = (
   for (const session of project.history) {
     const context = `${project.id}/${session.id}`
     for (const terminal of session.state.roster.terminals) {
-      const end = unread(context, terminal.id)
-      const phase = terminalPhase(terminal, end !== undefined)
-      const each: ProjectStatus | undefined =
-        phase === "attention"
-          ? terminal.state === "running" && terminal.agent?.attention?.kind === "question"
-            ? "question"
-            : "attention"
-          : phase === "done"
-            ? end
-            : phase === "running" && agentWorking(terminal)
-              ? "running"
-              : undefined
+      const ask = terminalAsk(terminal, unread(context, terminal.id))
+      const each: ProjectStatus | undefined = ask
+        ? askStatus[ask]
+        : terminalPhase(terminal) === "running" && agentWorking(terminal)
+          ? "running"
+          : undefined
       status = pressing(status, each)
     }
   }

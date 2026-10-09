@@ -24,6 +24,9 @@ vi.hoisted(() => {
   }
 })
 
+// The second terminal of the demo's storefront.
+const second = "storefront-initial-02"
+
 const Subject = ({ id }: { id: string }): React.JSX.Element => {
   const terminal = useWorkspaceState((workspace) =>
     currentState(workspace).roster.terminals.find((item) => item.id === id),
@@ -146,7 +149,7 @@ const beginHeaderRename = (container: HTMLElement): HTMLInputElement => {
 describe("process windows", () => {
   context("when the foreground process changes", () => {
     it("presents Claude and Codex in the same window and returns to the terminal without remounting the surface", async () => {
-      const page = await open("02")
+      const page = await open(second)
       try {
         const terminal = visibleWindow(page.container)
         expect(terminal.querySelector("[data-terminal-input]")).not.toBeNull()
@@ -176,7 +179,7 @@ describe("process windows", () => {
     })
 
     it("keeps other programs in the plain terminal window", async () => {
-      const page = await open("02")
+      const page = await open(second)
       try {
         const terminal = visibleWindow(page.container)
         page.process("vim")
@@ -188,7 +191,7 @@ describe("process windows", () => {
     })
 
     it("shows the regular terminal again when an agent session fails", async () => {
-      const page = await open("02")
+      const page = await open(second)
       try {
         page.process("claude")
         expect(visibleWindow(page.container).dataset.processWindow).toBe("claude")
@@ -202,7 +205,7 @@ describe("process windows", () => {
     })
 
     it("shows the terminal during a fresh shell startup even while the last program is an agent", async () => {
-      const page = await open("02")
+      const page = await open(second)
       try {
         page.process("codex")
         expect(visibleWindow(page.container).dataset.processWindow).toBe("codex")
@@ -218,7 +221,7 @@ describe("process windows", () => {
 
   context("while the terminal is being renamed", () => {
     it("keeps the header's draft, caret and focus when a program starts and ends", async () => {
-      const page = await open("02")
+      const page = await open(second)
       try {
         const field = beginHeaderRename(page.container)
         typeDraft(field, "My new na")
@@ -242,10 +245,10 @@ describe("process windows", () => {
     })
 
     it("leaves focus in another rename field when a program starts", async () => {
-      const page = await open("02")
+      const page = await open(second)
       // Stands in for the sidebar's field, which continues the same rename.
       const sidebar = document.createElement("input")
-      sidebar.dataset.renameTerminal = "02"
+      sidebar.dataset.renameTerminal = second
       document.body.append(sidebar)
       try {
         const header = beginHeaderRename(page.container)

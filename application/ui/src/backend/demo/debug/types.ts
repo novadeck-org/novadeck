@@ -32,6 +32,9 @@ export type DemoActionContext = {
   readonly selected: () => TerminalKey | undefined
   // Adds a terminal to the current session and returns its key.
   readonly addTerminal: () => TerminalKey
+  // Adds a terminal to the session holding `to` the way a background process would: it
+  // is not selected and the sidebar stays on its panel. Returns its key.
+  readonly addInBackground: (to: TerminalKey) => TerminalKey
   readonly startFresh: () => void
   // The backend's sink; undefined before start or after stop.
   readonly dispatch: BackendSink["dispatch"] | undefined

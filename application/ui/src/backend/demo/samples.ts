@@ -1,6 +1,27 @@
 import type { WorkspaceSeed } from "../../model/seed"
 import { sessionName } from "../../model/session-name"
-import type { AgentStatus, CanvasLayout, Project, TerminalMetadata } from "../../model/types"
+import type {
+  AgentStatus,
+  CanvasLayout,
+  Project,
+  TerminalMetadata,
+  WorkspaceTarget,
+} from "../../model/types"
+
+// A demo terminal's ID, unique across the whole workspace as the runner's are: the
+// session it belongs to, then its number there. The name and handle come from the number.
+export const demoTerminalId = (
+  { projectId, workspaceSessionId }: WorkspaceTarget,
+  number: number,
+): string => `${projectId}-${workspaceSessionId}-${String(number).padStart(2, "0")}`
+
+// The terminal's number in its session, as `"01"`: what the sample content, names and
+// handles of the demo go by.
+export const terminalSlot = (terminalId: string): string =>
+  terminalId.slice(terminalId.lastIndexOf("-") + 1)
+
+// Each sample project opens one session with this stable ID.
+const initialSession = "initial"
 
 // The sample transcript a demo terminal opens with, unless an agent runs in it.
 export type SampleOutput = "shell" | "server" | "tests" | "git" | "logs" | "build"
@@ -107,12 +128,12 @@ const outputs = new Map(samples.map(({ id, output }) => [id, output]))
 
 // Terminals the demo adds open as a plain shell.
 export const sampleOutput = (terminal: TerminalMetadata): SampleOutput =>
-  outputs.get(terminal.id) ?? "shell"
+  outputs.get(terminalSlot(terminal.id)) ?? "shell"
 
-export const demoCanvasLayout = (): CanvasLayout => ({
+export const demoCanvasLayout = (projectId: string): CanvasLayout => ({
   geometry: Object.fromEntries(
     samples.map(({ id, x, y, height }) => [
-      id,
+      demoTerminalId({ projectId, workspaceSessionId: initialSession }, Number(id)),
       {
         position: { x, y },
         width: 550,
@@ -156,8 +177,19 @@ export const demoFinishes: readonly {
   readonly terminalId: string
   readonly outcome: "completed" | "failed"
 }[] = [
-  { projectId: "design-system", terminalId: "01", outcome: "completed" },
-  { projectId: "infra", terminalId: "01", outcome: "failed" },
+  {
+    projectId: "design-system",
+    terminalId: demoTerminalId(
+      { projectId: "design-system", workspaceSessionId: initialSession },
+      1,
+    ),
+    outcome: "completed",
+  },
+  {
+    projectId: "infra",
+    terminalId: demoTerminalId({ projectId: "infra", workspaceSessionId: initialSession }, 1),
+    outcome: "failed",
+  },
 ]
 
 export const projectTerminals = (project: Project, withAgents = false): TerminalMetadata[] => {
@@ -165,6 +197,10 @@ export const projectTerminals = (project: Project, withAgents = false): Terminal
   const single = withAgents ? projectAgents[project.id] : undefined
   return terminals.map((terminal) => ({
     ...terminal,
+    id: demoTerminalId(
+      { projectId: project.id, workspaceSessionId: initialSession },
+      Number(terminal.id),
+    ),
     directory: terminal.directory.replace(/^~\/projects\/[^/]+/, project.directory),
     ...(single && terminal.id === "01"
       ? { command: "claude", process: "claude", state: "running" as const, agent: single }
@@ -251,28 +287,31 @@ export const projectTerminals = (project: Project, withAgents = false): Terminal
   }))
 }
 
-// Each sample project opens one session with the stable ID "initial".
 export const demoSeed = (now: number, agents = false): WorkspaceSeed => ({
   projects: initialProjects.map((project) => ({
     ...project,
     sessions: [
       {
-        id: "initial",
+        id: initialSession,
         name: sessionName(now),
         terminals: projectTerminals(project, agents),
         items: [],
         windows: [],
-        canvasLayout: demoCanvasLayout(),
+        canvasLayout: demoCanvasLayout(project.id),
       },
     ],
   })),
 })
 
-export const createMockTerminal = (number: number, directory: string): TerminalMetadata => {
-  const id = String(number).padStart(2, "0")
+export const createMockTerminal = (
+  target: WorkspaceTarget,
+  number: number,
+  directory: string,
+): TerminalMetadata => {
+  const id = demoTerminalId(target, number)
   return {
     id,
-    name: `Terminal ${id}`,
+    name: `Terminal ${String(number).padStart(2, "0")}`,
     directory,
     command: "zsh",
     process: "zsh",

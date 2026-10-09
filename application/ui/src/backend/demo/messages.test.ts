@@ -4,10 +4,13 @@ import { companionKeyId } from "../../model/companion"
 import { mailBadge } from "../../model/messages"
 import { describe, expect, it } from "../../test"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
+import { demoTerminalId } from "./samples"
 
 const storefront = { projectId: "storefront", workspaceSessionId: "initial" }
 const elsewhere = { projectId: "api-service", workspaceSessionId: "initial" }
-const at = (terminalId: string, target = storefront) => companionKeyId({ ...target, terminalId })
+// A terminal of the session by its number, as `"01"`.
+const at = (slot: string, target = storefront) =>
+  companionKeyId({ ...target, terminalId: demoTerminalId(target, Number(slot)) })
 
 const demo = () => createDemoMessages(checkoutMailboxes(1_000_000, [storefront, elsewhere]))
 

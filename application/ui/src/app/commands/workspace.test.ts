@@ -363,6 +363,8 @@ describe("workspace commands", () => {
       app.commands.toggleSidebar("sessions")
       expect(app.shell()).toMatchObject({ zen: null, sidebarCollapsed: false, sidebar: true })
       expect(app.ui.getSnapshot().location.route.panel).toBe("sessions")
+      app.flush()
+      expect(app.effects.at(-1)).toBe("focus sessions toggle")
       app.commands.toggleSidebar("sessions")
       expect(app.shell().sidebarCollapsed).toBe(true)
       expect(app.effects.at(-1)).toBe("focus sessions toggle")

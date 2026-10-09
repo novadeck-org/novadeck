@@ -145,6 +145,9 @@ describe("holding the person's input", () => {
   })
 })
 
+// Every line the fixture children traced in this test process.
+const traced = (): string[] => ptyTrace(Number.MAX_SAFE_INTEGER).split("\n")
+
 describe("an answer's hold of the person's input", () => {
   it("never replays the mouse's wheel and motion reports it held, once released", async ({
     terminals,
@@ -169,16 +172,18 @@ describe("an answer's hold of the person's input", () => {
         ) => { release: () => void; settle: () => void }
       }
     ).holdInput(terminal.id, 5_000, { deferKeys: true })
+    // What the children traced from here on, however much a busy machine traced before.
+    const mark = traced().length
+    const since = (): string => traced().slice(mark).join("\n")
     // 16 characters, which no other write of this test has: the child traces lengths.
     manager.write({ terminalId: terminal.id, data: "\x1b[<64;123;456M" }, "creator")
     manager.write({ terminalId: terminal.id, data: "k" }, "creator")
     hold.release()
     hold.settle()
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    const trace = ptyTrace(40)
     // The key went once released; the wheel report never did.
-    expect(trace).toContain("received 1 chars")
-    expect(trace).not.toContain("received 16 chars")
+    await vi.waitFor(() => expect(since()).toContain("received 1 chars"), { timeout: 5_000 })
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    expect(since()).not.toContain("received 16 chars")
   })
 })
 

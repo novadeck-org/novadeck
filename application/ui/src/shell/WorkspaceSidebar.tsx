@@ -2,10 +2,14 @@ import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import type { Tile, WorkspaceSession } from "../model/types"
+import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "../model/types"
+import type { Notification } from "../notifications/notifications"
+import { MarkAllReadButton, NotificationsPanel } from "../notifications/NotificationsPanel"
 import { SessionsPanel } from "../sidebar/SessionsPanel"
 import { SidebarPanel, sidebarCreateClasses } from "../sidebar/SidebarPanel"
 import { TerminalTabs } from "../terminals/TerminalTabs"
+import type { Viewing } from "../terminals/unread-state"
+import { panelLabels } from "./panels"
 
 type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   projectId: string
@@ -13,9 +17,15 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   workspaceSessions: WorkspaceSession[]
   terminalCount: number
   ordered: readonly Tile[]
-  sidebarPanel: "terminals" | "sessions"
+  sidebarPanel: PanelId
+  // What asks for the person across the workspace, and the terminal they look at.
+  notifications: readonly Notification[]
+  viewing: Viewing
   sidebarVisible: boolean
   onSessionSelect: (id: string) => void
+  onReveal: (notification: Notification) => void
+  onDismissNotification: (notification: Notification) => void
+  onDismissAllNotifications: (shown: readonly Notification[]) => void
   onFresh: () => void
   onHide: () => void
   onCreate: () => void
@@ -27,8 +37,13 @@ export const WorkspaceSidebar = ({
   terminalCount,
   ordered,
   sidebarPanel,
+  notifications,
+  viewing,
   sidebarVisible,
   onSessionSelect,
+  onReveal,
+  onDismissNotification,
+  onDismissAllNotifications,
   onFresh,
   onHide,
   onCreate,
@@ -38,7 +53,7 @@ export const WorkspaceSidebar = ({
   <aside
     id="terminal-sidebar"
     className="sidebar relative flex shrink-0 flex-col overflow-hidden"
-    aria-label={sidebarPanel === "sessions" ? "Workspace sessions" : "Terminal sessions"}
+    aria-label={panelLabels[sidebarPanel]}
     aria-hidden={!sidebarVisible}
     inert={!sidebarVisible}
   >
@@ -86,6 +101,21 @@ export const WorkspaceSidebar = ({
         terminals={ordered}
         renderTab={renderTab}
         onReorder={onReorder}
+      />
+    </SidebarPanel>
+    <SidebarPanel
+      id="notifications-panel"
+      title="Notifications"
+      count={notifications.length}
+      active={sidebarPanel === "notifications"}
+      onClose={onHide}
+      actions={<MarkAllReadButton items={notifications} onDismissAll={onDismissAllNotifications} />}
+    >
+      <NotificationsPanel
+        items={notifications}
+        viewing={viewing}
+        onReveal={onReveal}
+        onDismiss={onDismissNotification}
       />
     </SidebarPanel>
   </aside>

@@ -9,6 +9,7 @@ import {
 } from "../../model/messages"
 import { createStore } from "../../model/store"
 import type { WorkspaceTarget } from "../../model/types"
+import { demoTerminalId } from "./samples"
 
 // A demo mailbox: threads between the sample terminals, kept the way the runner keeps
 // them, so pausing holds what waits and releasing a thread lets it go on, as there.
@@ -152,10 +153,10 @@ export const checkoutMailboxes = (
   targets.map((target, index) => ({
     target,
     terminals: [
-      { terminalId: "01", handle: "t1", agent: true },
-      { terminalId: "02", handle: "t2", agent: false },
-      { terminalId: "03", handle: "t3", agent: false },
-      { terminalId: "04", handle: "t4", agent: true },
+      { terminalId: demoTerminalId(target, 1), handle: "t1", agent: true },
+      { terminalId: demoTerminalId(target, 2), handle: "t2", agent: false },
+      { terminalId: demoTerminalId(target, 3), handle: "t3", agent: false },
+      { terminalId: demoTerminalId(target, 4), handle: "t4", agent: true },
     ],
     threads:
       index > 0
@@ -280,9 +281,9 @@ export const checkoutMailboxes = (
 export const studioMailbox = (now: number, target: WorkspaceTarget): DemoMailbox => ({
   target,
   terminals: [
-    { terminalId: "01", handle: "t1", agent: true },
-    { terminalId: "02", handle: "t2", agent: false },
-    { terminalId: "03", handle: "t3", agent: true },
+    { terminalId: demoTerminalId(target, 1), handle: "t1", agent: true },
+    { terminalId: demoTerminalId(target, 2), handle: "t2", agent: false },
+    { terminalId: demoTerminalId(target, 3), handle: "t3", agent: true },
   ],
   threads: [
     {

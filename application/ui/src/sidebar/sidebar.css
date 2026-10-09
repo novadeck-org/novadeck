@@ -9,8 +9,17 @@
    Hooks: on a panel, data-active="true" | "false"; on a row, the item recipe's, and the
    `.dragging` class while it is dragged; `:focus-within` tints a row as hovering does.
 
+   The Notifications panel's rows are `.notification` rows, data-notification="question" |
+   "permission" | "plan" | "failed" | "done", with the `.notification-where` of the kind's
+   word, project and session on its detail line, the `.notification-reply` under it and an empty panel's
+   `.notifications-empty`.
+
    Tokens, each optional (its fallback in brackets):
    --sidebar-create-border-color (line): the create button's edge, at rest and hovered.
+   --notification-attention-fg (the tab's --tab-attention-fg, then warning-fg): the glyph of
+   a question, permission or plan. --notification-done-fg (--tab-done-fg, success-fg) and
+   --notification-failed-fg (--tab-failed-fg, danger-fg): a finish's. --notification-fg
+   (muted): where it is, the reply and an empty panel.
    Rows take the item recipe's tokens: --item-hover-bg, the --item-selected-* tokens
    (also while dragged) and --item-icon-fg. */
 .sidebar-panel {
@@ -59,4 +68,31 @@
   margin-right: calc(var(--spacing) * 1.5);
   color: var(--item-detail-fg, var(--color-muted));
   opacity: 0.5;
+}
+
+/* A request wears the tab's attention colour, a finish its done or failed one. */
+.notification:is(
+  [data-notification="question"],
+  [data-notification="permission"],
+  [data-notification="plan"]
+) {
+  --item-icon-fg: var(
+    --notification-attention-fg,
+    var(--tab-attention-fg, var(--color-warning-fg))
+  );
+}
+.notification[data-notification="done"] {
+  --item-icon-fg: var(--notification-done-fg, var(--tab-done-fg, var(--color-success-fg)));
+}
+.notification[data-notification="failed"] {
+  --item-icon-fg: var(--notification-failed-fg, var(--tab-failed-fg, var(--color-danger-fg)));
+}
+/* The panel itself takes focus when the row that had it goes and none is left to take it. */
+.notifications-panel:focus {
+  outline: none;
+}
+.notification-where,
+.notification-reply,
+.notifications-empty {
+  color: var(--notification-fg, var(--color-muted));
 }

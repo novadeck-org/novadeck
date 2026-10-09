@@ -3,10 +3,13 @@ import { terminalFixture } from "../test/fixtures"
 import {
   attentionText,
   endingText,
+  terminalAsk,
+  terminalAsks,
   terminalEnding,
   terminalPhase,
   unheardText,
 } from "./terminal-ending"
+import type { TerminalMetadata } from "./types"
 
 const terminal = terminalFixture(1, "~/project")
 
@@ -95,5 +98,42 @@ describe("terminal ending", () => {
     expect(waiting("permission", 1)).toBe("Needs permission")
     expect(waiting("question", 2)).toBe("Asks a question · 2 waiting")
     expect(attentionText({ ...terminal, state: "running" })).toBeUndefined()
+  })
+})
+
+describe("terminal ask", () => {
+  const running = (
+    kind?: "question" | "permission" | "plan",
+    working = true,
+  ): TerminalMetadata => ({
+    ...terminal,
+    state: "running",
+    process: "claude",
+    agent: { working, ...(kind ? { attention: { kind, count: 1 } } : {}) },
+  })
+
+  it("lists what is asked most pressing first", () => {
+    expect(terminalAsks).toEqual(["question", "permission", "plan", "failed", "done"])
+  })
+
+  it.each([
+    ["a question", running("question"), undefined, "question"],
+    ["a permission", running("permission"), undefined, "permission"],
+    ["a plan", running("plan"), undefined, "plan"],
+    ["a request over an unread reply", running("plan"), "done", "plan"],
+    ["an unread finish", running(undefined, false), "done", "done"],
+    ["an unread failure", running(undefined, false), "failed", "failed"],
+    ["a finish unread at an idle prompt", { ...terminal, state: "idle" }, "done", "done"],
+    ["a reply read", running(undefined, false), undefined, undefined],
+    ["an agent at work", running(), undefined, undefined],
+    ["an unread finish while it works again", running(), "done", undefined],
+    [
+      "an ended terminal",
+      { ...terminal, state: "exited", exitCode: 1, signal: null },
+      "done",
+      undefined,
+    ],
+  ] as const)("reads %s", (_, metadata, end, ask) => {
+    expect(terminalAsk(metadata as TerminalMetadata, end)).toBe(ask)
   })
 })

@@ -1,5 +1,6 @@
 import {
   focusSidebarToggle,
+  focusSidebarToggleStranded,
   focusTerminalInput,
   focusTerminalTab,
   tileRects,
@@ -17,6 +18,7 @@ export const domEffects: CommandEffects = {
   transitionTerminal,
   cancelTransition: cancelTerminalTransition,
   focusSidebarToggle,
+  focusSidebarToggleStranded,
   focusZenCreate,
   focusZenEnter,
   focusWorkspaceViewport,

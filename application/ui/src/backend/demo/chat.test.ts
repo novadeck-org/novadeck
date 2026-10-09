@@ -6,14 +6,15 @@ import { createWorkspaceStore } from "../../model/store"
 import { answerMs, answeredMs } from "./chat"
 import { createDemoEngine } from "./engine"
 import { demoBackend, withConversations } from "./index"
-import { demoSeed } from "./samples"
+import { demoSeed, demoTerminalId } from "./samples"
 import { agentTranscripts } from "./transcripts"
 import { demoTurns, demoTurnMs } from "./turns"
 
-const key = (terminalId: string, projectId = "storefront") => ({
+// A sample terminal by its number in the first session, as `"01"`.
+const key = (slot: string, projectId = "storefront") => ({
   projectId,
   workspaceSessionId: "initial",
-  terminalId,
+  terminalId: demoTerminalId({ projectId, workspaceSessionId: "initial" }, Number(slot)),
 })
 
 const open = () => {
@@ -37,26 +38,26 @@ const open = () => {
     dispatch: (actions) => store.transact(actions as never),
     open: () => {},
   })
-  const agent = (terminalId: string) =>
+  const agent = (slot: string) =>
     activeSession(store.getSnapshot())!.state.roster.terminals.find(
-      (terminal) => terminal.id === terminalId,
+      (terminal) => terminal.id === key(slot).terminalId,
     )
   // Sets a terminal's status as the runner would report it.
   const status = (
-    terminalId: string,
+    slot: string,
     next: { state: "idle" } | { state: "running"; agent: { working: boolean } },
   ) =>
     store.transact([
       {
         type: "terminal/status",
         target: { projectId: "storefront", workspaceSessionId: "initial" },
-        terminalId,
+        terminalId: key(slot).terminalId,
         status: next,
       },
     ] as never)
-  const said = (terminalId: string) =>
+  const said = (slot: string) =>
     chat
-      .conversation(key(terminalId))
+      .conversation(key(slot))
       .getSnapshot()
       .items.filter((item) => item.role === "user")
       .map((item) => item.text)
@@ -79,7 +80,7 @@ describe("demo conversations", () => {
     expect(chat.conversation(key("05")).getSnapshot().agent).toBe("agy")
   })
 
-  it("keeps each project's terminals apart though their ids repeat", async () => {
+  it("keeps each project's terminals apart", async () => {
     const { chat } = open()
     await chat.send(key("06"), "Only here")
     expect(
