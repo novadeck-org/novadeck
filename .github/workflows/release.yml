@@ -98,6 +98,9 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 75
+    env:
+      # The packages run to be smoke tested, which must not look for updates.
+      NOVADECK_UPDATES: "off"
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +110,7 @@ jobs:
             target: linux
             files: |
               application/host/release/*.AppImage
+              application/host/release/latest-linux.yml
               application/host/release/*.deb
               application/host/release/*.rpm
               application/host/release/novadeck-whisper-linux-x64.tar.gz
@@ -116,12 +120,16 @@ jobs:
             files: |
               application/host/release/*.zip
               application/host/release/*.dmg
+              application/host/release/latest-mac.yml
+              application/host/release/*.blockmap
               application/host/release/novadeck-whisper-darwin-universal.tar.gz
           - name: Windows
             os: windows-latest
             target: win
             files: |
               application/host/release/*.exe
+              application/host/release/latest.yml
+              application/host/release/*.blockmap
               application/host/release/novadeck-whisper-win32-x64.tar.gz
     steps:
       - name: Wait for Quality Checks

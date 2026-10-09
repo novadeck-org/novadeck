@@ -611,6 +611,10 @@ last one chosen.
 - **Crash loop:** count four crashes, which shows the footer and the dialog and fails
   the selected terminal's session's terminals; Try again clears the count and
   restarts them.
+- **Update:** have an update downloaded, then a newer one, for the footer's "Update
+  ready" and Restart, which names the version. Restart shows Restarting…, which stays
+  until Finish restart reloads the demo, as the app comes back on the new version.
+  `?demo=update` opens a variant that already has one waiting, for specs.
 - **Sessions:** mark the selected terminal running, then start a fresh session, to see
   the sessions panel count it.
 - **Another project:** make the agent in the first terminal of another project wait
@@ -951,6 +955,10 @@ Artifacts go to `application/host/release/`:
 Local builds are unsigned, so Gatekeeper or SmartScreen may warn. The application ID is `dev.mzpk.novadeck`.
 Releases are signed and notarized once the signing credentials are set up; see
 [docs/release-signing.md](docs/release-signing.md).
+
+Builds also write `latest*.yml` update metadata and `.blockmap` files beside the packages,
+which releases upload so installed apps can update themselves; see
+[docs/auto-update.md](docs/auto-update.md).
 
 Each package ships the relay agents start for Novadeck's MCP server and hooks, built
 from source with the rest of the app.

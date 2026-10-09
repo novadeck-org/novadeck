@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process"
 import { realpath } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -5,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
 import {
   app,
+  autoUpdater as nativeUpdater,
   BrowserWindow,
   dialog,
   ipcMain,
@@ -16,6 +18,7 @@ import {
   systemPreferences,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
+  type WebContents,
 } from "electron"
 
 import {
@@ -31,6 +34,18 @@ import { attachPage, guardPage, lockPagesSession, pagesPartition, webAddress } f
 import { limitPermissions, ownPage } from "./permissions.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { startRunner, type RunnerHost } from "./runner.js"
+import {
+  bundleOf,
+  checkForUpdates,
+  developerIdSigned,
+  installFallbackMs,
+  installUpdate,
+  quitWithoutInstalling,
+  registerUpdateIpc,
+  trackUpdate,
+  updateMode,
+  type Updater,
+} from "./updater.js"
 
 const appId = "dev.mzpk.novadeck"
 // Where the app keeps its data; a development launch keeps its own (see ./data-folder.ts).
@@ -53,6 +68,8 @@ const appearance = keepAppearance(join(app.getPath("userData"), "appearance.json
 let server: HttpServer | undefined
 let runner: RunnerHost | undefined
 let stopping = false
+// The auto-updater of a build that updates itself, once it has loaded.
+let updater: (Updater & { quitAndInstall(silent: boolean, relaunch: boolean): void }) | undefined
 
 const waitFor = async (origin: string, attempts = 100): Promise<void> => {
   try {
@@ -116,22 +133,79 @@ const appWindow = (event: IpcMainEvent | IpcMainInvokeEvent): BrowserWindow | un
   return window
 }
 
-// Asks these windows' pages to finish their saves, skipping any that crashed, went away,
-// or show something other than the app.
+// The pages of these windows that are alive and show the app, skipping any that crashed,
+// went away, or show something other than the app.
+const appPages = (windows: readonly BrowserWindow[]): WebContents[] =>
+  windows
+    .map((window) => window.webContents)
+    .filter(
+      (contents) =>
+        !contents.isDestroyed() &&
+        !contents.isCrashed() &&
+        contents.getURL() !== "" &&
+        isAppPage(contents.getURL()),
+    )
+
+// Asks these windows' pages to finish their saves.
 const saveWindows = (windows: readonly BrowserWindow[]): Promise<void> =>
-  savePages(
-    ipcMain,
-    windows
-      .map((window) => window.webContents)
-      .filter(
-        (contents) =>
-          !contents.isDestroyed() &&
-          !contents.isCrashed() &&
-          contents.getURL() !== "" &&
-          isAppPage(contents.getURL()),
-      ),
-    { sender: (answer) => appWindow(answer)?.webContents, timeoutMs: saveBeforeQuitMs },
-  )
+  savePages(ipcMain, appPages(windows), {
+    sender: (answer) => appWindow(answer)?.webContents,
+    timeoutMs: saveBeforeQuitMs,
+  })
+
+// What quitting and restarting into an update both run: every page saves before the runner
+// ends its shells, so the saves name what still runs.
+const shutDown = async (): Promise<void> => {
+  await saveWindows(BrowserWindow.getAllWindows())
+  await Promise.allSettled([runner?.close(), server?.close()])
+}
+
+// The version of the update downloaded, told to the app's pages as it arrives and to any
+// that ask later.
+const updates = trackUpdate(() => appPages(BrowserWindow.getAllWindows()))
+
+/** Whether `codesign` finds a Developer ID signature on the running macOS app bundle. */
+const bundleSigned = (): Promise<boolean> =>
+  new Promise((resolve) => {
+    execFile(
+      "codesign",
+      ["--display", "--verbose=2", bundleOf(app.getPath("exe"))],
+      { timeout: 10_000 },
+      // codesign reports on stderr, and exits non-zero for an unsigned bundle.
+      (_error, stdout, stderr) => resolve(developerIdSigned(`${stdout}\n${stderr}`)),
+    )
+  })
+
+// Starts checking for updates in a build that updates itself; see ./updater.ts.
+const startUpdates = async (): Promise<void> => {
+  const appDir = process.env.APPDIR
+  const mode = updateMode({
+    packaged: app.isPackaged,
+    version: app.getVersion(),
+    platform: process.platform,
+    execPath: process.execPath,
+    // The AppImage mounts under TMPDIR, which may reach it through a symlink; the
+    // executable's path is the real one.
+    env: { ...process.env, APPDIR: appDir && (await realpath(appDir).catch(() => appDir)) },
+  })
+  if (mode === "no" || (mode === "signed" && !(await bundleSigned()))) return
+  // electron-updater is CommonJS, so ESM takes its exports from the default.
+  const { default: electronUpdater } = await import("electron-updater")
+  updater = electronUpdater.autoUpdater
+  checkForUpdates(updater, {
+    // Squirrel.Mac stages macOS updates; the others install from electron-updater's file.
+    native: process.platform === "darwin" ? nativeUpdater : undefined,
+    downloaded: updates.downloaded,
+    log: (message, error) => console.warn(message, error),
+  })
+}
+
+// The quit of the system ending the session: no update installs on the way out, as the
+// system may kill the installer halfway.
+const quitOnSessionEnd = quitWithoutInstalling(
+  () => updater,
+  () => app.quit(),
+)
 
 const createWindow = (origin: string): BrowserWindow => {
   const apiUrl = new URL("/api/", origin).href
@@ -166,7 +240,7 @@ const createWindow = (origin: string): BrowserWindow => {
   // Windows ends a session through its windows: save while the shells still run.
   saveOnSessionEnd(window, {
     save: () => void saveWindows([window]).then(() => runner?.persist()),
-    quit: () => app.quit(),
+    quit: quitOnSessionEnd,
   })
 
   window.webContents.on("will-navigate", (event) => event.preventDefault())
@@ -230,6 +304,21 @@ const launch = async (): Promise<void> => {
       },
     }),
   })
+  // The page learns of a downloaded update, and can restart into it.
+  registerUpdateIpc(ipcMain, {
+    window: (event) => appWindow(event)?.webContents,
+    request: updates.request,
+    install: () =>
+      installUpdate({
+        downloaded: () => updates.version() !== undefined && updater !== undefined,
+        stopping: () => stopping,
+        stop: () => void (stopping = true),
+        shutdown: shutDown,
+        install: () => updater?.quitAndInstall(true, true),
+        quit: () => app.quit(),
+        fallbackMs: installFallbackMs(process.platform),
+      }),
+  })
   ipcMain.handle(directoryPickerChannel, async (event) => {
     const window = appWindow(event)
     if (!window) return null
@@ -248,13 +337,14 @@ const launch = async (): Promise<void> => {
   if (!app.isPackaged) await waitFor(developmentOrigin)
 
   createWindow(server.origin)
+  void startUpdates().catch((error: unknown) => console.warn("Updates did not start.", error))
 }
 
 app.setAppUserModelId(appId)
 
 app.whenReady().then(() => {
   // A system shutdown quits, which saves every page and terminal before the shells end.
-  quitOnShutdown(powerMonitor, () => app.quit())
+  quitOnShutdown(powerMonitor, quitOnSessionEnd)
   limitPermissions(
     session.defaultSession,
     isAppPage,
@@ -285,10 +375,7 @@ app.on("before-quit", (event) => {
 
   event.preventDefault()
   stopping = true
-  // Pages save before the runner ends its shells, so the saves name what still runs.
-  void saveWindows(BrowserWindow.getAllWindows())
-    .then(() => Promise.allSettled([runner?.close(), server?.close()]))
-    .finally(() => app.quit())
+  void shutDown().finally(() => app.quit())
 })
 
 app.on("window-all-closed", () => {

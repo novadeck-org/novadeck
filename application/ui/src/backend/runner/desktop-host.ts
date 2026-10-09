@@ -2,6 +2,7 @@ import {
   noticeBodyLength,
   noticeIdPattern,
   noticeTitleLength,
+  updateVersionPattern,
   type DesktopHost,
 } from "@novadeck/protocol/bridge"
 
@@ -50,5 +51,20 @@ export const desktopNotices = (host: DesktopHost | undefined): Backend["notices"
       listen((id) => {
         if (typeof id === "string" && noticeIdPattern.test(id)) listener(id)
       }),
+  }
+}
+
+// The host's self-updates, where it has them: a version crosses the bridge checked, so
+// the page shows only what looks like a release's.
+export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"] => {
+  const listen = host?.onUpdateReady
+  const install = host?.installUpdate
+  if (!listen || !install) return undefined
+  return {
+    onReady: (listener) =>
+      listen((version) => {
+        if (typeof version === "string" && updateVersionPattern.test(version)) listener(version)
+      }),
+    install: () => install(),
   }
 }

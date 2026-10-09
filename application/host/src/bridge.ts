@@ -32,6 +32,18 @@ export const noticeChannel = "novadeck:notice"
 /** Main-to-renderer report of the terminal id of a notification the person clicked. */
 export const noticeClickChannel = "novadeck:notice-click"
 
+/**
+ * Main-to-renderer report of the version of an update the host has downloaded; see
+ * main/updater.ts. A page that starts listening later asks for it on `updateRequestChannel`.
+ */
+export const updateReadyChannel = "novadeck:update-ready"
+
+/** Renderer-to-main request to be told, on `updateReadyChannel`, of an update already waiting. */
+export const updateRequestChannel = "novadeck:update-request"
+
+/** Renderer-to-main request to restart into the downloaded update. */
+export const installUpdateChannel = "novadeck:install-update"
+
 /** Renderer-to-main request for a folder picker; answers the chosen path or null. */
 export const directoryPickerChannel = "novadeck:pick-directory"
 

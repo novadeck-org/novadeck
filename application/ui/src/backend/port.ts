@@ -197,6 +197,14 @@ export type Backend = {
     readonly show: (notice: Notice) => void
     readonly onClick: (listener: (terminalId: string) => void) => () => void
   }
+  // Optional. An update the desktop app has downloaded and installs when it next quits:
+  // `onReady` hears its version, at once when one already waits and again for each newer
+  // one, and returns the stop; `install` restarts the app into it once the pages have
+  // saved. Absent where the app does not update itself, as in a browser.
+  readonly updates?: {
+    readonly onReady: (listener: (version: string) => void) => () => void
+    readonly install: () => void
+  }
   // Optional. The debug panel, where this launch offers it: it triggers the states
   // the backend can be in. See README "Debug panel".
   readonly DebugPanel?: ComponentType<DebugPanelProps>

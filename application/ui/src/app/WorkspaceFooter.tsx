@@ -29,6 +29,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
   const { backend, commands } = useWorkspaceServices()
   const connection = useConnection(backend.connection)
   const crashes = useUiState((state) => state.crashLoop)
+  const update = useUiState((state) => state.updateReady)
   const zen = useUiState((state) => Boolean(state.shell.zen))
   const navigate = useUiState((state) => state.shell.navigate)
   const { count, running } = useWorkspaceState((workspace) => {
@@ -77,6 +78,8 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       status={status}
       navigate={navigate}
       onRetry={backend.crashLoop ? commands.retryAfterCrashLoop : undefined}
+      update={update && backend.updates ? update : undefined}
+      onInstall={backend.updates?.install}
       usage={<SubscriptionUsage accounts={accounts} onMove={move} />}
     />
   )

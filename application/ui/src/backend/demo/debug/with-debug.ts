@@ -144,6 +144,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     ...(launch.slowAttach ? { boot } : {}),
     agents: states.agents,
     notices: states.notices,
+    updates: states.updates,
     pickDirectory: states.pickDirectory,
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
     DebugPanel: createDebugPanel({

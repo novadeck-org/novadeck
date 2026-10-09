@@ -12,6 +12,7 @@ import {
   watchFinishes,
   watchPresentation,
   watchSwitcher,
+  watchUpdates,
   type FinishNotify,
   type UiState,
 } from "./ui-store"
@@ -377,5 +378,40 @@ describe("finish watch", () => {
     workspace.dispatch({ type: "terminal/close", target, terminalId: "02" })
     expect(unread()).toEqual({})
     stop()
+  })
+})
+
+const updateHost = () => {
+  let report: ((version: string) => void) | undefined
+  const updates = {
+    onReady: (listener: (version: string) => void) => {
+      report = listener
+      return () => {
+        report = undefined
+      }
+    },
+    install: () => {},
+  }
+  return { updates, report: (version: string) => report?.(version), listening: () => !!report }
+}
+
+describe("a waiting update", () => {
+  it("is kept as the version the backend reports, a newer one replacing it", () => {
+    const { updates, report, listening } = updateHost()
+    const ui = createUiStore(initial())
+    const stop = watchUpdates(updates, ui)
+    expect(ui.getSnapshot().updateReady).toBeNull()
+    report("0.0.80")
+    expect(ui.getSnapshot().updateReady).toBe("0.0.80")
+    report("0.0.81")
+    expect(ui.getSnapshot().updateReady).toBe("0.0.81")
+    stop()
+    expect(listening()).toBe(false)
+  })
+
+  it("is never there where the backend has no updates", () => {
+    const ui = createUiStore(initial())
+    watchUpdates(undefined, ui)()
+    expect(ui.getSnapshot().updateReady).toBeNull()
   })
 })

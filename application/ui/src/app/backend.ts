@@ -1,6 +1,7 @@
 import { createBootRehearsals } from "../backend/boot-rehearsal"
 import { createDemoBackend } from "../backend/demo"
 import { createContentDemo } from "../backend/demo/content"
+import { createDemoUpdates } from "../backend/demo/debug/updates"
 import type { BackendSelection, ConnectBackend } from "../backend/port"
 
 // The only place that chooses a backend adapter. Tests and specs run on the demo;
@@ -39,9 +40,26 @@ const demoSelection = (): BackendSelection => {
 const showcaseRequested = (): boolean =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo") === "showcase"
 
+// Specs open the demo on a host that has an update waiting with `?demo=update`.
+const updateRequested = (): boolean =>
+  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo") === "update"
+
+const demoWithUpdate = (): ReturnType<typeof createDemoBackend> => {
+  const { updates, offer } = createDemoUpdates()
+  offer("0.0.80")
+  return { ...createDemoBackend(), updates }
+}
+
 export const selectBackend: BackendSelection =
   import.meta.env.MODE === "content-preview"
     ? demoSelection()
     : import.meta.env.MODE === "test"
-      ? { createBackend: () => (showcaseRequested() ? createContentDemo() : createDemoBackend()) }
+      ? {
+          createBackend: () =>
+            showcaseRequested()
+              ? createContentDemo()
+              : updateRequested()
+                ? demoWithUpdate()
+                : createDemoBackend(),
+        }
       : runnerSelection()

@@ -134,6 +134,8 @@ const app = await _electron.launch({
   executablePath: executable,
   // Hosted Linux runners forbid the unprivileged namespaces Chromium's sandbox needs.
   args: [`--user-data-dir=${userData}`, ...(process.platform === "linux" ? ["--no-sandbox"] : [])],
+  // A release's version would otherwise let the packaged app look for updates.
+  env: { ...process.env, NOVADECK_UPDATES: "off" },
   timeout: 60_000,
 })
 try {

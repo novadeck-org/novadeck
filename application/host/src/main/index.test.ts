@@ -66,6 +66,19 @@ describe("compiled desktop host", () => {
       expect(preload).toContain("beforeQuit")
     })
 
+    it("loads the updater only in a build that updates itself, and shuts down as quitting does before installing", async () => {
+      const main = await read("main/index.js")
+      const preload = await read("preload/index.cjs")
+
+      // The decision itself is covered in ./updater.test.ts.
+      expect(main).toContain("updateMode(")
+      expect(main).toContain('await import("electron-updater")')
+      expect(main).toContain("shutdown: shutDown")
+      expect(main).toContain("quitAndInstall(")
+      expect(preload).toContain("novadeck:update-ready")
+      expect(preload).toContain("novadeck:install-update")
+    })
+
     it("opens windows on the page's last ground and follows its appearance", async () => {
       const main = await read("main/index.js")
       const preload = await read("preload/index.cjs")

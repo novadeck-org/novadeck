@@ -30,6 +30,7 @@ import {
   watchCrashLoop,
   watchFinishes,
   watchSwitcher,
+  watchUpdates,
   type UiLocation,
 } from "./ui-store"
 
@@ -126,6 +127,7 @@ export const WorkspaceProvider = ({
   useEffect(() => trackRecent(services.workspace, services.ui), [services])
   useEffect(() => watchSwitcher(services.workspace, services.ui), [services])
   useEffect(() => watchCrashLoop(services.backend.crashLoop?.crashes, services.ui), [services])
+  useEffect(() => watchUpdates(services.backend.updates, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
   useEffect(() => watchChatModes(services.workspace, services.ui), [services])
   useEffect(() => watchPageFocus(services.ui, window), [services])

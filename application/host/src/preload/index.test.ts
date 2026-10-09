@@ -6,9 +6,12 @@ import { afterEach, beforeEach, vi } from "vitest"
 import {
   apiUrlArgumentPrefix,
   appearanceChannel,
+  installUpdateChannel,
   noticeChannel,
   noticeClickChannel,
   saveBeforeQuitChannel,
+  updateReadyChannel,
+  updateRequestChannel,
 } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
@@ -145,5 +148,28 @@ describe("a notice about a terminal", () => {
     stop()
     electron.renderer.emit(noticeClickChannel, {}, "03")
     expect(clicks).toEqual(["01"])
+  })
+})
+
+describe("an update that is ready", () => {
+  it("asks the host for one already waiting once the page listens", () => {
+    electron.exposed.onUpdateReady!(() => {})
+    expect(electron.sent).toEqual([updateRequestChannel])
+  })
+
+  it("comes back as its version, and only that, until the page stops", () => {
+    const versions: string[] = []
+    const stop = electron.exposed.onUpdateReady!((version) => versions.push(version))
+    electron.renderer.emit(updateReadyChannel, {}, "1.2.3")
+    electron.renderer.emit(updateReadyChannel, {}, "1.2.3 <b>")
+    electron.renderer.emit(updateReadyChannel, {}, { version: "1.2.4" })
+    stop()
+    electron.renderer.emit(updateReadyChannel, {}, "1.2.5")
+    expect(versions).toEqual(["1.2.3"])
+  })
+
+  it("is installed by asking the host", () => {
+    electron.exposed.installUpdate!()
+    expect(electron.sent).toEqual([installUpdateChannel])
   })
 })

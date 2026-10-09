@@ -1,3 +1,4 @@
+import type { Backend } from "../backend/port"
 import {
   agentWorking,
   finishGraceMs,
@@ -66,6 +67,8 @@ export type UiState = {
   readonly crashLoopDismissed: boolean
   // How many crashes the backend reports while its far side keeps crashing; 0 otherwise.
   readonly crashLoop: number
+  // The version of an update the desktop app has downloaded and installs on restart.
+  readonly updateReady: string | null
   // Whether the page has the person's focus: its window focused and showing.
   readonly pageFocused: boolean
   // The terminals whose agent finished while the person looked elsewhere.
@@ -115,6 +118,7 @@ export const initialUi = ({
   closing: null,
   crashLoopDismissed: false,
   crashLoop: 0,
+  updateReady: null,
   pageFocused: true,
   unread: noUnread,
   answering: noTerminalAnswers,
@@ -231,6 +235,15 @@ export const watchCrashLoop = (crashes: Store<number> | undefined, ui: UiStore):
   check()
   return crashes.subscribe(check)
 }
+
+// The update the backend has ready, kept for the footer; a later report replaces the
+// last, as the demo's newer update does.
+export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => void) =>
+  updates?.onReady((version) =>
+    ui.update((state) =>
+      state.updateReady === version ? state : { ...state, updateReady: version },
+    ),
+  ) ?? (() => {})
 
 // A close confirmation belongs to the session it was asked in: leaving that session
 // drops it, so it never comes back unasked. So does the terminal going away on its own

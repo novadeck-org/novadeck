@@ -79,11 +79,16 @@
   color: inherit;
   text-underline-offset: 2px;
 }
+.footer-action:disabled {
+  cursor: default;
+  opacity: 0.7;
+  text-decoration: none;
+}
 .footer-action:focus-visible {
   text-decoration: underline;
 }
 @media (hover: hover) {
-  .footer-action:hover {
+  .footer-action:not(:disabled):hover {
     text-decoration: underline;
   }
 }

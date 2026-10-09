@@ -1,7 +1,7 @@
 import type { DesktopHost, DesktopNotice } from "@novadeck/protocol/bridge"
 
 import { context, describe, expect, it } from "../../test"
-import { desktopNotices, hostNotice, noticeText } from "./desktop-host"
+import { desktopNotices, desktopUpdates, hostNotice, noticeText } from "./desktop-host"
 
 // A host's notification bridge that records what the page shows, and lets a test click.
 const host = () => {
@@ -66,6 +66,57 @@ describe("desktop notices", () => {
     it("are absent", () => {
       expect(desktopNotices(undefined)).toBeUndefined()
       expect(desktopNotices({} as DesktopHost)).toBeUndefined()
+    })
+  })
+})
+
+// A host's update bridge that lets a test report versions and counts installs.
+const updater = () => {
+  let ready: ((version: string) => void) | undefined
+  let installs = 0
+  const bridge = {
+    onUpdateReady: (listener: (version: string) => void) => {
+      ready = listener
+      return () => {
+        ready = undefined
+      }
+    },
+    installUpdate: () => void (installs += 1),
+  } as unknown as DesktopHost
+  return {
+    bridge,
+    report: (version: unknown) => ready?.(version as string),
+    installs: () => installs,
+  }
+}
+
+describe("desktop updates", () => {
+  context("in a host that has them", () => {
+    it("hears versions that look like a release's and no others", () => {
+      const { bridge, report } = updater()
+      const versions: string[] = []
+      const stop = desktopUpdates(bridge)!.onReady((version) => versions.push(version))
+      report("0.0.80")
+      report("1.2.3-beta.1")
+      report("latest")
+      report({ version: "0.0.80" })
+      report("0.0.80\n<b>")
+      stop()
+      report("0.0.81")
+      expect(versions).toEqual(["0.0.80", "1.2.3-beta.1"])
+    })
+
+    it("installs through the host", () => {
+      const { bridge, installs } = updater()
+      desktopUpdates(bridge)!.install()
+      expect(installs()).toBe(1)
+    })
+  })
+
+  context("in a browser, or a host that came before them", () => {
+    it("are absent", () => {
+      expect(desktopUpdates(undefined)).toBeUndefined()
+      expect(desktopUpdates({} as DesktopHost)).toBeUndefined()
     })
   })
 })

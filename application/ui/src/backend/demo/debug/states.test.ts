@@ -160,6 +160,7 @@ describe("demo states", () => {
       "Another project",
       "New terminals",
       "Notices",
+      "Update",
       "Agents",
       "Chat",
       "Folders",

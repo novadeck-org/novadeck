@@ -57,13 +57,14 @@ export type DemoActionGroup = {
 }
 
 // The states half: backend parts that replace or add to the plain demo's, and the
-// panel's groups for terminals, agents, notices and folders.
+// panel's groups for terminals, agents, notices, updates and folders.
 export type DemoStates = {
   readonly groups: readonly DemoActionGroup[]
   readonly agents: NonNullable<Backend["agents"]>
   // Opens the first-run dialog for connecting agents again.
   readonly openWelcome: () => void
   readonly notices: NonNullable<Backend["notices"]>
+  readonly updates: NonNullable<Backend["updates"]>
   readonly pickDirectory: NonNullable<Backend["pickDirectory"]>
   // The demo's conversations, with what the panel arms for the chat's next send.
   readonly chat: (

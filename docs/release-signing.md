@@ -98,7 +98,7 @@ run, commit and repository built a file, and is logged in Sigstore's public
 transparency log:
 
 ```sh
-gh attestation verify novadeck-<version>-linux-x86_64.AppImage --repo mzpkdev/novadeck
+gh attestation verify novadeck-linux-x86_64.AppImage --repo mzpkdev/novadeck
 ```
 
 Each release also signs `SHA256SUMS` with the Novadeck release key, as

@@ -1,14 +1,22 @@
-import { runnerPortMessage, type DesktopBridge, type DesktopHost } from "@novadeck/protocol/bridge"
+import {
+  runnerPortMessage,
+  updateVersionPattern,
+  type DesktopBridge,
+  type DesktopHost,
+} from "@novadeck/protocol/bridge"
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 
 import {
   apiUrlArgumentPrefix,
   appearanceChannel,
   directoryPickerChannel,
+  installUpdateChannel,
   noticeChannel,
   noticeClickChannel,
   runnerPortChannel,
   saveBeforeQuitChannel,
+  updateReadyChannel,
+  updateRequestChannel,
 } from "../bridge.js"
 
 const argument = process.argv.find((value) => value.startsWith(apiUrlArgumentPrefix))
@@ -63,6 +71,21 @@ const bridge = {
     return () => {
       ipcRenderer.removeListener(noticeClickChannel, relay)
     }
+  },
+  // Only a release's version comes back; the request makes the host answer with an update
+  // that is already waiting, as the page may have started listening after it arrived.
+  onUpdateReady: (listener) => {
+    const relay = (_event: unknown, version: unknown): void => {
+      if (typeof version === "string" && updateVersionPattern.test(version)) listener(version)
+    }
+    ipcRenderer.on(updateReadyChannel, relay)
+    ipcRenderer.send(updateRequestChannel)
+    return () => {
+      ipcRenderer.removeListener(updateReadyChannel, relay)
+    }
+  },
+  installUpdate: () => {
+    ipcRenderer.send(installUpdateChannel)
   },
   pathForFile: (file) => {
     try {
