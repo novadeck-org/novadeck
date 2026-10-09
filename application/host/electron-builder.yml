@@ -41,13 +41,54 @@ mac:
   extendInfo:
     CFBundleName: novadeck
     NSMicrophoneUsageDescription: Novadeck uses the microphone for voice input, transcribed on this computer.
-  identity: null
+    # What macOS shows when a program run in a terminal asks; see the entitlements.
+    NSCameraUsageDescription: A program running in Novadeck wants to use the camera.
+    NSAppleEventsUsageDescription: A program running in Novadeck wants to control another app.
+    NSContactsUsageDescription: A program running in Novadeck wants to read your contacts.
+    NSCalendarsUsageDescription: A program running in Novadeck wants to use your calendars.
+    NSCalendarsFullAccessUsageDescription: A program running in Novadeck wants to use your calendars.
+    NSRemindersUsageDescription: A program running in Novadeck wants to use your reminders.
+    NSRemindersFullAccessUsageDescription: A program running in Novadeck wants to use your reminders.
+    NSLocationUsageDescription: A program running in Novadeck wants to use your location.
+    NSLocationWhenInUseUsageDescription: A program running in Novadeck wants to use your location.
+    NSPhotoLibraryUsageDescription: A program running in Novadeck wants to use your photos.
+    NSBluetoothAlwaysUsageDescription: A program running in Novadeck wants to use Bluetooth.
+    NSLocalNetworkUsageDescription: A program running in Novadeck wants to reach devices on your local network.
+    NSDesktopFolderUsageDescription: A program running in Novadeck wants to use files on your Desktop.
+    NSDocumentsFolderUsageDescription: A program running in Novadeck wants to use files in your Documents folder.
+    NSDownloadsFolderUsageDescription: A program running in Novadeck wants to use files in your Downloads folder.
+    NSRemovableVolumesUsageDescription: A program running in Novadeck wants to use files on a removable volume.
+    NSNetworkVolumesUsageDescription: A program running in Novadeck wants to use files on a network volume.
+  # Only this platform's PTY binaries: signing would otherwise reach the Linux and Windows
+  # prebuilds, which codesign cannot sign as code.
+  files:
+    - "!node_modules/node-pty/prebuilds/{linux,win32}-*{,/**}"
+    - "!node_modules/node-pty/third_party{,/**}"
+  # Signed with the Developer ID certificate in the keychain and notarized with the App
+  # Store Connect key in APPLE_API_KEY*, when the release workflow has them; without a
+  # certificate the app is left unsigned. See docs/release-signing.md.
+  hardenedRuntime: true
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
+  notarize: true
   category: public.app-category.utilities
   target:
     - target: zip
       arch:
         - universal
 win:
+  # Signed through Azure Artifact Signing when the release workflow passes
+  # azureSignOptions; see docs/release-signing.md. Executables are signed by default; the
+  # libraries and native modules too, so antivirus heuristics see a known publisher.
+  signExts:
+    - .dll
+    - .node
+  # Only the x64 PTY binaries: signtool fails on the macOS and Linux prebuilds, and the x64
+  # app never loads the arm64 ones, even emulated on an arm64 computer.
+  files:
+    - "!node_modules/node-pty/prebuilds/{darwin,linux}-*{,/**}"
+    - "!node_modules/node-pty/prebuilds/win32-arm64{,/**}"
+    - "!node_modules/node-pty/third_party{,/**}"
   target:
     - target: portable
       arch:

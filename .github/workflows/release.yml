@@ -177,6 +177,124 @@ jobs:
       - name: Set Package Version
         run: npm --prefix application/host pkg set "version=${{ needs.prepare.outputs.version || '0.0.0' }}"
 
+      # Releases from main are signed once the signing credentials are in the repository's
+      # secrets and variables; pull requests, and releases before then, are left unsigned.
+      # The voice engine is signed with the app, so its build and cache follow the same
+      # choice. Only what later steps need goes to GITHUB_ENV: the Azure secrets go to the
+      # two steps that sign, and the macOS key and keychain are removed after packaging.
+      # See docs/release-signing.md.
+      - name: Set Up Signing
+        id: signing
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TARGET: ${{ matrix.target }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          AZURE_SIGNING_PUBLISHER: ${{ vars.AZURE_SIGNING_PUBLISHER }}
+        run: |
+          set -euo pipefail
+          signed=false
+          engine=unsigned
+
+          # Succeeds when every named value is set and fails the release when only some
+          # are, rather than shipping that platform unsigned.
+          configured() {
+            local what="$1" present=0 missing=""
+            shift
+            for name in "$@"; do
+              if [[ -n "${!name:-}" ]]; then present=$((present + 1)); else missing="$missing $name"; fi
+            done
+            if [[ "$present" -gt 0 && -n "$missing" ]]; then
+              echo "::error::$what is only partly set up; it also needs:$missing"
+              exit 1
+            fi
+            [[ "$present" -gt 0 ]]
+          }
+
+          # GITHUB_ENV takes a line per variable, so a value with a line break is refused.
+          export_env() {
+            if [[ "$2" == *$'\n'* ]]; then
+              echo "::error::$1 holds a line break."
+              exit 1
+            fi
+            echo "$1=$2" >> "$GITHUB_ENV"
+          }
+
+          if [[ "$EVENT_NAME" != pull_request && "$TARGET" == mac ]] &&
+            configured "macOS signing" MACOS_CERTIFICATE MACOS_CERTIFICATE_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER; then
+            # A keychain of its own, first in the search list, where electron-builder and the
+            # voice engine's build find the Developer ID identity. Only codesign may use the
+            # key, and the key cannot be exported from it.
+            keychain="$RUNNER_TEMP/signing.keychain-db"
+            password="$(openssl rand -hex 24)"
+            certificate="$RUNNER_TEMP/certificate.p12"
+            echo -n "$MACOS_CERTIFICATE" | base64 --decode -o "$certificate"
+            security create-keychain -p "$password" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p "$password" "$keychain"
+            security import "$certificate" -P "$MACOS_CERTIFICATE_PASSWORD" -x -T /usr/bin/codesign -t cert -f pkcs12 -k "$keychain"
+            rm "$certificate"
+            security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain" > /dev/null
+            # The runner's keychain paths hold no spaces; they stay searched after this one.
+            # shellcheck disable=SC2046
+            security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+
+            identity="$(security find-identity -v -p codesigning "$keychain" | awk '/"Developer ID Application: / { print $2; exit }')"
+            if [[ -z "$identity" ]]; then
+              echo "::error::MACOS_CERTIFICATE holds no Developer ID Application identity."
+              exit 1
+            fi
+
+            # @electron/notarize reads the App Store Connect key from a file.
+            key="$RUNNER_TEMP/notarization/AuthKey_${APPLE_API_KEY_ID}.p8"
+            mkdir -p "$(dirname "$key")"
+            printf '%s\n' "$APPLE_API_KEY" > "$key"
+            export_env NOVADECK_MAC_IDENTITY "$identity"
+            export_env NOVADECK_SIGNING_KEYCHAIN "$keychain"
+            export_env APPLE_API_KEY "$key"
+            export_env APPLE_API_KEY_ID "$APPLE_API_KEY_ID"
+            export_env APPLE_API_ISSUER "$APPLE_API_ISSUER"
+            signed=true
+            engine="developer-id-$identity"
+          fi
+
+          # Keyed on the signing variables alone: AZURE_TENANT_ID and AZURE_CLIENT_ID are
+          # common names that a repository may hold for something else.
+          if [[ "$EVENT_NAME" != pull_request && "$TARGET" == win ]] &&
+            configured "Windows signing" AZURE_SIGNING_ENDPOINT AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE AZURE_SIGNING_PUBLISHER; then
+            missing=""
+            for name in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET; do
+              if [[ -z "${!name:-}" ]]; then missing="$missing $name"; fi
+            done
+            if [[ -n "$missing" ]]; then
+              echo "::error::Windows signing is only partly set up; it also needs:$missing"
+              exit 1
+            fi
+            export_env AZURE_SIGNING_ENDPOINT "$AZURE_SIGNING_ENDPOINT"
+            export_env AZURE_SIGNING_ACCOUNT "$AZURE_SIGNING_ACCOUNT"
+            export_env AZURE_SIGNING_PROFILE "$AZURE_SIGNING_PROFILE"
+            export_env AZURE_SIGNING_PUBLISHER "$AZURE_SIGNING_PUBLISHER"
+            signed=true
+            engine="azure-$AZURE_SIGNING_ACCOUNT-$AZURE_SIGNING_PROFILE"
+          fi
+
+          {
+            echo "signed=$signed"
+            # Names the identity, so a rotated certificate builds the engine afresh.
+            echo "engine=$engine"
+          } >> "$GITHUB_OUTPUT"
+          echo "Signing: $signed"
+
       # Voice input's engine, whisper.cpp built for this platform (see application/whisper),
       # is compiled here, not by the Quality workflow's builds: it takes minutes, and its
       # archive is a release asset the app downloads, while the app ships only its manifest.
@@ -199,10 +317,14 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: application/whisper/dist
-          key: whisper-engine-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('application/whisper/scripts/**', 'application/whisper/patches/**', 'application/whisper/package.json') }}
+          key: whisper-engine-${{ runner.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('application/whisper/scripts/**', 'application/whisper/patches/**', 'application/whisper/package.json') }}
 
       - name: Build Voice Engine
         if: steps.engine.outputs.cache-hit != 'true'
+        env:
+          AZURE_TENANT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_SECRET || '' }}
         run: pnpm --filter @novadeck/whisper build:engine
 
       # Unpacks the engine with the tar the runner uses on this platform and runs it, so a
@@ -222,11 +344,74 @@ jobs:
           fi
 
       # The relay is built with the Rust its rust-toolchain.toml names; on macOS as one
-      # binary for both architectures.
+      # binary for both architectures. macOS signs with the keychain's identity on its own;
+      # Windows signs when given the Azure account, which goes to electron-builder through
+      # `pnpm exec`, as cmd.exe would mangle the quoted publisher in `pnpm run`.
       - name: Package Application
+        shell: bash
         env:
           NOVADECK_RELAY_UNIVERSAL: "1"
-        run: pnpm run package:${{ matrix.target }}
+          AZURE_TENANT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_SECRET || '' }}
+        run: |
+          if [[ "${{ matrix.target }}" != win || -z "${AZURE_SIGNING_PROFILE:-}" ]]; then
+            pnpm run package:${{ matrix.target }}
+            exit 0
+          fi
+          pnpm --workspace-root exec turbo run build --filter=@novadeck/host
+          pnpm --dir application/host exec electron-builder --win --x64 --publish never \
+            "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER" \
+            "-c.win.azureSignOptions.endpoint=$AZURE_SIGNING_ENDPOINT" \
+            "-c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGNING_ACCOUNT" \
+            "-c.win.azureSignOptions.certificateProfileName=$AZURE_SIGNING_PROFILE"
+
+      # The rest of the job runs the packaged app and the engine, which need no key.
+      - name: Remove Signing Credentials (macOS)
+        if: always() && matrix.target == 'mac' && steps.signing.outputs.signed == 'true'
+        run: |
+          rm -f "$APPLE_API_KEY"
+          security delete-keychain "$NOVADECK_SIGNING_KEYCHAIN" || true
+
+      # Fails the release, rather than shipping a package Gatekeeper or SmartScreen would
+      # treat as unsigned, when signing was set up but did not take.
+      - name: Verify Signatures (macOS)
+        if: matrix.target == 'mac' && steps.signing.outputs.signed == 'true'
+        run: |
+          set -euo pipefail
+          verify="$RUNNER_TEMP/novadeck-verify"
+          mkdir -p "$verify/engine"
+          ditto -x -k "$(find application/host/release -maxdepth 1 -name '*.zip' -print -quit)" "$verify"
+          bundle="$(find "$verify" -maxdepth 1 -name '*.app' -print -quit)"
+          codesign --verify --deep --strict --verbose=2 "$bundle"
+          spctl --assess --type execute --verbose=2 "$bundle"
+          xcrun stapler validate "$bundle"
+
+          tar -xzf application/whisper/dist/novadeck-whisper-*.tar.gz -C "$verify/engine"
+          for file in "$verify"/engine/whisper-server "$verify"/engine/*.dylib; do
+            if [[ -f "$file" && ! -L "$file" ]]; then
+              codesign --verify --strict --verbose=2 "$file"
+              codesign --display --verbose=2 "$file" 2>&1 | grep '^Authority=Developer ID Application: ' > /dev/null
+            fi
+          done
+
+      - name: Verify Signatures (Windows)
+        if: matrix.target == 'win' && steps.signing.outputs.signed == 'true'
+        shell: pwsh
+        run: |
+          $engine = Join-Path $env:RUNNER_TEMP "novadeck-verify-engine"
+          New-Item -ItemType Directory -Force -Path $engine | Out-Null
+          $archive = Get-ChildItem application/whisper/dist -Filter "novadeck-whisper-*.tar.gz" | Select-Object -First 1
+          & "$env:SystemRoot\System32\tar.exe" -xzf $archive.FullName -C $engine
+          $files = @(Get-ChildItem application/host/release -Filter *.exe) +
+            @(Get-ChildItem application/host/release/win-unpacked -Recurse -Include *.exe, *.dll, *.node) +
+            @(Get-ChildItem $engine -Include *.exe, *.dll -Recurse)
+          $unsigned = $files | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne "Valid" }
+          if ($unsigned) {
+            $unsigned | ForEach-Object { Write-Host "::error::Not validly signed: $($_.FullName)" }
+            throw "$(@($unsigned).Count) files are not validly signed."
+          }
+          Write-Host "$($files.Count) files are validly signed."
 
       - name: Smoke Test Linux Package
         if: matrix.target == 'linux'
@@ -351,6 +536,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      # Build provenance for every package, which `gh attestation verify` checks.
+      attestations: write
+      id-token: write
     steps:
       - name: Check Out Source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -375,6 +563,45 @@ jobs:
       - name: Generate Checksums
         working-directory: release-assets
         run: sha256sum -- * > SHA256SUMS
+
+      # A detached signature over the checksums, the way Linux users and packagers check a
+      # download, once the release key is in the secrets. See docs/release-signing.md.
+      - name: Sign Checksums
+        working-directory: release-assets
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GPG_PRIVATE_KEY" ]]; then
+            if [[ -n "$GPG_PASSPHRASE" ]]; then
+              echo "::error::GPG_PASSPHRASE is set, but signing the checksums needs GPG_PRIVATE_KEY too."
+              exit 1
+            fi
+            echo "No release key; the checksums are published unsigned."
+            exit 0
+          fi
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -m 700 "$GNUPGHOME"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+          gpg --batch --import <<<"$GPG_PRIVATE_KEY"
+          # One key, so which one signs is never gpg's choice.
+          keys="$(gpg --batch --with-colons --list-secret-keys | grep -c '^sec:' || true)"
+          if [[ "$keys" != 1 ]]; then
+            echo "::error::GPG_PRIVATE_KEY holds $keys secret keys; export only the release key, by its fingerprint."
+            exit 1
+          fi
+          if ! gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --armor --detach-sign --output SHA256SUMS.asc SHA256SUMS <<<"$GPG_PASSPHRASE"; then
+            echo "::error::Signing the checksums failed. If the release key has expired, extend it and put a fresh export in GPG_PRIVATE_KEY; see docs/release-signing.md."
+            exit 1
+          fi
+          gpg --batch --verify SHA256SUMS.asc SHA256SUMS
+
+      - name: Attest Packages
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: release-assets/*
 
       - name: Configure Git
         run: |

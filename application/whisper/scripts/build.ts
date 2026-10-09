@@ -271,16 +271,59 @@ const gather = async (build: string, staging: string, source: string): Promise<v
 }
 
 // Apple silicon runs only signed code, and the linker's signature does not survive the
-// rewrites above, so on macOS every Mach-O is signed again, ad hoc, as the app is.
-const sign = async (staging: string): Promise<void> => {
-  if (!macos) return
+// rewrites above, so on macOS every Mach-O is signed again: with the Developer ID that
+// NOVADECK_MAC_IDENTITY names, under the hardened runtime as the app is, or else ad hoc.
+const signMac = async (staging: string): Promise<void> => {
+  const identity = process.env.NOVADECK_MAC_IDENTITY
+  const how = identity
+    ? ["--options", "runtime", "--timestamp", "--sign", identity]
+    : ["--sign", "-"]
   for (const name of await readdir(staging)) {
     const path = join(staging, name)
     // A link points at a file signed under its own name.
     if (lstatSync(path).isFile() && (name === executable || isLibrary(name))) {
-      run("codesign", ["--force", "--sign", "-", path])
+      run("codesign", ["--force", ...how, path])
     }
   }
+}
+
+// The signing module, pinned: it runs with the Azure credentials in its environment.
+// electron-builder installs its own, the newest, to sign the app.
+const trustedSigning = "0.5.8"
+
+// A PowerShell string literal.
+const quote = (value: string): string => `'${value.replaceAll("'", "''")}'`
+
+// On Windows the server and its modules are signed through Azure Artifact Signing, as the
+// app is, when the release names the account; the module reads its credentials from
+// AZURE_TENANT_ID, AZURE_CLIENT_ID and AZURE_CLIENT_SECRET.
+const signWindows = (staging: string): void => {
+  const endpoint = process.env.AZURE_SIGNING_ENDPOINT
+  const account = process.env.AZURE_SIGNING_ACCOUNT
+  const profile = process.env.AZURE_SIGNING_PROFILE
+  if (!endpoint || !account || !profile) return
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    `Install-Module -Name TrustedSigning -RequiredVersion ${trustedSigning} -Force -Repository PSGallery -Scope CurrentUser`,
+    `Import-Module -Name TrustedSigning -RequiredVersion ${trustedSigning}`,
+    [
+      "Invoke-TrustedSigning",
+      `-Endpoint ${quote(endpoint)}`,
+      `-CodeSigningAccountName ${quote(account)}`,
+      `-CertificateProfileName ${quote(profile)}`,
+      `-FilesFolder ${quote(staging)}`,
+      "-FilesFolderFilter 'exe,dll'",
+      "-FileDigest SHA256",
+      "-TimestampRfc3161 'http://timestamp.acs.microsoft.com'",
+      "-TimestampDigest SHA256",
+    ].join(" "),
+  ].join("\n")
+  run("pwsh", ["-NoProfile", "-NonInteractive", "-Command", script])
+}
+
+const sign = async (staging: string): Promise<void> => {
+  if (macos) await signMac(staging)
+  if (windows) signWindows(staging)
 }
 
 const block = 512
