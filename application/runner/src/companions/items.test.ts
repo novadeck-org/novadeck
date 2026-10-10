@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -98,11 +98,115 @@ const watching = (items: CompanionItems) => {
   }
 }
 
+describe("what an agent closes", () => {
+  it("takes its own item off its bar, by the file or page it showed", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "const a = 1\n")
+    const t1 = fixture.terminal("t1")
+    await fixture.items.show(t1, { file: { path: "a.ts", lines: { from: 1, to: 1 } } })
+    await fixture.items.show(t1, { url: "http://localhost:5173/", title: "Preview" })
+    const { seen, stop } = watching(fixture.items)
+    await expect(fixture.items.dismiss(t1, { file: { path: "./a.ts" } })).resolves.toEqual({
+      ok: true,
+      name: "a.ts",
+      kind: "file",
+    })
+    await expect(fixture.items.dismiss(t1, { url: "http://localhost:5173" })).resolves.toEqual({
+      ok: true,
+      name: "Preview",
+      kind: "page",
+    })
+    expect(fixture.items.bar(t1.terminalId)).toEqual([])
+    await stop()
+    expect(seen.filter((change) => change.type === "itemRemoved")).toHaveLength(2)
+  })
+
+  it("closes a file that has since gone, by the path it was shown at", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "tmp.png"), "")
+    const t1 = fixture.terminal("t1")
+    await fixture.items.show(t1, { file: { path: "tmp.png" } })
+    rmSync(join(fixture.directory, "tmp.png"))
+    await expect(fixture.items.dismiss(t1, { file: { path: "tmp.png" } })).resolves.toMatchObject({
+      ok: true,
+      name: "tmp.png",
+    })
+    expect(fixture.items.bar(t1.terminalId)).toEqual([])
+  })
+
+  it("closes a gone file shown through a symlinked folder, by that path", async ({ fixture }) => {
+    mkdirSync(join(fixture.directory, "real"))
+    symlinkSync(join(fixture.directory, "real"), join(fixture.directory, "link"))
+    writeFileSync(join(fixture.directory, "real", "shot.png"), "")
+    const t1 = fixture.terminal("t1")
+    await fixture.items.show(t1, { file: { path: "link/shot.png" } })
+    expect(fixture.items.bar(t1.terminalId)[0]?.path).toBe(
+      join(fixture.directory, "real", "shot.png"),
+    )
+    rmSync(join(fixture.directory, "real", "shot.png"))
+    await expect(fixture.items.dismiss(t1, { file: { path: "link/shot.png" } })).resolves.toEqual({
+      ok: true,
+      name: "shot.png",
+      kind: "image",
+    })
+    expect(fixture.items.bar(t1.terminalId)).toEqual([])
+  })
+
+  it("no longer reaches its item once the person moved it elsewhere", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "const a = 1\n")
+    const t1 = fixture.terminal("t1")
+    const t2 = fixture.terminal("t2")
+    const shown = await fixture.items.show(t1, { file: { path: "a.ts" } })
+    const id = shown.ok ? shown.id : ""
+    fixture.items.undock(id, randomUUID())
+    await expect(fixture.items.dismiss(t1, { file: { path: "a.ts" } })).resolves.toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("Nothing is showing"),
+    })
+    fixture.items.move(id, t2.terminalId)
+    await expect(fixture.items.dismiss(t2, { file: { path: "a.ts" } })).resolves.toMatchObject({
+      ok: false,
+      reason: expect.stringContaining("placed beside you from t1"),
+    })
+    expect(fixture.items.bar(t2.terminalId)).toHaveLength(1)
+  })
+
+  it("leaves what it didn't show, and says whose it is", async ({ fixture }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "const a = 1\n")
+    writeFileSync(join(fixture.directory, "b.ts"), "const b = 1\n")
+    const t1 = fixture.terminal("t1")
+    const t2 = fixture.terminal("t2")
+    await fixture.items.attach({ terminalId: t1.terminalId, path: "a.ts" })
+    const shown = await fixture.items.show(t2, { file: { path: "b.ts" } })
+    fixture.items.move(shown.ok ? shown.id : "", t1.terminalId)
+    await expect(fixture.items.dismiss(t1, { file: { path: "a.ts" } })).resolves.toEqual({
+      ok: false,
+      reason:
+        '"a.ts" was attached by the user, so it isn\'t yours to close; tell the user if it ' +
+        "should go.",
+    })
+    await expect(fixture.items.dismiss(t1, { file: { path: "b.ts" } })).resolves.toEqual({
+      ok: false,
+      reason:
+        '"b.ts" was placed beside you from t2, so it isn\'t yours to close; tell the user if ' +
+        "it should go.",
+    })
+    await expect(fixture.items.dismiss(t1, { file: { path: "c.ts" } })).resolves.toEqual({
+      ok: false,
+      reason: 'Nothing is showing beside your terminal at "c.ts"; showing lists what is.',
+    })
+    await expect(fixture.items.dismiss(t1, { url: "file:///etc/passwd" })).resolves.toMatchObject({
+      ok: false,
+    })
+    expect(fixture.items.bar(t1.terminalId)).toHaveLength(2)
+  })
+})
+
 describe("what an agent shows", () => {
   it("lands on its own bar, and showing it again updates it there", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, "a.ts"), "const a = 1\n")
     const t1 = fixture.terminal("t1")
-    const first = await fixture.items.show(t1, { path: "a.ts", lines: { from: 1, to: 1 } })
+    const first = await fixture.items.show(t1, {
+      file: { path: "a.ts", lines: { from: 1, to: 1 } },
+    })
     expect(first).toEqual({
       ok: true,
       id: expect.any(String),
@@ -111,7 +215,11 @@ describe("what an agent shows", () => {
       opened: false,
       again: false,
     })
-    const again = await fixture.items.show(t1, { path: "a.ts", title: "Mine", open: true })
+    const again = await fixture.items.show(t1, {
+      file: { path: "a.ts" },
+      title: "Mine",
+      open: true,
+    })
     expect(again).toMatchObject({ ok: true, name: "Mine", opened: true, again: true })
     expect(fixture.items.bar(t1.terminalId)).toEqual([
       {
@@ -146,15 +254,19 @@ describe("what an agent shows", () => {
       writeFileSync(join(fixture.directory, `f${index}.txt`), `${index}\n`)
     for (let index = 0; index < 70; index += 1)
       // eslint-disable-next-line no-await-in-loop -- One show after another.
-      await fixture.items.show(t1, { path: `f${index}.txt` })
-    await expect(fixture.items.show(t1, { path: "a.bin" })).resolves.toMatchObject({ ok: true })
+      await fixture.items.show(t1, { file: { path: `f${index}.txt` } })
+    await expect(fixture.items.show(t1, { file: { path: "a.bin" } })).resolves.toMatchObject({
+      ok: true,
+    })
     // Asked to open, but it may hold secrets: it waits for the person.
-    await expect(fixture.items.show(t1, { path: ".env", open: true })).resolves.toMatchObject({
+    await expect(
+      fixture.items.show(t1, { file: { path: ".env" }, open: true }),
+    ).resolves.toMatchObject({
       ok: true,
       opened: false,
       held: true,
     })
-    await expect(fixture.items.show(t1, { path: "big.png" })).resolves.toMatchObject({
+    await expect(fixture.items.show(t1, { file: { path: "big.png" } })).resolves.toMatchObject({
       ok: true,
       kind: "image",
       tooLarge: true,
@@ -162,7 +274,7 @@ describe("what an agent shows", () => {
     await expect(
       fixture.items.show(t1, { url: "http://localhost:5173/", title: "Preview" }),
     ).resolves.toMatchObject({ ok: true, kind: "page", name: "Preview" })
-    await expect(fixture.items.show(t1, { path: "gone.txt" })).resolves.toEqual({
+    await expect(fixture.items.show(t1, { file: { path: "gone.txt" } })).resolves.toEqual({
       ok: false,
       reason: "That file doesn't exist.",
     })
@@ -184,7 +296,7 @@ describe("what an agent shows", () => {
     writeFileSync(join(fixture.directory, "hero.png"), "png")
     writeFileSync(join(fixture.directory, "src", "store.ts"), "x\n")
     writeFileSync(join(fixture.directory, ".env"), "x\n")
-    await fixture.items.show(t1, { path: "hero.png" })
+    await fixture.items.show(t1, { file: { path: "hero.png" } })
     await fixture.items.attach({
       terminalId: t1.terminalId,
       path: "src/store.ts",
@@ -234,8 +346,8 @@ describe("moving items", () => {
     const t1 = fixture.terminal("t1")
     const t2 = fixture.terminal("t2")
     const watch = watching(fixture.items)
-    const shown = await fixture.items.show(t1, { path: "a.ts" })
-    const copy = await fixture.items.show(t2, { path: "a.ts" })
+    const shown = await fixture.items.show(t1, { file: { path: "a.ts" } })
+    const copy = await fixture.items.show(t2, { file: { path: "a.ts" } })
     const itemId = shown.ok ? shown.id : ""
     const windowId = randomUUID()
     expect(fixture.items.undock(itemId, windowId)).toEqual({
@@ -262,7 +374,7 @@ describe("moving items", () => {
       windows: [],
     })
     // The agent in t1 shows it again: a new item on its own bar; the moved one stays.
-    const reshown = await fixture.items.show(t1, { path: "a.ts" })
+    const reshown = await fixture.items.show(t1, { file: { path: "a.ts" } })
     expect(reshown).toMatchObject({ again: false })
     expect(fixture.items.bar(t2.terminalId)).toMatchObject([{ id: itemId, version: 1 }])
     // What the watch said, applied in order, is what the runner keeps.
@@ -295,7 +407,7 @@ describe("moving items", () => {
       name: "Other",
     })
     const elsewhere = fixture.terminal("t1", other.id)
-    const shown = await fixture.items.show(t1, { path: "a.ts" })
+    const shown = await fixture.items.show(t1, { file: { path: "a.ts" } })
     const itemId = shown.ok ? shown.id : ""
     expect(() => fixture.items.move(randomUUID(), t1.terminalId)).toThrow(
       expect.objectContaining({ code: "NOT_FOUND" }),
@@ -318,7 +430,7 @@ describe("moving items", () => {
     await expect(
       fixture.items.attach({ terminalId: gone.terminalId, path: "a.ts" }),
     ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
-    await expect(fixture.items.show(gone, { path: "a.ts" })).resolves.toEqual({
+    await expect(fixture.items.show(gone, { file: { path: "a.ts" } })).resolves.toEqual({
       ok: false,
       reason: "Novadeck couldn't show it.",
     })
@@ -330,7 +442,7 @@ describe("moving items", () => {
     const controller = new AbortController()
     const stream = fixture.items.watch("owner", controller.signal)
     await expect(next(stream)).resolves.toEqual({ type: "synced" })
-    const shown = await fixture.items.show(t1, { path: "n.md" })
+    const shown = await fixture.items.show(t1, { file: { path: "n.md" } })
     const itemId = shown.ok ? shown.id : ""
     await expect(next(stream)).resolves.toMatchObject({ type: "item" })
     const windowId = randomUUID()
@@ -353,8 +465,8 @@ describe("moving items", () => {
     writeFileSync(join(fixture.directory, "a.ts"), "a\n")
     writeFileSync(join(fixture.directory, "b.ts"), "b\n")
     const t1 = fixture.terminal("t1")
-    const a = await fixture.items.show(t1, { path: "a.ts" })
-    const b = await fixture.items.show(t1, { path: "b.ts" })
+    const a = await fixture.items.show(t1, { file: { path: "a.ts" } })
+    const b = await fixture.items.show(t1, { file: { path: "b.ts" } })
     const windowId = randomUUID()
     fixture.items.undock(b.ok ? b.id : "", windowId)
     fixture.close(t1.terminalId)
@@ -373,14 +485,14 @@ describe("an item's content", () => {
     const path = join(fixture.directory, "a.ts")
     writeFileSync(path, "one\n")
     const t1 = fixture.terminal("t1")
-    const shown = await fixture.items.show(t1, { path: "a.ts" })
+    const shown = await fixture.items.show(t1, { file: { path: "a.ts" } })
     const itemId = shown.ok ? shown.id : ""
     const stream = fixture.items.content(itemId, false)
     expect(lines(await next(stream))).toEqual(["one"])
     writeFileSync(path, "one\ntwo\n")
     expect(lines(await next(stream))).toEqual(["one", "two"])
     // Shown again with other lines, it yields again though the file is the same.
-    await fixture.items.show(t1, { path: "a.ts", lines: { from: 2, to: 2 } })
+    await fixture.items.show(t1, { file: { path: "a.ts", lines: { from: 2, to: 2 } } })
     await expect(next(stream)).resolves.toMatchObject({ content: { from: 2, to: 2 } })
     const ending = stream.next()
     fixture.items.close(itemId)
@@ -402,7 +514,7 @@ describe("an item's content", () => {
   it("holds a file that may hold secrets until revealed", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, ".env"), "TOKEN=x\n")
     const t1 = fixture.terminal("t1")
-    const shown = await fixture.items.show(t1, { path: ".env" })
+    const shown = await fixture.items.show(t1, { file: { path: ".env" } })
     const itemId = shown.ok ? shown.id : ""
     await expect(fixture.items.load(itemId, false)).resolves.toEqual({
       state: "unavailable",

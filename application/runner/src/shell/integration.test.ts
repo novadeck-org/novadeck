@@ -2067,13 +2067,13 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const items = shell.items(manager)
       const bar = () => items.bar(terminal.id)
       const answers = await present(shell, manager, terminal.id, [
-        { request: { path: join(project, "a.ts") } },
-        { request: { path: "w.txt", open: true } },
-        { request: { path: join(plans, "p.md"), title: "The plan" } },
-        { request: { path: join(shell.home, "elsewhere.txt") } },
-        { request: { path: ".env", open: true } },
-        { request: { path: "w.txt" }, token: "0".repeat(48) },
-        { request: { path: "w.txt", lines: { from: 2, to: 1 } } },
+        { request: { file: { path: join(project, "a.ts") } } },
+        { request: { file: { path: "w.txt" }, open: true } },
+        { request: { file: { path: join(plans, "p.md") }, title: "The plan" } },
+        { request: { file: { path: join(shell.home, "elsewhere.txt") } } },
+        { request: { file: { path: ".env" }, open: true } },
+        { request: { file: { path: "w.txt" } }, token: "0".repeat(48) },
+        { request: { file: { path: "w.txt", lines: { from: 2, to: 1 } } } },
       ])
       expect(answers).toEqual([
         awaits("a.ts"),
@@ -2088,7 +2088,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
             "in Novadeck, marked new, to open if they choose.",
         },
         { ok: false, reason: "Novadeck couldn't show it." },
-        { ok: false, reason: 'The request\'s "lines" is not valid.' },
+        { ok: false, reason: 'The request\'s "file.lines" is not valid.' },
       ])
       expect(bar()).toMatchObject([
         {
@@ -2155,7 +2155,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       manager.write({ terminalId: terminal.id, data: "cd ../project\r" }, "owner")
       await moved((summary) => summary.id === terminal.id && summary.cwd === project)
       writeFileSync(join(project, "a.ts"), "const a = 2\n")
-      expect(await present(shell, manager, terminal.id, [{ request: { path: "a.ts" } }])).toEqual([
+      expect(
+        await present(shell, manager, terminal.id, [{ request: { file: { path: "a.ts" } } }]),
+      ).toEqual([
         { ok: true, text: "a.ts is updated and waiting for the user in Novadeck, marked new." },
       ])
       expect(bar().find(({ name }) => name === "a.ts")?.id).toBe(first!.id)
@@ -2194,7 +2196,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         shell,
         manager,
         terminal.id,
-        names.map((path) => ({ request: { path } })),
+        names.map((path) => ({ request: { file: { path } } })),
       )) as { ok: boolean }[]
       expect(answers.every((answer) => answer.ok)).toBe(true)
       const items = shell.items(manager)
@@ -2868,7 +2870,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       mkdirSync(notes)
       writeFileSync(join(notes, "plan.txt"), "plan\n")
       await expect(
-        call(codex.id, "present", { path: join(notes, "plan.txt") }),
+        call(codex.id, "present", { file: { path: join(notes, "plan.txt") } }),
       ).resolves.toMatchObject({ ok: true })
       const items = shell.items(manager)
       expect(items.bar(codex.id)).toHaveLength(1)

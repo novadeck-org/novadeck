@@ -45,8 +45,8 @@ export type Ack = { readonly terminalId: string; readonly token: string; readonl
 
 /**
  * What Novadeck's MCP server forwards: a tool call an agent made in a terminal, which
- * waits for its answer. `present` shows something beside it and `showing` lists what is
- * there (see `companions/items.ts`), `open` opens a new terminal beside it (see
+ * waits for its answer. `present` shows something beside it, `showing` lists what is
+ * there and `dismiss` closes what it showed (see `companions/items.ts`), `open` opens a new terminal beside it (see
  * `terminals/opens.ts`), `close` closes another terminal of its project and session (see
  * `terminals/closes.ts`), `send` and `agents` message other terminals' agents and
  * describe them (see `messaging/messaging.ts`), and `describe` names the caller's own
@@ -59,7 +59,16 @@ export type Call = {
   readonly request: { readonly [key: string]: unknown }
 }
 
-const callTypes = ["present", "showing", "open", "close", "send", "agents", "describe"] as const
+const callTypes = [
+  "present",
+  "showing",
+  "dismiss",
+  "open",
+  "close",
+  "send",
+  "agents",
+  "describe",
+] as const
 export type CallType = (typeof callTypes)[number]
 
 /** The answer to a call that failed, took too long, or could not be read. */
@@ -69,6 +78,7 @@ export const unanswered = { ok: false, reason: "Novadeck couldn't show it." } as
 export const unansweredCalls = {
   present: unanswered,
   showing: { ok: false, reason: "Novadeck couldn't list what is showing beside you." },
+  dismiss: { ok: false, reason: "Novadeck couldn't close it." },
   open: { ok: false, reason: "Novadeck couldn't open the terminal." },
   close: { ok: false, reason: "Novadeck couldn't close the terminal." },
   send: { ok: false, reason: "Novadeck couldn't send the message." },

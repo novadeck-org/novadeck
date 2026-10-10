@@ -31,7 +31,12 @@ import * as pty from "node-pty"
 import type { PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
-import { readRequest, type PresentAnswer } from "../companions/request.js"
+import {
+  readRequest,
+  readDismissRequest,
+  type PresentAnswer,
+  type DismissAnswer,
+} from "../companions/request.js"
 import { DomainError } from "../errors.js"
 import {
   apply,
@@ -2126,6 +2131,22 @@ export class Terminals {
     return this.options.items.show(place, read.request)
   }
 
+  /**
+   * Closes what the caller's agent showed on its own terminal's bar, through Novadeck's
+   * MCP server (see `CompanionItems.dismiss`). A call without the shell's own token
+   * learns nothing more.
+   */
+  async dismiss(call: Call): Promise<DismissAnswer> {
+    const record = this.records.get(call.terminalId)
+    if (!record || record.exitQueued || !sameToken(record.token, call.token))
+      return unansweredCalls.dismiss
+    const read = readDismissRequest(call.request)
+    if (!read.ok) return read
+    const place = this.place(call.terminalId)
+    if (!place || !this.options.items) return unansweredCalls.dismiss
+    return this.options.items.dismiss(place, read.request)
+  }
+
   /** What the caller's own terminal's bar holds, as its agent asked through Novadeck's MCP server. */
   private showing(call: Call): { ok: true; text: string } | typeof unansweredCalls.showing {
     const record = this.records.get(call.terminalId)
@@ -2324,6 +2345,8 @@ export class Terminals {
         return this.present(call)
       case "showing":
         return Promise.resolve(this.showing(call))
+      case "dismiss":
+        return this.dismiss(call)
       case "open":
         return this.open(call)
       case "close":

@@ -5,7 +5,9 @@
  * the agent's hooks report to, and the answers back; outside Novadeck's terminals the
  * relay answers the handshake itself, with no tools. Its tools: `show`, which puts an
  * image, a text file or a web page in front of the user, beside the terminal the agent
- * runs in, and `showing`, which lists what is there now; `open_terminal`, which opens a
+ * runs in (one source per call, `file` or `url`, each with its own options inside it),
+ * `showing`, which lists what is there now, and `close`, which takes away what the agent
+ * showed, by the same file or url; `open_terminal`, which opens a
  * new terminal beside it, optionally starting a command there; `close_terminal`, which
  * closes another of the project's terminals by its handle; `send` and `agents`, which
  * message the agents in the project's other terminals and list them; and `describe`,
@@ -50,6 +52,7 @@ type Shown = {
   readonly tooLarge?: boolean
 }
 type Listing = { readonly text: string }
+type Dismissed = { readonly name: string }
 type Opened = {
   readonly handle?: string
   readonly command?: string
@@ -87,7 +90,7 @@ const show: Tool<Shown> = {
   name: "show",
   description:
     "Show the user an image or a text file, or a web page, in Novadeck, " +
-    "beside the terminal they're talking to you in. Give either path or url. Use it when they " +
+    "beside the terminal they're talking to you in. Give either file or url. Use it when they " +
     "ask to see something, or when a screenshot, mockup, diagram, the lines you mean or the " +
     "running app (as a local dev server's address) would help them follow. Set open to true " +
     "only when they asked to see it; otherwise it waits for them in Novadeck, marked new. " +
@@ -95,29 +98,40 @@ const show: Tool<Shown> = {
   inputSchema: {
     type: "object",
     properties: {
-      path: {
-        type: "string",
+      file: {
+        type: "object",
         description:
-          "The file: an image (PNG, JPEG, GIF, WebP, SVG) or a text file, absolute or relative " +
-          "to the terminal's current directory.",
+          "A file: an image (PNG, JPEG, GIF, WebP, SVG) or a text file, and for a text file " +
+          "the lines to point at.",
+        properties: {
+          path: {
+            type: "string",
+            description: "Its path, absolute or relative to the terminal's current directory.",
+          },
+          lines: {
+            type: "object",
+            description: "For a text file, the lines to point at.",
+            properties: {
+              from: { type: "integer", minimum: 1 },
+              to: { type: "integer", minimum: 1 },
+            },
+            required: ["from", "to"],
+            additionalProperties: false,
+          },
+        },
+        required: ["path"],
+        additionalProperties: false,
       },
       url: {
         type: "string",
         description:
-          "Instead of path: a web page's http or https address, such as http://localhost:5173/, " +
+          "Instead of file: a web page's http or https address, such as http://localhost:5173/, " +
           "which Novadeck opens live in its browser view.",
       },
-      lines: {
-        type: "object",
-        description: "For a text file, the lines to point at.",
-        properties: {
-          from: { type: "integer", minimum: 1 },
-          to: { type: "integer", minimum: 1 },
-        },
-        required: ["from", "to"],
-        additionalProperties: false,
+      title: {
+        type: "string",
+        description: "A short name to show instead of the file's or page's.",
       },
-      title: { type: "string", description: "A short name to show instead of the file's." },
       open: {
         type: "boolean",
         description: "True only when the user asked to see it: it opens at once.",
@@ -126,7 +140,8 @@ const show: Tool<Shown> = {
     additionalProperties: false,
   },
   call: "present",
-  request: (args) => picked(args, ["path", "url", "lines", "title", "open"]),
+  // Whole, so the runner's strict reading names a key that belongs to no source.
+  request: (args) => args,
   said: (answer) =>
     (answer.opened
       ? "Showing " +
@@ -156,6 +171,47 @@ const showing: Tool<Listing> = {
   // The runner renders the listing.
   said: (answer) => answer.text,
   failed: "Novadeck couldn't list what is showing beside you.",
+}
+
+const close: Tool<Dismissed> = {
+  name: "close",
+  description:
+    "Close something you showed beside your terminal in Novadeck, by the same file or url " +
+    "you gave show: it leaves the taskbar and the pane. Give either file or url. Use it " +
+    "when the user asked you to close it, or when what you showed no longer applies, as a " +
+    "preview whose server you stopped or a screenshot replaced by a newer one under " +
+    "another name; showing the same file or page again updates it instead. Don't close what " +
+    "the user may still be looking at unless they asked. Only what you showed yourself " +
+    "closes this way: what the user attached, or another terminal placed beside you, " +
+    "stays, and you're told. showing lists what is there. For a terminal, use " +
+    "close_terminal instead.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      file: {
+        type: "object",
+        description: "The file you showed.",
+        properties: {
+          path: {
+            type: "string",
+            description: "Its path, absolute or relative to the terminal's current directory.",
+          },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+      url: {
+        type: "string",
+        description: "Instead of file: the web page's address you showed.",
+      },
+    },
+    additionalProperties: false,
+  },
+  call: "dismiss",
+  // Whole, so the runner's strict reading names a key that belongs to no source.
+  request: (args) => args,
+  said: (answer) => "Closed " + answer.name + " beside you in Novadeck.",
+  failed: "Novadeck couldn't close it.",
 }
 
 const openTerminal: Tool<Opened> = {
@@ -459,6 +515,7 @@ const describe: Tool<Described> = {
 const tools: readonly Tool<unknown>[] = [
   show,
   showing,
+  close,
   openTerminal,
   closeTerminal,
   send,

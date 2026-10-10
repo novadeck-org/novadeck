@@ -40,7 +40,7 @@ const send = (endpoint: string, line: string, { end = true } = {}) =>
   })
 
 const token = "0123456789abcdef".repeat(3)
-const call = { type: "present", terminalId: "t", token, request: { path: "a.md" } }
+const call = { type: "present", terminalId: "t", token, request: { file: { path: "a.md" } } }
 
 // A relay's connection: its first line, then the lines it carries; resolves to every
 // line that came back by the time the endpoint closed it, or `waitMs` passed.
@@ -120,7 +120,11 @@ describe("relay sessions", () => {
     const answers = await session(reports.endpoint, [
       hello(),
       rpc({ id: 1, method: "tools/list" }),
-      rpc({ id: 2, method: "tools/call", params: { name: "show", arguments: { path: "a.md" } } }),
+      rpc({
+        id: 2,
+        method: "tools/call",
+        params: { name: "show", arguments: { file: { path: "a.md" } } },
+      }),
       end,
     ])
     expect(answers).toHaveLength(2)
@@ -147,7 +151,7 @@ describe("relay sessions", () => {
       JSON.stringify(told(1, "Showing a.md to the user in Novadeck.", false)),
       "",
     ].join("\n")
-    const lines = [hello(), tool(1, "show", { path: "a.md" })].join("\n")
+    const lines = [hello(), tool(1, "show", { file: { path: "a.md" } })].join("\n")
     if (halfOpen) await expect(send(reports.endpoint, lines)).resolves.toBe(answer)
     await expect(send(reports.endpoint, `${lines}\n${end}`, { end: false })).resolves.toBe(answer)
     expect(calls).toEqual(halfOpen ? [call, call] : [call])
@@ -175,7 +179,7 @@ describe("relay sessions", () => {
       tool(1, "open_terminal", { command: "claude" }),
       tool(2, "open_terminal", { command: "slow" }),
       tool(3, "close_terminal", { to: "t2" }),
-      tool(4, "show", { path: "a.md" }),
+      tool(4, "show", { file: { path: "a.md" } }),
       end,
     ])
     expect(answers).toHaveLength(4)
@@ -213,7 +217,7 @@ describe("relay sessions", () => {
     await expect(
       session(reports.endpoint, [
         hello({ terminalId: "t".repeat(65) }),
-        tool(1, "show", { path: "a.md" }),
+        tool(1, "show", { file: { path: "a.md" } }),
         end,
       ]),
     ).resolves.toEqual([
@@ -231,7 +235,11 @@ describe("relay sessions", () => {
     const answers = await session(reports.endpoint, [
       hello({ token: "not a token" }),
       rpc({ id: 1, method: "tools/list" }),
-      rpc({ id: 2, method: "tools/call", params: { name: "show", arguments: { path: "a.md" } } }),
+      rpc({
+        id: 2,
+        method: "tools/call",
+        params: { name: "show", arguments: { file: { path: "a.md" } } },
+      }),
       end,
     ])
     expect(answers).toEqual([
@@ -254,7 +262,11 @@ describe("relay sessions", () => {
     const began = Date.now()
     const answers = await session(reports.endpoint, [
       hello(),
-      rpc({ id: 2, method: "tools/call", params: { name: "show", arguments: { path: "a.md" } } }),
+      rpc({
+        id: 2,
+        method: "tools/call",
+        params: { name: "show", arguments: { file: { path: "a.md" } } },
+      }),
       end,
     ])
     expect(answers).toEqual([expect.objectContaining({ id: 2 })])
@@ -510,7 +522,7 @@ describe("what isn't a relay's", () => {
       JSON.stringify({ relay: 1, kind: "hook", terminalId: "t", token }),
       hello({ kind: "other" }),
       // Too long to be a relay's first line, but for a hook's, and too long for a hook.
-      JSON.stringify({ ...call, request: { path: "a".repeat(70_000) } }),
+      JSON.stringify({ ...call, request: { file: { path: "a".repeat(70_000) } } }),
       hello({ kind: "hook", payload: "x".repeat(2_200_000) }),
     ]
     const answers = await Promise.all(lines.map((line) => send(reports.endpoint, line)))

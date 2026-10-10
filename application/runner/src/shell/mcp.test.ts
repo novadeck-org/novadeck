@@ -7,13 +7,18 @@ import { join } from "node:path"
 import { relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll, onTestFinished } from "vitest"
 
+import { readDismissRequest, readRequest } from "../companions/request.js"
 import { plugin } from "../harnesses/harness.js"
 import { unboundNote } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
 import { installShellFiles } from "./install.js"
-import { mcpVersions } from "./mcp.js"
+import { mcpAnswer, mcpVersions } from "./mcp.js"
 import { listenForReports, unheard, type Call, type Reports } from "./reports.js"
 import { shellFiles, shellPaths, staleShellFiles } from "./scripts.js"
+
+/** The runner's own reading of a show or close request, as manager.present and dismiss do. */
+const reading = (type: string, request: object) =>
+  Promise.resolve(type === "dismiss" ? readDismissRequest(request) : readRequest(request))
 
 const token = "0123456789abcdef".repeat(3)
 let folder: string
@@ -140,11 +145,12 @@ describe("Novadeck's MCP server", () => {
       NOVADECK_REPORT_TOKEN: token,
     })
 
-    it("offers its tools: show, showing, open_terminal, close_terminal, send, agents and describe", async () => {
+    it("offers its tools: show, showing, close, open_terminal, close_terminal, send, agents and describe", async () => {
       const [, tools] = await session(terminal(), [initialize, list])
       expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
         "show",
         "showing",
+        "close",
         "open_terminal",
         "close_terminal",
         "send",
@@ -381,7 +387,10 @@ describe("Novadeck's MCP server", () => {
         {
           id: 3,
           method: "tools/call",
-          params: { name: "show", arguments: { path: "hero.png", open: true, extra: "dropped" } },
+          params: {
+            name: "show",
+            arguments: { file: { path: "hero.png" }, open: true, extra: "kept for the runner" },
+          },
         },
       ])
       expect(calls).toEqual([
@@ -389,7 +398,7 @@ describe("Novadeck's MCP server", () => {
           type: "present",
           terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
           token,
-          request: { path: "hero.png", open: true },
+          request: { file: { path: "hero.png" }, open: true, extra: "kept for the runner" },
         },
       ])
       expect(shown?.result).toEqual({
@@ -415,6 +424,35 @@ describe("Novadeck's MCP server", () => {
       expect(shown?.result).toMatchObject({ isError: false })
     })
 
+    it("has the runner name a key no source knows, and the shape a source goes in", async () => {
+      const refused = async (name: "show" | "close", args: unknown) => {
+        const line = JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name, arguments: args },
+        })
+        const reply = JSON.parse((await mcpAnswer(line, reading))!) as {
+          result: { content: { text: string }[]; isError: boolean }
+        }
+        expect(reply.result.isError).toBe(true)
+        return reply.result.content[0]?.text
+      }
+      const cases = [
+        [{ path: "a.ts" }, "Give one source, file: { path } or url."],
+        [{ file: { path: "a.ts" }, extra: 1 }, 'The request\'s "extra" is not valid.'],
+        [{ url: "http://a/", lines: { from: 1, to: 1 } }, 'The request\'s "lines" is not valid.'],
+      ] as const
+      await Promise.all(
+        (["show", "close"] as const).flatMap((name) =>
+          cases.map(([args, text]) => expect(refused(name, args)).resolves.toBe(text)),
+        ),
+      )
+      await expect(
+        refused("close", { file: { path: "a.ts", lines: { from: 1, to: 1 } } }),
+      ).resolves.toBe('The request\'s "file.lines" is not valid.')
+    })
+
     it("says what the runner did, not what was asked: waiting, or held for secrets", async () => {
       const said = async (runner: unknown) => {
         answer = runner
@@ -423,7 +461,7 @@ describe("Novadeck's MCP server", () => {
           {
             id: 4,
             method: "tools/call",
-            params: { name: "show", arguments: { path: ".env", open: true } },
+            params: { name: "show", arguments: { file: { path: ".env" }, open: true } },
           },
         ])
         return shown?.result
@@ -503,7 +541,7 @@ describe("Novadeck's MCP server", () => {
         {
           id: 4,
           method: "tools/call",
-          params: { name: "show", arguments: { path: "gone.txt" } },
+          params: { name: "show", arguments: { file: { path: "gone.txt" } } },
         },
       ])
       expect(refused?.result).toEqual({
@@ -518,7 +556,11 @@ describe("Novadeck's MCP server", () => {
       const [, tools, call, open, sent, listed, closed] = await session(partial, [
         initialize,
         list,
-        { id: 3, method: "tools/call", params: { name: "show", arguments: { path: "a" } } },
+        {
+          id: 3,
+          method: "tools/call",
+          params: { name: "show", arguments: { file: { path: "a" } } },
+        },
         { id: 4, method: "tools/call", params: { name: "open_terminal", arguments: {} } },
         {
           id: 5,
@@ -680,7 +722,7 @@ describe("Novadeck's MCP server", () => {
             {
               id: 3,
               method: "tools/call",
-              params: { name: "show", arguments: { path: "hero.png" } },
+              params: { name: "show", arguments: { file: { path: "hero.png" } } },
             },
           ],
           { close: true },
@@ -729,7 +771,7 @@ describe("Novadeck's MCP server", () => {
             {
               id: 3,
               method: "tools/call",
-              params: { name: "show", arguments: { path: "hero.png" } },
+              params: { name: "show", arguments: { file: { path: "hero.png" } } },
             },
           ],
           { start },
@@ -737,6 +779,7 @@ describe("Novadeck's MCP server", () => {
         expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
           "show",
           "showing",
+          "close",
           "open_terminal",
           "close_terminal",
           "send",
@@ -769,7 +812,11 @@ describe("Novadeck's MCP server", () => {
         [
           initialize,
           list,
-          { id: 5, method: "tools/call", params: { name: "show", arguments: { path: "a" } } },
+          {
+            id: 5,
+            method: "tools/call",
+            params: { name: "show", arguments: { file: { path: "a" } } },
+          },
         ],
       )
       expect(hello?.result).toMatchObject({ protocolVersion: "2025-06-18" })

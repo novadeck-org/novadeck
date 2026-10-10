@@ -319,8 +319,15 @@ with every safety check again at that time:
   Novadeck already installs: `.mcp.json` for Claude Code, `mcpServers` in Codex's
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
   MCP servers without the terminal's environment), `mcp_config.json` for Antigravity.
-  Its first tool, `show`, takes a path and optional lines, or a page's `url`, plus a
-  title and `open`, which the agent sets when the user asked to see it (`asked`). The server finds its terminal
+  Its first tool, `show`, takes one source under the key that names it, with that
+  source's own options inside: a `file` (its path and optional lines) or a page's
+  `url`; beside it the options every source shares, a title and `open`, which the agent
+  sets when the user asked to see it (`asked`). A new kind of artifact adds a source key
+  of its own rather than more fields beside these. `close` takes the same `file` (its
+  path alone) or `url` and removes what the agent showed under it from its own bar, as
+  the person closing it would; what the person attached, or another terminal placed
+  there, is refused with a word on whose it is, and plans are never addressable this
+  way. The server finds its terminal
   from `NOVADECK_TERMINAL_ID`, `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`. Like
   the hooks, it is installed for every session, but outside Novadeck's terminals it
   lists no tools, so the agent never sees `show`, and a call anyway does nothing.

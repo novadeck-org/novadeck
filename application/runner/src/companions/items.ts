@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
-import { isAbsolute, basename, relative, resolve, sep } from "node:path"
+import { realpath } from "node:fs/promises"
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type {
@@ -27,7 +28,15 @@ import {
   type Pointed,
 } from "./content.js"
 import type { ItemRecord, ItemRecords, WindowRecord } from "./records.js"
-import { failure, type PresentAnswer, type PresentRequest } from "./request.js"
+import {
+  failure,
+  named,
+  type DismissAnswer,
+  type DismissRequest,
+  type PresentAnswer,
+  type PresentFailure,
+  type PresentRequest,
+} from "./request.js"
 
 /** A terminal items are shown in or placed on: where it is, and how agents address it. */
 export type TerminalPlace = {
@@ -73,6 +82,19 @@ const size = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+/**
+ * A path's real path, as `realpath` gives it while it exists; for one that doesn't, the
+ * real path of its deepest existing ancestor with the rest appended, so a path through
+ * a symlinked folder keys the same whether or not its file remains.
+ */
+const realPath = async (path: string): Promise<string> => {
+  const real = await realpath(path).catch(() => undefined)
+  if (real !== undefined) return real
+  const parent = dirname(path)
+  if (parent === path) return path
+  return join(await realPath(parent), basename(path))
 }
 
 /** Whether `path` lies inside `folder`; both resolved alike. */
@@ -191,6 +213,39 @@ export class CompanionItems {
   }
 
   /**
+   * Closes what an agent showed on its own terminal's bar, named by the file or page it
+   * gave `show`; the item leaves the bar and the pane. Only the agent's own items close
+   * this way: one the person attached, or another terminal placed there, stays, and the
+   * answer says so.
+   */
+  async dismiss(place: TerminalPlace, request: DismissRequest): Promise<DismissAnswer> {
+    if (this.stopping) return failure("Novadeck is closing.")
+    const keyed = await this.keyOf(place, request)
+    if (!keyed.ok) return keyed
+    const item = this.records
+      .barItems(place.terminalId)
+      .find((each) => each.pointerKey === keyed.key)
+    if (!item)
+      return failure(
+        `Nothing is showing beside your terminal at ${named(keyed.given)}; showing lists what is.`,
+      )
+    if (item.by !== "agent" || item.from.terminalId !== place.terminalId)
+      return failure(
+        JSON.stringify(item.name) +
+          (item.by === "person"
+            ? " was attached by the user"
+            : ` was placed beside you from ${item.from.handle}`) +
+          ", so it isn't yours to close; tell the user if it should go.",
+      )
+    try {
+      this.close(item.id)
+    } catch {
+      return failure("Novadeck couldn't close it.")
+    }
+    return { ok: true, name: item.name, kind: item.kind }
+  }
+
+  /**
    * Attaches a file the person picked to a terminal's bar, as an agent's show would, by
    * a path from the terminal's directory. TERMINAL_NOT_FOUND for a terminal not kept,
    * INVALID_FILE, saying why, for a path that is no file.
@@ -204,8 +259,7 @@ export class CompanionItems {
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
     const place = this.place(input.terminalId)
     const pointed = await this.pointer(place, {
-      path: input.path,
-      ...(input.lines && { lines: input.lines }),
+      file: { path: input.path, ...(input.lines && { lines: input.lines }) },
       ...(input.title !== undefined && { title: input.title }),
     })
     if (!pointed.ok) throw new DomainError("INVALID_FILE", pointed.reason)
@@ -558,12 +612,13 @@ export class CompanionItems {
         },
       }
     }
-    const pointed = await pointAt(request.path, place.cwd)
+    const { path, lines } = request.file
+    const pointed = await pointAt(path, place.cwd)
     if (!pointed.ok) return pointed
     // A held file goes by its own name, so the person sees what they would open.
     const name = pointed.held
       ? basename(pointed.path)
-      : (request.title ?? basename(resolve(place.cwd, request.path)))
+      : (request.title ?? basename(resolve(place.cwd, path)))
     return {
       ok: true,
       tooLarge: pointed.kind === "image" && pointed.size > maxImageBytes,
@@ -572,13 +627,31 @@ export class CompanionItems {
         kind: pointed.kind,
         path: pointed.path,
         url: null,
-        lines: request.lines ?? null,
+        lines: lines ?? null,
         plan: null,
         name: clip(name, 256),
-        detail: this.detail(pointed, place, request.path, request.lines),
+        detail: this.detail(pointed, place, path, lines),
         held: pointed.held,
       },
     }
+  }
+
+  /**
+   * The key a `close` request names, as `show` keyed the item: a page's address as
+   * read, or a file's real path; once the file is gone, its real path still, from the
+   * deepest folder of it that remains, so a symlinked folder on the way still matches. A
+   * plan's key (`plan:…`) is never a path or an address, so no request reaches one.
+   */
+  private async keyOf(
+    place: TerminalPlace,
+    request: DismissRequest,
+  ): Promise<{ readonly ok: true; readonly key: string; readonly given: string } | PresentFailure> {
+    if ("url" in request) {
+      const page = pageAt(request.url)
+      return page.ok ? { ok: true, key: page.url.href, given: page.url.href } : page
+    }
+    const key = await realPath(resolve(place.cwd, request.file.path))
+    return { ok: true, key, given: request.file.path }
   }
 
   /** How a file is described: an image by its size and format, a text file by its path and lines. */

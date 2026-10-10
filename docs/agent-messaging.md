@@ -123,7 +123,7 @@ flowchart LR
 
 | Part         | Where                                                                                 | Owns                                                                                |
 | ------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `open_terminal` and `close_terminal`        | `send`, `agents` and `describe`; the terminal's token on every call                 |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `close`, `open_terminal`, `close_terminal`  | `send`, `agents` and `describe`; the terminal's token on every call                 |
 | Mailbox      | Runner, stored with the workspace (`WorkspaceStore`)                                  | Messages, threads, guards, pause, retention                                         |
 | Delivery     | Runner, one state machine per recipient terminal                                      | When and how a recipient notices: leases to hooks and the doorbell                  |
 | Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                            | Each harness's output encoding, in its adapter beside its decoder                   |
@@ -285,8 +285,8 @@ agent session; never a name the model passes.
 
 ## Agent interface
 
-Two tools join `show`, `showing`, `open_terminal` and `close_terminal`, listed, like
-them, only inside Novadeck's terminals.
+Two tools join `show`, `showing`, `close`, `open_terminal` and `close_terminal`, listed,
+like them, only inside Novadeck's terminals.
 
 - **`send(to, text)`** answers with the recipient's handle, the message id and one of:
   - `queued`, with the route it will take: "when its current turn ends", "when its next
