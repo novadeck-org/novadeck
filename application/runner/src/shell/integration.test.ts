@@ -2628,9 +2628,23 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // Claude is working when Codex answers: its Stop continues the turn with the reply.
       // Its first prompt of a new session, carrying no messages, carries the nudge to
       // describe the terminal instead.
-      await expect(
-        step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "ask codex" } }),
-      ).resolves.toContain("this terminal has no description yet")
+      const firstPrompt = await step(claude.id, {
+        hook: "UserPromptSubmit",
+        payload: { prompt: "ask codex" },
+      })
+      expect(firstPrompt).toContain("this terminal has no description yet")
+      // Claude Code's additionalContext carries both paragraphs, the bar's first.
+      const context = (
+        JSON.parse(firstPrompt) as { hookSpecificOutput: { additionalContext: string } }
+      ).hookSpecificOutput.additionalContext
+      const paragraphs = context.split("\n\n")
+      expect(paragraphs).toHaveLength(2)
+      expect(paragraphs[0]).toMatch(
+        /^Novadeck: automatic notice, not from the user: beside this terminal/,
+      )
+      expect(paragraphs[1]).toMatch(
+        /^Novadeck: automatic notice, not from the user: this terminal has no/,
+      )
       const reply = await send(codex.id, "t1", "Looks good & ships.")
       expect(reply).toMatchObject({ ok: true, text: reaches("when its current turn ends") })
       const stopped = JSON.parse(await step(claude.id, { hook: "Stop", payload: {} })) as {
@@ -3154,12 +3168,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const delivered = await prompt(codex.id, "Fix the login bug")
       expect(delivered).toContain(">Review a.ts</message>")
       expect(delivered).not.toContain("automatic notice")
-      // The next prompt with nothing else to carry asks for a description, in one line.
+      // The next prompt with nothing else to carry tells it of the bar beside it, then
+      // asks for a description, a paragraph each.
       const nudge = await prompt(codex.id, "and its tests")
-      expect(nudge).toMatch(
+      const [bar, description, ...more] = nudge.split("\n\n")
+      expect(bar).toMatch(/^Novadeck: automatic notice, not from the user: beside this terminal/)
+      expect(description).toMatch(
         /^Novadeck: automatic notice, not from the user: this terminal has no description yet\./,
       )
-      expect(nudge).not.toContain("\n")
+      expect(more).toEqual([])
+      expect(description).not.toContain("\n")
       // Until anything better names it, the person's first prompt there is its title.
       expect(manager.get(codex.id).title).toBe("Fix the login bug")
       // No trigger since: nothing is added.

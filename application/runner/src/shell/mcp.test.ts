@@ -326,6 +326,22 @@ describe("Novadeck's MCP server", () => {
       })
     })
 
+    it("tells agents to show deliverables when done, never each file they touch", async () => {
+      const [, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as { name: string; description: string }[]
+      const show = described.find((tool) => tool.name === "show")!
+      expect(show.description).toContain(
+        "Show a deliverable when it is done, not each file you touch",
+      )
+      expect(show.description).toContain("the files a change touches on the way aren't")
+      expect(show.description).toContain("the file you are working on together")
+      expect(show.description).toContain("Set open to true only when they asked to see it")
+      expect(show.description).toContain("one item per deliverable")
+      expect(show.description).toContain("a revision of something you are iterating on with them")
+      const showing = described.find((tool) => tool.name === "showing")!
+      expect(showing.description).toContain("Check it before showing after a while")
+    })
+
     it("tells agents to close only what they are done with or were asked to", async () => {
       const [, tools] = await session(terminal(), [initialize, list])
       const described = tools?.result?.tools as {

@@ -124,7 +124,7 @@ import {
   unnamed,
   type Naming,
 } from "./naming.js"
-import { atPrompt, described, fired, noNudges, nudgeText, type Nudges } from "./nudges.js"
+import { atPrompt, described, fired, noNudges, noticesAt, type Nudges } from "./nudges.js"
 import {
   allowOpen,
   openLimit,
@@ -2396,7 +2396,7 @@ export class Terminals {
       elsewhere,
     })
     record.naming = naming
-    record.nudges = described(facts)
+    record.nudges = described(record.nudges, facts)
     this.retitle(record)
     this.save(record, false)
     return { ok: true, title: record.summary.title, ...(kept && { kept }) }
@@ -3226,10 +3226,12 @@ export class Terminals {
   }
 
   /**
-   * A prompt-time hook's answer, with a nudge to describe the terminal's work when a
-   * trigger fired since the last `describe` (see `nudges.ts`): only at the person's
-   * prompt, as one line of its own, never in an answer that carries messages or another
-   * notice, nor at Stop. Each of the person's prompts counts toward the backstop, and
+   * A prompt-time hook's answer, with Novadeck's notices when any is due (see
+   * `nudges.ts`): the bar beside the terminal, for a session that begins or lost its
+   * context, which a `describe` never clears, and a nudge to describe the terminal's
+   * work, when a trigger fired since the last `describe`; only at the
+   * person's prompt, as a paragraph each, never in an answer that carries messages or
+   * another notice, nor at Stop. Each of the person's prompts counts toward the backstop, and
    * where nothing else is said, whether the work drifted is looked at.
    */
   private async nudged(
@@ -3259,7 +3261,7 @@ export class Terminals {
     record.nudges = taken.nudges
     if (!taken.nudge) return answer
     const current = { title: record.summary.title, summary: record.naming.summary }
-    return { leaseId: null, stdout: messaging.prompt(nudgeText(current)) }
+    return { leaseId: null, stdout: messaging.prompt(noticesAt(taken, current)) }
   }
 
   /**

@@ -258,6 +258,23 @@ the terminal (inside its window in Focus and Grid, attached to its node in Canva
 Nothing opens on its own unless the user asked for it; everything else waits in the
 taskbar, marked new.
 
+What belongs there is a deliverable: something made to be looked at (an image or
+screenshot, a rendered page or dev server, a report, mockup, diagram or generated
+document, the one file the user asked for, or whatever they ask to see), shown once it
+is done, without `open`; with `open` when they asked to see it, which a revision of
+something they iterate on with the agent is. A source file counts while it is the one
+the user and the agent work on together; the files a change touches on the way do not,
+and the user reads those in the diff. Every harness hears this two ways, as no plugin ships a skill: the `show` tool's
+own description carries the rule, which every harness reads alike from `tools/list`,
+and the runner's prompt-time hook adds Novadeck's artifacts notice, one paragraph, at
+the person's first quiet prompt of each root session and after a compaction
+(`artifactsNotice` in `terminals/nudges.ts`; it rides with the description nudge but a
+`describe` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"). A
+worker another agent runs by briefs alone hears it at the person's first prompt there,
+so until then its tool description is what tells it. In Antigravity an injected message
+lasts one model call, so there the notice is read once at the prompt and the tool
+description is what lasts; a lasting injection is a gap to probe.
+
 What is shown is a companion item: a pointer to a file, a page or a plan, never a copy,
 held by exactly one terminal's bar or one undocked window. The runner keeps items and
 windows (`companions.*`, see [Backend API](backend-api.md)), so they survive restarts.

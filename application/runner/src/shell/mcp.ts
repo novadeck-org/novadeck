@@ -90,11 +90,17 @@ const show: Tool<Shown> = {
   name: "show",
   description:
     "Show the user an image or a text file, or a web page, in Novadeck, " +
-    "beside the terminal they're talking to you in. Give either file or url. Use it when they " +
-    "ask to see something, or when a screenshot, mockup, diagram, the lines you mean or the " +
-    "running app (as a local dev server's address) would help them follow. Set open to true " +
-    "only when they asked to see it; otherwise it waits for them in Novadeck, marked new. " +
-    "Showing the same file or page again updates it beside you.",
+    "beside the terminal they're talking to you in. Give either file or url. Show a " +
+    "deliverable when it is done, not each file you touch: an image or screenshot, a " +
+    "rendered page or a dev server's address, a report, mockup, diagram or generated " +
+    "document, the lines you mean, the one file the user asked you for, or whatever they ask " +
+    "to see. A source file is " +
+    "one too while it is the file you are working on together, so show it and keep it " +
+    "shown; the files a change touches on the way aren't, and the user reads those in the " +
+    "diff. Set open to true only when they asked to see it, which a revision of " +
+    "something you are iterating on with them is; otherwise it waits for them in Novadeck, " +
+    "marked new. Showing the same file or page again updates it beside you, so one item " +
+    "per deliverable; while they have it open, each save shows at once.",
   inputSchema: {
     type: "object",
     properties: {
@@ -164,7 +170,9 @@ const showing: Tool<Listing> = {
   description:
     "List what is showing beside your terminal in Novadeck now: each image, file, page " +
     "and plan, with where it points and whether you showed it, the user attached it, or " +
-    "it was placed there from another terminal.",
+    "it was placed there from another terminal. Check it before showing after a while, " +
+    "to update what is there rather than add beside it, and to close what no longer " +
+    "applies.",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   call: "showing",
   request: () => ({}),

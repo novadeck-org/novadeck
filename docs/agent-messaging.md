@@ -1227,11 +1227,17 @@ call in `Terminals.describe` (`terminals/manager.ts`), the tool in `shell/mcp.ts
   so Antigravity's first typed prompt, read from its transcript, counts too.
 - **Nudges.** The prompt-time hook (`UserPromptSubmit`, Antigravity's `PreInvocation`)
   of a root prompt its decoder calls the person's (cause `prompt`; this is looser than
-  `asked`'s `byPerson`, as a nudge needs no proof) adds one line, worded as Novadeck's automatic notice, only when
-  a trigger fired since the last `describe`; otherwise it adds nothing. Never at Stop,
-  and never in the same answer as messages or another notice: the trigger then waits for
-  the next quiet prompt; nor in an answer that might miss the hook's deadline, which
-  never spends a trigger. The triggers:
+  `asked`'s `byPerson`, as a nudge needs no proof) adds Novadeck's automatic notices, a
+  paragraph each, when any is due; otherwise it adds nothing. The description nudge is
+  due when a trigger fired since the last `describe`. The artifacts notice is due once a
+  new session or a compaction fired, until it is delivered: a `describe` doesn't clear
+  it, so it still comes at the next quiet prompt when the agent described itself first,
+  then alone. When both are due they share the answer, the artifacts notice first
+  (see [Agent workspace](agent-workspace.md), "Companion pane"). Never at Stop, and
+  never in an answer that carries messages or a notice of another kind, as the
+  messages-waiting one: what is due then waits for the next quiet prompt; nor in an
+  answer that might miss the hook's deadline, which never spends what is due. The
+  description nudge's triggers:
   1. a new root session (start, `/clear`, restart);
   2. a compaction, where the harness reports one: Claude Code's and Codex's
      `SessionStart` with source `compact` (decoded as `compacted`). Antigravity reports
