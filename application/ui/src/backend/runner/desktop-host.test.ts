@@ -70,46 +70,104 @@ describe("desktop notices", () => {
   })
 })
 
-// A host's update bridge that lets a test report versions and counts installs.
-const updater = () => {
-  let ready: ((version: string) => void) | undefined
+// A host's update bridge that lets a test report offers and counts what the page asks.
+const updater = (channel: unknown = "stable") => {
+  let report: ((offer: unknown) => void) | undefined
   let installs = 0
+  let pages = 0
+  const set: unknown[] = []
   const bridge = {
-    onUpdateReady: (listener: (version: string) => void) => {
-      ready = listener
+    onUpdate: (listener: (offer: unknown) => void) => {
+      report = listener
       return () => {
-        ready = undefined
+        report = undefined
       }
     },
     installUpdate: () => void (installs += 1),
+    openUpdatePage: () => void (pages += 1),
+    updateChannel: () => Promise.resolve(channel),
+    setUpdateChannel: (next: unknown) => void set.push(next),
   } as unknown as DesktopHost
   return {
     bridge,
-    report: (version: unknown) => ready?.(version as string),
+    report: (offer: unknown) => report?.(offer),
     installs: () => installs,
+    pages: () => pages,
+    set,
   }
 }
 
 describe("desktop updates", () => {
   context("in a host that has them", () => {
-    it("hears versions that look like a release's and no others", () => {
+    it("hears offers that look like a release's and no others", () => {
       const { bridge, report } = updater()
-      const versions: string[] = []
-      const stop = desktopUpdates(bridge)!.onReady((version) => versions.push(version))
+      const heard: unknown[] = []
+      const stop = desktopUpdates(bridge)!.onOffer((offer) => heard.push(offer))
+      report({ kind: "ready", version: "0.0.80", notes: ["One."] })
+      report({ kind: "available", version: "1.2.3-beta.1", notes: [] })
+      report({ kind: "later", version: "0.0.80", notes: [] })
+      report({ kind: "ready", version: "latest", notes: [] })
+      report({ kind: "ready", version: "0.0.80\n<b>", notes: [] })
       report("0.0.80")
-      report("1.2.3-beta.1")
-      report("latest")
-      report({ version: "0.0.80" })
-      report("0.0.80\n<b>")
+      report(null)
       stop()
-      report("0.0.81")
-      expect(versions).toEqual(["0.0.80", "1.2.3-beta.1"])
+      report({ kind: "ready", version: "0.0.81", notes: [] })
+      expect(heard).toEqual([
+        { kind: "ready", version: "0.0.80", notes: ["One."] },
+        { kind: "available", version: "1.2.3-beta.1", notes: [] },
+      ])
     })
 
-    it("installs through the host", () => {
-      const { bridge, installs } = updater()
-      desktopUpdates(bridge)!.install()
-      expect(installs()).toBe(1)
+    it("keeps the notes to the lines and length the page shows, as plain text", () => {
+      const { bridge, report } = updater()
+      const heard: { notes: readonly string[] }[] = []
+      desktopUpdates(bridge)!.onOffer((offer) => heard.push(offer))
+      report({
+        kind: "ready",
+        version: "0.0.80",
+        notes: [
+          "Fixed\u0007 a thing.",
+          7,
+          "   ",
+          "x".repeat(500),
+          ...Array.from({ length: 20 }, (_, index) => `Note ${index}`),
+        ],
+      })
+      const { notes } = heard[0]!
+      expect(notes[0]).toBe("Fixed a thing.")
+      expect(notes[1]).toHaveLength(200)
+      expect(notes).toHaveLength(12)
+    })
+
+    it("hears no notes from a host that sends none", () => {
+      const { bridge, report } = updater()
+      const heard: { notes: readonly string[] }[] = []
+      desktopUpdates(bridge)!.onOffer((offer) => heard.push(offer))
+      report({ kind: "ready", version: "0.0.80" })
+      expect(heard[0]!.notes).toEqual([])
+    })
+
+    it("installs and opens the release page through the host", () => {
+      const { bridge, installs, pages } = updater()
+      const updates = desktopUpdates(bridge)!
+      updates.install()
+      updates.openPage()
+      expect([installs(), pages()]).toEqual([1, 1])
+    })
+
+    it("reads the channel and switches it, accepting only a channel it knows", async () => {
+      const { bridge, set } = updater()
+      const channel = desktopUpdates(bridge)!.channel!
+      expect(await channel.get()).toBe("stable")
+      channel.set("early")
+      expect(set).toEqual(["early"])
+      await expect(desktopUpdates(updater("nightly").bridge)!.channel!.get()).rejects.toThrow()
+    })
+
+    it("offers no channel where the host has none", () => {
+      const { bridge } = updater()
+      delete (bridge as { updateChannel?: unknown }).updateChannel
+      expect(desktopUpdates(bridge)!.channel).toBeUndefined()
     })
   })
 

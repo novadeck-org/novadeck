@@ -7,7 +7,7 @@ import { readSubscriptionOrder, writeSubscriptionOrder } from "../shell/shell-st
 import { SubscriptionUsage } from "../shell/SubscriptionUsage"
 import { WorkspaceFooter as Footer, type FooterStatus } from "../shell/WorkspaceFooter"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
-import { currentState, sameItems, shallowEqual } from "./selectors"
+import { crashLoopQuestion, currentState, sameItems, shallowEqual } from "./selectors"
 
 const always = (): (() => void) => () => {}
 // The link's state, connected where the backend reports none.
@@ -26,10 +26,24 @@ const allTerminals = (workspace: Workspace) =>
 // The footer wired to the workspace's counts, the account's subscriptions and the
 // backend's link.
 export const WorkspaceFooter = memo((): React.JSX.Element => {
-  const { backend, commands } = useWorkspaceServices()
+  const { backend, commands, workspace: store } = useWorkspaceServices()
+  const { updates } = backend
   const connection = useConnection(backend.connection)
   const crashes = useUiState((state) => state.crashLoop)
-  const update = useUiState((state) => state.updateReady)
+  const offer = useUiState((state) => state.update)
+  const updateOpen = useUiState((state) => state.updateOpen)
+  // A dialog, the switcher or a question holds the notice back until it is answered.
+  const asking = useUiState(
+    (state) =>
+      state.location.route.dialog !== null ||
+      state.closing !== null ||
+      state.recent.switcher !== null ||
+      crashLoopQuestion(state) > 0,
+  )
+  const welcome = useSyncExternalStore(
+    backend.agents?.welcome.subscribe ?? always,
+    () => backend.agents?.welcome.getSnapshot() ?? false,
+  )
   const zen = useUiState((state) => Boolean(state.shell.zen))
   const navigate = useUiState((state) => state.shell.navigate)
   const { count, running } = useWorkspaceState((workspace) => {
@@ -78,8 +92,25 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       status={status}
       navigate={navigate}
       onRetry={backend.crashLoop ? commands.retryAfterCrashLoop : undefined}
-      update={update && backend.updates ? update : undefined}
-      onInstall={backend.updates?.install}
+      update={
+        offer && updates
+          ? {
+              offer,
+              open: updateOpen,
+              blocked: asking || welcome,
+              onOpenChange: commands.setUpdateOpen,
+              onShown: commands.updateShown,
+              onInstall: updates.install,
+              onOpenPage: updates.openPage,
+              returnFocus: () => {
+                const { selected, view } = currentState(store.getSnapshot())
+                if (!selected) return false
+                commands.setKeyboardFocus({ id: selected, view })
+                return true
+              },
+            }
+          : undefined
+      }
       usage={<SubscriptionUsage accounts={accounts} onMove={move} />}
     />
   )

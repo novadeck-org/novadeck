@@ -47,22 +47,64 @@ export type DesktopBridge = {
    */
   onNoticeClick?(listener: (id: string) => void): () => void
   /**
-   * Calls `listener` with the version of the update the host has downloaded, which it
-   * installs when the app next quits: at once when one is already waiting. The version
-   * matches `updateVersionPattern`. Returns a function that stops listening. Absent from
-   * hosts that came before it; a build that does not update itself never calls it.
+   * Calls `listener` with each update the host learns of: at once when it already knows
+   * of one, and again whenever a newer one comes. Returns a function that stops
+   * listening. Absent from hosts that came before it; a build that never looks for
+   * updates never calls it.
    */
-  onUpdateReady?(listener: (version: string) => void): () => void
+  onUpdate?(listener: (update: UpdateOffer) => void): () => void
   /**
    * Restarts the app into the downloaded update: the host lets every page finish its
-   * saves first, as quitting does. Does nothing while no update is waiting. Comes with
-   * `onUpdateReady`.
+   * saves first, as quitting does. Does nothing unless the last offer was `ready`.
    */
   installUpdate?(): void
+  /**
+   * Opens the release page of the last offer's version in the browser. The host builds
+   * the address from its own release repository; the page never names one. Does
+   * nothing before an offer.
+   */
+  openUpdatePage?(): void
+  /** Which releases this build follows; see `UpdateChannel`. */
+  updateChannel?(): Promise<UpdateChannel>
+  /**
+   * Switches the releases this build follows, which the host remembers across launches,
+   * and looks for an update on the new channel soon after. The host ignores anything
+   * but an `UpdateChannel`.
+   */
+  setUpdateChannel?(channel: UpdateChannel): void
+}
+
+/**
+ * Which releases a build follows: `stable` the releases promoted to stable, `early` every
+ * release as it is published. Builds start on `stable`. Switching back to `stable` never
+ * downgrades: the build waits until stable passes its version.
+ */
+export type UpdateChannel = "stable" | "early"
+
+export const updateChannels: readonly UpdateChannel[] = ["stable", "early"]
+
+/**
+ * An update the host tells the page of. `ready`: downloaded, and installed by
+ * `installUpdate` or when the app next quits. `available`: a newer release this build
+ * cannot install itself, which the person installs from its release page, as for an
+ * unsigned macOS app, an AppImage in a folder it cannot write, or after an install
+ * failed. `notes` are the release's notes as plain-text lines, at most
+ * `updateNotesLength` of them, each at most `updateNoteLength` long, without control
+ * characters; empty when the release has none the host could read.
+ */
+export type UpdateOffer = {
+  readonly kind: "ready" | "available"
+  readonly version: string
+  readonly notes: readonly string[]
 }
 
 /** What an update's version may be, as the host reports it: a release's semantic version. */
 export const updateVersionPattern = /^\d{1,9}\.\d{1,9}\.\d{1,9}(?:-[0-9A-Za-z.-]{1,64})?$/
+
+/** The most release-note lines an offer carries. */
+export const updateNotesLength = 12
+/** The longest release-note line an offer carries. */
+export const updateNoteLength = 200
 
 /** A desktop notification about one terminal; see `DesktopBridge.showNotice`. */
 export type DesktopNotice = {

@@ -33,16 +33,25 @@ export const noticeChannel = "novadeck:notice"
 export const noticeClickChannel = "novadeck:notice-click"
 
 /**
- * Main-to-renderer report of the version of an update the host has downloaded; see
+ * Main-to-renderer report of an update offer, `{ kind, version, notes }`; see
  * main/updater.ts. A page that starts listening later asks for it on `updateRequestChannel`.
  */
-export const updateReadyChannel = "novadeck:update-ready"
+export const updateOfferChannel = "novadeck:update-offer"
 
-/** Renderer-to-main request to be told, on `updateReadyChannel`, of an update already waiting. */
+/** Renderer-to-main request to be told, on `updateOfferChannel`, of the last offer. */
 export const updateRequestChannel = "novadeck:update-request"
 
 /** Renderer-to-main request to restart into the downloaded update. */
 export const installUpdateChannel = "novadeck:install-update"
+
+/** Renderer-to-main request to open the release page of the last offer in the browser. */
+export const openUpdatePageChannel = "novadeck:open-update-page"
+
+/** Renderer-to-main request for the update channel the build follows; answers it. */
+export const updateChannelChannel = "novadeck:update-channel"
+
+/** Renderer-to-main request to follow another update channel. */
+export const setUpdateChannelChannel = "novadeck:set-update-channel"
 
 /** Renderer-to-main request for a folder picker; answers the chosen path or null. */
 export const directoryPickerChannel = "novadeck:pick-directory"

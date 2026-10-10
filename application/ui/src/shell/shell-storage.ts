@@ -51,3 +51,24 @@ export const writeSubscriptionOrder = (order: readonly string[]): void => {
     /* The order holds for this session when storage is unavailable. */
   }
 }
+
+// The version of the update whose notice came up last, so a relaunch doesn't raise it
+// again; a newer version raises its own.
+export const updateSeenStorageKey = "novadeck.update-seen"
+export const readUpdateSeen = (): string | null => {
+  try {
+    const stored = localStorage.getItem(updateSeenStorageKey)
+    return stored || null
+  } catch {
+    return null
+  }
+}
+
+export const writeUpdateSeen = (version: string | null): void => {
+  try {
+    if (version === null) localStorage.removeItem(updateSeenStorageKey)
+    else localStorage.setItem(updateSeenStorageKey, version)
+  } catch {
+    /* It comes up again next launch when storage is unavailable. */
+  }
+}

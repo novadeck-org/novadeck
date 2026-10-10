@@ -1,8 +1,8 @@
 /* The region recipe: the app's chrome. The header (`.app-header`, with the `.brand`
    link home), the footer (`.app-footer`, its `.footer-running` count, the
    `.footer-navigate` note while the person navigates the workspace, `.footer-status`
-   and `.footer-action`, and the account's subscriptions, `.footer-usage`, a pill each with
-   its `.usage-popover`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
+   and `.footer-action`, the update chip `.footer-update` with its `.update-panel`, and
+   the account's subscriptions, `.footer-usage`, a pill each with its `.usage-popover`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
    (`.sidebar`), which on narrow screens opens as a `.sidebar-drawer`. Each region is a
    ground with an edge toward the workspace.
 
@@ -40,6 +40,7 @@
 }
 
 .app-footer {
+  position: relative;
   border-top-width: var(--border-width);
   border-top-style: solid;
   transition:
@@ -78,6 +79,20 @@
 .footer-action {
   color: inherit;
   text-underline-offset: 2px;
+}
+/* The update chip, with the subscription pill's padding for a larger target; open, it
+   reads as pressed, as the pill does. */
+.footer-update {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-block: -3px;
+  padding: 3px 6px;
+  border-radius: var(--radius-control);
+}
+.app-footer:not([data-tone]) .footer-update[aria-expanded="true"] {
+  background-color: var(--color-soft);
+  color: var(--color-ink);
 }
 .footer-action:disabled {
   cursor: default;
@@ -199,6 +214,78 @@
 }
 .usage-row-reset {
   grid-column: 2 / 4;
+}
+
+/* The update's notice (FooterUpdate.tsx), a `.floating` surface: a plain panel above the footer's right end, not
+   a layer, so it never takes keys or focus. Its title, up to a few release notes (two
+   lines each, scrolling past a few), a link to the rest, then Later and the action, which
+   always stay in view. */
+.update-panel {
+  position: absolute;
+  right: 12px;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 20rem;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 7rem);
+  padding: 12px 14px 14px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 400;
+}
+.update-panel:focus {
+  outline: none;
+}
+.update-title {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+.update-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  max-height: min(12rem, 40vh);
+  margin: 0;
+  padding-inline-start: 16px;
+  padding-inline-end: 4px;
+  overflow-y: auto;
+  line-height: 1.45;
+  list-style: disc;
+}
+.update-notes > li > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+.update-more {
+  margin: 0;
+}
+.update-link {
+  height: auto;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.update-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  align-self: flex-end;
+  margin-top: 4px;
 }
 
 .sidebar-tools {

@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 
+import { FooterUpdate, type FooterUpdateProps } from "./FooterUpdate"
+
 // How the backend link is doing, most severe first: "ok" shows nothing.
 export type FooterStatus = "restarting" | "unavailable" | "reconnecting" | "ok"
 
@@ -15,8 +17,9 @@ const shown: Record<Exclude<FooterStatus, "ok">, { readonly tone: Tone; readonly
 // The terminal counts under the workspace. While the backend link is in trouble the
 // whole bar takes the status tone, and says so on the right; after it recovers it
 // turns green with "Reconnected" for a moment. The status is short, bold and set in
-// capitals by CSS, so assistive technology still reads ordinary words. A downloaded
-// update waits beside it as "Update ready · Restart", in the bar's own colours.
+// capitals by CSS, so assistive technology still reads ordinary words. An update waits
+// beside it as a chip, "Update ready" or "Update available", in the bar's own colours;
+// it opens the update's notice (FooterUpdate.tsx).
 export const WorkspaceFooter = ({
   hidden,
   count,
@@ -25,7 +28,6 @@ export const WorkspaceFooter = ({
   navigate = false,
   onRetry,
   update,
-  onInstall,
   usage,
 }: {
   readonly hidden: boolean
@@ -36,11 +38,9 @@ export const WorkspaceFooter = ({
   readonly status: FooterStatus
   // Offered while the runner keeps crashing: starts the terminals over.
   readonly onRetry?: (() => void) | undefined
-  // The version of a downloaded update, which waits for a restart. Quiet: it never
-  // tones the bar, and the link's status keeps its place after it.
-  readonly update?: string | undefined
-  // Restarts into the update.
-  readonly onInstall?: (() => void) | undefined
+  // An update waiting, downloaded or to fetch. Quiet: it never tones the bar, and the
+  // link's status keeps its place after it.
+  readonly update?: FooterUpdateProps | undefined
   // The account's subscriptions, at its end before the status.
   readonly usage?: ReactNode
 }): React.JSX.Element => {
@@ -55,10 +55,6 @@ export const WorkspaceFooter = ({
     const timer = setTimeout(() => setRecovered(false), recoveredForMs)
     return () => clearTimeout(timer)
   }, [recovered])
-  // The version the person pressed Restart for: a newer one is a new offer, not pending.
-  const [pressed, setPressed] = useState<string>()
-  const installing = update !== undefined && pressed === update
-  const offered = update !== undefined && onInstall !== undefined
   const current =
     status !== "ok"
       ? shown[status]
@@ -85,48 +81,7 @@ export const WorkspaceFooter = ({
       </span>
       <span className="flex items-center gap-4">
         {usage}
-        {/* Always mounted, so filling it announces the arrival; out of the layout, and kept
-            for assistive technology where the visible words are dropped to fit. */}
-        <span role="status" aria-live="polite" className="sr-only">
-          {offered ? (installing ? "Restarting to update" : "Update ready") : ""}
-        </span>
-        {update && onInstall && (
-          <span className="footer-update flex items-center gap-1.5">
-            {!installing && (
-              <>
-                <span aria-hidden="true" className="max-[701px]:hidden">
-                  Update ready
-                </span>
-                <span aria-hidden="true" className="max-[701px]:hidden">
-                  ·
-                </span>
-              </>
-            )}
-            <button
-              type="button"
-              className="footer-action cursor-pointer font-bold"
-              aria-label={
-                installing ? `Restarting to update to ${update}` : `Restart to update to ${update}`
-              }
-              disabled={installing}
-              onClick={() => {
-                if (installing) return
-                setPressed(update)
-                onInstall()
-              }}
-            >
-              {/* Narrow, the button alone says what it does. */}
-              {installing ? (
-                "Restarting…"
-              ) : (
-                <>
-                  <span className="max-[701px]:hidden">Restart</span>
-                  <span className="hidden max-[701px]:inline">Update</span>
-                </>
-              )}
-            </button>
-          </span>
-        )}
+        <FooterUpdate update={update} hidden={hidden} />
         <span className="footer-status flex items-center gap-1.5 font-bold">
           <span role="status" aria-live={current?.tone === "danger" ? "assertive" : "polite"}>
             {current?.text}

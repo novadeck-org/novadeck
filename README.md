@@ -642,10 +642,16 @@ last one chosen.
 - **Crash loop:** count four crashes, which shows the footer and the dialog and fails
   the selected terminal's session's terminals; Try again clears the count and
   restarts them.
-- **Update:** have an update downloaded, then a newer one, for the footer's "Update
-  ready" and Restart, which names the version. Restart shows Restarting…, which stays
-  until Finish restart reloads the demo, as the app comes back on the new version.
-  `?demo=update` opens a variant that already has one waiting, for specs.
+- **Update:** have an update downloaded, available (the app can't install it itself), with
+  no notes, or with notes at the caps, for the notice above the footer's "Update ready" or
+  "Update available" chip. Each press offers a newer version, so the notice comes up
+  again; Later leaves the chip, which opens it again. Install failed turns the update
+  waiting from ready to available, and the notice comes up again with Download. Restart
+  now shows Restarting…, which stays until Finish restart reloads the demo, as the app
+  comes back on the new version; Download opens no page in the demo. Early builds on and
+  off set the channel Preferences' Updates switch shows once Preferences is reopened.
+  `?demo=update` and `?demo=update-available` open variants that already have one
+  waiting, for specs.
 - **Sessions:** mark the selected terminal running, then start a fresh session, to see
   the sessions panel count it.
 - **Another project:** make the agent in the first terminal of another project wait

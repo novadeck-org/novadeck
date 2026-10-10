@@ -1,6 +1,6 @@
 import type { EventEmitter } from "node:events"
 
-import type { DesktopHost } from "@novadeck/protocol/bridge"
+import { updateNoteLength, updateNotesLength, type DesktopHost } from "@novadeck/protocol/bridge"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import {
@@ -9,8 +9,11 @@ import {
   installUpdateChannel,
   noticeChannel,
   noticeClickChannel,
+  openUpdatePageChannel,
   saveBeforeQuitChannel,
-  updateReadyChannel,
+  setUpdateChannelChannel,
+  updateChannelChannel,
+  updateOfferChannel,
   updateRequestChannel,
 } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
@@ -21,6 +24,8 @@ const electron = vi.hoisted(() => ({
   exposed: undefined as unknown as DesktopHost,
   sent: [] as string[],
   messages: [] as [string, unknown][],
+  // What the main process answers a request with.
+  answer: undefined as unknown,
 }))
 
 vi.mock("electron", async () => {
@@ -45,7 +50,10 @@ vi.mock("electron", async () => {
         electron.sent.push(channel)
         if (values.length) electron.messages.push([channel, values[0]])
       },
-      invoke: async () => undefined,
+      invoke: async (channel: string) => {
+        electron.sent.push(channel)
+        return electron.answer
+      },
     }),
   }
 })
@@ -58,6 +66,7 @@ beforeEach(async () => {
   electron.renderer?.removeAllListeners()
   electron.sent.length = 0
   electron.messages.length = 0
+  electron.answer = undefined
   process.argv.push(argument)
   await import("./index")
 })
@@ -151,25 +160,100 @@ describe("a notice about a terminal", () => {
   })
 })
 
-describe("an update that is ready", () => {
-  it("asks the host for one already waiting once the page listens", () => {
-    electron.exposed.onUpdateReady!(() => {})
+const ready = { kind: "ready", version: "1.2.3", notes: ["Faster.", "Fixes."] }
+
+describe("an update offer", () => {
+  it("asks the host for the last one once the page listens", () => {
+    electron.exposed.onUpdate!(() => {})
     expect(electron.sent).toEqual([updateRequestChannel])
   })
 
-  it("comes back as its version, and only that, until the page stops", () => {
-    const versions: string[] = []
-    const stop = electron.exposed.onUpdateReady!((version) => versions.push(version))
-    electron.renderer.emit(updateReadyChannel, {}, "1.2.3")
-    electron.renderer.emit(updateReadyChannel, {}, "1.2.3 <b>")
-    electron.renderer.emit(updateReadyChannel, {}, { version: "1.2.4" })
+  it("comes back as an offer until the page stops", () => {
+    const offers: unknown[] = []
+    const stop = electron.exposed.onUpdate!((offer) => offers.push(offer))
+    electron.renderer.emit(updateOfferChannel, {}, ready)
+    electron.renderer.emit(updateOfferChannel, {}, { ...ready, kind: "available" })
     stop()
-    electron.renderer.emit(updateReadyChannel, {}, "1.2.5")
-    expect(versions).toEqual(["1.2.3"])
+    electron.renderer.emit(updateOfferChannel, {}, ready)
+    expect(offers).toEqual([ready, { ...ready, kind: "available" }])
+  })
+
+  it("is dropped unless its kind and version are valid", () => {
+    const offers: unknown[] = []
+    electron.exposed.onUpdate!((offer) => offers.push(offer))
+    for (const value of [
+      undefined,
+      "1.2.3",
+      null,
+      { ...ready, kind: "install" },
+      { ...ready, kind: undefined },
+      { ...ready, version: "1.2.3 <b>" },
+      { ...ready, version: "v1.2.3" },
+      { ...ready, version: 123 },
+      { kind: "ready", notes: [] },
+    ])
+      electron.renderer.emit(updateOfferChannel, {}, value)
+    expect(offers).toEqual([])
+  })
+
+  it("carries only the notes the contract allows", () => {
+    const offers: (readonly string[])[] = []
+    electron.exposed.onUpdate!((offer) => offers.push(offer.notes))
+    const notes = [
+      "Fine.",
+      3,
+      null,
+      "",
+      "line\nbreak",
+      "bell\u0007",
+      "\u202eflipped",
+      "x".repeat(updateNoteLength + 1),
+      "x".repeat(updateNoteLength),
+      ...Array.from({ length: 30 }, (_, index) => `Note ${index}`),
+    ]
+    electron.renderer.emit(updateOfferChannel, {}, { ...ready, notes })
+    electron.renderer.emit(updateOfferChannel, {}, { ...ready, notes: "not a list" })
+    expect(offers[0]!).toHaveLength(updateNotesLength)
+    expect(offers[0]!.slice(0, 2)).toEqual(["Fine.", "x".repeat(updateNoteLength)])
+    expect(offers[1]!).toEqual([])
   })
 
   it("is installed by asking the host", () => {
     electron.exposed.installUpdate!()
     expect(electron.sent).toEqual([installUpdateChannel])
+  })
+
+  it("has its release page opened by asking the host, naming nothing", () => {
+    electron.exposed.openUpdatePage!()
+    expect(electron.sent).toEqual([openUpdatePageChannel])
+    expect(electron.messages).toEqual([])
+  })
+})
+
+describe("the update channel", () => {
+  it("is what the host answers, when it is a channel", async () => {
+    electron.answer = "early"
+    expect(await electron.exposed.updateChannel!()).toBe("early")
+    expect(electron.sent).toEqual([updateChannelChannel])
+  })
+
+  it("is stable when the host answers anything else", async () => {
+    const answers = [undefined, "nightly", { channel: "early" }, 3]
+    const channels = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.updateChannel!()
+    })
+    expect(await Promise.all(channels)).toEqual(answers.map(() => "stable"))
+  })
+
+  it("is switched by telling the host a known channel", () => {
+    electron.exposed.setUpdateChannel!("early")
+    expect(electron.messages).toEqual([[setUpdateChannelChannel, "early"]])
+  })
+
+  it("sends nothing for anything else", () => {
+    for (const value of ["nightly", undefined, {}, 3, "Early"])
+      electron.exposed.setUpdateChannel!(value as never)
+    expect(electron.sent).toEqual([])
   })
 })

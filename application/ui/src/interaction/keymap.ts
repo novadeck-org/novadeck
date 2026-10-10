@@ -173,6 +173,7 @@ const gates: Record<
     !state.switcher &&
     !input.target.editing &&
     !input.target.zenDock &&
+    !input.target.notice &&
     !input.target.companion &&
     !environment.overlayOpen() &&
     !environment.tabInteraction(),

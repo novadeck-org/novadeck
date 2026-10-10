@@ -23,6 +23,7 @@ const nowhere: KeyTarget = {
   terminalTab: false,
   switcherClose: false,
   zenDock: false,
+  notice: false,
   companion: false,
   chat: false,
 }
@@ -266,6 +267,7 @@ describe("keymap", () => {
           const cases: [Press, Situation][] = [
             [{ key: "Escape" }, { state: { dialog: true } }],
             [{ key: "Escape", target: { zenDock: true } }, {}],
+            [{ key: "Escape", target: { notice: true } }, {}],
             [{ key: "Escape", target: { companion: true } }, {}],
             [{ key: "Escape", target: { editing: true } }, {}],
             [{ key: "Escape", target: terminalInput }, {}],

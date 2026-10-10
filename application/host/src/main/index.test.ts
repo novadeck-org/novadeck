@@ -71,12 +71,29 @@ describe("compiled desktop host", () => {
       const preload = await read("preload/index.cjs")
 
       // The decision itself is covered in ./updater.test.ts.
-      expect(main).toContain("updateMode(")
+      expect(main).toContain("updatePlan(")
       expect(main).toContain('await import("electron-updater")')
       expect(main).toContain("shutdown: shutDown")
       expect(main).toContain("quitAndInstall(")
-      expect(preload).toContain("novadeck:update-ready")
+      expect(preload).toContain("novadeck:update-offer")
       expect(preload).toContain("novadeck:install-update")
+      expect(preload).toContain("novadeck:open-update-page")
+      expect(preload).toContain("novadeck:set-update-channel")
+      // The portable Windows build is gone, and its variable is not read.
+      expect(main).not.toContain("PORTABLE_EXECUTABLE_DIR")
+    })
+
+    it("offers a move to Applications before the windows and the runner start, and opens release pages only from app-update.yml", async () => {
+      const main = await read("main/index.js")
+
+      // Linux's Ctrl+Q and Quit item mark the quit as the person's before quitting.
+      expect(main).toContain("linuxMenu(")
+      expect(main).toContain("Menu.setApplicationMenu")
+      expect(main).toContain("moveToApplicationsFolder")
+      expect(main).toContain("isInApplicationsFolder")
+      expect(main.indexOf("await moveToApplications()")).toBeLessThan(main.indexOf("startRunner("))
+      expect(main).toContain('"app-update.yml"')
+      expect(main).not.toContain("mzpkdev/novadeck/releases/tag")
     })
 
     it("opens windows on the page's last ground and follows its appearance", async () => {

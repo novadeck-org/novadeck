@@ -19,17 +19,29 @@ const modalDialog = '[data-scope="dialog"][data-part="content"], [role="alertdia
 export const workspaceShortcutTarget = (target: EventTarget | null): boolean =>
   !(target instanceof Element && target.closest(editingOrOverlay))
 
+const overlays = [
+  '[role="dialog"]:not([aria-hidden="true"])',
+  '[role="alertdialog"]:not([aria-hidden="true"])',
+  '[role="menu"]:not([hidden])',
+  '[role="listbox"][data-state="open"]',
+  '[data-scope="popover"][data-state="open"]',
+]
+
 export const workspaceOverlayOpen = (): boolean =>
-  Boolean(
-    document.querySelector(
-      '[role="dialog"]:not([aria-hidden="true"]), [role="alertdialog"]:not([aria-hidden="true"]), [role="menu"]:not([hidden]), [role="listbox"][data-state="open"], [data-scope="popover"][data-state="open"]',
-    ),
-  )
+  Boolean(document.querySelector(overlays.join(", ")))
+
+// Like `workspaceOverlayOpen`, but not a hover card (a taskbar peek), which opens on a
+// pointer passing by and asks for nothing.
+export const blockingOverlayOpen = (): boolean =>
+  Boolean(document.querySelector(overlays.map((each) => `${each}:not(.peek)`).join(", ")))
 
 const within = (target: EventTarget | null, selector: string): boolean =>
   target instanceof Element && Boolean(target.closest(selector))
 export const insideOpenZenDock = (target: EventTarget | null): boolean =>
   within(target, '[data-workspace-zen-dock][data-open="true"]')
+// The footer's update notice, which closes itself on Escape.
+export const insideNotice = (target: EventTarget | null): boolean =>
+  within(target, "[data-workspace-notice]")
 export const insideViewSwitch = (target: EventTarget | null): boolean =>
   within(target, "[data-workspace-view-switch]")
 export const insideNavigationControl = (target: EventTarget | null): boolean =>
@@ -75,6 +87,7 @@ export type KeyTarget = {
   readonly terminalTab: boolean
   readonly switcherClose: boolean
   readonly zenDock: boolean
+  readonly notice: boolean
   readonly companion: boolean
   readonly chat: boolean
 }
@@ -91,6 +104,7 @@ export const classifyKeyTarget = (target: EventTarget | null): KeyTarget => ({
   terminalTab: insideTerminalTab(target),
   switcherClose: insideSwitcherClose(target),
   zenDock: insideOpenZenDock(target),
+  notice: insideNotice(target),
   companion: insideCompanion(target),
   chat: insideChat(target),
 })

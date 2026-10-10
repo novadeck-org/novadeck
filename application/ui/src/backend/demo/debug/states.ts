@@ -47,7 +47,7 @@ import type {
   DemoScreen,
   DemoStates,
 } from "./types"
-import { createDemoUpdates } from "./updates"
+import { createDemoUpdates, longestNotes, sampleNotes } from "./updates"
 
 // How long an agent works before its turn ends, so the person can look elsewhere.
 const turnMs = 3000
@@ -328,7 +328,10 @@ const createNotificationActions = (): readonly [DemoAction, DemoAction] => {
 export const createDemoStates = (): DemoStates => {
   const { agents, openWelcome, failNext: failAgents } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
-  const { updates, offer, finish } = createDemoUpdates()
+  const { updates, offer, finish, failInstall } = createDemoUpdates()
+  // Each press offers a newer version than the last, so its notice comes up again.
+  let patch = 79
+  const nextVersion = (): string => `0.0.${(patch += 1)}`
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createDebugChat()
   const notificationActions = createNotificationActions()
@@ -520,13 +523,63 @@ export const createDemoStates = (): DemoStates => {
       actions: [
         {
           label: "Update ready",
-          hint: "Footer: Update ready · Restart, quiet beside the status; Restart shows Restarting…, which stays until Finish restart",
-          run: () => offer("0.0.80"),
+          hint: "A notice above the footer's Update ready chip: Novadeck is ready, four notes, Release notes, Restart now and Later; each press is a newer version, so it comes up again",
+          run: () =>
+            offer({
+              kind: "ready",
+              version: nextVersion(),
+              notes: sampleNotes,
+            }),
         },
         {
-          label: "Newer update ready",
-          hint: "Footer: the Restart button names the newer version, and a Restarting… footer offers it again",
-          run: () => offer("0.0.81"),
+          label: "Update ready, no notes",
+          hint: "The same notice without notes: the title, Release notes, Restart now and Later",
+          run: () => offer({ kind: "ready", version: nextVersion(), notes: [] }),
+        },
+        {
+          label: "Update available",
+          hint: "A notice above the footer's Update available chip: Novadeck is available, four notes, Download and Later; Download opens no page in the demo",
+          run: () =>
+            offer({
+              kind: "available",
+              version: nextVersion(),
+              notes: sampleNotes,
+            }),
+        },
+        {
+          label: "Update with long notes",
+          hint: "A notice with twelve 200-character notes: two lines each, the list scrolling, “and 7 more”, and the buttons always in view",
+          run: () =>
+            offer({
+              kind: "ready",
+              version: nextVersion(),
+              notes: longestNotes,
+            }),
+        },
+        {
+          label: "Newer update replaces it",
+          hint: "A newer ready update replaces an open or dismissed one: the notice names the new version and comes up again after Later; the chip stays",
+          run: () =>
+            offer({
+              kind: "ready",
+              version: nextVersion(),
+              notes: sampleNotes.slice(0, 2),
+            }),
+        },
+        {
+          label: "Install failed",
+          hint: "The update waiting turns from ready to available: the chip reads Update available and its notice comes up again, with Download",
+          run: failInstall,
+        },
+        {
+          label: "Early builds on",
+          hint: "Preferences > General > Updates: Early builds is on, after reopening Preferences",
+          run: () => updates.channel?.set("early"),
+        },
+        {
+          label: "Early builds off",
+          hint: "Preferences > General > Updates: Early builds is off, after reopening Preferences",
+          run: () => updates.channel?.set("stable"),
         },
         {
           label: "Finish restart",

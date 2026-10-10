@@ -28,6 +28,7 @@ const nowhere: KeyTarget = {
   terminalTab: false,
   switcherClose: false,
   zenDock: false,
+  notice: false,
   companion: false,
   chat: false,
 }

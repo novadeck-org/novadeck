@@ -90,6 +90,11 @@ export type WorkspaceCommands = ShellCommands &
     // next crash loop.
     readonly retryAfterCrashLoop: () => void
     readonly dismissCrashLoop: () => void
+    // Opens or closes the update's notice, which the footer's chip reopens after Later.
+    readonly setUpdateOpen: (open: boolean) => void
+    // Notes that the notice came up for this offer (`updateKey`), so a relaunch
+    // doesn't raise it again.
+    readonly updateShown: (key: string) => void
   }
 
 // The terminal created last stays highlighted this long.
@@ -482,5 +487,9 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       crashLoop?.retry()
     },
     dismissCrashLoop: () => ui.update((state) => ({ ...state, crashLoopDismissed: true })),
+    setUpdateOpen: (updateOpen) =>
+      ui.update((state) => (state.updateOpen === updateOpen ? state : { ...state, updateOpen })),
+    updateShown: (updateSeen) =>
+      ui.update((state) => (state.updateSeen === updateSeen ? state : { ...state, updateSeen })),
   }
 }

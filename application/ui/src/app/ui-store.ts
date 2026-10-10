@@ -12,11 +12,12 @@ import { orderedTiles } from "../model/roster"
 import { activeProject } from "../model/state"
 import { createStore, type MutableStore, type Store } from "../model/store"
 import type { PreferencesValue, TerminalMetadata, Workspace } from "../model/types"
+import { updateKey, type UpdateOffer } from "../model/update"
 import { writePreferences } from "../preferences/preferences-storage"
 import { noArrangement, type ProjectArrangement } from "../projects/project-arrangement"
 import { writeProjectArrangement } from "../projects/project-arrangement-storage"
 import { initialShell, resetPresentation, type ShellState } from "../shell/shell-state"
-import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage"
+import { writeSidebarCollapsed, writeUpdateSeen, writeWindowedView } from "../shell/shell-storage"
 import {
   chatKept,
   keepChatDrafts,
@@ -67,8 +68,12 @@ export type UiState = {
   readonly crashLoopDismissed: boolean
   // How many crashes the backend reports while its far side keeps crashing; 0 otherwise.
   readonly crashLoop: number
-  // The version of an update the desktop app has downloaded and installs on restart.
-  readonly updateReady: string | null
+  // The update the desktop app last told of: downloaded, or to fetch from its release page.
+  readonly update: UpdateOffer | null
+  // Whether its notice is open, or waits to open once the footer shows.
+  readonly updateOpen: boolean
+  // The offer (`updateKey`) whose notice came up last, kept across launches: each comes up once.
+  readonly updateSeen: string | null
   // Whether the page has the person's focus: its window focused and showing.
   readonly pageFocused: boolean
   // The terminals whose agent finished while the person looked elsewhere.
@@ -103,11 +108,13 @@ export const initialUi = ({
   preferences,
   sidebarCollapsed = false,
   projectArrangement = noArrangement,
+  updateSeen = null,
 }: {
   location: UiLocation
   preferences: PreferencesValue
   sidebarCollapsed?: boolean
   projectArrangement?: ProjectArrangement
+  updateSeen?: string | null
 }): UiState => ({
   location,
   preferences,
@@ -118,7 +125,9 @@ export const initialUi = ({
   closing: null,
   crashLoopDismissed: false,
   crashLoop: 0,
-  updateReady: null,
+  update: null,
+  updateOpen: false,
+  updateSeen,
   pageFocused: true,
   unread: noUnread,
   answering: noTerminalAnswers,
@@ -156,6 +165,7 @@ export const persistUi = (ui: Store<UiState>, workspace: Store<Workspace>): (() 
     persist(ui, (state) => state.preferences, writePreferences),
     persist(ui, (state) => state.shell.sidebarCollapsed, writeSidebarCollapsed),
     persist(ui, (state) => state.projectArrangement, writeProjectArrangement),
+    persist(ui, (state) => state.updateSeen, writeUpdateSeen),
     persist(workspace, (snapshot) => currentState(snapshot).windowedView, writeWindowedView),
   ]
   return () => stops.forEach((stop) => stop())
@@ -236,13 +246,16 @@ export const watchCrashLoop = (crashes: Store<number> | undefined, ui: UiStore):
   return crashes.subscribe(check)
 }
 
-// The update the backend has ready, kept for the footer; a later report replaces the
-// last, as the demo's newer update does.
+// The update the backend offers, kept for the footer; a later offer replaces the last.
+// One for a version not yet shown opens its notice, which waits while the footer is
+// hidden.
 export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => void) =>
-  updates?.onReady((version) =>
-    ui.update((state) =>
-      state.updateReady === version ? state : { ...state, updateReady: version },
-    ),
+  updates?.onOffer((update) =>
+    ui.update((state) => ({
+      ...state,
+      update,
+      updateOpen: state.updateOpen || updateKey(update) !== state.updateSeen,
+    })),
   ) ?? (() => {})
 
 // A close confirmation belongs to the session it was asked in: leaving that session
@@ -425,7 +438,11 @@ export const watchFinishes = (
   }
   // Marks and notifies the finishes, unless the person looks at that terminal.
   const announce = (
-    finished: readonly { key: string; terminal: TerminalMetadata; finish: AgentFinish }[],
+    finished: readonly {
+      key: string
+      terminal: TerminalMetadata
+      finish: AgentFinish
+    }[],
   ): void => {
     const looking = viewing(workspace.getSnapshot(), ui.getSnapshot())
     setUnread((current) => {
