@@ -280,7 +280,7 @@ export const createRouter = (options: {
         voice.record(context.connection.id, input.clipId, input.offset, input.data),
       ),
       transcribe: authorized.voice.transcribe.handler(({ input, context }) =>
-        voice.transcribe(context.connection.id, input.clipId, input.prompt),
+        voice.transcribe(context.connection.id, input.clipId, input.terminalId),
       ),
       discard: authorized.voice.discard.handler(({ input, context }) =>
         voice.discard(context.connection.id, input.clipId),

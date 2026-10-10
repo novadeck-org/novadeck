@@ -6,7 +6,8 @@ import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 /**
  * What the agent session at a terminal's root worked on, as its hooks said: the person's
  * first and latest root prompts there, shortened, never a turn the harness started by
- * itself; how often it wrote in each folder; and when it was last active. A fact of the
+ * itself; how often it wrote in each folder, and the files it wrote last; and when it was
+ * last active. A fact of the
  * terminal, kept with its record, so it outlives the agent compacting its context and the
  * runner restarting; agents messaging each other read it.
  */
@@ -28,6 +29,8 @@ export type Work = {
   readonly latest: string | null
   /** Edits by folder, by absolute path, the `keptFolders` written in most. */
   readonly folders: { readonly [folder: string]: number }
+  /** The paths of the `keptFiles` files it wrote in last, the latest first; absent until one. */
+  readonly files?: readonly string[]
   readonly activeAt: number | null
 }
 
@@ -35,6 +38,8 @@ export type Work = {
 export const promptChars = 120
 /** How many folders' edits are kept. */
 export const keptFolders = 20
+/** How many files' paths are kept. */
+export const keptFiles = 8
 
 /**
  * Whose the root session's first prompt is: the `user`'s; the `opener`'s, in the first
@@ -87,6 +92,10 @@ export const tallied = (folders: Work["folders"], folder: string): Work["folders
   return Object.fromEntries([...others, [folder, edits]])
 }
 
+/** The file paths with `file` the latest, once, kept to the `keptFiles` latest. */
+export const lastFiles = (files: Work["files"], file: string): readonly string[] =>
+  [file, ...(files ?? []).filter((name) => name !== file)].slice(0, keptFiles)
+
 /** The folders a session wrote in most, by edits, at most `count` of them. */
 export const busiestFolders = (
   folders: Work["folders"],
@@ -130,7 +139,12 @@ export const workAfter = (
       }
     } else if (event.type === "turn-ended") next = { ...next, activeAt: now }
     else if (event.type === "file-touched")
-      next = { ...next, folders: tallied(next.folders, dirname(event.path)), activeAt: now }
+      next = {
+        ...next,
+        folders: tallied(next.folders, dirname(event.path)),
+        files: lastFiles(next.files, event.path),
+        activeAt: now,
+      }
   }
   return next
 }

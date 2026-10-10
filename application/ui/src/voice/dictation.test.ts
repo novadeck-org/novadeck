@@ -11,7 +11,7 @@ import {
 } from "../model/voice"
 import { context, describe, expect, it } from "../test"
 import type { Capture, CaptureHandlers } from "./capture"
-import { createDictation, dictationPrompt, voiceReady, type DictationController } from "./dictation"
+import { createDictation, voiceReady, type DictationController } from "./dictation"
 
 const target: TerminalKey = { projectId: "p", workspaceSessionId: "s", terminalId: "t1" }
 
@@ -30,7 +30,7 @@ const installed: VoiceState = {
 
 type FakeClip = VoiceClip & {
   readonly appended: number[]
-  readonly prompts: (string | undefined)[]
+  readonly terminals: (string | undefined)[]
   discarded: boolean
   resolve: (transcript: VoiceTranscript) => void
   reject: (failure: Error) => void
@@ -49,11 +49,11 @@ const setup = (state: VoiceState = installed) => {
     record: () => {
       const clip: FakeClip = {
         appended: [],
-        prompts: [],
+        terminals: [],
         discarded: false,
         append: (samples) => void clip.appended.push(samples.length),
         finish: (options) => {
-          clip.prompts.push(options?.prompt)
+          clip.terminals.push(options?.terminalId)
           return new Promise((resolve, reject) => {
             clip.resolve = resolve
             clip.reject = reject
@@ -94,7 +94,6 @@ const setup = (state: VoiceState = installed) => {
         microphone.settle.push(resolve)
         microphone.fail.push(reject)
       }),
-    promptFor: () => "novadeck, ui",
     now: () => now,
     after: (milliseconds, run) => {
       const id = ++timerIds
@@ -153,7 +152,7 @@ describe("dictation", () => {
       expect(view.getSnapshot().phase).toBe("transcribing")
       expect(app.microphone.stops).toBe(1)
       await flush()
-      expect(app.clips[0]!.prompts).toEqual(["novadeck, ui"])
+      expect(app.clips[0]!.terminals).toEqual(["t1"])
       app.clips[0]!.resolve({ text: "  run the tests \n", language: "en" })
       await flush()
       expect(app.typed).toEqual([{ key: target, text: "run the tests" }])
@@ -276,12 +275,12 @@ describe("dictation", () => {
       await app.speak(1)
       app.controller.dictation.toggle(target)
       await flush()
-      expect(app.clips[0]!.prompts).toEqual([])
+      expect(app.clips[0]!.terminals).toEqual([])
       app.microphone.handlers[0]!.onSamples(new Int16Array(1600))
       app.microphone.land[0]!()
       await flush()
       expect(app.clips[0]!.appended).toEqual([16_000, 1600])
-      expect(app.clips[0]!.prompts).toHaveLength(1)
+      expect(app.clips[0]!.terminals).toHaveLength(1)
     })
 
     it("lets a cancel discard at once and release the microphone", async () => {
@@ -298,7 +297,7 @@ describe("dictation", () => {
       app.microphone.land[0]!()
       await flush()
       expect(app.clips[0]!.appended).toEqual([16_000])
-      expect(app.clips[0]!.prompts).toEqual([])
+      expect(app.clips[0]!.terminals).toEqual([])
       expect(app.controller.view.getSnapshot().phase).toBe("idle")
     })
   })
@@ -469,26 +468,5 @@ describe("dictation", () => {
     expect(app.controller.level.getSnapshot()).toBe(0.6)
     app.controller.dictation.cancel()
     expect(app.controller.level.getSnapshot()).toBe(0)
-  })
-})
-
-describe("dictationPrompt", () => {
-  it("names the project and the directory's last folder in a sentence", () => {
-    expect(dictationPrompt("Checkout", "C:\\work\\api-gateway")).toBe(
-      "Working on Checkout, in the api-gateway folder.",
-    )
-    expect(dictationPrompt("Home", "/home/mzpk/")).toBe("Working on Home, in the mzpk folder.")
-  })
-
-  it("names a folder once when the project is named after it", () => {
-    expect(dictationPrompt("novadeck", "/home/mzpk/Workspace/novadeck/")).toBe(
-      "Working on novadeck.",
-    )
-  })
-
-  it("leaves out what is missing", () => {
-    expect(dictationPrompt("Checkout", "")).toBe("Working on Checkout.")
-    expect(dictationPrompt("", "/srv/api")).toBe("Working in the api folder.")
-    expect(dictationPrompt(" ", "")).toBe("")
   })
 })

@@ -381,11 +381,12 @@ export const contract = {
         }),
       )
       .output(z.void()),
-    // Transcribes a recorded clip and forgets it. `prompt` names words likely said, such
-    // as file names, to spell them right. An unknown clip is NOT_FOUND, voice input that
+    // Transcribes a recorded clip and forgets it. `terminalId` names the terminal it is
+    // dictated into, whose project, branch, folders, files and prompts the runner hints to
+    // the engine to spell them right. An unknown clip is NOT_FOUND, voice input that
     // cannot be used VOICE_UNAVAILABLE, and an engine that fails VOICE_FAILED, saying why.
     transcribe: procedure
-      .input(z.strictObject({ clipId: id, prompt: z.string().max(1024).optional() }))
+      .input(z.strictObject({ clipId: id, terminalId: id.optional() }))
       .output(voiceTranscript),
     // Forgets a clip without transcribing it. An unknown clip is fine.
     discard: procedure.input(z.strictObject({ clipId: id })).output(z.void()),

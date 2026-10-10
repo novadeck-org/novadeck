@@ -83,6 +83,7 @@ import {
   type Report,
   type Reports,
 } from "../shell/reports.js"
+import type { HintFacts } from "../voice/hint.js"
 import { Answers, type AnswerHost, type AnswerOptions } from "./answers.js"
 import {
   allowClose,
@@ -1847,6 +1848,17 @@ export class Terminals {
       cwd: terminal.cwd,
       project: this.projectFolder(terminal.sessionId),
     }
+  }
+
+  /**
+   * What a running terminal's dictation hint is made of (see `dictationHint`), but its
+   * project's name, with the files shown in its bar. Undefined for a terminal not running
+   * here.
+   */
+  async hintFacts(terminalId: string): Promise<Omit<HintFacts, "project"> | undefined> {
+    const record = this.records.get(terminalId)
+    if (!record) return undefined
+    return this.peers.hint(record, this.options.items?.bar(terminalId) ?? [])
   }
 
   /**

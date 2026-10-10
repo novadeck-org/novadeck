@@ -6,7 +6,9 @@ import {
   firstFrom,
   freshWork,
   judgedFirst,
+  keptFiles,
   keptFolders,
+  lastFiles,
   promptChars,
   shorten,
   tallied,
@@ -46,7 +48,22 @@ describe("what a root session worked on", () => {
 
   it("tallies the folders it writes in, and when it was last active", () => {
     const work = workAfter(null, root, [touched("/w/src/a.ts"), touched("/w/src/b.ts")], 9)
-    expect(work).toMatchObject({ folders: { "/w/src": 2 }, activeAt: 9 })
+    expect(work).toMatchObject({
+      folders: { "/w/src": 2 },
+      files: ["/w/src/b.ts", "/w/src/a.ts"],
+      activeAt: 9,
+    })
+  })
+
+  it("keeps the paths of the files written in last, each once, the latest first", () => {
+    let files: readonly string[] | undefined
+    for (let index = 0; index < 30; index += 1) files = lastFiles(files, `f${index}.ts`)
+    expect(files).toHaveLength(keptFiles)
+    expect(files![0]).toBe("f29.ts")
+    expect(lastFiles(files, "f25.ts")).toEqual([
+      "f25.ts",
+      ...files!.filter((name) => name !== "f25.ts"),
+    ])
   })
 
   it("starts afresh for another session, keeps its own, and is kept without a root", () => {
@@ -81,6 +98,7 @@ describe("what a root session worked on", () => {
       first: null,
       latest: null,
       folders: { "/w": 1 },
+      files: ["/w/a.ts"],
       activeAt: 4,
     })
     // Without the correction, another session starts afresh.

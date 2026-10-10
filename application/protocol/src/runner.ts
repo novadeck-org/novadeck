@@ -379,8 +379,11 @@ export type Runner = {
      * `offset` into it, in as many calls as it takes.
      */
     record(clipId: string, offset: number, audio: Uint8Array): Promise<void>
-    /** Transcribes a recorded clip and forgets it; `prompt` names words likely said. */
-    transcribe(clipId: string, options?: { readonly prompt?: string }): Promise<VoiceTranscript>
+    /**
+     * Transcribes a recorded clip and forgets it; `terminalId` names the terminal it is
+     * dictated into, whose words the runner hints to the engine.
+     */
+    transcribe(clipId: string, options?: { readonly terminalId?: string }): Promise<VoiceTranscript>
     /** Forgets a clip without transcribing it. */
     discard(clipId: string): Promise<void>
   }
@@ -1228,8 +1231,8 @@ export const connectRunner = async (
           at += size
         }
       },
-      transcribe: (clipId, { prompt } = {}) =>
-        call((wire) => wire.voice.transcribe({ clipId, ...(prompt ? { prompt } : {}) })),
+      transcribe: (clipId, { terminalId } = {}) =>
+        call((wire) => wire.voice.transcribe({ clipId, ...(terminalId ? { terminalId } : {}) })),
       discard: (clipId) => call((wire) => wire.voice.discard({ clipId })),
     },
     settings: {

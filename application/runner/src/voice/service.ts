@@ -1,5 +1,6 @@
 import { access, readdir, readFile, rm } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
+import { setTimeout as sleep } from "node:timers/promises"
 
 import {
   voiceSampleRate,
@@ -34,6 +35,7 @@ import {
   type EngineConfig,
   type Launch,
 } from "./engine.js"
+import { dictationHint, type HintFacts } from "./hint.js"
 import { wav } from "./wav.js"
 
 /** Where the runner keeps voice input's settings. */
@@ -60,6 +62,8 @@ export type VoiceOptions = {
   /** How long each of the check's transcriptions may take after an install. */
   readonly checkMs?: number
   readonly now?: () => number
+  /** What a terminal's dictation hint is made of; undefined for a terminal not running here. */
+  readonly hint?: (terminalId: string) => Promise<HintFacts | undefined>
 }
 
 const exists = (path: string): Promise<boolean> =>
@@ -81,6 +85,9 @@ const explain = (error: unknown): string => {
 }
 
 type Watch = { readonly owner: string; finished: boolean; wake: (() => void) | undefined }
+
+// How long the facts for a hint are read for before the clip goes without one.
+const hintMs = 500
 
 // How often progress reaches watchers, at most.
 const progressMs = 100
@@ -422,8 +429,14 @@ export class Voice {
     this.clips.discard(owner, clipId)
   }
 
-  async transcribe(owner: string, clipId: string, prompt?: string): Promise<VoiceTranscript> {
+  /**
+   * Transcribes a clip and forgets it, with a hint of the words likely said in the
+   * terminal it is dictated into, where named (see `dictationHint`).
+   */
+  async transcribe(owner: string, clipId: string, terminalId?: string): Promise<VoiceTranscript> {
     this.assertOpen()
+    // Read while the engine gets ready; the clip goes without a hint that takes longer.
+    const facts = terminalId === undefined ? undefined : this.hintFacts(terminalId)
     await this.ready()
     this.assertOpen()
     const config = this.configuration()
@@ -435,8 +448,15 @@ export class Voice {
       this.clips.discard(owner, clipId)
       return { text: "", language: language === "auto" ? "" : language }
     }
+    const known = await facts
+    // The runner may have closed while they were read.
+    this.assertOpen()
+    const prompt = known && dictationHint(known, language)
     try {
-      const result = await this.engine.transcribe(config, wav(pcm), { language, prompt })
+      const result = await this.engine.transcribe(config, wav(pcm), {
+        language,
+        prompt: prompt || undefined,
+      })
       this.clips.discard(owner, clipId)
       return result
     } catch (error) {
@@ -457,6 +477,21 @@ export class Voice {
     for (const watch of this.watchers) {
       watch.finished = true
       watch.wake?.()
+    }
+  }
+
+  /** A terminal's facts for a hint, or undefined when they fail or take too long to read. */
+  private async hintFacts(terminalId: string): Promise<HintFacts | undefined> {
+    const timeout = new AbortController()
+    try {
+      return await Promise.race([
+        this.options.hint?.(terminalId).catch(() => undefined),
+        sleep(hintMs, undefined, { signal: timeout.signal }),
+      ])
+    } catch {
+      return undefined
+    } finally {
+      timeout.abort()
     }
   }
 

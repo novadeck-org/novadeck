@@ -91,7 +91,7 @@ describe("the runner's voice input", () => {
         clip.append(Int16Array.of(0x0102))
         await vi.advanceTimersByTimeAsync(flushMs)
         clip.append(Int16Array.of(3))
-        const finished = clip.finish({ prompt: "main.ts" })
+        const finished = clip.finish({ terminalId: "t1" })
         await vi.advanceTimersByTimeAsync(0)
         await expect(finished).resolves.toEqual({ text: "hello", language: "en" })
         const [first, second] = calls.record.mock.calls
@@ -99,7 +99,7 @@ describe("the runner's voice input", () => {
         expect([...first![2]]).toEqual([1, 0, 0xfe, 0xff, 2, 1])
         expect(second![1]).toBe(6)
         expect([...second![2]]).toEqual([3, 0])
-        expect(calls.transcribe).toHaveBeenCalledWith(first![0], { prompt: "main.ts" })
+        expect(calls.transcribe).toHaveBeenCalledWith(first![0], { terminalId: "t1" })
       } finally {
         vi.useRealTimers()
       }

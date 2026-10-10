@@ -72,8 +72,6 @@ export type DictationDeps = {
   readonly voice: Voice
   readonly typeInto: (key: TerminalKey, text: string) => boolean
   readonly startCapture: (handlers: CaptureHandlers) => Promise<Capture>
-  // A few words that help the engine spell what is said there.
-  readonly promptFor: (key: TerminalKey) => string | undefined
   readonly now: () => number
   readonly after: (milliseconds: number, run: () => void) => () => void
 }
@@ -107,7 +105,7 @@ const wordCount = (text: string): string => {
 // at once, so the engine warms up while the person speaks, streaming audio into it, and
 // pasting what comes back into the terminal it began in.
 export const createDictation = (deps: DictationDeps): DictationController => {
-  const { voice, typeInto, startCapture, promptFor, now, after } = deps
+  const { voice, typeInto, startCapture, now, after } = deps
   const view: MutableStore<DictationView> = createStore(quiet)
   const level: MutableStore<number> = createStore(0)
   const docks: MutableStore<ReadonlyMap<string, number>> = createStore<ReadonlyMap<string, number>>(
@@ -213,7 +211,6 @@ export const createDictation = (deps: DictationDeps): DictationController => {
     const current = clip
     const heardFrom = recording
     const microphone = capture
-    const prompt = promptFor(target)
     cancelLimit?.()
     cancelLimit = null
     clip = null
@@ -241,18 +238,14 @@ export const createDictation = (deps: DictationDeps): DictationController => {
         current.discard()
         return dispatch({ type: "settled" })
       }
-      transcribe(current, prompt, target, wanted)
+      transcribe(current, target, wanted)
     })
   }
 
-  const transcribe = (
-    current: VoiceClip,
-    prompt: string | undefined,
-    target: TerminalKey,
-    wanted: () => boolean,
-  ): void => {
+  const transcribe = (current: VoiceClip, target: TerminalKey, wanted: () => boolean): void => {
     current
-      .finish(prompt ? { prompt } : undefined)
+      // The runner hints the engine with the words of the terminal dictated into.
+      .finish({ terminalId: target.terminalId })
       .then(({ text }) => {
         if (!wanted()) return
         const said = text.trim()
@@ -323,20 +316,4 @@ export const createDictation = (deps: DictationDeps): DictationController => {
       toggle: (target) => dispatch({ type: "toggle", target, now: now(), readiness: ready() }),
     },
   }
-}
-
-// Words that help the engine spell what is said in a terminal: the project and the
-// folder it is in, which tend to be what names, paths and commands there are about. They
-// make a sentence, capitalised and punctuated, since Whisper writes in its prompt's style:
-// a bare list of names gets back lowercase text without punctuation.
-export const dictationPrompt = (projectName: string, directory: string): string => {
-  const project = projectName.trim()
-  const folder = directory
-    .split(/[\\/]/)
-    .findLast((part) => part.trim())
-    ?.trim()
-  if (!project) return folder ? `Working in the ${folder} folder.` : ""
-  return folder && folder !== project
-    ? `Working on ${project}, in the ${folder} folder.`
-    : `Working on ${project}.`
 }

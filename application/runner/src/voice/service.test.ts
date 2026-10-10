@@ -10,9 +10,18 @@ import { engineArchive, fakeLaunch, folder, modelCatalog } from "../testing/voic
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { Catalog } from "./catalog.js"
 import { engineInterface } from "./engine.js"
-import { updateRetryMs, Voice } from "./service.js"
+import type { HintFacts } from "./hint.js"
+import { updateRetryMs, Voice, type VoiceOptions } from "./service.js"
 
 const pcm = (bytes: number) => Buffer.alloc(bytes).toString("base64")
+
+const noFacts: HintFacts = {
+  project: null,
+  cwd: "",
+  branch: null,
+  folders: [],
+  files: [],
+}
 
 const setup = async (
   resources: Resources,
@@ -25,6 +34,7 @@ const setup = async (
     directory?: string
     checkMs?: number
     now?: () => number
+    hint?: VoiceOptions["hint"]
   } = {},
 ) => {
   const store = options.store ?? new WorkspaceStore()
@@ -39,6 +49,7 @@ const setup = async (
     launch: fakeLaunch,
     ...(options.checkMs !== undefined && { checkMs: options.checkMs }),
     ...(options.now && { now: options.now }),
+    ...(options.hint && { hint: options.hint }),
   })
   resources.defer(() => voice.close())
   await voice.refresh()
@@ -57,8 +68,12 @@ const watchUntil = async (voice: Voice, done: (state: VoiceState) => boolean) =>
   return states
 }
 
-const installed = async (resources: Resources, model: "small" | "turbo" = "small") => {
-  const context = await setup(resources)
+const installed = async (
+  resources: Resources,
+  model: "small" | "turbo" = "small",
+  hint?: VoiceOptions["hint"],
+) => {
+  const context = await setup(resources, hint ? { hint } : {})
   await context.voice.install(model)
   await context.voice.settled()
   return context
@@ -403,16 +418,52 @@ describe("voice input settings", () => {
 })
 
 describe("transcribing a recording", () => {
-  it("returns what the engine heard of the clip, after the prompt", async ({ resources }) => {
-    const { voice } = await installed(resources)
+  it("returns what the engine heard of the clip, hinted with its terminal's words", async ({
+    resources,
+  }) => {
+    const asked: string[] = []
+    const { voice } = await installed(resources, "small", async (terminalId) => {
+      asked.push(terminalId)
+      return { ...noFacts, project: "Novadeck", files: ["README.md"] }
+    })
+    await voice.set({ language: "en" })
     await voice.record("owner", "clip", 0, pcm(32_000))
     await voice.record("owner", "clip", 32_000, pcm(32_000))
 
-    const transcript = await voice.transcribe("owner", "clip", "README.md")
+    const transcript = await voice.transcribe("owner", "clip", "t1")
 
-    expect(transcript.language).toBe("pl")
-    expect(JSON.parse(transcript.text)).toMatchObject({ prompt: "README.md", bytes: 44 + 64_000 })
+    expect(asked).toEqual(["t1"])
+    expect(JSON.parse(transcript.text)).toMatchObject({
+      prompt: "Working on Novadeck, with README.md.",
+      bytes: 44 + 64_000,
+    })
     await expect(voice.transcribe("owner", "clip")).rejects.toMatchObject({ code: "NOT_FOUND" })
+  })
+
+  it("goes without a hint for no terminal, one gone, or facts that fail or are slow", async ({
+    resources,
+  }) => {
+    const hints: VoiceOptions["hint"][] = [
+      () => Promise.resolve(undefined),
+      () => Promise.reject(new Error("store closed")),
+      () => new Promise<HintFacts>(() => {}),
+    ]
+    let hint = 0
+    const { voice } = await installed(resources, "small", (terminalId) => hints[hint]!(terminalId))
+    await voice.record("owner", "none", 0, pcm(3200))
+    const unnamed = await voice.transcribe("owner", "none")
+    expect(JSON.parse(unnamed.text)).toMatchObject({ prompt: null })
+    for (; hint < hints.length; hint += 1) {
+      // eslint-disable-next-line no-await-in-loop -- One clip after another.
+      await voice.record("owner", "clip", 0, pcm(3200))
+      const started = performance.now()
+      // eslint-disable-next-line no-await-in-loop -- As above.
+      const { text } = await voice.transcribe("owner", "clip", "t1")
+      expect(JSON.parse(text)).toMatchObject({ prompt: null })
+      // Facts that never come are waited for half a second, no longer.
+      if (hint === 2) expect(performance.now() - started).toBeGreaterThanOrEqual(450)
+      if (hint === 2) expect(performance.now() - started).toBeLessThan(1500)
+    }
   })
 
   it("has the engine in the language chosen", async ({ resources }) => {

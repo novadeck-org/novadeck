@@ -64,9 +64,10 @@ export type VoiceTranscript = {
 export type VoiceClip = {
   // Adds 16 kHz mono 16-bit samples.
   readonly append: (samples: Int16Array) => void
-  // Ends the clip and transcribes it; `prompt` names words likely said, such as file
-  // names. Rejects with an Error whose message says why, for the person.
-  readonly finish: (options?: { readonly prompt?: string }) => Promise<VoiceTranscript>
+  // Ends the clip and transcribes it; `terminalId` names the terminal it is dictated
+  // into, whose words help spell what is said. Rejects with an Error whose message says
+  // why, for the person.
+  readonly finish: (options?: { readonly terminalId?: string }) => Promise<VoiceTranscript>
   // Ends the clip without transcribing it.
   readonly discard: () => void
 }
