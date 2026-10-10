@@ -1,0 +1,122 @@
+name: Promote to Stable
+
+run-name: Promote ${{ inputs.version || 'the newest prerelease' }} to stable
+
+# Every merge to main publishes a prerelease. Promoting one makes it the stable release
+# that people who install the app, and apps checking for updates, get from now on. The
+# binaries are not rebuilt: only the release's prerelease and latest flags change, which
+# GitHub allows on an immutable release.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to promote, such as 1.2.3. Empty promotes the newest published prerelease.
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: promote-release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Choose Release
+        id: choose
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$VERSION" ]]; then
+            tag="$(gh release list --limit 100 --json tagName,isDraft,isPrerelease \
+              --jq '[.[] | select(.isPrerelease and (.isDraft | not))][0].tagName // empty')"
+            if [[ -z "$tag" ]]; then
+              echo "::error::There is no published prerelease to promote."
+              exit 1
+            fi
+          elif [[ "$VERSION" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            tag="v${BASH_REMATCH[1]}"
+          else
+            echo "::error::'$VERSION' is not a version like 1.2.3."
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Release
+        env:
+          TAG: ${{ steps.choose.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if ! release="$(gh release view "$TAG" --json isDraft,isPrerelease,assets)"; then
+            echo "::error::There is no release $TAG."
+            exit 1
+          fi
+          if [[ "$(jq -r .isDraft <<<"$release")" == true ]]; then
+            echo "::error::Release $TAG is still a draft; promote only published releases."
+            exit 1
+          fi
+          if [[ "$(jq -r .isPrerelease <<<"$release")" != true ]]; then
+            echo "::error::Release $TAG is not a prerelease, so there is nothing to promote."
+            exit 1
+          fi
+
+          # What the installers, install.sh and installed apps fetch from the stable release.
+          missing=""
+          for name in \
+            novadeck-mac-universal.dmg novadeck-mac-universal.zip \
+            novadeck-win-x64-setup.exe \
+            novadeck-linux-amd64.deb novadeck-linux-x86_64.rpm novadeck-linux-x86_64.AppImage \
+            latest.yml latest-mac.yml latest-linux.yml install.sh SHA256SUMS; do
+            if ! jq -e --arg name "$name" 'any(.assets[]; .name == $name)' <<<"$release" > /dev/null; then
+              missing="$missing $name"
+            fi
+          done
+          if [[ -n "$missing" ]]; then
+            echo "::error::Release $TAG lacks:$missing"
+            exit 1
+          fi
+
+          # A promotion never moves people to an older build. Without a stable release yet,
+          # any version is newer.
+          # GitHub's own idea of the latest release, which only a missing one (HTTP 404)
+          # leaves empty; any other failure stops the promotion rather than skip this check.
+          current=""
+          if latest="$(gh api "repos/$GH_REPO/releases/latest" 2> "$RUNNER_TEMP/latest.err")"; then
+            current="$(jq -r '.tag_name // empty' <<<"$latest")"
+          elif ! grep -q 'HTTP 404' "$RUNNER_TEMP/latest.err"; then
+            echo "::error::Could not look up the current stable release: $(cat "$RUNNER_TEMP/latest.err")"
+            exit 1
+          fi
+          if [[ -n "$current" && ! "$current" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::The current stable release has an unexpected tag: $current"
+            exit 1
+          fi
+          if [[ -n "$current" ]]; then
+            newest="$(printf '%s\n%s\n' "$current" "$TAG" | sort -V | tail -n 1)"
+            if [[ "$current" == "$TAG" || "$newest" != "$TAG" ]]; then
+              echo "::error::Release $TAG is not newer than the current stable release $current."
+              exit 1
+            fi
+            echo "Replacing stable release $current."
+          else
+            echo "There is no stable release yet."
+          fi
+
+      - name: Promote Release
+        env:
+          TAG: ${{ steps.choose.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --prerelease=false --latest
+          echo "Release $TAG is now the stable release." | tee -a "$GITHUB_STEP_SUMMARY"

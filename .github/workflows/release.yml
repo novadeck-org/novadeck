@@ -108,6 +108,7 @@ jobs:
           - name: Linux
             os: ubuntu-latest
             target: linux
+            expected: novadeck-linux-x86_64.AppImage novadeck-linux-amd64.deb novadeck-linux-x86_64.rpm latest-linux.yml
             files: |
               application/host/release/*.AppImage
               application/host/release/latest-linux.yml
@@ -117,6 +118,7 @@ jobs:
           - name: macOS
             os: macos-latest
             target: mac
+            expected: novadeck-mac-universal.dmg novadeck-mac-universal.zip latest-mac.yml
             files: |
               application/host/release/*.zip
               application/host/release/*.dmg
@@ -126,6 +128,7 @@ jobs:
           - name: Windows
             os: windows-latest
             target: win
+            expected: novadeck-win-x64-setup.exe latest.yml
             files: |
               application/host/release/*.exe
               application/host/release/latest.yml
@@ -358,25 +361,90 @@ jobs:
       # The relay is built with the Rust its rust-toolchain.toml names; on macOS as one
       # binary for both architectures. macOS signs with the keychain's identity on its own;
       # Windows signs when given the Azure account, which goes to electron-builder through
-      # `pnpm exec`, as cmd.exe would mangle the quoted publisher in `pnpm run`.
+      # `pnpm exec`, as cmd.exe would mangle the quoted publisher in `pnpm run`. The app's
+      # update feed is this repository's releases, whatever the repository is named.
       - name: Package Application
         shell: bash
         env:
           NOVADECK_RELAY_UNIVERSAL: "1"
+          REPOSITORY: ${{ github.repository }}
           AZURE_TENANT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_TENANT_ID || '' }}
           AZURE_CLIENT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_ID || '' }}
           AZURE_CLIENT_SECRET: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_SECRET || '' }}
         run: |
+          feed=("-c.publish.owner=${REPOSITORY%%/*}" "-c.publish.repo=${REPOSITORY#*/}")
           if [[ "${{ matrix.target }}" != win || -z "${AZURE_SIGNING_PROFILE:-}" ]]; then
-            pnpm run package:${{ matrix.target }}
+            pnpm run package:${{ matrix.target }} "${feed[@]}"
             exit 0
           fi
           pnpm --workspace-root exec turbo run build --filter=@novadeck/host
-          pnpm --dir application/host exec electron-builder --win --x64 --publish never \
+          pnpm --dir application/host exec electron-builder --win --x64 --publish never "${feed[@]}" \
             "-c.win.azureSignOptions.publisherName=$AZURE_SIGNING_PUBLISHER" \
             "-c.win.azureSignOptions.endpoint=$AZURE_SIGNING_ENDPOINT" \
             "-c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGNING_ACCOUNT" \
             "-c.win.azureSignOptions.certificateProfileName=$AZURE_SIGNING_PROFILE"
+
+      # The installers, install.sh and the app's update feed all fetch these names, so a
+      # rename in the builder's configuration fails here rather than on a person's computer.
+      - name: Check Package Names
+        shell: bash
+        env:
+          EXPECTED: ${{ matrix.expected }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          for name in $EXPECTED; do
+            if [[ ! -f "application/host/release/$name" ]]; then
+              echo "::error::The build produced no $name."
+              exit 1
+            fi
+          done
+          update="$(find application/host/release -name app-update.yml -print -quit)"
+          if [[ -z "$update" ]] || ! grep -qx "owner: ${REPOSITORY%%/*}" "$update" || ! grep -qx "repo: ${REPOSITORY#*/}" "$update"; then
+            echo "::error::The packaged app's update feed does not name $REPOSITORY."
+            exit 1
+          fi
+
+      # electron-updater updates a deb or rpm with the package manager only when the
+      # package's resources/package-type says which, and finds that package in
+      # latest-linux.yml. Builder writes package-type into the folder every Linux target
+      # packs, so each package is checked for its own.
+      - name: Check Linux Update Metadata
+        if: matrix.target == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          release=application/host/release
+          for name in novadeck-linux-x86_64.AppImage novadeck-linux-amd64.deb novadeck-linux-x86_64.rpm; do
+            if ! grep -q "url: $name\$" "$release/latest-linux.yml"; then
+              echo "::error::latest-linux.yml does not list $name."
+              exit 1
+            fi
+          done
+          deb="$(dpkg-deb --fsys-tarfile "$release/novadeck-linux-amd64.deb" | tar -xO ./opt/novadeck/resources/package-type)"
+          rpm="$(rpm2cpio "$release/novadeck-linux-x86_64.rpm" | cpio --quiet -i --to-stdout ./opt/novadeck/resources/package-type)"
+          if [[ "$deb" != deb || "$rpm" != rpm ]]; then
+            echo "::error::The packages name the wrong package type: '$deb' in the deb, '$rpm' in the rpm."
+            exit 1
+          fi
+
+          # The AppImage updates itself in place, so it must not claim a package type. Builder
+          # writes package-type into the shared linux-unpacked folder, and only the order of
+          # the targets keeps it out of the AppImage. Extraction needs no FUSE; app-update.yml
+          # is extracted too, to show the extraction worked.
+          image="$(realpath "$release/novadeck-linux-x86_64.AppImage")"
+          chmod +x "$image"
+          unpacked="$(mktemp -d)"
+          (cd "$unpacked" && "$image" --appimage-extract resources/package-type > /dev/null || true)
+          (cd "$unpacked" && "$image" --appimage-extract resources/app-update.yml > /dev/null)
+          if [[ ! -f "$unpacked/squashfs-root/resources/app-update.yml" ]]; then
+            echo "::error::Could not unpack the AppImage to check it."
+            exit 1
+          fi
+          if [[ -e "$unpacked/squashfs-root/resources/package-type" ]]; then
+            echo "::error::The AppImage holds resources/package-type, so it would update like a $(cat "$unpacked/squashfs-root/resources/package-type") package."
+            exit 1
+          fi
+          rm -rf "$unpacked"
 
       # The rest of the job runs the packaged app and the engine, which need no key.
       - name: Remove Signing Credentials (macOS)
@@ -435,11 +503,13 @@ jobs:
           Write-Host "$($files.Count) files are validly signed."
 
       # Each package runs for ten seconds as people get it: the AppImage as it is, the deb
-      # installed, and the app from the macOS ZIP and disk image and from the Windows
-      # installer and portable executable.
+      # and the AppImage installed by install.sh from a local copy of the release, and the
+      # app from the macOS ZIP and disk image and from the Windows installer.
       - name: Smoke Test Linux Packages
         if: matrix.target == 'linux'
         shell: bash
+        env:
+          REPOSITORY: ${{ github.repository }}
         run: |
           release=application/host/release
           launch() {
@@ -460,9 +530,34 @@ jobs:
           unset APPDIR APPIMAGE
           launch AppImage "$artifact" --appimage-extract-and-run
 
-          sudo apt-get install -y "$(realpath "$(find "$release" -maxdepth 1 -name '*.deb' -print -quit)")"
-          launch "installed deb package" novadeck
+          # install.sh runs as released, against a local copy of the release's packages and
+          # their checksums, so the real install path is what gets tested.
+          serve="$RUNNER_TEMP/novadeck-release"
+          mkdir -p "$serve"
+          cp "$release"/novadeck-linux-amd64.deb "$release"/novadeck-linux-x86_64.rpm "$release"/novadeck-linux-x86_64.AppImage "$serve"
+          (cd "$serve" && sha256sum -- * > SHA256SUMS)
+          sed "s|@REPOSITORY@|$REPOSITORY|g" scripts/install/install.sh > "$RUNNER_TEMP/install.sh"
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory "$serve" > /dev/null 2>&1 &
+          server=$!
+          trap 'kill "$server"' EXIT
+          for _ in {1..30}; do
+            if curl -fs -o /dev/null http://127.0.0.1:8765/SHA256SUMS; then break; fi
+            sleep 1
+          done
+          curl -fs -o /dev/null http://127.0.0.1:8765/SHA256SUMS
+
+          export NOVADECK_INSTALL_BASE_URL=http://127.0.0.1:8765
+          sh "$RUNNER_TEMP/install.sh"
+          launch "deb package installed by install.sh" novadeck
           sudo apt-get remove -y novadeck
+
+          NOVADECK_INSTALL_PACKAGE_MANAGER=appimage sh "$RUNNER_TEMP/install.sh"
+          # The runner has no FUSE 2, so the installed AppImage unpacks itself to start.
+          launch "AppImage installed by install.sh" "$HOME/.local/bin/novadeck" --appimage-extract-and-run
+          if [[ ! -f "$HOME/.local/share/applications/dev.mzpk.novadeck.desktop" || ! -f "$HOME/.local/share/icons/hicolor/512x512/apps/novadeck.png" ]]; then
+            echo "::error::install.sh left no menu entry or icon for the AppImage."
+            exit 1
+          fi
 
           # This runner can't install the rpm, so it checks what the rpm would install.
           rpm="$(find "$release" -maxdepth 1 -name '*.rpm' -print -quit)"
@@ -555,12 +650,6 @@ jobs:
             }
           }
 
-          $portable = Get-ChildItem application/host/release -Filter *-portable.exe | Select-Object -First 1
-          if ($null -eq $portable) {
-            throw "The portable executable was not found."
-          }
-          Test-Launch $portable.FullName "portable executable"
-
           $setup = Get-ChildItem application/host/release -Filter *-setup.exe | Select-Object -First 1
           if ($null -eq $setup) {
             throw "The installer was not found."
@@ -648,6 +737,36 @@ jobs:
           pattern: novadeck-*
           path: release-assets
           merge-multiple: true
+
+      # The installer for Linux, with this repository in it, so a moved repository needs no
+      # edit. It is a release asset to be covered by the checksums, their signature and the
+      # attestation like the packages it downloads.
+      - name: Render Linux Installer
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          sed "s|@REPOSITORY@|$REPOSITORY|g" scripts/install/install.sh > release-assets/install.sh
+          if grep -q '@REPOSITORY@' release-assets/install.sh; then
+            echo "::error::install.sh still holds its placeholder."
+            exit 1
+          fi
+          shellcheck -s sh release-assets/install.sh
+
+      # Everything install.sh, the installers and promoting a release look up by name.
+      - name: Check Release Assets
+        working-directory: release-assets
+        run: |
+          for name in \
+            novadeck-mac-universal.dmg novadeck-mac-universal.zip \
+            novadeck-win-x64-setup.exe \
+            novadeck-linux-amd64.deb novadeck-linux-x86_64.rpm novadeck-linux-x86_64.AppImage \
+            latest.yml latest-mac.yml latest-linux.yml install.sh; do
+            if [[ ! -f "$name" ]]; then
+              echo "::error::The release is missing $name."
+              exit 1
+            fi
+          done
 
       - name: Generate Checksums
         working-directory: release-assets

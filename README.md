@@ -5,6 +5,28 @@ A terminal workspace for organizing projects, sessions, and parallel work.
 Focus on one terminal, arrange several in a grid, or spread them across a zoomable
 canvas. Keep related work together and switch between sessions from the sidebar.
 
+## Install
+
+- **macOS:** download [`novadeck-mac-universal.dmg`](https://github.com/mzpkdev/novadeck/releases/latest/download/novadeck-mac-universal.dmg)
+  and drag the app to Applications.
+- **Windows:** run [`novadeck-win-x64-setup.exe`](https://github.com/mzpkdev/novadeck/releases/latest/download/novadeck-win-x64-setup.exe).
+  It installs for the current user without an administrator prompt.
+- **Linux (x86_64):**
+
+  ```sh
+  curl -fsSL https://github.com/mzpkdev/novadeck/releases/latest/download/install.sh | sh
+  ```
+
+  This installs the `.deb` with apt, the `.rpm` with dnf or zypper, and otherwise puts the
+  AppImage in `~/.local/share/novadeck` with a menu entry and a `novadeck` command in
+  `~/.local/bin`. It checks every download against the release's `SHA256SUMS`, and running
+  it again upgrades.
+
+Every build keeps itself up to date. Those links point to the latest stable release; until
+the first one is promoted, Novadeck's builds are prereleases on the
+[Releases page](https://github.com/mzpkdev/novadeck/releases). See
+[docs/auto-update.md](docs/auto-update.md) for how updates work.
+
 In Canvas, scroll to zoom in or out, and drag the background or an inactive terminal
 to pan. Click a terminal to activate it, then select its text, scroll its output,
 or drag its header to move it. Activating a terminal brings it in front of the
@@ -955,11 +977,18 @@ pnpm package:win
 
 Artifacts go to `application/host/release/`:
 
-- Linux x64: an AppImage, and `.deb` and `.rpm` packages that install to `/opt/novadeck`.
-  Building the rpm needs `rpmbuild`, from the `rpm` package on Debian and Ubuntu.
-- macOS universal: a disk image (`.dmg`) to drag the app to Applications from, and a ZIP.
-- Windows x64: a one-click installer (`-setup.exe`) that installs for the current user
-  without an administrator prompt, and a portable executable (`-portable.exe`).
+- Linux x64: `novadeck-linux-amd64.deb` and `novadeck-linux-x86_64.rpm`, which install to
+  `/opt/novadeck`, and `novadeck-linux-x86_64.AppImage`. Building the rpm needs `rpmbuild`,
+  from the `rpm` package on Debian and Ubuntu. Releases also carry `install.sh`, the
+  installer in [scripts/install](scripts/install) with the repository filled in.
+- macOS universal: `novadeck-mac-universal.dmg`, the disk image to drag the app to
+  Applications from, and `novadeck-mac-universal.zip`, which updates install from.
+- Windows x64: `novadeck-win-x64-setup.exe`, a one-click installer that installs for the
+  current user without an administrator prompt.
+
+None of the names carries a version, so `releases/latest/download/<name>` is always the
+newest stable build. The ZIP and the AppImage are not advertised: the AppImage is
+`install.sh`'s fallback for other distributions and replaces itself in place.
 
 Local builds are unsigned, so Gatekeeper or SmartScreen may warn. The application ID is `dev.mzpk.novadeck`.
 Releases are signed and notarized once the signing credentials are set up; see
@@ -974,7 +1003,10 @@ from source with the rest of the app.
 
 The [release workflow](.github/workflows/release.yml) publishes immutable GitHub
 prereleases from qualifying changes on `main`, with notes, checksums, and native
-packages. It smoke-tests each packaged application before upload. Conventional
+packages. It smoke-tests each packaged application before upload, and installs the Linux
+packages through `install.sh` served from a local copy of the release. The workflow feeds
+its own repository into the update feed baked into each app and into `install.sh`, so
+moving the repository needs no edit. Conventional
 Commits determine release eligibility; versions are currently limited to patch
 increments. Documentation-only changes do not trigger a release. See
 [.release-it.json](.release-it.json) for the release configuration.
@@ -984,11 +1016,17 @@ server flags the runner passes, the requests it makes of the server or the patch
 surface: during an update the runner dictates with an older engine only if it speaks the
 same interface.
 
-Promote tested binaries on GitHub Releases by clearing **Set as a pre-release**
-and selecting **Set as the latest release**; no rebuild is needed. For an
-interrupted release, inspect the latest workflow first. An unpublished draft or
-orphaned version tag must be cleaned up before rerunning the latest release
-workflow; published immutable releases must remain intact.
+There are two channels. Every release from `main` is a prerelease, the early channel. The
+stable channel is GitHub's latest release that is not a prerelease, which installs, the
+`releases/latest/download/` links and, by default, installed apps follow. Promote a tested
+prerelease by running the [Promote to Stable](.github/workflows/promote.yml) workflow from
+the Actions tab, with a version such as `1.2.3` or none for the newest prerelease. It
+checks that the release is published, is a prerelease, carries every package, `latest*.yml`
+and `install.sh`, and is newer than the current stable release, then clears **Set as a
+pre-release** and sets it as the latest. No rebuild happens, and GitHub still lets those
+two flags change on an immutable release. For an interrupted release, inspect the latest
+workflow first. An unpublished draft or orphaned version tag must be cleaned up before
+rerunning the latest release workflow; published immutable releases must remain intact.
 
 ## Contributing
 

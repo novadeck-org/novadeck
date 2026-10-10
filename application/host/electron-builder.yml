@@ -33,18 +33,20 @@ extraResources:
     to: voice/engine.json
 # Where installed apps look for updates. Builder writes this into the app as
 # resources/app-update.yml, and beside the packages the latest*.yml files and blockmaps
-# that name them, even with --publish never. Every release is still a prerelease.
+# that name them, even with --publish never. Every release from main is a prerelease until
+# someone promotes it to stable. The owner and repo here are the defaults of a local build;
+# the release workflow passes the repository it runs in, so a moved repository needs no edit.
 publish:
   provider: github
   owner: mzpkdev
   repo: novadeck
   releaseType: prerelease
-artifactName: novadeck-${version}-${os}-${arch}.${ext}
-# The AppImage replaces itself in place, and electron-updater renames the file when its
-# name carries a version, which would break whatever launches it. Without one, the file
-# keeps its path across updates.
-appImage:
-  artifactName: novadeck-linux-${arch}.${ext}
+# No package name carries a version, so releases/latest/download/<name> is always the newest
+# stable build. The AppImage replaces itself in place, and electron-updater renames the file
+# when its name carries a version, which would break whatever launches it; without one, the
+# file keeps its path across updates. Builder renders ${arch} as amd64 for the deb, x86_64
+# for the rpm and the AppImage, and universal for macOS.
+artifactName: novadeck-${os}-${arch}.${ext}
 # The installers name the install folder and the Linux package after the package's name,
 # which for the workspace's @novadeck/host would be "@novadeckhost". Electron names the
 # app by productName first, so this changes nothing at run time.
@@ -90,8 +92,8 @@ mac:
   entitlementsInherit: resources/entitlements.mac.plist
   notarize: true
   category: public.app-category.utilities
-  # The ZIP for whoever unpacks it by hand, and the disk image people drag to Applications.
-  # The app inside both is the one signed, notarized and stapled.
+  # The disk image people drag to Applications, and the ZIP that Squirrel.Mac installs
+  # updates from. The app inside both is the one signed, notarized and stapled.
   target:
     - target: zip
       arch:
@@ -112,20 +114,14 @@ win:
     - "!node_modules/node-pty/prebuilds/{darwin,linux}-*{,/**}"
     - "!node_modules/node-pty/prebuilds/win32-arm64{,/**}"
     - "!node_modules/node-pty/third_party{,/**}"
-  # The installer and the portable executable are both .exe files, so each names itself.
   target:
     - target: nsis
-      arch:
-        - x64
-    - target: portable
       arch:
         - x64
 nsis:
   # One click, for the current user, into %LOCALAPPDATA%\Programs\novadeck, with no
   # administrator prompt; uninstalling keeps the projects and sessions in app data.
-  artifactName: novadeck-${version}-win-${arch}-setup.${ext}
-portable:
-  artifactName: novadeck-${version}-win-${arch}-portable.${ext}
+  artifactName: novadeck-${os}-${arch}-setup.${ext}
 linux:
   icon: resources/icons
   category: Utility

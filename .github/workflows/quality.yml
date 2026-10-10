@@ -29,6 +29,10 @@ jobs:
           - name: Typecheck
             os: ubuntu-latest
             command: npm run typecheck
+          # The Linux installer; its behavior is tested with the rest of the repository.
+          - name: Shell
+            os: ubuntu-latest
+            command: shellcheck -s sh scripts/install/install.sh
           - name: Test (Linux)
             os: ubuntu-latest
             browser: true
