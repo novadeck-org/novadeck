@@ -16,7 +16,7 @@ import { box } from "./box.js"
 import { decode, transcriptPlans } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { posixShim } from "./shim.js"
-import { transcriptEvents } from "./transcript.js"
+import { transcriptEvents, type Calls } from "./transcript.js"
 import { transcripts } from "./transcripts.js"
 
 const id = "novadeck@novadeck"
@@ -171,9 +171,12 @@ export const claude = {
   dialogs,
   messaging,
   box,
-  // The transcript records what no hook reports: an interrupted turn.
-  watch: (run, signal, emit) =>
-    followLines(run.transcript, signal, (line) => {
-      for (const event of transcriptEvents(line, run)) emit(event)
-    }),
+  // The transcript records what no hook reports: an interrupted turn, and a request a
+  // timed-out prompt denied.
+  watch: (run, signal, emit) => {
+    const calls: Calls = new Map()
+    return followLines(run.transcript, signal, (line) => {
+      for (const event of transcriptEvents(line, run, calls)) emit(event)
+    })
+  },
 } satisfies Harness

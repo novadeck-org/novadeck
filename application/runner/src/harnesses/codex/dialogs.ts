@@ -8,6 +8,7 @@ import type {
   RequestFacts,
   ScreenRequest,
 } from "../dialogs.js"
+import { mcpName, mcpTool } from "./decode.js"
 
 /**
  * How Codex's TUI asks the person, and the keys that answer it (probed 2026-10-06, 0.159.3;
@@ -325,8 +326,9 @@ const readMcp = (lines: readonly string[], facts: RequestFacts): Parsed | undefi
   if (form < 0 || !asked) return undefined
   const server = /^Allow the (.+) MCP server to run tool/.exec(asked[1]!)?.[1]
   const tool = asked[2]!
-  if (!facts.tool.endsWith(`__${tool}`)) return undefined
-  if (server !== undefined && facts.tool !== `mcp__${server}__${tool}`) return undefined
+  // The hooks name the tool with its server's punctuation as underscores; the form, as is.
+  if (!facts.tool.endsWith(`__${mcpName(tool)}`)) return undefined
+  if (server !== undefined && facts.tool !== mcpTool(server, tool)) return undefined
   const first = firstOption(lines, form + 2)
   if (first < 0) return undefined
   // The arguments the form prints, one `name: value` line each in name order.

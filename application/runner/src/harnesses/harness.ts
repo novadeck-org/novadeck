@@ -359,15 +359,24 @@ export const withRequestCwd = (
   )
 }
 
+/** A value as JSON with every object's keys sorted, so the same value reads the same. */
+const canonical = (value: unknown): string =>
+  JSON.stringify(value ?? null, (_, each: unknown) =>
+    typeof each === "object" && each !== null && !Array.isArray(each)
+      ? Object.fromEntries(
+          Object.entries(each).toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+        )
+      : each,
+  )
+
 /**
  * An id for the tool call a permission request asks about, which no harness names: the
  * actor that asks (null for the root agent), the tool and a digest of its input, so the
- * call's own result can resolve it.
+ * call's own result can resolve it. Its keys may come in another order elsewhere, as
+ * Claude Code's transcript records a call's input in the model's order, unlike its hooks.
  */
 export const callId = (actor: string | null, toolName: string, input: unknown): string => {
-  const digest = createHash("sha256")
-    .update(JSON.stringify(input ?? null))
-    .digest("hex")
+  const digest = createHash("sha256").update(canonical(input)).digest("hex")
   return `${actor ?? ""}:${toolName}:${digest.slice(0, 16)}`
 }
 

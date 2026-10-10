@@ -33,7 +33,8 @@ import { at as writtenAt, record } from "../items.js"
  * the call's PostToolUse or PostToolUseFailure from that actor means it was allowed. An
  * answered question's call gains its answers, and a plan may be edited in review, so
  * their results match loosely. A denial or
- * an Esc fires nothing: the next turn settles them.
+ * an Esc fires nothing: the next turn settles them. A prompt that timed out fires nothing
+ * either, but the turn runs on: the call's result in the transcript settles the root's.
  */
 export const decode = (report: Report): readonly HarnessEvent[] =>
   withRequestCwd(withMode(decodeHook(report), report.payload), report.payload)

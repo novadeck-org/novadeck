@@ -1,6 +1,9 @@
+import type { Report } from "../../shell/reports.js"
 import { describe, expect, it } from "../../test.js"
 import { loadProbe } from "../../testing/probes.js"
-import { transcriptEvents } from "./transcript.js"
+import { callId } from "../harness.js"
+import { decode } from "./decode.js"
+import { transcriptEvents, type Calls } from "./transcript.js"
 
 type Probe = { scenarios: { [name: string]: object[] } }
 const probe = loadProbe(import.meta.dirname, "transcript.probe.json") as Probe
@@ -116,5 +119,106 @@ describe("a transcript's record of the turn's Stop hooks", () => {
 
   it("ignores a subagent's", () => {
     expect(line({ ...summary, isSidechain: true })).toEqual([])
+  })
+})
+
+const at = (second: number) => `2026-10-10T07:0${second}:00.000Z`
+
+describe("a root tool call's result in the transcript", () => {
+  // The hook names the input in its own order; the transcript keeps the model's.
+  const hookInput = { command: "rm -f $OUT/*", timeout: 300000, description: "Tidy" }
+  const use = (id: string, name = "Bash", input: object = hookInput) => ({
+    type: "assistant",
+    timestamp: at(1),
+    message: {
+      role: "assistant",
+      content: [{ type: "tool_use", id, name, input }],
+    },
+  })
+  const result = (id: string, second = 2) => ({
+    type: "user",
+    timestamp: at(second),
+    message: {
+      role: "user",
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: id,
+          is_error: true,
+          content: "Permission for this command was denied ... the permission prompt timed out",
+        },
+      ],
+    },
+  })
+  const read = (records: object[], calls: Calls = new Map()) =>
+    records.flatMap((record) => transcriptEvents(JSON.stringify(record), session, calls))
+
+  it("settles the request its hook asked, whatever order the input's keys came in", () => {
+    const [asked] = decode({
+      event: "PermissionRequest",
+      seq: Date.parse(at(1)),
+      instance: "7",
+      env: {},
+      payload: { session_id: "s", tool_name: "Bash", tool_input: hookInput },
+    } as unknown as Report)
+    const reordered = { description: "Tidy", command: "rm -f $OUT/*", timeout: 300000 }
+    const settled = read([use("toolu_1", "Bash", reordered), result("toolu_1")])
+    expect(settled).toEqual([
+      {
+        type: "attention-resolved",
+        agent: "claude",
+        sessionId: "s",
+        instance: "7",
+        startedAt: Date.parse(at(2)),
+        requestId: (asked as { requestId: string }).requestId,
+        actor: null,
+        toolName: "Bash",
+        loose: false,
+        outcome: "settled",
+      },
+    ])
+  })
+
+  it("settles a question exactly, as another may still be asked", () => {
+    const question = { questions: [{ question: "A?", options: [{ label: "x" }] }] }
+    expect(read([use("toolu_1", "AskUserQuestion", question), result("toolu_1")])).toMatchObject([
+      { requestId: callId(null, "AskUserQuestion", question), loose: false },
+    ])
+  })
+
+  it("matches nested keys in any order", () => {
+    const nested = { questions: [{ options: [{ label: "x" }], question: "A?" }] }
+    const sorted = { questions: [{ question: "A?", options: [{ label: "x" }] }] }
+    expect(callId(null, "AskUserQuestion", nested)).toBe(callId(null, "AskUserQuestion", sorted))
+  })
+
+  it("settles a plan loosely", () => {
+    expect(read([use("toolu_1", "ExitPlanMode", { plan: "x" }), result("toolu_1")])).toMatchObject([
+      { type: "attention-resolved", toolName: "ExitPlanMode", loose: true },
+    ])
+  })
+
+  it("settles each call once, and none it never saw made", () => {
+    const calls: Calls = new Map()
+    expect(read([use("toolu_1"), result("toolu_1")], calls)).toHaveLength(1)
+    expect(read([result("toolu_1", 3)], calls)).toEqual([])
+    expect(read([result("toolu_2")], calls)).toEqual([])
+    expect(calls.size).toBe(0)
+  })
+
+  it("forgets a subagent's calls, which its own transcript keeps", () => {
+    expect(read([{ ...use("toolu_1"), isSidechain: true }, result("toolu_1")])).toEqual([])
+  })
+
+  it("settles the call before the interruption that ends the turn", () => {
+    const interrupted = result("toolu_1")
+    interrupted.message.content.push({
+      type: "text",
+      text: "[Request interrupted by user for tool use]",
+    } as never)
+    expect(read([use("toolu_1"), interrupted]).map(({ type }) => type)).toEqual([
+      "attention-resolved",
+      "turn-ended",
+    ])
   })
 })

@@ -187,7 +187,11 @@ export type ActivityEvent = {
       readonly actor: string | null
       readonly toolName: string
       readonly loose: boolean
-      readonly outcome: "allowed"
+      /**
+       * Allowed, as its result's hook says, or settled however it was, as its result in
+       * the transcript says: a prompt that timed out and denied it fires no hook.
+       */
+      readonly outcome: "allowed" | "settled"
       /** Whether the call failed as an abort, as Claude Code's `is_interrupt` says. */
       readonly interrupted?: true
     }

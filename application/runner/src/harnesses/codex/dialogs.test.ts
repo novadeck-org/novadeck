@@ -352,6 +352,14 @@ describe("Codex's MCP tool approval", () => {
     expect(read(replaced(rows, "Run the tool and continue", "Run it"), facts)).toBeUndefined()
   })
 
+  it("reads a server whose name the hooks give with its punctuation as underscores", () => {
+    const rows = replaced(screen("mcp-tool-approval"), "the probe MCP", "the probe-srv MCP")
+    expect(read(rows, { ...facts, tool: "mcp__probe_srv__touch" })?.dialog).toMatchObject({
+      title: 'Allow the probe-srv MCP server to run tool "touch"?',
+    })
+    expect(read(rows, facts)).toBeUndefined()
+  })
+
   it("leaves a server's own elicitation form raw", () => {
     const asked: RequestFacts = {
       kind: "permission",
