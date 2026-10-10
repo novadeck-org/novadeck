@@ -123,6 +123,27 @@ describe("Zen mode", () => {
     })
   }
 
+  context("when projects are pinned", () => {
+    it("hides the bar of pins with the header, and brings it back", async () => {
+      localStorage.setItem(
+        "novadeck.project-arrangement",
+        JSON.stringify({ order: ["storefront"], pinned: ["storefront"] }),
+      )
+      await openWorkspace()
+      const pins = page.getByRole("group", { name: "Pinned projects" })
+      await expect.element(pins).toBeVisible()
+
+      await enterZen().click()
+      await expectInZen()
+      await expect.element(pins).not.toBeInTheDocument()
+
+      await showControls().click()
+      await exitZen().click()
+      await expectOutOfZen()
+      await expect.element(pins).toBeVisible()
+    })
+  })
+
   context("when entering Zen in Focus", () => {
     it("shows the terminal edge to edge", async () => {
       await openWorkspace()

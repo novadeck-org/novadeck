@@ -3,12 +3,24 @@ import {
   arrangeProjects,
   moveProject,
   noArrangement,
+  pinLimit,
   stepProject,
   togglePin,
   type ProjectArrangement,
 } from "./project-arrangement"
 
 const projects = ["a", "b", "c", "d", "e"].map((id) => ({ id }))
+
+// More projects than can be pinned, the first `pinLimit` of them pinned.
+const crowd = Array.from({ length: pinLimit + 1 }, (_, index) => ({
+  id: `p${index}`,
+}))
+const crowdIds = crowd.map(({ id }) => id)
+const full: ProjectArrangement = {
+  order: crowdIds,
+  pinned: crowdIds.slice(0, pinLimit),
+}
+const last = crowdIds[pinLimit]!
 
 // The switcher's list as ids, the pinned ones before the bar.
 const listed = (arrangement: ProjectArrangement): string => {
@@ -25,8 +37,15 @@ describe("Arranging projects", () => {
     expect(listed({ order: ["d", "gone", "b"], pinned: [] })).toBe("|dbace")
   })
 
-  it("lists the pinned ones first, at most three", () => {
-    expect(listed({ order: ["a", "b", "c", "d"], pinned: ["d", "b", "c", "a"] })).toBe("abc|de")
+  it("lists the pinned ones first, at most nine", () => {
+    expect(listed({ order: ["a", "b", "c", "d"], pinned: ["d", "b", "c", "a"] })).toBe("abcd|e")
+    const many = Array.from({ length: 11 }, (_, index) => ({
+      id: `p${index}`,
+    }))
+    const ids = many.map(({ id }) => id)
+    const { pinned, rest } = arrangeProjects(many, { order: ids, pinned: ids })
+    expect(pinned).toHaveLength(pinLimit)
+    expect(rest.map(({ id }) => id)).toEqual(["p9", "p10"])
   })
 
   context("when pinning", () => {
@@ -41,9 +60,8 @@ describe("Arranging projects", () => {
       expect(listed(togglePin(projects, two, "c"))).toBe("e|cabd")
     })
 
-    it("pins no more than three", () => {
-      const full = { order: ["a", "b", "c", "d", "e"], pinned: ["a", "b", "c"] }
-      expect(togglePin(projects, full, "d")).toBe(full)
+    it("pins no more than the limit", () => {
+      expect(togglePin(crowd, full, last)).toBe(full)
     })
   })
 
@@ -69,9 +87,8 @@ describe("Arranging projects", () => {
       expect(listed(moveProject(projects, two, "a", 1))).toBe("ba|cde")
     })
 
-    it("refuses to pin a fourth", () => {
-      const full = { order: ["a", "b", "c", "d", "e"], pinned: ["a", "b", "c"] }
-      expect(moveProject(projects, full, "e", 1)).toBe(full)
+    it("refuses to pin past the limit", () => {
+      expect(moveProject(crowd, full, last, 1)).toBe(full)
     })
 
     it("leaves things as they are for a project it doesn't list, or a move in place", () => {
@@ -100,8 +117,7 @@ describe("Arranging projects", () => {
     })
 
     it("refuses to pin past the limit", () => {
-      const full = { order: ["a", "b", "c", "d", "e"], pinned: ["a", "b", "c"] }
-      expect(stepProject(projects, full, "d", -1)).toBe(full)
+      expect(stepProject(crowd, full, last, -1)).toBe(full)
     })
 
     it("stops at the ends of the list", () => {

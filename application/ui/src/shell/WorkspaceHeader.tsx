@@ -6,21 +6,17 @@ import {
   Settings2,
   SquareDashedMousePointer,
 } from "lucide-react"
-import { useMemo, useState, useSyncExternalStore } from "react"
+import { useSyncExternalStore } from "react"
 import { Link } from "react-router"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import type { Project, ViewMode } from "../model/types"
-import { arrangeProjects, type ProjectArrangement } from "../projects/project-arrangement"
+import type { ProjectArrangement } from "../projects/project-arrangement"
 import type { ProjectStatus } from "../projects/project-status"
-import { ProjectChips } from "../projects/ProjectChips"
 import { WorkspaceSwitcher } from "../projects/WorkspaceSwitcher"
 import { DeckMark } from "../ui-toolkit/DeckLogo"
 import { SegmentGroup } from "../ui-toolkit/SegmentGroup"
 import { Tooltip } from "../ui-toolkit/Tooltip"
-
-const noProjects: Project[] = []
-const noIds: readonly string[] = []
 
 const iconOnlyQuery = "(max-width: 701px)"
 const subscribe = (notify: () => void): (() => void) => {
@@ -50,6 +46,7 @@ export const WorkspaceHeader = ({
   onProjectSelect,
   onOpenFolder,
   onProjectRemove,
+  dotIgnores,
   onViewChange,
   homeTo,
   onSearch,
@@ -72,6 +69,8 @@ export const WorkspaceHeader = ({
   // Absent where no folder can be opened; the switcher then shows it disabled.
   onOpenFolder?: (() => void) | undefined
   onProjectRemove?: ((id: string) => void) | undefined
+  // The pinned projects the bar shows, which the switcher's dot leaves out.
+  dotIgnores: readonly string[]
   onViewChange: (mode: ViewMode) => void
   homeTo: string
   onSearch: () => void
@@ -79,13 +78,6 @@ export const WorkspaceHeader = ({
   onZen: () => void
 }): React.JSX.Element => {
   const iconOnly = useSyncExternalStore(subscribe, isIconOnly)
-  // The pinned projects show as chips, where there's room, the current one among them
-  // marked as such; the switcher's dot then leaves them out.
-  const chips = useMemo(
-    () => (iconOnly ? noProjects : arrangeProjects(projects, arrangement).pinned),
-    [iconOnly, projects, arrangement],
-  )
-  const [shownChips, setShownChips] = useState<readonly string[]>(noIds)
   const searchShortcut = shortcutBindings().find.display.join(" ")
   // With one view left there's nothing to switch to: the switch goes, and Zen joins the
   // actions on the right.
@@ -124,14 +116,7 @@ export const WorkspaceHeader = ({
           onTogglePin={onProjectTogglePin}
           onOpenFolder={onOpenFolder}
           onRemove={onProjectRemove}
-          dotIgnores={iconOnly ? noIds : shownChips}
-        />
-        <ProjectChips
-          projects={chips}
-          current={project.id}
-          statuses={statuses}
-          onSelect={onProjectSelect}
-          onShown={setShownChips}
+          dotIgnores={dotIgnores}
         />
       </div>
       <div

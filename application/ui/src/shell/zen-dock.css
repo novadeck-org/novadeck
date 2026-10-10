@@ -16,6 +16,9 @@
 :where(.app-header) {
   @apply grid;
 }
+:where(.pins-bar) {
+  @apply grid;
+}
 :where(.app-footer) {
   @apply flex;
 }
@@ -26,6 +29,7 @@
   @apply h-8;
 }
 .workspace[data-zen="true"] > .app-header,
+.workspace[data-zen="true"] > .pins-bar,
 .workspace[data-zen="true"] > .app-footer,
 .workspace[data-zen="true"] .sidebar-tools {
   display: none;

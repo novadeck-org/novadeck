@@ -274,6 +274,7 @@ describe("shortcut list", () => {
         "Navigate the workspace: ShiftEsc",
         "Hold to dictate: CtrlShiftM",
         "Terminal in that direction: CtrlShift↑↓←→",
+        "Switch to pinned project: Ctrl1–9",
       ])
     })
 
@@ -323,6 +324,7 @@ describe("shortcut list", () => {
         "Navigate the workspace: ShiftEsc",
         "Hold to dictate: CtrlShiftM",
         "Terminal in that direction: ⌘⌥↑↓←→",
+        "Switch to pinned project: ⌘1–9",
       ])
     })
   })

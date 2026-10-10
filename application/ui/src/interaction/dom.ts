@@ -8,6 +8,14 @@ import type { SidebarPanel } from "../model/types"
 const editingOrOverlay =
   'input:not([type="radio"], [type="checkbox"], [type="button"], [type="submit"], [type="reset"]), textarea, select, [contenteditable]:not([contenteditable="false"]), .xterm, [role="textbox"], [role="searchbox"], [role="combobox"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="slider"], [role="spinbutton"], [role="tablist"], [data-scope="popover"][data-state="open"], [data-own-keys]'
 
+// Where text is typed, outside the menus and dialogs that merely hold focus.
+const textEntry =
+  'input:not([type="radio"], [type="checkbox"], [type="button"], [type="submit"], [type="reset"], [type="range"]), textarea, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"], [role="spinbutton"]'
+
+// A modal dialog, which asks its question before anything behind it changes: the app's
+// dialogs (Ark's) and confirmations. The terminal switcher is neither.
+const modalDialog = '[data-scope="dialog"][data-part="content"], [role="alertdialog"]'
+
 export const workspaceShortcutTarget = (target: EventTarget | null): boolean =>
   !(target instanceof Element && target.closest(editingOrOverlay))
 
@@ -54,6 +62,10 @@ export const insideTerminalInput = (target: EventTarget | null): boolean =>
 export type KeyTarget = {
   // Text fields, editors, and open menus or dialogs keep their own keys.
   readonly editing: boolean
+  // A text field or editor, where a chord would interrupt typing.
+  readonly textEntry: boolean
+  // Inside a modal dialog, which keeps the workspace behind it as it is.
+  readonly modal: boolean
   readonly terminalInput: boolean
   readonly rename: boolean
   readonly viewSwitch: boolean
@@ -69,6 +81,8 @@ export type KeyTarget = {
 
 export const classifyKeyTarget = (target: EventTarget | null): KeyTarget => ({
   editing: !workspaceShortcutTarget(target),
+  textEntry: within(target, textEntry),
+  modal: within(target, modalDialog),
   terminalInput: insideTerminalInput(target),
   rename: insideTerminalRename(target),
   viewSwitch: insideViewSwitch(target),

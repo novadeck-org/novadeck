@@ -37,7 +37,7 @@ const pressing = (a: ProjectStatus | undefined, b: ProjectStatus | undefined) =>
 // while the person looked elsewhere.
 export type UnreadEnds = (context: string, terminalId: string) => "done" | "failed" | undefined
 
-// Each status in words, for the switcher's rows and the chips: the terminal tabs' own for
+// Each status in words, for the switcher's rows and the pins bar: the terminal tabs' own for
 // the states they share.
 export const statusText: Record<ProjectStatus, string> = {
   question: "Asks a question",

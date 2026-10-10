@@ -44,6 +44,12 @@ export const WorkspaceSwitcher = ({
   onRemove,
 }: WorkspaceSwitcherProps): React.JSX.Element => {
   const [open, setOpen] = useState(false)
+  // Another project becoming current, by a shortcut or a pin, closes the menu.
+  const [seen, setSeen] = useState(current.id)
+  if (seen !== current.id) {
+    setSeen(current.id)
+    setOpen(false)
+  }
   // The project waiting on the person's answer to removing it.
   const [removing, setRemoving] = useState<Project | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)

@@ -189,13 +189,21 @@ waiting on you, in that mark's colour; projects only working don't light it. The
 grows to 560px before it scrolls.
 
 Drag projects into any order, or move the focused one with Alt+Up and Alt+Down. Pin up
-to three with the pin beside a row's trash icon: pinned projects lead the list, and
-dragging one across the rule below them pins or unpins it. Pinned projects also show as
-chips beside the switcher, the current one raised, each with its mark (except the spinner);
-a click switches to it. Chips that don't fit stay hidden, and the dot covers them
-again; below 702px there are none. The order and the pins are kept in this browser or
-app (`novadeck.project-arrangement` in local storage), not shared with other clients
-of the runner.
+to nine with the pin beside a row's trash icon: pinned projects lead the list, and
+dragging one across the rule below them pins or unpins it. While any are pinned, a bar
+under the header shows them in that order, each as its number, its name and its mark
+(except the spinner, so the bar stays still while agents work); the current one is
+underlined, and a click switches to it. Drag a pin along the bar to reorder the pins, or
+focus one and press Alt+Left or Alt+Right; a drag there never unpins. The number is its
+shortcut: `Ctrl+1` to `Ctrl+9` (`Cmd` on macOS) switches to that pin, from terminal
+input too, in the desktop app (a browser keeps those keys for its tabs). While a pin has
+that number the key stays out of the terminal, where `Ctrl+3` to `Ctrl+8` would send
+`Esc` and other control codes; without one, it reaches the terminal as usual, and it's
+left alone while you rename a tab or type in another field. The bar slides in with the
+first pin and out with the last, and Zen hides it. Pins that don't fit drop off its end,
+and the switcher's dot covers them again. The order and the pins are kept in this
+browser or app (`novadeck.project-arrangement` in local storage), not shared with other
+clients of the runner.
 
 The Notifications panel (the bell on the sidebar rail) lists everything across every
 project and session that waits on you: questions, permissions and plans to review, and
@@ -309,20 +317,21 @@ leave Zen to show the requested panel. Zen is temporary and resets on reload.
 
 ## Keyboard shortcuts
 
-| Action                                            | macOS             | Windows and Linux  |
-| ------------------------------------------------- | ----------------- | ------------------ |
-| Find a terminal                                   | `Cmd+K`           | `Ctrl+Shift+K`     |
-| Recent terminals                                  | `Ctrl+Tab`        | `Ctrl+Tab`         |
-| Cycle backward through recent terminals           | `Ctrl+Shift+Tab`  | `Ctrl+Shift+Tab`   |
-| Toggle Focus and the previous Grid or Canvas view | `Cmd+Enter`       | `Ctrl+Shift+Enter` |
-| Toggle Zen                                        | `Cmd+Shift+Z`     | `Ctrl+Shift+Z`     |
-| Terminal in that direction, typing there          | `Cmd+Option+↑↓←→` | `Ctrl+Shift+↑↓←→`  |
-| New terminal                                      | `Cmd+T`           | `Ctrl+Shift+T`     |
-| New session in the current project                | `Cmd+Shift+N`     | `Ctrl+Shift+N`     |
-| Toggle terminal sidebar                           | `Cmd+Shift+1`     | `Ctrl+Shift+1`     |
-| Toggle session sidebar                            | `Cmd+Shift+2`     | `Ctrl+Shift+2`     |
-| Open preferences                                  | `Cmd+,`           | `Ctrl+,`           |
-| Navigate the workspace                            | `Shift+Esc`       | `Shift+Esc`        |
+| Action                                            | macOS              | Windows and Linux    |
+| ------------------------------------------------- | ------------------ | -------------------- |
+| Find a terminal                                   | `Cmd+K`            | `Ctrl+Shift+K`       |
+| Recent terminals                                  | `Ctrl+Tab`         | `Ctrl+Tab`           |
+| Cycle backward through recent terminals           | `Ctrl+Shift+Tab`   | `Ctrl+Shift+Tab`     |
+| Toggle Focus and the previous Grid or Canvas view | `Cmd+Enter`        | `Ctrl+Shift+Enter`   |
+| Toggle Zen                                        | `Cmd+Shift+Z`      | `Ctrl+Shift+Z`       |
+| Terminal in that direction, typing there          | `Cmd+Option+↑↓←→`  | `Ctrl+Shift+↑↓←→`    |
+| New terminal                                      | `Cmd+T`            | `Ctrl+Shift+T`       |
+| New session in the current project                | `Cmd+Shift+N`      | `Ctrl+Shift+N`       |
+| Toggle terminal sidebar                           | `Cmd+Shift+1`      | `Ctrl+Shift+1`       |
+| Toggle session sidebar                            | `Cmd+Shift+2`      | `Ctrl+Shift+2`       |
+| Switch to pinned project 1 to 9                   | `Cmd+1` to `Cmd+9` | `Ctrl+1` to `Ctrl+9` |
+| Open preferences                                  | `Cmd+,`            | `Ctrl+,`             |
+| Navigate the workspace                            | `Shift+Esc`        | `Shift+Esc`          |
 
 The keyboard's home is the selected terminal. A mouse click on the sidebar, a header or
 the view switch leaves typing there, and the shortcuts above work from terminal input.

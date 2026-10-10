@@ -120,10 +120,11 @@ const vendors: Record<string, readonly string[]> = {
   "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
   // Terminals' tabs, windows and taskbars, the footer's subscriptions and the project
-  // switcher's projects, which reorder as the taskbar's icons do.
+  // switcher's projects and its pins, which reorder as the taskbar's icons do.
   "@dnd-kit": [
     "terminals/",
     "shell/SubscriptionUsage.tsx",
+    "projects/PinsBar.tsx",
     "projects/ProjectList.tsx",
     "projects/ProjectRow.tsx",
   ],

@@ -18,6 +18,8 @@ type Press = Partial<Omit<KeyInput, "target">> & { target?: Partial<KeyTarget> }
 
 const nowhere: KeyTarget = {
   editing: false,
+  textEntry: false,
+  modal: false,
   terminalInput: false,
   rename: false,
   viewSwitch: false,

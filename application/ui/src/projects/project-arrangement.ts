@@ -7,7 +7,7 @@ export type ProjectArrangement = {
   readonly pinned: readonly string[]
 }
 
-export const pinLimit = 3
+export const pinLimit = 9
 
 export const noArrangement: ProjectArrangement = { order: [], pinned: [] }
 

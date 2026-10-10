@@ -1,0 +1,126 @@
+/* The pinned projects in a bar of their own under the header: `.pins-bar` is the strip,
+   in the header's ground and edge, which slides open with the first pin and shut with
+   the last; `.pins-bar-row` holds the pins and `.pin` is one, a button for one project:
+   `.pin-number` is its place in the person's order (its Ctrl or ⌘ shortcut, in the mono
+   face), `.pin-name` its name, and `.pin-mark` (a `.project-status-mark`, with the glyphs
+   and tones of project-status.css) after them, while an agent waits on the person or a
+   finished agent's reply waits unread. The mark's slot is always there, empty or not, so
+   a pin's width never changes; a project only working shows none.
+
+   The current pin has ink text, a stronger number and a line under it, over the bar's
+   edge, as the tabs have.
+
+   Hooks: on the strip, data-open="true" while a pin shows, and data-animated="true" once
+   the page is up, from which it slides; on a pin, aria-current="true" for the current
+   project, and data-project-status="question" | "attention" | "failed" | "done" (never
+   "running"); data-dragging="true" on the pin being dragged along the bar, which lifts
+   as a dragged row of the switcher does. The others slide aside.
+
+   Tokens, each optional (its fallback in brackets):
+   --pins-bar-bg (--region-header-bg, paper), --pins-bar-image (--region-header-image),
+   --pins-bar-border-color (--region-header-border-color, line): the strip.
+   --pins-bar-height (34px)
+   --pin-fg (muted), --pin-hover-fg (ink): a pin's name at rest, and under the pointer or
+   focus.
+   --pin-number-fg (muted), --pin-current-number-fg (strong): its number.
+   --pin-drag-bg (--item-selected-bg, paper), --pin-drag-border-color
+   (--item-selected-border-color, line), --pin-drag-shadow (shadow-control): the pin being
+   dragged, raised and outlined as a selected item is.
+   --pins-bar-indicator-bg (--tabs-indicator-bg, strong),
+   --pins-bar-indicator-shadow (--tabs-indicator-shadow, none): the current pin's line. */
+.pins-bar {
+  --_height: var(--pins-bar-height, 34px);
+  display: grid;
+  grid-template-rows: 0fr;
+  flex: none;
+  visibility: hidden;
+  opacity: 0;
+}
+.pins-bar[data-open="true"] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  opacity: 1;
+}
+.pins-bar[data-animated="true"] {
+  transition:
+    grid-template-rows var(--motion-layout) var(--ease-interface),
+    opacity var(--motion-layout) var(--ease-interface),
+    visibility var(--motion-layout);
+}
+.pins-bar-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+.pins-bar-row {
+  --_border-color: var(
+    --pins-bar-border-color,
+    var(--region-header-border-color, var(--color-line))
+  );
+  height: var(--_height);
+  border-bottom: var(--border-width) solid var(--_border-color);
+  background-color: var(--pins-bar-bg, var(--region-header-bg, var(--color-paper)));
+  background-image: var(--pins-bar-image, var(--region-header-image, none));
+}
+.pin {
+  --_fg: var(--pin-fg, var(--color-muted));
+  --_number-fg: var(--pin-number-fg, var(--color-muted));
+  position: relative;
+  padding-inline: 11px;
+  color: var(--_fg);
+}
+.pin-number {
+  margin-right: 7px;
+  font-family: var(--font-mono);
+  color: var(--_number-fg);
+}
+/* The current pin is bolder, so every name holds the room of its bold self: switching
+   moves no other pin. */
+.pin-name::after {
+  content: attr(data-text);
+  display: block;
+  height: 0;
+  overflow: hidden;
+  font-weight: 500;
+  visibility: hidden;
+}
+.pin-mark {
+  margin-left: 3px;
+}
+.pin[aria-current="true"] {
+  --_fg: var(--color-ink);
+  --_number-fg: var(--pin-current-number-fg, var(--color-strong));
+  font-weight: 500;
+  cursor: default;
+}
+.pin[aria-current="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 8px calc(-1 * var(--border-width));
+  height: 2px;
+  background-color: var(--pins-bar-indicator-bg, var(--tabs-indicator-bg, var(--color-strong)));
+  box-shadow: var(--pins-bar-indicator-shadow, var(--tabs-indicator-shadow, none));
+}
+.pin:focus-visible {
+  --_fg: var(--pin-hover-fg, var(--color-ink));
+  /* Inside the edge: the pin fills the bar's height, which clips what is outside. */
+  outline: var(--focus-ring-width) solid var(--focus-ring-color, var(--color-strong));
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+@media (hover: hover) {
+  .pin:not([aria-current="true"]):hover {
+    --_fg: var(--pin-hover-fg, var(--color-ink));
+  }
+}
+.pin[data-dragging="true"] {
+  z-index: 1;
+  background-color: var(--pin-drag-bg, var(--item-selected-bg, var(--color-paper)));
+  box-shadow:
+    inset 0 0 0 var(--border-width)
+      var(--pin-drag-border-color, var(--item-selected-border-color, var(--color-line))),
+    var(--pin-drag-shadow, var(--shadow-control));
+}
+@media (prefers-reduced-motion: reduce) {
+  .pins-bar[data-animated="true"] {
+    transition: none;
+  }
+}

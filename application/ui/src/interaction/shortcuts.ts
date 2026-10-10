@@ -144,6 +144,26 @@ export const shortcutBindings = (
   }
 }
 
+// Switches to the Nth pinned project (index 0..8): Ctrl+N elsewhere, ⌘N on Apple platforms.
+// Matched by physical digit so it holds on any keyboard layout. Shift is not held, so it
+// stays apart from the Ctrl/⌘+Shift+1 and 2 sidebar toggles.
+export const pinnedProjectShortcut = (
+  index: number,
+  platform: Platform = currentPlatform(),
+): Shortcut => {
+  const mac = platform === "mac"
+  const digit = String(index + 1)
+  return {
+    label: "Switch to pinned project",
+    key: digit,
+    code: `Digit${digit}`,
+    ctrl: !mac,
+    meta: mac,
+    shift: false,
+    display: [mac ? "⌘" : "Ctrl", digit],
+  }
+}
+
 export type Arrow = "up" | "right" | "down" | "left"
 
 const arrowKeys: Record<Arrow, { key: string; display: string }> = {
