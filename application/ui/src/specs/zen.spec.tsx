@@ -10,7 +10,6 @@ import {
   expectNothingSelected,
   expectSelected,
   expectStaysAbsent,
-  isMac,
   openWorkspace,
   press,
   reloadWorkspace,
@@ -98,8 +97,6 @@ const clickCanvasBackground = async (): Promise<void> => {
   await canvasArea().click({ position: spot })
   await expect.element(canvasArea()).toHaveFocus()
 }
-
-const modifier = (): string => (isMac() ? "Meta" : "Control")
 
 describe("Zen mode", () => {
   for (const name of ["Focus", "Grid", "Canvas"] as const) {
@@ -505,7 +502,7 @@ describe("leaving Zen", () => {
       await enterZen().click()
       await expectInZen()
 
-      await press(`{${modifier()}>}{Shift>}1{/Shift}{/${modifier()}}`)
+      await pressShortcut("terminals")
 
       await expectOutOfZen()
       await expect.element(sidebar()).toHaveAccessibleName("Terminal sessions")
@@ -517,7 +514,7 @@ describe("leaving Zen", () => {
       await enterZen().click()
       await expectInZen()
 
-      await press(`{${modifier()}>}{Shift>}2{/Shift}{/${modifier()}}`)
+      await pressShortcut("sessions")
 
       await expectOutOfZen()
       await expect.element(sidebar()).toHaveAccessibleName("Workspace sessions")

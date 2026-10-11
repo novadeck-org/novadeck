@@ -268,13 +268,13 @@ describe("shortcut list", () => {
         "Toggle Zen mode: CtrlShiftZ",
         "New terminal: CtrlShiftT",
         "New session: CtrlShiftN",
-        "Toggle terminal sidebar: CtrlShift1",
-        "Toggle session sidebar: CtrlShift2",
+        "Toggle terminal sidebar: CtrlShiftE",
+        "Toggle session sidebar: CtrlShiftS",
         "Open preferences: Ctrl,",
         "Navigate the workspace: ShiftEsc",
         "Hold to dictate: CtrlShiftM",
         "Terminal in that direction: CtrlShift↑↓←→",
-        "Switch to pinned project: Ctrl1–9",
+        "Switch to pinned project: CtrlShift1–9",
       ])
     })
 
@@ -318,8 +318,8 @@ describe("shortcut list", () => {
         "Toggle Zen mode: ⌘ShiftZ",
         "New terminal: ⌘T",
         "New session: ⌘ShiftN",
-        "Toggle terminal sidebar: ⌘Shift1",
-        "Toggle session sidebar: ⌘Shift2",
+        "Toggle terminal sidebar: ⌘ShiftE",
+        "Toggle session sidebar: ⌘ShiftS",
         "Open preferences: ⌘,",
         "Navigate the workspace: ShiftEsc",
         "Hold to dictate: CtrlShiftM",

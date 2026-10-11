@@ -1,20 +1,28 @@
-/* The pinned projects in a bar of their own under the header: `.pins-bar` is the strip,
-   in the header's ground and edge, which slides open with the first pin and shut with
-   the last; `.pins-bar-row` holds the pins and `.pin` is one, a button for one project:
-   `.pin-number` is its place in the person's order (its Ctrl or ⌘ shortcut, in the mono
-   face), `.pin-name` its name, and `.pin-mark` (a `.project-status-mark`, with the glyphs
-   and tones of project-status.css) after them, while an agent waits on the person or a
-   finished agent's reply waits unread. The mark's slot is always there, empty or not, so
-   a pin's width never changes; a project only working shows none.
+/* The pinned projects in a bar of their own under the header. `.pins-bar` slides open with
+   the first pin and shut with the last (`.pins-bar-clip` clips it as it does), and
+   `.pins-bar-strip` is the strip itself, in the header's ground and edge. In it a
+   `kbd.hint` shows the chord before a pin's number, and `.pins-bar-row` holds the pins;
+   `.pin` is one, a button for one project: `.pin-number` is its place in the person's
+   order (its shortcut's digit, in the mono face), `.pin-name` its name, and `.pin-mark`
+   (a `.project-status-mark`, with the glyphs and tones of project-status.css) after them,
+   while an agent waits on the person or a finished agent's reply waits unread. The mark's
+   slot is always there, empty or not, so a pin's width never changes; a project only
+   working shows none. An empty bar, open for a project dragged out of the switcher, says
+   so in `.pins-bar-empty`.
 
    The current pin has ink text, a stronger number and a line under it, over the bar's
-   edge, as the tabs have.
+   edge, as the tabs have: `.pins-bar-indicator`, one line that slides from pin to pin.
 
-   Hooks: on the strip, data-open="true" while a pin shows, and data-animated="true" once
-   the page is up, from which it slides; on a pin, aria-current="true" for the current
-   project, and data-project-status="question" | "attention" | "failed" | "done" (never
-   "running"); data-dragging="true" on the pin being dragged along the bar, which lifts
-   as a dragged row of the switcher does. The others slide aside.
+   Hooks: on `.pins-bar`, data-open="true" while it shows, and data-animated="true" once
+   the page is up, from which it slides. On `.pins-bar-row`, data-dragging="true" while a
+   pin is dragged, and data-arriving="true" while a pin handed over from the switcher
+   isn't under the pointer yet; the line fades out under the first, and goes at once
+   under the second. On a pin, aria-current="true" for the current project, and
+   data-project-status="question" | "attention" | "failed" | "done" (never "running");
+   data-dragging="true" on the pin being dragged along the bar, which lifts as a dragged
+   row of the switcher does, fading in, while the others slide aside;
+   data-leaving="true" on it once dragged well off the bar, where letting go unpins it;
+   and data-arriving="true" on the handed-over pin, unseen until it is under the pointer.
 
    Tokens, each optional (its fallback in brackets):
    --pins-bar-bg (--region-header-bg, paper), --pins-bar-image (--region-header-image),
@@ -51,7 +59,7 @@
   min-height: 0;
   overflow: hidden;
 }
-.pins-bar-row {
+.pins-bar-strip {
   --_border-color: var(
     --pins-bar-border-color,
     var(--region-header-border-color, var(--color-line))
@@ -65,7 +73,11 @@
   --_fg: var(--pin-fg, var(--color-muted));
   --_number-fg: var(--pin-number-fg, var(--color-muted));
   position: relative;
-  padding-inline: 11px;
+  padding-inline: 16px;
+  /* Its lift under a drag fades in, the ground and the edge, not the text. */
+  transition:
+    background-color var(--motion-state) var(--ease-interface),
+    box-shadow var(--motion-state) var(--ease-interface);
   color: var(--_fg);
 }
 .pin-number {
@@ -92,13 +104,35 @@
   font-weight: 500;
   cursor: default;
 }
-.pin[aria-current="true"]::after {
-  content: "";
+/* The current pin's line, over the bar's edge, inset from the pin's sides; set by the
+   current pin's --_left and --_width, and sliding to the next as the tabs' line does. */
+.pins-bar-indicator {
   position: absolute;
-  inset: auto 8px calc(-1 * var(--border-width));
+  bottom: calc(-1 * var(--border-width));
+  left: 0;
+  width: calc(var(--_width) - 20px);
   height: 2px;
+  translate: calc(var(--_left) + 10px) 0;
   background-color: var(--pins-bar-indicator-bg, var(--tabs-indicator-bg, var(--color-strong)));
   box-shadow: var(--pins-bar-indicator-shadow, var(--tabs-indicator-shadow, none));
+  pointer-events: none;
+  transition: opacity var(--motion-state) var(--ease-interface);
+}
+.pins-bar-indicator[data-slide="true"] {
+  transition:
+    translate var(--motion-state) var(--ease-interface),
+    width var(--motion-state) var(--ease-interface),
+    opacity var(--motion-state) var(--ease-interface);
+}
+/* The pins slide aside under a drag, and the line fades out, to fade back in under the
+   current pin after. */
+.pins-bar-row[data-dragging="true"] .pins-bar-indicator {
+  opacity: 0;
+}
+/* A pin handed over from the switcher may land elsewhere than its line was: the line goes
+   at once rather than fade where the pin no longer is. */
+.pins-bar-row[data-arriving="true"] .pins-bar-indicator {
+  transition: none;
 }
 .pin:focus-visible {
   --_fg: var(--pin-hover-fg, var(--color-ink));
@@ -119,8 +153,27 @@
       var(--pin-drag-border-color, var(--item-selected-border-color, var(--color-line))),
     var(--pin-drag-shadow, var(--shadow-control));
 }
+/* An empty bar, open for a project dragged from the switcher's list, says so. */
+.pins-bar-empty {
+  color: var(--pin-fg, var(--color-muted));
+}
+/* A pin handed over from the switcher's drag stays unseen until it is under the pointer,
+   then fades in. */
+.pin[data-arriving="true"] {
+  filter: opacity(0);
+}
+/* A pin dragged well off the bar, which letting go there unpins: faded, its name struck. */
+.pin[data-leaving="true"] {
+  opacity: 0.55;
+}
+.pin[data-leaving="true"] .pin-name {
+  text-decoration: line-through;
+}
 @media (prefers-reduced-motion: reduce) {
-  .pins-bar[data-animated="true"] {
+  .pins-bar[data-animated="true"],
+  .pins-bar-indicator,
+  .pins-bar-indicator[data-slide="true"],
+  .pin {
     transition: none;
   }
 }

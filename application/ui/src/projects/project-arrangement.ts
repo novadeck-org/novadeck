@@ -86,6 +86,32 @@ export const togglePin = (
   )
 }
 
+// Pins a project at `index` among the pinned ones, as a drop on the pins bar does: one
+// already pinned moves there, one that isn't is pinned there unless `pinLimit` are.
+export const pinAt = (
+  projects: readonly { readonly id: string }[],
+  current: ProjectArrangement,
+  id: string,
+  index: number,
+): ProjectArrangement => {
+  const { pinned, rest } = arrangeProjects(projects, current)
+  const pinnedIds = pinned.map((project) => project.id)
+  const restIds = rest.map((project) => project.id)
+  if (pinnedIds.includes(id))
+    return moveProject(projects, current, id, Math.min(index, pinnedIds.length - 1))
+  if (!restIds.includes(id) || pinnedIds.length >= pinLimit) return current
+  const to = Math.max(0, Math.min(index, pinnedIds.length))
+  return arrangement(
+    [
+      ...pinnedIds.slice(0, to),
+      id,
+      ...pinnedIds.slice(to),
+      ...restIds.filter((each) => each !== id),
+    ],
+    pinnedIds.length + 1,
+  )
+}
+
 // Steps a project one place up or down the switcher's list, as Alt and the arrows do:
 // within its group it moves a place; across the rule it pins or unpins in place rather
 // than skipping a row, so Alt+Down on the last pinned one unpins it and Alt+Up on the

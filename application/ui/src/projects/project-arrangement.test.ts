@@ -3,6 +3,7 @@ import {
   arrangeProjects,
   moveProject,
   noArrangement,
+  pinAt,
   pinLimit,
   stepProject,
   togglePin,
@@ -62,6 +63,32 @@ describe("Arranging projects", () => {
 
     it("pins no more than the limit", () => {
       expect(togglePin(crowd, full, last)).toBe(full)
+    })
+  })
+
+  context("when dropping on the pins bar", () => {
+    const two: ProjectArrangement = { order: ["a", "b", "c", "d", "e"], pinned: ["a", "b"] }
+
+    it("pins the project at that place", () => {
+      expect(listed(pinAt(projects, two, "d", 0))).toBe("dab|ce")
+      expect(listed(pinAt(projects, two, "d", 1))).toBe("adb|ce")
+      expect(listed(pinAt(projects, two, "d", 2))).toBe("abd|ce")
+      expect(listed(pinAt(projects, two, "d", 7))).toBe("abd|ce")
+    })
+
+    it("pins the first one into an empty bar", () => {
+      expect(listed(pinAt(projects, noArrangement, "c", 0))).toBe("c|abde")
+    })
+
+    it("moves a pinned one among the pins, never past the last", () => {
+      expect(listed(pinAt(projects, two, "a", 1))).toBe("ba|cde")
+      expect(listed(pinAt(projects, two, "a", 2))).toBe("ba|cde")
+      expect(listed(pinAt(projects, two, "b", 0))).toBe("ba|cde")
+    })
+
+    it("pins no more than the limit, and nothing it doesn't know", () => {
+      expect(pinAt(crowd, full, last, 0)).toBe(full)
+      expect(pinAt(projects, two, "gone", 0)).toBe(two)
     })
   })
 

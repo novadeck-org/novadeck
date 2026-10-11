@@ -655,9 +655,9 @@ describe("workspace keys after choosing a view", () => {
   )
 })
 
-const modifier = (): string => (isMac() ? "Meta" : "Control")
+// ⌘ and the digit on a Mac, Ctrl+Shift and the digit elsewhere.
 const pressDigit = (digit: number): Promise<void> =>
-  press(`{${modifier()}>}${digit}{/${modifier()}}`)
+  press(isMac() ? `{Meta>}${digit}{/Meta}` : `{Control>}{Shift>}${digit}{/Shift}{/Control}`)
 const pinInOrder = (): void =>
   localStorage.setItem(
     "novadeck.project-arrangement",
@@ -673,9 +673,11 @@ const digitKeydown = (
   target: Element = document.body,
 ): KeyboardEvent => {
   const event = new KeyboardEvent("keydown", {
-    key: String(digit),
+    // Shift turns a digit into its symbol, as US keys do.
+    key: isMac() ? String(digit) : (")!@#$%^&*("[digit] ?? ""),
     code: `Digit${digit}`,
     ctrlKey: !isMac(),
+    shiftKey: !isMac(),
     metaKey: isMac(),
     bubbles: true,
     cancelable: true,
@@ -738,15 +740,15 @@ describe("pinned project shortcuts", () => {
       await expect.element(recentSwitcher()).not.toBeInTheDocument()
     })
 
-    // On macOS the pin's chord is ⌘ and a digit, so with Ctrl still held for the switcher
-    // the modifiers don't match the chord there.
+    // On macOS the pin's chord is ⌘ and a digit, so the Ctrl held for the switcher isn't
+    // part of it there.
     it.skipIf(isMac())("works from the terminal switcher held open with Ctrl+Tab", async () => {
       pinInOrder()
       await openWorkspace()
       await press("{Control>}{Tab}")
       await expect.element(recentSwitcher()).toBeVisible()
 
-      await press("2")
+      await press("{Shift>}2{/Shift}")
 
       await expect.element(workspaceSwitcher()).toHaveTextContent("api-service")
       await expect.element(recentSwitcher()).not.toBeInTheDocument()
