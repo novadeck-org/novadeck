@@ -15,7 +15,11 @@ import type { ScreenText } from "./screen.js"
  * mode), the rest indented, the lowest such row the box, and `[Pasted text #1 +4 lines]`
  * for a collapsed paste.
  */
-const profileOf = (expands: boolean, starts = false): BoxProfile => ({
+const profileOf = (
+  expands: boolean,
+  starts = false,
+  command?: (command: string) => string | undefined,
+): BoxProfile => ({
   read: (screen: ScreenText): InputBox | undefined => {
     const first = screen.rows.findLastIndex((row) => row.startsWith("> ") || row.startsWith("!"))
     if (first < 0) return undefined
@@ -26,7 +30,7 @@ const profileOf = (expands: boolean, starts = false): BoxProfile => ({
     return { text: lines.join("\n").trimEnd(), mode, first, last }
   },
   collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
-  shell: { expands, starts, footer: () => false },
+  shell: { expands, starts, footer: () => false, ...(command && { command }) },
   queued: () => false,
   collapses: (text) => text.length > 500,
   room: (rows) => rows - 3,
@@ -75,6 +79,8 @@ const terminal = (
     bindsMs?: number
     /** Whether a shell command starts the session (the box profile's `shell.starts`). */
     startsOnShell?: boolean
+    /** The command its shell mode is given for one as written (the box profile's `shell.command`). */
+    command?: (command: string) => string | undefined
     /** The nonce of a ring under way, which `ringEnds` ms from the first look ends. */
     ringing?: string
     ringEnds?: number
@@ -87,7 +93,11 @@ const terminal = (
   let bash = options.drafted !== undefined
   if (options.drafted !== undefined) box = [options.drafted]
   let admits = 0
-  const profile = profileOf(options.expands ?? true, options.startsOnShell ?? false)
+  const profile = profileOf(
+    options.expands ?? true,
+    options.startsOnShell ?? false,
+    options.command,
+  )
   const marker = (first: boolean, line: string): string =>
     first ? `${bash ? "!" : ">"} ${line}` : `  ${line}`
   const written: string[] = []
@@ -686,6 +696,24 @@ describe("shell commands", () => {
     const { host, written } = terminal({ shell: true, takes: "box" })
     await new Prompts(host, host.queue, fast).prompt("t", "! echo a\r\necho b")
     expect(written).toEqual(["!", `${bang}echo a\recho b${end}`, "\r"])
+  })
+
+  it("paste a command as the harness's shell mode is given it, and press Enter once it shows", async () => {
+    const { host, written } = terminal({
+      shell: true,
+      takes: "box",
+      command: (command) => command.replaceAll("\n", " & "),
+    })
+    await new Prompts(host, host.queue, fast).prompt("t", "!echo a\necho b")
+    expect(written).toEqual(["!", `${bang}echo a & echo b${end}`, "\r"])
+  })
+
+  it("refuse a command the harness's shell mode can't run as written, typing nothing", async () => {
+    const { host, written } = terminal({ shell: true, takes: "box", command: () => undefined })
+    expect(await refusal(new Prompts(host, host.queue, fast).prompt("t", "!echo a\nrem b"))).toBe(
+      "PROMPT_REFUSED",
+    )
+    expect(written).toEqual([])
   })
 
   it("press Enter for a command a TUI collapsed to a placeholder", async () => {

@@ -58,9 +58,23 @@ export type Harness = {
   readonly hook: (platform: NodeJS.Platform, event: string) => string
   /**
    * Its plugin's manifests, hook registrations and MCP server, relative to its plugin
-   * directory. The MCP server starts as `mcpServer` says.
+   * directory. The MCP server starts as `mcpServer` says, and the hooks as `machine` lets
+   * them.
    */
-  readonly files: (platform: NodeJS.Platform, launchers: Launchers) => readonly File[]
+  readonly files: (
+    platform: NodeJS.Platform,
+    launchers: Launchers,
+    machine?: Machine,
+  ) => readonly File[]
+  /**
+   * Where the agent keeps a copy of the plugin it installed, and the files of it that must
+   * match Novadeck's, for a harness that copies its plugin as it installs it: where they
+   * differ, as once a Novadeck renders them otherwise, the plugin is installed again.
+   */
+  readonly installed?: {
+    readonly directory: (install: Install) => string
+    readonly files: readonly string[]
+  }
   /**
    * Changes its own settings once connected, and puts them back before disconnecting, for
    * what it offers no way to set per launch, as Antigravity's status line.
@@ -263,9 +277,11 @@ export type UserEntry = {
 
 /**
  * How long a harness lets one of Novadeck's hooks run, in seconds; one slower is dropped
- * silently. Well above the hook's own limit, so the hook always ends by itself.
+ * silently. Well above the hook's own limit, so the hook always ends by itself. On Windows
+ * the shell the hook runs in counts too: PowerShell takes most of 15 s to start cold on a
+ * busy CI runner, where a Codex hook dropped so carried none of the messages waiting.
  */
-export const hookSeconds = 10
+export const hookSeconds = (platform: NodeJS.Platform): number => (platform === "win32" ? 30 : 10)
 
 export const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
 
@@ -282,6 +298,17 @@ export type Start = { readonly command: string; readonly args?: readonly string[
  * without a shell that could expand a variable.
  */
 export type Launchers = { readonly mcp: Start }
+
+/** What the machine does to a hook before the hook's own command runs. */
+export type Machine = {
+  /**
+   * Whether cmd prints something of its own before any command it runs, as an AutoRun (the
+   * machine's or the user's, `HKLM` or `HKCU\Software\Microsoft\Command Processor\AutoRun`)
+   * of `chcp 65001` without `>nul` does, for a harness that runs its hooks in cmd without
+   * `/d`: ahead of the hook's answer, which a harness that reads it as JSON then can't.
+   */
+  readonly cmdPrints?: boolean
+}
 
 /** How an agent starts Novadeck's MCP server, as its plugin names it. */
 export const mcpServer = (launchers: Launchers): Start => launchers.mcp

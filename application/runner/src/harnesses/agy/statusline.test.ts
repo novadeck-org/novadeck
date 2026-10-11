@@ -10,7 +10,7 @@ import { apply as applyActivity, started, summary } from "../activity.js"
 import type { ActivityEvent } from "../events.js"
 import type { Install } from "../harness.js"
 import { decode, shown } from "./decode.js"
-import { statusLineCommand, statusLineSettings } from "./settings.js"
+import { statusLineCommand, statusLineSettings, windowsStatusLine } from "./settings.js"
 
 const { payloads } = loadProbe(import.meta.dirname, "statusline.probe.json") as {
   payloads: Report["payload"][]
@@ -504,17 +504,30 @@ describe("connecting Antigravity's status line", () => {
     expect(readFileSync(fixture.settings, "utf8")).toBe("{ not json")
   })
 
-  it("leaves Windows as it is", async ({ fixture }) => {
+  it("on Windows, reports where the person has no line, and leaves theirs", async ({ fixture }) => {
+    const { apply, revert } = settingsOf(fixture)
+    const windows = { ...fixture.install, platform: "win32" as const }
+    await apply(windows)
+    expect(read(fixture.settings).statusLine).toEqual({
+      enabled: true,
+      stack_with_default: true,
+      type: "command",
+      command: windowsStatusLine,
+    })
+    await apply(windows)
+    await revert(windows)
+    expect(read(fixture.settings)).toEqual({})
+    // cmd can't hand one input to two commands, so the person's own line stays theirs.
     const own = JSON.stringify({ statusLine: { type: "command", command: "echo mine" } })
     writeFileSync(fixture.settings, own)
-    const { apply, revert } = settingsOf(fixture)
-    await apply({ ...fixture.install, platform: "win32" })
+    await apply(windows)
     expect(readFileSync(fixture.settings, "utf8")).toBe(own)
+    await revert(windows)
+    expect(readFileSync(fixture.settings, "utf8")).toBe(own)
+    // A line connected elsewhere still goes back as it was.
     await apply(fixture.install)
-    await revert({ ...fixture.install, platform: "win32" })
-    expect(read(fixture.settings).statusLine).toMatchObject({
-      command: statusLineCommand("echo mine"),
-    })
+    await revert(windows)
+    expect(read(fixture.settings).statusLine).toEqual({ type: "command", command: "echo mine" })
   })
 })
 

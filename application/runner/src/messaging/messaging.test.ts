@@ -15,7 +15,7 @@ import { followRoot, type Root } from "../harnesses/roots.js"
 import { typedPromptStart } from "../harnesses/typed-prompts.js"
 import { keysOf } from "../terminals/keys.js"
 import { describe, expect, it } from "../test.js"
-import { running } from "./delivery.js"
+import { running, submitWindowMs } from "./delivery.js"
 import { clock, retentionMs, threadMs } from "./mailbox.js"
 import {
   Messaging,
@@ -1887,16 +1887,18 @@ describe("the person's submissions", () => {
     messaging.keys("B", ["content"], false)
     messaging.keys("B", ["enter"], false)
     const entered = time.now
-    // Heard 2.6 s after the Enter, its hook having started at 1.5 s.
-    time.now += 2_600
-    expect(messaging.pendingSubmission("B", entered + 1_500)).toBe(entered)
-    expect(messaging.pendingSubmission("B", entered + 2_100)).toBeUndefined()
-    ask("B", codex, "UserPromptSubmit", [{ ...started(codex), startedAt: entered + 1_500 }])
+    // Heard past the window after the Enter, its hook having started just inside it.
+    time.now += submitWindowMs + 600
+    expect(messaging.pendingSubmission("B", entered + submitWindowMs - 500)).toBe(entered)
+    expect(messaging.pendingSubmission("B", entered + submitWindowMs + 100)).toBeUndefined()
+    ask("B", codex, "UserPromptSubmit", [
+      { ...started(codex), startedAt: entered + submitWindowMs - 500 },
+    ])
     stop("B", codex)
     expect(messaging.delivery("B")?.state).toBe("settled")
   })
 
-  it("are their Enter followed by a root prompt within about two seconds", () => {
+  it("are their Enter followed by a root prompt within the submission window", () => {
     for (const agent of ["claude", "codex"] as const) {
       const { messaging, follow, prompt, stop, clock: time } = create()
       const bound = binding(agent, `s-${agent}`, "7")
@@ -1913,14 +1915,14 @@ describe("the person's submissions", () => {
       expect(messaging.delivery("C")?.state).toBe("drafting")
       // Their Enter, then the turn: what they drafted went with it.
       messaging.keys("C", ["enter"], false)
-      time.now += 2_000
+      time.now += submitWindowMs
       prompt("C", bound, "prompt")
       stop("C", bound)
       expect(messaging.delivery("C")?.state).toBe("settled")
       // An Enter too long before is not the turn's.
       messaging.keys("C", ["content"], false)
       messaging.keys("C", ["enter"], false)
-      time.now += 2_001
+      time.now += submitWindowMs + 1
       prompt("C", bound, "prompt")
       stop("C", bound)
       expect(messaging.delivery("C")?.state).toBe("drafting")
@@ -2673,6 +2675,7 @@ describe("Antigravity's prompts, told from its transcript", () => {
         startedWith: given.startedWith,
       },
       () => Promise.resolve({ text, at: null, id }),
+      { waitMs: 2, gapMs: 1 },
     )
 
   // Resumed in a terminal the runner restored: Ready at the conversation its status line

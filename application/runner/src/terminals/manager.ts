@@ -46,7 +46,7 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
-import type { BoxProfile } from "../harnesses/box.js"
+import { isEmpty, type BoxProfile } from "../harnesses/box.js"
 import { actorOf, agentDetail, requestRef } from "../harnesses/detail.js"
 import type { RequestFacts } from "../harnesses/dialogs.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
@@ -58,7 +58,7 @@ import type {
 } from "../harnesses/events.js"
 import { doorbellLine, quotedLine, silentFor, type Install } from "../harnesses/harness.js"
 import { agents, harnesses } from "../harnesses/registry.js"
-import { unreplied, withReplies } from "../harnesses/replies.js"
+import { lastReply, unreplied, withReplies } from "../harnesses/replies.js"
 import { followRoot, rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import { observeTelemetry, telemetrySummary, type Telemetry } from "../harnesses/telemetry.js"
 import { typedPromptStart } from "../harnesses/typed-prompts.js"
@@ -70,6 +70,7 @@ import {
   type SendAnswer,
 } from "../messaging/messaging.js"
 import type { MailboxRecords } from "../messaging/records.js"
+import { inherited } from "../shell/inherited.js"
 import type { InstalledShell } from "../shell/install.js"
 import { shellLaunch, startsCommands, type ShellLaunch } from "../shell/integration.js"
 import { osc7Directory, osc9Directory } from "../shell/osc.js"
@@ -83,6 +84,7 @@ import {
   type Report,
   type Reports,
 } from "../shell/reports.js"
+import { pathKey, refreshPath } from "../shell/windows-path.js"
 import type { HintFacts } from "../voice/hint.js"
 import { Answers, type AnswerHost, type AnswerOptions } from "./answers.js"
 import {
@@ -157,6 +159,11 @@ import { judgedFirst, workAfter, type Work } from "./work.js"
 
 const { Terminal } = headless
 const OUTPUT_CHARS = 4096
+// How much read output may wait to be drawn before the program is paused, in characters.
+// Pausing for every chunk until it is drawn waits on a timer each time, about 15 ms on
+// Windows: a TUI that redraws for every key of a paste, as Codex does there, where the
+// paste reaches it as keys, then showed 100 characters in 6 s rather than 0.3 s.
+const OUTPUT_WAITING_CHARS = 256 * 1024
 
 /** How long after the person's last key an untrusted agent's hooks are asked about again. */
 export const trustRecheckMs = 1000
@@ -175,6 +182,12 @@ export type TerminalOptions = {
   env?: NodeJS.ProcessEnv
   /** The environment shells start from: the runner's own when omitted. */
   baseEnv?: NodeJS.ProcessEnv
+  /**
+   * Whether each new shell's PATH is read anew, as Windows keeps it, so a program
+   * installed since the app started is on it (see `refreshPath`). On unless `baseEnv`
+   * sets the environment exactly.
+   */
+  freshPath?: boolean
   /** Running and retained terminals together; unlimited when omitted. */
   maxTerminals?: number
   /** Exited, unattached records kept for viewing or restart; the oldest go first. */
@@ -272,6 +285,15 @@ type Record = {
   controller: string | undefined
   chain: Promise<void>
   pendingReads: number
+  /** The output read but not yet on its screen, in characters; see `output`. */
+  pendingOutput: number
+  /**
+   * Output read for the draw queued last, and the program each came from, while that draw
+   * is still the chain's last work and hasn't begun: later output joins it. Null once it
+   * began, or once other work was queued after it, as a resize, which later output must
+   * not be drawn ahead of.
+   */
+  unread: { readonly child: pty.IPty; readonly data: string }[] | null
   pendingAttachments: number
   exitQueued: boolean
   /** Closed by the person or an agent, and forgotten: nothing saves it again. */
@@ -465,35 +487,6 @@ const resumeGroup = (group: number): void => {
   }
 }
 
-// Variables of Novadeck's own shells and of agent sessions, which a runner started from
-// inside one must not pass on.
-const inherited = [
-  "NOVADECK_TOKEN",
-  "NOVADECK_TERMINAL_ID",
-  "NOVADECK_REPORT",
-  "NOVADECK_REPORT_TOKEN",
-  "NOVADECK_HOOK",
-  "NOVADECK_MCP",
-  "NOVADECK_BIN",
-  "NOVADECK_ZDOTDIR",
-  "NOVADECK_RESUME",
-  "NOVADECK_SHIMS",
-  // An agent's own session markers, when Novadeck was started from inside one: an agent
-  // in Novadeck's shells would take itself for that session's child. Claude Code, for
-  // one, then stops saving its transcript.
-  "CLAUDECODE",
-  "CLAUDE_CODE_CHILD_SESSION",
-  "CLAUDE_CODE_SESSION_ID",
-  "CLAUDE_CODE_ENTRYPOINT",
-  "CLAUDE_CODE_EXECPATH",
-  "CLAUDE_CODE_MESSAGING_SOCKET",
-  "CLAUDE_CODE_SESSION_ATTENDED",
-  "CLAUDE_PID",
-  "CLAUDE_PROJECT_DIR",
-  "CODEX_THREAD_ID",
-  "ANTIGRAVITY_CONVERSATION_ID",
-]
-
 // Why a request for a new terminal went unanswered.
 const unopened = {
   nobody: "Novadeck isn't open to show a new terminal.",
@@ -685,6 +678,7 @@ export class Terminals {
           : (process.env.SHELL ?? "/bin/sh")),
       shellArgs: options.shellArgs,
       env: { ...(options.baseEnv ?? process.env), ...options.env, TERM: "xterm-256color" },
+      freshPath: options.freshPath ?? options.baseEnv === undefined,
       maxTerminals:
         options.maxTerminals === undefined
           ? Number.POSITIVE_INFINITY
@@ -710,6 +704,9 @@ export class Terminals {
     // Child programs do not need the runner's network capability, nor the identity of a
     // Novadeck terminal the runner itself was started from.
     for (const name of inherited) delete this.options.env[name]
+    // Read once now, so the first terminal doesn't wait for it; see `shellEnvironment`.
+    // After the deletes, as the PowerShell that reads it gets this environment.
+    if (this.options.freshPath) void this.shellEnvironment()
     this.transcripts = options.transcripts ?? true
     this.messaging = new Messaging({
       ...(options.mailbox && { records: options.mailbox }),
@@ -813,12 +810,15 @@ export class Terminals {
       // terminals asked for together are numbered, and listed, in the order they were.
       const drawn = input.restore ? undefined : this.nextNumber(input.sessionId)
       const saved = input.restore ? this.saved(input.id, input.sessionId) : undefined
+      // Read beside the waits below, which it outlasts on Windows; see `shellEnvironment`.
+      const environment = this.shellEnvironment()
       const origin = await this.directory(input.cwd)
       // A saved directory that is gone falls back to the one asked for.
       const cwd = saved ? await this.directory(saved.cwd).catch(() => origin) : origin
-      const shell = await this.executable(cwd)
+      const shell = await this.executable(cwd, environment)
       const integration = await this.shellIntegration()
       const connected = await this.connected(input.resume)
+      const env = await environment
       if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
       // A concurrent creation may have taken the id meanwhile.
       this.available(input.id)
@@ -849,7 +849,7 @@ export class Terminals {
         input.command !== undefined
           ? { command: input.command, required: true }
           : resume && { command: resume.argv.join(" ") }
-      const started = this.spawn(shell, cwd, input, integration, startup || undefined)
+      const started = this.spawn(shell, cwd, input, integration, env, startup || undefined)
       if (resume && started.resumes) {
         this.claims.set(resume.key, input.id)
         started.resumeClaim = resume.key
@@ -883,6 +883,8 @@ export class Terminals {
         controller: pending.released ? undefined : ownerId,
         chain: Promise.resolve(),
         pendingReads: 0,
+        pendingOutput: 0,
+        unread: null,
         pendingAttachments: 0,
         exitQueued: false,
         closed: false,
@@ -1570,6 +1572,15 @@ export class Terminals {
       ready: (terminalId) => this.messaging.ready(terminalId),
       ringFailed: (terminalId, nonce) => this.messaging.ringFailed(terminalId, nonce),
       screen: (terminalId) => this.screenOf(terminalId),
+      // On Windows a TUI that reads the console's keys gets a bracketed paste as keys: the
+      // agent's box must show, empty and taking a prompt, as a prompt's must.
+      ...(process.platform === "win32" && {
+        inputBox: (terminalId: string, screen: ScreenText) => {
+          const record = live(terminalId)
+          const box = record && this.boxOf(record)?.read(screen)
+          return box !== undefined && box.mode === "prompt" && isEmpty(box)
+        },
+      }),
       foreground: async (terminalId) => {
         const record = live(terminalId)
         if (!record) return undefined
@@ -1658,13 +1669,15 @@ export class Terminals {
     record.restarting = true
     const pending = this.pending(ownerId)
     try {
+      const environment = this.shellEnvironment()
       // The last directory, or where the terminal started once that is gone.
       const cwd = await this.directory(record.summary.cwd).catch(() =>
         this.directory(record.origin),
       )
-      const shell = await this.executable(cwd)
+      const shell = await this.executable(cwd, environment)
       const integration = await this.shellIntegration()
       const connected = await this.connected(input.resume)
+      const env = await environment
       // The swap waits for the old shell's queued work, which still uses the old screen.
       return await this.enqueue(record, () => {
         if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
@@ -1687,6 +1700,7 @@ export class Terminals {
           cwd,
           input,
           integration,
+          env,
           resume ? { command: resume.argv.join(" ") } : undefined,
         )
         if (resume && started.resumes) {
@@ -2745,14 +2759,24 @@ export class Terminals {
     }
   }
 
-  private async executable(cwd: string): Promise<string> {
+  /**
+   * The environment a new shell starts from: the runner's, with PATH read anew where
+   * `freshPath` asks for it, as a Windows app keeps the PATH it was started with.
+   */
+  private shellEnvironment(): Promise<NodeJS.ProcessEnv> {
+    return this.options.freshPath
+      ? refreshPath(this.options.env)
+      : Promise.resolve(this.options.env)
+  }
+
+  /** The shell's program, a name found on the PATH the new shell gets, as `environment`. */
+  private async executable(cwd: string, environment: Promise<NodeJS.ProcessEnv>): Promise<string> {
     const shell = this.options.shell
-    const paths =
-      isAbsolute(shell) || shell.includes("/") || shell.includes("\\")
-        ? [resolvePath(cwd, shell)]
-        : (this.options.env.PATH ?? this.options.env.Path ?? "")
-            .split(delimiter)
-            .map((path) => resolvePath(cwd, path, shell))
+    const named = !(isAbsolute(shell) || shell.includes("/") || shell.includes("\\"))
+    const env = named ? await environment : this.options.env
+    const paths = named
+      ? (env[pathKey(env)] ?? "").split(delimiter).map((path) => resolvePath(cwd, path, shell))
+      : [resolvePath(cwd, shell)]
     const suffixes =
       process.platform === "win32"
         ? ["", ...(this.options.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";")]
@@ -2775,6 +2799,8 @@ export class Terminals {
   }
 
   private enqueue<T>(record: Record, operation: () => T | Promise<T>): Promise<T> {
+    // Output read from now on is drawn after this, in a draw of its own.
+    record.unread = null
     const result = record.chain.then(operation)
     record.chain = result.then(
       () => {},
@@ -2783,30 +2809,58 @@ export class Terminals {
     return result
   }
 
+  /**
+   * Draws output on the terminal's screen in order, after what was queued before it: what
+   * arrives while a draw waits joins one batch, drawn by the next. Each draw waits for the
+   * screen's callback, a timer, about 15 ms on Windows: a TUI that redraws for every key of
+   * a paste, as Codex does there, took over a second to show 100 characters drawn one
+   * chunk at a time, though it had drawn them in 0.2 s. The program is paused only while a
+   * lot of its output waits (`OUTPUT_WAITING_CHARS`), and goes on once all of it is drawn,
+   * so a program can't outrun its screen.
+   */
   private output(record: Record, child: pty.IPty, data: string): void {
-    child.pause()
+    record.pendingOutput += data.length
+    if (record.pendingOutput > OUTPUT_WAITING_CHARS) child.pause()
+    // The draw queued last takes this with it, while nothing was queued after it.
+    if (record.unread) {
+      record.unread.push({ child, data })
+      return
+    }
+    const batch = [{ child, data }]
     record.pendingReads += 1
+    let drawn = 0
     void this.enqueue(record, async () => {
+      if (record.unread === batch) record.unread = null
+      drawn = batch.reduce((total, one) => total + one.data.length, 0)
       // Output a previous run left queued belongs to a screen that is gone.
-      if (record.process !== child) return
-      await new Promise<void>((resolve) => record.screen.write(data, resolve))
+      const text = batch
+        .filter((one) => one.child === record.process)
+        .map((one) => one.data)
+        .join("")
+      if (text === "") return
+      await new Promise<void>((resolve) => record.screen.write(text, resolve))
       this.doorbell?.changed(record.summary.id)
       this.dialogs.changed(record.summary.id)
       // Once on the screen: a save while it was drawing may have taken the screen before.
       record.changed = true
-      for (let start = 0; start < data.length;) {
-        let end = Math.min(start + OUTPUT_CHARS, data.length)
-        const last = data.charCodeAt(end - 1)
-        if (end < data.length && last >= 0xd800 && last <= 0xdbff) end -= 1
-        const chunk = data.slice(start, end)
+      for (let start = 0; start < text.length;) {
+        let end = Math.min(start + OUTPUT_CHARS, text.length)
+        const last = text.charCodeAt(end - 1)
+        if (end < text.length && last >= 0xd800 && last <= 0xdbff) end -= 1
+        const chunk = text.slice(start, end)
         this.emit(record, { type: "output", data: chunk })
         start = end
       }
     }).finally(() => {
       record.pendingReads -= 1
-      if (record.pendingReads === 0 && !record.exitQueued && record.process === child)
-        child.resume()
+      record.pendingOutput -= drawn
+      // Each program of the batch that still runs, as a restart's shell may have been
+      // paused in a batch the one before began.
+      if (record.pendingReads === 0 && !record.exitQueued)
+        for (const one of new Set(batch.map((each) => each.child)))
+          if (one === record.process) one.resume()
     })
+    record.unread = batch
   }
 
   private emit(
@@ -2841,6 +2895,7 @@ export class Terminals {
     cwd: string,
     input: Size & { id?: string; terminalId?: string },
     integration: (Integration & { shims: readonly AgentName[] }) | undefined,
+    base: NodeJS.ProcessEnv,
     startup?: { readonly command: string; readonly required?: boolean },
   ): Started {
     const { cols, rows } = input
@@ -2848,7 +2903,7 @@ export class Terminals {
     const token = randomBytes(24).toString("hex")
     const launch = (withStartup: boolean): ShellLaunch =>
       integration
-        ? shellLaunch(shell, integration.paths, this.options.env, {
+        ? shellLaunch(shell, integration.paths, base, {
             shims: integration.shims,
             ...(withStartup &&
               startup &&
@@ -2859,7 +2914,7 @@ export class Terminals {
                 },
               }),
           })
-        : { args: [], env: this.options.env, integrated: false, resumes: false }
+        : { args: [], env: base, integrated: false, resumes: false }
     let launched = launch(true)
     // The shell reads the command from a file only it and the runner can read.
     if (launched.resumeFile)
@@ -3739,12 +3794,12 @@ export class Terminals {
   /**
    * The harness has `escapeVerdictMs` to say how the turn the Escape ended ended, as its
    * reply may have reached it first. Once that passes, a Stop it reported meanwhile is the
-   * turn's end, else the Escape stands.
+   * turn's end, else a reply the transcript of a harness without records holds since the
+   * person's prompt, else the Escape stands.
    */
   private awaitVerdict(record: Record, { agent, sessionId, instance, startedAt }: ActivityEvent) {
     if (record.verdict) clearTimeout(record.verdict)
-    record.verdict = setTimeout(() => {
-      record.verdict = undefined
+    const lapse = (reply: string | undefined) => {
       const { binding } = record
       if (!binding || binding.sessionId !== sessionId || this.stopping) return
       const lapsed: ActivityEvent = {
@@ -3753,10 +3808,46 @@ export class Terminals {
         sessionId,
         instance,
         startedAt,
+        ...(reply !== undefined && { reply }),
       }
       if (this.applyFact(record, lapsed)) this.publishAgent(record, false)
+    }
+    record.verdict = setTimeout(() => {
+      record.verdict = undefined
+      const reading = this.unstoppedReply(record, agent)
+      if (reading) void reading.then(lapse)
+      else lapse(undefined)
     }, escapeVerdictMs)
     record.verdict.unref()
+  }
+
+  /**
+   * The read of the reply the transcript holds since the person's prompt of the turn their
+   * Escape ended, where no Stop came for it and the harness keeps no records that would
+   * say how it ended: undefined where there is nothing to read, and the read's undefined
+   * where it holds none, can't be read, or the screen doesn't show the turn went on
+   * uninterrupted, as Antigravity may say it stopped under a reply it kept. Only on
+   * Windows, the one place a reply that won the race was seen to fire no Stop (Antigravity
+   * 1.2.14): elsewhere its Stop tells.
+   */
+  private unstoppedReply(
+    record: Record,
+    agent: AgentName,
+  ): Promise<string | undefined> | undefined {
+    if (process.platform !== "win32") return undefined
+    const escaped = record.activity?.lastTurn?.escaped
+    const items = harnesses[agent].transcripts?.items
+    if (harnesses[agent].records || !escaped || escaped.held || escaped.settled) return undefined
+    if (!record.transcript || !items) return undefined
+    const { interrupted } = harnesses[agent].box
+    return lastReply(record.transcript, items)
+      .then(async (reply) => {
+        if (reply === undefined || !interrupted) return reply
+        const screen = await this.screenOf(record.summary.id)
+        // A screen that can't tell, as one mid-redraw, keeps the Escape's word.
+        return screen && interrupted(screen) === false ? reply : undefined
+      })
+      .catch(() => undefined)
   }
 
   /** Applies what the bound session's hooks or records said; true when it changed. */
@@ -4041,6 +4132,19 @@ export class Terminals {
     try {
       const group = await this.hangUp(record.process)
       const child = record.process
+      // Windows hangs up no group: closing the console ends only what is attached to it,
+      // never what a program there started apart from it, as an agent's hooks, which then
+      // run on (a PowerShell 7 hook whose Codex was closed as it started stayed there). The
+      // terminal's whole tree is ended first, while it still leads back to its shell. Not
+      // once the shell has exited, its exit only waiting behind draws: its id may name
+      // another process by now.
+      if (
+        process.platform === "win32" &&
+        child.pid > 0 &&
+        drawnTerminals.has(child) &&
+        !record.exitQueued
+      )
+        await endTree(child.pid).catch(() => {})
       try {
         child.kill()
       } catch {

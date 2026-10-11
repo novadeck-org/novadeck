@@ -154,10 +154,17 @@ describe("markdown on pathological text", () => {
     ["unclosed tildes", "~~a ".repeat(size / 4)],
   ])("reads %s in well under the second a quadratic reading took", (_name, text) => {
     // Warmed up first, so the bound measures the reading, not the compiler; generous for
-    // slow CI machines, yet far below the ~1 s a quadratic reading took here.
+    // slow CI machines, yet far below the ~1 s a quadratic reading took here. The quickest
+    // of three readings counts: a busy machine slows one now and then (433 ms once on a
+    // Windows runner), never every one of a quadratic reading's.
     parseMarkdown(text.slice(0, 1024))
-    const started = performance.now()
-    parseMarkdown(text)
-    expect(performance.now() - started).toBeLessThan(400)
+    const took = Math.min(
+      ...[1, 2, 3].map(() => {
+        const started = performance.now()
+        parseMarkdown(text)
+        return performance.now() - started
+      }),
+    )
+    expect(took).toBeLessThan(400)
   })
 })

@@ -40,9 +40,11 @@ const events = [
   "PostToolUseFailure",
 ]
 
+// A launcher that is set but gone, as a variable that outlived its Novadeck, does nothing,
+// as `|| true` does elsewhere.
 const hook = (platform: NodeJS.Platform, event: string): string =>
   platform === "win32"
-    ? `if ($env:NOVADECK_HOOK) { & $env:NOVADECK_HOOK claude ${event} }`
+    ? `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { & $env:NOVADECK_HOOK claude ${event} }`
     : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" claude ${event} || true`
 
 // A Stop's reason continues the turn, and reaches the model as the Stop hook's feedback;
@@ -122,7 +124,7 @@ export const claude = {
                   {
                     type: "command",
                     command: hook(platform, event),
-                    timeout: hookSeconds,
+                    timeout: hookSeconds(platform),
                     ...(platform === "win32" && { shell: "powershell" }),
                   },
                 ],

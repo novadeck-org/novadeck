@@ -96,10 +96,14 @@ describe("the account's subscription usage", () => {
 
   it("says when a window resets: how long from now within a day, the weekday further off", () => {
     const now = new Date(2026, 9, 7, 14, 16).getTime()
-    // The time itself is in the viewer's locale.
+    // The time itself is in the viewer's locale, as is the weekday: "Fri", or "pt." in Polish.
     expect(resetText(now + 2 * hour + 14 * 60_000, now)).toMatch(/^in 2h 14m · \S/)
     expect(resetText(now + 48 * 60_000, now)).toMatch(/^in 48m · \S/)
-    expect(resetText(new Date(2026, 9, 9, 9, 0).getTime(), now)).toMatch(/^Fri \S/)
+    const friday = new Date(2026, 9, 9, 9, 0)
+    const weekday = friday.toLocaleDateString(undefined, { weekday: "short" })
+    const text = resetText(friday.getTime(), now)
+    expect(text.startsWith(`${weekday} `), text).toBe(true)
+    expect(text.length).toBeGreaterThan(weekday.length + 1)
   })
 
   it("keeps the order the person left, and remembers agents not shown now", () => {

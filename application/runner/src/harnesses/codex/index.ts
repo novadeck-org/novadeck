@@ -38,9 +38,15 @@ const events = [
   "PostToolUse",
 ]
 
+// On Windows Codex runs a hook command in its shell there, PowerShell (7 where installed),
+// not cmd (probed 2026-10-09, 0.159.3: %COMSPEC% stayed as written, $PSVersionTable read),
+// with -NoProfile, as its binary passes PowerShell. A launcher that is set but gone, as a
+// variable that outlived its Novadeck, does nothing, as `|| true` does elsewhere.
+// Codex asks the person to review its hooks again whenever this text changes, so
+// `hooks.test.ts` pins it.
 const hook = (platform: NodeJS.Platform, event: string): string =>
   platform === "win32"
-    ? `if defined NOVADECK_HOOK %NOVADECK_HOOK% codex ${event}`
+    ? `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { & $env:NOVADECK_HOOK codex ${event} }`
     : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" codex ${event} || true`
 
 // A Stop's reason continues the turn as a user-role hook prompt, which the delivery's
@@ -112,7 +118,13 @@ export const codex = {
                 ...(event === "PreToolUse" && {
                   matcher: "request_user_input|request_permissions",
                 }),
-                hooks: [{ type: "command", command: hook(platform, event), timeout: hookSeconds }],
+                hooks: [
+                  {
+                    type: "command",
+                    command: hook(platform, event),
+                    timeout: hookSeconds(platform),
+                  },
+                ],
               },
             ],
           ]),

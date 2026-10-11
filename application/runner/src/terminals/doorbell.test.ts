@@ -4,7 +4,7 @@ import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
 import { screen } from "../testing/screens.js"
-import { Doorbell, type DoorbellHost } from "./doorbell.js"
+import { confirmMs, Doorbell, type DoorbellHost } from "./doorbell.js"
 import { InputQueue } from "./input-queue.js"
 
 /**
@@ -128,6 +128,14 @@ const terminal = (
 
 const fast = { calmMs: 30, pollMs: 5, pasteMs: 100, confirmMs: 100 }
 const enters = (written: readonly string[]) => written.filter((data) => data === "\r").length
+
+describe("a ring's wait for its doorbell prompt", () => {
+  it("outlasts a hook's shell starting cold on Windows, and stays brief elsewhere", () => {
+    // PowerShell takes most of 15 s to start cold on a busy CI runner.
+    expect(confirmMs("win32")).toBeGreaterThan(15_000)
+    expect(confirmMs("linux")).toBe(5_000)
+  })
+})
 
 describe("the doorbell", () => {
   it("rings only once the entry ahead of it in the terminal's input queue is done, never between its steps", async () => {

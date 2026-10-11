@@ -181,9 +181,9 @@ describe("a doorbell prompt", () => {
 })
 
 const launchers: Launchers = { mcp: { command: "/data/shell/mcp" } }
-const file = (agent: AgentName, path: string) =>
+const file = (agent: AgentName, path: string, platform: NodeJS.Platform = "linux") =>
   JSON.parse(
-    harnesses[agent].files("linux", launchers).find((each) => each.path === path)!.content,
+    harnesses[agent].files(platform, launchers).find((each) => each.path === path)!.content,
   ) as { hooks?: object; novadeck?: object }
 
 // Every handler a hooks.json registers, however its harness nests them.
@@ -196,14 +196,18 @@ const handlers = (value: unknown): { command: string; timeout?: number }[] => {
 
 describe("each harness's hook registrations", () => {
   it("set a timeout well above the hook's own limit, as a slower hook is dropped silently", () => {
-    expect(hookSeconds).toBeGreaterThan(5)
-    const registered = [
-      ...handlers(file("claude", join("novadeck", "hooks", "hooks.json")).hooks),
-      ...handlers(file("codex", join("novadeck", "hooks", "hooks.json")).hooks),
-      ...handlers(file("agy", "hooks.json").novadeck),
-    ]
-    expect(registered.length).toBeGreaterThan(15)
-    for (const handler of registered) expect(handler.timeout).toBe(hookSeconds)
+    // On Windows the shell the hook runs in starts slowly on a busy machine, so more.
+    expect(hookSeconds("linux")).toBeGreaterThan(5)
+    expect(hookSeconds("win32")).toBeGreaterThanOrEqual(30)
+    for (const platform of ["linux", "win32"] as const) {
+      const registered = [
+        ...handlers(file("claude", join("novadeck", "hooks", "hooks.json"), platform).hooks),
+        ...handlers(file("codex", join("novadeck", "hooks", "hooks.json"), platform).hooks),
+        ...handlers(file("agy", "hooks.json", platform).novadeck),
+      ]
+      expect(registered.length).toBeGreaterThan(15)
+      for (const handler of registered) expect(handler.timeout).toBe(hookSeconds(platform))
+    }
   })
 
   it("register every event that asks", () => {

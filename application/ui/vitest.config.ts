@@ -58,7 +58,10 @@ export default mergeConfig(
               ...(trace
                 ? { trace: { mode: "retain-on-failure", tracesDir: "test-results/traces" } }
                 : {}),
-              provider: playwright({ contextOptions: { reducedMotion: "reduce" } }),
+              // English dates, as the specs expect, whatever the machine's locale.
+              provider: playwright({
+                contextOptions: { reducedMotion: "reduce", locale: "en-US" },
+              }),
               instances: [{ browser: "chromium" }],
               viewport: { width: 1440, height: 900 },
             },
@@ -78,7 +81,9 @@ export default mergeConfig(
               enabled: true,
               headless: true,
               screenshotFailures: false,
-              provider: playwright({ contextOptions: { reducedMotion: "no-preference" } }),
+              provider: playwright({
+                contextOptions: { reducedMotion: "no-preference", locale: "en-US" },
+              }),
               instances: [{ browser: "chromium" }],
               viewport: { width: 1440, height: 900 },
             },

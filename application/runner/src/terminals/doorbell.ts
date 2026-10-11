@@ -31,6 +31,11 @@ export type DoorbellHost = {
   readonly resizedAt: (terminalId: string) => number
   /** Writes to the terminal's shell; false once it is gone. */
   readonly write: (terminalId: string, data: string) => boolean
+  /**
+   * On Windows, whether the agent's input box shows on the screen, empty and taking a
+   * prompt (see `GateFacts.inputBox`); undefined where a bracketed paste can't press keys.
+   */
+  readonly inputBox?: (terminalId: string, screen: ScreenText) => boolean | undefined
 }
 
 export type DoorbellOptions = {
@@ -50,6 +55,15 @@ export type DoorbellOptions = {
   /** How long after its Enter a ring waits for its doorbell prompt, in milliseconds. */
   readonly confirmMs?: number
 }
+
+/**
+ * How long after its Enter a ring waits by default for the doorbell prompt that confirms
+ * it, in milliseconds: the hook that tells it starts in the harness's shell first, and on
+ * Windows PowerShell takes most of 15 s to start cold on a busy CI runner, where a ring
+ * failed before its Codex hook came, and the message waited for the turn's Stop.
+ */
+export const confirmMs = (platform: NodeJS.Platform): number =>
+  platform === "win32" ? 20_000 : 5_000
 
 // The longest a ring holds the person's input, in milliseconds: a safety cap, well beyond
 // its test paste.
@@ -100,7 +114,7 @@ export class Doorbell {
     this.now = options.now ?? Date.now
     this.pollMs = options.pollMs ?? 50
     this.pasteMs = options.pasteMs ?? 1_500
-    this.confirmMs = options.confirmMs ?? 5_000
+    this.confirmMs = options.confirmMs ?? confirmMs(process.platform)
     this.calmMs = options.calmMs ?? calmMs
     this.settleMs = options.settleMs ?? 6_000
   }
@@ -186,12 +200,14 @@ export class Doorbell {
       return undefined
     }
     const foreground = await this.host.foreground(terminalId)
+    const inputBox = this.host.inputBox?.(terminalId, screen)
     const verdict = gate(
       {
         ringable: this.host.ringable(terminalId),
         calmMs: calm,
         bracketedPaste: screen.bracketedPaste,
         foreground,
+        ...(inputBox !== undefined && { inputBox }),
       },
       this.calmMs,
     )

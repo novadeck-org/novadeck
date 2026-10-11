@@ -108,31 +108,35 @@ for (const setup of setups) {
       expect(t1.summary().agent).toBe(setup.agent)
     })
 
-    it("reaches its own Novadeck's MCP server when another build connected it last", async ({
-      e2e: run,
-    }) => {
-      // Another Novadeck, as a development build beside the installed app, connecting the
-      // agent after this one: every plugin copy names that build's launcher instead.
-      const other = join(run.sandbox.root, "other build", "shell")
-      const marker = join(run.sandbox.root, "other build", "started")
-      mkdirSync(other, { recursive: true })
-      const decoy = join(other, "mcp")
-      writeFileSync(decoy, `#!/bin/sh\ntouch '${marker}'\nexit 1\n`, { mode: 0o755 })
-      // The copy the harness installed, not only Novadeck's own source of it.
-      const rewritten = renamePlugins(run.sandbox.root, run.deck.shell.mcp, decoy)
-      expect(rewritten.some((path) => path.startsWith(run.sandbox.home))).toBe(true)
-      run.model.use(replies("Say the word", "Pelican-7 says hello."))
-      const t1 = await start(run, setup)
+    // Linux and macOS only: on Windows an agent starts the relay of the build that connected
+    // it, as the README says, so a later connect by another build is that build's server.
+    const unlessWindows = process.platform === "win32" ? it.skip : it
+    unlessWindows(
+      "reaches its own Novadeck's MCP server when another build connected it last",
+      async ({ e2e: run }) => {
+        // Another Novadeck, as a development build beside the installed app, connecting the
+        // agent after this one: every plugin copy names that build's launcher instead.
+        const other = join(run.sandbox.root, "other build", "shell")
+        const marker = join(run.sandbox.root, "other build", "started")
+        mkdirSync(other, { recursive: true })
+        const decoy = join(other, "mcp")
+        writeFileSync(decoy, `#!/bin/sh\ntouch '${marker}'\nexit 1\n`, { mode: 0o755 })
+        // The copy the harness installed, not only Novadeck's own source of it.
+        const rewritten = renamePlugins(run.sandbox.root, run.deck.shell.mcp, decoy)
+        expect(rewritten.some((path) => path.startsWith(run.sandbox.home))).toBe(true)
+        run.model.use(replies("Say the word", "Pelican-7 says hello."))
+        const t1 = await start(run, setup)
 
-      await turn(t1, "Say the word", "Pelican-7 says hello.")
+        await turn(t1, "Say the word", "Pelican-7 says hello.")
 
-      // The terminal's NOVADECK_MCP started this Novadeck's server, which offers its tools.
-      const call = await run.model.waitFor(
-        (one) => !one.side && latest(one).includes("Say the word"),
-      )
-      expect(tool(call, "send")).toBeDefined()
-      expect(existsSync(marker)).toBe(false)
-    })
+        // The terminal's NOVADECK_MCP started this Novadeck's server, which offers its tools.
+        const call = await run.model.waitFor(
+          (one) => !one.side && latest(one).includes("Say the word"),
+        )
+        expect(tool(call, "send")).toBeDefined()
+        expect(existsSync(marker)).toBe(false)
+      },
+    )
 
     it("rings an idle agent for a message, and its answer reaches the sender", async ({
       e2e: run,

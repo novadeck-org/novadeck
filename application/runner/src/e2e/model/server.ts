@@ -95,6 +95,11 @@ export type FakeModel = {
   readonly explain: (describe: () => Promise<string>, timeoutMs?: number) => void
   /** Adds rules ahead of the ones given before. */
   readonly use: (...rules: Rule[]) => void
+  /**
+   * Runs `work`, a close of the deck: a request a harness hangs up on meanwhile, or
+   * within a second after, is the close's doing, not a misread. At any other time it is.
+   */
+  readonly ending: (work: () => Promise<void>) => Promise<void>
   readonly close: () => Promise<void>
 }
 
@@ -225,6 +230,8 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
   let foreign = 0
   let describe: (() => Promise<string>) | undefined
   let describeMs = 5000
+  // Closes of the deck under way, or just ended.
+  let ending = 0
   let rules: readonly Rule[] = options.rules ?? []
   const rejections: Rejection[] = []
   const expected: Rejection[] = []
@@ -331,6 +338,14 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
         )
         return
       }
+      // A harness the deck's close ended before it sent the whole request (Claude Code on
+      // a Windows runner, mid-request): no misread.
+      if (
+        ending > 0 &&
+        !incoming.complete &&
+        (error as NodeJS.ErrnoException).code === "ECONNRESET"
+      )
+        return outgoing.destroy()
       const what = failure(error)
       errors.push(`${incoming.method ?? "GET"} ${(incoming.url ?? "/").split("?")[0]}: ${what}`)
       if (outgoing.headersSent) return outgoing.destroy()
@@ -438,6 +453,17 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
     },
     use: (...added) => {
       rules = [...added, ...rules]
+    },
+    ending: async (work) => {
+      ending += 1
+      try {
+        await work()
+      } finally {
+        // The reset of a socket the close ended may come after it.
+        setTimeout(() => {
+          ending -= 1
+        }, 1000).unref()
+      }
     },
     close: () =>
       new Promise((resolve) => {

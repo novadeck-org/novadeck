@@ -6,6 +6,7 @@ import {
   delivered,
   holds,
   lacking,
+  nestedRuns,
   own,
   result,
   ring,
@@ -20,7 +21,7 @@ import {
 
 // What the nested run is asked, which only its own conversation holds as a user's words:
 // the agent's holds it only in the command it runs.
-const asking = "novadeck-e2e-nested run: say the nested word"
+const asking = nestedRuns.inTurn
 // Its answer, which reaches the agent only as its shell tool's output.
 const word = "Kestrel-9 from the nested run"
 

@@ -5,6 +5,7 @@ import { delimiter, join } from "node:path"
 import { MessageChannel } from "node:worker_threads"
 
 import { connectRunner, messagePort } from "@novadeck/protocol/client"
+import { vi } from "vitest"
 
 import { createRunner, servePort } from "../index.js"
 import { installShellFiles } from "../shell/install.js"
@@ -40,9 +41,15 @@ if (agent === "codex") {
   if (command === "remove novadeck@novadeck") write(file, "")
 }
 if (agent === "agy") {
-  const file = path.join(home, ".gemini", "config", "plugins", "novadeck", "plugin.json")
-  if (command === "install") write(file, "{}")
-  if (command === "uninstall novadeck") fs.rmSync(file, { force: true })
+  // It copies the plugin folder it installs, as the real one does.
+  const folder = path.join(home, ".gemini", "config", "plugins", "novadeck")
+  if (command === "install") {
+    write(path.join(folder, "plugin.json"), "{}")
+    const hooks = path.join(args.at(-1), "hooks.json")
+    // FAKE_REWRITE: an agent that changes what it copies.
+    if (fs.existsSync(hooks)) write(path.join(folder, "hooks.json"), fs.readFileSync(hooks, "utf8") + (process.env.FAKE_REWRITE ?? ""))
+  }
+  if (command === "uninstall novadeck") fs.rmSync(folder, { recursive: true, force: true })
 }
 `
 
@@ -169,10 +176,96 @@ describe("agents Novadeck can connect", () => {
     const statusLine = () =>
       (JSON.parse(readFileSync(settings, "utf8")) as { statusLine?: { command: string } })
         .statusLine
-    if (!windows) expect(statusLine()?.command).toContain('"$NOVADECK_HOOK" agy StatusLine')
+    expect(statusLine()?.command).toContain(
+      windows ? "%NOVADECK_HOOK% agy StatusLine" : '"$NOVADECK_HOOK" agy StatusLine',
+    )
     await agents.set("agy", false)
     expect((await agents.list())[2]).toMatchObject({ connected: false })
-    if (!windows) expect(statusLine()).toBeUndefined()
+    expect(statusLine()).toBeUndefined()
+  })
+
+  it("install the plugin again where an agent's own copy of it differs from Novadeck's", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "agy", "codex")
+    const agents = fixture.agents()
+    // Not connected yet: nothing to refresh.
+    expect(await agents.refresh()).toEqual([])
+    await agents.set("agy", true)
+    const copy = join(fixture.home, ".gemini", "config", "plugins", "novadeck", "hooks.json")
+    const ours = join(fixture.paths.plugins.agy, "hooks.json")
+    expect(readFileSync(copy, "utf8")).toBe(readFileSync(ours, "utf8"))
+    // Its copy matches: no command runs.
+    const before = fixture.calls().length
+    expect(await agents.refresh()).toEqual([])
+    expect(fixture.calls()).toHaveLength(before)
+    // Novadeck renders its hooks otherwise now, as where cmd prints first.
+    writeFileSync(ours, '{"novadeck":{}}')
+    expect(await agents.refresh()).toEqual(["agy"])
+    expect(fixture.calls().slice(before)).toContainEqual([
+      "agy",
+      "plugin",
+      "install",
+      fixture.paths.plugins.agy,
+    ])
+    expect(readFileSync(copy, "utf8")).toBe('{"novadeck":{}}')
+    expect(await agents.refresh()).toEqual([])
+  })
+
+  it("never undo a disconnect asked for before the refresh looked", async ({ fixture }) => {
+    installed(fixture.home, "agy")
+    const agents = fixture.agents()
+    await agents.set("agy", true)
+    writeFileSync(join(fixture.paths.plugins.agy, "hooks.json"), '{"novadeck":{}}')
+    // The person turns it off as Novadeck starts: their change goes first.
+    const off = agents.set("agy", false)
+    const refreshed = agents.refresh()
+    await off
+    expect(await refreshed).toEqual([])
+    expect(await agents.connected("agy")).toBe(false)
+  })
+
+  it("finish at the next start a reinstall a quit cut short, unless disconnected since", async ({
+    fixture,
+  }) => {
+    installed(fixture.home, "agy")
+    const agents = fixture.agents()
+    const marker = `${fixture.paths.plugins.agy}.reinstalling`
+    // Uninstalled, not installed again yet: it looks disconnected.
+    writeFileSync(marker, "")
+    expect(await agents.connected("agy")).toBe(false)
+    expect(await agents.refresh()).toEqual(["agy"])
+    expect(await agents.connected("agy")).toBe(true)
+    expect(existsSync(marker)).toBe(false)
+    // A disconnect the person asks for takes the mark away with it.
+    writeFileSync(marker, "")
+    await agents.set("agy", false)
+    expect(existsSync(marker)).toBe(false)
+    expect(await agents.refresh()).toEqual([])
+    expect(await agents.connected("agy")).toBe(false)
+  })
+
+  it("drop an unfinished reinstall for an agent uninstalled since", async ({ fixture }) => {
+    const agents = fixture.agents()
+    const marker = `${fixture.paths.plugins.agy}.reinstalling`
+    // Antigravity's home is gone: the mark goes, and nothing is installed.
+    writeFileSync(marker, "")
+    expect(await agents.refresh()).toEqual([])
+    expect(existsSync(marker)).toBe(false)
+    expect(fixture.calls()).toEqual([])
+  })
+
+  it("say so where the agent's copy still differs once installed again", async ({ fixture }) => {
+    installed(fixture.home, "agy")
+    const agents = fixture.agents({ FAKE_REWRITE: " " })
+    await agents.set("agy", true)
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      expect(await agents.refresh()).toEqual(["agy"])
+      expect(logged).toHaveBeenCalledWith(expect.stringContaining("its copy still differs"))
+    } finally {
+      logged.mockRestore()
+    }
   })
 
   it.skipIf(windows)(

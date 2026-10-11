@@ -4,6 +4,7 @@ import { join } from "node:path"
 
 import { anthropic } from "../model/anthropic.js"
 import { asked, text as everything, type Call } from "../model/script.js"
+import { gitBash } from "../sandbox.js"
 import { own, result } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
 
@@ -100,7 +101,10 @@ export const claude: AgentSetup = {
       own((call) => {
         const last = call.turns.at(-1)
         if (asked(call, prompt)) {
-          const plans = everything(call).match(/\/[^\s"'`]*\/plans\/[\w.-]+\.md/)
+          // A POSIX path, or on Windows one with a drive and backslashes.
+          const plans = everything(call).match(
+            /(?:[A-Za-z]:)?[\\/][^\s"'`]*[\\/]plans[\\/][\w.-]+\.md/,
+          )
           if (!plans) throw new Error("Claude Code's call names no plans file")
           return {
             calls: [
@@ -219,14 +223,18 @@ export const claude: AgentSetup = {
         ...(seed.popup && {
           oauthAccount: { organizationRole: "admin", workspaceRole: "workspace_admin" },
         }),
-        projects: {
-          [sandbox.project]: {
-            hasTrustDialogAccepted: seed.folderTrusted ?? true,
-            hasCompletedProjectOnboarding: true,
-            projectOnboardingSeenCount: 1,
-            allowedTools: [],
-          },
-        },
+        // Keyed by the project's path, which on Windows it writes with forward slashes.
+        projects: Object.fromEntries(
+          [...new Set([sandbox.project, sandbox.project.replaceAll("\\", "/")])].map((path) => [
+            path,
+            {
+              hasTrustDialogAccepted: seed.folderTrusted ?? true,
+              hasCompletedProjectOnboarding: true,
+              projectOnboardingSeenCount: 1,
+              allowedTools: [],
+            },
+          ]),
+        ),
       }),
     )
     await writeFile(
@@ -240,7 +248,12 @@ export const claude: AgentSetup = {
         },
       }),
     )
+    // On Windows it runs its Bash tool in Git for Windows' bash, and won't start without.
+    const bash = process.platform === "win32" ? gitBash() : undefined
+    if (process.platform === "win32" && bash === undefined)
+      throw new Error("Claude Code on Windows needs Git for Windows' bash, beside git on PATH")
     return {
+      ...(bash !== undefined && { CLAUDE_CODE_GIT_BASH_PATH: bash }),
       CLAUDE_CONFIG_DIR: config,
       ANTHROPIC_BASE_URL: model.url,
       ANTHROPIC_API_KEY: model.credential,

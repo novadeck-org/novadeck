@@ -126,7 +126,8 @@ describe("the update notice", () => {
       localStorage.setItem(seenKey, "ready:0.0.79")
       await openWorkspace("/?demo=update")
       await expect.element(ready()).toBeVisible()
-      expect(localStorage.getItem(seenKey)).toBe("ready:0.0.80")
+      // Kept once the store has saved it, a moment after the notice shows.
+      await expect.poll(() => localStorage.getItem(seenKey)).toBe("ready:0.0.80")
     })
 
     it("comes up again when the version shown before is now one to download", async () => {
@@ -333,7 +334,7 @@ describe("the update notice", () => {
       await preferencesDialog().getByRole("button", { name: "Close preferences" }).click()
       await expect.element(preferencesDialog()).not.toBeInTheDocument()
       await expect.element(ready()).toBeVisible()
-      expect(localStorage.getItem(seenKey)).toBe("ready:0.0.80")
+      await expect.poll(() => localStorage.getItem(seenKey)).toBe("ready:0.0.80")
     })
   })
 })

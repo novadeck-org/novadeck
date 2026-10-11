@@ -91,6 +91,11 @@ export const wire = (options: RunnerOptions) => {
           return undefined
         })
   const agents = createHarnesses(() => shellFiles, options.agents)
+  // A connected agent that keeps its own copy of the plugin gets the files just written,
+  // where they differ from that copy (see `Harness.installed`).
+  void shellFiles
+    .then((written) => (written ? agents.refresh() : []))
+    .catch((error: unknown) => console.error("Novadeck could not refresh its plugins:", error))
   // What agents show and the person attaches beside terminals, kept in the store; it
   // asks the terminals where each one is.
   const items = new CompanionItems({

@@ -14,8 +14,9 @@ import type { ActivityEvent } from "../harnesses/events.js"
 import { describe, expect, it as base } from "../test.js"
 import { command, ptyOptions, ptyTrace } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
+import { screen as screenWith } from "../testing/screens.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { InputQueue } from "./input-queue.js"
+import { InputQueue, type HoldBudget } from "./input-queue.js"
 import { forceKill, Terminals } from "./manager.js"
 
 const cwd = process.cwd()
@@ -162,16 +163,22 @@ describe("an answer's hold of the person's input", () => {
       { terminalId: terminal.id, data: command({ type: "write", data: "\x1b[?1003h\x1b[?1006h" }) },
       "creator",
     )
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    // Until the screen shows it asked, however long a busy machine's child takes: only
+    // then is the wheel's report one the TUI asked for, rather than typed text.
+    const { screen } = (
+      manager as unknown as {
+        records: Map<string, { screen: { modes: { mouseTrackingMode: string } } }>
+      }
+    ).records.get(terminal.id)!
+    await vi.waitFor(() => expect(screen.modes.mouseTrackingMode).toBe("any"), {
+      timeout: 5_000,
+    })
+    // An answer's hold, as the queue gives it: its keys deferred until delivered.
     const hold = (
       manager as unknown as {
-        holdInput: (
-          id: string,
-          cap: number,
-          options: object,
-        ) => { release: () => void; settle: () => void }
+        holdInput: (id: string, budget: HoldBudget) => { release: () => void; settle: () => void }
       }
-    ).holdInput(terminal.id, 5_000, { deferKeys: true })
+    ).holdInput(terminal.id, { inputMs: 5_000, sizeMs: 5_000, deferred: true })
     // What the children traced from here on, however much a busy machine traced before.
     const mark = traced().length
     const since = (): string => traced().slice(mark).join("\n")
@@ -1557,6 +1564,48 @@ describe.skipIf(process.platform === "win32")("terminal message watches", () => 
   })
 })
 
+describe("a terminal's output", () => {
+  type Inside = {
+    records: Map<string, { process: unknown }>
+    output: (record: unknown, child: unknown, data: string) => void
+    applySize: (record: unknown, size: { cols: number; rows: number }) => void
+    emit: (record: unknown, payload: { type: string; data?: string }) => void
+  }
+
+  it("is drawn in order with a resize queued between, never joining a draw ahead of it", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const seen: string[] = []
+    const { emit } = inside
+    inside.emit = function (target, payload) {
+      if (payload.type === "resized") seen.push("resized")
+      else if (payload.type === "output")
+        for (const mark of ["DRAW-A", "DRAW-B", "DRAW-C"])
+          if (payload.data?.includes(mark)) seen.push(mark)
+      emit.call(this, target, payload)
+    }
+    try {
+      // Output, a resize as a pane changes size, and the program's redraw after it.
+      inside.output(record, record.process, "DRAW-A")
+      inside.applySize(record, { cols: 100, rows: 30 })
+      inside.output(record, record.process, "DRAW-B")
+      // Output while a draw waits, with nothing between, still joins it.
+      inside.output(record, record.process, "DRAW-C")
+      await vi.waitFor(() => expect(seen).toHaveLength(4))
+      expect(seen).toEqual(["DRAW-A", "resized", "DRAW-B", "DRAW-C"])
+    } finally {
+      inside.emit = emit
+    }
+  })
+})
+
 describe("a turn the person's Escape ended", () => {
   type Inside = {
     records: Map<string, { binding: unknown; activity: Activity | null }>
@@ -1602,6 +1651,89 @@ describe("a turn the person's Escape ended", () => {
       }
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it("reads completed with no Stop, on Windows, where Antigravity's transcript holds the reply and its screen shows no interruption", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside & { screenOf: (id: string) => Promise<unknown> }
+    const record = inside.records.get(terminal.id)! as {
+      transcript: string | null
+    } & (typeof inside.records extends Map<string, infer R> ? R : never)
+    const binding = { agent: "agy", sessionId: "s", instance: null } as const
+    record.binding = binding
+    const directory = mkdtempSync(join(tmpdir(), "novadeck-escape-"))
+    const asked = JSON.stringify({
+      source: "USER_EXPLICIT",
+      type: "USER_INPUT",
+      content: "Hold on",
+    })
+    const answered = JSON.stringify({
+      source: "MODEL",
+      type: "PLANNER_RESPONSE",
+      content: "Too late.",
+    })
+    // Antigravity's screen after the turn: its reply, maybe its word that the Escape
+    // stopped it, then its box; or no box at all, as mid-redraw.
+    const rule = "─".repeat(60)
+    const shown = (word: boolean) => {
+      const rows = [
+        "> Hold on",
+        "",
+        "  Too late.",
+        ...(word ? ["", "  ⎿  Interrupted · What should Antigravity CLI do instead?"] : []),
+        rule,
+        "> ",
+        rule,
+      ]
+      return screenWith({ rows, cursor: { row: rows.length - 2, column: 2 } })
+    }
+    const windows = process.platform === "win32"
+    const cases = [
+      [
+        "the reply, shown alone",
+        [asked, answered],
+        shown(false),
+        windows ? "completed" : "interrupted",
+      ],
+      ["the reply, with the interruption", [asked, answered], shown(true), "interrupted"],
+      [
+        "the reply, with no box to read",
+        [asked, answered],
+        screenWith({ rows: ["$ "] }),
+        "interrupted",
+      ],
+      ["no reply since the prompt", [answered, asked], shown(false), "interrupted"],
+    ] as const
+    try {
+      for (const [what, lines, screen, outcome] of cases) {
+        record.transcript = join(directory, `${randomUUID()}.jsonl`)
+        writeFileSync(record.transcript, `${lines.join("\n")}\n`)
+        inside.screenOf = () => Promise.resolve(screen)
+        record.activity = fresh(0, true, false)
+        inside.applyFact(record, {
+          ...binding,
+          type: "turn-started",
+          cause: "prompt",
+          startedAt: 10,
+        })
+        inside.messaging.escaped = () => ({ ...binding, type: "turn-escaped", startedAt: 20 })
+        inside.escaped(record)
+        // eslint-disable-next-line no-await-in-loop -- Each case waits for its own verdict.
+        await vi.waitFor(
+          () => expect(record.activity?.lastTurn?.escaped?.settled ?? true).toBe(true),
+          { timeout: escapeVerdictMs + 2000 },
+        )
+        expect(record.activity?.lastTurn?.outcome, what).toBe(outcome)
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
     }
   })
 })

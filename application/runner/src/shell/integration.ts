@@ -2,6 +2,7 @@ import { basename, delimiter } from "node:path"
 
 import type { InstalledShell } from "./install.js"
 import { fishQuote, psQuote } from "./scripts.js"
+import { pathKey } from "./windows-path.js"
 
 /**
  * How to start a shell so it loads Novadeck's integration after the user's own setup;
@@ -29,10 +30,6 @@ const startingShells = new Set(["bash", "zsh", "fish", "pwsh", "powershell", "cm
 
 /** Whether Novadeck's integration for `shell` runs a startup command; see `shellLaunch`. */
 export const startsCommands = (shell: string): boolean => startingShells.has(shellName(shell))
-
-// Windows keeps PATH as "Path"; whichever spelling the environment uses is the one to set.
-const pathKey = (env: NodeJS.ProcessEnv): string =>
-  Object.keys(env).find((name) => name.toUpperCase() === "PATH") ?? "PATH"
 
 /**
  * Arguments and environment that load the integration for shells Novadeck knows, the

@@ -135,8 +135,19 @@ export type DeliveryState = Delivery["state"]
 /** Novadeck continues a root turn at most this often, by its own count, then lets it end. */
 export const maxContinuations = 2
 
+/**
+ * How soon after the person's bare Enter a root turn's hook must start for the turn to be
+ * their submission, on a platform. On Windows the hook's shell starts first (PowerShell
+ * for Claude Code and Codex, cmd for Antigravity), which takes seconds on a busy machine:
+ * on CI a prompt whose hook started past 2 s went without the messages waiting for it,
+ * delivered at the turn's Stop instead (2026-10-10). The wider window there may take a
+ * turn the agent starts by itself soon after a bare Enter as the person's.
+ */
+export const submitWindowFor = (platform: NodeJS.Platform): number =>
+  platform === "win32" ? 20_000 : 2_000
+
 /** How soon after the person's bare Enter a root turn must start to be their submission. */
-export const submitWindowMs = 2_000
+export const submitWindowMs = submitWindowFor(process.platform)
 
 /**
  * A key the person sent, as `terminals/keys.ts` tells it: a bare Enter, a harness's queue

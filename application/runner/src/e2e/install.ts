@@ -29,16 +29,23 @@ const npmPin = z.strictObject({
   bin: z.string().min(1),
 })
 
-// A harness published only as an archive, as Antigravity is: the release's address,
-// which names its version and stays put, its SHA-512, the program inside it, and the
-// manifest its own installer reads for the newest release.
-const archivePin = z.strictObject({
+// One platform's release of a harness published only as a download, as Antigravity is:
+// its address, which names its version and stays put, its SHA-512, the manifest its own
+// installer reads for the newest release there, and the program inside it when it is an
+// archive (`member`), or none when the download is the program itself.
+const platformRelease = z.strictObject({
   archive: z.url(),
   sha512: z.string().regex(/^[0-9a-f]{128}$/),
   manifest: z.url(),
+  member: z.string().min(1).optional(),
+})
+
+// Such a harness: its version, the program's name as Novadeck runs it, and its release
+// for each platform the tests run on, by `<platform>-<arch>` as Node names them.
+const archivePin = z.strictObject({
   version: z.string().regex(versionPattern),
-  member: z.string().min(1),
   bin: z.string().min(1),
+  releases: z.partialRecord(z.enum(["linux-x64", "win32-x64"]), platformRelease),
 })
 
 const pin = z.union([npmPin, archivePin])
@@ -85,24 +92,50 @@ const installEnvironment = (cache: string): NodeJS.ProcessEnv => {
   const proxies = Object.entries(process.env).filter(([name]) =>
     /^(https?_proxy|no_proxy)$/i.test(name),
   )
+  const home = join(cache, "home")
+  const windows = process.platform === "win32"
+  const root = process.env.SystemRoot ?? "C:\\Windows"
   return {
     ...Object.fromEntries(proxies),
-    HOME: join(cache, "home"),
-    USERPROFILE: join(cache, "home"),
+    HOME: home,
+    USERPROFILE: home,
     DBUS_SESSION_BUS_ADDRESS: `unix:path=${join(cache, "no-bus")}`,
-    PATH: [dirname(process.execPath), "/usr/bin", "/bin"].join(
-      process.platform === "win32" ? ";" : ":",
-    ),
-    ...(process.platform === "win32" && { SystemRoot: process.env.SystemRoot ?? "C:\\Windows" }),
+    PATH: [
+      dirname(process.execPath),
+      ...(windows ? [join(root, "System32"), root] : ["/usr/bin", "/bin"]),
+    ].join(delimiter),
+    // On Windows npm keeps its cache and a package's install script its files by these,
+    // never HOME, and cmd, which runs npm, needs the system's own.
+    ...(windows && {
+      SystemRoot: root,
+      ComSpec: process.env.ComSpec ?? join(root, "System32", "cmd.exe"),
+      PATHEXT: process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
+      APPDATA: join(home, "AppData", "Roaming"),
+      LOCALAPPDATA: join(home, "AppData", "Local"),
+      TEMP: join(cache, "tmp"),
+      TMP: join(cache, "tmp"),
+    }),
   }
 }
 
-const run = (args: readonly string[], cache: string) =>
-  promisify(execFile)(npm(), [...args], {
-    env: installEnvironment(cache),
-    shell: process.platform === "win32",
-    maxBuffer: 16 * 1024 * 1024,
+// A word for cmd's command line: quoted where it holds a space or a character cmd reads.
+const cmdWord = (word: string): string => (/^[\w@.:\\/=-]+$/.test(word) ? word : `"${word}"`)
+
+/**
+ * Runs npm with its arguments. On Windows npm is npm.cmd, which only cmd runs: the command
+ * line goes to cmd whole, each word quoted where it needs it, as npm's own folder may be
+ * `C:\Program Files\nodejs`, which cmd would split at its space.
+ */
+const run = (args: readonly string[], cache: string) => {
+  const settings = { env: installEnvironment(cache), maxBuffer: 16 * 1024 * 1024 }
+  if (process.platform !== "win32") return promisify(execFile)(npm(), [...args], settings)
+  const line = [npm(), ...args].map(cmdWord).join(" ")
+  return promisify(execFile)(settings.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `"${line}"`], {
+    ...settings,
+    windowsHide: true,
+    windowsVerbatimArguments: true,
   })
+}
 
 /**
  * How long a newest release looked up stands: long enough for a run that installs with
@@ -185,7 +218,7 @@ export const installHarness = (name: HarnessName): Promise<Installed> => {
   const known = installs.get(key)
   if (known) return known
   const found = pinOf(name)
-  const install = "archive" in found ? installArchive(name, found) : installPackage(name, found)
+  const install = "releases" in found ? installArchive(name, found) : installPackage(name, found)
   installs.set(key, install)
   return install
 }
@@ -218,6 +251,7 @@ const installPackage = async (
 ): Promise<Installed> => {
   const cache = cacheFolder()
   await mkdir(join(cache, "home"), { recursive: true })
+  await mkdir(join(cache, "tmp"), { recursive: true })
   const { package: spec, bin } = found
   const wanted = await npmVersion(name, found, cache)
   const folder = join(cache, `${name}-${wanted}`)
@@ -258,54 +292,67 @@ const release = z.strictObject({ version: z.string(), url: z.url(), sha512: z.st
 
 /**
  * The release to install: the pinned one, or with `NOVADECK_E2E_HARNESS=latest`, the
- * newest the harness's manifest names, with that manifest's SHA-512, looked up once for
+ * newest the platform's manifest names, with that manifest's SHA-512, looked up once for
  * every run within the hour (`latestRelease`).
  */
 const archiveRelease = async (
   name: HarnessName,
   found: z.infer<typeof archivePin>,
+  platform: z.infer<typeof platformRelease>,
 ): Promise<Release> => {
   if (process.env.NOVADECK_E2E_HARNESS !== "latest")
-    return { version: found.version, url: found.archive, sha512: found.sha512 }
+    return { version: found.version, url: platform.archive, sha512: platform.sha512 }
   return latestRelease(latestFile(name), release, async () => {
-    const response = await fetch(found.manifest)
-    if (!response.ok) throw new Error(`${found.manifest} answered ${response.status}`)
+    const response = await fetch(platform.manifest)
+    if (!response.ok) throw new Error(`${platform.manifest} answered ${response.status}`)
     const { version, url, sha512 } = release.loose().parse(await response.json())
-    return { version: safeVersion(version, found.manifest), url, sha512 }
+    return { version: safeVersion(version, platform.manifest), url, sha512 }
   })
 }
 
 /**
- * Installs a harness published as an archive: downloads the release, checks it against
- * its SHA-512 before anything of it runs, and keeps only its program, named as Novadeck
- * runs it. Only Linux on x86-64 is pinned.
+ * Installs a harness published as a download: fetches this platform's release, checks it
+ * against its SHA-512 before anything of it runs, and keeps only its program, named as
+ * Novadeck runs it (`agy`, or `agy.exe` on Windows): the archive's member, or the
+ * download itself when it is the program.
  */
 const installArchive = async (
   name: HarnessName,
   found: z.infer<typeof archivePin>,
 ): Promise<Installed> => {
-  if (process.platform !== "linux" || process.arch !== "x64")
-    throw new Error(`${name}'s end-to-end tests run on Linux x86-64 only`)
-  const wanted = await archiveRelease(name, found)
+  const key = `${process.platform}-${process.arch}`
+  const platform = found.releases[key as keyof typeof found.releases]
+  if (!platform)
+    throw new Error(
+      `harnesses.json pins no ${name} release for ${key}: only ${Object.keys(found.releases).join(", ")}`,
+    )
+  const wanted = await archiveRelease(name, found, platform)
   const folder = join(cacheFolder(), `${name}-${wanted.version}`)
   const bins = join(folder, "bin")
+  const program = process.platform === "win32" ? `${found.bin}.exe` : found.bin
   const installed = { bin: bins, version: wanted.version }
-  if (existsSync(join(bins, found.bin))) return installed
+  if (existsSync(join(bins, program))) return installed
   // Unpacked beside it first, then moved into place whole, as a package is.
   const staging = stagingFor(folder)
   await mkdir(join(staging, "bin"), { recursive: true })
   try {
     const response = await fetch(wanted.url)
     if (!response.ok) throw new Error(`${wanted.url} answered ${response.status}`)
-    const archive = Buffer.from(await response.arrayBuffer())
-    const sha512 = createHash("sha512").update(archive).digest("hex")
+    const download = Buffer.from(await response.arrayBuffer())
+    const sha512 = createHash("sha512").update(download).digest("hex")
     if (sha512 !== wanted.sha512)
       throw new Error(`${wanted.url} doesn't match its SHA-512: got ${sha512}`)
-    await writeFile(join(staging, "release.tar.gz"), archive)
-    await promisify(execFile)("tar", ["-xzf", "release.tar.gz", found.member], { cwd: staging })
-    await rename(join(staging, found.member), join(staging, "bin", found.bin))
-    await rm(join(staging, "release.tar.gz"))
-    await settle(staging, folder, join(bins, found.bin))
+    if (platform.member === undefined) {
+      await writeFile(join(staging, "bin", program), download, { mode: 0o755 })
+    } else {
+      await writeFile(join(staging, "release.tar.gz"), download)
+      await promisify(execFile)("tar", ["-xzf", "release.tar.gz", platform.member], {
+        cwd: staging,
+      })
+      await rename(join(staging, platform.member), join(staging, "bin", program))
+      await rm(join(staging, "release.tar.gz"))
+    }
+    await settle(staging, folder, join(bins, program))
   } finally {
     await rm(staging, { recursive: true, force: true })
   }

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import { access } from "node:fs/promises"
+import { access, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
 
@@ -7,6 +7,7 @@ import type { AgentIntegration, AgentName } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import type { ShellPaths } from "../shell/scripts.js"
+import { refreshPath } from "../shell/windows-path.js"
 import type { Harness, Install } from "./harness.js"
 import { agents, harnesses } from "./registry.js"
 
@@ -38,15 +39,9 @@ const cmdLine = (argv: readonly string[]): string =>
 const loginVariables = new Set(["PATH", "CLAUDE_CONFIG_DIR", "CODEX_HOME"])
 const marker = "__NOVADECK_ENV__"
 
-/**
- * The environment the person has in a terminal: their login shell's startup files put
- * agents on PATH, and may move their homes, even when the app was started from a
- * desktop menu. Only `echo` and `env` run in that shell, so any shell will do. Windows
- * programs get the person's environment already.
- */
-const loginEnvironment = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform) =>
+// What the login shell's startup files set; see `loginEnvironment`.
+const loginShellEnvironment = (env: NodeJS.ProcessEnv) =>
   new Promise<NodeJS.ProcessEnv>((resolve) => {
-    if (platform === "win32") return resolve(env)
     let output = ""
     let done = false
     // Startup files may print before the marker's own line; a shell may also echo it in
@@ -82,6 +77,15 @@ const loginEnvironment = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform) =>
     child.on("error", finish)
     child.on("exit", () => setTimeout(finish, 100))
   })
+
+/**
+ * The environment the person has in a terminal: their login shell's startup files put
+ * agents on PATH, and may move their homes, even when the app was started from a
+ * desktop menu. Only `echo` and `env` run in that shell, so any shell will do. Windows
+ * keeps PATH in the registry instead, read anew there; see `refreshPath`.
+ */
+const loginEnvironment = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform) =>
+  platform === "win32" ? refreshPath(env, { platform }) : loginShellEnvironment(env)
 
 // The program to run: the one on PATH, or where the harness's installer puts it otherwise.
 const locate = async (program: string, harness: Harness, install: Install): Promise<string> => {
@@ -173,7 +177,65 @@ export const createHarnesses = (
   }
   // One change at a time: an agent's plugin commands edit its configuration.
   let queue = Promise.resolve()
-  return {
+  // The agents the person asked to disconnect, until that is done.
+  const disconnecting = new Set<AgentName>()
+  const queued = <T>(work: () => Promise<T>): Promise<T> => {
+    const change = queue.then(work)
+    queue = change.then(
+      () => {},
+      () => {},
+    )
+    return change
+  }
+  // Installs or removes the plugin in the agent, as `set` does, in its turn.
+  const apply = async (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
+    const install = await installs(true)
+    const env = latest ?? base
+    const settings = { env, platform, timeoutMs }
+    if (!install) throw new DomainError("AGENT_SETUP_FAILED", "Shell integration is unavailable.")
+    const harness = harnesses[agent]
+    const where = install(agent)
+    if (!(await exists(harness.home(where))))
+      throw new DomainError("AGENT_SETUP_FAILED", `${agent} is not installed here.`)
+    const settle = async (step: "apply" | "revert") => {
+      try {
+        await harness.settings?.[step](where)
+      } catch (error) {
+        throw new DomainError(
+          "AGENT_SETUP_FAILED",
+          error instanceof Error ? error.message : String(error),
+        )
+      }
+    }
+    // A reinstall left unfinished is the person's to undo: disconnected, it stays so.
+    if (!connected) await rm(reinstalling(where), { force: true })
+    // Its own settings go back before its plugin does, so nothing names a missing hook.
+    if (!connected) await settle("revert")
+    for (const command of connected ? harness.connect(where) : harness.disconnect) {
+      try {
+        const [program = "", ...args] = command.argv
+        // eslint-disable-next-line no-await-in-loop -- Each step needs the one before.
+        const located = platform === "win32" ? program : await locate(program, harness, where)
+        // eslint-disable-next-line no-await-in-loop -- As above.
+        await run([located, ...args], settings)
+      } catch (error) {
+        if (command.optional) continue
+        throw new DomainError(
+          "AGENT_SETUP_FAILED",
+          error instanceof Error ? error.message : String(error),
+        )
+      }
+    }
+    const after = await state(harness, where)
+    if (after.connected !== connected)
+      throw new DomainError(
+        "AGENT_SETUP_FAILED",
+        `${agent} did not ${connected ? "install" : "remove"} Novadeck's plugin.`,
+      )
+    if (connected) await settle("apply")
+    return after
+  }
+  const api = {
     /** Where the agent lives on this machine, once the shell files say where its plugin is. */
     install: async (agent: AgentName): Promise<Install | undefined> => (await installs())?.(agent),
     /** Whether Novadeck's plugin is installed into the agent. */
@@ -200,59 +262,92 @@ export const createHarnesses = (
     },
     /** Installs or removes Novadeck's plugin in the agent; resolves to where it stands after. */
     set: (agent: AgentName, connected: boolean): Promise<AgentIntegration> => {
-      const change = queue.then(async () => {
-        const install = await installs(true)
-        const env = latest ?? base
-        const settings = { env, platform, timeoutMs }
-        if (!install)
-          throw new DomainError("AGENT_SETUP_FAILED", "Shell integration is unavailable.")
-        const harness = harnesses[agent]
-        const where = install(agent)
-        if (!(await exists(harness.home(where))))
-          throw new DomainError("AGENT_SETUP_FAILED", `${agent} is not installed here.`)
-        const settle = async (step: "apply" | "revert") => {
-          try {
-            await harness.settings?.[step](where)
-          } catch (error) {
-            throw new DomainError(
-              "AGENT_SETUP_FAILED",
-              error instanceof Error ? error.message : String(error),
-            )
-          }
-        }
-        // Its own settings go back before its plugin does, so nothing names a missing hook.
-        if (!connected) await settle("revert")
-        for (const command of connected ? harness.connect(where) : harness.disconnect) {
-          try {
-            const [program = "", ...args] = command.argv
-            // eslint-disable-next-line no-await-in-loop -- Each step needs the one before.
-            const located = platform === "win32" ? program : await locate(program, harness, where)
-            // eslint-disable-next-line no-await-in-loop -- As above.
-            await run([located, ...args], settings)
-          } catch (error) {
-            if (command.optional) continue
-            throw new DomainError(
-              "AGENT_SETUP_FAILED",
-              error instanceof Error ? error.message : String(error),
-            )
-          }
-        }
-        const after = await state(harness, where)
-        if (after.connected !== connected)
-          throw new DomainError(
-            "AGENT_SETUP_FAILED",
-            `${agent} did not ${connected ? "install" : "remove"} Novadeck's plugin.`,
-          )
-        if (connected) await settle("apply")
-        return after
-      })
-      queue = change.then(
-        () => {},
-        () => {},
+      if (connected) return queued(() => apply(agent, true))
+      // The person's disconnect stands from when it is asked for: a refresh queued ahead of
+      // it leaves the agent alone, and a quit before it runs leaves no reinstall to finish.
+      disconnecting.add(agent)
+      void installs().then((install) =>
+        install ? rm(reinstalling(install(agent)), { force: true }) : undefined,
       )
-      return change
+      return queued(() => apply(agent, false)).finally(() => disconnecting.delete(agent))
+    },
+    /**
+     * Installs the plugin again into each connected agent that keeps a copy of it whose
+     * files differ from Novadeck's (`Harness.installed`), as a connect would: a hook that
+     * renders otherwise now, as where cmd prints first, reaches it no other way. Each looks
+     * and installs in its turn among `set`'s changes, so a disconnect asked for first
+     * stands. A reinstall is marked until it is done, so one a quit cut short between its
+     * uninstall and its install, which leaves the agent looking disconnected, is finished
+     * at the next start. Resolves to the agents it installed into; one that fails is
+     * logged, and the rest go on.
+     */
+    refresh: async (): Promise<AgentName[]> => {
+      const install = await installs()
+      if (!install) return []
+      const refreshed: AgentName[] = []
+      for (const agent of agents) {
+        const { installed } = harnesses[agent]
+        if (!installed) continue
+        const where = install(agent)
+        try {
+          // eslint-disable-next-line no-await-in-loop -- One agent at a time, as `set` runs them.
+          const done = await queued(async () => {
+            if (disconnecting.has(agent)) return false
+            // An agent uninstalled since keeps no unfinished reinstall, nor takes one later.
+            if (!(await exists(harnesses[agent].home(where)))) {
+              await rm(reinstalling(where), { force: true })
+              return false
+            }
+            const unfinished = await exists(reinstalling(where))
+            const connected = await harnesses[agent].connected(where)
+            if (!connected && !unfinished) return false
+            if (connected && !(await differing(installed, where))) {
+              if (unfinished) await rm(reinstalling(where), { force: true })
+              return false
+            }
+            await writeFile(reinstalling(where), "")
+            await apply(agent, true)
+            await rm(reinstalling(where), { force: true })
+            // An agent that rewrites what it copies would be installed again at every start.
+            if (await differing(installed, where))
+              console.error(
+                `Novadeck installed its plugin into ${agent} again, and its copy still differs from Novadeck's: ${installed.files.join(", ")}.`,
+              )
+            return true
+          })
+          if (done) refreshed.push(agent)
+        } catch (error) {
+          console.error(`Novadeck could not install its changed plugin into ${agent}:`, error)
+        }
+      }
+      return refreshed
     },
   }
+  return api
+}
+
+// Marks a reinstall `refresh` began, beside Novadeck's own copy of the plugin, until done.
+const reinstalling = (where: Install): string => `${where.plugin}.reinstalling`
+
+// A plugin file's text, or undefined where it isn't there.
+const read = (folder: string, name: string) =>
+  readFile(join(folder, name), "utf8").catch(() => undefined)
+
+// Whether the agent's copy of the plugin differs from Novadeck's in any file that must match.
+const differing = async (
+  installed: NonNullable<Harness["installed"]>,
+  where: Install,
+): Promise<boolean> => {
+  const differs = await Promise.all(
+    installed.files.map(async (name) => {
+      const [ours, theirs] = await Promise.all([
+        read(where.plugin, name),
+        read(installed.directory(where), name),
+      ])
+      return ours !== undefined && ours !== theirs
+    }),
+  )
+  return differs.includes(true)
 }
 
 export type Harnesses = ReturnType<typeof createHarnesses>

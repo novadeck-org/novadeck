@@ -2140,6 +2140,10 @@ describe("Claude Code's ExitPlanMode", () => {
       dialogs.read(rows, { ...facts, input: { planFilePath: "/home/.claude/plans/other.md" } }),
     ).toBeUndefined()
     expect(dialogs.read(swap(rows, "ctrl+g to edit", "ctrl+x to edit"), facts)).toBeUndefined()
+    // The editor ctrl+g opens is whichever its hint names: Notepad on Windows.
+    expect(dialogs.read(swap(rows, "edit in Vim", "edit in Notepad"), facts)?.dialog).toEqual(
+      dialog.dialog,
+    )
     expect(
       dialogs.read(
         rows.flatMap((row) => (row.includes("3. Tell") ? [row, "     4. Other"] : [row])),

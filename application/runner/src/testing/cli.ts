@@ -57,12 +57,20 @@ export const launchCli = async (directory: string, resources: Resources) => {
     if (process.platform === "win32") {
       if (child.pid === undefined) throw new Error("Runner did not acquire a process ID")
       // Node cannot handle SIGTERM on Windows. Kill only this test's owned tree,
-      // including any PTY still alive when an assertion failed.
-      await bounded(
+      // including any PTY still alive when an assertion failed. taskkill fails as a whole
+      // where a process of the tree is already on its way out ("The operation attempted is
+      // not supported"), though it ended the rest: what counts is that the runner exits.
+      const killed = await bounded(
         execute("taskkill", ["/PID", String(child.pid), "/T", "/F"]),
         "Runner process tree did not stop",
+      ).then(
+        () => undefined,
+        (error: unknown) => error,
       )
-      return bounded(exited, "Runner did not exit after taskkill")
+      return bounded(
+        exited,
+        `Runner did not exit after taskkill${killed === undefined ? "" : `: ${String(killed)}`}`,
+      )
     }
     child.kill("SIGTERM")
     try {

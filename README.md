@@ -310,7 +310,10 @@ way do not show in `codex agents`.
 Antigravity runs the hook before each model call, and Codex with your first message,
 so their sessions are known from then on; before that, Codex's title and Antigravity's
 status line tell Novadeck that their prompt is up, so other agents' messages can wake
-them. On Windows, Claude Code runs the hook through PowerShell.
+them. On Windows, Claude Code and Codex run the hook through PowerShell and Antigravity
+through cmd, which can't run your own Antigravity status line after Novadeck's: there
+Novadeck leaves yours as it is, and knows Antigravity's prompt is up only once you have
+sent it something.
 
 Removing Novadeck does not remove plugins you left connected, as packaged builds have
 no uninstaller: switch agents off first, or remove the `novadeck` plugin with the
@@ -615,7 +618,8 @@ sample agents' plans and artifacts), `plain`, `agents` (its seven projects each 
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages` or `welcome`. The
 Demo group switches between them without reloading, and the browser tab remembers the
-last one chosen.
+last one chosen. `&turnMs=` sets how long a demo agent's turn works (1500 ms unless
+given), as a spec does that must act on the screen before the turn ends.
 
 - **All at once:** add one terminal per state, named after it, so the tabs and the
   windows in Grid and Canvas show attention, done, error, ended and the rest side by

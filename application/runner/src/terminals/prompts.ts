@@ -153,6 +153,15 @@ export class Prompts {
   ): Promise<void> {
     await this.ringDone(terminalId)
     const profile = this.host.admit(terminalId)
+    // A command as its harness's shell mode runs it the way sh runs what was written; one
+    // its shell can't run as written means is refused before any key.
+    const given = shell && profile.shell.command ? profile.shell.command(text) : text
+    if (given === undefined)
+      throw new DomainError(
+        "PROMPT_REFUSED",
+        "The agent's shell runs only a command's first line, and these lines can't be joined to run as written: a remark or label (rem, ::, :label), a % variable, which cmd would expand for every line at once, an unpaired double quote, a line ending in ^, (, & or |, or one starting with ), & or |. Send it as one line, or run it in the terminal.",
+      )
+    const typed = given || text
     // The first prompt of an agent shown before its session binds starts that session, as a
     // shell command does only where its harness starts one for it.
     const starts = !this.host.bound(terminalId) && (!shell || profile.shell.starts)
@@ -180,8 +189,8 @@ export class Prompts {
       // A text that shows whole in a box with no room for it has no first row to read,
       // and would stay as a draft the next prompt is refused for.
       if (
-        !profile.collapses(text) &&
-        wrappedRows(text, before.columns) + wrapMargin > profile.room(before.rows.length)
+        !profile.collapses(typed) &&
+        wrappedRows(typed, before.columns) + wrapMargin > profile.room(before.rows.length)
       )
         throw new DomainError(
           "CONFLICT",
@@ -213,10 +222,10 @@ export class Prompts {
         }
       }
       // A person's paste, whose line breaks the TUI takes as text, never as Enter.
-      if (!this.host.type(terminalId, bracketedPaste(inPaste(text)))) throw this.failed()
+      if (!this.host.type(terminalId, bracketedPaste(inPaste(typed)))) throw this.failed()
       const landed = await this.landed(
         terminalId,
-        text,
+        typed,
         profile,
         shell ? "shell" : "prompt",
         hold.holding,

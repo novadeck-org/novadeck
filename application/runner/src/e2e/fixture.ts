@@ -7,22 +7,28 @@ import { beforeAll, type TestFunction } from "vitest"
 import { it as base } from "../test.js"
 import type { AgentSetup, Seed } from "./agents/agent.js"
 import { setups as every } from "./agents/index.js"
+import { harnessLogins } from "./credentials.js"
 import { createDeck, type Deck } from "./deck.js"
 import { installHarness } from "./install.js"
 import { startFakeModel, type FakeModel } from "./model/server.js"
 import { reap } from "./reap.js"
 import { createSandbox, type Sandbox } from "./sandbox.js"
+import { startTrace, tracesAll, tracing } from "./trace.js"
 import { tripwire } from "./tripwire.js"
 
 export { describe, expect } from "../test.js"
 
 /**
- * Whether the suite can run here: Linux only. Elsewhere the sandbox's dead D-Bus address
- * doesn't keep a harness from the developer's keyring, as the macOS Keychain needs no
- * bus, and the leftover-process check reads /proc. A scenario file can skip on it
- * (`describe.skipIf(!supported)`); a test that runs anyway fails, saying why.
+ * Whether the suite can run here: Linux and Windows. On macOS the sandbox's dead D-Bus
+ * address doesn't keep a harness from the developer's keyring, as the Keychain needs no
+ * bus. On Windows the sandbox moves the user's folders too (see `createSandbox`), where
+ * Claude Code and Codex keep their credentials in files; Antigravity keeps its login in
+ * the Credential Manager, which no sandbox hides, so a test refuses to start while that
+ * login is there (see `harnessLogins`). The leftover-process check asks the system
+ * rather than /proc. A scenario file can skip on it (`describe.skipIf(!supported)`);
+ * a test that runs anyway fails, saying why.
  */
-export const supported = process.platform === "linux"
+export const supported = process.platform === "linux" || process.platform === "win32"
 
 /**
  * The harnesses this run tests, from `NOVADECK_E2E_AGENTS`: their names, comma-separated
@@ -60,13 +66,28 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
     if (supported && runs) await Promise.all(setups.map((setup) => installHarness(setup.agent)))
   })
   const test = base.extend<{ e2e: E2E }>({
-    e2e: async ({ resources }, use) => {
+    e2e: async ({ resources, task, onTestFailed }, use) => {
       if (!supported)
         throw new Error(
-          `The end-to-end suite runs on Linux only, not ${process.platform}: elsewhere nothing keeps a harness from the developer's keyring`,
+          `The end-to-end suite runs on Linux and Windows, not ${process.platform}: there nothing keeps a harness from the developer's keyring`,
+        )
+      // A login in Windows' Credential Manager would be the developer's own, which no
+      // sandbox hides: nothing starts while one is there.
+      const logins = harnessLogins(setups)
+      if (logins.length > 0)
+        throw new Error(
+          `Windows' Credential Manager holds a login of a harness under test (${logins.join(", ")}), which the sandbox can't hide from it: sign that harness out, or leave it out with NOVADECK_E2E_AGENTS`,
         )
       const model = await startFakeModel({ dialects: setups.map((setup) => setup.dialect) })
       resources.defer(() => model.close())
+      // What the runner heard and did, written where CI keeps it should the test fail;
+      // nothing is wrapped where no trace is asked for.
+      if (tracing) {
+        const trace = startTrace(task.fullName, model)
+        resources.defer(() => trace.stop())
+        onTestFailed(() => trace.write())
+        if (tracesAll) resources.defer(() => trace.write())
+      }
       // Installed before the file's tests: these are the same installs, already done.
       const installs = await Promise.all(setups.map((setup) => installHarness(setup.agent)))
       const sandbox = createSandbox({ proxy: model.proxy, bins: installs.map((one) => one.bin) })
@@ -133,6 +154,9 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
         // Reported here too when a wait failed with it: a test may have swallowed that.
         ...(model.rejection() ? [model.rejection()!] : []),
         ...changed().map((path) => `the developer's harness home changed: ${path}`),
+        ...harnessLogins(setups).map(
+          (target) => `a login appeared in Windows' Credential Manager: ${target}`,
+        ),
         ...leftovers.map((one) => `a process outlived the deck in the sandbox: ${one}`),
       ]
       await model.close()

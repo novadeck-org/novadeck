@@ -310,10 +310,14 @@ const withFinishes = (backend: Backend): Backend => ({
 // messages between them, and the plain one with its first-run welcome dialog open.
 export type PlainVariant = "plain" | "agents" | "messages" | "welcome"
 
-export const plainDemo = (variant: PlainVariant, runtime?: DemoSurfaceRuntime): Backend => {
+export const plainDemo = (
+  variant: PlainVariant,
+  runtime?: DemoSurfaceRuntime,
+  turnMs?: number,
+): Backend => {
   // The agents demo's idle agents take a prompt, work a moment, and finish; its chats'
   // prompts drive the same turns.
-  const turns = demoTurns()
+  const turns = demoTurns(turnMs)
   const engine = createDemoEngine(variant === "agents" ? turns.reply : undefined)
   const backend = demoBackend(
     engine,
@@ -339,8 +343,16 @@ export const plainDemo = (variant: PlainVariant, runtime?: DemoSurfaceRuntime): 
   )
 }
 
-// The variant the address's hash asks for, as specs do with `?demo=`.
+// The variant the address's hash asks for, as specs do with `?demo=`, and how long an
+// agent's turn works with `&turnMs=`, as a spec does that must act on the screen before
+// the turn ends, which a busy machine may not in the usual 1.5 s.
 export const createDemoBackend: CreateBackend = () => {
-  const demo = new URLSearchParams(window.location.hash.split("?")[1]).get("demo")
-  return plainDemo(demo === "agents" || demo === "messages" || demo === "welcome" ? demo : "plain")
+  const params = new URLSearchParams(window.location.hash.split("?")[1])
+  const demo = params.get("demo")
+  const turnMs = Number(params.get("turnMs"))
+  return plainDemo(
+    demo === "agents" || demo === "messages" || demo === "welcome" ? demo : "plain",
+    undefined,
+    turnMs > 0 ? turnMs : undefined,
+  )
 }

@@ -1,6 +1,6 @@
 import { chmodSync, closeSync, mkdirSync, openSync, statSync } from "node:fs"
 import { realpath, stat } from "node:fs/promises"
-import { dirname, isAbsolute } from "node:path"
+import { basename, dirname, isAbsolute } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
 import {
@@ -278,7 +278,8 @@ const prepareSchema = (database: DatabaseSync, path: string): void => {
       throw new Error(
         `Novadeck's workspace database at ${path} was written by an earlier build: ` +
           `${difference}. Novadeck has no migrations before its first release, so delete ` +
-          "that file (it holds your projects, sessions and kept terminals) and start again.",
+          `it and the files beside it named ${basename(path)}-wal and -shm (they hold your ` +
+          "projects, sessions and kept terminals) and start again.",
       )
     database.exec("COMMIT")
   } catch (error) {
@@ -504,8 +505,12 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
   private lastSave = 0
+  // The checkpoint that empties the write-ahead log after something was forgotten.
+  private scrubbing: NodeJS.Timeout | undefined
+  private readonly scrubMs: number
 
-  constructor(path = ":memory:") {
+  constructor(path = ":memory:", { scrubMs = 1_000 }: { readonly scrubMs?: number } = {}) {
+    this.scrubMs = scrubMs
     if (path !== ":memory:") prepareFile(path)
     this.database = new DatabaseSync(path, {
       enableForeignKeyConstraints: true,
@@ -519,6 +524,14 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
     }
     // Transcripts may hold secrets: what is deleted is overwritten, not left in free pages.
     this.database.exec("PRAGMA secure_delete = ON")
+    // Every save writes synchronously, holding up the whole runner: with a rollback
+    // journal each one created, flushed and deleted a file, which took up to 3.4 s on a
+    // Windows CI runner (500 saves of one test run over 50 ms, against 7 on Linux), long
+    // enough for hooks to miss their deadlines. A write-ahead log appends to one file and
+    // flushes only as it checkpoints: a crash loses nothing, a power cut at most the last
+    // saves. SQLite gives the log and its index the database file's own permissions.
+    this.database.exec("PRAGMA journal_mode = WAL")
+    this.database.exec("PRAGMA synchronous = NORMAL")
     this.queries = this.database.createTagStore(64)
   }
 
@@ -560,19 +573,21 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
    */
   removeProject(projectId: string): void {
     this.project(projectId)
-    this.transaction(() => {
-      const sessions = "SELECT id FROM sessions WHERE project_id = ?"
-      // Its sessions' companion items and windows go with them, by their foreign keys.
-      for (const sql of [
-        "DELETE FROM messages WHERE project_id = ?",
-        "DELETE FROM message_threads WHERE project_id = ?",
-        `DELETE FROM terminals WHERE session_id IN (${sessions})`,
-        `DELETE FROM terminal_numbers WHERE session_id IN (${sessions})`,
-        "DELETE FROM sessions WHERE project_id = ?",
-        "DELETE FROM projects WHERE id = ?",
-      ])
-        this.database.prepare(sql).run(projectId)
-    })
+    this.forget(() =>
+      this.transaction(() => {
+        const sessions = "SELECT id FROM sessions WHERE project_id = ?"
+        // Its sessions' companion items and windows go with them, by their foreign keys.
+        for (const sql of [
+          "DELETE FROM messages WHERE project_id = ?",
+          "DELETE FROM message_threads WHERE project_id = ?",
+          `DELETE FROM terminals WHERE session_id IN (${sessions})`,
+          `DELETE FROM terminal_numbers WHERE session_id IN (${sessions})`,
+          "DELETE FROM sessions WHERE project_id = ?",
+          "DELETE FROM projects WHERE id = ?",
+        ])
+          this.database.prepare(sql).run(projectId)
+      }),
+    )
   }
 
   project(projectId: string): Project {
@@ -728,24 +743,53 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
   }
 
   removeTerminal(terminalId: string): void {
-    void this.queries.run`DELETE FROM terminals WHERE id = ${terminalId}`
+    this.forget(() => this.queries.run`DELETE FROM terminals WHERE id = ${terminalId}`)
   }
 
   forgetAgent(agent: AgentName): void {
-    const rows = this.queries.all`SELECT id, agents FROM terminals` as Pick<
-      TerminalRow,
-      "id" | "agents"
-    >[]
-    for (const row of rows) {
-      const { [agent]: forgotten, ...rest } = agentsOf(row.agents)
-      if (forgotten)
-        void this.queries
-          .run`UPDATE terminals SET agents = ${JSON.stringify(rest)} WHERE id = ${row.id}`
-    }
+    this.forget(() => {
+      const rows = this.queries.all`SELECT id, agents FROM terminals` as Pick<
+        TerminalRow,
+        "id" | "agents"
+      >[]
+      for (const row of rows) {
+        const { [agent]: forgotten, ...rest } = agentsOf(row.agents)
+        if (forgotten)
+          void this.queries
+            .run`UPDATE terminals SET agents = ${JSON.stringify(rest)} WHERE id = ${row.id}`
+      }
+    })
   }
 
   clearTranscripts(): void {
-    void this.queries.run`UPDATE terminals SET transcript = NULL`
+    this.forget(() => this.queries.run`UPDATE terminals SET transcript = NULL`)
+  }
+
+  /**
+   * Deletes what people saved, which may hold secrets, so that it stays nowhere but in
+   * pages `secure_delete` overwrote: the write-ahead log keeps the old pages until a
+   * checkpoint, so one moves the log into the database and empties it. It runs about a
+   * second later, once for whatever was forgotten meanwhile, as a checkpoint flushes the
+   * disk and each one would hold the runner up, and at the latest as the store closes.
+   */
+  private forget<T>(work: () => T): T {
+    const result = work()
+    this.scrubbing ??= setTimeout(() => this.scrub(), this.scrubMs)
+    this.scrubbing.unref()
+    return result
+  }
+
+  private scrub(): void {
+    clearTimeout(this.scrubbing)
+    this.scrubbing = undefined
+    if (!this.database.isOpen) return
+    // From a timer, nothing would catch it: a full disk's failure leaves the frames in
+    // the log until the next checkpoint, SQLite's own included, and the runner running.
+    try {
+      this.database.exec("PRAGMA wal_checkpoint(TRUNCATE)")
+    } catch (error) {
+      console.error("Novadeck could not scrub deleted content from its store's log:", error)
+    }
   }
 
   messages(): Message[] {
@@ -771,7 +815,9 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
   }
 
   removeMessages(ids: readonly string[]): void {
-    for (const id of ids) void this.queries.run`DELETE FROM messages WHERE id = ${id}`
+    this.forget(() => {
+      for (const id of ids) void this.queries.run`DELETE FROM messages WHERE id = ${id}`
+    })
   }
 
   threads(): Thread[] {
@@ -797,7 +843,9 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
   }
 
   removeThreads(ids: readonly string[]): void {
-    for (const id of ids) void this.queries.run`DELETE FROM message_threads WHERE id = ${id}`
+    this.forget(() => {
+      for (const id of ids) void this.queries.run`DELETE FROM message_threads WHERE id = ${id}`
+    })
   }
 
   messagingPaused(): boolean {
@@ -982,24 +1030,27 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
 
   /** TERMINAL_NOT_FOUND when the terminal is not kept. */
   dockItem(itemId: string, terminalId: string): Placed {
-    return this.transaction(() => {
-      const item = this.item(itemId)
-      if (!item) throw new DomainError("NOT_FOUND", "Item not found")
-      const left = item.windowId === null ? undefined : this.window(item.windowId)
-      const row = this.queries.get`
+    // An item docked where one with its pointer was replaces it, deleting its content.
+    return this.forget(() =>
+      this.transaction(() => {
+        const item = this.item(itemId)
+        if (!item) throw new DomainError("NOT_FOUND", "Item not found")
+        const left = item.windowId === null ? undefined : this.window(item.windowId)
+        const row = this.queries.get`
         SELECT * FROM companion_items
         WHERE terminal_id = ${terminalId} AND pointer_key = ${item.pointerKey} AND id <> ${itemId}
       ` as ItemRow | undefined
-      if (row) void this.queries.run`DELETE FROM companion_items WHERE id = ${row.id}`
-      referencing(
-        "TERMINAL_NOT_FOUND",
-        () => this.queries.run`
+        if (row) void this.queries.run`DELETE FROM companion_items WHERE id = ${row.id}`
+        referencing(
+          "TERMINAL_NOT_FOUND",
+          () => this.queries.run`
           UPDATE companion_items SET terminal_id = ${terminalId}, window_id = NULL
           WHERE id = ${itemId}`,
-      )
-      if (left) void this.queries.run`DELETE FROM companion_windows WHERE id = ${left.id}`
-      return { item: this.item(itemId)!, left, replaced: row && itemOf(row) }
-    })
+        )
+        if (left) void this.queries.run`DELETE FROM companion_windows WHERE id = ${left.id}`
+        return { item: this.item(itemId)!, left, replaced: row && itemOf(row) }
+      }),
+    )
   }
 
   undockItem(itemId: string, window: { readonly id: string; readonly createdAt: number }): Placed {
@@ -1024,15 +1075,17 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
   }
 
   removeItem(itemId: string): { item: ItemRecord; window: WindowRecord | undefined } | undefined {
-    return this.transaction(() => {
-      const item = this.item(itemId)
-      if (!item) return undefined
-      const window = item.windowId === null ? undefined : this.window(item.windowId)
-      // A window goes with its item, which its own deletion takes along.
-      if (window) void this.queries.run`DELETE FROM companion_windows WHERE id = ${window.id}`
-      else void this.queries.run`DELETE FROM companion_items WHERE id = ${itemId}`
-      return { item, window }
-    })
+    return this.forget(() =>
+      this.transaction(() => {
+        const item = this.item(itemId)
+        if (!item) return undefined
+        const window = item.windowId === null ? undefined : this.window(item.windowId)
+        // A window goes with its item, which its own deletion takes along.
+        if (window) void this.queries.run`DELETE FROM companion_windows WHERE id = ${window.id}`
+        else void this.queries.run`DELETE FROM companion_items WHERE id = ${itemId}`
+        return { item, window }
+      }),
+    )
   }
 
   renameWindow(windowId: string, title: string | null): boolean {
@@ -1055,6 +1108,8 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
   }
 
   close(): void {
+    // What was forgotten leaves the log before the store goes.
+    if (this.scrubbing) this.scrub()
     if (this.database.isOpen) {
       this.queries.clear()
       this.database.close()

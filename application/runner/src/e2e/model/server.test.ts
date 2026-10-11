@@ -72,6 +72,16 @@ const broken: Dialect = {
   },
 }
 
+// Half a body, then gone, as a harness the deck ended mid-request.
+const abandon = async (model: FakeModel) => {
+  const socket = connect(Number(new URL(model.url).port), "127.0.0.1")
+  socket.on("error", () => {})
+  socket.write("POST /broken HTTP/1.1\r\nHost: x\r\nContent-Length: 1000\r\n\r\n{")
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  socket.destroy()
+  await new Promise((resolve) => setTimeout(resolve, 200))
+}
+
 const it = base.extend<{ model: FakeModel }>({
   model: async ({ resources }, use) => {
     const model = await startFakeModel({
@@ -294,6 +304,16 @@ describe("startFakeModel", () => {
     expect(response.status).toBe(500)
     expect(model.errors).toEqual(["POST /broken/json: the body is not JSON"])
     expect(await response.text()).not.toContain("grant_type")
+  })
+
+  it("records nothing of a request its client gave up on as the deck closed", async ({ model }) => {
+    await model.ending(() => abandon(model))
+    expect(model.errors).toEqual([])
+  })
+
+  it("records a request its client gave up on at any other time", async ({ model }) => {
+    await abandon(model)
+    expect(model.errors).toEqual(["POST /broken: aborted"])
   })
 
   it("records a request its dialect doesn't serve as a stray", async ({ model }) => {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -13,6 +14,8 @@ import {
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
+
+import { vi } from "vitest"
 
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
@@ -39,6 +42,9 @@ const it = base.extend<{
     })
   },
 })
+
+// Whether a file holds `text`, as a secret it should have forgotten.
+const holds = (file: string, text: string) => existsSync(file) && readFileSync(file).includes(text)
 
 describe("workspace metadata", () => {
   it("persists project and session identities, renames, and order across database reopen", async ({
@@ -288,7 +294,7 @@ describe("workspace metadata", () => {
     const { message } = refusal as Error
     expect(message).toContain(path)
     expect(message).toContain("expects handle TEXT NOT NULL")
-    expect(message).toContain("delete that file")
+    expect(message).toContain("workspace.sqlite-wal and -shm")
     // Nothing was changed: the old terminal is there, and nothing was added.
     const database = new DatabaseSync(path)
     try {
@@ -406,10 +412,117 @@ describe("saved terminals", () => {
     expect(reopened.terminal(terminal.id)).toBeUndefined()
   })
 
-  it("overwrite forgotten transcripts, which may hold secrets", ({ directory, store }) => {
+  it("overwrite what they forget, which may hold secrets, and empty their log after", async ({
+    directory,
+    store,
+  }) => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+    try {
+      const cwd = directory()
+      const path = join(cwd, "workspace.sqlite")
+      const workspace = store(path)
+      const project = await workspace.createProject({ id: randomUUID(), name: "P", cwd })
+      const session = workspace.createSession({
+        id: randomUUID(),
+        projectId: project.id,
+        name: "S",
+      })
+      const terminal = (transcript: string, agentSession = "s1") => {
+        const id = randomUUID()
+        workspace.saveTerminal({
+          ...numbered(id, "t1"),
+          sessionId: session.id,
+          agents: { codex: { sessionId: agentSession, at: 1 } } as never,
+          transcript,
+        })
+        return id
+      }
+      // Each way something is forgotten: what it held, and the forgetting.
+      const forgetting: [string, string, () => void][] = [
+        [
+          "transcripts",
+          "SECRET_TRANSCRIPT_ONE",
+          () => (terminal("SECRET_TRANSCRIPT_ONE"), workspace.clearTranscripts()),
+        ],
+        [
+          "a terminal",
+          "SECRET_TRANSCRIPT_TWO",
+          () => workspace.removeTerminal(terminal("SECRET_TRANSCRIPT_TWO")),
+        ],
+        [
+          "an agent",
+          "SECRET_AGENT_SESSION",
+          () => (terminal("", "SECRET_AGENT_SESSION"), workspace.forgetAgent("codex")),
+        ],
+        [
+          "messages",
+          "SECRET_MESSAGE_TEXT",
+          () => {
+            const id = randomUUID()
+            const sent = { ...message(id, "queued"), projectId: project.id }
+            workspace.saveMessage({ ...sent, text: "SECRET_MESSAGE_TEXT" })
+            workspace.removeMessages([id])
+          },
+        ],
+        [
+          "threads",
+          "SECRET_THREAD_ID",
+          () => {
+            const between = ["a", "b"] as const
+            const thread = { projectId: project.id, between, hops: 1, allowed: 12, lastAt: 1 }
+            workspace.saveThread({ ...thread, id: "SECRET_THREAD_ID" })
+            workspace.removeThreads(["SECRET_THREAD_ID"])
+          },
+        ],
+        [
+          "an item",
+          "SECRET_ITEM_DETAIL",
+          () => {
+            const kept = item(session.id, keptTerminal(workspace, session.id, "t9"), "/work/x")
+            workspace.saveItem({ ...kept, detail: "SECRET_ITEM_DETAIL" })
+            workspace.removeItem(kept.id)
+          },
+        ],
+        [
+          "an item docked over",
+          "SECRET_REPLACED_DETAIL",
+          () => {
+            const there = keptTerminal(workspace, session.id, "t8")
+            const shown = item(session.id, there, "/work/y", { detail: "SECRET_REPLACED_DETAIL" })
+            workspace.saveItem(shown)
+            const moving = item(session.id, keptTerminal(workspace, session.id, "t7"), "/work/y")
+            workspace.saveItem(moving)
+            workspace.dockItem(moving.id, there)
+          },
+        ],
+      ]
+      for (const [what, secret, forget] of forgetting) {
+        forget()
+        // Its checkpoint waits a moment, for whatever else is forgotten meanwhile.
+        vi.advanceTimersByTime(999)
+        expect(statSync(`${path}-wal`).size, what).toBeGreaterThan(0)
+        vi.advanceTimersByTime(1)
+        expect(statSync(`${path}-wal`).size, what).toBe(0)
+        expect(holds(path, secret), what).toBe(false)
+      }
+      // A project goes with all it held; closing empties the log at once.
+      terminal("SECRET_PROJECT_TRANSCRIPT")
+      workspace.removeProject(project.id)
+      workspace.close()
+      expect(holds(path, "SECRET_PROJECT_TRANSCRIPT")).toBe(false)
+      expect(holds(`${path}-wal`, "SECRET_PROJECT_TRANSCRIPT")).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("write through a log as private as the database, so a save never flushes the disk", ({
+    directory,
+    store,
+  }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    const terminal = {
+    workspace.saveTerminal({
       id: randomUUID(),
       sessionId: "s",
       cwd: "/",
@@ -422,11 +535,16 @@ describe("saved terminals", () => {
       command: null,
       lastProgram: null,
       work: null,
+    })
+    const database = new DatabaseSync(path, { readOnly: true })
+    try {
+      expect(database.prepare("PRAGMA journal_mode").get()).toEqual({ journal_mode: "wal" })
+    } finally {
+      database.close()
     }
-    workspace.saveTerminal({ ...terminal, transcript: "SECRET_TRANSCRIPT_TEXT" })
-    workspace.clearTranscripts()
-    workspace.close()
-    expect(readFileSync(path).includes("SECRET_TRANSCRIPT_TEXT")).toBe(false)
+    if (process.platform !== "win32")
+      for (const file of [`${path}-wal`, `${path}-shm`])
+        expect(statSync(file).mode & 0o777).toBe(0o600)
   })
 
   it("keep every terminal until it is closed, listed by session in the order they came", ({

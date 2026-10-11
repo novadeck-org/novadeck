@@ -7,6 +7,7 @@ import {
   pendingEnter,
   ringableSince,
   route,
+  submitWindowFor,
   submitWindowMs,
   transition,
   unbound,
@@ -124,9 +125,13 @@ describe("a terminal's delivery state", () => {
   it("lets a stray Left after an Enter that started no prompt cost no later submission", () => {
     // The Enter's window long gone, the key is input as anywhere else, and the person's next
     // submission empties the box again.
-    const stale = run(settled, enter, key("neutral", at + 5_000))
+    const stale = run(settled, enter, key("neutral", at + submitWindowMs + 3_000))
     expect(stale.state).toBe("drafting")
-    const next = run(stale, key("enter", at + 6_000), prompted(at + 6_100))
+    const next = run(
+      stale,
+      key("enter", at + submitWindowMs + 4_000),
+      prompted(at + submitWindowMs + 4_100),
+    )
     expect(next.byPerson).toBe(true)
     expect(transition(next, stop).state).toBe("settled")
   })
@@ -502,12 +507,20 @@ describe("the person's submission", () => {
   })
 
   it("is judged by when the prompt's hook started, not when it was heard", () => {
-    // A loaded machine boots the hook late: started 1.5 s after the Enter, heard at 2.6 s.
-    const late = run(drafting, key("enter"), prompted(at + 2_600, at + 1_500))
+    // A loaded machine boots the hook late: started just inside the window, heard past it.
+    const late = run(
+      drafting,
+      key("enter"),
+      prompted(at + submitWindowMs + 600, at + submitWindowMs - 500),
+    )
     expect(late).toMatchObject({ byPerson: true, box: { empty: true } })
     expect(transition(late, stop).state).toBe("settled")
     // Started past the window, however soon it was heard: not the Enter's.
-    const missed = run(drafting, key("enter"), prompted(at + 2_150, at + 2_100))
+    const missed = run(
+      drafting,
+      key("enter"),
+      prompted(at + submitWindowMs + 150, at + submitWindowMs + 100),
+    )
     expect(missed.byPerson).toBe(false)
     expect(transition(missed, stop).state).toBe("drafting")
   })
@@ -919,5 +932,12 @@ describe("the person's Enter window", () => {
     expect(pendingEnter(entered, at + submitWindowMs + 1)).toBeUndefined()
     expect(pendingEnter(run(entered, typing), at + 1)).toBeUndefined()
     expect(pendingEnter(drafting, at)).toBeUndefined()
+  })
+
+  it("is wider on Windows, where the hook's shell starts first", () => {
+    expect(submitWindowFor("linux")).toBe(2_000)
+    // PowerShell takes most of 15 s to start cold on a busy CI runner.
+    expect(submitWindowFor("win32")).toBeGreaterThan(15_000)
+    expect(submitWindowMs).toBe(submitWindowFor(process.platform))
   })
 })

@@ -251,6 +251,11 @@ describe("the doorbell's gate", () => {
     expect(gate({ ...open, foreground: false })).toBe("not-foreground")
   })
 
+  it("opens on Windows only where the agent's box shows, empty and taking a prompt", () => {
+    expect(gate({ ...open, inputBox: true })).toBe("open")
+    expect(gate({ ...open, inputBox: false })).toBe("no-input-box")
+  })
+
   it("rings with a fresh nonce each time, of letters and digits only", () => {
     const nonce = freshNonce()
     expect(nonce).toMatch(/^[A-Za-z0-9]{6}$/)

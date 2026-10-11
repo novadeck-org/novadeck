@@ -1,6 +1,7 @@
 import { describe as context, describe, expect, it, onTestFinished } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
+import { settled } from "./support/canvas"
 import { escapeFrom, expectFocusWithin, preferencesDialog } from "./support/keyboard"
 import { workspaceSwitcher } from "./support/sessions"
 import {
@@ -167,9 +168,11 @@ describe("An agent Novadeck can't hear from", () => {
 
 // The demo's Claude Code in Build is idle at its prompt; a prompt there works a moment,
 // then finishes with a reply, the command it left running still running. A `view` is
-// chosen before the prompt, so the turn's moment goes to looking away from it.
+// chosen before the prompt, so the turn's moment goes to looking away from it. The turn
+// works 5 s, so a busy machine's click elsewhere lands before it ends, which the demo's
+// usual 1.5 s didn't always leave room for.
 const promptBuild = async (view?: "Grid"): Promise<void> => {
-  await openWorkspace("/?demo=agents")
+  await openWorkspace("/?demo=agents&turnMs=5000")
   const skip = page.getByRole("button", { name: "Skip for now" })
   if (await skip.query()) await skip.click()
   if (view) await chooseView(view)
@@ -185,7 +188,7 @@ describe("An agent that finishes", () => {
       await promptBuild()
       await terminalTab("Tests").click()
       await expect
-        .poll(() => tabDescription("Build"), { timeout: 5000 })
+        .poll(() => tabDescription("Build"), { timeout: 10_000 })
         // The command its turn left running still counts.
         .toBe("Done · reply unread, 1 task")
       const row = terminalTab("Build").element().closest(".terminal-tab")!
@@ -203,7 +206,9 @@ describe("An agent that finishes", () => {
       await promptBuild("Grid")
       await terminalTab("Tests").click()
       const window = terminal("Build")
-      await expect.element(window, { timeout: 5000 }).toHaveAttribute("data-terminal-phase", "done")
+      await expect
+        .element(window, { timeout: 10_000 })
+        .toHaveAttribute("data-terminal-phase", "done")
       await expect.element(window).toHaveAttribute("aria-description", "Done · reply unread")
       // Its phase line marks it, its name bold; its description says it in words.
       await expect.element(window.getByText("Done", { exact: true })).not.toBeInTheDocument()
@@ -227,7 +232,9 @@ describe("An agent that finishes", () => {
     it("leaves it as it was", async () => {
       await promptBuild()
       const window = terminal("Build")
-      await expect.element(window, { timeout: 5000 }).toHaveAttribute("data-terminal-phase", "idle")
+      await expect
+        .element(window, { timeout: 10_000 })
+        .toHaveAttribute("data-terminal-phase", "idle")
       // Past the grace a completed end waits before it is marked (`finishGraceMs`).
       await expectStaysAbsent(window.getByText("Done · reply unread"), { ms: 1500 })
       // Only the command its turn left running.
@@ -586,7 +593,9 @@ describe("A pinned project", () => {
     // Drags a project's row out of the open menu and lets it go at a point on the screen:
     // by default on the bar under the header, past its pins and the menu.
     const dragOut = async (name: string, to?: { x: number; y: number }): Promise<void> => {
-      const from = switcherRow(name).element().getBoundingClientRect()
+      // Once the menu has opened in full: a drag begun while it still slides in starts
+      // off the row, and the drag never takes (seen once on a macOS runner).
+      const from = await settled(() => switcherRow(name).element().getBoundingClientRect())
       const header = workspaceSwitcher().element().closest("header")!.getBoundingClientRect()
       await userEvent.dragAndDrop(switcherRow(name), page.elementLocator(document.body), {
         sourcePosition: { x: 40, y: from.height / 2 },

@@ -1176,6 +1176,21 @@ describe("a turn the person's Escape ended", () => {
     ).toBeUndefined()
   })
 
+  it("reads completed when the window passes with no Stop, but a reply its transcript holds", () => {
+    // Antigravity on Windows, its reply come just as the key did.
+    const antigravity = escaped(turn(started(0, true, false), 10), 20)
+    const kept = on(antigravity, { type: "turn-escape-lapsed", startedAt: 20, reply: "Too late." })
+    expect(summary(kept)).toMatchObject({ state: "idle" })
+    expect(outcome(kept)).toEqual({ outcome: "completed", reply: "Too late.", at: 21 })
+    // The window is closed: a lapse again changes nothing.
+    expect(lapsed(kept, 20)).toBeUndefined()
+    // A Stop told since stays the end, its own reply with it.
+    const told = stop(stopped, 25, { reply: "Told." })
+    expect(
+      outcome(on(told, { type: "turn-escape-lapsed", startedAt: 20, reply: "Too late." })),
+    ).toEqual({ outcome: "completed", reply: "Told.", at: 25 })
+  })
+
   it("does not count a Stop from an earlier turn", () => {
     const earlier = turn(stop(turn(started(0), 1), 5, { reply: "First." }), 10)
     const second = escaped(earlier, 20)

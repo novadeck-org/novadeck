@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { gemini } from "../model/gemini.js"
 import { asked, type Call } from "../model/script.js"
-import { own } from "../scenarios.js"
+import { nestedRuns, own } from "../scenarios.js"
 import type { AgentSetup } from "./agent.js"
 
 // The folder its commands run in, as its system prompt names it: a command must run there.
@@ -13,6 +13,9 @@ const workingDirectory = (call: Call): string => {
   if (!folder) throw new Error("Antigravity's system prompt names no command working directory")
   return folder
 }
+
+// A nested run of its own print mode, asked `prompt`.
+const nested = (prompt: string): string => `agy -p '${prompt}'`
 
 // What a subagent's system prompt holds and its root's doesn't (probed 2026-10-02, 1.2.14).
 const subagent = "<subagent_reminder>"
@@ -47,6 +50,9 @@ export const agy: AgentSetup = {
       ".gemini/antigravity-cli/bin",
     ],
   },
+  // Its login on Windows, through go-keyring's Credential Manager store, as
+  // `gemini:antigravity` (seen 2026-10-09, 1.2.14 and 1.3.2).
+  credentials: [/^gemini:antigravity$/i],
   hosts: [
     "generativelanguage.googleapis.com",
     "cloudcode-pa.googleapis.com",
@@ -152,7 +158,7 @@ export const agy: AgentSetup = {
         },
       ],
     }),
-    nested: (prompt) => `agy -p '${prompt}'`,
+    nested,
   },
   // `/fork` forks in place, its status line naming the fork, saying "Forked conversation"
   // and how to go back (probed 2026-10-03, 1.2.14).
@@ -227,8 +233,17 @@ export const agy: AgentSetup = {
         modelProvider: "gemini",
         // Novadeck's MCP tools run without asking, so a `send` needs no approval (its
         // plugin's server is namespaced after the plugin).
-        // Its own print mode too, so `shell` runs a nested Antigravity unasked.
-        permissions: { allow: ["mcp(novadeck_novadeck/*)", "command(agy -p)"] },
+        // Its own print mode too, so `shell` runs a nested Antigravity unasked. On Windows
+        // a command rule allows only the command it names whole, not those it begins
+        // (probed 2026-10-10, 1.2.14), so there each nested run is named.
+        permissions: {
+          allow: [
+            "mcp(novadeck_novadeck/*)",
+            ...(process.platform === "win32"
+              ? Object.values(nestedRuns).map((prompt) => `command(${nested(prompt)})`)
+              : ["command(agy -p)"]),
+          ],
+        },
       }),
     )
     return {

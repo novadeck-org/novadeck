@@ -670,6 +670,11 @@ const permission = (rows: readonly string[], facts: RequestFacts): DialogRead | 
   )
 }
 
+// The hint for ctrl+g, which names the editor it opens: Vim, unless EDITOR or VISUAL names
+// another, and Notepad on Windows (2.1.287). On a row as shown, and with its spaces gone.
+const editorHint = /ctrl\+g to edit in \S/
+const editorHintFlat = /^ctrl\+gtoeditin[^·]+·/
+
 // ---------------------------------------------------------------------------------------
 // ExitPlanMode
 
@@ -711,7 +716,7 @@ const plan = (rows: readonly string[], facts: RequestFacts): DialogRead | undefi
     if (read.options[2]!.marker) return undefined
     // The footer wraps with the width; the file is its last word.
     if (
-      !flat(read.rest.join("")).startsWith("ctrl+gtoeditinVim·") ||
+      !editorHintFlat.test(flat(read.rest.join(""))) ||
       !flat(read.rest.join("")).endsWith(flat(name))
     ) {
       return undefined
@@ -1130,8 +1135,7 @@ const keysFor = (
         }
         steps.push({
           until: (rows) =>
-            marked(rows, questionOption, count + 1) &&
-            rows.some((each) => each.includes("ctrl+g to edit in Vim")),
+            marked(rows, questionOption, count + 1) && rows.some((each) => editorHint.test(each)),
           timeoutMs,
           why: "the free-text row focused",
         })
@@ -1156,8 +1160,7 @@ const keysFor = (
       steps.push({ press: key })
       steps.push({
         until: (rows) =>
-          marked(rows, questionOption, count + 1) &&
-          rows.some((each) => each.includes("ctrl+g to edit in Vim")),
+          marked(rows, questionOption, count + 1) && rows.some((each) => editorHint.test(each)),
         timeoutMs,
         why: "the free-text row focused",
       })

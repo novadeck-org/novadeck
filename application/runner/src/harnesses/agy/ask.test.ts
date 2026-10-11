@@ -1,11 +1,14 @@
 import { spawnSync } from "node:child_process"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 import type { Report } from "../../shell/reports.js"
 import { describe, expect, it } from "../../test.js"
 import { loadProbe } from "../../testing/probes.js"
 import { apply, started } from "../activity.js"
 import type { ActivityEvent, HarnessEvent } from "../events.js"
-import { silentFor, type Launchers } from "../harness.js"
+import { silentFor, type Launchers, type Machine } from "../harness.js"
 import { decode } from "./decode.js"
 import { agy } from "./index.js"
 
@@ -178,6 +181,26 @@ const hookRun = (env: NodeJS.ProcessEnv) =>
     encoding: "utf8",
   }).stdout.trim()
 
+// As Antigravity runs it on Windows: `cmd /c "<command>"`, its double quotes escaped as
+// `\"`, which cmd keeps (probed 2026-10-11, 1.2.14); verbatim, as Node escapes otherwise.
+const cmdRun = (env: NodeJS.ProcessEnv, event = "PreToolUse") => {
+  const run = spawnSync(
+    process.env.COMSPEC ?? "cmd.exe",
+    ["/c", `"${agy.hook("win32", event).replaceAll('"', String.raw`\"`)}"`],
+    {
+      env: {
+        PATH: process.env.PATH,
+        SystemRoot: process.env.SystemRoot,
+        COMSPEC: process.env.COMSPEC,
+        ...env,
+      },
+      encoding: "utf8",
+      windowsVerbatimArguments: true,
+    },
+  )
+  return { status: run.status, stdout: run.stdout.trim() }
+}
+
 describe("Antigravity's PreToolUse answer", () => {
   it("is ask wherever it prints one: Novadeck's runner, its launcher, and the hook command alone", () => {
     expect(JSON.parse(silentFor(agy.messaging, "PreToolUse"))).toEqual({ decision: "ask" })
@@ -185,16 +208,19 @@ describe("Antigravity's PreToolUse answer", () => {
     expect(Object.keys(agy.messaging.asks)).not.toContain("PreToolUse")
     expect(agy.hook("linux", "PreToolUse")).toContain(`[ -x "$NOVADECK_HOOK" ]`)
     expect(agy.hook("linux", "PreToolUse")).toContain(`else echo '{"decision":"ask"}'; fi`)
-    // cmd's hold no double quote, which the agents' spawning escapes where cmd can't read it.
+    // cmd's hold no double quote, which Antigravity escapes where cmd keeps the escape, and
+    // PreToolUse's prints nothing without a runnable launcher and always exits 0: an answer
+    // that isn't JSON there, or a non-zero exit, let the tool run unasked, where none leaves
+    // it to the person's policy.
     expect(agy.hook("win32", "PreToolUse")).toBe(
-      `if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% agy PreToolUse) else (echo {"decision":"ask"})) else (echo {"decision":"ask"})`,
+      "cmd /d /c if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% agy PreToolUse)) & exit /b 0",
     )
     expect(agy.hook("win32", "Stop")).toBe(
-      "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy Stop) else (echo {})",
+      "if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% agy Stop) else (echo {})) else (echo {})",
     )
-    expect(agy.hook("win32", "PreToolUse")).toMatch(/else \(echo \{"decision":"ask"\}\)$/)
+    for (const event of ["PreToolUse", "PreInvocation", "Stop", "PostToolUse"])
+      expect(agy.hook("win32", event)).not.toContain('"')
     expect(agy.hook("linux", "Stop")).toContain(`else echo '{}'; fi`)
-    expect(agy.hook("win32", "Stop")).toContain("else (echo {})")
   })
 
   it.skipIf(process.platform === "win32")(
@@ -207,17 +233,42 @@ describe("Antigravity's PreToolUse answer", () => {
     },
   )
 
-  it("is registered for every tool off Windows, with PostToolUse for the two that matter", () => {
+  // Antigravity runs it in cmd there, and on no answer asks as the person's policy says.
+  it.runIf(process.platform === "win32")(
+    "is nothing from cmd, exiting 0, when its launcher is unset, missing or named with a space",
+    ({ resources }) => {
+      const nothing = { status: 0, stdout: "" }
+      expect(cmdRun({})).toEqual(nothing)
+      expect(cmdRun({ NOVADECK_HOOK: String.raw`C:\nonexistent\hook.exe` })).toEqual(nothing)
+      // A space breaks the inner line, as an `&` does the outer one too; it still exits 0.
+      expect(cmdRun({ NOVADECK_HOOK: String.raw`C:\Program Files\x\hook.exe` })).toEqual(nothing)
+      expect(cmdRun({ NOVADECK_HOOK: String.raw`C:\Users\a&b\hook.exe` })).toEqual(nothing)
+      // A launcher's own answer passes through.
+      const folder = mkdtempSync(join(tmpdir(), "novadeck-agy-hook-"))
+      resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+      const launcher = join(folder, "launcher.cmd")
+      writeFileSync(launcher, '@echo {"decision":"ask","by":"launcher"}')
+      expect(cmdRun({ NOVADECK_HOOK: launcher })).toEqual({
+        status: 0,
+        stdout: '{"decision":"ask","by":"launcher"}',
+      })
+      // The other events' empty answer is JSON as cmd prints it.
+      expect(cmdRun({}, "Stop")).toEqual({ status: 0, stdout: "{}" })
+    },
+  )
+
+  it("is registered for every tool, with PostToolUse for the two that matter", () => {
     const launchers: Launchers = { mcp: { command: "/data/shell/mcp" } }
-    const hooks = (platform: NodeJS.Platform) =>
+    const hooks = (platform: NodeJS.Platform, machine?: Machine) =>
       (
         JSON.parse(
-          agy.files(platform, launchers).find(({ path }) => path === "hooks.json")!.content,
+          agy.files(platform, launchers, machine).find(({ path }) => path === "hooks.json")!
+            .content,
         ) as {
           novadeck: { [event: string]: { matcher?: string; hooks: { command: string }[] }[] }
         }
       ).novadeck
-    for (const platform of ["linux", "darwin"] as const) {
+    for (const platform of ["linux", "darwin", "win32"] as const) {
       const registered = hooks(platform)
       expect(Object.keys(registered)).toEqual([
         "PreInvocation",
@@ -233,10 +284,25 @@ describe("Antigravity's PreToolUse answer", () => {
         "ask_question",
       ])
     }
-    // Windows is unprobed: no PreToolUse, which would deny every tool if its command
-    // printed nothing, and so no ask_question to detect.
-    const windows = hooks("win32")
-    expect(Object.keys(windows)).toEqual(["PreInvocation", "Stop", "PostToolUse"])
-    expect(windows.PostToolUse?.map(({ matcher }) => matcher)).toEqual(["write_to_file"])
+  })
+
+  it("is left unregistered on Windows where cmd prints first, so Antigravity's policy asks", () => {
+    // No answer after an AutoRun's output reads as JSON, which let every tool run unasked
+    // (probed 2026-10-11, 1.2.14).
+    expect(eventsWhereCmdPrints("win32")).toEqual(["PreInvocation", "Stop", "PostToolUse"])
+    // Elsewhere hooks run in sh, where cmd's AutoRun has no part.
+    expect(eventsWhereCmdPrints("linux")).toContain("PreToolUse")
   })
 })
+
+// The events Antigravity's plugin registers where cmd prints before every command.
+const eventsWhereCmdPrints = (platform: NodeJS.Platform) =>
+  Object.keys(
+    (
+      JSON.parse(
+        agy
+          .files(platform, { mcp: { command: "mcp" } }, { cmdPrints: true })
+          .find(({ path }) => path === "hooks.json")!.content,
+      ) as { novadeck: object }
+    ).novadeck,
+  )

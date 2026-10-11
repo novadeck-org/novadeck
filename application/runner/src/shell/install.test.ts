@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
-import { installRelay, installShellFiles } from "./install.js"
+import { cmdPrints, installRelay, installShellFiles } from "./install.js"
 
 const missing = () => Object.assign(new Error("missing"), { code: "ENOENT" })
 
@@ -37,6 +37,69 @@ const memory = (
     },
   }
 }
+
+// A stand-in for cmd, as an AutoRun of `chcp 65001` without `>nul` makes it, and not.
+const node = (script: string) => ({ program: process.execPath, args: ["-e", script] })
+
+describe("whether cmd prints of its own before a command", () => {
+  it("is any output at all, a line break included", async () => {
+    await expect(cmdPrints(node("process.stdout.write('Active code page: 65001.')"))).resolves.toBe(
+      "prints",
+    )
+    await expect(cmdPrints(node("process.stdout.write('\\r\\n')"))).resolves.toBe("prints")
+    await expect(cmdPrints(node(""))).resolves.toBeUndefined()
+  })
+
+  it("is nothing for a cmd that doesn't start, as it runs no hook either", async () => {
+    await expect(cmdPrints({ program: join(tmpdir(), "no-such-cmd.exe") })).resolves.toBeUndefined()
+  })
+
+  it("fails safe: a cmd that failed after printing prints, and one that ran too long may", async () => {
+    // As `chcp 65001 & cd /d D:\gone`: output, then an error level `rem` leaves.
+    await expect(
+      cmdPrints(node("process.stdout.write('Active code page: 65001.'); process.exit(1)")),
+    ).resolves.toBe("prints")
+    // An error level with nothing printed leaves the hook's answer alone.
+    await expect(cmdPrints(node("process.exit(1)"))).resolves.toBeUndefined()
+    // A slow AutoRun may print anything, after the probe gave up on it.
+    await expect(
+      cmdPrints({ ...node("setTimeout(() => {}, 10_000)"), timeoutMs: 200 }),
+    ).resolves.toBe("slow")
+  })
+
+  it("answers by its time, safely, though something cmd started holds its output open", async () => {
+    // As an AutoRun that starts a background program: cmd exits, its output stays open,
+    // and what it printed can't be known read whole, so it may print.
+    const began = Date.now()
+    const answer = await cmdPrints({
+      ...node(
+        "require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], { stdio: ['ignore', 'inherit', 'ignore'], detached: true, windowsHide: true }).unref()",
+      ),
+      timeoutMs: 500,
+    })
+    expect(answer).toBe("slow")
+    expect(Date.now() - began).toBeLessThan(4_000)
+  })
+
+  it("keeps the runner's own variables from the person's AutoRun", async ({ resources }) => {
+    const before = process.env.NOVADECK_TOKEN
+    resources.defer(() => {
+      if (before === undefined) delete process.env.NOVADECK_TOKEN
+      else process.env.NOVADECK_TOKEN = before
+    })
+    process.env.NOVADECK_TOKEN = "secret"
+    await expect(
+      cmdPrints(node("if (process.env.NOVADECK_TOKEN) process.stdout.write('leaked')")),
+    ).resolves.toBeUndefined()
+  })
+
+  it.runIf(process.platform === "win32")(
+    "is no for this machine's cmd, which has no AutoRun",
+    async () => {
+      await expect(cmdPrints()).resolves.toBeUndefined()
+    },
+  )
+})
 
 describe("installing the relay", () => {
   it("puts the running copy back on Windows when the new one can't take its place", async () => {

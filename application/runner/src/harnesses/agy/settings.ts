@@ -10,7 +10,11 @@ import type { Install } from "../harness.js"
  * from that name, so nothing beside the settings needs to survive, and another Novadeck
  * disconnecting it restores it as well. Antigravity itself rewrites this file, so every
  * change reads it afresh and replaces it whole; one it cannot parse is left as it is.
- * Windows keeps the person's own until the command is proven there.
+ *
+ * On Windows Antigravity runs its status line in cmd (probed 2026-10-09, 1.2.14), which
+ * can't hand one input to Novadeck's hook and then to the person's own line: there
+ * Novadeck's line only reports, printing nothing, so Antigravity's default line shows, and
+ * goes in only where the person has no line of their own, theirs left as it is otherwise.
  */
 
 const start = [
@@ -27,6 +31,10 @@ const quote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 export const statusLineCommand = (own: string | undefined): string =>
   own ? `${start}${handOff}${quote(own)}` : start
 
+/** Novadeck's status line on Windows, which cmd runs: it reports and prints nothing. */
+export const windowsStatusLine =
+  "if defined NOVADECK_HOOK (%NOVADECK_HOOK% agy StatusLine >nul 2>nul)"
+
 type Settings = { [key: string]: unknown; statusLine?: unknown }
 type Line = { [key: string]: unknown; type?: unknown; command?: unknown }
 
@@ -39,6 +47,7 @@ const line = (value: unknown): Line | undefined =>
  */
 const ownOf = (value: unknown): string | null | undefined => {
   const command = line(value)?.command
+  if (command === windowsStatusLine) return null
   if (typeof command !== "string" || !command.startsWith(start)) return undefined
   if (command === start) return null
   const rest = command.slice(start.length)
@@ -78,7 +87,6 @@ const write = async (file: string, value: unknown): Promise<void> => {
 
 export const statusLineSettings = (home: (install: Install) => string) => ({
   apply: async (install: Install): Promise<void> => {
-    if (install.platform === "win32") return
     const file = settingsFile(home(install))
     const settings = await read(file)
     if (!settings)
@@ -87,19 +95,21 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
     const own = line(settings.statusLine)
     // Antigravity runs a command whatever its type names, or none.
     const command = typeof own?.command === "string" ? own.command : ""
+    // On Windows the person's own line stays as it is: cmd can't run it after Novadeck's.
+    if (install.platform === "win32" && command) return
     // The person's display choices stay; without a status line of their own, Antigravity's
     // default keeps showing above Novadeck's, which prints nothing.
     settings.statusLine = {
       ...(own ?? added),
       type: "command",
-      command: statusLineCommand(command || undefined),
+      command:
+        install.platform === "win32" ? windowsStatusLine : statusLineCommand(command || undefined),
     }
     await write(file, settings)
   },
   // Keeps whatever the person changed of the line meanwhile, and a file it cannot read:
   // Novadeck's line still runs theirs.
   revert: async (install: Install): Promise<void> => {
-    if (install.platform === "win32") return
     const file = settingsFile(home(install))
     const settings = await read(file)
     const own = settings && ownOf(settings.statusLine)

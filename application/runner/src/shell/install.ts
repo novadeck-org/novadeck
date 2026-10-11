@@ -1,10 +1,11 @@
-import { execFile } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
 import { promisify } from "node:util"
 
 import { relayPath } from "@novadeck/relay"
 
+import { withoutInherited } from "./inherited.js"
 import { shellFiles, shellPaths, staleShellFiles, type ShellPaths } from "./scripts.js"
 
 /**
@@ -46,7 +47,19 @@ export const installShellFiles = async (
     },
   )
   await Promise.all(staleShellFiles(directory).map((stale) => rm(stale, { force: true })))
-  for (const file of shellFiles(paths, process.platform)) {
+  // An agent that runs its hooks in cmd reads nothing they answer after cmd's own output.
+  const prints = process.platform === "win32" ? await cmdPrints() : undefined
+  if (prints === "prints")
+    console.error(
+      "Novadeck: cmd prints something of its own before every command, as an AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) that doesn't send its output to nul does. Antigravity can read none of its hooks' answers then, so Novadeck registers no PreToolUse hook for it, and installs its plugin again where it is connected; its own policy asks before each tool, and messaging with it won't work until that output goes.",
+    )
+  if (prints === "slow")
+    console.error(
+      "Novadeck: cmd took more than 5 seconds to run a command, as a slow AutoRun (HKLM or HKCU\\Software\\Microsoft\\Command Processor\\AutoRun) may on a cold start, so whether it prints anything of its own isn't known. In case it does, which would let Antigravity's tools run unasked, Novadeck registers no PreToolUse hook for it this time; Antigravity's own policy asks before each tool. It looks again at the next start.",
+    )
+  for (const file of shellFiles(paths, process.platform, undefined, {
+    cmdPrints: prints !== undefined,
+  })) {
     // eslint-disable-next-line no-await-in-loop -- A few small files, one after another.
     await mkdir(dirname(file.path), { recursive: true, mode: 0o700 })
     // eslint-disable-next-line no-await-in-loop -- Unchanged files are left alone.
@@ -139,6 +152,54 @@ const settled = async (move: () => Promise<void>, tries = 5): Promise<void> => {
     await settled(move, tries - 1)
   }
 }
+
+/**
+ * Whether cmd prints something of its own before a command, as it runs a hook: `rem`,
+ * which prints nothing, run without `/d`, as an agent runs it, so the machine's and the
+ * person's AutoRun runs first. "prints" where anything came out, whatever cmd exited with,
+ * as an AutoRun that leaves an error level; "slow" where cmd ran past `timeoutMs`, which
+ * may yet print; undefined where it printed nothing, or didn't start, and runs no hook
+ * either. It answers once cmd's output closes, or by `timeoutMs` whatever cmd leaves
+ * running: "slow" where a process the AutoRun started holds that output open, as what
+ * cmd printed can't be known to have been read whole. It gets the runner's environment
+ * without what
+ * children never inherit, as the AutoRun is the person's own code. `program` and `args`
+ * are for tests.
+ */
+export const cmdPrints = ({
+  program = process.env.COMSPEC || "cmd.exe",
+  args = ["/c", "rem"],
+  timeoutMs = 5_000,
+}: {
+  readonly program?: string
+  readonly args?: readonly string[]
+  readonly timeoutMs?: number
+} = {}): Promise<"prints" | "slow" | undefined> =>
+  new Promise((resolve) => {
+    let printed = false
+    const child = spawn(program, args, {
+      env: withoutInherited(process.env),
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    const timer = setTimeout(() => {
+      child.kill()
+      resolve(printed ? "prints" : "slow")
+    }, timeoutMs)
+    const done = () => {
+      clearTimeout(timer)
+      resolve(printed ? "prints" : undefined)
+    }
+    child.stdout.on("data", () => {
+      printed = true
+    })
+    // Not started: no hook runs either.
+    child.on("error", () => {
+      clearTimeout(timer)
+      resolve(undefined)
+    })
+    child.on("close", done)
+  })
 
 // cmd's `for` gives a path's short name, as Windows keeps one on most volumes; a path
 // that still needs quoting stays as it is.

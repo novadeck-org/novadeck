@@ -152,6 +152,13 @@ export type GateFacts = {
   readonly bracketedPaste: boolean
   /** Whether the bound instance holds the foreground; undefined where the platform can't tell. */
   readonly foreground: boolean | undefined
+  /**
+   * On Windows, whether the agent's own input box shows, empty and taking a prompt; omitted
+   * elsewhere. There a TUI that reads the console's keys, as Codex does, gets a bracketed
+   * paste as keys, which a menu or dialog would take (a ring dismissed Codex's popup), so
+   * its box must be seen first, as a prompt's is.
+   */
+  readonly inputBox?: boolean
 }
 
 /** How long a screen must be still before the doorbell rings, in milliseconds. */
@@ -161,10 +168,17 @@ export const calmMs = 750
 export const gate = (
   facts: GateFacts,
   still = calmMs,
-): "open" | "not-ringable" | "restless" | "no-bracketed-paste" | "not-foreground" => {
+):
+  | "open"
+  | "not-ringable"
+  | "restless"
+  | "no-bracketed-paste"
+  | "not-foreground"
+  | "no-input-box" => {
   if (!facts.ringable) return "not-ringable"
   if (facts.calmMs < still) return "restless"
   if (!facts.bracketedPaste) return "no-bracketed-paste"
   if (facts.foreground === false) return "not-foreground"
+  if (facts.inputBox === false) return "no-input-box"
   return "open"
 }

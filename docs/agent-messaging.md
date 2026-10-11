@@ -499,8 +499,8 @@ the opener's, and `describe` names the caller's own terminal (see
      answer the dialog, but also insert a newline (after a `\` in Claude Code), take an
      @file or slash-command suggestion, or approve a second request while a draft typed
      during the first tool waits in the box. Only a confirmed submission clears it: a
-     bare Enter followed by a root prompt turn whose hook started within about 2 s,
-     nothing typed before that.
+     bare Enter followed by a root prompt turn whose hook started within about 2 s
+     (20 s on Windows, see below), nothing typed before that.
      Content keys are all but bare Enter, Escape, Left, Right, Home, End and Tab: a
      paste, Up and Down, a key that types (a hotkey too) or Backspace. Left, Right,
      Home, End and Tab leave such a draft too: a request answered with no report stays
@@ -524,7 +524,11 @@ the opener's, and `describe` names the caller's own terminal (see
   Codex's Tab, its profile's queue key.
 - **The person submits** when their bare Enter is followed by a root turn whose hook
   started within about 2 s of it, with no other input from them after that Enter and
-  before that hook started, and the turn's decoder says a prompt started it. Left, Home
+  before that hook started, and the turn's decoder says a prompt started it. On Windows
+  the window is 20 s: the hook's shell (PowerShell, or cmd for Antigravity) starts before
+  the hook does, which takes seconds on a busy machine, and a prompt whose hook came later
+  than the window carries none of the messages waiting for it. A turn the agent starts by
+  itself soon after a bare Enter may pass for the person's there. Left, Home
   and End there break no submission: the prompt stays theirs, and the box after its
   turn a draft (see below). A hook
   reports when it started, as the relay's first act: on a loaded machine the runner may
@@ -715,7 +719,7 @@ Transitions:
 | Settled, Ready                           | The person's input, but Escape                                                   | Drafting              |
 | Settled, Ready                           | Messages waiting and the gate passes                                             | Ringing               |
 | Ringing                                  | Confirmed: a doorbell prompt with its nonce                                      | Working               |
-| Ringing                                  | The test paste fails, or no confirmation within 5 s                              | Unknown               |
+| Ringing                                  | The test paste fails, or no confirmation within 5 s (20 s on Windows)            | Unknown               |
 | Ringing                                  | A request is asked, before or after its Enter                                    | Unknown               |
 | Ringing                                  | Another root prompt or an abnormal end (the binding ending: Unbound, as above)   | As from Settled       |
 
@@ -899,6 +903,10 @@ text in `record.screen` (`@xterm/headless`), with its paste mode. The ring, in o
    bound, holds a process of that agent's name, as the agent may have left unseen (a
    nested shell tells no prompt). A shell or REPL prompt takes the test paste alone, so
    only this check keeps a ring off it; Windows has none (see [Per harness](#per-harness)).
+   On Windows the agent's own input box must show instead, empty and taking a prompt, as
+   its harness's box reader reads it, the one prompts use: a TUI there that reads the
+   console's keys, as Codex does, gets a bracketed paste as keys, which a menu or dialog
+   would take (a ring dismissed Codex's rate-limit popup).
    A gate that fails presses nothing and is tried again on the next change to the screen
    or the terminal's messages.
 5. **Test paste.** Once its turn comes in the terminal's input queue (the prompts,
@@ -960,8 +968,9 @@ text in `record.screen` (`@xterm/headless`), with its paste mode. The ring, in o
    ring began; a hold that lapsed abandons the ring, and a request asked meanwhile (a
    background subagent's, say) fails it, Unknown, as its dialog may hold the line and
    would take the Enter.
-7. **Confirm.** A root turn starts within 5 s of the Enter, and its prompt-time hook
-   sees the line with the ring's own nonce: Claude Code and Codex in the hook's `prompt`,
+7. **Confirm.** A root turn starts within 5 s of the Enter (20 s on Windows, where the
+   hook's shell may take most of 15 s to start), and its prompt-time hook sees the line
+   with the ring's own nonce: Claude Code and Codex in the hook's `prompt`,
    Antigravity in the transcript's new typed entry. A doorbell prompt with another
    nonce, as a stale line submitted alone, is no confirmation. Its lease delivers. A
    request asked after the Enter, before the confirmation, fails the ring too: the Enter
@@ -1040,9 +1049,9 @@ Two known gaps in telling the box empty at a binding:
   a late unbind (a nested shell's agent whose end is noticed only then), still leaves it
   Ready: that binding follows Unbound, where only the last Enter counts, not the
   replacement rule. A ring would then append the line to that text and submit both.
-- A `/clear` whose binding is applied more than the submission window (about 2 s) after
-  its Enter, as when another plugin's slow `SessionEnd` or `SessionStart` hook delays it,
-  goes Drafting: a missed ring, never a wrong one.
+- A `/clear` whose binding is applied more than the submission window (about 2 s, 20 s
+  on Windows) after its Enter, as when another plugin's slow `SessionEnd` or
+  `SessionStart` hook delays it, goes Drafting: a missed ring, never a wrong one.
 
 ### Message states
 

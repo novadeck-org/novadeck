@@ -644,7 +644,8 @@ export const apply = (
     case "turn-ended":
       return turnEnded(activity, event)
     case "turn-escape-lapsed": {
-      // The window passed: the Stop held since is the end, else the Escape stands.
+      // The window passed: the Stop held since is the end, else a reply its transcript
+      // holds, else the Escape stands.
       const { lastTurn } = activity
       if (
         activity.state !== "idle" ||
@@ -654,7 +655,18 @@ export const apply = (
       )
         return undefined
       const { held } = lastTurn.escaped
-      return held ? finished(activity, held) : confirmed(activity)
+      if (held) return finished(activity, held)
+      if (event.reply === undefined) return confirmed(activity)
+      // The reply came before the key took, though no Stop said so.
+      return finished(activity, {
+        type: "turn-ended",
+        agent: event.agent,
+        sessionId: event.sessionId,
+        instance: event.instance,
+        startedAt: event.startedAt,
+        outcome: "completed",
+        reply: event.reply,
+      })
     }
     case "attention-requested":
       return asked(activity, event)
