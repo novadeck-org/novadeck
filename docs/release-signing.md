@@ -98,8 +98,12 @@ run, commit and repository built a file, and is logged in Sigstore's public
 transparency log:
 
 ```sh
-gh attestation verify novadeck-linux-x86_64.AppImage --repo mzpkdev/novadeck
+gh attestation verify novadeck-linux-x86_64.AppImage --repo novadeck-org/novadeck
 ```
+
+Releases up to v0.0.95 were built before the repository moved from `mzpkdev/novadeck`, so
+their attestations live under that owner; verify those with
+`--owner mzpkdev --signer-repo mzpkdev/novadeck`.
 
 Each release also signs `SHA256SUMS` with the Novadeck release key, as
 `SHA256SUMS.asc`, which needs only `gpg` and `sha256sum` to check:

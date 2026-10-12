@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "A cross-platform desktop application.",
-  "homepage": "https://github.com/mzpkdev/novadeck",
+  "homepage": "https://github.com/novadeck-org/novadeck",
   "author": "mzpkdev",
   "type": "module",
   "scripts": {

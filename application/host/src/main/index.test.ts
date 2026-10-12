@@ -178,7 +178,7 @@ describe("compiled desktop host", () => {
         main.indexOf("runner = startRunner("),
       )
       expect(main).toContain('"app-update.yml"')
-      expect(main).not.toContain("mzpkdev/novadeck/releases/tag")
+      expect(main).not.toContain("novadeck-org/novadeck/releases/tag")
     })
 
     it("opens windows on the page's last ground and follows its appearance", async () => {

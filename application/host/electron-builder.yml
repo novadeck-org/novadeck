@@ -41,7 +41,7 @@ extraResources:
 # the release workflow passes the repository it runs in, so a moved repository needs no edit.
 publish:
   provider: github
-  owner: mzpkdev
+  owner: novadeck-org
   repo: novadeck
   releaseType: prerelease
 # No package name carries a version, so releases/latest/download/<name> is always the newest

@@ -10,7 +10,7 @@ canvas. Keep related work together and switch between sessions from the sidebar.
 - **macOS:**
 
   ```sh
-  curl -fsSL https://github.com/mzpkdev/novadeck/releases/latest/download/install.sh | sh
+  curl -fsSL https://github.com/novadeck-org/novadeck/releases/latest/download/install.sh | sh
   ```
 
   Run it as yourself, not with `sudo`, and quit Novadeck first. It checks the download
@@ -19,15 +19,15 @@ canvas. Keep related work together and switch between sessions from the sidebar.
   upgrades the copy already there, preferring `/Applications`. If another account put
   Novadeck in `/Applications`, the script stops and leaves that copy for the account that
   installed it. You can also download
-  [`novadeck-mac-universal.dmg`](https://github.com/mzpkdev/novadeck/releases/latest/download/novadeck-mac-universal.dmg)
+  [`novadeck-mac-universal.dmg`](https://github.com/novadeck-org/novadeck/releases/latest/download/novadeck-mac-universal.dmg)
   and drag the app to Applications.
 
-- **Windows:** run [`novadeck-win-x64-setup.exe`](https://github.com/mzpkdev/novadeck/releases/latest/download/novadeck-win-x64-setup.exe).
+- **Windows:** run [`novadeck-win-x64-setup.exe`](https://github.com/novadeck-org/novadeck/releases/latest/download/novadeck-win-x64-setup.exe).
   It installs for the current user without an administrator prompt.
 - **Linux (x86_64):**
 
   ```sh
-  curl -fsSL https://github.com/mzpkdev/novadeck/releases/latest/download/install.sh | sh
+  curl -fsSL https://github.com/novadeck-org/novadeck/releases/latest/download/install.sh | sh
   ```
 
   Run it as yourself, not with `sudo`. It puts the AppImage in `~/.local/share/novadeck`
@@ -45,7 +45,7 @@ canvas. Keep related work together and switch between sessions from the sidebar.
   profile later, or for an AppImage in `~/Applications`, run the script with `--sandbox`:
 
   ```sh
-  curl -fsSL https://github.com/mzpkdev/novadeck/releases/latest/download/install.sh | sh -s -- --sandbox
+  curl -fsSL https://github.com/novadeck-org/novadeck/releases/latest/download/install.sh | sh -s -- --sandbox
   ```
 
 Every installed build keeps itself up to date. An AppImage run from anywhere other than the
@@ -53,7 +53,7 @@ install path (`~/.local/share/novadeck/novadeck.AppImage`, or Homebrew's
 `~/Applications/novadeck.AppImage`) is portable: it only looks for new releases and offers to install the app from
 itself (see [docs/auto-update.md](docs/auto-update.md)). Those links point to the latest stable release; until
 the first one is promoted, Novadeck's builds are prereleases on the
-[Releases page](https://github.com/mzpkdev/novadeck/releases). See
+[Releases page](https://github.com/novadeck-org/novadeck/releases). See
 [docs/auto-update.md](docs/auto-update.md) for how updates work.
 
 In Canvas, scroll to zoom in or out, and drag the background or an inactive terminal
