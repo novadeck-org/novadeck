@@ -97,6 +97,8 @@ export type WorkspaceCommands = ShellCommands &
     readonly dismissCrashLoop: () => void
     // Opens or closes the update's notice, which the footer's chip reopens after Later.
     readonly setUpdateOpen: (open: boolean) => void
+    // Opens or closes the sandbox notice; opening it closes the update's, which shares its place.
+    readonly setSandboxOpen: (open: boolean) => void
     // Notes that the notice came up for this offer (`updateKey`), so a relaunch
     // doesn't raise it again.
     readonly updateShown: (key: string) => void
@@ -496,7 +498,17 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
     },
     dismissCrashLoop: () => ui.update((state) => ({ ...state, crashLoopDismissed: true })),
     setUpdateOpen: (updateOpen) =>
-      ui.update((state) => (state.updateOpen === updateOpen ? state : { ...state, updateOpen })),
+      ui.update((state) =>
+        state.updateOpen === updateOpen && !(updateOpen && state.sandboxOpen)
+          ? state
+          : { ...state, updateOpen, sandboxOpen: updateOpen ? false : state.sandboxOpen },
+      ),
+    setSandboxOpen: (sandboxOpen) =>
+      ui.update((state) =>
+        state.sandboxOpen === sandboxOpen && !(sandboxOpen && state.updateOpen)
+          ? state
+          : { ...state, sandboxOpen, updateOpen: sandboxOpen ? false : state.updateOpen },
+      ),
     updateShown: (updateSeen) =>
       ui.update((state) => (state.updateSeen === updateSeen ? state : { ...state, updateSeen })),
   }

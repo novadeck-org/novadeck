@@ -328,6 +328,24 @@ describe("workspace commands", () => {
     })
   })
 
+  context("when the update's notice and the sandbox's share their place", () => {
+    it("closes the sandbox's on opening the update's, and the update's on opening the sandbox's", () => {
+      const app = openCommands()
+      app.commands.setSandboxOpen(true)
+      app.commands.setUpdateOpen(true)
+      expect(app.ui.getSnapshot()).toMatchObject({ updateOpen: true, sandboxOpen: false })
+      app.commands.setSandboxOpen(true)
+      expect(app.ui.getSnapshot()).toMatchObject({ updateOpen: false, sandboxOpen: true })
+    })
+
+    it("leaves the other alone on closing one", () => {
+      const app = openCommands()
+      app.commands.setSandboxOpen(true)
+      app.commands.setUpdateOpen(false)
+      expect(app.ui.getSnapshot().sandboxOpen).toBe(true)
+    })
+  })
+
   context("when closing a terminal", () => {
     it("brings the next selection into view only when the selected one closes outside Canvas", () => {
       const app = openCommands({ workspace: workspaceFixture({ terminals: 3 }) })

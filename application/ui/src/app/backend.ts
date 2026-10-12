@@ -1,8 +1,10 @@
 import { createBootRehearsals } from "../backend/boot-rehearsal"
 import { createDemoBackend } from "../backend/demo"
 import { createContentDemo } from "../backend/demo/content"
+import { createDemoSandbox, sampleFix } from "../backend/demo/debug/sandbox"
 import { createDemoUpdates, sampleNotes } from "../backend/demo/debug/updates"
 import type { BackendSelection, ConnectBackend } from "../backend/port"
+import type { SandboxState } from "../model/sandbox"
 import type { UpdateOffer } from "../model/update"
 
 // The only place that chooses a backend adapter. Tests and specs run on the demo;
@@ -62,10 +64,22 @@ const demoWithUpdate = (update: UpdateOffer): ReturnType<typeof createDemoBacken
   return { ...createDemoBackend(), updates }
 }
 
+// Specs open the demo on a host running without its security sandbox with `?sandbox=off`,
+// or `?sandbox=off-unfixed` for one with no command to offer.
+const requestedSandbox = (): SandboxState | undefined => {
+  const query = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
+  const sandbox = query.get("sandbox")
+  if (sandbox === "off") return { sandboxed: false, fix: sampleFix }
+  if (sandbox === "off-unfixed") return { sandboxed: false, fix: "" }
+  return undefined
+}
+
 const testBackend = (): ReturnType<typeof createDemoBackend> => {
   if (showcaseRequested()) return createContentDemo()
   const update = requestedUpdate()
-  return update ? demoWithUpdate(update) : createDemoBackend()
+  const sandbox = requestedSandbox()
+  const demo = update ? demoWithUpdate(update) : createDemoBackend()
+  return sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
 }
 
 export const selectBackend: BackendSelection =

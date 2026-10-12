@@ -1,7 +1,19 @@
-import type { DesktopHost, DesktopNotice } from "@novadeck/protocol/bridge"
+import type {
+  DesktopHost,
+  DesktopNotice,
+  SandboxState as BridgeState,
+} from "@novadeck/protocol/bridge"
 
+import type { SandboxState } from "../../model/sandbox"
 import { context, describe, expect, it } from "../../test"
-import { desktopNotices, desktopUpdates, hostNotice, noticeText } from "./desktop-host"
+import {
+  desktopNotices,
+  desktopSandbox,
+  desktopUpdates,
+  hostNotice,
+  hostSandbox,
+  noticeText,
+} from "./desktop-host"
 
 // A host's notification bridge that records what the page shows, and lets a test click.
 const host = () => {
@@ -176,5 +188,46 @@ describe("desktop updates", () => {
       expect(desktopUpdates(undefined)).toBeUndefined()
       expect(desktopUpdates({} as DesktopHost)).toBeUndefined()
     })
+  })
+})
+
+describe("a host's sandbox", () => {
+  it("fits the protocol's, which the page's own copy must keep to", () => {
+    const ours: SandboxState = { sandboxed: false, fix: "x" }
+    const theirs: BridgeState = ours
+    const back: SandboxState = theirs
+    expect(back).toEqual(ours)
+  })
+
+  it("is sandboxed, or not with the command that fixes it", () => {
+    expect(hostSandbox({ sandboxed: true })).toEqual({ sandboxed: true })
+    expect(hostSandbox({ sandboxed: false, fix: " sudo ln -s a b \n" })).toEqual({
+      sandboxed: false,
+      fix: "sudo ln -s a b",
+    })
+  })
+
+  it("keeps no command that is not one plain line of reasonable length", () => {
+    const unfixed = { sandboxed: false, fix: "" }
+    expect(hostSandbox({ sandboxed: false, fix: "a\nsudo b" })).toEqual(unfixed)
+    expect(hostSandbox({ sandboxed: false, fix: "a\u202eb" })).toEqual(unfixed)
+    expect(hostSandbox({ sandboxed: false, fix: "a".repeat(301) })).toEqual(unfixed)
+    expect(hostSandbox({ sandboxed: false, fix: 7 })).toEqual(unfixed)
+    expect(hostSandbox({ sandboxed: false })).toEqual(unfixed)
+  })
+
+  it("is refused when it is neither", () => {
+    expect(() => hostSandbox(null)).toThrow()
+    expect(() => hostSandbox({ sandboxed: "no" })).toThrow()
+  })
+
+  it("is asked of the host, where it has one", async () => {
+    const bridge = { sandbox: () => Promise.resolve({ sandboxed: true }) } as unknown as DesktopHost
+    expect(await desktopSandbox(bridge)!()).toEqual({ sandboxed: true })
+  })
+
+  it("is absent in a browser, or a host that came before it", () => {
+    expect(desktopSandbox(undefined)).toBeUndefined()
+    expect(desktopSandbox({} as DesktopHost)).toBeUndefined()
   })
 })

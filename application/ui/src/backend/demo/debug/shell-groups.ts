@@ -1,5 +1,6 @@
 import { demoVariants } from "../variants"
 import { bootFailures } from "./boot-failures"
+import { sampleFix } from "./sandbox"
 import type { DemoAction, DemoActionGroup, DemoStates } from "./types"
 import type { DemoLaunch, DemoShell } from "./with-debug"
 
@@ -51,6 +52,21 @@ export const shellGroups = ({
           hint: failureHints[failure.kind],
           run: () => rehearsals.rehearse({ fail: failure.code }),
         })),
+        {
+          label: "No sandbox",
+          hint: "Boots again as a host running without its security sandbox: a No sandbox chip beside the footer's status opens a notice with the fix command and Copy",
+          run: () => launch.setSandbox({ sandboxed: false, fix: sampleFix }),
+        },
+        {
+          label: "No sandbox, no command",
+          hint: "Boots again as a host without a fix to offer: the No sandbox notice explains, with no command",
+          run: () => launch.setSandbox({ sandboxed: false, fix: "" }),
+        },
+        {
+          label: "Sandboxed",
+          hint: "Boots again as a host running in its sandbox: no chip",
+          run: () => launch.setSandbox({ sandboxed: true }),
+        },
         {
           label: "Welcome dialog",
           hint: "Opens the first-run dialog for connecting agents again.",

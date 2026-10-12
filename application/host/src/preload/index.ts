@@ -6,6 +6,7 @@ import {
   updateVersionPattern,
   type DesktopBridge,
   type DesktopHost,
+  type SandboxState,
   type UpdateOffer,
 } from "@novadeck/protocol/bridge"
 import { contextBridge, ipcRenderer, webUtils } from "electron"
@@ -19,6 +20,7 @@ import {
   noticeClickChannel,
   openUpdatePageChannel,
   runnerPortChannel,
+  sandboxChannel,
   saveBeforeQuitChannel,
   setUpdateChannelChannel,
   updateChannelChannel,
@@ -72,6 +74,23 @@ const offerOf = (value: unknown): UpdateOffer | undefined => {
           !unwanted.test(line),
       )
       .slice(0, updateNotesLength),
+  }
+}
+
+// The longest fix command the page is given: one line, as the host builds it from a
+// repository name.
+const sandboxFixLength = 300
+
+// The sandbox state when it is one the contract allows. Anything else counts as sandboxed,
+// so a broken answer never raises a warning the page cannot back.
+const sandboxOf = (value: unknown): SandboxState => {
+  if (typeof value !== "object" || value === null) return { sandboxed: true }
+  const { sandboxed, fix } = value as Record<string, unknown>
+  if (sandboxed !== false) return { sandboxed: true }
+  return {
+    sandboxed: false,
+    fix:
+      typeof fix === "string" && fix.length <= sandboxFixLength && !unwanted.test(fix) ? fix : "",
   }
 }
 
@@ -134,6 +153,7 @@ const bridge = {
   setUpdateChannel: (channel) => {
     if (updateChannels.includes(channel)) ipcRenderer.send(setUpdateChannelChannel, channel)
   },
+  sandbox: async () => sandboxOf(await ipcRenderer.invoke(sandboxChannel)),
   pathForFile: (file) => {
     try {
       return webUtils.getPathForFile(file)

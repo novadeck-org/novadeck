@@ -76,7 +76,7 @@ jobs:
           for name in \
             novadeck-mac-universal.dmg novadeck-mac-universal.zip \
             novadeck-win-x64-setup.exe \
-            novadeck-linux-amd64.deb novadeck-linux-x86_64.rpm novadeck-linux-x86_64.AppImage \
+            novadeck-linux-x86_64.AppImage \
             latest.yml latest-mac.yml latest-linux.yml install.sh SHA256SUMS; do
             if ! jq -e --arg name "$name" 'any(.assets[]; .name == $name)' <<<"$release" > /dev/null; then
               missing="$missing $name"

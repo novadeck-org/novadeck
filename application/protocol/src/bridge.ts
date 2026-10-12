@@ -72,7 +72,23 @@ export type DesktopBridge = {
    * but an `UpdateChannel`.
    */
   setUpdateChannel?(channel: UpdateChannel): void
+  /**
+   * Whether Electron's sandbox is on for this window. Absent from hosts that came
+   * before it. See `SandboxState`.
+   */
+  sandbox?(): Promise<SandboxState>
 }
+
+/**
+ * Whether the host runs with Electron's sandbox. It does not when started with
+ * `--no-sandbox`, as the Linux AppImage launcher does on a system that restricts
+ * unprivileged user namespaces, such as Ubuntu 24.04 and later. `fix` is the one-line
+ * shell command that turns the sandbox on, for the person to run in a terminal; empty
+ * when the host has none to offer.
+ */
+export type SandboxState =
+  | { readonly sandboxed: true }
+  | { readonly sandboxed: false; readonly fix: string }
 
 /**
  * Which releases a build follows: `stable` the releases promoted to stable, `early` every

@@ -10,6 +10,7 @@ import {
   noticeChannel,
   noticeClickChannel,
   openUpdatePageChannel,
+  sandboxChannel,
   saveBeforeQuitChannel,
   setUpdateChannelChannel,
   updateChannelChannel,
@@ -255,5 +256,34 @@ describe("the update channel", () => {
     for (const value of ["nightly", undefined, {}, 3, "Early"])
       electron.exposed.setUpdateChannel!(value as never)
     expect(electron.sent).toEqual([])
+  })
+})
+
+describe("the sandbox", () => {
+  it("is what the host answers, asked for without naming anything", async () => {
+    electron.answer = { sandboxed: false, fix: "curl -fsSL x | sh" }
+    expect(await electron.exposed.sandbox!()).toEqual({
+      sandboxed: false,
+      fix: "curl -fsSL x | sh",
+    })
+    expect(electron.sent).toEqual([sandboxChannel])
+  })
+
+  it("is on when the host answers anything else", async () => {
+    const answers = [undefined, "off", 3, { sandboxed: "no" }, { fix: "x" }]
+    const states = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.sandbox!()
+    })
+    expect(await Promise.all(states)).toEqual(answers.map(() => ({ sandboxed: true })))
+  })
+
+  it("is off without a command when the command is not one line of reasonable length", async () => {
+    const fixes = [undefined, 3, "a\nb", "a".repeat(301)]
+    const states = fixes.map((fix) => {
+      electron.answer = { sandboxed: false, fix }
+      return electron.exposed.sandbox!()
+    })
+    expect(await Promise.all(states)).toEqual(fixes.map(() => ({ sandboxed: false, fix: "" })))
   })
 })

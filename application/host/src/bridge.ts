@@ -53,6 +53,9 @@ export const updateChannelChannel = "novadeck:update-channel"
 /** Renderer-to-main request to follow another update channel. */
 export const setUpdateChannelChannel = "novadeck:set-update-channel"
 
+/** Renderer-to-main request for whether Electron's sandbox is on; answers a `SandboxState`. */
+export const sandboxChannel = "novadeck:sandbox"
+
 /** Renderer-to-main request for a folder picker; answers the chosen path or null. */
 export const directoryPickerChannel = "novadeck:pick-directory"
 

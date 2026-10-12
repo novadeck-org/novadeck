@@ -10,6 +10,7 @@ import {
   type UpdateOffer,
 } from "@novadeck/protocol/bridge"
 
+import { maxFixLength, type SandboxState } from "../../model/sandbox"
 import type { Backend, Notice } from "../port"
 
 // What the desktop host's preload script offers the page; absent in a browser.
@@ -108,4 +109,23 @@ export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"
         }
       : {}),
   }
+}
+
+// The host's account of its sandbox, where it gives one: what crosses the bridge is
+// checked, and a fix that is not a single plain line, which the person would paste into a
+// terminal, is dropped, leaving the notice without a command.
+export const hostSandbox = (state: unknown): SandboxState => {
+  if (typeof state !== "object" || state === null) throw new Error("Unknown sandbox state")
+  const { sandboxed, fix } = state as Record<string, unknown>
+  if (sandboxed === true) return { sandboxed: true }
+  if (sandboxed !== false) throw new Error("Unknown sandbox state")
+  const command = typeof fix === "string" ? fix.trim() : ""
+  const plain = command.length <= maxFixLength && command.replace(controls, "") === command
+  return { sandboxed: false, fix: plain ? command : "" }
+}
+
+export const desktopSandbox = (host: DesktopHost | undefined): Backend["sandbox"] => {
+  const ask = host?.sandbox
+  if (!ask) return undefined
+  return async () => hostSandbox(await ask())
 }

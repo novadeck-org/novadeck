@@ -12,7 +12,7 @@ import {
 import { sessionName } from "../../model/session-name"
 import type { BackendConnection, ConnectFailure } from "../port"
 import { runnerBackend, type RunnerBackend } from "./backend"
-import { desktopHost, desktopNotices, desktopUpdates } from "./desktop-host"
+import { desktopHost, desktopNotices, desktopSandbox, desktopUpdates } from "./desktop-host"
 import { pause } from "./pause"
 import type { RunnerListing } from "./seed"
 
@@ -135,6 +135,7 @@ export const connectRunnerBackend = async (
     const showAppearance = desktopHost()?.showAppearance
     const notices = desktopNotices(desktopHost())
     const updates = desktopUpdates(desktopHost())
+    const sandbox = desktopSandbox(desktopHost())
     // StrictMode creates a backend twice and keeps the first, so the last one created is
     // not necessarily the one running: close waits on them all (an unstarted one is idle).
     const created: RunnerBackend[] = []
@@ -147,6 +148,7 @@ export const connectRunnerBackend = async (
           ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
           ...(notices ? { notices } : {}),
           ...(updates ? { updates } : {}),
+          ...(sandbox ? { sandbox } : {}),
           livePages: desktopHost()?.livePages === true,
           transcripts,
           agents,

@@ -1,3 +1,4 @@
+import type { SandboxState } from "../../../model/sandbox"
 import { createStore, type MutableStore } from "../../../model/store"
 import type { Workspace } from "../../../model/types"
 import type { BootRehearsals } from "../../boot-rehearsal"
@@ -10,6 +11,7 @@ import type {
 } from "../../port"
 import { createDemo, type DemoVariant } from "../variants"
 import { createDebugPanel } from "./DebugPanel"
+import { createDemoSandbox } from "./sandbox"
 import { createDemoStates } from "./states"
 import type { DemoActionContext } from "./types"
 
@@ -24,6 +26,10 @@ export type DemoLaunch = {
   readonly switchVariant: (variant: DemoVariant) => void
   // Boots again, with the next boot attaching slowly.
   readonly armSlowAttach: () => void
+  // What the host says of its sandbox; undefined where it says nothing, as in a browser.
+  readonly sandbox: SandboxState | undefined
+  // Boots again with the host saying this of its sandbox (or nothing).
+  readonly setSandbox: (sandbox: SandboxState | undefined) => void
 }
 
 // What the panel's groups read and change of the shell around the demo.
@@ -145,6 +151,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     agents: states.agents,
     notices: states.notices,
     updates: states.updates,
+    ...(launch.sandbox ? { sandbox: createDemoSandbox(launch.sandbox) } : {}),
     pickDirectory: states.pickDirectory,
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
     DebugPanel: createDebugPanel({

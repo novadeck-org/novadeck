@@ -34,11 +34,6 @@ export type UpdateBuild = {
   /** The running executable, `process.execPath`. */
   readonly execPath: string
   readonly env: Readonly<Record<string, string | undefined>>
-  /**
-   * What `resources/package-type` says, `deb` or `rpm`, which electron-builder writes
-   * into the Linux packages; undefined where the file is absent. Read by the caller.
-   */
-  readonly packageType: string | undefined
   /** Whether the macOS app bundle is Developer ID signed; see `developerIdSigned`. */
   readonly signed: boolean
   /** Whether the folder holding the AppImage file can be written to. */
@@ -46,7 +41,7 @@ export type UpdateBuild = {
 }
 
 /** The kind of build, which decides the electron-updater class that serves it. */
-export type UpdaterKind = "nsis" | "mac" | "appimage" | "deb" | "rpm"
+export type UpdaterKind = "nsis" | "mac" | "appimage"
 
 /**
  * How a build handles updates: `install` downloads them and installs them, `tell` only
@@ -66,21 +61,16 @@ const isInside = (directory: string, file: string): boolean => {
  * Which kind of build this is, or undefined for one electron-updater has no way to serve.
  * An AppImage is the one whose `APPIMAGE` is set and whose running executable lies inside
  * `APPDIR`, the folder an AppImage mounts itself on; a shell started inside an AppImage
- * inherits both variables, so a deb or rpm launched from there is told apart by its
- * executable, and is the kind its `package-type` names. The AppImage is decided first, so
- * a `package-type` that leaked into one cannot make it a deb.
+ * inherits both variables, so another build launched from there is told apart by its
+ * executable. The AppImage is the only Linux build released, so any other, such as one
+ * built from source or a distribution's own package, has no updater and leaves updating
+ * to whoever installed it.
  */
-const updaterKind = ({
-  platform,
-  execPath,
-  env,
-  packageType,
-}: UpdateBuild): UpdaterKind | undefined => {
+const updaterKind = ({ platform, execPath, env }: UpdateBuild): UpdaterKind | undefined => {
   if (platform === "win32") return "nsis"
   if (platform === "darwin") return "mac"
   if (platform !== "linux") return undefined
   if (env.APPIMAGE && env.APPDIR && isInside(env.APPDIR, execPath)) return "appimage"
-  if (packageType === "deb" || packageType === "rpm") return packageType
   return undefined
 }
 
@@ -88,17 +78,16 @@ const updaterKind = ({
  * How a build updates, or undefined when it does not look for updates at all. Local and
  * pull request builds carry version 0.0.0 and never look; neither does a development run,
  * nor does a launch with `NOVADECK_UPDATES=off`, as the smoke tests give, so none of them
- * reaches the network. Every other build either installs updates itself or tells of them:
+ * reaches the network. Nor does a Linux build that is not an AppImage, as none is released.
+ * Every other build either installs updates itself or tells of them:
  *
  * - The Windows installer installs. Windows has no portable build.
  * - macOS installs when the app bundle is Developer ID signed, as Squirrel.Mac refuses
  *   to install into any other, and tells otherwise.
  * - An AppImage installs by replacing its own file, which takes write access to the
  *   folder it sits in, and tells otherwise.
- * - A deb or rpm installs through the system's package manager, which asks for the
- *   person's password.
  *
- * A release whose install failed, say because that prompt was cancelled, is told of
+ * A release whose install failed, say because the installer failed, is told of
  * rather than installed; see `checkForUpdates`.
  */
 export const updatePlan = (build: UpdateBuild): UpdatePlan | undefined => {
@@ -224,8 +213,7 @@ export const installFallbackMs = (platform: NodeJS.Platform): number =>
  * running: should installing throw, or still not have ended the app after `fallbackMs`,
  * it quits. That quit installs on the way out if the updater still can, as any quit does.
  *
- * A deb or rpm install blocks the app on the system's password prompt, so the wait for
- * the updater to end the app starts only once `install` returns.
+ * The wait for the updater to end the app starts only once `install` returns.
  */
 export const installUpdate = ({
   downloaded,
@@ -269,8 +257,8 @@ export const quitWithoutInstalling =
 /**
  * Switches installing on quit off for a quit that is not an orderly one, on Linux, where
  * Electron turns SIGTERM, SIGINT and SIGHUP into an ordinary quit with exit code 0, which
- * electron-updater installs on. A desktop logout or `kill` would then ask for the
- * password in the middle of ending the session, or kill an AppImage swap halfway. The
+ * electron-updater installs on. A desktop logout or `kill` would then swap the AppImage in
+ * the middle of ending the session, and the system may kill the swap halfway. The
  * orderly quits are closing the last window and restarting into the update, and both
  * are marked before the quit begins; any other, a signal or the menu's Quit, finds the
  * mark missing. Switching off is one way: nothing switches it on again.
@@ -322,7 +310,7 @@ export type NativeUpdater = {
  * In `install` mode it downloads what it finds, installs it when the app next quits, and
  * tells `offer` the update is `ready` once downloaded. The one exception is the release
  * `failedVersion` names, the version an earlier install failed on: it is only told of, as
- * `available`, and not downloaded again, so a dismissed password prompt does not come back
+ * `available`, and not downloaded again, so a failing install does not come back
  * at every launch. A newer release installs as usual. The schedule then ends: a newer
  * release found later empties the folder the downloaded file waits in while the updater
  * still names that file, and quitting then would install nothing, or delete the running

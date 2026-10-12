@@ -9,6 +9,7 @@ import {
   type SeenEnd,
 } from "../model/agent-finish"
 import { orderedTiles } from "../model/roster"
+import type { SandboxState } from "../model/sandbox"
 import { activeProject } from "../model/state"
 import { createStore, type MutableStore, type Store } from "../model/store"
 import type { PreferencesValue, TerminalMetadata, Workspace } from "../model/types"
@@ -74,6 +75,11 @@ export type UiState = {
   readonly updateOpen: boolean
   // The offer (`updateKey`) whose notice came up last, kept across launches: each comes up once.
   readonly updateSeen: string | null
+  // Whether the desktop app runs in its security sandbox, as the host said at startup; null
+  // until then, and where it does not say.
+  readonly sandbox: SandboxState | null
+  // Whether its notice is open. It and the update's share a place, so one open closes the other.
+  readonly sandboxOpen: boolean
   // Whether the page has the person's focus: its window focused and showing.
   readonly pageFocused: boolean
   // The terminals whose agent finished while the person looked elsewhere.
@@ -128,6 +134,8 @@ export const initialUi = ({
   update: null,
   updateOpen: false,
   updateSeen,
+  sandbox: null,
+  sandboxOpen: false,
   pageFocused: true,
   unread: noUnread,
   answering: noTerminalAnswers,
@@ -257,6 +265,21 @@ export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => v
       updateOpen: state.updateOpen || updateKey(update) !== state.updateSeen,
     })),
   ) ?? (() => {})
+
+// Asks the backend once whether the app runs in its security sandbox, and keeps the
+// answer for the footer. A host that fails to say is taken as not saying.
+export const watchSandbox = (sandbox: Backend["sandbox"], ui: UiStore): (() => void) => {
+  let live = true
+  void sandbox?.().then(
+    (state) => {
+      if (live) ui.update((current) => ({ ...current, sandbox: state }))
+    },
+    () => undefined,
+  )
+  return () => {
+    live = false
+  }
+}
 
 // A close confirmation belongs to the session it was asked in: leaving that session
 // drops it, so it never comes back unasked. So does the terminal going away on its own

@@ -90,8 +90,8 @@ fewer antivirus false positives.
 
 ## Checking a download on any platform
 
-Linux checks no signature when an AppImage starts or a deb or rpm installs, so a Linux
-download is checked by hand, and these work for the macOS and Windows packages too.
+Linux checks no signature when an AppImage starts, so a Linux download is checked by
+hand, and these work for the macOS and Windows packages too.
 
 Each release attests every asset it publishes. The attestation records which workflow
 run, commit and repository built a file, and is logged in Sigstore's public

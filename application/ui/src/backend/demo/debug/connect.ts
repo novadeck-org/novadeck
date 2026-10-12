@@ -1,3 +1,4 @@
+import type { SandboxState } from "../../../model/sandbox"
 import type { BootRehearsals } from "../../boot-rehearsal"
 import type { BackendConnection, ConnectBackend } from "../../port"
 import { keepVariant, rememberVariant, requestedVariant } from "../variants"
@@ -15,6 +16,7 @@ export const connectDemo = (rehearsals: BootRehearsals): ConnectBackend => {
   let variant = requestedVariant()
   keepVariant(variant)
   let slowAttach = false
+  let sandbox: SandboxState | undefined
   return async (signal, progress): Promise<BackendConnection> => {
     await rehearsals.beforeConnect(signal, unavailable)
     progress("loading")
@@ -32,6 +34,11 @@ export const connectDemo = (rehearsals: BootRehearsals): ConnectBackend => {
       },
       armSlowAttach: () => {
         slowAttach = true
+        rehearsals.rehearse({ reboot: true })
+      },
+      sandbox,
+      setSandbox: (next) => {
+        sandbox = next
         rehearsals.rehearse({ reboot: true })
       },
     }

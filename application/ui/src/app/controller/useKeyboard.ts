@@ -101,7 +101,8 @@ export const useKeyboard = (dictation?: Dictation): void => {
     const pointerdown = (): void => commands.setNavigate(false)
     // Only a mouse: a tap that focused a terminal would raise a phone's keyboard. A click
     // whose control moves focus itself, as Zen's do, keeps where it put it, and one in a
-    // region that takes its own keys leaves focus to it, even off its controls.
+    // region that takes its own keys leaves focus to it, even off its controls. A button in a footer
+    // notice that takes focus, as Copy does, keeps it so that Escape closes the notice.
     const click = (event: MouseEvent): void => {
       if (!(event instanceof PointerEvent) || event.pointerType !== "mouse") return
       const clicked = document.activeElement
@@ -113,7 +114,8 @@ export const useKeyboard = (dictation?: Dictation): void => {
         const now = document.activeElement
         if (now !== clicked && now !== document.body) return
         const target = classifyKeyTarget(now)
-        if (target.editing || target.companion || target.zenDock || target.chat) return
+        if (target.editing || target.companion || target.zenDock || target.chat || target.notice)
+          return
         if (keyState({ ...services, dictation }, commands).dialog || environment.overlayOpen())
           return
         if (environment.tabInteraction() || ui.getSnapshot().shell.navigate) return

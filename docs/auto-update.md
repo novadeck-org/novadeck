@@ -41,16 +41,16 @@ releases feed. `stable` sets it false and `early` true.
 
 ## Which builds update
 
-| Build                          | Mode                                                                                     |
-| ------------------------------ | ---------------------------------------------------------------------------------------- |
-| macOS, Developer ID signed     | Installs (Squirrel.Mac)                                                                  |
-| macOS, unsigned                | Tells; every build is unsigned until the certificates are in place                       |
-| Windows installer (`-setup`)   | Installs. There is no portable build                                                     |
-| Linux AppImage                 | Installs by replacing its file if the AppImage's folder is writable; tells if not        |
-| Linux `.deb` and `.rpm`        | Installs through the package manager with `pkexec`, which asks for the person's password |
-| A release whose install failed | Tells of that release only; newer ones install                                           |
-| Local and pull request builds  | No checks: they carry version 0.0.0                                                      |
-| Development runs               | No checks                                                                                |
+| Build                          | Mode                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| macOS, Developer ID signed     | Installs (Squirrel.Mac)                                                           |
+| macOS, unsigned                | Tells; every build is unsigned until the certificates are in place                |
+| Windows installer (`-setup`)   | Installs. There is no portable build                                              |
+| Linux AppImage                 | Installs by replacing its file if the AppImage's folder is writable; tells if not |
+| Any other Linux build          | No checks: Linux ships only the AppImage                                          |
+| A release whose install failed | Tells of that release only; newer ones install                                    |
+| Local and pull request builds  | No checks: they carry version 0.0.0                                               |
+| Development runs               | No checks                                                                         |
 
 `NOVADECK_UPDATES=off` turns checks off for a launch. The smoke tests and the release
 workflow's package checks set it, so they never reach the network.
@@ -80,10 +80,9 @@ build checks its own signature once at launch with `codesign`. See
 Only an error raised while installing counts as a failed install: one raised after the
 updater's `install` (the quit-time install) or `quitAndInstall` (a restart) was called, which
 the host wraps to know, and on macOS one raised while Squirrel stages the download. The
-person dismissed the `pkexec` prompt, no polkit agent was running, or the folder turned
-read-only, say. Any other error, such as a check still in flight failing offline after
+AppImage's folder turned read-only, say. Any other error, such as a check still in flight failing offline after
 the download, is only logged. The host then switches installing on quit off, so the same
-prompt does not come back at every quit; writes the version whose install failed (the
+failure does not come back at every quit; writes the version whose install failed (the
 offered one, not the running one) to `update.json`; and re-offers the update as `available`.
 From the next launch that release is only told of: the updater never downloads on its own,
 the host asks for each download, and leaves out the release the mark names, which is offered
@@ -94,16 +93,14 @@ is written as the app exits, cannot race another change.
 
 Restarting saves every page and ends the shells before the updater installs. If the
 updater returns without ending the app, the app quits after 10 seconds (30 on macOS) rather
-than go on running without its shells. A deb or rpm install blocks the app on the password
-prompt, and that wait starts only once it returns.
+than go on running without its shells.
 
 ### Quitting by a signal on Linux
 
 Electron 44 on Linux turns SIGTERM, SIGINT and SIGHUP into an ordinary quit: `before-quit`,
 `will-quit` and `quit` with exit code 0, even when the main process has its own
 `process.on("SIGTERM")` handler, which never runs. electron-updater installs on such a quit,
-so a desktop logout or `kill` would show a `pkexec` prompt in the middle of ending the
-session, or kill an AppImage swap halfway. The host tells the orderly quits, the person's,
+so a desktop logout or `kill` could kill an AppImage swap halfway. The host tells the orderly quits, the person's,
 from signals by marking them before they begin:
 
 - Closing the last window.
@@ -120,28 +117,13 @@ from signals by marking them before they begin:
 The app has no tray and no page command that quits. A `before-quit` without the mark, which
 is what a signal gives, switches installing on quit off.
 
-### Linux package types
+### Linux builds
 
-A deb installs with one privileged command, `apt-get -o DPkg::Lock::Timeout=60 install -y <file>` (`dpkg -i` where
-there is no apt-get), run through electron-updater's `pkexec`/`sudo` helper by a subclass of
-its `DebUpdater` (`package-updaters.ts`). electron-updater's own install runs `dpkg -i` and,
-when that fails, `apt-get install -f -y`: a dismissed prompt then shows a second one, and
-approving it installs nothing from the file yet succeeds, so the app relaunched into the old
-version and offered the same download again. The subclass fails on a non-zero exit and,
-after the command, compares the version `dpkg-query` reports for `novadeck` with the
-offered one, treating a mismatch as a failure. The lock timeout makes apt wait up to a
-minute for unattended-upgrades or PackageKit (apt before 1.9.11 ignores it). A lock that
-outlasts it still counts as a failed install and marks the release tell-only: apt exits
-100 for that and for other apt errors, and telling them apart would take its message. The rpm uses electron-updater's `RpmUpdater`
-unchanged: it runs one command, and `spawnSync` raises on a non-zero exit, but the
-installed version is not checked.
-
-The host builds its updater itself rather than take electron-updater's `autoUpdater`, which
-picks a class from `resources/package-type`, a file electron-builder writes into the deb and
-rpm. A build is an AppImage when `APPIMAGE` is set and the running executable lies inside
-`APPDIR`. Otherwise `package-type` (`deb` or `rpm`) decides. Shells inside an AppImage
-inherit `APPIMAGE`, so a deb started from one is told apart by its executable, and a
-`package-type` that leaked into an AppImage cannot make it a deb.
+The host builds its updater itself rather than take electron-updater's `autoUpdater`. A
+Linux build is an AppImage when `APPIMAGE` is set and the running executable lies inside
+`APPDIR`; shells inside an AppImage inherit `APPIMAGE`, so a program started from one is told
+apart by its executable. Any other packaged Linux build never checks: Linux ships only the
+AppImage.
 
 ## Moving to Applications
 
@@ -176,21 +158,20 @@ only from the main frame of the app's own page.
 Every release uploads these assets, and each `latest*.yml` entry's `url` must name an
 uploaded asset exactly:
 
-| Asset                                              | Used by                                         |
-| -------------------------------------------------- | ----------------------------------------------- |
-| `novadeck-mac-universal.dmg`                       | Downloads from the website                      |
-| `novadeck-mac-universal.zip`                       | macOS updates (Squirrel.Mac)                    |
-| `novadeck-win-x64-setup.exe`                       | The Windows installer and its updates           |
-| `novadeck-linux-x86_64.AppImage`                   | The AppImage and its updates                    |
-| `novadeck-linux-amd64.deb`                         | The deb and its updates                         |
-| `novadeck-linux-x86_64.rpm`                        | The rpm and its updates                         |
-| `latest.yml`, `latest-mac.yml`, `latest-linux.yml` | Update metadata, with each package's SHA-512    |
-| `*.blockmap`                                       | Differential downloads of the installer and zip |
-| `install.sh`                                       | The Linux install script                        |
+| Asset                                              | Used by                                           |
+| -------------------------------------------------- | ------------------------------------------------- |
+| `novadeck-mac-universal.dmg`                       | Downloads from the website                        |
+| `novadeck-mac-universal.zip`                       | `install.sh` on macOS, and updates (Squirrel.Mac) |
+| `novadeck-win-x64-setup.exe`                       | The Windows installer and its updates             |
+| `novadeck-linux-x86_64.AppImage`                   | The AppImage and its updates                      |
+| `latest.yml`, `latest-mac.yml`, `latest-linux.yml` | Update metadata, with each package's SHA-512      |
+| `*.blockmap`                                       | Differential downloads of the installer and zip   |
+| `install.sh`                                       | The Linux and macOS install script                |
 
-`latest-linux.yml` must list the AppImage, the deb and the rpm: the deb and rpm updaters
-look for their own extension in it. The AppImage needs libfuse2, which `install.sh` hints
-at when it is missing. The workflow must not change a package after builder wrote it, as
+`latest-linux.yml` must list the AppImage. The AppImage is built on the static type2
+runtime (`toolsets.appimage` in `electron-builder.yml`), so it needs a setuid
+`fusermount3`, or FUSE 2's `fusermount`, and `/dev/fuse`, rather than libfuse2;
+`install.sh` names the `fuse3` package when they are missing. The workflow must not change a package after builder wrote it, as
 the metadata carries its checksum.
 
 Names carry no version. For the AppImage that is deliberate: electron-updater renames the

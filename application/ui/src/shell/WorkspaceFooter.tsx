@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react"
 
+import { FooterSandbox, type FooterSandboxProps } from "./FooterSandbox"
 import { FooterUpdate, type FooterUpdateProps } from "./FooterUpdate"
 
 // How the backend link is doing, most severe first: "ok" shows nothing.
@@ -19,7 +20,8 @@ const shown: Record<Exclude<FooterStatus, "ok">, { readonly tone: Tone; readonly
 // turns green with "Reconnected" for a moment. The status is short, bold and set in
 // capitals by CSS, so assistive technology still reads ordinary words. An update waits
 // beside it as a chip, "Update ready" or "Update available", in the bar's own colours;
-// it opens the update's notice (FooterUpdate.tsx).
+// it opens the update's notice (FooterUpdate.tsx). Without the security sandbox, a chip
+// before it says so (FooterSandbox.tsx).
 export const WorkspaceFooter = ({
   hidden,
   count,
@@ -28,6 +30,7 @@ export const WorkspaceFooter = ({
   navigate = false,
   onRetry,
   update,
+  sandbox,
   usage,
 }: {
   readonly hidden: boolean
@@ -41,6 +44,9 @@ export const WorkspaceFooter = ({
   // An update waiting, downloaded or to fetch. Quiet: it never tones the bar, and the
   // link's status keeps its place after it.
   readonly update?: FooterUpdateProps | undefined
+  // Set while the app runs without its security sandbox: a chip beside the update's
+  // opens the notice that says so.
+  readonly sandbox?: FooterSandboxProps | undefined
   // The account's subscriptions, at its end before the status.
   readonly usage?: ReactNode
 }): React.JSX.Element => {
@@ -81,6 +87,7 @@ export const WorkspaceFooter = ({
       </span>
       <span className="flex items-center gap-4">
         {usage}
+        <FooterSandbox sandbox={sandbox} hidden={hidden} />
         <FooterUpdate update={update} hidden={hidden} />
         <span className="footer-status flex items-center gap-1.5 font-bold">
           <span role="status" aria-live={current?.tone === "danger" ? "assertive" : "polite"}>

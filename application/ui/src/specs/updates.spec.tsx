@@ -217,6 +217,14 @@ describe("the update notice", () => {
       await expect.element(typing()).toHaveFocus()
     })
 
+    it("hands focus back to the terminal when its text is clicked while the view has focus", async () => {
+      await noticeUp()
+      await focusStage()
+      await ready().getByText("Terminals keep their place when you switch projects.").click()
+      await expect.element(typing()).toHaveFocus()
+      await expect.element(ready()).toBeVisible()
+    })
+
     it("leaves focus in the terminal when its buttons are clicked with the mouse", async () => {
       await noticeUp()
       await later(ready()).click()

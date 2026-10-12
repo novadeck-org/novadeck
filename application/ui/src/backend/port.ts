@@ -3,6 +3,7 @@ import type { ComponentType, ReactNode } from "react"
 import type { Companions } from "../model/companion"
 import type { Conversations } from "../model/conversation"
 import type { Messages } from "../model/messages"
+import type { SandboxState } from "../model/sandbox"
 import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
 import type { Store } from "../model/store"
@@ -214,6 +215,10 @@ export type Backend = {
       readonly set: (channel: UpdateChannel) => void
     }
   }
+  // Optional. Whether the desktop app runs in Electron's security sandbox, asked once at
+  // startup since the answer holds for the whole run. Absent in a browser and in a host
+  // that does not say.
+  readonly sandbox?: () => Promise<SandboxState>
   // Optional. The debug panel, where this launch offers it: it triggers the states
   // the backend can be in. See README "Debug panel".
   readonly DebugPanel?: ComponentType<DebugPanelProps>

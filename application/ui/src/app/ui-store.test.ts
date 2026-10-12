@@ -12,6 +12,7 @@ import {
   trackRecent,
   watchFinishes,
   watchPresentation,
+  watchSandbox,
   watchSwitcher,
   watchUpdates,
   type FinishNotify,
@@ -444,5 +445,36 @@ describe("a waiting update", () => {
     const ui = createUiStore(initial())
     watchUpdates(undefined, ui)()
     expect(ui.getSnapshot().update).toBeNull()
+  })
+})
+
+describe("the sandbox", () => {
+  it("is kept as the backend says it, once", async () => {
+    const ui = createUiStore(initial())
+    let asked = 0
+    watchSandbox(() => {
+      asked += 1
+      return Promise.resolve({ sandboxed: false, fix: "sudo fix" })
+    }, ui)
+    expect(ui.getSnapshot().sandbox).toBeNull()
+    await vi.waitFor(() =>
+      expect(ui.getSnapshot().sandbox).toEqual({ sandboxed: false, fix: "sudo fix" }),
+    )
+    expect(asked).toBe(1)
+  })
+
+  it("is never there where the backend does not say, or fails to", async () => {
+    const ui = createUiStore(initial())
+    watchSandbox(undefined, ui)()
+    watchSandbox(() => Promise.reject(new Error("no")), ui)
+    await Promise.resolve()
+    expect(ui.getSnapshot().sandbox).toBeNull()
+  })
+
+  it("is not kept once the watch is stopped", async () => {
+    const ui = createUiStore(initial())
+    watchSandbox(() => Promise.resolve({ sandboxed: true }), ui)()
+    await Promise.resolve()
+    expect(ui.getSnapshot().sandbox).toBeNull()
   })
 })

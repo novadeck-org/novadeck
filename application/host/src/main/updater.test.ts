@@ -39,7 +39,6 @@ const build = (overrides: Partial<UpdateBuild> = {}): UpdateBuild => ({
   platform: "linux",
   execPath: "/opt/novadeck/novadeck",
   env: {},
-  packageType: undefined,
   signed: false,
   appImageWritable: true,
   ...overrides,
@@ -84,33 +83,13 @@ describe("how a build updates", () => {
       })
     })
 
-    it("installs a deb or an rpm through the package manager", () => {
-      expect(updatePlan(build({ packageType: "deb" }))).toEqual({ kind: "deb", mode: "install" })
-      expect(updatePlan(build({ packageType: "rpm" }))).toEqual({ kind: "rpm", mode: "install" })
-    })
-
-    it("does not need a writable folder for a package", () => {
-      expect(updatePlan(build({ packageType: "deb", appImageWritable: false }))?.mode).toBe(
-        "install",
-      )
-    })
-
-    it("takes a deb launched from a shell inside an AppImage, which inherits its variables, for a deb", () => {
-      expect(
-        updatePlan(build({ ...appImage, execPath: "/opt/novadeck/novadeck", packageType: "deb" })),
-      ).toEqual({ kind: "deb", mode: "install" })
-    })
-
-    it("takes an AppImage for one although a package type leaked into it", () => {
-      expect(updatePlan(build({ ...appImage, packageType: "deb" }))?.kind).toBe("appimage")
-    })
-
-    it("does not look in a build that is neither, such as a package of another manager", () => {
+    it("does not look in a build that is not an AppImage, such as a distribution's package", () => {
       expect(updatePlan(build())).toBeUndefined()
-      expect(updatePlan(build({ packageType: "pacman" }))).toBeUndefined()
       // A folder that merely shares the mount's name as a prefix is not inside it.
       for (const execPath of ["/tmp/.mount_novadeAbCd/novadeck", "/tmp/.mount_novadeAbC"])
         expect(updatePlan(build({ ...appImage, execPath }))).toBeUndefined()
+      // A shell started inside an AppImage inherits its variables, but runs another build.
+      expect(updatePlan(build({ ...appImage, execPath: "/opt/novadeck/novadeck" }))).toBeUndefined()
     })
 
     it("does not take a build for an AppImage without both variables", () => {
@@ -592,7 +571,7 @@ describe("checking for updates", () => {
         releaseNotes: "<p>Faster.</p>",
       })
       updater.install()
-      updater.emit("error", new Error("pkexec was dismissed"))
+      updater.emit("error", new Error("the installer failed"))
       expect(failed).toEqual(["1.2.3"])
       expect(updater.autoInstallOnAppQuit).toBe(false)
       expect(offered).toEqual([
@@ -606,7 +585,7 @@ describe("checking for updates", () => {
       const { updater, failed } = checking()
       updater.emit("update-downloaded", { version: "1.2.3" })
       updater.quitAndInstall()
-      updater.emit("error", new Error("no polkit agent"))
+      updater.emit("error", new Error("the file could not be replaced"))
       expect(failed).toEqual(["1.2.3"])
     })
 

@@ -1,7 +1,8 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 
 import { blockingOverlayOpen } from "../interaction/dom"
 import { updateKey, type UpdateOffer } from "../model/update"
+import { KeepFocus, useRecoverFocus } from "./notice-focus"
 
 // The release-note lines the notice shows; the release page has the rest.
 export const shownNotes = 5
@@ -33,7 +34,7 @@ type Return = "origin" | "terminal"
 // Whether a dialog, menu or popover is open, looked at while `active`: they come and go
 // in portals, so there is nothing to subscribe to. Looked at as `active` begins, so an
 // offer that arrives with one open never shows, and then every 150 ms.
-const useOverlayOpen = (active: boolean): boolean => {
+export const useOverlayOpen = (active: boolean): boolean => {
   const [was, setWas] = useState(false)
   const [open, setOpen] = useState(false)
   if (active !== was) {
@@ -46,17 +47,6 @@ const useOverlayOpen = (active: boolean): boolean => {
     return () => clearInterval(timer)
   }, [active])
   return active && open
-}
-
-// Notes in `lost` that the notice went away while focus was inside it.
-const KeepFocus = ({ lost }: { readonly lost: { current: boolean } }): null => {
-  useLayoutEffect(
-    () => () => {
-      if (document.activeElement?.closest(".update-panel")) lost.current = true
-    },
-    [lost],
-  )
-  return null
 }
 
 // The notice's content: the headline, a few notes, and what the person can do.
@@ -163,26 +153,7 @@ export const FooterUpdate = ({
     })
     return () => cancelAnimationFrame(frame)
   }, [visible])
-  // Focus inside the notice when it went away unanswered, as for a dialog the person
-  // opened from it: the dialog would return to a button that is gone, so focus goes to
-  // the chip once nothing else has it.
-  const lost = useRef(false)
-  useEffect(() => {
-    if (blocked || hidden || !lost.current) return undefined
-    lost.current = false
-    let frame = 0
-    let tries = 0
-    const check = (): void => {
-      const active = document.activeElement
-      if (active && active !== document.body) return
-      tries += 1
-      if (tries > 60) return
-      if (tries > 2) chip.current?.focus()
-      else frame = requestAnimationFrame(check)
-    }
-    frame = requestAnimationFrame(check)
-    return () => cancelAnimationFrame(frame)
-  }, [blocked, hidden])
+  const lost = useRecoverFocus(blocked || hidden, chip)
   const word = offer?.kind === "available" ? "Update available" : "Update ready"
   const finish = (to: Return): void => {
     if (!update) return
@@ -249,7 +220,7 @@ export const FooterUpdate = ({
                 finish("origin")
               }}
             >
-              <KeepFocus lost={lost} />
+              <KeepFocus lost={lost} selector=".update-panel" />
               <UpdateCard
                 offer={offer}
                 titleId={titleId}
