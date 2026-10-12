@@ -12,6 +12,9 @@ import {
   started,
   subagentRef,
   summary,
+  withGist,
+  withHeadline,
+  withoutNotes,
   type Activity,
 } from "./activity.js"
 import type { Binding } from "./bindings.js"
@@ -64,7 +67,7 @@ const replay = (agent: AgentName, name: string) => {
 // Idle once its turn ended as `lastTurn` says, whenever it ended.
 const idle = (lastTurn: Omit<NonNullable<ReturnType<typeof summary>["lastTurn"]>, "at">) => ({
   state: "idle",
-  attention: { pending: 0, kind: null },
+  attention: { pending: 0, kind: null, headline: null },
   subagents: [],
   planning: false,
   background: null,
@@ -75,14 +78,14 @@ const idle = (lastTurn: Omit<NonNullable<ReturnType<typeof summary>["lastTurn"]>
 const ongoing = { lastTurn: null }
 
 // A completed turn, its reply as the captured hook named it.
-const replied = { outcome: "completed", reply: "<text>" } as const
+const replied = { outcome: "completed", reply: "<text>", gist: null } as const
 
 describe("activity from captured hooks", () => {
   it("waits on the person while Claude Code asks, and works again once allowed", () => {
     const { states, last } = replay("claude", "allow")
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission" },
+      attention: { pending: 1, kind: "permission", headline: null },
       subagents: [],
       planning: false,
       background: null,
@@ -95,7 +98,7 @@ describe("activity from captured hooks", () => {
     const { states, last } = replay("claude", "question")
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 1, kind: "question" },
+      attention: { pending: 1, kind: "question", headline: null },
       subagents: [],
       planning: false,
       background: null,
@@ -107,7 +110,7 @@ describe("activity from captured hooks", () => {
   it("keeps a denied Claude Code request waiting, as nothing reports the denial", () => {
     expect(replay("claude", "deny").last).toEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission" },
+      attention: { pending: 1, kind: "permission", headline: null },
       subagents: [],
       planning: false,
       background: null,
@@ -119,20 +122,20 @@ describe("activity from captured hooks", () => {
     const { states, last } = replay("codex", "deny-then-interrupt")
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission" },
+      attention: { pending: 1, kind: "permission", headline: null },
       subagents: [],
       planning: false,
       background: null,
       ...ongoing,
     })
-    expect(last).toEqual(idle({ outcome: "interrupted", reply: null }))
+    expect(last).toEqual(idle({ outcome: "interrupted", reply: null, gist: null }))
   })
 
   it("settles an approved Codex request, whose result no longer describes the call", () => {
     const { states, last } = replay("codex", "approve")
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission" },
+      attention: { pending: 1, kind: "permission", headline: null },
       subagents: [],
       planning: false,
       background: null,
@@ -140,7 +143,7 @@ describe("activity from captured hooks", () => {
     })
     expect(states).toContainEqual({
       state: "working",
-      attention: { pending: 0, kind: null },
+      attention: { pending: 0, kind: null, headline: null },
       subagents: [],
       planning: false,
       background: null,
@@ -151,21 +154,24 @@ describe("activity from captured hooks", () => {
 
   it("plans in Claude Code's plan mode, and waits on the person to review the plan", () => {
     const { last } = replay("claude", "plan")
-    expect(last).toMatchObject({ planning: true, attention: { pending: 1, kind: "plan" } })
+    expect(last).toMatchObject({
+      planning: true,
+      attention: { pending: 1, kind: "plan", headline: null },
+    })
   })
 
   it("works through Antigravity's model calls and idles at Stop", () => {
     const { states } = replay("agy", "clear")
     expect(states[0]).toEqual({
       state: "working",
-      attention: { pending: 0, kind: null },
+      attention: { pending: 0, kind: null, headline: null },
       subagents: [],
       planning: false,
       background: null,
       ...ongoing,
     })
     // Its Stop names no reply; its transcript does, which the runner reads apart.
-    expect(states).toContainEqual(idle({ outcome: "completed", reply: null }))
+    expect(states).toContainEqual(idle({ outcome: "completed", reply: null, gist: null }))
   })
 })
 
@@ -277,7 +283,7 @@ describe("applying activity", () => {
       fact({ type: "turn-ended", outcome: "completed", startedAt: 10 }),
     )!
     expect(ended.pending).toEqual([])
-    expect(summary(ended).attention).toEqual({ pending: 0, kind: null })
+    expect(summary(ended).attention).toEqual({ pending: 0, kind: null, headline: null })
   })
 
   it("settles a question loosely by its actor and tool, as its answered call changed", () => {
@@ -338,7 +344,11 @@ describe("applying activity", () => {
     ]) {
       const next = apply(asking(), binding, boundary)!
       expect(ids(next), boundary.type).toEqual(["bg:Bash:1"])
-      expect(summary(next).attention, boundary.type).toEqual({ pending: 1, kind: "permission" })
+      expect(summary(next).attention, boundary.type).toEqual({
+        pending: 1,
+        kind: "permission",
+        headline: null,
+      })
     }
   })
 
@@ -434,9 +444,9 @@ describe("applying activity", () => {
         startedAt,
       })
     const revised = apply(apply(started(0), binding, plan("p1", 5))!, binding, plan("p2", 6))!
-    expect(summary(revised).attention).toEqual({ pending: 1, kind: "plan" })
+    expect(summary(revised).attention).toEqual({ pending: 1, kind: "plan", headline: null })
     const approved = apply(revised, binding, result("p3", null, "ExitPlanMode", true))!
-    expect(summary(approved).attention).toEqual({ pending: 0, kind: null })
+    expect(summary(approved).attention).toEqual({ pending: 0, kind: null, headline: null })
   })
 
   it("plans as the latest hook to name the mode said, whatever order they arrive in", () => {
@@ -473,7 +483,7 @@ describe("applying activity", () => {
     // Nor does its own next request: both dialogs may show.
     const again = apply(ended, binding, request("bg:Bash:2", "bg", 12))!
     expect(ids(again)).toEqual(["bg:Bash:1", "bg:Bash:2"])
-    expect(summary(again).attention).toEqual({ pending: 2, kind: "permission" })
+    expect(summary(again).attention).toEqual({ pending: 2, kind: "permission", headline: null })
     // An older one, arriving after the newer one, waits too.
     expect(ids(apply(again, binding, request("bg:Bash:0", "bg", 8))!)).toEqual([
       "bg:Bash:1",
@@ -1049,10 +1059,16 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: "Fixed the flaky spec.",
       at: 2,
+      gist: null,
     })
-    expect(summary(stop(running, 2)).lastTurn).toEqual({ outcome: "completed", reply: null, at: 2 })
+    expect(summary(stop(running, 2)).lastTurn).toEqual({
+      outcome: "completed",
+      reply: null,
+      at: 2,
+      gist: null,
+    })
     const failed = stop(running, 2, { outcome: "failed" })
-    expect(summary(failed).lastTurn).toEqual({ outcome: "failed", reply: null, at: 2 })
+    expect(summary(failed).lastTurn).toEqual({ outcome: "failed", reply: null, at: 2, gist: null })
   })
 
   it("tells the person's interrupt, an Escape and an idle without a Stop apart from completion", () => {
@@ -1062,7 +1078,7 @@ describe("how an agent's latest turn ended", () => {
     expect(summary(escaped).lastTurn?.outcome).toBe("interrupted")
     const none = { agents: 0, tasks: 0 }
     const quiet = on(running, { type: "turn-idle", startedAt: 2, background: none })
-    expect(summary(quiet).lastTurn).toEqual({ outcome: "unknown", reply: null, at: 2 })
+    expect(summary(quiet).lastTurn).toEqual({ outcome: "unknown", reply: null, at: 2, gist: null })
   })
 
   it("tells the end while subagents it left run, the agent working on", () => {
@@ -1070,7 +1086,7 @@ describe("how an agent's latest turn ended", () => {
     const waiting = stop(running, 2, { reply: "Waiting on two agents.", background })
     expect(summary(waiting)).toMatchObject({
       state: "working",
-      lastTurn: { outcome: "completed", reply: "Waiting on two agents.", at: 2 },
+      lastTurn: { outcome: "completed", reply: "Waiting on two agents.", at: 2, gist: null },
     })
   })
 
@@ -1085,16 +1101,23 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: "First answer.",
       at: 2,
+      gist: null,
     })
   })
 
   it("keeps the end its records told when the hook's own Stop comes after, taking its reply", () => {
     const recorded = stop(running, 3, { recorded: true })
-    expect(summary(recorded).lastTurn).toEqual({ outcome: "completed", reply: null, at: 3 })
+    expect(summary(recorded).lastTurn).toEqual({
+      outcome: "completed",
+      reply: null,
+      at: 3,
+      gist: null,
+    })
     expect(summary(stop(recorded, 4, { reply: "All green." })).lastTurn).toEqual({
       outcome: "completed",
       reply: "All green.",
       at: 3,
+      gist: null,
     })
   })
 
@@ -1105,6 +1128,7 @@ describe("how an agent's latest turn ended", () => {
       outcome: "completed",
       reply: "Second.",
       at: 5,
+      gist: null,
     })
   })
 })
@@ -1130,17 +1154,18 @@ describe("a turn the person's Escape ended", () => {
 
   it("reads interrupted from the Escape at once, before its harness says anything", () => {
     expect(summary(stopped)).toMatchObject({ state: "idle" })
-    expect(outcome(stopped)).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+    expect(outcome(stopped)).toEqual({ outcome: "interrupted", reply: null, at: 20, gist: null })
   })
 
   it("reads completed once the window passes with a Stop told since, its reply as the last turn's", () => {
     const told = stop(stopped, 25, { reply: "Too late." })
     // Claude Code's Stop fires too when it took the Escape just after the reply: not yet.
-    expect(outcome(told)).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+    expect(outcome(told)).toEqual({ outcome: "interrupted", reply: null, at: 20, gist: null })
     expect(outcome(lapsed(told, 20))).toEqual({
       outcome: "completed",
       reply: "Too late.",
       at: 25,
+      gist: null,
     })
   })
 
@@ -1150,6 +1175,7 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Too late.",
       at: 25,
+      gist: null,
     })
     // Nor is there a window left to wait out.
     expect(lapsed(stop(antigravity, 25), 20)).toBeUndefined()
@@ -1161,40 +1187,57 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Too late.",
       at: 25,
+      gist: null,
     })
     // Its record with no Stop told yet is the end too.
     expect(outcome(stop(stopped, 30, { recorded: true }))).toEqual({
       outcome: "completed",
       reply: null,
       at: 30,
+      gist: null,
     })
   })
 
   it("counts a Stop that started before the key, though told after it, as the same turn's", () => {
     const told = stop(stopped, 19, { reply: "Too late." })
-    expect(outcome(lapsed(told, 20))).toEqual({ outcome: "completed", reply: "Too late.", at: 21 })
+    expect(outcome(lapsed(told, 20))).toEqual({
+      outcome: "completed",
+      reply: "Too late.",
+      at: 21,
+      gist: null,
+    })
   })
 
   it("reads interrupted when the harness records the interruption, though a Stop came first", () => {
     const told = stop(stopped, 25, { reply: "Too late." })
     const interrupted = stop(told, 30, { outcome: "interrupted" })
-    expect(outcome(interrupted)).toEqual({ outcome: "interrupted", reply: null, at: 30 })
+    expect(outcome(interrupted)).toEqual({
+      outcome: "interrupted",
+      reply: null,
+      at: 30,
+      gist: null,
+    })
     // Nothing is left to lapse, so the Stop held before is never the end.
     expect(lapsed(interrupted, 20)).toBeUndefined()
     // Nor does a record of the interruption: it names the Escape's own end.
     const recorded = stop(told, 30, { outcome: "interrupted", recorded: true })
-    expect(outcome(recorded)).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+    expect(outcome(recorded)).toEqual({ outcome: "interrupted", reply: null, at: 20, gist: null })
     expect(lapsed(recorded, 20)).toBeUndefined()
   })
 
   it("reads interrupted when the harness says so with no Stop", () => {
     const interrupted = stop(stopped, 22, { outcome: "interrupted" })
-    expect(outcome(interrupted)).toEqual({ outcome: "interrupted", reply: null, at: 22 })
+    expect(outcome(interrupted)).toEqual({
+      outcome: "interrupted",
+      reply: null,
+      at: 22,
+      gist: null,
+    })
   })
 
   it("reads interrupted when the window passes with nothing said", () => {
     const quiet = lapsed(stopped, 20)
-    expect(outcome(quiet)).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+    expect(outcome(quiet)).toEqual({ outcome: "interrupted", reply: null, at: 20, gist: null })
     // The window is closed: a lapse again changes nothing.
     expect(
       apply(quiet, binding, fact({ type: "turn-escape-lapsed", startedAt: 20 })),
@@ -1206,14 +1249,14 @@ describe("a turn the person's Escape ended", () => {
     const antigravity = escaped(turn(started(0, true, false), 10), 20)
     const kept = on(antigravity, { type: "turn-escape-lapsed", startedAt: 20, reply: "Too late." })
     expect(summary(kept)).toMatchObject({ state: "idle" })
-    expect(outcome(kept)).toEqual({ outcome: "completed", reply: "Too late.", at: 21 })
+    expect(outcome(kept)).toEqual({ outcome: "completed", reply: "Too late.", at: 21, gist: null })
     // The window is closed: a lapse again changes nothing.
     expect(lapsed(kept, 20)).toBeUndefined()
     // A Stop told since stays the end, its own reply with it.
     const told = stop(stopped, 25, { reply: "Told." })
     expect(
       outcome(on(told, { type: "turn-escape-lapsed", startedAt: 20, reply: "Too late." })),
-    ).toEqual({ outcome: "completed", reply: "Told.", at: 25 })
+    ).toEqual({ outcome: "completed", reply: "Told.", at: 25, gist: null })
   })
 
   it("does not count a Stop from an earlier turn", () => {
@@ -1223,7 +1266,12 @@ describe("a turn the person's Escape ended", () => {
     expect(
       apply(second, binding, fact({ type: "turn-ended", outcome: "completed", startedAt: 8 })),
     ).toBeUndefined()
-    expect(outcome(lapsed(second, 20))).toEqual({ outcome: "interrupted", reply: null, at: 20 })
+    expect(outcome(lapsed(second, 20))).toEqual({
+      outcome: "interrupted",
+      reply: null,
+      at: 20,
+      gist: null,
+    })
     // Codex names the turn each record is of.
     const codex: Binding = { agent: "codex", sessionId: "s", instance: "7" }
     const named = apply(
@@ -1257,6 +1305,7 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Late.",
       at: 40,
+      gist: null,
     })
     // A new turn's own Escape is not closed by the earlier one's lapse.
     const next = escaped(turn(quiet, 50), 60)
@@ -1321,12 +1370,13 @@ describe("a turn the person's Escape ended", () => {
 
   it("keeps a record's turn and word that it was recorded, so the hook's Stop says more of the end", () => {
     const recorded = stop(stopped, 30, { recorded: true, reply: "Done." })
-    expect(outcome(recorded)).toEqual({ outcome: "completed", reply: "Done.", at: 30 })
+    expect(outcome(recorded)).toEqual({ outcome: "completed", reply: "Done.", at: 30, gist: null })
     expect(recorded.lastTurn?.recorded).toBe(true)
     expect(outcome(stop(recorded, 35, { reply: "Done, fully." }))).toEqual({
       outcome: "completed",
       reply: "Done, fully.",
       at: 30,
+      gist: null,
     })
   })
 
@@ -1346,6 +1396,134 @@ describe("a turn the person's Escape ended", () => {
       outcome: "completed",
       reply: "Done.",
       at: 40,
+      gist: null,
     })
+  })
+})
+
+describe("murmur's headlines and gists", () => {
+  const binding: Binding = { agent: "claude", sessionId: "s", instance: "7" }
+  type Fields = Parameters<typeof fact>[0]
+  const on = (activity: Activity, fields: object) =>
+    apply(activity, binding, fact(fields as Fields))!
+  const turn = (activity: Activity, startedAt: number) =>
+    on(activity, { type: "turn-started", cause: "prompt", startedAt })
+  const stop = (activity: Activity, startedAt: number, extra: object = {}) =>
+    on(activity, { type: "turn-ended", outcome: "completed", startedAt, ...extra })
+  const ask = (activity: Activity, requestId: string, kind: string, startedAt: number) =>
+    on(activity, {
+      type: "attention-requested",
+      requestId,
+      actor: null,
+      toolName: "Tool",
+      kind,
+      subject: "Which database?",
+      choices: [],
+      startedAt,
+    })
+  const resolve = (activity: Activity, requestId: string, startedAt: number) =>
+    on(activity, {
+      type: "attention-resolved",
+      requestId,
+      actor: null,
+      toolName: "Tool",
+      loose: false,
+      outcome: "allowed",
+      startedAt,
+    })
+  const running = turn(started(0), 1)
+
+  it("puts a headline on the request asked at that time, once, and shows the oldest's", () => {
+    const asked = ask(ask(running, "q1", "question", 2), "q2", "plan", 3)
+    expect(summary(asked).attention.headline).toBeNull()
+    expect(withHeadline(asked, "q1", 99, "Asks which")).toBeUndefined()
+    expect(withHeadline(asked, "nobody", 2, "Asks which")).toBeUndefined()
+    const headlined = withHeadline(asked, "q1", 2, "Asks which database to use")!
+    expect(summary(headlined).attention).toEqual({
+      pending: 2,
+      kind: "question",
+      headline: "Asks which database to use",
+    })
+    expect(withHeadline(headlined, "q1", 2, "Again")).toBeUndefined()
+    // The next request shows its own once the oldest is answered.
+    const both = withHeadline(headlined, "q2", 3, "Plan to split billing")!
+    expect(summary(resolve(both, "q1", 4)).attention.headline).toBe("Plan to split billing")
+  })
+
+  it("shows a permission no headline, and a request no longer waiting takes none", () => {
+    const asked = ask(running, "p1", "permission", 2)
+    expect(summary(withHeadline(asked, "p1", 2, "Never shown")!).attention.headline).toBeNull()
+    const answered = resolve(ask(running, "q1", "question", 2), "q1", 4)
+    expect(withHeadline(answered, "q1", 2, "Late")).toBeUndefined()
+  })
+
+  it("drops the headline of a revised plan, whose new request awaits its own", () => {
+    const plan = ask(running, "plan", "plan", 2)
+    const headlined = withHeadline(plan, "plan", 2, "Plan to split billing")!
+    const revised = ask(headlined, "plan2", "plan", 5)
+    expect(summary(revised).attention).toMatchObject({ pending: 1, headline: null })
+    expect(withHeadline(revised, "plan", 2, "Stale")).toBeUndefined()
+    expect(summary(withHeadline(revised, "plan2", 5, "Plan to merge")!).attention.headline).toBe(
+      "Plan to merge",
+    )
+  })
+
+  it("puts a gist on the end it was written for, while it is the last and none runs", () => {
+    const done = stop(running, 2, { reply: "Done." })
+    expect(withGist(done, 3, { text: "Fixed it", asks: false })).toBeUndefined()
+    const gisted = withGist(done, 2, { text: "Fixed the rounding bug", asks: true })!
+    expect(summary(gisted).lastTurn).toEqual({
+      outcome: "completed",
+      reply: "Done.",
+      at: 2,
+      gist: { text: "Fixed the rounding bug", asks: true },
+    })
+    // Once only; and the outcome is never changed by it.
+    expect(withGist(gisted, 2, { text: "Other", asks: false })).toBeUndefined()
+    // A new turn drops it, and a late gist for the old end is refused.
+    const next = turn(gisted, 5)
+    expect(summary(next).lastTurn).toBeNull()
+    expect(withGist(next, 2, { text: "Late", asks: false })).toBeUndefined()
+    expect(summary(stop(next, 6)).lastTurn?.gist).toBeNull()
+  })
+
+  it("writes no gist for an interrupted turn or one that is running", () => {
+    expect(withGist(running, 1, { text: "Nothing", asks: false })).toBeUndefined()
+    const interrupted = stop(running, 2, { outcome: "interrupted" })
+    expect(withGist(interrupted, 2, { text: "Nothing", asks: false })).toBeUndefined()
+    const failed = stop(running, 2, { outcome: "failed" })
+    expect(withGist(failed, 2, { text: "Build broke", asks: false })).toBeDefined()
+  })
+
+  it("keeps the gist when the hook's Stop fills in an end its records already told", () => {
+    const recorded = stop(running, 3, { recorded: true })
+    const gisted = withGist(recorded, 3, { text: "Fixed it", asks: false })!
+    const filled = stop(gisted, 4, { reply: "All green." })
+    expect(summary(filled).lastTurn).toEqual({
+      outcome: "completed",
+      reply: "All green.",
+      at: 3,
+      gist: { text: "Fixed it", asks: false },
+    })
+    // Another end of its own is a new one.
+    const other = stop(turn(gisted, 5), 6, { reply: "More." })
+    expect(summary(other).lastTurn?.gist).toBeNull()
+  })
+
+  it("drops the gist when the hook's Stop tells the same end another way", () => {
+    const recorded = stop(running, 3, { recorded: true })
+    const gisted = withGist(recorded, 3, { text: "Fixed it", asks: false })!
+    const other = stop(gisted, 4, { outcome: "failed" })
+    expect(summary(other).lastTurn).toMatchObject({ outcome: "failed", at: 3, gist: null })
+  })
+
+  it("takes both away when murmur is turned off, and says when it had none", () => {
+    const asked = withHeadline(ask(running, "q1", "question", 2), "q1", 2, "Asks which")!
+    expect(withoutNotes(started(0))).toBeUndefined()
+    expect(withoutNotes(ask(running, "q1", "question", 2))).toBeUndefined()
+    expect(summary(withoutNotes(asked)!).attention.headline).toBeNull()
+    const gisted = withGist(stop(running, 2), 2, { text: "Fixed it", asks: false })!
+    expect(summary(withoutNotes(gisted)!).lastTurn?.gist).toBeNull()
+    expect(withoutNotes(withoutNotes(gisted)!)).toBeUndefined()
   })
 })

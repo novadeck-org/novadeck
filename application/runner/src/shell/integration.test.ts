@@ -219,6 +219,8 @@ const reporter = (
     /** The hook event, SessionStart when left out, and more of its payload. */
     event?: string
     fields?: object
+    /** How long to wait before sending it, in milliseconds, so a test sees the state before. */
+    wait?: number
   }[],
 ): string => {
   const bin = join(home, "bin")
@@ -232,7 +234,8 @@ const reporter = (
       "const { NOVADECK_TERMINAL_ID: terminalId, NOVADECK_REPORT_TOKEN: token } = process.env",
       // Hooks send wall-clock times; the given ones order the reports after that.
       "const base = Date.now()",
-      "const send = (index) => {",
+      "const send = (index) => setTimeout(() => post(index), reports[index]?.wait ?? 0)",
+      "const post = (index) => {",
       '  if (index === reports.length) { console.log("reports sent"); return process.stdin.resume() }',
       "  const socket = net.connect(process.env.NOVADECK_REPORT)",
       '  socket.on("close", () => send(index + 1))',
@@ -891,11 +894,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     )
     await expect.poll(activity, { timeout: 10_000 }).toEqual({
       state: "idle",
-      attention: { pending: 0, kind: null },
+      attention: { pending: 0, kind: null, headline: null },
       subagents: [],
       planning: false,
       background: null,
-      lastTurn: { outcome: "interrupted", reply: null, at: expect.any(Number) },
+      lastTurn: { outcome: "interrupted", reply: null, at: expect.any(Number), gist: null },
     })
     // Messaging hears it too: the turn ended without a Stop.
     expect(manager.messages(terminal.id).delivery).toBe("unknown")
@@ -1079,7 +1082,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       .poll(() => manager.list(terminal.sessionId)[0]?.activity, { timeout: 10_000 })
       .toEqual({
         state: "idle",
-        attention: { pending: 0, kind: null },
+        attention: { pending: 0, kind: null, headline: null },
         subagents: [],
         planning: false,
         background: null,
@@ -3576,6 +3579,100 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         person: "My title",
         murmur: null,
       })
+    })
+
+    it("shows a question's headline and a finish's gist in the agent's activity, and takes them away when murmur is turned off", async ({
+      shell,
+    }) => {
+      const transcript = join(shell.home, "session.jsonl")
+      writeFileSync(
+        transcript,
+        `${JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "Fixed the rounding bug." }] } })}\n`,
+      )
+      const question = {
+        tool_name: "AskUserQuestion",
+        tool_input: { questions: [{ question: "Which database should it use?", options: [] }] },
+      }
+      const claude = { agent: "claude", sessionId: "s", source: "" }
+      const bin = reporter(shell.home, [
+        { ...claude, seq: 1, source: "startup", fields: { transcript_path: transcript } },
+        { ...claude, seq: 2, event: "UserPromptSubmit" },
+        { ...claude, seq: 3, event: "PermissionRequest", fields: question },
+        // The person answers a moment later, so the test sees the question first.
+        {
+          ...claude,
+          seq: 4,
+          event: "PostToolUse",
+          fields: { ...question, tool_response: {} },
+          wait: 2_000,
+        },
+        { ...claude, seq: 5, event: "Stop", fields: { transcript_path: transcript } },
+      ])
+      const describer = new FakeDescriber()
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+        describer,
+        murmurTimes: { ...murmurTimes, noteMs: 20 },
+      })
+      const terminal = await create(manager, shell)
+      manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+      const activity = () => manager.list(terminal.sessionId)[0]?.activity
+      await expect
+        .poll(() => activity()?.attention, { timeout: 30_000 })
+        .toEqual({ pending: 1, kind: "question", headline: "Headline 1" })
+      expect(describer.notes[0]!.digest).toMatchObject({
+        kind: "question",
+        question: "Which database should it use?",
+      })
+      // Answering the question takes its headline with it, and the turn ends.
+      await expect.poll(() => activity()?.lastTurn?.outcome, { timeout: 30_000 }).toBe("completed")
+      expect(activity()).toMatchObject({
+        attention: { pending: 0, kind: null, headline: null },
+        lastTurn: { gist: null },
+      })
+      // A client showing the finish unread asks for its gist, which is written once.
+      const at = activity()!.lastTurn!.at
+      manager.gistWanted(terminal.id, at)
+      manager.gistWanted(terminal.id, at)
+      await expect
+        .poll(() => activity()?.lastTurn?.gist, { timeout: 30_000 })
+        .toEqual({ text: "Gist 2", asks: false })
+      expect(describer.notes[1]!.digest).toMatchObject({
+        kind: "reply",
+        reply: "Fixed the rounding bug.",
+      })
+      expect(describer.notes).toHaveLength(2)
+      // Turning murmur off takes it away.
+      describer.clear()
+      await expect.poll(() => activity()?.lastTurn?.gist, { timeout: 30_000 }).toBeNull()
+      expect(activity()!.lastTurn).toMatchObject({ outcome: "completed", at })
+    })
+
+    it("takes a waiting question's headline away when murmur is turned off", async ({ shell }) => {
+      const question = {
+        tool_name: "AskUserQuestion",
+        tool_input: { questions: [{ question: "Which database should it use?", options: [] }] },
+      }
+      const claude = { agent: "claude", sessionId: "s", source: "" }
+      const bin = reporter(shell.home, [
+        { ...claude, seq: 1, source: "startup" },
+        { ...claude, seq: 2, event: "UserPromptSubmit" },
+        { ...claude, seq: 3, event: "PermissionRequest", fields: question },
+      ])
+      const describer = new FakeDescriber()
+      const manager = shell.manager({
+        env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+        describer,
+        murmurTimes: { ...murmurTimes, noteMs: 20 },
+      })
+      const terminal = await create(manager, shell)
+      manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+      const attention = () => manager.list(terminal.sessionId)[0]?.activity?.attention
+      await expect.poll(attention, { timeout: 30_000 }).toMatchObject({ headline: "Headline 1" })
+      describer.clear()
+      await expect
+        .poll(attention, { timeout: 30_000 })
+        .toEqual({ pending: 1, kind: "question", headline: null })
     })
 
     it("does nothing without a describer: terminals keep their default titles and have no summary", async ({

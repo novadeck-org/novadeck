@@ -40,6 +40,8 @@ export type AgentStatus = {
   readonly attention?: {
     readonly kind: "permission" | "question" | "plan"
     readonly count: number
+    // Murmur's headline for the oldest request, a question's or a plan's, where it wrote one.
+    readonly headline?: string
   }
   readonly subagents?: readonly { readonly id: string; readonly type: string | null }[]
   readonly usage?: AgentUsage
@@ -51,10 +53,13 @@ export type AgentStatus = {
 // How an agent's turn ended: `completed` or `failed` on its own, `interrupted` by the
 // person (Escape, or a request they refused), or `unknown` when it only went idle, as an
 // Escape shows in Antigravity. `reply` is the start of its last reply, one line of plain
-// text; `at` tells this end from any other.
+// text; `at` tells this end from any other. `gist` is murmur's words for the reply, where
+// it wrote them, and `asks` that the reply asks the person something.
 export type AgentTurnEnd = {
   readonly outcome: "completed" | "failed" | "interrupted" | "unknown"
   readonly reply?: string
+  readonly gist?: string
+  readonly asks?: true
   readonly at: number
 }
 

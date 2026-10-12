@@ -2,7 +2,7 @@ import { basename, isAbsolute, relative, sep } from "node:path"
 
 import { terminalTitle, type AgentName, type ForegroundProcess } from "@novadeck/protocol"
 
-import type { Activity } from "../harnesses/activity.js"
+import type { Activity, Request } from "../harnesses/activity.js"
 import { tailLines } from "../harnesses/follow.js"
 import type { Items } from "../harnesses/replies.js"
 import { agentLabel } from "../messaging/mailbox.js"
@@ -11,7 +11,12 @@ import type {
   Describer,
   Description,
   Digest,
+  Note,
+  NoteDigest,
+  PlanDigest,
   Previous,
+  QuestionDigest,
+  ReplyDigest,
   ShellDigest,
 } from "../murmur/describer.js"
 import type { Facts } from "./nudges.js"
@@ -50,6 +55,8 @@ export type MurmurTimes = {
    * built meanwhile.
    */
   readonly retryMs: number
+  /** How long a headline or a gist waits before it is asked for, in milliseconds. */
+  readonly noteMs: number
 }
 
 export const defaultTimes: MurmurTimes = {
@@ -58,6 +65,7 @@ export const defaultTimes: MurmurTimes = {
   shellSettleMs: 3_000,
   expectMs: 10_000,
   retryMs: 60_000,
+  noteMs: 1_000,
 }
 
 // These are generous safety caps only. The service redacts every string before it cuts
@@ -72,6 +80,12 @@ export const screenRows = 100
 export const screenColumns = 8000
 /** The longest command line passed on. */
 export const commandChars = 2000
+/** How much of a plan's file is read for a headline, in bytes. */
+export const planBytes = 16 * 1024
+/** How many answers of a question are shown, and how much of a reply: its first and last characters. */
+export const choiceCount = 16
+export const replyHeadChars = 4000
+export const replyTailChars = 4000
 
 // Characters no reply or screen row shows to a model: C0 and C1 control characters, and DEL.
 // eslint-disable-next-line no-control-regex -- These are the characters it removes.
@@ -92,16 +106,12 @@ export const tailOf = (text: string, max: number): string => {
 }
 
 /**
- * The tail of what the agent said last since the person's latest prompt and its latest
- * tool step, as its transcript records it, through its harness's items; null when it
- * said nothing since or the transcript can't be read. Words before a tool call are its
- * working notes, not its reply. Only the end of the transcript is read.
+ * What the agent said last since the person's latest prompt and its latest tool step, as
+ * its transcript records it, through its harness's items, cleaned; null when it said
+ * nothing since or the transcript can't be read. Words before a tool call are its working
+ * notes, not its reply. Only the end of the transcript is read.
  */
-export const replyTail = async (
-  path: string,
-  items: Items,
-  chars = replyChars,
-): Promise<string | null> => {
+export const lastReply = async (path: string, items: Items): Promise<string | null> => {
   const lines = await tailLines(path)
   let reply: string | undefined
   for (const line of lines ?? [])
@@ -110,8 +120,44 @@ export const replyTail = async (
       else if (role === "assistant" && kind === "text" && text.trim()) reply = text
     }
   if (reply === undefined) return null
-  const clean = reply.replace(escapes, "").replace(control, " ").trim()
-  return clean ? tailOf(clean, chars) : null
+  return reply.replace(escapes, "").replace(control, " ").trim() || null
+}
+
+/** The tail of `lastReply`, up to `chars` characters; null when there is none. */
+export const replyTail = async (
+  path: string,
+  items: Items,
+  chars = replyChars,
+): Promise<string | null> => {
+  const reply = await lastReply(path, items)
+  return reply === null ? null : tailOf(reply, chars)
+}
+
+/** What murmur is shown of a question; null when the request has no subject. */
+export const questionDigest = (request: Request): QuestionDigest | null =>
+  request.subject
+    ? {
+        kind: "question",
+        question: request.subject,
+        choices: request.choices.slice(0, choiceCount),
+      }
+    : null
+
+/** What murmur is shown of a plan, its first 16 KiB; null when it is empty. */
+export const planDigest = (text: string): PlanDigest | null =>
+  text.trim() ? { kind: "plan", plan: text.slice(0, planBytes) } : null
+
+/** What murmur is shown of a reply: all of it when short, else its first and last characters. */
+export const replyDigest = (reply: string, failed: boolean): ReplyDigest => {
+  const characters = [...reply]
+  return {
+    kind: "reply",
+    reply:
+      characters.length > replyHeadChars + replyTailChars
+        ? `${characters.slice(0, replyHeadChars).join("")}\n…\n${characters.slice(-replyTailChars).join("")}`
+        : reply,
+    failed,
+  }
 }
 
 /** A folder as murmur is shown it: inside the project, relative to it; else its last segments. */
@@ -329,6 +375,8 @@ export const shellDigest = (input: {
 
 type Job = {
   readonly id: string
+  /** The terminal it asks for, which `forget` cancels the jobs of. */
+  readonly terminal: string
   timer: NodeJS.Timeout | undefined
   controller: AbortController | undefined
   /** The newest job's number. */
@@ -343,10 +391,17 @@ type Job = {
  * aborts the terminal's older job before the describer is asked, so the newest digest
  * wins. A description lands only while its job is the newest.
  */
-export class Descriptions {
+export class Descriptions<D = Digest, O = Description> {
   private readonly jobs = new Map<string, Job>()
 
-  constructor(private readonly describer: Describer) {}
+  constructor(
+    private readonly describer: {
+      describe(
+        digest: D,
+        options: { readonly signal?: AbortSignal; readonly terminal: string },
+      ): Promise<O | null | undefined>
+    },
+  ) {}
 
   /** Whether a request waits or a job runs for the terminal. */
   busy(id: string): boolean {
@@ -355,7 +410,8 @@ export class Descriptions {
   }
 
   /**
-   * Asks for the terminal's description once `delayMs` pass without another request.
+   * Asks for the description of `id`, a terminal or a key of one's (`terminal`), once
+   * `delayMs` pass without another request.
    * `build` makes the digest (undefined for none, as when the terminal is gone) and
    * `done` takes the outcome: the description murmur wrote; null when it ran and refused a
    * title; undefined when it did not run (off, backed off, busy, dropped), or no digest could
@@ -364,11 +420,13 @@ export class Descriptions {
   request(
     id: string,
     delayMs: number,
-    build: () => Promise<Digest | undefined>,
-    done: (outcome: Description | null | undefined, digest: Digest | undefined) => void,
+    build: () => Promise<D | undefined>,
+    done: (outcome: O | null | undefined, digest: D | undefined) => void,
+    terminal = id,
   ): void {
     const job = this.jobs.get(id) ?? {
       id,
+      terminal,
       timer: undefined,
       controller: undefined,
       latest: 0,
@@ -402,14 +460,19 @@ export class Descriptions {
     this.jobs.delete(id)
   }
 
+  /** Cancels every job asked for the terminal. */
+  forget(terminal: string): void {
+    for (const job of this.jobs.values()) if (job.terminal === terminal) this.cancel(job.id)
+  }
+
   stop(): void {
     for (const id of this.jobs.keys()) this.cancel(id)
   }
 
   private async run(
     job: Job,
-    build: () => Promise<Digest | undefined>,
-    done: (outcome: Description | null | undefined, digest: Digest | undefined) => void,
+    build: () => Promise<D | undefined>,
+    done: (outcome: O | null | undefined, digest: D | undefined) => void,
   ): Promise<void> {
     job.latest += 1
     const mine = job.latest
@@ -426,7 +489,7 @@ export class Descriptions {
       }
       const outcome = await this.describer.describe(digest, {
         signal: controller.signal,
-        terminal: job.id,
+        terminal: job.terminal,
       })
       if (job.latest === mine && !controller.signal.aborted) done(outcome, digest)
     } catch (error) {
@@ -491,7 +554,17 @@ export type MurmurHost = {
   projectFolder(sessionId: string): string | undefined
   /** Gives the terminal murmur's description; nothing when it is gone. */
   described(terminalId: string, description: Description): void
-  /** Murmur was turned off or removed: every terminal loses its murmur title, saved ones too. */
+  /** Gives the oldest question or plan asked as `request` its headline; nothing when it no longer waits. */
+  headlined(
+    terminalId: string,
+    request: { readonly requestId: string; readonly askedAt: number },
+    text: string,
+  ): void
+  /** Gives the terminal's turn end at `at` its gist; nothing when that is no longer its last. */
+  gisted(terminalId: string, at: number, gist: { text: string; asks: boolean }): void
+  /** Up to 16 KiB of the start of a regular file; null on any error. */
+  fileHead(path: string): Promise<string | null>
+  /** Murmur was turned off or removed: every terminal loses its murmur title, saved ones too, and its headlines and gists. */
   cleared(): void
 }
 
@@ -517,7 +590,20 @@ type Watch = {
   shellOwed: boolean
   /** When murmur first looked at the terminal, from which an expected agent is waited for. */
   since: number
+  /** The headlines asked for, by request (`headlineKey`), so each is asked for once. */
+  headlines: Set<string>
+  /** The turn end (`lastTurn.at`) whose gist was asked for, so it is asked for once. */
+  gist: number | null
+  /** The gist asked for did not run: it is asked for again after `retryMs`. */
+  gistOwed: boolean
+  /** The timer that asks for headlines and a gist that did not run again. */
+  noteRetry: NodeJS.Timeout | undefined
 }
+
+const headlineKey = (terminalId: string, request: Request): string =>
+  `${terminalId}\0headline\0${request.requestId}\0${request.askedAt}`
+
+const gistKey = (terminalId: string): string => `${terminalId}\0gist`
 
 const programKey = (program: ForegroundProcess | null): string | null =>
   program === null ? null : JSON.stringify([program.name, program.argv])
@@ -538,6 +624,8 @@ const programKey = (program: ForegroundProcess | null): string | null =>
  */
 export class Murmur {
   private readonly descriptions: Descriptions
+  // The headlines of questions and plans, and gists of replies (see `changed`, `replied`).
+  private readonly notes: Descriptions<NoteDigest, Note>
   private readonly watches = new Map<string, Watch>()
   private readonly times: MurmurTimes
   private readonly unwatch: () => void
@@ -552,10 +640,16 @@ export class Murmur {
   ) {
     this.times = { ...defaultTimes, ...times }
     this.descriptions = new Descriptions(describer)
+    this.notes = new Descriptions<NoteDigest, Note>({
+      describe: (digest, options) => describer.note(digest, options),
+    })
     this.unwatch = describer.watchUsable((usable) => {
       this.usable = usable
       if (usable) this.catchUp()
-      else this.descriptions.stop()
+      else {
+        this.descriptions.stop()
+        this.notes.stop()
+      }
     })
     this.unwatchCleared = describer.watchCleared(() => this.clear())
   }
@@ -564,8 +658,10 @@ export class Murmur {
   // the titles, so turning it on later starts from a clean slate.
   private clear(): void {
     this.descriptions.stop()
+    this.notes.stop()
     for (const watch of this.watches.values()) {
       this.resetRetry(watch)
+      this.resetNotes(watch)
       watch.owed = false
       watch.tried = null
       watch.shellOwed = false
@@ -573,8 +669,35 @@ export class Murmur {
     try {
       this.host.cleared()
     } catch (error) {
-      console.error("Novadeck could not clear the terminals' murmur titles:", error)
+      console.error("Novadeck could not clear the terminals' murmur text:", error)
     }
+  }
+
+  // What was asked for and owed of headlines and gists is forgotten.
+  private resetNotes(watch: Watch): void {
+    clearTimeout(watch.noteRetry)
+    watch.noteRetry = undefined
+    watch.headlines.clear()
+    watch.gist = null
+    watch.gistOwed = false
+  }
+
+  // Headlines and a gist that did not run are asked for again after `retryMs`.
+  private retryNotes(terminalId: string, watch: Watch): void {
+    clearTimeout(watch.noteRetry)
+    watch.noteRetry = setTimeout(() => {
+      watch.noteRetry = undefined
+      // Unusable meanwhile: what is owed stays, for the catch-up once murmur is usable.
+      if (!this.usable) return
+      const at = watch.gistOwed ? watch.gist : null
+      watch.gistOwed = false
+      if (at !== null) {
+        watch.gist = null
+        this.replied(terminalId, at)
+      }
+      this.changed(terminalId)
+    }, this.times.retryMs)
+    watch.noteRetry.unref()
   }
 
   private resetRetry(watch: Watch): void {
@@ -586,16 +709,24 @@ export class Murmur {
   /** A terminal is gone or closed. */
   gone(terminalId: string): void {
     const watch = this.watches.get(terminalId)
-    if (watch) this.resetRetry(watch)
+    if (watch) {
+      this.resetRetry(watch)
+      this.resetNotes(watch)
+    }
     this.descriptions.cancel(terminalId)
+    this.notes.forget(terminalId)
     this.watches.delete(terminalId)
   }
 
   stop(): void {
     this.unwatch()
     this.unwatchCleared()
-    for (const watch of this.watches.values()) this.resetRetry(watch)
+    for (const watch of this.watches.values()) {
+      this.resetRetry(watch)
+      this.resetNotes(watch)
+    }
     this.descriptions.stop()
+    this.notes.stop()
     this.watches.clear()
   }
 
@@ -709,6 +840,149 @@ export class Murmur {
     this.ask(terminalId, this.times.shellRunMs, key)
   }
 
+  /**
+   * The terminal's agent activity changed: question and plan requests with no headline get
+   * one; jobs for requests that no longer wait, or for a turn end that is no longer the
+   * last, are called off.
+   */
+  changed(terminalId: string): void {
+    try {
+      this.look(terminalId)
+    } catch (error) {
+      console.error("Novadeck could not look at a terminal to write its notes:", error)
+    }
+  }
+
+  private look(terminalId: string): void {
+    const subject = this.host.subject(terminalId)
+    const watch = this.watches.get(terminalId)
+    const activity = subject?.agent ? subject.activity : null
+    if (!activity) {
+      if (watch) this.forgetNotes(terminalId, watch)
+      return
+    }
+    const asked = activity.pending.filter((request) => request.kind !== "permission")
+    if (!watch && asked.length === 0) return
+    const mine = this.watch(terminalId)
+    const keys = new Set(asked.map((request) => headlineKey(terminalId, request)))
+    for (const key of mine.headlines)
+      if (!keys.has(key)) {
+        this.notes.cancel(key)
+        mine.headlines.delete(key)
+      }
+    if (mine.gist !== null && !endedAt(activity, mine.gist)) {
+      this.notes.cancel(gistKey(terminalId))
+      mine.gist = null
+      mine.gistOwed = false
+    }
+    if (!this.usable) return
+    for (const request of asked) {
+      const key = headlineKey(terminalId, request)
+      if (request.headline !== undefined || mine.headlines.has(key)) continue
+      mine.headlines.add(key)
+      // Nothing to show of the request is final for it: it is not asked for at each change.
+      let final = false
+      this.notes.request(
+        key,
+        this.times.noteMs,
+        async () => {
+          const digest = await this.headlineDigestOf(terminalId, request)
+          final = digest === null
+          return digest ?? undefined
+        },
+        (outcome, digest) => {
+          if (outcome === undefined) {
+            if (final) return
+            mine.headlines.delete(key)
+            // The describer did not run: it is asked again in a while.
+            if (digest) this.retryNotes(terminalId, mine)
+          } else if (outcome?.kind === "headline")
+            this.host.headlined(terminalId, request, outcome.text)
+        },
+        terminalId,
+      )
+    }
+  }
+
+  private forgetNotes(terminalId: string, watch: Watch): void {
+    this.notes.forget(terminalId)
+    this.resetNotes(watch)
+  }
+
+  // What the request is shown by, read as the job runs: undefined once it no longer waits
+  // or while its plan is unknown, null when there is nothing to show of it (a question with
+  // no subject, a plan that can't be read), which stays so until the request changes.
+  private async headlineDigestOf(
+    terminalId: string,
+    asked: Request,
+  ): Promise<NoteDigest | null | undefined> {
+    if (!this.usable) return undefined
+    const activity = this.host.subject(terminalId)?.activity
+    const request = activity?.pending.find(
+      ({ requestId, askedAt }) => requestId === asked.requestId && askedAt === asked.askedAt,
+    )
+    if (!activity || !request || request.headline !== undefined) return undefined
+    if (request.kind === "question") return questionDigest(request)
+    const source = activity.plans.find(({ actor }) => actor === request.actor)?.source
+    if (!source) return undefined
+    const text = source.kind === "text" ? source.text : await this.host.fileHead(source.path)
+    // Read again after waiting: the request may have been answered or revised.
+    const still = this.host
+      .subject(terminalId)
+      ?.activity?.pending.some(
+        ({ requestId, askedAt }) => requestId === asked.requestId && askedAt === asked.askedAt,
+      )
+    if (!still) return undefined
+    return text === null ? null : planDigest(text)
+  }
+
+  /**
+   * A client shows the turn end at `at` unread: its reply gets a gist once. Ignored while
+   * murmur isn't usable.
+   */
+  replied(terminalId: string, at: number): void {
+    if (!this.usable) return
+    try {
+      const subject = this.host.subject(terminalId)
+      if (!subject?.agent || !subject.activity) return
+      const watch = this.watch(terminalId)
+      if (watch.gist === at || !endedAt(subject.activity, at)) return
+      watch.gist = at
+      this.notes.request(
+        gistKey(terminalId),
+        this.times.noteMs,
+        () => this.replyDigestOf(terminalId, at),
+        (outcome, digest) => {
+          if (outcome === undefined) {
+            // The describer did not run: the same end is asked for again in a while.
+            if (digest && watch.gist === at) {
+              watch.gistOwed = true
+              this.retryNotes(terminalId, watch)
+            }
+          } else if (outcome?.kind === "gist")
+            this.host.gisted(terminalId, at, { text: outcome.text, asks: outcome.asks })
+        },
+        terminalId,
+      )
+    } catch (error) {
+      console.error("Novadeck could not look at a terminal to write its gist:", error)
+    }
+  }
+
+  // The reply that ended the turn at `at`, from its transcript; undefined once it is no longer the last.
+  private async replyDigestOf(terminalId: string, at: number): Promise<NoteDigest | undefined> {
+    if (!this.usable) return undefined
+    const subject = this.host.subject(terminalId)
+    if (!subject?.agent || !subject.transcript || !subject.activity) return undefined
+    if (!endedAt(subject.activity, at)) return undefined
+    const items = this.host.items(subject.agent)
+    if (!items) return undefined
+    const reply = await lastReply(subject.transcript, items)
+    const now = this.host.subject(terminalId)?.activity
+    if (reply === null || !now || !endedAt(now, at)) return undefined
+    return replyDigest(reply, now.lastTurn?.outcome === "failed")
+  }
+
   /** A plain shell showed its prompt in another directory. */
   moved(terminalId: string): void {
     if (!this.usable) return
@@ -730,6 +1004,10 @@ export class Murmur {
         program: { key: null, since: Date.now() },
         shellOwed: false,
         since: Date.now(),
+        headlines: new Set(),
+        gist: null,
+        gistOwed: false,
+        noteRetry: undefined,
       }
       this.watches.set(terminalId, watch)
     }
@@ -748,10 +1026,22 @@ export class Murmur {
     for (const subject of subjects) {
       try {
         this.catchUpOne(subject)
+        this.catchUpNotes(subject.summary.id)
       } catch (error) {
         console.error("Novadeck could not look at a terminal to describe it:", error)
       }
     }
+  }
+
+  // Questions and plans without a headline, and a reply without a gist, are asked for again.
+  private catchUpNotes(terminalId: string): void {
+    const watch = this.watches.get(terminalId)
+    if (watch) {
+      const { gist } = watch
+      this.resetNotes(watch)
+      if (gist !== null) this.replied(terminalId, gist)
+    }
+    this.changed(terminalId)
   }
 
   private catchUpOne(subject: MurmurSubject): void {
@@ -895,3 +1185,10 @@ export class Murmur {
 /** The preview of the agent's last reply, when its turn is over. */
 const finishedReply = (activity: Activity | null): string | null =>
   activity && activity.state !== "working" ? (activity.lastTurn?.reply ?? null) : null
+
+/** Whether the activity's last turn ended at `at`, completed or failed, with none running and no gist yet. */
+const endedAt = (activity: Activity, at: number): boolean =>
+  activity.state !== "working" &&
+  activity.lastTurn?.at === at &&
+  (activity.lastTurn.outcome === "completed" || activity.lastTurn.outcome === "failed") &&
+  activity.lastTurn.gist === undefined

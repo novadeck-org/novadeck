@@ -21,12 +21,21 @@ import { EngineError, engineFolder, exists, programFile } from "../engines/unpac
 import { Watchers } from "../engines/watchers.js"
 import { DomainError } from "../errors.js"
 import type { MurmurSettingsChange } from "../workspaces/store.js"
-import type { Description, Describer, Digest } from "./describer.js"
-import { parseDescription } from "./description.js"
+import type {
+  Description,
+  Describer,
+  Digest,
+  Gist,
+  Headline,
+  Input,
+  Note,
+  NoteDigest,
+} from "./describer.js"
+import { parseDescription, parseGist, parseHeadline } from "./description.js"
 import { candidates, parseDevices, type Device } from "./devices.js"
 import { parseVmStat } from "./memory.js"
 import { Preparer } from "./prepare.js"
-import { responseFormat, type Message } from "./prompt.js"
+import { formats, type Message, type Task } from "./prompt.js"
 
 /** Where the runner keeps murmur's settings. */
 export type MurmurSettingsStore = {
@@ -151,6 +160,12 @@ export const serverArguments = (model: string, device: string, port: number): st
   "--exit-with-stdin",
 ]
 
+// What each task makes, and the order the line serves them in: a headline is waited on in
+// front of the person, a gist is wanted soon, a title can wait.
+type Made = { title: Description; headline: Headline; gist: Gist }
+const priority: Record<Task, number> = { headline: 0, gist: 1, title: 2 }
+const parsers = { title: parseDescription, headline: parseHeadline, gist: parseGist } as const
+
 /** Resolves when `signal` aborts, never when there is none. */
 const dropped = (signal: AbortSignal | undefined): Promise<void> =>
   new Promise((resolve) => signal?.addEventListener("abort", () => resolve(), { once: true }))
@@ -211,8 +226,10 @@ export class Murmur implements Describer {
   private readonly clearedListeners = new Set<() => void>()
   private lastUsable = false
   private closed = false
-  // Jobs run one after another: the tail of the line, and the request now in flight.
-  private line: Promise<void> = Promise.resolve()
+  // Jobs run one after another, never pre-empted: the one now running, and those waiting,
+  // best priority first and in the order they came within a priority.
+  private busy = false
+  private readonly line: { readonly priority: number; readonly go: () => void }[] = []
   private current: AbortController | undefined
   private readonly sleepers = new Set<() => void>()
   private readonly unwatchVoice: (() => void) | undefined
@@ -232,7 +249,7 @@ export class Murmur implements Describer {
   private removal: Promise<void> | undefined
   // Free memory on macOS, read a moment ago.
   private memory: { readonly at: number; readonly bytes: number } | undefined
-  // Titles refused for a terminal in a row, and until when it is not asked again.
+  // Texts refused for a terminal in a row (per task), and until when it is not asked again.
   private readonly refusals = new Map<string, { count: number; until: number }>()
 
   constructor(
@@ -660,13 +677,14 @@ export class Murmur implements Describer {
     return devices
   }
 
-  // A reply that is no usable title is no failure of the engine: that job gets no title.
-  private async complete(
+  // A reply that is no usable text is no failure of the engine: that job gets none.
+  private async complete<T extends Task>(
     config: Config,
     server: Server<Config, Facts>,
     chat: readonly Message[],
     signal: AbortSignal,
-  ): Promise<Description | undefined> {
+    task: T,
+  ): Promise<Made[T] | undefined> {
     const running = await this.started(server, config, signal)
     // A stuck engine must not hold every job behind it.
     const limit = AbortSignal.any([signal, AbortSignal.timeout(this.options.requestMs ?? 60_000)])
@@ -676,14 +694,24 @@ export class Murmur implements Describer {
       body: JSON.stringify({
         messages: chat,
         temperature: 0,
-        max_tokens: 64,
+        max_tokens: formats[task].maxTokens,
         stream: false,
-        response_format: responseFormat,
+        response_format: formats[task].responseFormat,
       }),
       signal: limit,
     })
-    if (!response.ok)
+    if (!response.ok) {
+      // A request too big for the context is that job's, not the engine's: it gets no text,
+      // and asking it again would be as big.
+      if (
+        response.status === 400 &&
+        (await response.text()).includes("exceed_context_size_error")
+      ) {
+        server.touch(running)
+        return undefined
+      }
       throw new EngineError(server.explain(running, `the engine answered ${response.status}`))
+    }
     server.touch(running)
     let body: { choices?: { message?: { content?: unknown } }[] } | undefined
     try {
@@ -693,9 +721,11 @@ export class Murmur implements Describer {
       if (limit.aborted) throw error
     }
     const content = body?.choices?.[0]?.message?.content
-    // The model is held to what it was shown: a title that copies an example is refused.
+    // The model is held to what it was shown: a text that copies an example is refused.
     return typeof content === "string"
-      ? parseDescription(content, chat.findLast((message) => message.role === "user")?.content)
+      ? (parsers[task](content, chat.findLast((message) => message.role === "user")?.content) as
+          | Made[T]
+          | undefined)
       : undefined
   }
 
@@ -759,11 +789,11 @@ export class Murmur implements Describer {
         const config = { folder, model: this.modelPath(), device: device.id }
         // The first run loads the model and warms up the GPU, which later jobs do not pay for.
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
-        if (!(await this.complete(config, server, chat, limit)))
+        if (!(await this.complete(config, server, chat, limit, "title")))
           throw new EngineError("The model's reply was no usable title.")
         const started = performance.now()
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
-        if (!(await this.complete(config, server, chat, limit)))
+        if (!(await this.complete(config, server, chat, limit, "title")))
           throw new EngineError("The model's reply was no usable title.")
         return {
           device: device.name.slice(0, 256),
@@ -804,28 +834,67 @@ export class Murmur implements Describer {
     for (const sleeper of this.sleepers) sleeper()
   }
 
-  async describe(
+  describe(
     digest: Digest,
     options: { readonly signal?: AbortSignal; readonly terminal: string },
   ): Promise<Description | null | undefined> {
-    const { signal } = options
+    return this.write(digest, "title", options.signal, options.terminal)
+  }
+
+  note(
+    digest: NoteDigest,
+    options: { readonly signal?: AbortSignal; readonly terminal: string },
+  ): Promise<Note | null | undefined> {
+    return this.write(
+      digest,
+      digest.kind === "reply" ? "gist" : "headline",
+      options.signal,
+      options.terminal,
+    )
+  }
+
+  // Waits for the turn of `task` on the line, and runs the job.
+  private async write<T extends Task>(
+    input: Input,
+    task: T,
+    signal: AbortSignal | undefined,
+    terminal: string,
+  ): Promise<Made[T] | null | undefined> {
     if (signal?.aborted || !this.usable()) return undefined
-    // Our turn ends when we do, but never before the one ahead of us has.
-    const before = this.line
-    let finish!: () => void
-    const mine = new Promise<void>((resolve) => (finish = resolve))
-    this.line = before.then(() => mine)
-    // A job that is dropped leaves the line at once instead of waiting for its turn.
-    const turn = await Promise.race([before.then(() => true), dropped(signal).then(() => false)])
-    if (!turn) {
-      finish()
-      return undefined
-    }
+    if (!(await this.wait(priority[task], signal))) return undefined
     try {
-      return await this.job(digest, signal, options.terminal)
+      return await this.job(input, task, signal, terminal)
     } finally {
-      finish()
+      this.next()
     }
+  }
+
+  // Whether it is the job's turn: false when it was dropped while it waited, which leaves the
+  // line at once instead of waiting for its turn.
+  private async wait(rank: number, signal: AbortSignal | undefined): Promise<boolean> {
+    if (!this.busy) {
+      this.busy = true
+      return true
+    }
+    let go!: () => void
+    const turn = new Promise<void>((resolve) => (go = resolve))
+    const place = { priority: rank, go }
+    const at = this.line.findIndex((other) => other.priority > rank)
+    this.line.splice(at === -1 ? this.line.length : at, 0, place)
+    const mine = await Promise.race([turn.then(() => true), dropped(signal).then(() => false)])
+    if (mine) return true
+    // Dropped: out of the line, or, when its turn had just come, the turn passes on.
+    const index = this.line.indexOf(place)
+    if (index === -1) this.next()
+    else this.line.splice(index, 1)
+    return false
+  }
+
+  // The job ahead is done: the next in line goes, or the line is idle.
+  private next(): void {
+    const following = this.line.shift()
+    if (following === undefined) this.busy = false
+    else following.go()
   }
 
   private async lowMemory(signal: AbortSignal | undefined): Promise<boolean> {
@@ -845,18 +914,19 @@ export class Murmur implements Describer {
     return bytes
   }
 
-  private async job(
-    digest: Digest,
+  private async job<T extends Task>(
+    input: Input,
+    task: T,
     signal: AbortSignal | undefined,
     terminal: string,
-  ): Promise<Description | null | undefined> {
-    // Refusals are counted for the terminal asking.
-    const key = JSON.stringify(["terminal", terminal])
+  ): Promise<Made[T] | null | undefined> {
+    // Refusals are counted for the terminal asking, and for each kind of text apart.
+    const key = JSON.stringify([task, terminal])
     // A job that will be refused spends no time of the thread's.
     if (this.clock() < this.refusedUntil) return undefined
     if (this.clock() < (this.refusals.get(key)?.until ?? 0)) return undefined
     // Redacted and written in a thread of its own, within a deadline.
-    const chat = await this.preparer.prepare(digest, signal)
+    const chat = await this.preparer.prepare(input, signal)
     if (chat === undefined || typeof chat === "string") {
       // A job that was dropped, or came as murmur closed or turned off, did not fail.
       if (signal?.aborted || this.closed || !this.usable()) return undefined
@@ -875,7 +945,7 @@ export class Murmur implements Describer {
     for (;;) {
       if (signal?.aborted || !this.usable()) return undefined
       if (this.clock() < this.refusedUntil) return undefined
-      // A terminal whose titles keep being refused is left alone for a while; the others aren't.
+      // A terminal whose texts keep being refused is left alone for a while; the others aren't.
       if (this.clock() < (this.refusals.get(key)?.until ?? 0)) return undefined
       // Waits for voice to finish and for memory to come back, then looks again.
       // Murmur's own model counts in the computer's free memory once loaded: only a cold
@@ -909,15 +979,15 @@ export class Murmur implements Describer {
         }
         if (config === undefined) return undefined
         // eslint-disable-next-line no-await-in-loop -- One job at a time.
-        const description = await this.complete(config, this.server, chat, controller.signal)
+        const made = await this.complete(config, this.server, chat, controller.signal, task)
         this.failures = 0
         this.engineStrikes = 0
         if (this.runtimeFailure !== null) {
           this.runtimeFailure = null
           this.changed()
         }
-        this.refused(key, description === undefined)
-        return description ?? null
+        this.refused(key, made === undefined)
+        return made ?? null
       } catch (error) {
         if (signal?.aborted || this.closed) return undefined
         // Stopped by voice, not by a failure: wait and run again.
@@ -941,7 +1011,7 @@ export class Murmur implements Describer {
     }
   }
 
-  // Counts the titles refused for a terminal in a row; from the second, like a failure, it is
+  // Counts the texts refused for a terminal in a row; from the second, like a failure, it is
   // not asked again for a while, longer each time. `severe` (its digest could not be
   // prepared) holds it off from the first.
   private refused(key: string, refused: boolean, severe = false): void {

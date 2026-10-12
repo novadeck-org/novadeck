@@ -5,6 +5,13 @@ import { join } from "node:path"
 import headless from "@xterm/headless"
 import { afterEach, beforeEach, vi } from "vitest"
 
+import {
+  started,
+  withGist,
+  withHeadline,
+  type Activity,
+  type Request,
+} from "../harnesses/activity.js"
 import type { Items } from "../harnesses/replies.js"
 import type { Description, Digest, ShellDigest } from "../murmur/describer.js"
 import { redactDigest } from "../murmur/redact.js"
@@ -26,6 +33,7 @@ import {
   substantial,
   tailOf,
   type MurmurHost,
+  type MurmurTimes,
   type MurmurSubject,
 } from "./murmur.js"
 import { unnamed } from "./naming.js"
@@ -459,7 +467,11 @@ describe("the descriptions of a terminal", () => {
 const settle = (ms = 150) => vi.advanceTimersByTimeAsync(ms)
 
 // A host over terminals a test changes in place, remembering what murmur wrote.
-const create = (initial: Partial<MurmurSubject> = {}, describer = new FakeDescriber()) => {
+const create = (
+  initial: Partial<MurmurSubject> = {},
+  describer = new FakeDescriber(),
+  more: Partial<MurmurTimes> = {},
+) => {
   const base: MurmurSubject = {
     summary: {
       id: "a",
@@ -489,6 +501,11 @@ const create = (initial: Partial<MurmurSubject> = {}, describer = new FakeDescri
   const replies: { current: string | null } = { current: null }
   const written: Description[] = []
   const clears = { count: 0 }
+  const files = new Map<string, string>()
+  const heads: string[] = []
+  const hooks: { items?: () => void; head?: Promise<string | null> } = {}
+  const headlined: string[] = []
+  const gisted: string[] = []
   const host: MurmurHost = {
     subject: (id) => subjects.get(id),
     subjects: () => (ready ? [...subjects.values()] : []),
@@ -504,13 +521,35 @@ const create = (initial: Partial<MurmurSubject> = {}, describer = new FakeDescri
         ...(wrapped.current && { wrapped: wrapped.current }),
       })
     },
-    items: () => undefined,
+    items: () => {
+      hooks.items?.()
+      return items
+    },
     projectFolder: () => "/home/me/shop",
     described: (id, description) => {
       written.push(description)
       const subject = subjects.get(id)
       if (subject)
         subjects.set(id, { ...subject, naming: { ...subject.naming, murmur: description } })
+    },
+    headlined: (id, { requestId, askedAt }, headline) => {
+      const subject = subjects.get(id)
+      const activity =
+        subject?.activity && withHeadline(subject.activity, requestId, askedAt, headline)
+      if (!activity) return
+      headlined.push(headline)
+      subjects.set(id, { ...subject, activity })
+    },
+    gisted: (id, at, gist) => {
+      const subject = subjects.get(id)
+      const activity = subject?.activity && withGist(subject.activity, at, gist)
+      if (!activity) return
+      gisted.push(gist.text)
+      subjects.set(id, { ...subject, activity })
+    },
+    fileHead: (path) => {
+      heads.push(path)
+      return hooks.head ?? Promise.resolve(files.get(path) ?? null)
     },
     cleared: () => {
       clears.count += 1
@@ -533,6 +572,8 @@ const create = (initial: Partial<MurmurSubject> = {}, describer = new FakeDescri
     shellSettleMs: 200,
     promptsBetween: 3,
     expectMs: 1_000,
+    noteMs: 50,
+    ...more,
   }
   const murmur = new Murmur(describer, host, times)
   ready = true
@@ -549,14 +590,30 @@ const create = (initial: Partial<MurmurSubject> = {}, describer = new FakeDescri
     replies,
     written,
     clears,
+    files,
+    heads,
+    hooks,
+    headlined,
+    gisted,
     change,
     times,
   }
 }
 
 const idle = (reply: string | null) =>
-  ({ state: "idle", lastTurn: { reply } }) as unknown as MurmurSubject["activity"]
-const working = () => ({ state: "working", lastTurn: null }) as unknown as MurmurSubject["activity"]
+  ({
+    state: "idle",
+    pending: [],
+    plans: [],
+    lastTurn: { reply },
+  }) as unknown as MurmurSubject["activity"]
+const working = () =>
+  ({
+    state: "working",
+    pending: [],
+    plans: [],
+    lastTurn: null,
+  }) as unknown as MurmurSubject["activity"]
 const report = (fields: Partial<Parameters<Murmur["reported"]>[1]> = {}) => ({
   session: false,
   ...fields,
@@ -1672,5 +1729,472 @@ describe("when the person turns murmur off or removes it", () => {
     murmur.stop()
     describer.clear()
     expect(clears.count).toBe(0)
+  })
+})
+
+const request = (fields: Partial<Request> = {}): Request => ({
+  requestId: "r1",
+  actor: null,
+  toolName: "AskUserQuestion",
+  kind: "question",
+  subject: "Which database should it use?",
+  choices: ["Postgres", "SQLite"],
+  askedAt: 10,
+  ...fields,
+})
+const asking = (requests: readonly Request[], fields: Partial<Activity> = {}): Activity => ({
+  ...started(0),
+  state: "working",
+  pending: requests,
+  ...fields,
+})
+const ended = (at = 20, outcome: "completed" | "failed" = "completed"): Activity => ({
+  ...started(0),
+  lastTurn: { outcome, reply: null, at, recorded: false },
+})
+const planned = (source: string): Partial<Activity> => ({
+  plans: [{ actor: null, source: { kind: "text", text: source, truncated: false }, at: 1 }],
+})
+const real = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms))
+const pending = (subjects: ReturnType<typeof create>["subjects"]) =>
+  subjects.get("a")!.activity!.pending
+
+describe("murmur's headlines and gists", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  describe("of a question or plan", () => {
+    it("asks once for a question, with its answers, and puts the headline on the request", async () => {
+      const { murmur, describer, subjects, change, headlined } = create({
+        activity: asking([request()]),
+      })
+      murmur.changed("a")
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes.map(({ digest, terminal }) => [digest, terminal])).toEqual([
+        [
+          {
+            kind: "question",
+            question: "Which database should it use?",
+            choices: ["Postgres", "SQLite"],
+          },
+          "a",
+        ],
+      ])
+      expect(headlined).toEqual(["Headline 1"])
+      expect(pending(subjects)[0]!.headline).toBe("Headline 1")
+      // Told again, with the headline there, nothing is asked.
+      change({ activity: subjects.get("a")!.activity })
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes).toHaveLength(1)
+      // Titles are not asked for by it.
+      expect(describer.jobs).toHaveLength(0)
+    })
+
+    it("asks nothing for a permission, a question with no subject, or a terminal with no agent", async () => {
+      const { murmur, describer, change } = create({
+        activity: asking([
+          request({ kind: "permission" }),
+          request({ requestId: "r2", subject: null }),
+        ]),
+      })
+      murmur.changed("a")
+      await settle()
+      change({ agent: null, activity: asking([request()]) })
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes).toHaveLength(0)
+    })
+
+    it("gives each waiting question its own job", async () => {
+      const { murmur, describer, subjects } = create({
+        activity: asking([request(), request({ requestId: "r2", askedAt: 11 })]),
+      })
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes).toHaveLength(2)
+      expect(pending(subjects).map(({ headline }) => headline)).toEqual([
+        "Headline 1",
+        "Headline 2",
+      ])
+    })
+
+    it("calls the job off when the request is answered, and drops its late answer", async () => {
+      const { murmur, describer, subjects, change, headlined } = create({
+        activity: asking([request()]),
+      })
+      describer.hold = true
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes).toHaveLength(1)
+      change({ activity: asking([]) })
+      murmur.changed("a")
+      expect(describer.notes[0]!.signal?.aborted).toBe(true)
+      describer.notes[0]!.answer({ kind: "headline", text: "Late" })
+      await settle()
+      expect(headlined).toEqual([])
+      expect(subjects.get("a")!.activity!.pending).toEqual([])
+    })
+
+    it("asks again for a revised plan, whose old headline and job are gone", async () => {
+      const first = request({ kind: "plan", requestId: "p", toolName: "ExitPlanMode" })
+      const { murmur, describer, subjects, change, headlined } = create({
+        activity: asking([first], planned("# Plan\nSplit the billing service")),
+      })
+      describer.hold = true
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes[0]!.digest).toEqual({
+        kind: "plan",
+        plan: "# Plan\nSplit the billing service",
+      })
+      change({
+        activity: asking([{ ...first, askedAt: 30 }], planned("# Plan\nMerge the services")),
+      })
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes[0]!.signal?.aborted).toBe(true)
+      expect(describer.notes).toHaveLength(2)
+      expect(describer.notes[1]!.digest).toMatchObject({ plan: "# Plan\nMerge the services" })
+      describer.notes[0]!.answer({ kind: "headline", text: "Stale" })
+      describer.notes[1]!.answer({ kind: "headline", text: "Plan to merge services" })
+      await settle()
+      expect(headlined).toEqual(["Plan to merge services"])
+      expect(pending(subjects)[0]!.headline).toBe("Plan to merge services")
+    })
+
+    it("reads a plan from its file, the first 16 KiB", async () => {
+      const path = "/plans/billing.md"
+      const { murmur, describer, files } = create({
+        activity: asking([request({ kind: "plan", requestId: "p" })], {
+          plans: [{ actor: null, source: { kind: "file", path }, at: 1 }],
+        }),
+      })
+      files.set(path, "x".repeat(20_000))
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes).toHaveLength(1)
+      expect((describer.notes[0]!.digest as { plan: string }).plan).toHaveLength(16 * 1024)
+    })
+
+    it("uses the plan of the actor that asked, not another's", async () => {
+      const { murmur, describer } = create({
+        activity: asking([request({ kind: "plan", requestId: "p", actor: "sub" })], {
+          plans: [
+            { actor: null, source: { kind: "text", text: "root plan", truncated: false }, at: 1 },
+            { actor: "sub", source: { kind: "text", text: "sub plan", truncated: false }, at: 2 },
+          ],
+        }),
+      })
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes[0]!.digest).toEqual({ kind: "plan", plan: "sub plan" })
+    })
+
+    it("keeps a refusal final, and asks again after a job that did not run", async () => {
+      const refused = create(
+        { activity: asking([request()]) },
+        new FakeDescriber({ note: () => null }),
+      )
+      refused.murmur.changed("a")
+      await settle()
+      refused.murmur.changed("a")
+      await settle()
+      expect(refused.describer.notes).toHaveLength(1)
+
+      // A job that did not run is asked for again after a while, with no other change.
+      const skipped = create(
+        { activity: asking([request()]) },
+        new FakeDescriber({
+          note: (_digest, call) =>
+            call === 1 ? undefined : { kind: "headline", text: "Asks which one" },
+        }),
+      )
+      skipped.murmur.changed("a")
+      await settle()
+      expect(skipped.headlined).toEqual([])
+      await settle(61_000)
+      expect(skipped.headlined).toEqual(["Asks which one"])
+    })
+
+    it("asks once for a plan it can't read, until the request changes", async () => {
+      const path = "/plans/gone.md"
+      const plan = request({ kind: "plan", requestId: "p" })
+      const fields = { plans: [{ actor: null, source: { kind: "file" as const, path }, at: 1 }] }
+      const { murmur, describer, heads, change } = create({ activity: asking([plan], fields) })
+      for (let i = 0; i < 3; i++) {
+        murmur.changed("a")
+        // eslint-disable-next-line no-await-in-loop -- Each change waits out its quiet.
+        await settle()
+      }
+      expect(heads).toEqual([path])
+      change({ activity: asking([{ ...plan, askedAt: 30 }], fields) })
+      murmur.changed("a")
+      await settle()
+      expect(heads).toEqual([path, path])
+      expect(describer.notes).toHaveLength(0)
+    })
+
+    it("drops a plan whose request was answered while its file was read", async () => {
+      const path = "/plans/billing.md"
+      const { murmur, describer, change, hooks } = create({
+        activity: asking([request({ kind: "plan", requestId: "p" })], {
+          plans: [{ actor: null, source: { kind: "file", path }, at: 1 }],
+        }),
+      })
+      const gate = { read: (_text: string) => {} }
+      hooks.head = new Promise((resolve) => (gate.read = resolve))
+      murmur.changed("a")
+      await settle()
+      change({ activity: asking([]) })
+      gate.read("# Plan")
+      await settle()
+      expect(describer.notes).toHaveLength(0)
+    })
+
+    it("asks nothing while murmur is unusable, until it is usable again", async () => {
+      const { murmur, describer, headlined } = create(
+        { activity: asking([request()]) },
+        new FakeDescriber({ usable: false }),
+      )
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes).toHaveLength(0)
+      describer.setUsable(true)
+      await settle()
+      expect(headlined).toEqual(["Headline 1"])
+    })
+  })
+
+  describe("of a reply", () => {
+    let directory: string
+    // Transcripts are read from disk, which fake timers don't wait for.
+    beforeEach(() => {
+      vi.useRealTimers()
+      directory = mkdtempSync(join(tmpdir(), "novadeck-gist-"))
+    })
+    afterEach(() => rmSync(directory, { recursive: true, force: true }))
+
+    const written = (...lines: string[]) => {
+      const path = join(directory, "t.jsonl")
+      writeFileSync(path, lines.join("\n"))
+      return path
+    }
+
+    it("asks once for the reply that ended the turn at `at`, and puts the gist on it", async () => {
+      const transcript = written("user:text:fix it", "assistant:text:Fixed the rounding bug.")
+      const { murmur, describer, subjects, gisted } = create({ activity: ended(20), transcript })
+      murmur.replied("a", 20)
+      murmur.replied("a", 20)
+      await real()
+      expect(describer.notes.map(({ digest }) => digest)).toEqual([
+        { kind: "reply", reply: "Fixed the rounding bug.", failed: false },
+      ])
+      expect(gisted).toEqual(["Gist 1"])
+      expect(subjects.get("a")!.activity!.lastTurn!.gist).toEqual({ text: "Gist 1", asks: false })
+      // Shown unread again: it has a gist already.
+      murmur.replied("a", 20)
+      await real()
+      expect(describer.notes).toHaveLength(1)
+    })
+
+    it("tells a failed turn, and cuts a long reply to its head and tail", async () => {
+      const long = `${"a".repeat(5000)}${"z".repeat(5000)}`
+      const transcript = written(`assistant:text:${long}`)
+      const { murmur, describer } = create({ activity: ended(20, "failed"), transcript })
+      murmur.replied("a", 20)
+      await real()
+      const digest = describer.notes[0]!.digest as { reply: string; failed: boolean }
+      expect(digest.failed).toBe(true)
+      expect(digest.reply).toBe(`${"a".repeat(4000)}\n…\n${"z".repeat(4000)}`)
+    })
+
+    it("ignores an end that is not the last, an interrupted one, a running turn and an unreadable reply", async () => {
+      const transcript = written("assistant:text:Done.")
+      const { murmur, describer, change } = create({ activity: ended(20), transcript })
+      murmur.replied("a", 19)
+      change({
+        activity: { ...ended(20), lastTurn: { ...ended(20).lastTurn!, outcome: "interrupted" } },
+      })
+      murmur.replied("a", 20)
+      change({ activity: asking([]) })
+      murmur.replied("a", 20)
+      change({ activity: ended(20), transcript: null })
+      murmur.replied("a", 20)
+      murmur.replied("nobody", 20)
+      await real()
+      expect(describer.notes).toHaveLength(0)
+    })
+
+    it("is called off by a new turn, and drops a late gist for an end no longer the last", async () => {
+      const transcript = written("assistant:text:Done.")
+      const { murmur, describer, change, gisted } = create({ activity: ended(20), transcript })
+      describer.hold = true
+      murmur.replied("a", 20)
+      await real()
+      expect(describer.notes).toHaveLength(1)
+      change({ activity: asking([]) })
+      murmur.changed("a")
+      expect(describer.notes[0]!.signal?.aborted).toBe(true)
+      describer.notes[0]!.answer({ kind: "gist", text: "Late", asks: false })
+      change({ activity: ended(40) })
+      await real()
+      expect(gisted).toEqual([])
+    })
+
+    it("asks for the gist again when murmur becomes usable, after a job that did not run", async () => {
+      const transcript = written("assistant:text:Done.")
+      const skipped = create(
+        { activity: ended(20), transcript },
+        new FakeDescriber({
+          note: (_digest, call) =>
+            call === 1 ? undefined : { kind: "gist", text: "Did it", asks: false },
+        }),
+      )
+      skipped.murmur.replied("a", 20)
+      await real()
+      skipped.describer.setUsable(false)
+      skipped.describer.setUsable(true)
+      await real()
+      expect(skipped.gisted).toEqual(["Did it"])
+    })
+
+    it("drops a reply whose end stopped being the last while its transcript was read", async () => {
+      const transcript = written("assistant:text:Done.")
+      const { murmur, describer, change, hooks } = create({ activity: ended(20), transcript })
+      hooks.items = () => change({ activity: asking([]) })
+      murmur.replied("a", 20)
+      await real()
+      expect(describer.notes).toHaveLength(0)
+    })
+
+    it("is ignored while murmur is unusable, and not remembered", async () => {
+      const transcript = written("assistant:text:Done.")
+      const { murmur, describer, gisted } = create(
+        { activity: ended(20), transcript },
+        new FakeDescriber({ usable: false }),
+      )
+      murmur.replied("a", 20)
+      describer.setUsable(true)
+      await real()
+      expect(describer.notes).toHaveLength(0)
+      murmur.replied("a", 20)
+      await real()
+      expect(gisted).toEqual(["Gist 1"])
+    })
+
+    it("keeps a gist that did not run for the catch-up when murmur is unusable as it is due", async () => {
+      const transcript = written("assistant:text:Done.")
+      const { murmur, describer, gisted } = create(
+        { activity: ended(20), transcript },
+        new FakeDescriber({
+          note: (_digest, call) =>
+            call === 1 ? undefined : { kind: "gist", text: "Did it", asks: false },
+        }),
+        { retryMs: 150 },
+      )
+      murmur.replied("a", 20)
+      await real()
+      describer.setUsable(false)
+      // Its retry comes and goes while murmur can't run.
+      await real(500)
+      expect(gisted).toEqual([])
+      describer.setUsable(true)
+      await real()
+      expect(gisted).toEqual(["Did it"])
+    })
+
+    it("asks again after a job that did not run, and not after a refusal", async () => {
+      const transcript = written("assistant:text:Done.")
+      const skipped = create(
+        { activity: ended(20), transcript },
+        new FakeDescriber({
+          note: (_digest, call) =>
+            call === 1 ? undefined : { kind: "gist", text: "Did it", asks: true },
+        }),
+        { retryMs: 150 },
+      )
+      // Shown unread once: the same end is asked for again after a while on its own.
+      skipped.murmur.replied("a", 20)
+      await real()
+      expect(skipped.gisted).toEqual([])
+      await real(500)
+      expect(skipped.gisted).toEqual(["Did it"])
+
+      const refused = create(
+        { activity: ended(20), transcript },
+        new FakeDescriber({ note: () => null }),
+      )
+      refused.murmur.replied("a", 20)
+      await real()
+      refused.murmur.replied("a", 20)
+      await real()
+      expect(refused.describer.notes).toHaveLength(1)
+    })
+  })
+
+  describe("across murmur's life", () => {
+    it("asks again when murmur becomes usable, for a question and a remembered gist", async () => {
+      vi.useRealTimers()
+      const directory = mkdtempSync(join(tmpdir(), "novadeck-gist-"))
+      try {
+        const transcript = join(directory, "t.jsonl")
+        writeFileSync(transcript, "assistant:text:Done.")
+        const done = create({ activity: ended(20), transcript })
+        done.describer.hold = true
+        done.murmur.replied("a", 20)
+        await real()
+        expect(done.describer.notes).toHaveLength(1)
+        done.describer.setUsable(false)
+        expect(done.describer.notes[0]!.signal?.aborted).toBe(true)
+        done.describer.setUsable(true)
+        await real()
+        expect(done.describer.notes).toHaveLength(2)
+
+        const asked = create({ activity: asking([request()]) })
+        asked.describer.setUsable(false)
+        asked.murmur.changed("a")
+        asked.describer.setUsable(true)
+        await real()
+        expect(asked.headlined).toEqual(["Headline 1"])
+      } finally {
+        rmSync(directory, { recursive: true, force: true })
+      }
+    })
+
+    it("stops its jobs and forgets what it asked when murmur is turned off", async () => {
+      const { murmur, describer, headlined } = create({ activity: asking([request()]) })
+      describer.hold = true
+      murmur.changed("a")
+      await settle()
+      describer.fireCleared()
+      expect(describer.notes[0]!.signal?.aborted).toBe(true)
+      describer.hold = false
+      murmur.changed("a")
+      await settle()
+      expect(describer.notes).toHaveLength(2)
+      expect(headlined).toEqual(["Headline 2"])
+    })
+
+    it("cancels a terminal's jobs when it is gone, and all of them on stop", async () => {
+      const { murmur, describer } = create({ activity: asking([request()]) })
+      describer.hold = true
+      murmur.changed("a")
+      await settle()
+      murmur.gone("a")
+      expect(describer.notes[0]!.signal?.aborted).toBe(true)
+
+      const other = create({ activity: asking([request()]) })
+      other.describer.hold = true
+      other.murmur.changed("a")
+      await settle()
+      other.murmur.stop()
+      expect(other.describer.notes[0]!.signal?.aborted).toBe(true)
+    })
   })
 })

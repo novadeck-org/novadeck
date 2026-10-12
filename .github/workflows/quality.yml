@@ -15,7 +15,7 @@ jobs:
   quality:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.browser && 15 || 10 }}
+    timeout-minutes: ${{ matrix.browser && 20 || 10 }}
     strategy:
       fail-fast: false
       matrix:

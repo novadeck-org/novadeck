@@ -275,6 +275,35 @@ describe("demo states", () => {
       ).toBe(false)
     })
 
+    it("gives the second round of kinds murmur's headlines and gists, and the rest none", () => {
+      const { run, actionContext } = panel("04")
+      run("Fill the notification center")
+      vi.advanceTimersByTime(3000)
+      const agents = actionContext
+        .workspace()!
+        .projects.flatMap((each) => each.history.flatMap((owner) => owner.state.roster.terminals))
+        .flatMap((entry) => (entry.state === "running" && entry.agent ? [entry.agent] : []))
+      expect(agents.flatMap((agent) => agent.attention?.headline ?? []).toSorted()).toEqual([
+        "Asks which database to use",
+        "Plan to split the billing service",
+      ])
+      expect(
+        agents
+          .flatMap((agent) => {
+            const turn = agent.lastTurn
+            return turn?.gist ? [[turn.outcome, turn.gist, turn.asks]] : []
+          })
+          .toSorted(),
+      ).toEqual([
+        ["completed", "Checkout totals round per line, tests pass", true],
+        ["failed", "Test suite no longer compiles", undefined],
+      ])
+      // The first round reads as it did before murmur: a question without a headline.
+      expect(
+        agents.filter((agent) => agent.attention?.kind === "question" && !agent.attention.headline),
+      ).not.toHaveLength(0)
+    })
+
     it("adds what it needs without selecting it, so every finish lands elsewhere", () => {
       const { run, onScreen, plus, added, asks } = panel("04", { keeping: 3 })
       run("Fill the notification center")

@@ -135,7 +135,11 @@ export const WorkspaceProvider = ({
   useEffect(() => watchChatModes(services.workspace, services.ui), [services])
   useEffect(() => watchPageFocus(services.ui, window), [services])
   useEffect(
-    () => watchFinishes(services.workspace, services.ui, services.backend.notices?.show),
+    () =>
+      watchFinishes(services.workspace, services.ui, {
+        notify: services.backend.notices?.show,
+        unread: services.backend.murmur?.gist,
+      }),
     [services],
   )
   useEffect(() => services.backend.notices?.onClick(services.commands.reveal), [services])

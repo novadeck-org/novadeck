@@ -267,7 +267,11 @@ The Notifications panel (the bell on the sidebar rail) lists everything across e
 project and session that waits on you: questions, permissions and plans to review, and
 agents that finished while you looked elsewhere. Click a row to reveal its terminal;
 dismiss a finish to mark it read. A count badge on the bell, and on Zen's dock, tells how
-many wait.
+many wait. With Murmur on, a waiting question or plan shows a headline under its row, such
+as "Asks which database to use", and a finish you haven't seen shows a short gist of its
+reply in place of the reply's start, marked when the reply asks you something; the tooltip
+and the screen reader's description keep the reply itself. Without Murmur every row reads
+as it always did.
 
 The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
@@ -663,7 +667,9 @@ given), as a spec does that must act on the screen before the turn ends.
   them or leaving the Notifications panel, and leaves the selected terminal alone, since
   a finish only counts while you look elsewhere. "Clear notifications" answers every
   request and reads every finish, a terminal back at its prompt included, for the empty
-  panel.
+  panel. Its second round of kinds carries what Murmur would write (a headline on the
+  question and the plan, a gist on the done and the failed finish, the done one asking), so
+  the rows can be seen without Murmur installed.
 - **Demo:** boot into another variant.
 - **Startup:** boot again from the splash. "Splash hold" keeps it until you press
   Escape; "Slow attach" counts terminals attaching over about 3 s; each "Boot

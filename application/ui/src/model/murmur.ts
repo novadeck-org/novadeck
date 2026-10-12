@@ -50,4 +50,7 @@ export type Murmur = {
   // Settles when the removal ended, whether it worked or failed (`state` shows which).
   readonly uninstall: () => Promise<void>
   readonly set: (settings: Partial<MurmurSettings>) => void
+  // Asks for the gist of the reply that ended the terminal's turn at `at`, which the person
+  // hasn't seen; it arrives with the terminal's agent status. Fire and forget.
+  readonly gist?: (terminalId: string, at: number) => void
 }

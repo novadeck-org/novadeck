@@ -6,13 +6,20 @@ import {
   CircleHelp,
   CircleX,
   ClipboardList,
+  MessageCircleQuestionMark,
   type LucideIcon,
 } from "lucide-react"
 
 import { SidebarItem, sidebarListClasses } from "../sidebar/SidebarItem"
 import type { Viewing } from "../terminals/unread-state"
 import { Tooltip } from "../ui-toolkit/Tooltip"
-import { dismissable, type Notification, type NotificationKind } from "./notifications"
+import {
+  dismissable,
+  notificationDescription,
+  notificationTooltip,
+  type Notification,
+  type NotificationKind,
+} from "./notifications"
 
 // Each kind in a glyph of its own, calm beside the tab's: a question, a permission to
 // give, a plan to read, a failure and a finish. sidebar.css tints them as tabs are.
@@ -95,6 +102,41 @@ export const MarkAllReadButton = ({
   )
 }
 
+// The line under the detail: murmur's headline for a request, or for a finish its gist, else
+// the start of the reply, where there is one. Murmur's sentences are meant to be read whole,
+// so they wrap to two lines; the dismiss button sits at the row's bottom right, hence the
+// gist's padding on both. The reply's start stays one line.
+const lineUnder = (item: Notification): React.JSX.Element | undefined => {
+  if (item.headline)
+    return (
+      <span className="notification-headline line-clamp-2 text-caption leading-[18px]">
+        {item.status}
+      </span>
+    )
+  if (item.gist)
+    return (
+      <span className="notification-reply notification-gist line-clamp-2 pr-13 text-caption leading-[18px]">
+        {item.asks && (
+          <MessageCircleQuestionMark
+            className="mr-1 inline-block size-3 align-[-2px]"
+            strokeWidth={1.5}
+            aria-hidden
+          />
+        )}
+        {item.gist}
+      </span>
+    )
+  if (item.reply)
+    return (
+      <span
+        className={`notification-reply truncate text-caption leading-[18px] ${dismissable(item.kind) ? "pr-13" : ""}`}
+      >
+        {item.reply}
+      </span>
+    )
+  return undefined
+}
+
 // Everything across the workspace that asks for the person, as rows of the sidebar.
 export const NotificationsPanel = ({
   items,
@@ -126,10 +168,12 @@ export const NotificationsPanel = ({
           return (
             <SidebarItem
               key={`${item.context}/${item.terminalId}`}
-              // The action sits on the row's last line: with a reply under it, that line keeps
-              // the room, not the detail line.
+              // The action sits on the row's last line: with a reply or its gist under it, that
+              // line keeps the room, not the detail line.
               className={
-                item.reply ? "notification [--_sidebar-actions-space:0px]" : "notification"
+                item.reply || item.gist
+                  ? "notification [--_sidebar-actions-space:0px]"
+                  : "notification"
               }
               role="listitem"
               data-notification={item.kind}
@@ -138,27 +182,17 @@ export const NotificationsPanel = ({
               icon={<Icon size={14} strokeWidth={1.5} />}
               selected={viewing?.context === item.context && viewing.id === item.terminalId}
               selectLabel={`Go to ${item.terminalName}`}
-              description={[`${item.status}. ${where}`, item.reply].filter(Boolean).join(". ")}
-              tooltip={[item.terminalName, item.status, where, item.reply]
-                .filter(Boolean)
-                .join("\n")}
+              // A gist stands in for the reply on the row, not in what it says to a screen reader
+              // or on hover.
+              description={notificationDescription(item)}
+              tooltip={notificationTooltip(item)}
               onSelect={reveal}
               detail={
                 <span className="notification-where min-w-0 truncate">
                   {words[item.kind]} · {where}
                 </span>
               }
-              {...(item.reply
-                ? {
-                    below: (
-                      <span
-                        className={`notification-reply truncate text-caption leading-[18px] ${dismissable(item.kind) ? "pr-13" : ""}`}
-                      >
-                        {item.reply}
-                      </span>
-                    ),
-                  }
-                : {})}
+              below={lineUnder(item)}
               {...(dismissable(item.kind)
                 ? {
                     actions: (

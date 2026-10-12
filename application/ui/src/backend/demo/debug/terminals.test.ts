@@ -147,6 +147,21 @@ describe("terminal states", () => {
       expect(turnEnded("unknown", 5).lastTurn).toEqual({ outcome: "unknown", at: 5 })
     })
 
+    it("carries murmur's words where given, and asks only when they say so", () => {
+      expect(asking("question", 1, "Asks which database").attention).toEqual({
+        kind: "question",
+        count: 1,
+        headline: "Asks which database",
+      })
+      expect(asking("question", 1).attention).toEqual({ kind: "question", count: 1 })
+      expect(turnEnded("completed", 5, { text: "Rounded", asks: true }).lastTurn).toMatchObject({
+        gist: "Rounded",
+        asks: true,
+      })
+      expect(turnEnded("failed", 5, { text: "Broken" }).lastTurn).not.toHaveProperty("asks")
+      expect(turnEnded("failed", 5).lastTurn).not.toHaveProperty("gist")
+    })
+
     it("is unheard when it runs without reporting", () => {
       expect(terminalPhase(shell(apply(unheardAgent(key("04"), "claude"))))).toBe("unheard")
     })

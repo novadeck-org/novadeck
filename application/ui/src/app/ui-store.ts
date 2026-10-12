@@ -388,14 +388,22 @@ export type FinishNotify = (notice: {
 
 // Follows agents finishing (see `sightTurnEnd`): a terminal the person isn't looking at as
 // its agent finishes is marked unread, and `notify`, where given and the person wants it,
-// shows them one notification for it. The mark clears once they look at that terminal,
-// its agent works again, or the terminal goes. What each terminal showed when this started
-// is taken in as seen.
+// shows them one notification for it. `unread`, where given, is told each such finish by
+// its terminal and the end's `at`, so murmur can write a gist of its reply. The mark clears
+// once they look at that terminal, its agent works again, or the terminal goes. What each
+// terminal showed when this started is taken in as seen.
 export const watchFinishes = (
   workspace: Store<Workspace>,
   ui: UiStore,
-  notify?: FinishNotify,
-  graceMs = finishGraceMs,
+  {
+    notify,
+    graceMs = finishGraceMs,
+    unread: gist,
+  }: {
+    notify?: FinishNotify | undefined
+    graceMs?: number
+    unread?: ((terminalId: string, at: number) => void) | undefined
+  } = {},
 ): (() => void) => {
   let previous = workspace.getSnapshot()
   let terminals = new Map<string, TerminalMetadata>()
@@ -480,11 +488,17 @@ export const watchFinishes = (
         )
       return viewUnread(unread, looking)
     })
-    if (!notify || !ui.getSnapshot().preferences.notifyFinished) return
-    for (const { key, terminal, finish } of finished) {
+    const unseen = finished.filter(({ key, terminal }) => {
       const seenNow = looking?.context === contextOf(key, terminal) && looking.id === terminal.id
-      if (!seenNow) notify({ id: terminal.id, ...finishNotice(terminal, finish) })
+      return !seenNow
+    })
+    for (const { terminal } of unseen) {
+      const at = terminal.state === "running" ? terminal.agent?.lastTurn?.at : undefined
+      if (at !== undefined) gist?.(terminal.id, at)
     }
+    if (!notify || !ui.getSnapshot().preferences.notifyFinished) return
+    for (const { terminal, finish } of unseen)
+      notify({ id: terminal.id, ...finishNotice(terminal, finish) })
   }
   const stops = [workspace.subscribe(follow), ui.subscribe(look)]
   return () => {

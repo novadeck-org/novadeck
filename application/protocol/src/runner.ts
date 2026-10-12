@@ -404,6 +404,12 @@ export type Runner = {
     uninstall(): Promise<void>
     /** Changes the settings given; the others stay. */
     set(settings: Partial<MurmurSettings>): Promise<void>
+    /**
+     * Asks murmur to write the gist of the reply that ended the terminal's turn at `at`,
+     * which the client shows unread; it arrives in the terminal's activity. Does nothing
+     * when murmur can't run, that end is no longer the last, or the terminal is unknown.
+     */
+    gist(terminalId: string, at: number): Promise<void>
   }
   readonly settings: {
     get(): Promise<RunnerSettings>
@@ -1260,6 +1266,7 @@ export const connectRunner = async (
       cancel: () => call((wire) => wire.murmur.cancel()),
       uninstall: () => call((wire) => wire.murmur.uninstall()),
       set: (settings) => call((wire) => wire.murmur.set(settings)),
+      gist: (terminalId, at) => call((wire) => wire.murmur.gist({ terminalId, at })),
     },
     settings: {
       get: () => call((wire) => wire.settings.get()),

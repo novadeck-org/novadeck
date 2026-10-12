@@ -91,6 +91,26 @@ describe("redacting a digest", () => {
     expect(clean.previous?.title).toBe("Deploying app")
   })
 
+  it("cleans every string of a question, a plan and a reply", () => {
+    const question = redactDigest({
+      kind: "question",
+      question: "Use DB_PASSWORD=pw123 for the deploy?",
+      choices: ["Yes, with API_KEY=abc999", "No"],
+    })
+    const plan = redactDigest({ kind: "plan", plan: "1. Rotate sk-abcdefghijklmnopqrstuvwxyz" })
+    const reply = redactDigest({
+      kind: "reply",
+      reply: "Done with https://u:p@host/",
+      failed: true,
+    })
+
+    expect(JSON.stringify(question)).not.toMatch(/=pw123|=abc999/)
+    expect(question).toMatchObject({ choices: [expect.stringContaining("[redacted]"), "No"] })
+    expect(JSON.stringify(plan)).not.toContain("sk-abc")
+    expect(JSON.stringify(reply)).not.toContain("u:p@")
+    expect(reply).toMatchObject({ kind: "reply", failed: true })
+  })
+
   it("sees a key block that spans the rows of a screen", () => {
     const digest: ShellDigest = {
       kind: "shell",

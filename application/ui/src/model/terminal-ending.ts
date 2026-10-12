@@ -92,6 +92,10 @@ export const unheardText = (terminal: TerminalMetadata): string | undefined =>
     ? "Not reporting · Novadeck can't hear from this agent"
     : undefined
 
+// What waits on the person, with how many do when several: "Asks a question · 2 waiting".
+export const waitingText = (what: string, count: number): string =>
+  count > 1 ? `${what} · ${count} waiting` : what
+
 // What the agent in a terminal waits on the person for, in a few words; undefined when
 // nothing waits.
 export const attentionText = (terminal: TerminalMetadata): string | undefined => {
@@ -103,5 +107,5 @@ export const attentionText = (terminal: TerminalMetadata): string | undefined =>
       : attention.kind === "plan"
         ? "Plan ready for review"
         : "Needs permission"
-  return attention.count > 1 ? `${what} · ${attention.count} waiting` : what
+  return waitingText(what, attention.count)
 }

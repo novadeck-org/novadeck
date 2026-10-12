@@ -1,5 +1,6 @@
 import { isAgentProgram } from "../../../model/process"
 import { createStore } from "../../../model/store"
+import { terminalAsks } from "../../../model/terminal-ending"
 import type { AgentStatus, AgentTurnEnd, Workspace } from "../../../model/types"
 import type { BackendAction, TerminalKey } from "../../port"
 import { terminalKeyId } from "../../registry"
@@ -61,6 +62,11 @@ const calmMs = 100
 // How long a screen takes to arrive, and a failed paste's notice stays, as the runner's.
 const attachMs = 2500
 const noticeMs = 4000
+
+// The second round of kinds in the notification center reads as murmur wrote it, the first
+// as it never ran.
+const murmured = (index: number): boolean =>
+  index >= terminalAsks.length && index < 2 * terminalAsks.length
 
 const later = (ms: number, run: () => void): void => void setTimeout(run, ms)
 
@@ -259,7 +265,7 @@ const createNotificationActions = (): readonly [DemoAction, DemoAction] => {
   // without selecting them or leaving the panel the person is on.
   const fillNotifications: DemoAction = {
     label: "Fill the notification center",
-    hint: `${crowd} terminals across every project ask: questions, permissions, plans, and done and failed finishes (after 3 s); the rail badge reads 9+`,
+    hint: `${crowd} terminals across every project ask: questions, permissions, plans, and done and failed finishes (after 3 s); the rail badge reads 9+. The second round of kinds has murmur's headlines and gists`,
     run: ({ selected, workspace, addInBackground, dispatch, note }) => {
       const viewed = selected()
       if (!viewed) return note("Select a terminal first.")
@@ -273,7 +279,7 @@ const createNotificationActions = (): readonly [DemoAction, DemoAction] => {
       const fill = ++fills
       dispatch(
         slots.flatMap((key, index) =>
-          beginNotification(kinds[index]!, key, terminalOf(workspace(), key)),
+          beginNotification(kinds[index]!, key, terminalOf(workspace(), key), murmured(index)),
         ),
       )
       // Each finish lands as the agent ends its turn, while the person looks elsewhere. A
@@ -284,7 +290,9 @@ const createNotificationActions = (): readonly [DemoAction, DemoAction] => {
         const now = Date.now()
         dispatch(
           slots.flatMap((key, index) =>
-            runsAgent(workspace(), key) ? endNotification(kinds[index]!, key, now) : [],
+            runsAgent(workspace(), key)
+              ? endNotification(kinds[index]!, key, now, murmured(index))
+              : [],
           ),
         )
       })

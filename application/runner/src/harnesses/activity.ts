@@ -23,6 +23,8 @@ export type Request = {
   readonly screen?: true
   /** When its hook started: asked again later, the same call is another request. */
   readonly askedAt: number
+  /** Murmur's line on a question or plan, for the person only; see `withHeadline`. */
+  readonly headline?: string
 }
 
 /** An actor's latest plan, as the hook that named it started. */
@@ -118,6 +120,8 @@ export type LastTurn = {
   readonly reply: string | null
   readonly at: number
   readonly recorded: boolean
+  /** Murmur's gist of the reply, for the person only; see `withGist`. */
+  readonly gist?: { readonly text: string; readonly asks: boolean }
   /** Set while the person's Escape is the only word on how the turn ended. */
   readonly escaped?: Escape
 }
@@ -323,6 +327,12 @@ const turnEnded = (activity: Activity, event: TurnEnded): Activity | undefined =
           ? activity.lastTurn.at
           : event.startedAt,
       recorded: recorded === true,
+      // The same end again, told the same way, keeps the gist murmur wrote of it.
+      ...(activity.state === "idle" &&
+        activity.lastTurn?.recorded &&
+        !recorded &&
+        activity.lastTurn.outcome === event.outcome &&
+        activity.lastTurn.gist && { gist: activity.lastTurn.gist }),
     },
   } as const
   if (event.outcome !== "interrupted")
@@ -748,6 +758,70 @@ const asked = (
 }
 
 /**
+ * The activity with murmur's headline on the request asked as `requestId` at `askedAt`;
+ * undefined when that request no longer waits (answered, revised, gone) or already has it.
+ */
+export const withHeadline = (
+  activity: Activity,
+  requestId: string,
+  askedAt: number,
+  text: string,
+): Activity | undefined => {
+  const index = activity.pending.findIndex(
+    (request) => request.requestId === requestId && request.askedAt === askedAt,
+  )
+  if (index < 0 || activity.pending[index]!.headline !== undefined) return undefined
+  return {
+    ...activity,
+    pending: activity.pending.map((request, at) =>
+      at === index ? { ...request, headline: text } : request,
+    ),
+  }
+}
+
+/**
+ * The activity with murmur's gist on its last turn, while that turn is still the one that
+ * ended at `at`, completed or failed, and none runs; undefined otherwise.
+ */
+export const withGist = (
+  activity: Activity,
+  at: number,
+  gist: { readonly text: string; readonly asks: boolean },
+): Activity | undefined => {
+  const { lastTurn } = activity
+  if (
+    activity.state === "working" ||
+    !lastTurn ||
+    lastTurn.at !== at ||
+    (lastTurn.outcome !== "completed" && lastTurn.outcome !== "failed") ||
+    lastTurn.gist
+  )
+    return undefined
+  return { ...activity, lastTurn: { ...lastTurn, gist: { text: gist.text, asks: gist.asks } } }
+}
+
+const unheadlined = (request: Request): Request => {
+  const { headline: _, ...rest } = request
+  return rest
+}
+const ungisted = (lastTurn: LastTurn): LastTurn => {
+  const { gist: _, ...rest } = lastTurn
+  return rest
+}
+
+/** The activity without any headline or gist murmur wrote (murmur turned off); undefined when it had none. */
+export const withoutNotes = (activity: Activity): Activity | undefined => {
+  const { lastTurn } = activity
+  if (lastTurn?.gist === undefined && !activity.pending.some(({ headline }) => headline))
+    return undefined
+  return {
+    ...activity,
+    pending: activity.pending.map(unheadlined),
+    lastTurn: lastTurn && ungisted(lastTurn),
+  }
+}
+
+/**
  * The activity as clients see it: working while its turn runs, and after it while
  * subagents it left running, which wake it once done, run on: work its Stop says only
  * exists counts as one until a status line has counted them. Other work it left running,
@@ -781,10 +855,19 @@ export const summary = ({
         ? null
         : { agents: background.agents, tasks: background.tasks },
   planning,
-  attention: { pending: pending.length, kind: pending[0]?.kind ?? null },
+  attention: {
+    pending: pending.length,
+    kind: pending[0]?.kind ?? null,
+    headline: (pending[0]?.kind !== "permission" && pending[0]?.headline) || null,
+  },
   subagents: subagents.map(({ id, type }) => ({ id: subagentRef(id), type })),
   lastTurn:
     state === "working" || !lastTurn
       ? null
-      : { outcome: lastTurn.outcome, reply: lastTurn.reply, at: lastTurn.at },
+      : {
+          outcome: lastTurn.outcome,
+          reply: lastTurn.reply,
+          at: lastTurn.at,
+          gist: lastTurn.gist ?? null,
+        },
 })

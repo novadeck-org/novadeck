@@ -223,7 +223,7 @@ describe("Antigravity's status line, as captured", () => {
           .reduce((state, event) => applyActivity(state, binding, event) ?? state, started(0)),
       )
     const quiet = {
-      attention: { pending: 0, kind: null },
+      attention: { pending: 0, kind: null, headline: null },
       subagents: [],
       planning: false,
       background: null,
@@ -232,11 +232,11 @@ describe("Antigravity's status line, as captured", () => {
     expect(run([preInvocation(1), stop(2), report(working!, 3)])).toEqual({
       state: "idle",
       ...quiet,
-      lastTurn: { outcome: "completed", reply: null, at: expect.any(Number) },
+      lastTurn: { outcome: "completed", reply: null, at: expect.any(Number), gist: null },
     })
     expect(run([preInvocation(1), report(confirming!, 2)])).toEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission" },
+      attention: { pending: 1, kind: "permission", headline: null },
       subagents: [],
       planning: false,
       background: null,
@@ -247,11 +247,11 @@ describe("Antigravity's status line, as captured", () => {
     expect(run([preInvocation(1), stop(2), report(confirming!, 3)])).toEqual({
       state: "idle",
       ...quiet,
-      lastTurn: { outcome: "completed", reply: null, at: expect.any(Number) },
+      lastTurn: { outcome: "completed", reply: null, at: expect.any(Number), gist: null },
     })
     expect(run([preInvocation(1), report(idle!, 2), report(confirming!, 3)])).toEqual({
       state: "working",
-      attention: { pending: 1, kind: "permission" },
+      attention: { pending: 1, kind: "permission", headline: null },
       subagents: [],
       planning: false,
       background: null,

@@ -2,7 +2,13 @@ import type { AgentStatus, TerminalMetadata, WorkspaceProject } from "../model/t
 import { noUnread, type Unread } from "../terminals/unread-state"
 import { context, describe, expect, it } from "../test"
 import { terminalFixture, workspaceFixture } from "../test/fixtures"
-import { dismissable, notifications } from "./notifications"
+import {
+  dismissable,
+  notificationDescription,
+  notificationTooltip,
+  notifications,
+  type Notification,
+} from "./notifications"
 
 const running = (number: number, status?: Partial<AgentStatus>): TerminalMetadata => ({
   ...terminalFixture(number, "~/project"),
@@ -108,6 +114,85 @@ describe("The notification center", () => {
     })
   })
 
+  context("when murmur wrote words for what the agents say", () => {
+    it("puts a question's or a plan's headline in the status, keeping how many wait", () => {
+      const question = running(1, {
+        attention: { kind: "question", count: 2, headline: "Asks which database to use" },
+      })
+      const plan = running(2, {
+        attention: { kind: "plan", count: 1, headline: "Plan to split billing" },
+      })
+      expect(notifications([project("a", [question, plan])], noUnread)).toMatchObject([
+        { kind: "question", status: "Asks which database to use · 2 waiting", headline: true },
+        { kind: "plan", status: "Plan to split billing", headline: true },
+      ])
+    })
+
+    it("leaves a permission as it is", () => {
+      const permission = running(1, {
+        attention: { kind: "permission", count: 1, headline: "Asks to run rm" },
+      })
+      const [notification] = notifications([project("a", [permission])], noUnread)
+      expect(notification).toMatchObject({ kind: "permission", status: "Needs permission" })
+      expect(notification).not.toHaveProperty("headline")
+    })
+
+    it("carries a finish's gist, and that it asks, without changing its kind or order", () => {
+      const asks = running(1, {
+        lastTurn: {
+          outcome: "completed",
+          at: 100,
+          reply: "Rounded. Want me to split it?",
+          gist: "Rounded totals per line",
+          asks: true,
+        },
+      })
+      const plain = running(2, {
+        lastTurn: { outcome: "failed", at: 200, reply: "No build.", gist: "Build is broken" },
+      })
+      const unread: Unread = {
+        "a/initial": { [asks.id]: "done", [plain.id]: "failed" },
+      }
+      const [first, second] = notifications([project("a", [asks, plain])], unread)
+      expect(first).toMatchObject({ kind: "failed", gist: "Build is broken", reply: "No build." })
+      expect(first).not.toHaveProperty("asks")
+      expect(second).toMatchObject({
+        kind: "done",
+        status: "Done · reply unread",
+        gist: "Rounded totals per line",
+        asks: true,
+        reply: "Rounded. Want me to split it?",
+      })
+    })
+
+    it("shows a gist only on a finish", () => {
+      const both = running(1, {
+        attention: { kind: "question", count: 1 },
+        lastTurn: { outcome: "completed", at: 1, gist: "Rounded", asks: true },
+      })
+      const [notification] = notifications([project("a", [both])], {
+        "a/initial": { [both.id]: "done" },
+      })
+      expect(notification).not.toHaveProperty("gist")
+      expect(notification).not.toHaveProperty("asks")
+      expect(notification).not.toHaveProperty("headline")
+    })
+
+    it("leaves every row as it was without murmur", () => {
+      const question = running(1, { attention: { kind: "question", count: 1 } })
+      const done = finished(2, 5, "All green.")
+      const rows = notifications([project("a", [question, done])], {
+        "a/initial": { [done.id]: "done" },
+      })
+      expect(
+        rows.map(({ status, headline, gist, asks }) => [status, headline, gist, asks]),
+      ).toEqual([
+        ["Asks a question", undefined, undefined, undefined],
+        ["Done · reply unread", undefined, undefined, undefined],
+      ])
+    })
+  })
+
   context("when a terminal both waits on the person and has a reply unread", () => {
     it("lists it once, by what it asks", () => {
       const both = running(1, { attention: { kind: "permission", count: 1 } })
@@ -139,5 +224,42 @@ describe("Dismissing a notification", () => {
     expect(dismissable("question")).toBe(false)
     expect(dismissable("permission")).toBe(false)
     expect(dismissable("plan")).toBe(false)
+  })
+})
+
+const item = (rest: Partial<Notification>): Notification => ({
+  kind: "done",
+  context: "p/initial",
+  projectId: "p",
+  projectName: "docs-site",
+  sessionId: "initial",
+  sessionName: "Main",
+  terminalId: "t",
+  terminalName: "Checkout",
+  status: "Done · reply unread",
+  ...rest,
+})
+
+describe("What a notification says in words", () => {
+  it("reads status, where, that it asks, and the reply, as sentences", () => {
+    const asks = item({ reply: "Rounded. Want me to split it?", asks: true, gist: "Rounded" })
+    expect(notificationDescription(asks)).toBe(
+      "Done · reply unread. docs-site · Main. Asks you something. Rounded. Want me to split it?",
+    )
+    expect(notificationDescription(item({}))).toBe("Done · reply unread. docs-site · Main")
+  })
+
+  it("adds no full stop after a headline that ends in a mark", () => {
+    expect(
+      notificationDescription(item({ kind: "question", status: "Asks which database?" })),
+    ).toBe("Asks which database? docs-site · Main")
+  })
+
+  it("keeps the asking and the raw reply in the tooltip, a line each", () => {
+    const asks = item({ reply: "Rounded. Want me to split it?", asks: true, gist: "Rounded" })
+    expect(notificationTooltip(asks)).toBe(
+      "Checkout\nDone · reply unread\ndocs-site · Main\nAsks you something\nRounded. Want me to split it?",
+    )
+    expect(notificationTooltip(item({}))).toBe("Checkout\nDone · reply unread\ndocs-site · Main")
   })
 })

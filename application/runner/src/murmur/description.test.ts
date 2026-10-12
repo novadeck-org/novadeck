@@ -1,5 +1,12 @@
 import { describe, expect, it } from "../test.js"
-import { looksSecret, parseDescription } from "./description.js"
+import {
+  exampleGists,
+  exampleHeadlines,
+  looksSecret,
+  parseDescription,
+  parseGist,
+  parseHeadline,
+} from "./description.js"
 
 const reply = (title: unknown) => JSON.stringify({ title })
 
@@ -757,5 +764,198 @@ describe("keys cut short, and names that begin like keys", () => {
     "Reviewing shpat_access_token_scopes",
   ])("keeps %s", (text) => {
     expect(title(text)).toBeDefined()
+  })
+})
+
+const headline = (text: unknown, source?: string) =>
+  parseHeadline(JSON.stringify({ headline: text }), source)?.text
+const gist = (text: unknown, asks: unknown = false, source?: string) =>
+  parseGist(JSON.stringify({ asks, gist: text }), source)
+
+describe("reading the model's headline", () => {
+  it("keeps a headline that fits, tidied", () => {
+    expect(headline("Asks which cache to use")).toBe("Asks which cache to use")
+    expect(parseHeadline(JSON.stringify({ headline: ' "**Plan** to split billing." ' }))).toEqual({
+      kind: "headline",
+      text: "Plan to split billing",
+    })
+    expect(headline("Asks which cache to pick:")).toBe("Asks which cache to pick")
+  })
+
+  it("keeps a question mark, which a headline may name", () => {
+    expect(headline("Asks which cache to use?")).toBe("Asks which cache to use?")
+  })
+
+  it("holds a headline to two to ten words and 56 characters", () => {
+    expect(headline("Asks")).toBeUndefined()
+    expect(headline("")).toBeUndefined()
+    expect(headline("Asks if a b c d e f g h i")).toBeUndefined()
+    expect(headline("Plan to add a README to the plan-demo folder")).toBeDefined()
+    expect(headline(`Plan ${"x".repeat(60)}`)).toBeUndefined()
+    expect(
+      headline("Asks a very long question about internationalisation settings"),
+    ).toBeUndefined()
+  })
+
+  it("refuses a headline that opens like a question or a decision's modal", () => {
+    expect(headline("Should we go native for the proxy")).toBeUndefined()
+    expect(headline("Can the agent run Antigravity")).toBeUndefined()
+    expect(headline("Is the tab tooltip needed")).toBeUndefined()
+    expect(headline("Asks whether we should go native")).toBeDefined()
+  })
+
+  it("counts the characters of a script written without spaces", () => {
+    expect(headline("询问使用哪个数据库")).toBe("询问使用哪个数据库")
+    expect(headline("询")).toBeUndefined()
+    expect(headline("询问".repeat(13))).toBeUndefined()
+  })
+
+  it("refuses a missing or mistyped headline and replies that are no JSON", () => {
+    expect(headline(42)).toBeUndefined()
+    expect(parseHeadline(JSON.stringify({ title: "Asks which database" }))).toBeUndefined()
+    expect(parseHeadline("Asks which database")).toBeUndefined()
+    expect(parseHeadline("null")).toBeUndefined()
+  })
+
+  it("refuses chat words, and a copy of an example", () => {
+    expect(headline("Okay sounds good")).toBeUndefined()
+    for (const example of exampleHeadlines) {
+      expect(headline(example)).toBeUndefined()
+      expect(headline(example.toUpperCase())).toBeUndefined()
+    }
+    // Unless the text it was shown says so.
+    expect(headline("Plan to split the billing service", "plan to split the billing service")).toBe(
+      "Plan to split the billing service",
+    )
+  })
+
+  it.each([
+    "Asks to merge PR #131 or wait",
+    "Asks about Node 26 or Node 24",
+    "Asks to bump react to 18.3.1",
+    "Asks if 30s or 5m timeout fits",
+    "Plan to edit src/murmur/service.ts",
+    "Plan to move @novadeck/protocol files",
+    "Asks about CVE-2024-3094 on ubuntu-24.04",
+  ])("keeps %s, which holds names, versions and numbers", (text) => {
+    // The tidying drops a "#".
+    expect(headline(text)).toBe(text.replace("#", ""))
+  })
+
+  it.each([
+    "Asks whether sk-AbC9dEf2GhI4jKl7 is leaked",
+    "Plan to rotate ghp_AbC9dEf2GhI4jKl7mN0p",
+    "Asks about 9f86d081884c7d659a2feaa0c55ad015a3bf",
+    "Plan to use AKIAIOSFODNN7EXAMPLE key",
+    "Asks about token=x7Kp2mQ9vL4nR8sT",
+  ])("refuses %s, a secret inside a sentence", (text) => {
+    expect(headline(text)).toBeUndefined()
+  })
+
+  it("refuses a key that markdown or invisible characters split", () => {
+    expect(headline("Asks about sk-\u200BAbC9dEf2GhI4jKl7 key")).toBeUndefined()
+    expect(parseHeadline('{"headline":"Asks about ghp_AbC9dEf2GhI4jKl7mN0p now"}')).toBeUndefined()
+  })
+})
+
+describe("reading the model's gist", () => {
+  it("keeps a gist that fits, with whether it asks", () => {
+    expect(gist("Checkout totals round per line", true)).toEqual({
+      kind: "gist",
+      text: "Checkout totals round per line",
+      asks: true,
+    })
+    expect(gist('  "**Tests** pass now."  ')).toEqual({
+      kind: "gist",
+      text: "Tests pass now",
+      asks: false,
+    })
+  })
+
+  it("refuses an asks that is no boolean, or none", () => {
+    expect(gist("Checkout totals round per line", "true")).toBeUndefined()
+    expect(gist("Checkout totals round per line", 1)).toBeUndefined()
+    expect(gist("Checkout totals round per line", null)).toBeUndefined()
+    expect(parseGist(JSON.stringify({ gist: "Checkout totals round per line" }))).toBeUndefined()
+  })
+
+  it("refuses a missing gist and replies that are no JSON", () => {
+    expect(gist(7)).toBeUndefined()
+    expect(parseGist(JSON.stringify({ asks: true }))).toBeUndefined()
+    expect(parseGist("Checkout totals round per line")).toBeUndefined()
+  })
+
+  it("holds a gist to three to ten words and 60 characters", () => {
+    expect(gist("Done fast")).toBeUndefined()
+    expect(gist("Fixed b c d e f g h i j k")).toBeUndefined()
+    expect(gist("Fixed b c d e f g h i j")).toBeDefined()
+    expect(gist(`Fixed ${"x".repeat(60)} test`)).toBeUndefined()
+    expect(
+      gist("Reworked internationalisation configuration for the documentation pipeline"),
+    ).toBeUndefined()
+  })
+
+  it("refuses a gist the grammar would have cut, which runs on past the limit", () => {
+    expect(
+      gist("Both projects use NSIS for Windows, lack portable exe support, and Orca has"),
+    ).toBeUndefined()
+  })
+
+  it("refuses a gist that opens like a question, and keeps statements that begin alike", () => {
+    expect(gist("Should I include gossip templates", true)).toBeUndefined()
+    expect(gist("Do you want the gossip templates", true)).toBeUndefined()
+    expect(gist("Can we drop the tab tooltip", true)).toBeUndefined()
+    for (const text of [
+      "Did not touch the migration files",
+      "Is now waiting for your approval",
+      "Will need your API token to continue",
+      "Does not compile on Windows",
+      "Do README dodano sekcję o instalacji",
+      "Can't build on Windows yet",
+    ])
+      expect(gist(text)?.text).toBe(text)
+  })
+
+  it("counts the characters of a script written without spaces", () => {
+    expect(gist("结账总额按行取整")).toBeDefined()
+    expect(gist("好")).toBeUndefined()
+    expect(gist("结账".repeat(16))).toBeUndefined()
+  })
+
+  it("refuses a gist that ends in a question, as the reply's question is in asks", () => {
+    expect(gist("Which rounding mode should I keep?", true)).toBeUndefined()
+  })
+
+  it("refuses chat words, and a copy of an example", () => {
+    expect(gist("Thank you very much")).toBeUndefined()
+    for (const example of exampleGists) expect(gist(example)).toBeUndefined()
+    expect(
+      gist("Checkout totals now round per line", false, "checkout totals now round per line"),
+    ).toBeDefined()
+  })
+
+  it.each([
+    "Merged PR #131 and bumped react to 18.3.1",
+    "Build took 4m 30s on Node 26",
+    "Edited src/murmur/service.ts and its tests",
+    "Moved @novadeck/protocol exports into index.ts",
+    "Patched CVE-2024-3094 on ubuntu-24.04",
+  ])("keeps %s, which holds names, versions and numbers", (text) => {
+    expect(gist(text)?.text).toBe(text.replace("#", ""))
+  })
+
+  it.each([
+    "Rotated key sk-AbC9dEf2GhI4jKl7 in the config",
+    "Leaked ghp_AbC9dEf2GhI4jKl7mN0p in the log",
+    "Commit 9f86d081884c7d659a2feaa0c55ad015a3bf fixed it",
+    "Set password=x7Kp2mQ9vL4nR8sT in the env file",
+  ])("refuses %s, a secret inside a sentence", (text) => {
+    expect(gist(text)).toBeUndefined()
+  })
+
+  it("refuses a provider key in the raw string even when tidying splits it", () => {
+    expect(
+      parseGist('{"asks":false,"gist":"Leaked ghp_AbC9dEf2GhI4jKl7mN0p in the log"}'),
+    ).toBeUndefined()
   })
 })

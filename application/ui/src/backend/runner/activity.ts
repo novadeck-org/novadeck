@@ -40,7 +40,13 @@ const agentStatus = (
   ...(background ? { background } : {}),
   ...(planning ? { planning: true as const } : {}),
   ...(attention.pending > 0 && attention.kind
-    ? { attention: { kind: attention.kind, count: attention.pending } }
+    ? {
+        attention: {
+          kind: attention.kind,
+          count: attention.pending,
+          ...(attention.headline === null ? {} : { headline: attention.headline }),
+        },
+      }
     : {}),
   ...(subagents.length > 0 ? { subagents } : {}),
   ...(lastTurn
@@ -48,6 +54,8 @@ const agentStatus = (
         lastTurn: {
           outcome: lastTurn.outcome,
           ...(lastTurn.reply === null ? {} : { reply: lastTurn.reply }),
+          ...(lastTurn.gist ? { gist: lastTurn.gist.text } : {}),
+          ...(lastTurn.gist?.asks ? { asks: true as const } : {}),
           at: lastTurn.at,
         },
       }

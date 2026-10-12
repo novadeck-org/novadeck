@@ -4,7 +4,8 @@
 //   "late"          takes half a second to listen, as a model loading
 //   "crash"         exits when it is asked to complete
 //   "slow"          takes half a second to answer
-//   "copy"          answers with the first example title of the prompt, whatever it is asked
+//   "copy"          answers with the first example of the kind asked for, whatever it is asked
+//   "overflow"      answers 400 exceed_context_size_error, as the real server does for a request too big
 //   "hang"          never answers a completion
 //   "garbage"       answers with something that isn't the JSON asked for
 //   "device"        puts the device it runs on in its title
@@ -84,18 +85,42 @@ const server = createServer(async (request, response) => {
   }
   if (mode.includes("hang")) await new Promise(() => {})
   if (mode.includes("slow")) await new Promise((resolve) => setTimeout(resolve, 500))
+  if (mode.includes("overflow")) {
+    response.statusCode = 400
+    response.end(
+      JSON.stringify({
+        error: {
+          code: 400,
+          message:
+            "request (5000 tokens) exceeds the available context size (4096 tokens), try increasing it",
+          type: "exceed_context_size_error",
+          n_prompt_tokens: 5000,
+          n_ctx: 4096,
+        },
+      }),
+    )
+    return
+  }
   completions += 1
   if (mode.includes("log"))
     appendFileSync(`${argument("-m")}.requests`, `${JSON.stringify(asked)}\n`)
+  // Each kind of text is asked for with a schema of its own name.
+  const kind = asked.response_format?.json_schema?.name
+  const text = (label, copied) =>
+    mode.includes("copy")
+      ? copied
+      : mode.includes("device")
+        ? `${label} on ${device}`
+        : `${label} ${completions}`
+  const answer =
+    kind === "request_headline"
+      ? { headline: text("Fake headline", "Asks which database to use") }
+      : kind === "reply_gist"
+        ? { asks: false, gist: text("Fake gist", "Checkout totals now round per line") }
+        : { title: text("Fake title", "Rotating billing webhook keys") }
   const content = mode.includes("garbage")
     ? "Sure! Here is a title for your terminal."
-    : JSON.stringify({
-        title: mode.includes("copy")
-          ? "Rotating billing webhook keys"
-          : mode.includes("device")
-            ? `Fake title on ${device}`
-            : `Fake title ${completions}`,
-      })
+    : JSON.stringify(answer)
   response.end(
     JSON.stringify({
       model: "fake",

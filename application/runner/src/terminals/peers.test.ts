@@ -2,7 +2,7 @@ import { join } from "node:path"
 
 import type { TerminalSummary } from "@novadeck/protocol"
 
-import type { Request } from "../harnesses/activity.js"
+import { started, type Request } from "../harnesses/activity.js"
 import type { Messaging } from "../messaging/messaging.js"
 import { describe, expect, it } from "../test.js"
 import { TerminalPeers, waitingOf, type PeerTerminal } from "./peers.js"
@@ -47,6 +47,59 @@ describe("what peers learn of a request waiting on the person", () => {
   it("shows a question's or a plan's subject as it is", () => {
     expect(subject({ kind: "question", subject: "Which database?" })).toBe("Which database?")
     expect(subject({ kind: "plan", subject: "plan.md" })).toBe("plan.md")
+  })
+})
+
+describe("murmur's words for the person", () => {
+  it("never reach other agents: the waiting request and the listing show neither a headline nor a gist", async () => {
+    const headline = "Asks which database to use"
+    const gist = "Fixed the rounding bug"
+    const activity = {
+      ...started(0),
+      pending: [request({ kind: "question", subject: "Which database?", headline })],
+      lastTurn: {
+        outcome: "completed" as const,
+        reply: null,
+        at: 5,
+        recorded: false,
+        gist: { text: gist, asks: false },
+      },
+    }
+    expect(waitingOf(activity)).toEqual({
+      kind: "question",
+      tool: "Bash",
+      subject: "Which database?",
+      more: 0,
+    })
+    const summary = { id: "b", cwd: "/w/repo", sessionId: "s", title: "T" } as TerminalSummary
+    const peer: PeerTerminal = {
+      summary,
+      naming: { person: null, agent: null, murmur: null, summary: null },
+      work: null,
+      activity,
+      openedBy: null,
+    }
+    // What agents list of a peer is whatever the `about` the messaging asks for tells.
+    const listed: unknown[] = []
+    const peers = new TerminalPeers({
+      messaging: {
+        agents: (_id: string, about: (id: string) => unknown) => {
+          listed.push(about("b"))
+          return { ok: true, text: "" }
+        },
+      } as unknown as Messaging,
+      caller: () => peer,
+      terminal: () => peer,
+      running: () => [peer],
+      projectFolder: () => "/w/repo",
+      stopping: () => false,
+    })
+    await peers.agents({ terminalId: "a", token: "t", request: {} } as never)
+    expect(listed).toHaveLength(1)
+    const text = JSON.stringify(listed)
+    expect(text).toContain("Which database?")
+    expect(text).not.toContain(headline)
+    expect(text).not.toContain(gist)
   })
 })
 

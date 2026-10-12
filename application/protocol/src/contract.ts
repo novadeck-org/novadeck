@@ -410,6 +410,10 @@ export const contract = {
     // Changes the settings given; the others stay. Turning murmur on before any install
     // says it is wanted, for the install to turn on.
     set: procedure.input(murmurSettings.partial()).output(z.void()),
+    // Asks murmur for the gist of the reply that ended the terminal's turn at `at`, which the
+    // client shows unread. It lands on the terminal's `activity.lastTurn.gist`. Nothing happens
+    // when murmur can't run, that end is no longer the last, or the terminal is unknown.
+    gist: procedure.input(z.strictObject({ terminalId: id, at: z.number() })).output(z.void()),
   },
   settings: {
     get: procedure.input(z.void()).output(runnerSettings),

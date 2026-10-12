@@ -20,6 +20,7 @@ import type {
   TerminalSummary,
   TranscriptChange,
 } from "@novadeck/protocol"
+import { murmurGist, murmurHeadline } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 import { SerializeAddon } from "@xterm/addon-serialize"
 import type { SerializeAddon as Serializer } from "@xterm/addon-serialize"
@@ -28,7 +29,7 @@ import headless from "@xterm/headless"
 import type { Terminal as Screen } from "@xterm/headless"
 import * as pty from "node-pty"
 
-import type { PlanText } from "../companions/content.js"
+import { readPlanFile, type PlanText } from "../companions/content.js"
 import type { CompanionItems, TerminalPlace } from "../companions/items.js"
 import type { ItemRecord } from "../companions/records.js"
 import {
@@ -44,6 +45,9 @@ import {
   boundSince,
   started as fresh,
   summary as activitySummary,
+  withGist,
+  withHeadline,
+  withoutNotes,
   type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
@@ -1374,8 +1378,34 @@ export class Terminals {
         this.retitle(record)
         this.save(record, false)
       },
+      headlined: (terminalId, { requestId, askedAt }, text) => {
+        const record = this.live(terminalId)
+        if (!record?.activity || !murmurHeadline.safeParse(text).success) return
+        const next = withHeadline(record.activity, requestId, askedAt, text)
+        if (!next) return
+        record.activity = next
+        this.publishAgent(record, false)
+      },
+      gisted: (terminalId, at, gist) => {
+        const record = this.live(terminalId)
+        const parsed = murmurGist.safeParse({ text: gist.text, asks: gist.asks })
+        if (!record?.activity || !parsed.success) return
+        const next = withGist(record.activity, at, parsed.data)
+        if (!next) return
+        record.activity = next
+        this.publishAgent(record, false)
+      },
+      fileHead: async (path) => (await readPlanFile(path))?.text.slice(0, 16 * 1024) ?? null,
       cleared: () => {
-        // Murmur is off or gone: its titles go, running terminals' and saved ones'.
+        // Murmur is off or gone: its titles go, running terminals' and saved ones', and the
+        // headlines and gists it wrote.
+        for (const record of this.records.values()) {
+          const next = record.activity && withoutNotes(record.activity)
+          if (next) {
+            record.activity = next
+            this.publishAgent(record, false)
+          }
+        }
         for (const record of this.records.values()) {
           if (record.naming.murmur === null) continue
           record.naming = { ...record.naming, murmur: null }
@@ -2574,6 +2604,15 @@ export class Terminals {
     this.save(record, false)
     this.murmur?.summarized(record.summary.id)
     return { ok: true }
+  }
+
+  /**
+   * A client shows the terminal's turn end at `at` unread: murmur is asked for the gist of
+   * its reply. Nothing happens without murmur, for an unknown terminal, or an end that is
+   * no longer the last.
+   */
+  gistWanted(terminalId: string, at: number): void {
+    this.murmur?.replied(terminalId, at)
   }
 
   /** Sends another terminal's agent a message, as an agent asked through Novadeck's MCP server. */
@@ -4163,6 +4202,8 @@ export class Terminals {
     // Detail changes where the summary may not: a revised request, a subject.
     this.detailed(record)
     this.dialogs.changed(record.summary.id)
+    // Murmur writes a headline or gist for what the activity now holds.
+    this.murmur?.changed(record.summary.id)
     const agent = record.binding?.agent ?? null
     const ready = this.readyOf(record)
     const activity = record.binding && record.activity ? activitySummary(record.activity) : null

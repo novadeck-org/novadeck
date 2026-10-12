@@ -6,7 +6,7 @@
 // keeps its length and everything around the secret. Marking a screen's continued rows as one
 // text and as separate rows then lines up character for character, and the union of the two
 // is what is masked. Marks are rendered as `[redacted]` only at the end.
-import type { Digest } from "./describer.js"
+import type { Input } from "./describer.js"
 
 export const redacted = "[redacted]"
 
@@ -500,8 +500,12 @@ const redactRows = (screen: readonly string[], continues: readonly boolean[]): s
   return result
 }
 
-/** The digest with every string run through `redact`. */
-export const redactDigest = (digest: Digest): Digest => {
+/** The input with every string run through `redact`. */
+export const redactDigest = (digest: Input): Input => {
+  if (digest.kind === "question")
+    return { ...digest, question: redact(digest.question), choices: digest.choices.map(redact) }
+  if (digest.kind === "plan") return { ...digest, plan: redact(digest.plan) }
+  if (digest.kind === "reply") return { ...digest, reply: redact(digest.reply) }
   const one = (text: string | null): string | null => (text === null ? null : redact(text))
   const previous = digest.previous && { title: redact(digest.previous.title) }
   if (digest.kind === "shell") {

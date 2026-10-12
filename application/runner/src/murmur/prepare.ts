@@ -7,7 +7,7 @@ import { createRequire } from "node:module"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { Worker } from "node:worker_threads"
 
-import type { Digest } from "./describer.js"
+import type { Input } from "./describer.js"
 import type { Message } from "./prompt.js"
 
 export type PrepareOptions = {
@@ -70,7 +70,7 @@ export class Preparer {
   }
 
   /** The chat for `digest`, or why there is none (see `Prepared`). */
-  async prepare(digest: Digest, signal?: AbortSignal): Promise<Prepared> {
+  async prepare(digest: Input, signal?: AbortSignal): Promise<Prepared> {
     const worker = await this.start()
     if (worker === "unavailable") return signal?.aborted ? undefined : worker
     if (worker === undefined || signal?.aborted) return undefined

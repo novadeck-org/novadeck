@@ -1,6 +1,8 @@
 # Murmur
 
-Murmur is an opt-in local model that writes terminal titles. (Summaries are the agents' own, written with their `summarize` tool; murmur reads them as the strongest input to a title.) It runs
+Murmur is an opt-in local model that writes terminal titles, and two short notes for the
+notification list: a headline for a question or plan an agent is waiting on, and a gist of a
+reply the person has not seen. (Summaries are the agents' own, written with their `summarize` tool; murmur reads them as the strongest input to a title.) It runs
 Qwen3.5-2B (Q4_K_M, 1.28 GB) on llama.cpp's `llama-server`, an engine of its own like
 voice input's, installed from Preferences > Addons. Without it, terminals keep their default
 titles.
@@ -23,6 +25,25 @@ Terminals ask for a description when something worth a new one happened (see
   program quits, the normal screen is read again. A program that draws on the normal
   screen is read as any screen is: procps `top`, `less -X`, and git's pager, which git runs
   with `LESS=FRX` unless `LESS` is set.
+
+Notes are handed their own digests:
+
+- a headline: the first question an agent asks, with the labels of the answers it offers (at
+  most 16), or the start of a plan it asks the person to review (at most 16 KiB);
+- a gist: the agent's last reply, whole when short, else its first and last 4000 characters.
+  The prompt strips what is no prose, after redaction (fenced code becomes `[code]`, link
+  addresses and bare URLs go, table rows become their first row and `[table]`), then budgets
+  what is left by what it costs the model in tokens, as a ceiling that does not undercount: 3100 of
+  the 4096-token window. A plain word costs 0.65 a character, other ASCII and a digit 1 (and a
+  number its leading space, each line break 1, and every word at least 1), Chinese, Japanese and Korean 2 to 2.4, other scripts 1.5 to 3, and
+  anything beyond the basic plane 4. It was measured on the engine's own tokenizer against random
+  digits, hex, base64, symbols, path lists, emoji and rare characters. That is about 2900
+  characters of English each at the start and the end, and far fewer of dense text. Fenced code
+  is a line that begins with three or more backticks, up to a line of at least as many, so a
+  stray ``` in a sentence is no fence. A request that is still too big for the context (the
+  engine answers 400 `exceed_context_size_error`) is a refusal of that job: no text, counted as a refusal for that terminal's kind, and no engine
+  failure, back-off or restart. A cut reply is shown as "The start of the agent's reply:", `[…]`, "The end of the
+  agent's reply:", so the two pieces are not read as one text.
 
 Nothing else is read, and nothing leaves the machine: the server listens on `127.0.0.1`
 behind a random API key made for each launch and passed in the environment
@@ -49,15 +70,26 @@ behind a random API key made for each launch and passed in the environment
   - The length caps apply after redaction, in the prompt, so a cut token's prefix can't leak.
     Permission commands are never in a digest.
 - **Worker thread** (`prepare.ts`, `worker.ts`): redaction is a large set of regexes, so it
-  never runs on the runner's event loop. Each digest is redacted and turned into the chat in a
+  never runs on the runner's event loop. Each digest, or note digest, is redacted and turned into the chat in a
   worker thread, with a deadline of about 1.5 s. A digest that overruns ends the thread (the
   only way to stop a stuck regex) and is dropped as "did not run": only that terminal is held
   off for a while, and the others carry on. A thread that will not start at all backs murmur
   off and shows on the card. The install check's test terminal goes through the worker too,
   so a broken worker fails the install.
 - **Validation** (`description.ts`): the reply must be JSON with a title of 2 to 6 words and
-  at most 48 characters. Anything else is dropped. Format characters (bidi overrides,
+  at most 48 characters. Anything else is dropped. A headline is 2 to 10 words and at most 56
+  characters, and may end in `?`. A gist is 3 to 10 words and at most 60 characters (two lines of the sidebar), comes with a
+  boolean `asks`, and is refused if it ends in `?` or opens like an English question put to someone (`Should I`, `Do you`, `Can we`) (the question is `asks`' to carry). Notes are
+  refused like titles for chat words, a copy of a prompt example and `looksSecret`. Format characters (bidi overrides,
   zero-width characters) and C1 controls are stripped first, so a title shows what it says.
+- **Asking**: `asks` is true when the reply ends by asking the person to pick, decide or supply
+  something the agent needs to go on, with or without a question mark. An offer to do more
+  ("Want me to...?", "Should I also...?") is not asking. A headline for a question opens with
+  "Asks" and one that opens with `Should`, `Can`, `Is` and the like is refused.
+- **Room in the schemas**: each schema's `maxLength` is 32 above the parser's limit. The engine's
+  grammar cuts a string at the schema's length, which would turn an overrun into a cut phrase that
+  passes; with room it comes out whole and is refused. The schema puts `asks` before the gist,
+  as the engine's grammar writes properties in order.
 - **Stability**: the previous title goes in the prompt, with the instruction to keep it
   unless the work clearly changed.
 - **Prompt** (`prompt.ts`): the current prompt comes last and is labelled. The size is
@@ -70,12 +102,14 @@ behind a random API key made for each launch and passed in the environment
   differently as one is masked whole (so a neighbouring row can go with a secret). A quote left
   open across rows that did not run to the edge is not followed. Key blocks are masked from the
   first BEGIN marker to its END, or to the end of the screen.
-- An output guard backs it up (`looksSecret`). Murmur writes only a title, and a title is
-  refused (as no title) if it holds a mask, if it has a provider's key in its documented shape,
+- An output guard backs it up (`looksSecret`). Murmur writes only short lines, and a title,
+  headline or gist is refused (as no text) if it holds a mask, if it has a provider's key in its documented shape,
   if redaction masks a piece of it that looks like a key or is 12 or more characters with a
   digit, or if a piece of a word looks like a key (12 or more characters mixing letters and
-  digits with no long run of lower case, or high entropy; a long hex run is one too). Titles
+  digits with no long run of lower case, or high entropy; a long hex run is one too). Lines
   with ordinary numbers ("Fix PR 131", "Upgrade to Node 26") pass.
+- Notes are for the person only: they ride on a terminal's activity to the UI and are never in
+  an agent-facing listing or tool.
 - Everything stays on this machine: the digest goes to a server on `127.0.0.1` behind a key
   made for the run, and nothing is sent anywhere else.
 
@@ -110,7 +144,11 @@ succeeds or when murmur is turned on. The check is kept in those cases.
 ## Being polite
 
 - It loads on the first job and unloads after about two minutes idle.
-- One job at a time. A job whose signal aborts is dropped.
+- One job at a time, never pre-empted. Jobs wait in a line served by kind: headlines first, then
+  gists, then titles, first come first served within a kind. A job whose signal aborts leaves the
+  line. A title may wait behind headlines: that is meant.
+- Gists are written only for a finish a window marks unread (the UI asks with `murmur.gist`), and
+  a headline when a question or plan is asked, so murmur does no work for text no one will read.
 - Voice input has priority: while `voice.activity.busy()`, murmur aborts its request, waits,
   and retries.
 - A cold start (no model loaded) waits while the computer's free memory, or the chosen device's,
@@ -121,11 +159,13 @@ succeeds or when murmur is turned on. The check is kept in those cases.
   is this process's own working set.
 - A request that gets no answer in a minute counts as a failure and the engine is restarted.
 - After a failed job, or when the engine can't list the devices, murmur refuses jobs for 30
-  seconds, doubling with each failure in a row up to eight minutes. A digest that overruns the
-  worker's deadline holds off only its own terminal, the same way. A passing check, and turning
+  seconds, doubling with each failure in a row up to eight minutes, for every kind of job. A
+  digest that overruns the worker's deadline holds off only its own terminal, the same way, and so
+  does a terminal whose texts keep being refused, each kind counted apart (a terminal whose
+  headlines are refused still gets titles and gists). A passing check, and turning
   murmur on, forget all of it.
 - A job stopped because murmur was turned off is not a failure.
-- Turning murmur off, or uninstalling it, clears the titles it wrote (`watchCleared` in the
+- Turning murmur off, or uninstalling it, clears the titles, headlines and gists it wrote (`watchCleared` in the
   describer, consumed by the terminals), also from the store's files on disk, as the store does with
   anything it forgets. A failed check, a lost GPU or the runner closing do not.
 - It runs on battery.
@@ -143,12 +183,14 @@ runner; packaged, the manifest is at `resources/murmur/engine.json`.
 
 `testing/fake-llama.mjs` stands in for `llama-server`; the model file's contents steer it
 (`fail:<device>`, `crash`, `slow`, `hang`, `garbage`, `copy`, `device`, `late`, `log`); it
-reads the file again at each request, so a test can mend a running server. The model is
+reads the file again at each request, so a test can mend a running server. It answers by the
+`response_format.json_schema.name` it is asked with (`terminal_title`, `request_headline`,
+`reply_gist`), and `copy` copies the first example of that kind. The model is
 installed as `models/<first 12 of its sha256>-<name>`, and other files there are removed
 after a model install. `testing/slow-worker.mjs` and `testing/regex-worker.mjs` stand in for the
 redaction thread (a spinning loop, and a regex that backtracks without end). `murmur/real.test.ts`
 runs the real engine when `NOVADECK_MURMUR_REAL_ENGINE` (an unpacked engine folder) and
-`NOVADECK_MURMUR_REAL_MODEL` are set. Title-only jobs take 2 to 6 s warm on an Arc iGPU.
+`NOVADECK_MURMUR_REAL_MODEL` are set; it writes a title, a headline and a gist. Title-only jobs take 2 to 6 s warm on an Arc iGPU.
 
 llama-server's flags are built by `serverArguments` and pinned by a test. Changing them, or the
 HTTP surface murmur uses, means bumping `engineInterface` in

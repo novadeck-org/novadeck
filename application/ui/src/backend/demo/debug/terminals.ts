@@ -124,9 +124,14 @@ export const resting: AgentStatus = { working: false }
 export const working: AgentStatus = { working: true }
 export const planning: AgentStatus = { working: true, planning: true }
 
-export const asking = (kind: "permission" | "question" | "plan", count: number): AgentStatus => ({
+// An agent waiting on the person; `headline` is murmur's, for a question or a plan.
+export const asking = (
+  kind: "permission" | "question" | "plan",
+  count: number,
+  headline?: string,
+): AgentStatus => ({
   working: true,
-  attention: { kind, count },
+  attention: { kind, count, ...(headline ? { headline } : {}) },
 })
 
 export const withSubagents: AgentStatus = {
@@ -179,11 +184,35 @@ const replies: Record<AgentTurnEnd["outcome"], string | undefined> = {
   unknown: undefined,
 }
 
-// An agent whose turn just ended, with the start of its last reply where its harness says.
-export const turnEnded = (outcome: AgentTurnEnd["outcome"], now: number): AgentStatus => {
+// An agent whose turn just ended, with the start of its last reply where its harness says,
+// and murmur's gist of it where given.
+export const turnEnded = (
+  outcome: AgentTurnEnd["outcome"],
+  now: number,
+  gist?: { readonly text: string; readonly asks?: true },
+): AgentStatus => {
   const reply = replies[outcome]
-  return { working: false, lastTurn: { outcome, ...(reply ? { reply } : {}), at: now } }
+  return {
+    working: false,
+    lastTurn: {
+      outcome,
+      ...(reply ? { reply } : {}),
+      ...(gist ? { gist: gist.text, ...(gist.asks ? { asks: true as const } : {}) } : {}),
+      at: now,
+    },
+  }
 }
+
+// What murmur would say of each notification, in its words, for the notification center to
+// show without it.
+const murmurHeadlines = {
+  question: "Asks which database to use",
+  plan: "Plan to split the billing service",
+} as const
+const murmurGists = {
+  done: { text: "Checkout totals round per line, tests pass", asks: true },
+  failed: { text: "Test suite no longer compiles" },
+} as const
 
 // The live terminals of every session of every project but the one the person views,
 // project by project in turn, so each kind of notification lands in several projects. An
@@ -229,23 +258,43 @@ const requests = {
 } as const
 
 // The start of a notification: a request waits at once; a finish begins as the agent
-// works, and `endNotification` ends its turn.
+// works, and `endNotification` ends its turn. With `murmur`, a question or a plan has the
+// headline murmur would write.
 export const beginNotification = (
   kind: TerminalAsk,
   key: TerminalKey,
   terminal: TerminalMetadata | undefined,
+  murmur = false,
 ): BackendAction[] =>
-  agentIn(key, terminal, kind === "done" || kind === "failed" ? working : asking(requests[kind], 1))
+  agentIn(
+    key,
+    terminal,
+    kind === "done" || kind === "failed"
+      ? working
+      : asking(
+          requests[kind],
+          1,
+          murmur && (kind === "question" || kind === "plan") ? murmurHeadlines[kind] : undefined,
+        ),
+  )
 
 // The end of a finish's turn, which the app marks unread when the person looks elsewhere;
-// nothing for a request.
+// nothing for a request. With `murmur`, the reply has the gist murmur would write.
 export const endNotification = (
   kind: TerminalAsk,
   key: TerminalKey,
   now: number,
+  murmur = false,
 ): BackendAction[] =>
   kind === "done" || kind === "failed"
-    ? agentSays(key, turnEnded(kind === "done" ? "completed" : "failed", now))
+    ? agentSays(
+        key,
+        turnEnded(
+          kind === "done" ? "completed" : "failed",
+          now,
+          murmur ? murmurGists[kind] : undefined,
+        ),
+      )
     : []
 
 // The keys of the terminals the predicate picks, in every session of every project.

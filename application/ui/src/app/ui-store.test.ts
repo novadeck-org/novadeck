@@ -195,6 +195,7 @@ describe("finish watch", () => {
       preferences: { ...initial().preferences, notifyFinished },
     })
     const notices: Parameters<FinishNotify>[0][] = []
+    const gists: [string, number][] = []
     const status = (terminalId: string, agent: AgentStatus) =>
       workspace.dispatch({
         type: "terminal/status",
@@ -213,11 +214,15 @@ describe("finish watch", () => {
     })
     select("01")
     status("02", { working: true })
-    const stop = watchFinishes(workspace, ui, (notice) => notices.push(notice), graceMs)
+    const stop = watchFinishes(workspace, ui, {
+      notify: (notice) => notices.push(notice),
+      graceMs,
+      unread: (terminalId, at) => gists.push([terminalId, at]),
+    })
     const unread = () => ui.getSnapshot().unread
     const finish = (at = 10, outcome: "completed" | "failed" | "interrupted" = "completed") =>
       status("02", { working: false, lastTurn: { outcome, reply: "All green.", at } })
-    return { workspace, ui, notices, status, select, unread, finish, stop }
+    return { workspace, ui, notices, gists, status, select, unread, finish, stop }
   }
 
   context("when an agent finishes in a terminal the person isn't looking at", () => {
@@ -332,6 +337,43 @@ describe("finish watch", () => {
     })
   })
 
+  context("when a finish is unread", () => {
+    it("tells murmur once, with the end's time", () => {
+      const { gists, finish, stop } = setup()
+      finish(10)
+      expect(gists).toEqual([["02", 10]])
+      stop()
+    })
+
+    it("tells it also when the person turned notifications off", () => {
+      const { gists, notices, finish, stop } = setup(false)
+      finish(10)
+      expect(notices).toEqual([])
+      expect(gists).toEqual([["02", 10]])
+      stop()
+    })
+
+    it("tells it each end that goes unseen", () => {
+      const { gists, status, finish, stop } = setup()
+      finish(10)
+      status("02", { working: true })
+      finish(20)
+      expect(gists).toEqual([
+        ["02", 10],
+        ["02", 20],
+      ])
+      stop()
+    })
+
+    it("does not, for a terminal the person looks at", () => {
+      const { gists, finish, select, stop } = setup()
+      select("02")
+      finish()
+      expect(gists).toEqual([])
+      stop()
+    })
+  })
+
   it("takes an end already shown when it starts as seen, as after a reload", () => {
     const workspace = createWorkspaceStore(workspaceFixture())
     workspace.dispatch({
@@ -345,7 +387,7 @@ describe("finish watch", () => {
     })
     const ui = createUiStore(initial())
     const notices: unknown[] = []
-    const stop = watchFinishes(workspace, ui, (notice) => notices.push(notice))
+    const stop = watchFinishes(workspace, ui, { notify: (notice) => notices.push(notice) })
     workspace.dispatch({ type: "terminal/select", target, terminalId: "01" })
     expect(notices).toEqual([])
     expect(ui.getSnapshot().unread).toEqual({})

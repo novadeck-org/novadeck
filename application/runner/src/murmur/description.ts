@@ -1,6 +1,6 @@
 // What the model writes is a guess in JSON. This keeps the guesses that fit a terminal's
 // title bar, tidies them, and drops the rest, so nothing downstream checks again.
-import type { Description } from "./describer.js"
+import type { Description, Gist, Headline } from "./describer.js"
 import { maskedSpans, redacted } from "./redact.js"
 
 export const titleWords = { min: 2, max: 6 }
@@ -15,6 +15,25 @@ export const exampleTitles = [
   "Walidacja formularza rejestracji",
   "Awaria testów",
   "Following the nginx access log",
+] as const
+
+export const headlineWords = { min: 2, max: 10 }
+export const headlineCharacters = 56
+export const gistWords = { min: 3, max: 10 }
+export const gistCharacters = 60
+
+/** The headlines the prompt shows as examples, refused like the titles. */
+export const exampleHeadlines = [
+  "Asks which database to use",
+  "Pyta, którą bazę wybrać",
+  "Plan to split the billing service",
+] as const
+
+/** The gists the prompt shows as examples, refused like the titles. */
+export const exampleGists = [
+  "Checkout totals now round per line",
+  "Walidacja gotowa, brakuje jeszcze migracji",
+  "Build fails on a missing type",
 ] as const
 
 // Text as `words` sees it before it splits: lower case, accents stripped.
@@ -83,6 +102,8 @@ const spacelessChat = new Set([
 const spaceless =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u
 export const spacelessCharacters = { min: 2, max: 16 }
+export const spacelessHeadlineCharacters = { min: 2, max: 24 }
+export const spacelessGistCharacters = { min: 4, max: 30 }
 
 const tidy = (text: string): string => text.replace(/\s+/g, " ").trim()
 
@@ -210,42 +231,113 @@ export const looksSecret = (title: string): boolean =>
     (span) => providerKeys.test(span) || tokenLike(span) || (span.length >= 12 && /\d/.test(span)),
   )
 
-/**
- * The title in `raw`, the model's reply, or undefined when it can't be used. `source` is
- * the text the model was shown, which tells a title that copies an example from one that
- * names the same work.
- */
-export const parseDescription = (raw: string, source?: string): Description | undefined => {
+type Limits = {
+  readonly words: { readonly min: number; readonly max: number }
+  readonly characters: number
+  readonly spaceless: { readonly min: number; readonly max: number }
+  readonly examples: readonly string[]
+  /** Whether it may end in "?": a headline may name a question, a title or gist may not. */
+  readonly question: boolean
+  /**
+   * Whether it may open like an English question: a title may, a headline may not, and a gist
+   * may unless a pronoun follows ("Should I...", but not "Did not touch the files").
+   */
+  readonly opener: "allowed" | "refused" | "asking"
+}
+
+// How an English question begins. A headline for a question starts with "Asks", and a gist
+// is a statement, so one that opens like this is the question itself, and is refused.
+const questionOpeners = new Set("should shall can could would will do does did is are".split(" "))
+// Who a question is put to or about: after an opener, one of these makes a gist a question.
+const askedOf = new Set("i we you he she it they".split(" "))
+
+const titleLimits: Limits = {
+  words: titleWords,
+  characters: titleCharacters,
+  spaceless: spacelessCharacters,
+  examples: exampleTitles,
+  question: false,
+  opener: "allowed",
+}
+const headlineLimits: Limits = {
+  words: headlineWords,
+  characters: headlineCharacters,
+  spaceless: spacelessHeadlineCharacters,
+  examples: exampleHeadlines,
+  question: true,
+  opener: "refused",
+}
+const gistLimits: Limits = {
+  words: gistWords,
+  characters: gistCharacters,
+  spaceless: spacelessGistCharacters,
+  examples: exampleGists,
+  question: false,
+  opener: "asking",
+}
+
+const object = (raw: string): Record<string, unknown> | undefined => {
   let value: unknown
   try {
     value = JSON.parse(raw)
   } catch {
     return undefined
   }
-  if (typeof value !== "object" || value === null) return undefined
-  const { title } = value as Record<string, unknown>
-  if (typeof title !== "string") return undefined
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined
+}
 
-  const cleanTitle = plain(title).replace(/[.:;,\s]+$/, "")
-  if (cleanTitle.length > titleCharacters) return undefined
-  if (spaceless.test(cleanTitle)) {
-    const characters = [...cleanTitle.replaceAll(/\s/g, "")].length
-    if (characters < spacelessCharacters.min || characters > spacelessCharacters.max)
-      return undefined
+// The line the model wrote, tidied, or undefined when it doesn't fit `limits`, names nothing,
+// copies an example or looks like a secret. `source` is the text the model was shown.
+const line = (text: string, limits: Limits, source: string | undefined): string | undefined => {
+  const clean = plain(text).replace(/[.:;,\s]+$/, "")
+  if (clean.length > limits.characters) return undefined
+  if (spaceless.test(clean)) {
+    const characters = [...clean.replaceAll(/\s/g, "")].length
+    if (characters < limits.spaceless.min || characters > limits.spaceless.max) return undefined
   } else {
-    const count = cleanTitle === "" ? 0 : cleanTitle.split(" ").length
-    if (count < titleWords.min || count > titleWords.max) return undefined
+    const count = clean === "" ? 0 : clean.split(" ").length
+    if (count < limits.words.min || count > limits.words.max) return undefined
   }
   // A question, or a greeting or request echoed back, names nothing.
-  if (cleanTitle.endsWith("?")) return undefined
-  const given = words(cleanTitle)
+  if (!limits.question && clean.endsWith("?")) return undefined
+  const given = words(clean)
+  if (limits.opener !== "allowed" && questionOpeners.has(given[0] ?? "")) {
+    if (limits.opener === "refused" || askedOf.has(given[1] ?? "")) return undefined
+  }
   if (given.length > 0 && given.every((word) => chatWords.has(word))) return undefined
-  if (spacelessChat.has(cleanTitle.replaceAll(/\s/g, ""))) return undefined
+  if (spacelessChat.has(clean.replaceAll(/\s/g, ""))) return undefined
   const shown = source === undefined ? undefined : fold(source)
-  // A provider's key is looked for in the title as the model wrote it as well: tidying turns
+  // A provider's key is looked for in the line as the model wrote it as well: tidying turns
   // `_` into a space. Nothing else is, since markdown around a code name is no part of it.
-  if (looksSecret(cleanTitle) || providerKeys.test(title.replaceAll(invisible, "")))
-    return undefined
-  if (exampleTitles.some((example) => copies(cleanTitle, example, shown))) return undefined
-  return { title: cleanTitle }
+  if (looksSecret(clean) || providerKeys.test(text.replaceAll(invisible, ""))) return undefined
+  if (limits.examples.some((example) => copies(clean, example, shown))) return undefined
+  return clean
+}
+
+/**
+ * The title in `raw`, the model's reply, or undefined when it can't be used. `source` is
+ * the text the model was shown, which tells a title that copies an example from one that
+ * names the same work.
+ */
+export const parseDescription = (raw: string, source?: string): Description | undefined => {
+  const title = object(raw)?.title
+  const clean = typeof title === "string" ? line(title, titleLimits, source) : undefined
+  return clean === undefined ? undefined : { title: clean }
+}
+
+/** The headline in `raw`, or undefined when it can't be used; `source` as for a title. */
+export const parseHeadline = (raw: string, source?: string): Headline | undefined => {
+  const headline = object(raw)?.headline
+  const clean = typeof headline === "string" ? line(headline, headlineLimits, source) : undefined
+  return clean === undefined ? undefined : { kind: "headline", text: clean }
+}
+
+/** The gist in `raw` and whether the reply asks, or undefined when it can't be used. */
+export const parseGist = (raw: string, source?: string): Gist | undefined => {
+  const value = object(raw)
+  if (value === undefined || typeof value.asks !== "boolean") return undefined
+  const clean = typeof value.gist === "string" ? line(value.gist, gistLimits, source) : undefined
+  return clean === undefined ? undefined : { kind: "gist", text: clean, asks: value.asks }
 }

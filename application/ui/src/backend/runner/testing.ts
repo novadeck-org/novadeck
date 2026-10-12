@@ -185,6 +185,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       uninstall: () => note("murmur uninstall", () => runner.murmur.uninstall()),
       set: (settings) =>
         note(`murmur set ${JSON.stringify(settings)}`, () => runner.murmur.set(settings)),
+      gist: (terminalId, at) => note(`murmur gist ${at}`, () => runner.murmur.gist(terminalId, at)),
     },
     companions: {
       list: (input) => runner.companions.list(input),

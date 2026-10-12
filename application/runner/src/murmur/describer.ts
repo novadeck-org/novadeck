@@ -47,8 +47,43 @@ export type ShellDigest = {
 
 export type Digest = AgentDigest | ShellDigest
 
+/** What murmur is shown of a question an agent asks the person. */
+export type QuestionDigest = {
+  readonly kind: "question"
+  /** The question as its harness gave it: the first of several, or an MCP form's message. */
+  readonly question: string
+  /** The answers it offers, by label, at most 16. */
+  readonly choices: readonly string[]
+}
+
+/** What murmur is shown of a plan an agent asks the person to review. */
+export type PlanDigest = {
+  readonly kind: "plan"
+  /** The plan's start, as Markdown, at most 16 KiB. */
+  readonly plan: string
+}
+
+/** What murmur is shown of the reply that ended an agent's turn. */
+export type ReplyDigest = {
+  readonly kind: "reply"
+  /** The whole reply when short, else its first and last 4000 characters joined by "\n…\n". */
+  readonly reply: string
+  /** The turn ended on an error. */
+  readonly failed: boolean
+}
+
+export type NoteDigest = QuestionDigest | PlanDigest | ReplyDigest
+
+/** Everything murmur may be shown: what the worker redacts and writes a chat for. */
+export type Input = Digest | NoteDigest
+
 /** A terminal's title, written by murmur and already validated. */
 export type Description = { readonly title: string }
+
+export type Headline = { readonly kind: "headline"; readonly text: string }
+export type Gist = { readonly kind: "gist"; readonly text: string; readonly asks: boolean }
+/** A headline for a question or plan, a gist for a reply; already validated. */
+export type Note = Headline | Gist
 
 export type Describer = {
   /**
@@ -66,6 +101,14 @@ export type Describer = {
     digest: Digest,
     options: { readonly signal?: AbortSignal; readonly terminal: string },
   ): Promise<Description | null | undefined>
+  /**
+   * As `describe`: a `Note`, null when it ran and was refused, undefined when it did not run.
+   * A question or plan gives a `Headline`, a reply a `Gist`.
+   */
+  note(
+    digest: NoteDigest,
+    options: { readonly signal?: AbortSignal; readonly terminal: string },
+  ): Promise<Note | null | undefined>
   /**
    * Calls `listener` at once with whether murmur is usable now, then whenever that changes;
    * returns an unsubscribe.

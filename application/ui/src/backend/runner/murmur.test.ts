@@ -34,6 +34,7 @@ const runner = (overrides: Partial<MurmurCalls> = {}) => {
     cancel: vi.fn<MurmurCalls["cancel"]>(async () => {}),
     uninstall: vi.fn<MurmurCalls["uninstall"]>(async () => {}),
     set: vi.fn<MurmurCalls["set"]>(async () => {}),
+    gist: vi.fn<MurmurCalls["gist"]>(async () => {}),
   }
   const calls = { ...mocks, ...overrides }
   const push = (state: MurmurState) => {
@@ -95,6 +96,25 @@ describe("the runner's murmur", () => {
     expect(calls.set).toHaveBeenCalledWith({ enabled: true })
     expect(calls.cancel).toHaveBeenCalled()
     expect(calls.uninstall).toHaveBeenCalled()
+  })
+
+  context("when asked for a reply's gist", () => {
+    it("passes the terminal and the end to the runner", () => {
+      const { murmur, calls } = runner()
+      murmur.gist?.("t1", 42)
+      expect(calls.gist).toHaveBeenCalledWith("t1", 42)
+    })
+
+    it("lets a refused call go, as murmur is extra", async () => {
+      const gist = vi.fn<MurmurCalls["gist"]>(async () => {
+        throw new RunnerError("CONFLICT", "No.")
+      })
+      const { murmur } = runner({ gist })
+      murmur.gist?.("t1", 42)
+      await vi.waitFor(() => expect(gist).toHaveBeenCalled())
+      await Promise.resolve()
+      expect(murmur.state.getSnapshot().failure).toBeNull()
+    })
   })
 
   it("settles an uninstall once the runner answered, whether it worked or failed", async () => {

@@ -1,4 +1,4 @@
-import type { Describer, Description, Digest } from "../murmur/describer.js"
+import type { Describer, Description, Digest, Note, NoteDigest } from "../murmur/describer.js"
 
 /** One call to a fake describer: the digest and signal it was given, and a way to answer it. */
 export type FakeJob = {
@@ -10,6 +10,15 @@ export type FakeJob = {
   readonly answer: (description: Description | null | undefined) => void
 }
 
+/** One call to a fake describer's `note`. */
+export type FakeNote = {
+  readonly digest: NoteDigest
+  readonly signal: AbortSignal | undefined
+  readonly terminal: string | undefined
+  /** Answers a held call; a call aborted meanwhile answers undefined on its own. */
+  readonly answer: (note: Note | null | undefined) => void
+}
+
 /**
  * A describer as terminal tests drive one: every call is recorded in `jobs`, answered at
  * once with what `reply` makes of the digest (a numbered title, by default), or, with `hold`, left until a test answers it. A call aborted
@@ -17,6 +26,8 @@ export type FakeJob = {
  */
 export class FakeDescriber implements Describer {
   readonly jobs: FakeJob[] = []
+  /** The calls to `note`, oldest first; held with `hold` too. */
+  readonly notes: FakeNote[] = []
   /** Whether calls are held for the test to answer. */
   hold = false
   private usable: boolean
@@ -27,10 +38,37 @@ export class FakeDescriber implements Describer {
     options: {
       readonly usable?: boolean
       readonly reply?: (digest: Digest, call: number) => Description | null | undefined
+      readonly note?: (digest: NoteDigest, call: number) => Note | null | undefined
     } = {},
   ) {
     this.usable = options.usable ?? true
     this.reply = options.reply ?? ((_digest, call) => ({ title: `Title ${call}` }))
+    this.replyNote =
+      options.note ??
+      ((digest, call) =>
+        digest.kind === "reply"
+          ? { kind: "gist", text: `Gist ${call}`, asks: false }
+          : { kind: "headline", text: `Headline ${call}` })
+  }
+
+  private readonly replyNote: (digest: NoteDigest, call: number) => Note | null | undefined
+
+  note(
+    digest: NoteDigest,
+    options: { readonly signal?: AbortSignal; readonly terminal?: string } = {},
+  ): Promise<Note | null | undefined> {
+    const { signal, terminal } = options
+    const call = this.notes.length + 1
+    if (!this.usable) {
+      this.notes.push({ digest, signal, terminal, answer: () => {} })
+      return Promise.resolve(undefined)
+    }
+    return new Promise((resolve) => {
+      const answer = (note: Note | null | undefined) => resolve(note)
+      this.notes.push({ digest, signal, terminal, answer })
+      signal?.addEventListener("abort", () => resolve(undefined), { once: true })
+      if (!this.hold) resolve(this.replyNote(digest, call))
+    })
   }
 
   private readonly reply: (digest: Digest, call: number) => Description | null | undefined

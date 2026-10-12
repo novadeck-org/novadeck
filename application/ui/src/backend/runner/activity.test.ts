@@ -67,7 +67,7 @@ describe("terminal activity", () => {
     it("runs, working or idle as the agent says", () => {
       const idle = {
         state: "idle" as const,
-        attention: { pending: 0, kind: null },
+        attention: { pending: 0, kind: null, headline: null },
         subagents: [],
         planning: false,
         background: null,
@@ -83,7 +83,7 @@ describe("terminal activity", () => {
     it("carries the requests waiting on the person", () => {
       const asking = {
         state: "working" as const,
-        attention: { pending: 2, kind: "question" as const },
+        attention: { pending: 2, kind: "question" as const, headline: null },
         subagents: [],
         planning: false,
         background: null,
@@ -95,11 +95,29 @@ describe("terminal activity", () => {
       })
     })
 
+    it("carries murmur's headline for the oldest request, where it wrote one", () => {
+      const asked = {
+        state: "working" as const,
+        attention: { pending: 2, kind: "question" as const, headline: "Asks which database" },
+        subagents: [],
+        planning: false,
+        background: null,
+        lastTurn: null,
+      }
+      expect(claude(asked).status).toEqual({
+        state: "running",
+        agent: {
+          working: true,
+          attention: { kind: "question", count: 2, headline: "Asks which database" },
+        },
+      })
+    })
+
     it("carries whether it plans", () => {
       expect(
         claude({
           state: "working",
-          attention: { pending: 1, kind: "plan" },
+          attention: { pending: 1, kind: "plan", headline: null },
           subagents: [],
           planning: true,
           background: null,
@@ -116,7 +134,7 @@ describe("terminal activity", () => {
       expect(
         claude({
           state: "working",
-          attention: { pending: 0, kind: null },
+          attention: { pending: 0, kind: null, headline: null },
           subagents,
           planning: false,
           background: null,
@@ -128,28 +146,51 @@ describe("terminal activity", () => {
     it("carries how its latest turn ended, with the start of its reply", () => {
       const ended = {
         state: "idle" as const,
-        attention: { pending: 0, kind: null },
+        attention: { pending: 0, kind: null, headline: null },
         subagents: [],
         planning: false,
         background: null,
-        lastTurn: { outcome: "completed" as const, reply: "All green.", at: 7 },
+        lastTurn: { outcome: "completed" as const, reply: "All green.", at: 7, gist: null },
       }
       expect(claude(ended).status).toEqual({
         state: "running",
         agent: { working: false, lastTurn: { outcome: "completed", reply: "All green.", at: 7 } },
       })
       expect(
-        claude({ ...ended, lastTurn: { outcome: "interrupted", reply: null, at: 8 } }).status,
+        claude({ ...ended, lastTurn: { outcome: "interrupted", reply: null, at: 8, gist: null } })
+          .status,
       ).toEqual({
         state: "running",
         agent: { working: false, lastTurn: { outcome: "interrupted", at: 8 } },
       })
     })
 
+    it("carries murmur's gist of the reply, and whether the reply asks", () => {
+      const ended = (gist: { text: string; asks: boolean }) =>
+        claude({
+          state: "idle",
+          attention: { pending: 0, kind: null, headline: null },
+          subagents: [],
+          planning: false,
+          background: null,
+          lastTurn: { outcome: "completed", reply: "Rounded.", at: 7, gist },
+        }).status
+      expect(ended({ text: "Rounded each line", asks: false })).toEqual({
+        state: "running",
+        agent: {
+          working: false,
+          lastTurn: { outcome: "completed", reply: "Rounded.", at: 7, gist: "Rounded each line" },
+        },
+      })
+      expect(ended({ text: "Rounded each line", asks: true })).toMatchObject({
+        agent: { lastTurn: { gist: "Rounded each line", asks: true } },
+      })
+    })
+
     it("carries the tokens and quotas its records name", () => {
       const idle = {
         state: "idle" as const,
-        attention: { pending: 0, kind: null },
+        attention: { pending: 0, kind: null, headline: null },
         subagents: [],
         planning: false,
         background: null,
@@ -175,7 +216,7 @@ describe("terminal activity", () => {
     it("works on while what its turn left running runs, counting it", () => {
       const waiting = {
         state: "working" as const,
-        attention: { pending: 0, kind: null },
+        attention: { pending: 0, kind: null, headline: null },
         subagents: [{ id: "a1", type: "explorer" }],
         planning: false,
         background: { agents: 1, tasks: 2 },
