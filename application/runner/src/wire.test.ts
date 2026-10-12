@@ -3,6 +3,7 @@ import { once } from "node:events"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { DatabaseSync } from "node:sqlite"
 
 import { protocolVersion, type TerminalEvent, type WireClient } from "@novadeck/protocol"
 import { createWireClient, socketChannel } from "@novadeck/protocol/wire"
@@ -252,6 +253,31 @@ describe("WebSocket authentication and protocol", () => {
       code: "INCOMPATIBLE_PROTOCOL",
     })
     await expect(client.projects.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+  })
+
+  it("a workspace a newer Novadeck wrote, told to clients that prove themselves", async ({
+    resources,
+  }) => {
+    const directory = await mkdtemp(join(tmpdir(), "novadeck-newer-"))
+    resources.defer(() => rm(directory, { recursive: true, force: true }))
+    const path = join(directory, "workspace.sqlite")
+    const future = new DatabaseSync(path)
+    future.exec("PRAGMA user_version = 99")
+    future.close()
+    const app = await fixture(resources, { database: path })
+    const { client } = await app.connect(false)
+    await expect(
+      client.runner.handshake({ protocolVersion, token: "wrong" }),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+    })
+    await expect(client.runner.handshake({ protocolVersion: 99, token })).rejects.toMatchObject({
+      code: "INCOMPATIBLE_PROTOCOL",
+    })
+    await expect(client.runner.handshake({ protocolVersion, token })).rejects.toMatchObject({
+      code: "WORKSPACE_TOO_NEW",
+    })
+    await expect(client.projects.list()).rejects.toBeDefined()
   })
 
   it("WebSocket browser origin validation", async ({ resources }) => {

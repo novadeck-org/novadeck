@@ -4,6 +4,7 @@ import type { Companions } from "../model/companion"
 import type { Conversations } from "../model/conversation"
 import type { Messages } from "../model/messages"
 import type { Murmur } from "../model/murmur"
+import type { InstallResult, PortableState } from "../model/portable"
 import type { SandboxState } from "../model/sandbox"
 import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
@@ -223,6 +224,16 @@ export type Backend = {
   // startup since the answer holds for the whole run. Absent in a browser and in a host
   // that does not say.
   readonly sandbox?: () => Promise<SandboxState>
+  // Optional. Whether the desktop app is a portable copy, asked once at startup. A portable
+  // never updates itself; `install` puts the app that does in place, keeping the workspace,
+  // and on `installing` the app is about to restart into it. On `newer`, an installed copy
+  // newer than this one was left alone and `openInstalled` restarts into it. Absent in a
+  // browser and in a host that has no portable copy.
+  readonly portable?: {
+    readonly state: () => Promise<PortableState>
+    readonly install: () => Promise<InstallResult>
+    readonly openInstalled: () => void
+  }
   // Optional. The debug panel, where this launch offers it: it triggers the states
   // the backend can be in. See README "Debug panel".
   readonly DebugPanel?: ComponentType<DebugPanelProps>
@@ -292,10 +303,10 @@ export type ConnectBackend = (
 ) => Promise<BackendConnection>
 
 // Why connecting failed, sorted by what the person can do about it: a transient
-// failure retries on its own, a different version can only quit, and the rest wait
-// for Retry. `message` is for people; `code` and `detail` are for a bug report.
+// failure retries on its own, a different version or a workspace a newer Novadeck used can
+// only quit, and the rest wait for Retry. `message` is for people; `code` and `detail` are for a bug report.
 export type ConnectFailure = {
-  readonly kind: "transient" | "incompatible" | "unauthorized" | "unknown"
+  readonly kind: "transient" | "incompatible" | "outdated" | "unauthorized" | "unknown"
   readonly message: string
   readonly code: string
   readonly detail: string

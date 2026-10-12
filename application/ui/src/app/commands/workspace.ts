@@ -27,6 +27,7 @@ import {
   sameTarget,
   windowedDestination,
 } from "../selectors"
+import { noteUpdateShown } from "../ui-store"
 import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
@@ -509,7 +510,9 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           ? state
           : { ...state, sandboxOpen, updateOpen: sandboxOpen ? false : state.updateOpen },
       ),
-    updateShown: (updateSeen) =>
-      ui.update((state) => (state.updateSeen === updateSeen ? state : { ...state, updateSeen })),
+    updateShown: (updateSeen) => {
+      noteUpdateShown(updateSeen)
+      ui.update((state) => (state.updateSeen === updateSeen ? state : { ...state, updateSeen }))
+    },
   }
 }

@@ -21,7 +21,7 @@ import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
 import { describe, expect, it as base } from "../test.js"
-import { WorkspaceStore } from "./store.js"
+import { WorkspaceStore, WorkspaceTooNewError } from "./store.js"
 
 const it = base.extend<{
   directory: () => string
@@ -270,6 +270,42 @@ describe("workspace metadata", () => {
     } finally {
       database.close()
     }
+  })
+
+  it("counts a database with columns this runner doesn't know as a newer build's, and leaves it as it is", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
+    const future = new DatabaseSync(path)
+    // A newer build that also does without a table this runner would create.
+    future.exec("ALTER TABLE terminals ADD COLUMN future_note TEXT; DROP TABLE terminal_numbers")
+    future.close()
+    expect(() => new WorkspaceStore(path)).toThrow(WorkspaceTooNewError)
+    const database = new DatabaseSync(path)
+    try {
+      const columns = database.prepare("SELECT name FROM pragma_table_info('terminals')").all()
+      expect(columns).toContainEqual({ name: "future_note" })
+      // Nothing was kept: the table this runner would have created is still absent.
+      expect(
+        database.prepare("SELECT name FROM sqlite_schema WHERE name = 'terminal_numbers'").get(),
+      ).toBeUndefined()
+    } finally {
+      database.close()
+    }
+  })
+
+  it("counts a database as an earlier build's when any table lacks a column, though another has more", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
+    const old = new DatabaseSync(path)
+    old.exec(
+      "ALTER TABLE terminals DROP COLUMN murmur_title; ALTER TABLE companion_items ADD COLUMN legacy TEXT",
+    )
+    old.close()
+    expect(() => new WorkspaceStore(path)).toThrow(/earlier build: .*expects murmur_title TEXT/)
   })
 
   it("refuses a database from before murmur titles, which has no murmur_title", ({ directory }) => {

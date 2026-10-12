@@ -1,4 +1,5 @@
 import type { Backend } from "../backend/port"
+import { readUpdateRaised, writeUpdateRaised } from "../backend/update-raised"
 import {
   agentWorking,
   finishGraceMs,
@@ -8,12 +9,13 @@ import {
   type AgentFinish,
   type SeenEnd,
 } from "../model/agent-finish"
+import type { PortableState } from "../model/portable"
 import { orderedTiles } from "../model/roster"
 import type { SandboxState } from "../model/sandbox"
 import { activeProject } from "../model/state"
 import { createStore, type MutableStore, type Store } from "../model/store"
 import type { PreferencesValue, TerminalMetadata, Workspace } from "../model/types"
-import { updateKey, type UpdateOffer } from "../model/update"
+import { noticeRaised, portableNagged, updateKey, type UpdateOffer } from "../model/update"
 import { writePreferences } from "../preferences/preferences-storage"
 import { noArrangement, type ProjectArrangement } from "../projects/project-arrangement"
 import { writeProjectArrangement } from "../projects/project-arrangement-storage"
@@ -80,6 +82,9 @@ export type UiState = {
   readonly sandbox: SandboxState | null
   // Whether its notice is open. It and the update's share a place, so one open closes the other.
   readonly sandboxOpen: boolean
+  // Whether the desktop app is a portable copy, as the host said at startup; null until it
+  // has, and where it says nothing.
+  readonly portable: PortableState | null
   // Whether the page has the person's focus: its window focused and showing.
   readonly pageFocused: boolean
   // The terminals whose agent finished while the person looked elsewhere.
@@ -136,6 +141,7 @@ export const initialUi = ({
   updateSeen,
   sandbox: null,
   sandboxOpen: false,
+  portable: null,
   pageFocused: true,
   unread: noUnread,
   answering: noTerminalAnswers,
@@ -256,15 +262,57 @@ export const watchCrashLoop = (crashes: Store<number> | undefined, ui: UiStore):
 
 // The update the backend offers, kept for the footer; a later offer replaces the last.
 // One for a version not yet shown opens its notice, which waits while the footer is
-// hidden.
+// hidden; so does a stale one for a portable copy (`noticeRaised`).
+// What counts as already raised is what the person was shown in this run of the app, kept
+// beyond the page's life (`readUpdateRaised`, written as the notice shows), so a reload or
+// a new attempt at the backend does not raise it again, while a notice held back does. (The
+// demo's boots stand for launches and clear it; the desktop app's retries do not.)
 export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => void) =>
-  updates?.onOffer((update) =>
-    ui.update((state) => ({
-      ...state,
-      update,
-      updateOpen: state.updateOpen || updateKey(update) !== state.updateSeen,
-    })),
-  ) ?? (() => {})
+  updates?.onOffer((update) => {
+    const state = ui.getSnapshot()
+    const raise = noticeRaised(update, {
+      seen: state.updateSeen,
+      portable: state.portable?.portable === true,
+      shownThisRun: raisedThisRun(update),
+      now: Date.now(),
+    })
+    ui.update((current) => ({ ...current, update, updateOpen: current.updateOpen || raise }))
+  }) ?? (() => {})
+
+// Notes that the notice of the offer with this `updateKey` showed, for the rest of the run.
+export const noteUpdateShown = writeUpdateRaised
+
+const raisedThisRun = (offer: UpdateOffer): boolean => readUpdateRaised() === updateKey(offer)
+
+// Asks the backend once whether the app is a portable copy, and keeps the answer for the
+// footer. An offer heard before the answer, for a copy found stale, raises its notice now.
+// A host that fails to say is taken as not saying.
+export const watchPortable = (portable: Backend["portable"], ui: UiStore): (() => void) => {
+  let live = true
+  void portable?.state().then(
+    (portableState) => {
+      if (!live) return
+      const { update } = ui.getSnapshot()
+      const raise =
+        portableState.portable &&
+        update !== null &&
+        portableNagged(update, Date.now()) &&
+        !raisedThisRun(update)
+      ui.update((state) => ({
+        ...state,
+        portable: portableState,
+        updateOpen: state.updateOpen || raise,
+      }))
+    },
+    // A host that fails to say is not one, so nothing waits on its answer.
+    () => {
+      if (live) ui.update((state) => ({ ...state, portable: { portable: false } }))
+    },
+  )
+  return () => {
+    live = false
+  }
+}
 
 // Asks the backend once whether the app runs in its security sandbox, and keeps the
 // answer for the footer. A host that fails to say is taken as not saying.

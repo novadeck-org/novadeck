@@ -49,6 +49,8 @@ import {
 export const errors = {
   UNAUTHORIZED: { status: 401 },
   INCOMPATIBLE_PROTOCOL: { status: 409 },
+  // The workspace database was written by a newer Novadeck, which this runner cannot open.
+  WORKSPACE_TOO_NEW: { status: 409 },
   NOT_FOUND: { status: 404 },
   INVALID_DIRECTORY: { status: 400 },
   INVALID_FILE: { status: 400 },

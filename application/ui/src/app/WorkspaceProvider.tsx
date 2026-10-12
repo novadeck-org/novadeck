@@ -30,6 +30,7 @@ import {
   watchCrashLoop,
   watchFinishes,
   watchSwitcher,
+  watchPortable,
   watchSandbox,
   watchUpdates,
   type UiLocation,
@@ -131,6 +132,7 @@ export const WorkspaceProvider = ({
   useEffect(() => watchCrashLoop(services.backend.crashLoop?.crashes, services.ui), [services])
   useEffect(() => watchUpdates(services.backend.updates, services.ui), [services])
   useEffect(() => watchSandbox(services.backend.sandbox, services.ui), [services])
+  useEffect(() => watchPortable(services.backend.portable, services.ui), [services])
   useEffect(() => watchClosing(services.workspace, services.ui), [services])
   useEffect(() => watchChatModes(services.workspace, services.ui), [services])
   useEffect(() => watchPageFocus(services.ui, window), [services])

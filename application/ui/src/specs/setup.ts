@@ -8,5 +8,6 @@ applyAppearance(document.documentElement, { theme: "graphite", scheme: "light" }
 
 beforeEach(() => {
   localStorage.clear()
+  sessionStorage.clear()
   window.history.replaceState(null, "", "/")
 })

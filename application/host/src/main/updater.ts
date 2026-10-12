@@ -38,6 +38,8 @@ export type UpdateBuild = {
   readonly signed: boolean
   /** Whether the folder holding the AppImage file can be written to. */
   readonly appImageWritable: boolean
+  /** Whether the AppImage file is at an installed place; see `isInstalledImage`. */
+  readonly appImageInstalled: boolean
 }
 
 /** The kind of build, which decides the electron-updater class that serves it. */
@@ -49,7 +51,16 @@ export type UpdaterKind = "nsis" | "mac" | "appimage"
  */
 export type UpdateMode = "install" | "tell"
 
-export type UpdatePlan = { readonly kind: UpdaterKind; readonly mode: UpdateMode }
+/**
+ * How a build updates. A `portable` build runs from wherever it was put and is never
+ * installed: it does not install updates itself, though it still looks for them, so the
+ * page can offer to install the app that does.
+ */
+export type UpdatePlan = {
+  readonly kind: UpdaterKind
+  readonly mode: UpdateMode
+  readonly portable: boolean
+}
 
 // Whether `file` lies inside the folder `directory`, both absolute POSIX paths.
 const isInside = (directory: string, file: string): boolean => {
@@ -74,6 +85,20 @@ const updaterKind = ({ platform, execPath, env }: UpdateBuild): UpdaterKind | un
   return undefined
 }
 
+// Whether a build looks for updates at all, before asking which kind it is.
+const looksForUpdates = ({ packaged, version, env }: UpdateBuild): boolean =>
+  packaged && version !== "0.0.0" && env.NOVADECK_UPDATES !== "off"
+
+/**
+ * Whether a build is portable: one that runs from wherever it was put, and is meant to
+ * lead the person to the installed app instead of updating itself. On Linux that is an
+ * AppImage anywhere but the places the installer puts it. The Windows ZIP and macOS
+ * outside Applications are not yet told apart, so they are not portable; neither is a
+ * build that looks for no updates, as a portable offers to install the current release.
+ */
+export const portableOf = (build: UpdateBuild): boolean =>
+  looksForUpdates(build) && updaterKind(build) === "appimage" && !build.appImageInstalled
+
 /**
  * How a build updates, or undefined when it does not look for updates at all. Local and
  * pull request builds carry version 0.0.0 and never look; neither does a development run,
@@ -81,23 +106,28 @@ const updaterKind = ({ platform, execPath, env }: UpdateBuild): UpdaterKind | un
  * reaches the network. Nor does a Linux build that is not an AppImage, as none is released.
  * Every other build either installs updates itself or tells of them:
  *
- * - The Windows installer installs. Windows has no portable build.
+ * - The Windows installer installs.
  * - macOS installs when the app bundle is Developer ID signed, as Squirrel.Mac refuses
  *   to install into any other, and tells otherwise.
- * - An AppImage installs by replacing its own file, which takes write access to the
- *   folder it sits in, and tells otherwise.
+ * - An installed AppImage, one at a place the installer puts it, installs by replacing
+ *   its own file, which takes write access to the folder it sits in, and tells otherwise.
+ * - A portable AppImage, one anywhere else, only tells; see `portableOf`.
  *
  * A release whose install failed, say because the installer failed, is told of
  * rather than installed; see `checkForUpdates`.
  */
 export const updatePlan = (build: UpdateBuild): UpdatePlan | undefined => {
-  const { packaged, version, env } = build
-  if (!packaged || version === "0.0.0" || env.NOVADECK_UPDATES === "off") return undefined
+  if (!looksForUpdates(build)) return undefined
   const kind = updaterKind(build)
   if (kind === undefined) return undefined
+  const portable = portableOf(build)
   const installable =
     kind === "mac" ? build.signed : kind === "appimage" ? build.appImageWritable : true
-  return { kind, mode: installable ? "install" : "tell" }
+  return {
+    kind,
+    mode: installable && !portable ? "install" : "tell",
+    portable,
+  }
 }
 
 /** The app bundle a macOS executable, `novadeck.app/Contents/MacOS/novadeck`, runs from. */
@@ -123,16 +153,29 @@ type Page = { send(channel: string, offer: UpdateOffer): void }
  * a page that started listening later, such as after a reload or in a new window. A
  * report of what the pages already know is dropped; any other replaces it, a newer
  * version and a `ready` update the host then could not install alike. `pages` lists the
- * windows showing the app's own UI.
+ * windows showing the app's own UI. A portable copy passes `outdatedSince`, which gives
+ * when this copy first learned a newer release exists; it is asked only for an offer
+ * that is new.
  */
 export const trackOffer = <P extends Page>(pages: () => readonly P[]) => {
   let last: UpdateOffer | undefined
   return {
     current: (): UpdateOffer | undefined => last,
-    offer: (kind: UpdateOffer["kind"], value: unknown, notes: readonly string[]): void => {
+    offer: (
+      kind: UpdateOffer["kind"],
+      value: unknown,
+      notes: readonly string[],
+      outdatedSince?: () => string | undefined,
+    ): void => {
       const version = updateVersionOf(value)
       if (version === undefined || (last?.kind === kind && last.version === version)) return
-      last = { kind, version, notes }
+      const since = outdatedSince?.()
+      last = {
+        kind,
+        version,
+        notes,
+        ...(since === undefined ? {} : { outdatedSince: since }),
+      }
       for (const page of pages()) page.send(updateOfferChannel, last)
     },
     request: (page: P): void => {
@@ -288,6 +331,7 @@ export type Updater = {
       readonly releaseNotes?: unknown
     }) => void,
   ): unknown
+  on(event: "update-not-available", listener: () => void): unknown
   on(event: "error", listener: (error: Error) => void): unknown
   checkForUpdates(): Promise<unknown>
   downloadUpdate(): Promise<unknown>
@@ -342,6 +386,7 @@ export const checkForUpdates = (
     failedVersion,
     native,
     offer,
+    upToDate,
     installFailed,
     log,
   }: {
@@ -351,10 +396,15 @@ export const checkForUpdates = (
     readonly failedVersion?: string | undefined
     readonly native?: NativeUpdater | undefined
     readonly offer: (kind: UpdateOffer["kind"], version: string, notes: readonly string[]) => void
+    /** Told whenever a check finds no newer release. */
+    readonly upToDate?: (() => void) | undefined
     readonly installFailed: (version: string) => void
     readonly log: (message: string, error: unknown) => void
   },
-): { readonly setChannel: (channel: UpdateChannel) => void; readonly stop: () => void } => {
+): {
+  readonly setChannel: (channel: UpdateChannel) => void
+  readonly stop: () => void
+} => {
   // Downloads are asked for, to leave out the release that failed to install.
   updater.autoDownload = false
   updater.autoInstallOnAppQuit = mode === "install"
@@ -390,6 +440,7 @@ export const checkForUpdates = (
     installFailed(downloaded.version)
     offer("available", downloaded.version, downloaded.notes)
   })
+  updater.on("update-not-available", () => upToDate?.())
   updater.on("update-available", (info) => {
     if (mode === "tell") return offer("available", info.version, updateNotesLines(info))
     // An update is downloaded, so the schedule has ended: a late check must not replace

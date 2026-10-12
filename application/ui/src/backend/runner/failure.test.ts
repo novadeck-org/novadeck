@@ -29,6 +29,17 @@ describe("connection failure", () => {
     })
   })
 
+  context("when a newer Novadeck has used the workspace", () => {
+    it("says this copy is out of date, as a failure only Quit answers", () => {
+      expect(connectFailure(new RunnerError("WORKSPACE_TOO_NEW"))).toMatchObject({
+        kind: "outdated",
+        code: "WORKSPACE_TOO_NEW",
+        message:
+          "A newer version of Novadeck has used this workspace. Open the newer Novadeck instead; this copy is out of date.",
+      })
+    })
+  })
+
   context("with anything else", () => {
     it("says something went wrong and keeps the details", () => {
       expect(connectFailure(new RunnerError("INTERNAL_SERVER_ERROR", "boom"))).toEqual({

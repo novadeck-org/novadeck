@@ -63,7 +63,7 @@ describe("boot failures", () => {
   })
 
   it("never retries other failures on its own", () => {
-    for (const kind of ["incompatible", "unauthorized", "unknown"] as const)
+    for (const kind of ["incompatible", "outdated", "unauthorized", "unknown"] as const)
       expect(autoRetryDelay({ ...transient, kind }, 1)).toBeUndefined()
   })
 

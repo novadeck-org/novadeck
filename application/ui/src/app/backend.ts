@@ -1,9 +1,11 @@
 import { createBootRehearsals } from "../backend/boot-rehearsal"
 import { createDemoBackend } from "../backend/demo"
 import { createContentDemo } from "../backend/demo/content"
+import { createDemoPortable } from "../backend/demo/debug/portable"
 import { createDemoSandbox, sampleFix } from "../backend/demo/debug/sandbox"
 import { createDemoUpdates, sampleNotes } from "../backend/demo/debug/updates"
 import type { BackendSelection, ConnectBackend } from "../backend/port"
+import type { InstallResult } from "../model/portable"
 import type { SandboxState } from "../model/sandbox"
 import type { UpdateOffer } from "../model/update"
 
@@ -55,7 +57,20 @@ const requestedUpdate = (): UpdateOffer | undefined => {
       : demo === "update-available" || query.get("update") === "available"
         ? "available"
         : undefined
-  return kind && { kind, version: "0.0.80", notes: sampleNotes }
+  // `&outdated=recent` or `&outdated=old` dates when this copy learned of the release,
+  // two or twenty days back.
+  const outdated = query.get("outdated")
+  const days = outdated === "recent" ? 2 : outdated === "old" ? 20 : undefined
+  const outdatedSince =
+    days === undefined ? undefined : new Date(Date.now() - days * 86_400_000).toISOString()
+  return (
+    kind && {
+      kind,
+      version: "0.0.80",
+      notes: sampleNotes,
+      ...(outdatedSince ? { outdatedSince } : {}),
+    }
+  )
 }
 
 const demoWithUpdate = (update: UpdateOffer): ReturnType<typeof createDemoBackend> => {
@@ -74,12 +89,34 @@ const requestedSandbox = (): SandboxState | undefined => {
   return undefined
 }
 
+// Specs open the demo on a portable copy with `?portable=on`, and choose how installing
+// ends with `&install=newer` or `&install=failed`; it never ends otherwise.
+const requestedInstall = (): InstallResult | undefined => {
+  const query = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
+  if (query.get("portable") !== "on") return undefined
+  const install = query.get("install")
+  if (install === "newer") return { kind: "newer", version: "0.0.99" }
+  if (install === "failed") return { kind: "failed", reason: "There is no space left." }
+  return { kind: "installing" }
+}
+
+// `&answer=late` makes the host take 4 seconds to say it is a portable copy.
+const answerDelay = (): number =>
+  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("answer") === "late" ? 4000 : 0
+
 const testBackend = (): ReturnType<typeof createDemoBackend> => {
   if (showcaseRequested()) return createContentDemo()
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
+  const install = requestedInstall()
   const demo = update ? demoWithUpdate(update) : createDemoBackend()
-  return sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
+  const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
+  return install
+    ? {
+        ...withSandbox,
+        portable: createDemoPortable({ install, answerAfterMs: answerDelay() }).portable,
+      }
+    : withSandbox
 }
 
 export const selectBackend: BackendSelection =

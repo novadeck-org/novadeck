@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 
 import type { Workspace } from "../../../model/types"
 import type { BackendConnectionState, BackendSink, DebugPanelProps } from "../../port"
+import { portableGroup } from "./portable"
 import { shellGroups } from "./shell-groups"
 import type { DemoActionContext, DemoStates } from "./types"
 import type { DemoLaunch, DemoShell } from "./with-debug"
@@ -71,7 +72,11 @@ export const createDebugPanel = ({
       workspace,
       note: setNote,
     })
-    const groups = [...shellGroups({ launch, shell, states }), ...states.groups]
+    const groups = [
+      ...shellGroups({ launch, shell, states }),
+      portableGroup(launch),
+      ...states.groups,
+    ]
     const fold = (title: string): void =>
       setFolded((previous) => {
         const next = new Set(previous)

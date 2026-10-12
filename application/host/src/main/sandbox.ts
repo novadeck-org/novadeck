@@ -2,6 +2,7 @@ import type { SandboxState } from "@novadeck/protocol/bridge"
 import type { IpcMainInvokeEvent } from "electron"
 
 import { sandboxChannel } from "../bridge.js"
+import { isInstalledImage } from "./install-location.js"
 import type { ReleaseRepository } from "./update-release.js"
 
 /** What choosing a fix looks at of the machine; the caller reads it. */
@@ -50,13 +51,7 @@ export const sandboxFix = ({
   const appImage = env.APPIMAGE
   if (!appImage) return undefined
   const installer = `curl -fsSL https://github.com/${repository.owner}/${repository.repo}/releases/latest/download/install.sh | sh`
-  const data = env.XDG_DATA_HOME?.startsWith("/") ? env.XDG_DATA_HOME : `${home}/.local/share`
-  const running = realpath(appImage)
-  const covered = [
-    `${data}/novadeck/novadeck.AppImage`,
-    `${home}/Applications/novadeck.AppImage`,
-  ].map(realpath)
-  return running !== undefined && covered.includes(running)
+  return isInstalledImage(appImage, { env, home, realpath })
     ? `${installer} -s -- --sandbox`
     : installer
 }

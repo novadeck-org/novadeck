@@ -78,6 +78,7 @@ export type RunnerBackendOptions = {
   // Where the host offers the update it has downloaded.
   readonly updates?: Backend["updates"]
   readonly sandbox?: Backend["sandbox"]
+  readonly portable?: Backend["portable"]
   // Where the host lets the page finish its saves before its window closes or the app
   // quits; returns the undo.
   readonly beforeQuit?: (save: () => Promise<void>) => () => void
@@ -1324,6 +1325,7 @@ export const runnerBackend = (
     ...(options.notices ? { notices: options.notices } : {}),
     ...(options.updates ? { updates: options.updates } : {}),
     ...(options.sandbox ? { sandbox: options.sandbox } : {}),
+    ...(options.portable ? { portable: options.portable } : {}),
   }
   return {
     backend,

@@ -1,16 +1,22 @@
 import type {
   DesktopHost,
   DesktopNotice,
+  InstallResult as BridgeInstall,
+  PortableState as BridgePortable,
   SandboxState as BridgeState,
 } from "@novadeck/protocol/bridge"
 
+import type { InstallResult, PortableState } from "../../model/portable"
 import type { SandboxState } from "../../model/sandbox"
 import { context, describe, expect, it } from "../../test"
 import {
   desktopNotices,
+  desktopPortable,
   desktopSandbox,
   desktopUpdates,
+  hostInstall,
   hostNotice,
+  hostPortable,
   hostSandbox,
   noticeText,
 } from "./desktop-host"
@@ -229,5 +235,122 @@ describe("a host's sandbox", () => {
   it("is absent in a browser, or a host that came before it", () => {
     expect(desktopSandbox(undefined)).toBeUndefined()
     expect(desktopSandbox({} as DesktopHost)).toBeUndefined()
+  })
+})
+
+describe("a host's portable copy", () => {
+  it("fits the protocol's, which the page's own copy must keep to", () => {
+    const state: PortableState = { portable: true, version: "0.0.70" }
+    const theirs: BridgePortable = state
+    const back: PortableState = theirs
+    const results: InstallResult[] = [
+      { kind: "installing" },
+      { kind: "newer", version: "0.0.80" },
+      { kind: "failed", reason: "x" },
+    ]
+    const bridged: BridgeInstall[] = results
+    const home: InstallResult[] = bridged
+    expect([back, home]).toEqual([state, results])
+  })
+
+  it("is portable with its version, or not", () => {
+    expect(hostPortable({ portable: false })).toEqual({ portable: false })
+    expect(hostPortable({ portable: true, version: "0.0.70" })).toEqual({
+      portable: true,
+      version: "0.0.70",
+    })
+  })
+
+  it("is not taken from an answer that is neither", () => {
+    expect(() => hostPortable(null)).toThrow()
+    expect(() => hostPortable({ portable: true })).toThrow()
+    expect(() => hostPortable({ portable: true, version: "latest" })).toThrow()
+    expect(() => hostPortable({ portable: "yes", version: "0.0.70" })).toThrow()
+  })
+
+  it("takes an install's answer when it is one of the three", () => {
+    expect(hostInstall({ kind: "installing" })).toEqual({ kind: "installing" })
+    expect(hostInstall({ kind: "newer", version: "0.0.80" })).toEqual({
+      kind: "newer",
+      version: "0.0.80",
+    })
+    expect(hostInstall({ kind: "failed", reason: " Disk\nfull " })).toEqual({
+      kind: "failed",
+      reason: "Disk full",
+    })
+  })
+
+  it("takes any other answer for a failure the person can read", () => {
+    const unknown = {
+      kind: "failed",
+      reason: "Something went wrong.",
+    }
+    expect(hostInstall(undefined)).toEqual(unknown)
+    expect(hostInstall({ kind: "newer", version: "soon" })).toEqual(unknown)
+    expect(hostInstall({ kind: "failed", reason: 7 })).toEqual(unknown)
+    expect(hostInstall({ kind: "failed", reason: "  " })).toEqual(unknown)
+    expect(hostInstall({ kind: "done" })).toEqual(unknown)
+  })
+
+  it("installs and opens the installed copy through the host", async () => {
+    let opened = 0
+    const bridge = {
+      portable: () => Promise.resolve({ portable: true, version: "0.0.70" }),
+      installApp: () => Promise.resolve({ kind: "newer", version: "0.0.80" }),
+      openInstalled: () => void (opened += 1),
+    } as unknown as DesktopHost
+    const portable = desktopPortable(bridge)!
+    expect(await portable.state()).toEqual({
+      portable: true,
+      version: "0.0.70",
+    })
+    expect(await portable.install()).toEqual({
+      kind: "newer",
+      version: "0.0.80",
+    })
+    portable.openInstalled()
+    expect(opened).toBe(1)
+  })
+
+  it("fails an install the host throws on", async () => {
+    const bridge = {
+      portable: () => Promise.resolve({ portable: true, version: "0.0.70" }),
+      installApp: () => Promise.reject(new Error("gone")),
+      openInstalled: () => {},
+    } as unknown as DesktopHost
+    expect((await desktopPortable(bridge)!.install()).kind).toBe("failed")
+  })
+
+  it("is absent in a browser, or a host that came before it", () => {
+    expect(desktopPortable(undefined)).toBeUndefined()
+    expect(desktopPortable({} as DesktopHost)).toBeUndefined()
+  })
+})
+
+// The outdated-since date of the offer a host reports with this `outdatedSince`, as the page hears it.
+const heardDate = (outdatedSince: unknown) => {
+  let offer: { outdatedSince?: string } | undefined
+  desktopUpdates({
+    onUpdate: (listener: (offer: unknown) => void) => {
+      listener({
+        kind: "available",
+        version: "0.0.80",
+        notes: [],
+        outdatedSince,
+      })
+      return () => {}
+    },
+    installUpdate: () => {},
+    openUpdatePage: () => {},
+  } as unknown as DesktopHost)!.onOffer((each) => (offer = each))
+  return offer?.outdatedSince
+}
+
+describe("an offer's outdated-since date", () => {
+  it("is kept when it reads as a date, and dropped otherwise", () => {
+    expect(heardDate("2026-10-01T10:00:00Z")).toBe("2026-10-01T10:00:00Z")
+    expect(heardDate("last week")).toBeUndefined()
+    expect(heardDate(7)).toBeUndefined()
+    expect(heardDate("2026-10-01T10:00:00Z".padEnd(80, " "))).toBeUndefined()
   })
 })

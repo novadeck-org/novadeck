@@ -2,6 +2,7 @@ import type { ComponentType } from "react"
 
 import type { Store } from "../../../model/store"
 import type { Workspace } from "../../../model/types"
+import type { UpdateOffer } from "../../../model/update"
 import type { Backend, BackendConnectionState, BackendSink, TerminalKey } from "../../port"
 
 // The demo's debug layer, in two halves: the shell (startup, connection, crash loop, the
@@ -65,6 +66,8 @@ export type DemoStates = {
   readonly openWelcome: () => void
   readonly notices: NonNullable<Backend["notices"]>
   readonly updates: NonNullable<Backend["updates"]>
+  // Tells `updates`' listeners of a release, as the Update group's actions do.
+  readonly offer: (offer: UpdateOffer) => void
   readonly pickDirectory: NonNullable<Backend["pickDirectory"]>
   // The demo's conversations, with what the panel arms for the chat's next send.
   readonly chat: (

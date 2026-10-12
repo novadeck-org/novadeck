@@ -9,6 +9,8 @@ const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 const failureHints = {
   transient: "Boots again and fails the first attempt; the splash retries on its own and connects.",
   incompatible: "Boots again and fails with only Quit offered.",
+  outdated:
+    "Boots again and fails with only Quit offered, telling a newer Novadeck has used the workspace.",
   unauthorized: "Boots again and fails the first attempt; Retry connects.",
   unknown: "Boots again and fails the first attempt; Retry connects.",
 } as const

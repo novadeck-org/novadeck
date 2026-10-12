@@ -71,7 +71,9 @@ const failing = (kind: ConnectFailure["kind"], code: string) =>
       message:
         kind === "incompatible"
           ? "This runner is from a different Novadeck version."
-          : "The runner didn't start.",
+          : kind === "outdated"
+            ? "A newer version of Novadeck has used this workspace. Open the newer Novadeck instead; this copy is out of date."
+            : "The runner didn't start.",
       code,
       detail: `runner said ${code}`,
     } satisfies ConnectFailure,
@@ -222,6 +224,16 @@ describe("backend gate", () => {
       act(() => page.button("Quit")!.click())
       expect(close).toHaveBeenCalled()
       expect(page.container.textContent).toBe("")
+    })
+
+    it("offers only Quit when a newer Novadeck has used the workspace", async () => {
+      const page = await failed("outdated", "WORKSPACE_TOO_NEW")
+      expect(page.alert()?.textContent).toContain("This copy of Novadeck is out of date")
+      expect(page.alert()?.textContent).not.toContain("Couldn't power the deck")
+      expect(page.alert()?.textContent).toContain("this copy is out of date")
+      expect(page.alert()?.textContent).not.toContain("Retrying in")
+      expect(page.button("Retry now") ?? page.button("Retry")).toBeUndefined()
+      expect(page.button("Quit")).toBeDefined()
     })
 
     it("waits for Retry when the runner refuses the app", async () => {

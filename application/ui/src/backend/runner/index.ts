@@ -12,7 +12,13 @@ import {
 import { sessionName } from "../../model/session-name"
 import type { BackendConnection, ConnectFailure } from "../port"
 import { runnerBackend, type RunnerBackend } from "./backend"
-import { desktopHost, desktopNotices, desktopSandbox, desktopUpdates } from "./desktop-host"
+import {
+  desktopHost,
+  desktopNotices,
+  desktopPortable,
+  desktopSandbox,
+  desktopUpdates,
+} from "./desktop-host"
 import { pause } from "./pause"
 import type { RunnerListing } from "./seed"
 
@@ -101,6 +107,14 @@ export const connectFailure = (error: unknown): ConnectFailure => {
       code,
       detail,
     }
+  if (code === "WORKSPACE_TOO_NEW")
+    return {
+      kind: "outdated",
+      message:
+        "A newer version of Novadeck has used this workspace. Open the newer Novadeck instead; this copy is out of date.",
+      code,
+      detail,
+    }
   if (code === "UNAUTHORIZED")
     return { kind: "unauthorized", message: "The runner didn't accept this app.", code, detail }
   return { kind: "unknown", message: "Something went wrong starting Novadeck.", code, detail }
@@ -136,6 +150,7 @@ export const connectRunnerBackend = async (
     const notices = desktopNotices(desktopHost())
     const updates = desktopUpdates(desktopHost())
     const sandbox = desktopSandbox(desktopHost())
+    const portable = desktopPortable(desktopHost())
     // StrictMode creates a backend twice and keeps the first, so the last one created is
     // not necessarily the one running: close waits on them all (an unstarted one is idle).
     const created: RunnerBackend[] = []
@@ -149,6 +164,7 @@ export const connectRunnerBackend = async (
           ...(notices ? { notices } : {}),
           ...(updates ? { updates } : {}),
           ...(sandbox ? { sandbox } : {}),
+          ...(portable ? { portable } : {}),
           livePages: desktopHost()?.livePages === true,
           transcripts,
           agents,

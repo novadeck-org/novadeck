@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react"
 
 import { blockingOverlayOpen } from "../interaction/dom"
+import type { InstallResult } from "../model/portable"
 import { updateKey, type UpdateOffer } from "../model/update"
 import { KeepFocus, useRecoverFocus } from "./notice-focus"
 
@@ -11,8 +12,30 @@ export const shownNotes = 5
 const headline = ({ kind, version }: UpdateOffer): string =>
   `Novadeck ${version} is ${kind === "ready" ? "ready" : "available"}`
 
+// A portable copy, which never updates itself and is the way to install the app that does.
+export type FooterPortable = {
+  // Whether the app runs without its security sandbox: installing puts it where the sandbox
+  // can be turned on, which the panel says.
+  readonly unsandboxed: boolean
+  // Installs the app, keeping the workspace.
+  readonly onInstall: () => Promise<InstallResult>
+  // Restarts into the installed copy that is newer than this one.
+  readonly onOpenInstalled: () => void
+}
+
+// Where installing from a portable copy stands. `running` and `installing` are the wait
+// for the host's answer and for the restart it announced.
+type Install =
+  | { readonly phase: "idle" | "running" | "installing" }
+  | { readonly phase: "newer"; readonly version: string }
+  | { readonly phase: "failed"; readonly reason: string }
+
 export type FooterUpdateProps = {
-  readonly offer: UpdateOffer
+  // The update waiting; absent while a portable copy has none, when only the quiet
+  // "Install Novadeck" chip shows.
+  readonly offer?: UpdateOffer | undefined
+  // Set for a portable copy: its notice installs the app rather than download the update.
+  readonly portable?: FooterPortable | undefined
   // Whether the notice is raised: it shows only while the footer does, and while nothing
   // else asks for the person's attention (`blocked`).
   readonly open: boolean
@@ -49,6 +72,26 @@ export const useOverlayOpen = (active: boolean): boolean => {
   return active && open
 }
 
+// The release's notes, as many as fit, and how many more there are.
+const UpdateNotes = ({ notes }: { readonly notes: readonly string[] }): React.JSX.Element => {
+  const more = notes.length - shownNotes
+  return (
+    <>
+      {notes.length > 0 && (
+        <ul className="update-notes">
+          {notes.slice(0, shownNotes).map((note, index) => (
+            // oxlint-disable-next-line react/no-array-index-key -- Lines may repeat; the list never reorders.
+            <li key={index} title={note}>
+              <span>{note}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {more > 0 && <p className="update-more">and {more} more</p>}
+    </>
+  )
+}
+
 // The notice's content: the headline, a few notes, and what the person can do.
 const UpdateCard = ({
   offer,
@@ -64,23 +107,12 @@ const UpdateCard = ({
   readonly onOpenPage: () => void
 }): React.JSX.Element => {
   const { kind, notes } = offer
-  const more = notes.length - shownNotes
   return (
     <>
       <p id={titleId} className="update-title">
         {headline(offer)}
       </p>
-      {notes.length > 0 && (
-        <ul className="update-notes">
-          {notes.slice(0, shownNotes).map((note, index) => (
-            // oxlint-disable-next-line react/no-array-index-key -- Lines may repeat; the list never reorders.
-            <li key={index} title={note}>
-              <span>{note}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {more > 0 && <p className="update-more">and {more} more</p>}
+      <UpdateNotes notes={notes} />
       {kind === "ready" && (
         <button type="button" className="button link update-link" onClick={onOpenPage}>
           Release notes
@@ -106,6 +138,98 @@ const UpdateCard = ({
   )
 }
 
+// What the notice of a portable copy says and offers: to install Novadeck, which is also
+// how it gets the update waiting, or, once the host found one installed that is newer, to
+// open that. A failed install says why above the same actions, to try again.
+const PortableCard = ({
+  offer,
+  install,
+  unsandboxed,
+  titleId,
+  onClose,
+  onInstall,
+  onOpenInstalled,
+  onOpenPage,
+}: {
+  readonly offer: UpdateOffer | undefined
+  readonly install: Install
+  readonly unsandboxed: boolean
+  readonly titleId: string
+  readonly onClose: (to: Return) => void
+  readonly onInstall: () => void
+  readonly onOpenInstalled: () => void
+  readonly onOpenPage: () => void
+}): React.JSX.Element => {
+  if (install.phase === "newer") {
+    return (
+      <>
+        <p id={titleId} className="update-title">
+          Novadeck {install.version} is already installed
+        </p>
+        <p className="update-text">
+          It is newer than this copy. Open it to carry on where you left off.
+        </p>
+        <div className="update-actions">
+          <button type="button" className="button min-h-8 px-3" onClick={() => onClose("origin")}>
+            Later
+          </button>
+          <button
+            type="button"
+            className="button primary min-h-8 px-3"
+            onClick={() => {
+              onClose("terminal")
+              onOpenInstalled()
+            }}
+          >
+            Open Novadeck
+          </button>
+        </div>
+      </>
+    )
+  }
+  return (
+    <>
+      <p id={titleId} className="update-title">
+        {offer ? headline(offer) : "Install Novadeck"}
+      </p>
+      <p className="update-text">
+        {offer
+          ? "This copy can't update itself. Installing keeps your workspace."
+          : "This copy runs without installing and can't update itself. Installing keeps your workspace."}
+      </p>
+      {unsandboxed && (
+        <p className="update-text">It also lets you turn on the sandbox this copy runs without.</p>
+      )}
+      {offer && <UpdateNotes notes={offer.notes} />}
+      {offer && (
+        <button type="button" className="button link update-link" onClick={onOpenPage}>
+          Release notes
+        </button>
+      )}
+      {install.phase === "failed" && (
+        <p role="alert" className="update-text update-error">
+          Could not install Novadeck: {install.reason}
+        </p>
+      )}
+      <div className="update-actions">
+        <button type="button" className="button min-h-8 px-3" onClick={() => onClose("origin")}>
+          Later
+        </button>
+        <button
+          type="button"
+          className="button primary min-h-8 px-3"
+          onClick={() => {
+            onClose("terminal")
+            onInstall()
+          }}
+        >
+          Install Novadeck
+        </button>
+      </div>
+    </>
+  )
+}
+
 // An update waiting beside the footer's status: a chip, "Update ready" or "Update
 // available", and the notice above it. The notice is a plain panel, not a dialog or a
 // layer: nothing about it intercepts keys, focus or clicks elsewhere, so typing in a
@@ -123,6 +247,8 @@ export const FooterUpdate = ({
   // The offer the person pressed Restart for: any other offer, a newer version or the
   // same one turned to a download, is a new one, not pending.
   const [pressed, setPressed] = useState<string>()
+  // Where installing from a portable copy stands.
+  const [install, setInstall] = useState<Install>({ phase: "idle" })
   const panel = useRef<HTMLElement>(null)
   const chip = useRef<HTMLButtonElement>(null)
   // Whether the person opened the notice from the chip: focus moves into it once it
@@ -134,7 +260,9 @@ export const FooterUpdate = ({
   const offer = update?.offer
   const key = offer && updateKey(offer)
   if (pressed !== undefined && pressed !== key) setPressed(undefined)
-  const installing = offer?.kind === "ready" && pressed === key
+  const portable = update?.portable
+  const waiting = install.phase === "running" || install.phase === "installing"
+  const installing = (offer?.kind === "ready" && pressed === key) || waiting
   const wanted = (update?.open ?? false) && !hidden && !update?.blocked
   const overlay = useOverlayOpen(wanted)
   const blocked = (update?.blocked ?? false) || overlay
@@ -154,7 +282,26 @@ export const FooterUpdate = ({
     return () => cancelAnimationFrame(frame)
   }, [visible])
   const lost = useRecoverFocus(blocked || hidden, chip)
-  const word = offer?.kind === "available" ? "Update available" : "Update ready"
+  const word = !offer
+    ? "Install Novadeck"
+    : offer.kind === "available"
+      ? "Update available"
+      : "Update ready"
+  const narrow = offer ? "Update" : "Install"
+  const startInstall = (): void => {
+    if (!portable || !update || waiting) return
+    setInstall({ phase: "running" })
+    void portable.onInstall().then((result) => {
+      if (result.kind === "installing") return setInstall({ phase: "installing" })
+      // The panel comes back with the answer, without taking focus from where the person is.
+      setInstall(
+        result.kind === "newer"
+          ? { phase: "newer", version: result.version }
+          : { phase: "failed", reason: result.reason },
+      )
+      update.onOpenChange(true)
+    })
+  }
   const finish = (to: Return): void => {
     if (!update) return
     const inside = panel.current?.contains(document.activeElement) === true
@@ -170,34 +317,56 @@ export const FooterUpdate = ({
       {/* Always mounted, so filling it announces the arrival; out of the layout, and kept
           for assistive technology where the visible words are dropped to fit. */}
       <span role="status" aria-live="polite" className="sr-only">
-        {offer ? (installing ? "Restarting to update" : word) : ""}
+        {waiting
+          ? "Installing Novadeck"
+          : install.phase === "newer"
+            ? `Novadeck ${install.version} is already installed`
+            : offer
+              ? installing
+                ? "Restarting to update"
+                : word
+              : ""}
       </span>
-      {update && offer && (
+      {update && (offer || portable) && (
         <>
           <button
             ref={chip}
             type="button"
-            className="footer-action footer-update cursor-pointer font-bold"
-            aria-label={`${word}: Novadeck ${offer.version}`}
+            className={`footer-action footer-update font-bold ${installing ? "" : "cursor-pointer"}`}
+            aria-label={
+              waiting
+                ? "Installing…"
+                : installing
+                  ? "Restarting…"
+                  : offer
+                    ? `${word}: Novadeck ${offer.version}`
+                    : word
+            }
             aria-expanded={visible}
             aria-controls={visible ? panelId : undefined}
-            disabled={installing}
+            // Not `disabled`, which would drop the focus a press left on the chip.
+            aria-disabled={installing || undefined}
             onClick={() => {
+              if (installing) return
               if (visible) {
                 finish("origin")
                 return
               }
               requested.current = true
               opener.current = "chip"
+              // Opened again by the person, the panel starts over without the last failure.
+              if (install.phase === "failed") setInstall({ phase: "idle" })
               update.onOpenChange(true)
             }}
           >
-            {installing ? (
+            {waiting ? (
+              "Installing…"
+            ) : installing ? (
               "Restarting…"
             ) : (
               <>
                 <span className="max-[701px]:hidden">{word}</span>
-                <span className="hidden max-[701px]:inline">Update</span>
+                <span className="hidden max-[701px]:inline">{narrow}</span>
               </>
             )}
           </button>
@@ -221,17 +390,32 @@ export const FooterUpdate = ({
               }}
             >
               <KeepFocus lost={lost} selector=".update-panel" />
-              <UpdateCard
-                offer={offer}
-                titleId={titleId}
-                onClose={finish}
-                onRestart={() => {
-                  if (pressed === key) return
-                  setPressed(key)
-                  update.onInstall()
-                }}
-                onOpenPage={update.onOpenPage}
-              />
+              {portable ? (
+                <PortableCard
+                  offer={offer}
+                  install={install}
+                  unsandboxed={portable.unsandboxed}
+                  titleId={titleId}
+                  onClose={finish}
+                  onInstall={startInstall}
+                  onOpenInstalled={portable.onOpenInstalled}
+                  onOpenPage={update.onOpenPage}
+                />
+              ) : (
+                offer && (
+                  <UpdateCard
+                    offer={offer}
+                    titleId={titleId}
+                    onClose={finish}
+                    onRestart={() => {
+                      if (pressed === key) return
+                      setPressed(key)
+                      update.onInstall()
+                    }}
+                    onOpenPage={update.onOpenPage}
+                  />
+                )
+              )}
             </section>
           )}
         </>

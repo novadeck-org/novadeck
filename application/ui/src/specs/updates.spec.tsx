@@ -61,7 +61,7 @@ describe("the update notice", () => {
       await openWorkspace("/?demo=update")
       await restart().click()
       await expect.element(ready()).not.toBeInTheDocument()
-      const restarting = chip(/^Update ready:/)
+      const restarting = chip(/^Restarting…$/)
       await expect.element(restarting).toBeDisabled()
       await expect.element(restarting).toHaveTextContent("Restarting…")
     })

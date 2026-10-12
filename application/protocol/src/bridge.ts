@@ -77,7 +77,49 @@ export type DesktopBridge = {
    * before it. See `SandboxState`.
    */
   sandbox?(): Promise<SandboxState>
+  /**
+   * Whether this copy of the app is a portable one: it runs from wherever it was put,
+   * never installs updates itself, and can install the app that does. Absent from hosts
+   * that came before it; the page then takes the app for an installed one. Hosts that have
+   * it answer `{ portable: false }` where there is no portable build, as on macOS and
+   * Windows. See `PortableState`.
+   */
+  portable?(): Promise<PortableState>
+  /**
+   * Installs the app from this portable copy, keeping the person's workspace, which both
+   * share. On `installing` the host is about to save every page, end the shells, and
+   * start the installed copy in place of this one, so the page has nothing more to do.
+   * On `newer` an installed copy newer than this one exists and nothing was written;
+   * `openInstalled` starts that one. A second call while an install is under way does
+   * nothing more. From a copy that is not portable, or a sender that is not the app's
+   * own page, the answer is `failed`. See `InstallResult`.
+   */
+  installApp?(): Promise<InstallResult>
+  /**
+   * Starts the installed copy that `installApp` found newer, in place of this one, after
+   * the same shutdown quitting runs. Does nothing before such an answer.
+   */
+  openInstalled?(): void
 }
+
+/**
+ * Whether the host runs as a portable copy. `version` is this build's, reported for
+ * display and diagnostics.
+ */
+export type PortableState =
+  | { readonly portable: false }
+  | { readonly portable: true; readonly version: string }
+
+/**
+ * How `installApp` went. `installing`: the install is written and the app is about to
+ * restart into it. `newer`: an installed copy of this `version`, newer than this one,
+ * was left alone. `failed`: nothing was installed, for the short human-readable
+ * `reason` given, such as a full disk or a folder that cannot be written.
+ */
+export type InstallResult =
+  | { readonly kind: "installing" }
+  | { readonly kind: "newer"; readonly version: string }
+  | { readonly kind: "failed"; readonly reason: string }
 
 /**
  * Whether the host runs with Electron's sandbox. It does not when started with
@@ -103,15 +145,19 @@ export const updateChannels: readonly UpdateChannel[] = ["stable", "early"]
  * An update the host tells the page of. `ready`: downloaded, and installed by
  * `installUpdate` or when the app next quits. `available`: a newer release this build
  * cannot install itself, which the person installs from its release page, as for an
- * unsigned macOS app, an AppImage in a folder it cannot write, or after an install
- * failed. `notes` are the release's notes as plain-text lines, at most
+ * unsigned macOS app, an AppImage in a folder it cannot write, a portable copy, or after
+ * an install failed. `notes` are the release's notes as plain-text lines, at most
  * `updateNotesLength` of them, each at most `updateNoteLength` long, without control
- * characters; empty when the release has none the host could read.
+ * characters; empty when the release has none the host could read. `outdatedSince` is set
+ * only for a portable copy: when this copy first learned that a newer release exists, as
+ * an ISO 8601 date-time. The host remembers it across launches for as long as the running
+ * version stays the same, so it does not restart with each newer release.
  */
 export type UpdateOffer = {
   readonly kind: "ready" | "available"
   readonly version: string
   readonly notes: readonly string[]
+  readonly outdatedSince?: string
 }
 
 /** What an update's version may be, as the host reports it: a release's semantic version. */

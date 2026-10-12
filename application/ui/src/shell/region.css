@@ -94,7 +94,8 @@
   background-color: var(--color-soft);
   color: var(--color-ink);
 }
-.footer-action:disabled {
+.footer-action:disabled,
+.footer-action[aria-disabled="true"] {
   cursor: default;
   opacity: 0.7;
   text-decoration: none;
@@ -103,7 +104,7 @@
   text-decoration: underline;
 }
 @media (hover: hover) {
-  .footer-action:not(:disabled):hover {
+  .footer-action:not(:disabled, [aria-disabled="true"]):hover {
     text-decoration: underline;
   }
 }
@@ -281,6 +282,12 @@
   padding: 0;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+.update-text {
+  margin: 0;
+}
+.update-error {
+  color: var(--color-danger-fg);
 }
 .update-actions {
   display: flex;

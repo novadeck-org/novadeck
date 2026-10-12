@@ -14,9 +14,28 @@ export type UpdateState = {
   readonly installFailedOn: string | undefined
   /** Whether the person asked not to be offered a move to the Applications folder again. */
   readonly moveDeclined: boolean
+  /**
+   * For a portable copy, the running `version` and when it first learned that a newer
+   * release exists, `since`, an ISO 8601 date-time. Another running version starts over.
+   */
+  readonly outdated: { readonly version: string; readonly since: string } | undefined
 }
 
-const defaults: UpdateState = { channel: "stable", installFailedOn: undefined, moveDeclined: false }
+const defaults: UpdateState = {
+  channel: "stable",
+  installFailedOn: undefined,
+  moveDeclined: false,
+  outdated: undefined,
+}
+
+// The mark of falling behind when `value` is one: a version and a date.
+const outdatedOf = (value: unknown): UpdateState["outdated"] => {
+  if (typeof value !== "object" || value === null) return undefined
+  const { version, since } = value as Record<string, unknown>
+  if (typeof version !== "string" || typeof since !== "string") return undefined
+  const time = Date.parse(since)
+  return Number.isNaN(time) ? undefined : { version, since: new Date(time).toISOString() }
+}
 
 /**
  * The state in a file's text. The file is the host's own, but a damaged or edited one
@@ -31,11 +50,12 @@ export const updateStateOf = (text: string): UpdateState => {
     return defaults
   }
   if (typeof kept !== "object" || kept === null) return defaults
-  const { channel, installFailedOn, moveDeclined } = kept as Record<string, unknown>
+  const { channel, installFailedOn, moveDeclined, outdated } = kept as Record<string, unknown>
   return {
     channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
     installFailedOn: typeof installFailedOn === "string" ? installFailedOn : undefined,
     moveDeclined: moveDeclined === true,
+    outdated: outdatedOf(outdated),
   }
 }
 
@@ -71,5 +91,21 @@ export const keepUpdateState = (file: string) => {
     declineMove: (): void => change({ moveDeclined: true }),
     /** Marks that installing failed on `version`. */
     recordInstallFailure: (version: string): void => change({ installFailedOn: version }),
+    /** Forgets the mark, as a check found no newer release: the next one starts afresh. */
+    clearOutdated: (): void => {
+      if (read().outdated !== undefined) change({ outdated: undefined })
+    },
+    /**
+     * When the copy running `version` first learned that a newer release exists: the
+     * time kept for that version, else `now`, which is then kept. Another version's
+     * mark is replaced, so a copy that is updated starts over.
+     */
+    outdatedSince: (version: string, now: Date): string => {
+      const kept = read().outdated
+      if (kept?.version === version) return kept.since
+      const since = now.toISOString()
+      change({ outdated: { version, since } })
+      return since
+    },
   }
 }

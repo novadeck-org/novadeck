@@ -37,7 +37,7 @@ export const noticeChannel = "novadeck:notice"
 export const noticeClickChannel = "novadeck:notice-click"
 
 /**
- * Main-to-renderer report of an update offer, `{ kind, version, notes }`; see
+ * Main-to-renderer report of an update offer, `{ kind, version, notes, outdatedSince? }`; see
  * main/updater.ts. A page that starts listening later asks for it on `updateRequestChannel`.
  */
 export const updateOfferChannel = "novadeck:update-offer"
@@ -59,6 +59,21 @@ export const setUpdateChannelChannel = "novadeck:set-update-channel"
 
 /** Renderer-to-main request for whether Electron's sandbox is on; answers a `SandboxState`. */
 export const sandboxChannel = "novadeck:sandbox"
+
+/** Renderer-to-main request for whether this is a portable copy; answers a `PortableState`. */
+export const portableChannel = "novadeck:portable"
+
+/**
+ * Renderer-to-main request to install the app from this portable copy; answers an
+ * `InstallResult`. See main/portable.ts.
+ */
+export const installAppChannel = "novadeck:install-app"
+
+/**
+ * Renderer-to-main request to start the installed copy that `installAppChannel` found
+ * newer, in place of this one.
+ */
+export const openInstalledChannel = "novadeck:open-installed"
 
 /** Renderer-to-main request for a folder picker; answers the chosen path or null. */
 export const directoryPickerChannel = "novadeck:pick-directory"

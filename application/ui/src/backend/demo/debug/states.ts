@@ -635,6 +635,7 @@ export const createDemoStates = (): DemoStates => {
     openWelcome,
     notices,
     updates,
+    offer,
     pickDirectory,
     chat: chat.wrap,
     screens,

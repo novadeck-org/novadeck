@@ -16,6 +16,13 @@ export const bootFailures: readonly ConnectFailure[] = [
     detail: "Runner speaks protocol 2, this app speaks protocol 1.",
   },
   {
+    kind: "outdated",
+    message:
+      "A newer version of Novadeck has used this workspace. Open the newer Novadeck instead; this copy is out of date.",
+    code: "WORKSPACE_TOO_NEW",
+    detail: "The workspace database schema is newer than this runner supports",
+  },
+  {
     kind: "unauthorized",
     message: "The runner didn't accept this app.",
     code: "UNAUTHORIZED",

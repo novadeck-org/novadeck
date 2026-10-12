@@ -422,7 +422,7 @@ export type Runner = {
 
 type Link = { readonly wire: WireClient; readonly runnerId: string; readonly channel: Channel }
 
-const fatal = ["UNAUTHORIZED", "INCOMPATIBLE_PROTOCOL", "CLOSED"] as const
+const fatal = ["UNAUTHORIZED", "INCOMPATIBLE_PROTOCOL", "WORKSPACE_TOO_NEW", "CLOSED"] as const
 const backoff = (attempt: number) => Math.min(250 * 2 ** attempt, 5_000)
 
 const asRunnerError = (error: unknown): RunnerError => {

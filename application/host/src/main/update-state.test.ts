@@ -60,7 +60,9 @@ describe("what the host remembers about updating", () => {
 
     it("is complete when the call returns, as the app may be exiting", () => {
       keepUpdateState(file).recordInstallFailure("0.4.2")
-      expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ installFailedOn: "0.4.2" })
+      expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({
+        installFailedOn: "0.4.2",
+      })
     })
 
     it("merges with what another writer left in the file, never with a stale copy", () => {
@@ -118,6 +120,55 @@ describe("what the host remembers about updating", () => {
       state.recordInstallFailure("0.4.2")
       state.setChannel("early")
       expect(state.read().installFailedOn).toBe("0.4.2")
+    })
+  })
+
+  context("when a portable copy fell behind", () => {
+    const first = new Date("2026-10-01T09:30:00Z")
+    const later = new Date("2026-10-20T09:30:00Z")
+
+    it("is the first time the running version learned of a newer release, kept across launches", () => {
+      expect(keepUpdateState(file).outdatedSince("0.4.2", first)).toBe("2026-10-01T09:30:00.000Z")
+      expect(keepUpdateState(file).outdatedSince("0.4.2", later)).toBe("2026-10-01T09:30:00.000Z")
+      expect(keepUpdateState(file).read().outdated).toEqual({
+        version: "0.4.2",
+        since: "2026-10-01T09:30:00.000Z",
+      })
+    })
+
+    it("starts over when the running version changes", () => {
+      const state = keepUpdateState(file)
+      state.outdatedSince("0.4.2", first)
+      expect(state.outdatedSince("0.5.0", later)).toBe("2026-10-20T09:30:00.000Z")
+    })
+
+    it("keeps the other fields and is dropped when it is no mark", () => {
+      const state = keepUpdateState(file)
+      state.setChannel("early")
+      state.outdatedSince("0.4.2", first)
+      expect(state.read().channel).toBe("early")
+      for (const outdated of [null, "x", { version: "0.4.2" }, { version: "0.4.2", since: "soon" }])
+        expect(updateStateOf(JSON.stringify({ outdated })).outdated).toBeUndefined()
+    })
+
+    it("is forgotten when a check finds no newer release, so the next release starts a fresh clock", () => {
+      const state = keepUpdateState(file)
+      state.setChannel("early")
+      state.outdatedSince("0.4.2", first)
+      state.clearOutdated()
+      expect(state.read().outdated).toBeUndefined()
+      expect(state.read().channel).toBe("early")
+      expect(state.outdatedSince("0.4.2", later)).toBe("2026-10-20T09:30:00.000Z")
+    })
+
+    it("is not rewritten when there is nothing to forget", () => {
+      keepUpdateState(file).clearOutdated()
+      expect(() => readFileSync(file, "utf8")).toThrow()
+    })
+
+    it("fails loudly when it cannot be written", () => {
+      const state = keepUpdateState(join(folder, "missing", "update.json"))
+      expect(() => state.outdatedSince("0.4.2", first)).toThrow()
     })
   })
 

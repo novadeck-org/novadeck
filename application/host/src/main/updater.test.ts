@@ -1,4 +1,7 @@
 import { EventEmitter } from "node:events"
+import { readFile } from "node:fs/promises"
+import { createRequire } from "node:module"
+import { dirname, join } from "node:path"
 
 import type { UpdateChannel } from "@novadeck/protocol/bridge"
 import type { IpcMainEvent } from "electron"
@@ -22,6 +25,7 @@ import {
   installFallbackMs,
   installOnlyOnOrderlyQuit,
   installUpdate,
+  portableOf,
   quitWithoutInstalling,
   registerUpdateIpc,
   switchCheckMs,
@@ -41,11 +45,15 @@ const build = (overrides: Partial<UpdateBuild> = {}): UpdateBuild => ({
   env: {},
   signed: false,
   appImageWritable: true,
+  appImageInstalled: true,
   ...overrides,
 })
 
 const appImage = {
-  env: { APPIMAGE: "/home/me/novadeck.AppImage", APPDIR: "/tmp/.mount_novadeAbC" },
+  env: {
+    APPIMAGE: "/home/me/novadeck.AppImage",
+    APPDIR: "/tmp/.mount_novadeAbC",
+  },
   execPath: "/tmp/.mount_novadeAbC/novadeck",
 }
 
@@ -63,7 +71,12 @@ describe("how a build updates", () => {
       updatePlan(build({ platform: "win32", env: { NOVADECK_UPDATES: "off" } })),
     ).toBeUndefined()
     expect(
-      updatePlan(build({ ...appImage, env: { ...appImage.env, NOVADECK_UPDATES: "off" } })),
+      updatePlan(
+        build({
+          ...appImage,
+          env: { ...appImage.env, NOVADECK_UPDATES: "off" },
+        }),
+      ),
     ).toBeUndefined()
   })
 
@@ -72,14 +85,27 @@ describe("how a build updates", () => {
   })
 
   context("on Linux", () => {
-    it("installs an AppImage that can replace its own file", () => {
-      expect(updatePlan(build(appImage))).toEqual({ kind: "appimage", mode: "install" })
+    it("installs an installed AppImage that can replace its own file", () => {
+      expect(updatePlan(build(appImage))).toEqual({
+        kind: "appimage",
+        mode: "install",
+        portable: false,
+      })
     })
 
-    it("only tells of updates when the folder of the AppImage cannot be written to", () => {
+    it("only tells of updates when the folder of an installed AppImage cannot be written to", () => {
       expect(updatePlan(build({ ...appImage, appImageWritable: false }))).toEqual({
         kind: "appimage",
         mode: "tell",
+        portable: false,
+      })
+    })
+
+    it("only tells of updates when the AppImage is portable, even in a folder it can write to", () => {
+      expect(updatePlan(build({ ...appImage, appImageInstalled: false }))).toEqual({
+        kind: "appimage",
+        mode: "tell",
+        portable: true,
       })
     })
 
@@ -102,12 +128,20 @@ describe("how a build updates", () => {
 
   context("on Windows", () => {
     it("installs", () => {
-      expect(updatePlan(build({ platform: "win32" }))).toEqual({ kind: "nsis", mode: "install" })
+      expect(updatePlan(build({ platform: "win32" }))).toEqual({
+        kind: "nsis",
+        mode: "install",
+        portable: false,
+      })
     })
 
-    it("has no portable build to treat differently", () => {
+    it("does not tell a portable copy from an installed one yet", () => {
       const env = { PORTABLE_EXECUTABLE_DIR: "C:\\Tools" }
-      expect(updatePlan(build({ platform: "win32", env }))?.mode).toBe("install")
+      expect(updatePlan(build({ platform: "win32", env, appImageInstalled: false }))).toEqual({
+        kind: "nsis",
+        mode: "install",
+        portable: false,
+      })
     })
   })
 
@@ -116,12 +150,41 @@ describe("how a build updates", () => {
       expect(updatePlan(build({ platform: "darwin", signed: true }))).toEqual({
         kind: "mac",
         mode: "install",
+        portable: false,
       })
     })
 
     it("only tells of updates when it is not", () => {
-      expect(updatePlan(build({ platform: "darwin" }))).toEqual({ kind: "mac", mode: "tell" })
+      expect(updatePlan(build({ platform: "darwin" }))).toEqual({
+        kind: "mac",
+        mode: "tell",
+        portable: false,
+      })
     })
+  })
+})
+
+describe("whether a build is portable", () => {
+  it("is an AppImage anywhere but the places the installer puts it", () => {
+    expect(portableOf(build({ ...appImage, appImageInstalled: false }))).toBe(true)
+    expect(portableOf(build(appImage))).toBe(false)
+  })
+
+  it("is not a build that is no AppImage, or one that looks for no updates", () => {
+    expect(portableOf(build({ appImageInstalled: false }))).toBe(false)
+    expect(portableOf(build({ ...appImage, appImageInstalled: false, version: "0.0.0" }))).toBe(
+      false,
+    )
+    const env = { ...appImage.env, NOVADECK_UPDATES: "off" }
+    expect(portableOf(build({ ...appImage, env, appImageInstalled: false }))).toBe(false)
+    expect(portableOf(build({ ...appImage, appImageInstalled: false, packaged: false }))).toBe(
+      false,
+    )
+  })
+
+  it("is not yet a Windows or macOS build", () => {
+    for (const platform of ["win32", "darwin"] as const)
+      expect(portableOf(build({ platform, appImageInstalled: false }))).toBe(false)
   })
 })
 
@@ -159,7 +222,10 @@ describe("an update's version", () => {
 
 const page = () => {
   const sent: [string, unknown][] = []
-  return { sent, send: (channel: string, offer: unknown) => void sent.push([channel, offer]) }
+  return {
+    sent,
+    send: (channel: string, offer: unknown) => void sent.push([channel, offer]),
+  }
 }
 
 describe("telling pages of an update", () => {
@@ -171,6 +237,37 @@ describe("telling pages of an update", () => {
     expect(first.sent).toEqual([[updateOfferChannel, offer]])
     expect(second.sent).toEqual([[updateOfferChannel, offer]])
     expect(offers.current()).toEqual(offer)
+  })
+
+  it("carries when the copy fell behind, asking only for an offer that is new", () => {
+    const open = page()
+    const offers = trackOffer(() => [open])
+    const asked: string[] = []
+    const since = (): string => {
+      asked.push("asked")
+      return "2026-10-01T09:30:00.000Z"
+    }
+    offers.offer("available", "1.2.3", [], since)
+    offers.offer("available", "1.2.3", [], since)
+    offers.offer("available", "1.2.4", [])
+    expect(asked).toHaveLength(1)
+    expect(open.sent.map(([, offer]) => offer)).toEqual([
+      {
+        kind: "available",
+        version: "1.2.3",
+        notes: [],
+        outdatedSince: "2026-10-01T09:30:00.000Z",
+      },
+      { kind: "available", version: "1.2.4", notes: [] },
+    ])
+  })
+
+  it("goes without the date when the copy cannot say", () => {
+    const open = page()
+    trackOffer(() => [open]).offer("available", "1.2.3", [], () => undefined)
+    expect(open.sent).toEqual([
+      [updateOfferChannel, { kind: "available", version: "1.2.3", notes: [] }],
+    ])
   })
 
   it("tells a page that asks later, and nothing before there is an offer", () => {
@@ -431,6 +528,7 @@ describe("checking for updates", () => {
       mode?: UpdateMode
       channel?: UpdateChannel
       native?: EventEmitter
+      upToDate?: () => void
       failedVersion?: string
     } = {},
   ) => {
@@ -443,6 +541,7 @@ describe("checking for updates", () => {
       channel: options.channel ?? "stable",
       failedVersion: options.failedVersion,
       native: options.native,
+      upToDate: options.upToDate,
       offer: (kind, version, notes) => void offered.push([kind, version, notes]),
       installFailed: (version) => void failed.push(version),
       log: (message) => void logged.push(message),
@@ -450,14 +549,29 @@ describe("checking for updates", () => {
     return { updater, offered, failed, logged, ...checks }
   }
 
+  it("tells when a check finds no newer release", () => {
+    let told = 0
+    const { updater } = checking({ mode: "tell", upToDate: () => void (told += 1) })
+    updater.emit("update-not-available", { version: "1.0.0" })
+    expect(told).toBe(1)
+    // Not every build asks.
+    expect(() => checking().updater.emit("update-not-available", {})).not.toThrow()
+  })
+
   it("installs on quitting in install mode, and asks for each download itself", () => {
     const { updater } = checking()
-    expect(updater).toMatchObject({ autoDownload: false, autoInstallOnAppQuit: true })
+    expect(updater).toMatchObject({
+      autoDownload: false,
+      autoInstallOnAppQuit: true,
+    })
   })
 
   it("downloads and installs nothing in tell mode", () => {
     const { updater } = checking({ mode: "tell" })
-    expect(updater).toMatchObject({ autoDownload: false, autoInstallOnAppQuit: false })
+    expect(updater).toMatchObject({
+      autoDownload: false,
+      autoInstallOnAppQuit: false,
+    })
   })
 
   it("follows only releases that are not prereleases on the stable channel, and every release on early", () => {
@@ -655,7 +769,10 @@ describe("checking for updates", () => {
         releaseName: "Novadeck v1.2.3",
         releaseNotes: "<p>Faster.</p>",
       })
-      updater.emit("update-available", { version: "1.3.0", releaseNotes: null })
+      updater.emit("update-available", {
+        version: "1.3.0",
+        releaseNotes: null,
+      })
       expect(offered).toEqual([
         ["available", "1.2.3", ["Faster."]],
         ["available", "1.3.0", []],
@@ -739,5 +856,31 @@ describe("quitting by a signal", () => {
         () => false,
       )(),
     ).not.toThrow()
+  })
+})
+
+describe("electron-updater's restart", () => {
+  it("emits before-quit-for-update on Electron's autoUpdater only after a successful install; re-check the Linux lock release in index.ts if this fails", async () => {
+    // The host lets go of the single-instance lock on that event, so that the new AppImage,
+    // which electron-updater starts first, can take it (see installUpdate's callback in
+    // index.ts). If electron-updater changes when it emits, "Restart now" may end the app
+    // without the new version starting, or a failed install may leave the lock released.
+    const require = createRequire(import.meta.url)
+    const file = join(dirname(require.resolve("electron-updater")), "BaseUpdater.js")
+    const source = (await readFile(file, "utf8")).replaceAll("\r\n", "\n")
+    const start = source.search(/quitAndInstall\(isSilent = false, isForceRunAfter = false\)\s*\{/u)
+    expect(start, "BaseUpdater.quitAndInstall").toBeGreaterThanOrEqual(0)
+    const end = source.indexOf("\n    }\n", start)
+    expect(end, "the end of BaseUpdater.quitAndInstall").toBeGreaterThan(start)
+    const body = source.slice(start, end)
+    const steps = [
+      /const isInstalled = this\.install\(/u,
+      /if \(isInstalled\)\s*\{/u,
+      /setImmediate\(\(\) => \{/u,
+      /require\("electron"\)\.autoUpdater\.emit\("before-quit-for-update"\)/u,
+      /this\.app\.quit\(\)/u,
+    ].map((step) => body.search(step))
+    expect(steps.every((at) => at >= 0)).toBe(true)
+    expect(steps).toEqual(steps.toSorted((a, b) => a - b))
   })
 })

@@ -27,13 +27,17 @@ const allTerminals = (workspace: Workspace) =>
 // backend's link.
 export const WorkspaceFooter = memo((): React.JSX.Element => {
   const { backend, commands, workspace: store } = useWorkspaceServices()
-  const { updates } = backend
+  const { updates, portable: portableHost } = backend
   const connection = useConnection(backend.connection)
   const crashes = useUiState((state) => state.crashLoop)
   const offer = useUiState((state) => state.update)
   const updateOpen = useUiState((state) => state.updateOpen)
   const sandbox = useUiState((state) => state.sandbox)
   const sandboxOpen = useUiState((state) => state.sandboxOpen)
+  const portable = useUiState((state) => state.portable?.portable === true)
+  // A host that can say it is portable has not yet: the sandbox chip waits, so it does not
+  // flash on a copy whose install entry replaces it.
+  const portablePending = useUiState((state) => state.portable === null) && !!portableHost
   // A dialog, the switcher or a question holds the notice back until it is answered.
   const asking = useUiState(
     (state) =>
@@ -95,15 +99,24 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       navigate={navigate}
       onRetry={backend.crashLoop ? commands.retryAfterCrashLoop : undefined}
       update={
-        offer && updates
+        (offer && updates) || (portable && portableHost)
           ? {
-              offer,
+              offer: updates ? (offer ?? undefined) : undefined,
+              portable:
+                portable && portableHost
+                  ? {
+                      // The install entry covers the sandbox notice a portable copy would show.
+                      unsandboxed: sandbox !== null && !sandbox.sandboxed,
+                      onInstall: portableHost.install,
+                      onOpenInstalled: portableHost.openInstalled,
+                    }
+                  : undefined,
               open: updateOpen,
               blocked: asking || welcome || sandboxOpen,
               onOpenChange: commands.setUpdateOpen,
               onShown: commands.updateShown,
-              onInstall: updates.install,
-              onOpenPage: updates.openPage,
+              onInstall: updates?.install ?? (() => {}),
+              onOpenPage: updates?.openPage ?? (() => {}),
               returnFocus: () => {
                 const { selected, view } = currentState(store.getSnapshot())
                 if (!selected) return false
@@ -114,7 +127,7 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
           : undefined
       }
       sandbox={
-        sandbox && !sandbox.sandboxed
+        sandbox && !sandbox.sandboxed && !portable && !portablePending
           ? {
               fix: sandbox.fix,
               open: sandboxOpen,

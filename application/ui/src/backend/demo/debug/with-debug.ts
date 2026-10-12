@@ -11,6 +11,7 @@ import type {
 } from "../../port"
 import { createDemo, type DemoVariant } from "../variants"
 import { createDebugPanel } from "./DebugPanel"
+import { createDemoPortable, type DemoPortable } from "./portable"
 import { createDemoSandbox } from "./sandbox"
 import { createDemoStates } from "./states"
 import type { DemoActionContext } from "./types"
@@ -30,6 +31,10 @@ export type DemoLaunch = {
   readonly sandbox: SandboxState | undefined
   // Boots again with the host saying this of its sandbox (or nothing).
   readonly setSandbox: (sandbox: SandboxState | undefined) => void
+  // The portable copy the host plays; undefined for an installed one.
+  readonly portable: DemoPortable | undefined
+  // Boots again as this portable copy (or an installed one).
+  readonly setPortable: (portable: DemoPortable | undefined) => void
 }
 
 // What the panel's groups read and change of the shell around the demo.
@@ -62,6 +67,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const connection = createStore<BackendConnectionState>("connected")
   const crashes = createStore(0)
   const states = createDemoStates()
+  if (launch.portable?.offer) states.offer(launch.portable.offer)
   let sink: BackendSink | undefined
   let latest: Workspace | undefined
   let failed: readonly TerminalKey[] = []
@@ -152,6 +158,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     notices: states.notices,
     updates: states.updates,
     ...(launch.sandbox ? { sandbox: createDemoSandbox(launch.sandbox) } : {}),
+    ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
     pickDirectory: states.pickDirectory,
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
     DebugPanel: createDebugPanel({

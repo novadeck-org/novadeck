@@ -70,6 +70,9 @@ describe("the sandbox notice", () => {
       await terminalTab("Dev server").click()
       await chip().click()
       await expect.element(notice()).toBeVisible()
+      // The panel takes focus a frame after it shows. Moving focus to the view before that
+      // lets the panel take it back, and the click on its text then has nothing to hand over.
+      await expect.element(notice()).toHaveFocus()
       await focusStage()
       await notice()
         .getByText(/^This system blocks/)

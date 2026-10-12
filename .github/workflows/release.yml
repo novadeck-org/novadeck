@@ -599,6 +599,23 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           release=application/host/release
+          # The app stops a moment after timeout stops xvfb-run. A launch started before it is
+          # gone would hand off to it through the single-instance lock, which Chromium keeps
+          # as a link to host-pid in the data folder, and exit at once.
+          lock="${XDG_CONFIG_HOME:-$HOME/.config}/novadeck/SingletonLock"
+          settle() {
+            local what="$1" target pid
+            for _ in {1..30}; do
+              target="$(readlink "$lock" 2> /dev/null || true)"
+              pid="${target##*-}"
+              if [[ -z "$target" || ! "$pid" =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2> /dev/null; then
+                return
+              fi
+              sleep 0.5
+            done
+            echo "::error::The $what was still running 15 seconds after it was stopped."
+            exit 1
+          }
           launch() {
             local what="$1" status
             shift
@@ -610,6 +627,7 @@ jobs:
               echo "::error::The $what exited before the smoke-test interval (status $status)."
               exit 1
             fi
+            settle "$what"
           }
 
           artifact="$(realpath "$(find "$release" -maxdepth 1 -name '*.AppImage' -print -quit)")"

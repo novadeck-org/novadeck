@@ -6,10 +6,13 @@ import { afterEach, beforeEach, vi } from "vitest"
 import {
   apiUrlArgumentPrefix,
   appearanceChannel,
+  installAppChannel,
   installUpdateChannel,
   noticeChannel,
   noticeClickChannel,
+  openInstalledChannel,
   openUpdatePageChannel,
+  portableChannel,
   sandboxChannel,
   saveBeforeQuitChannel,
   setUpdateChannelChannel,
@@ -120,7 +123,11 @@ describe("saving before quit, in the page", () => {
 
 describe("the page's appearance", () => {
   it("goes to the main process as its scheme and ground only", () => {
-    const appearance = { scheme: "dark", ground: "#0f1114", extra: "dropped" } as const
+    const appearance = {
+      scheme: "dark",
+      ground: "#0f1114",
+      extra: "dropped",
+    } as const
     electron.exposed.showAppearance(appearance)
     expect(electron.messages).toEqual([[appearanceChannel, { scheme: "dark", ground: "#0f1114" }]])
   })
@@ -143,7 +150,12 @@ describe("a pasted file's path", () => {
 
 describe("a notice about a terminal", () => {
   it("goes to the main process as its id, title and body only", () => {
-    const notice = { id: "01", title: "t1 is done: Tests", body: "All green.", icon: "x" }
+    const notice = {
+      id: "01",
+      title: "t1 is done: Tests",
+      body: "All green.",
+      icon: "x",
+    }
     electron.exposed.showNotice?.(notice)
     expect(electron.messages).toEqual([
       [noticeChannel, { id: "01", title: "t1 is done: Tests", body: "All green." }],
@@ -195,6 +207,15 @@ describe("an update offer", () => {
     ])
       electron.renderer.emit(updateOfferChannel, {}, value)
     expect(offers).toEqual([])
+  })
+
+  it("carries the date the copy fell behind when it is an ISO date-time, and drops any other", () => {
+    const offers: unknown[] = []
+    electron.exposed.onUpdate!((offer) => offers.push(offer))
+    const outdatedSince = "2026-10-01T09:30:00.000Z"
+    for (const value of [outdatedSince, "yesterday", "2026-10-01", 20261001, undefined])
+      electron.renderer.emit(updateOfferChannel, {}, { ...ready, outdatedSince: value })
+    expect(offers).toEqual([{ ...ready, outdatedSince }, ready, ready, ready, ready])
   })
 
   it("carries only the notes the contract allows", () => {
@@ -285,5 +306,72 @@ describe("the sandbox", () => {
       return electron.exposed.sandbox!()
     })
     expect(await Promise.all(states)).toEqual(fixes.map(() => ({ sandboxed: false, fix: "" })))
+  })
+})
+
+describe("whether this copy is portable", () => {
+  it("is what the host answers when it is a portable copy of a release version", async () => {
+    electron.answer = { portable: true, version: "1.2.3", extra: "dropped" }
+    expect(await electron.exposed.portable!()).toEqual({
+      portable: true,
+      version: "1.2.3",
+    })
+    expect(electron.sent).toEqual([portableChannel])
+  })
+
+  it("is not portable when the host answers anything else", async () => {
+    const answers = [
+      undefined,
+      "portable",
+      { portable: false, version: "1.2.3" },
+      { portable: true },
+      { portable: true, version: "v1" },
+      { portable: "true", version: "1.2.3" },
+    ]
+    const states = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.portable!()
+    })
+    expect(await Promise.all(states)).toEqual(answers.map(() => ({ portable: false })))
+  })
+})
+
+describe("installing the app from a portable copy", () => {
+  it("asks the host, naming nothing, and passes on what the contract allows", async () => {
+    const answers = [
+      { kind: "installing" },
+      { kind: "newer", version: "1.2.4" },
+      { kind: "failed", reason: "There is no space left on the disk." },
+    ]
+    const results = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.installApp!()
+    })
+    expect(await Promise.all(results)).toEqual(answers)
+    expect(electron.sent).toEqual([installAppChannel, installAppChannel, installAppChannel])
+  })
+
+  it("is a failure when the host answers anything else", async () => {
+    const failed = { kind: "failed", reason: "Something went wrong." }
+    const answers = [
+      undefined,
+      "installing",
+      { kind: "done" },
+      { kind: "newer", version: "latest" },
+      { kind: "failed" },
+      { kind: "failed", reason: "bell\u0007" },
+      { kind: "failed", reason: "x".repeat(301) },
+    ]
+    const results = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.installApp!()
+    })
+    expect(await Promise.all(results)).toEqual(answers.map(() => failed))
+  })
+
+  it("opens the installed copy by asking the host, naming nothing", () => {
+    electron.exposed.openInstalled!()
+    expect(electron.sent).toEqual([openInstalledChannel])
+    expect(electron.messages).toEqual([])
   })
 })
