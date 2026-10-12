@@ -19,6 +19,8 @@ import {
   itemContent,
   maxUploadPartLength,
   maxVoicePartLength,
+  murmurSettings,
+  murmurState,
   name,
   project,
   protocolVersion,
@@ -197,7 +199,7 @@ export const contract = {
       .input(z.strictObject({ terminalId: id, title: terminalTitle }))
       .output(z.void()),
     // Hands a terminal's title back to Novadeck: the title the person gave it goes, and it
-    // takes the one an agent gave it last, the person's first prompt there, or its
+    // takes murmur's latest, else the one the agent that opened it gave, or its
     // default, as `rename` does announcing it. TERMINAL_NOT_FOUND as for `rename`.
     resetTitle: procedure.input(z.strictObject({ terminalId: id })).output(z.void()),
     // Saves a file pasted into a terminal in a folder of its own on the runner's machine,
@@ -390,6 +392,24 @@ export const contract = {
       .output(voiceTranscript),
     // Forgets a clip without transcribing it. An unknown clip is fine.
     discard: procedure.input(z.strictObject({ clipId: id })).output(z.void()),
+  },
+  // Murmur, the local model that writes terminals' titles (see
+  // `murmurState`).
+  murmur: {
+    // The addon's state, then again on each change.
+    watch: procedure.input(z.void()).output(eventIterator(murmurState)),
+    // Downloads the engine and the model, unless they are there, and checks that they
+    // describe on a GPU. It returns once the install starts; `watch` shows its progress,
+    // and its end or failure. One already installing is a CONFLICT.
+    install: procedure.input(z.void()).output(z.void()),
+    // Stops an install, keeping what had finished before it. Nothing installing is fine.
+    cancel: procedure.input(z.void()).output(z.void()),
+    // Removes the engine and the model, and turns murmur off by choice: it is no longer
+    // wanted, until the next install.
+    uninstall: procedure.input(z.void()).output(z.void()),
+    // Changes the settings given; the others stay. Turning murmur on before any install
+    // says it is wanted, for the install to turn on.
+    set: procedure.input(murmurSettings.partial()).output(z.void()),
   },
   settings: {
     get: procedure.input(z.void()).output(runnerSettings),

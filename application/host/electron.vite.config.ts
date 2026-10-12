@@ -16,6 +16,8 @@ export default defineConfig({
           index: resolve("src/main/index.ts"),
           // The runner runs in its own utility process.
           runner: resolve("src/runner/index.ts"),
+          // The thread murmur redacts digests in, which the runner starts from a file beside it.
+          murmurWorker: resolve("../runner/src/murmur/worker.ts"),
         },
         // Native PTYs load through Node's own resolver, from the unpacked package.
         external: ["node-pty"],

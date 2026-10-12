@@ -123,7 +123,7 @@ flowchart LR
 
 | Part         | Where                                                                                 | Owns                                                                                |
 | ------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `close`, `open_terminal`, `close_terminal`  | `send`, `agents` and `describe`; the terminal's token on every call                 |
+| MCP tools    | `shell/mcp.ts`, beside `show`, `showing`, `close`, `open_terminal`, `close_terminal`  | `send`, `agents` and `summarize`; the terminal's token on every call                |
 | Mailbox      | Runner, stored with the workspace (`WorkspaceStore`)                                  | Messages, threads, guards, pause, retention                                         |
 | Delivery     | Runner, one state machine per recipient terminal                                      | When and how a recipient notices: leases to hooks and the doorbell                  |
 | Hook answers | `shell/hook.ts` asks the runner; the runner returns stdout                            | Each harness's output encoding, in its adapter beside its decoder                   |
@@ -231,11 +231,11 @@ another terminal. Handles exist because a title is text a person, or an agent th
 
 The terminal's **title** is the runner's too: it keeps what names the terminal in its
 record, every client shows the title from there, and `agents()` reads it from the same
-record. The record says who the title is from: the person (renaming, or creating it), an
-agent by its terminal's handle (through `open_terminal`'s `title` or `describe`), the
-person's first prompt, or the session's default "Terminal 01" (see
-[Self-description](#self-description)); `agents()` shows an agent's title as that
-agent's ("set by t2, not the user"), never as the person's. Terminals are kept until closed, with no
+record. The record says who the title is from: the person (renaming, or creating it), murmur (the
+local model that describes terminals, see [Naming](#naming)), an agent by its terminal's
+handle (through `open_terminal`'s `title`), or the session's default "Terminal 01";
+`agents()` shows an agent's title as that agent's ("set by t2, not the user"), never as
+the person's. Terminals are kept until closed, with no
 pruning, so a close that never reached the runner brings the terminal back.
 
 **Recipients** are the terminals of the caller's own project and Novadeck session; the
@@ -315,15 +315,15 @@ like them, only inside Novadeck's terminals.
   `send`'s listing, and the MCP server prints the text as it is:
   1. its handle;
   2. its title, from the runner's terminal record, with "(set by t2, not the user)" when
-     another terminal's agent gave it, "(set by its own agent, not the user)" when its
-     own did, and "(from the user's first prompt there)" for that; then "described by
-     its agent:" and the summary its agent gave through `describe`, when it did;
+     an agent gave it (an agent that opened the terminal), and "(written by Novadeck's local model, not the user)" for murmur's; then
+     "described by its agent:" and the summary its own agent gave through `summarize`,
+     when it did;
   3. its agent (Claude Code, Codex or Antigravity);
   4. its folder, relative to the project when inside it, and git branch (read from
      git's own files, cached, with a short timeout);
   5. "started with": the person's first root prompt in the bound session, about 120
      characters. In the first root session of a terminal another agent opened, a first
-     prompt that isn't the user's (see [Self-description](#self-description)) is the
+     prompt that isn't the user's (see [Naming](#naming)) is the
      opener's command's, and says so: "started with (t2's command)";
   6. "latest": the person's most recent root prompt there, left out when it is the
      first. Only the person's prompts count, never a turn the harness started (a task
@@ -394,8 +394,7 @@ that agent's lead, so its description asks for a complete brief (what, where, ho
 tell it is done, when to report back) and reminds the caller that bringing decisions
 that need the person's approval to the person, to answer in the worker's own terminal,
 is its job. Its `title` is
-the opener's, and `describe` names the caller's own terminal (see
-[Self-description](#self-description)).
+the opener's (see [Naming](#naming)).
 
 ## Delivery
 
@@ -1161,114 +1160,185 @@ waiting for the person to confirm, though what it would ask the person before do
 still asks, in its own terminal. The person sees it in
 the new terminal's Messages view, like any other message.
 
-## Self-description
+## Naming
 
-An agent names its own terminal and says what it works on, so others can pick it in
-`agents()`. Built: titles in `terminals/naming.ts`, nudges in `terminals/nudges.ts`, the
-call in `Terminals.describe` (`terminals/manager.ts`), the tool in `shell/mcp.ts`.
+Terminals have titles and, for `agents()`, summaries, written by different hands. Murmur,
+an opt-in local model (see [murmur.md](murmur.md)), writes the titles, for agent terminals
+and plain shells. Each agent writes the summary of its own terminal, through its
+`summarize` tool. No agent has a way to set a title: no tool takes one, nothing grants a
+rename, and the only title an agent gives is the one it opens another terminal with.
+Built: the layers in `terminals/naming.ts`, the summary tool in `terminals/summarize.ts`
+and `Terminals.summarize` (`terminals/manager.ts`), the tool in `shell/mcp.ts`, its nudges
+in `terminals/nudges.ts`, murmur's triggers and digests in `terminals/murmur.ts`, and the
+model behind a `Describer` (`murmur/`).
 
-- **`describe(title, summary, asked?)`**, listed like the other tools only inside
-  Novadeck's terminals, describes the caller's own terminal only: it takes no target,
-  and the runner knows the caller from its terminal token. The title is one line, as
-  the person's are, of up to 200 characters (code points, an emoji counting once);
-  `summary` is one or two lines of up to 200 characters, kept with the terminal's record,
-  and `agents()` lists it as "described by its agent"; the UI doesn't show it. Each needs
-  a letter or a digit: only symbols or invisible characters are refused. A refused
-  description (an empty summary, three lines) says why.
-- **Who wins the title.** The record keeps each layer apart (`naming`: the person's
-  title, the newest an agent gave with that agent's terminal's handle, and the summary),
-  and the store persists only these. The terminal manager derives the title from them by
-  precedence: the person's (renaming, or creating it), then the newest an agent gave,
-  `describe` or `open_terminal`'s `title` by its opener, then the person's first prompt of
-  the root session, then the session's default "Terminal 03". Clients see who it is from
-  as the summary's `titleSource` (`person`, `agent` with its handle, `fallback` or
-  `default`). An opener's title never passes through the client as the person's: the
-  request the client gets has no title, and the client creates the terminal with the
-  request's `requestId`, from which the runner takes the opener's title, handle and
-  command: only for the first terminal created for that request, in the request's own
+- **`summarize(summary)`**, listed like the other tools only inside Novadeck's terminals,
+  summarizes the caller's own terminal only: it takes no target, and the runner knows the
+  caller from its terminal token. The summary is one or two lines of up to 200 characters
+  with words in it, kept with the terminal's record; `agents()` lists it as "described by
+  its agent". A refused summary (empty, three lines) says why. A call also tells murmur
+  to title the terminal again (see below).
+- **Who wins the title.** The record keeps each layer apart (`naming`: `person`; `agent`,
+  the opener's title with the handle of the terminal that gave it; `murmur`, its title;
+  and `summary`, the agent's own), and the store persists only these (`person_title`,
+  `agent_title`, `agent_titled_by`, `murmur_title`, `summary`). The terminal manager
+  derives the title by precedence:
+
+  1. the person's (renaming, or creating the terminal);
+  2. murmur's latest title;
+  3. the title the opening agent gave through `open_terminal`, which shows until murmur's
+     first title;
+  4. the session's default "Terminal 03".
+
+  Clients see who it is from as the summary's `titleSource` (`person`, `murmur`, `agent`
+  with its handle, or `default`). A summary is no part of the title, and a person's title
+  doesn't stop either: murmur still titles the terminal and the agent still summarizes
+  it. The runner API's `terminals.resetTitle` takes the person's title away, so the title
+  is automatic again: murmur's, else the opener's.
+
+- **The opener's title.** An opener's title never passes through the client as the
+  person's: the request the client gets has no title, and the client creates the terminal
+  with the request's `requestId`, from which the runner takes the opener's title, handle
+  and command: only for the first terminal created for that request, in the request's own
   session. That is the only way a terminal is known as agent-opened (`openedBy`).
-  Nothing automatic ever replaces the person's title: `describe` still keeps its title as
-  the agent's newest, beneath the person's, and its answer says the user named the
-  terminal. The runner API's `terminals.resetTitle` takes the person's title away, so the
-  title is automatic again: the newest an agent gave first.
-- **`asked`.** When the person's own prompt asks the agent to give the terminal a title,
-  `describe` with `asked: true` makes that title the person's, so later descriptions and
-  nudges never replace it. It is taken only when all of these hold:
-  1. the current root turn was started by the person's own submission (messaging's
-     delivery tells it, `byPerson`: their bare Enter, then the prompt, or a prompt they
-     queued), never one the doorbell or the harness started;
-  2. the title, folded (case, spaces, surrounding quotes and punctuation aside) and
-     holding three letters or digits at least, is in the text of that prompt as whole
-     words, between Unicode word boundaries (`Messaging.personPrompt`, from the same
-     prompt text the hooks or Antigravity's transcript give `promptStart`), read as the
-     call arrives;
-  3. it is in no other text that reached the agent: no message delivered, or ever leased
-     (a lapsed lease may still have been printed), to its root session, and no title or summary of a peer in its project and session. So
-     a person pasting a peer's output, or quoting a peer's suggestion to refuse it, never
-     grants it.
+- **Without murmur** nothing titles a terminal but the person and its opener: terminals
+  keep their default titles. Agents still summarize, nudges included. A plain shell has no
+  summary, with or without murmur. Prompts never title a terminal. When the person turns
+  murmur off or removes it, its titles go: every running terminal loses its murmur title
+  (it shows the opener's, else the default), kept terminals lose theirs in the store, and
+  what was waiting or owed is dropped. Closing the runner, a failed check or a lost GPU
+  clear nothing.
+- **Whose the first prompt is.** "Started with" in `agents()` and murmur's digest both use
+  the person's first root prompt, and one rule tells whose it is (`firstFrom` in
+  `terminals/work.ts`): in a terminal the person opened it always is, as it is in every
+  root session but the first of a terminal another agent opened (`openedBy`). In that
+  first session it is the user's only when the person's own submission started its turn
+  (`byPerson`, recorded with it, `judgedFirst`) and its text isn't the prompt in the
+  opener's command, which the runner keeps in memory with the open: one whole argument of
+  the command, split and unquoted as a shell does (the prompt of `claude "…"`,
+  `codex "…"` or `agy -i "…"`), never a part of one. Until told, it counts as the opener's
+  command. Only a session the opener's command started counts: one whose first word,
+  unquoted, is a harness Novadeck knows (`terminals/commands.ts`); after a command that
+  starts no agent, as `npm test`, the session the person then starts is theirs. The work
+  is tallied from the prompts as attributed, so Antigravity's first typed prompt, read
+  from its transcript, counts too.
 
-  Otherwise the title is taken as the agent's own, as without `asked`, the summary still
-  changes, and, where the person's title stays, the answer says "Not renamed: the user
-  named this terminal. Suggest the title to them." This doesn't stop a coached agent
-  from picking a whole word or phrase the person typed themselves as the title; that
-  risk is accepted, as all it changes is a title. So are these, each reducing to the
-  same: a peer that re-describes itself after the check, a forked or resumed session
-  counted as new, what other `agents()` lines carry, and a peer's summary refusing a
-  title the person did mean. A subagent or a nested agent holding
-  the terminal's token can still describe the terminal without `asked`, setting the
-  agent's layer and the summary: accepted too, as that layer never outranks the
-  person's. The tool's description says when to set `asked`; the nudges never mention it.
+### Nudges
 
-- **The first-prompt title.** Before anything else names it, the terminal's title is the
-  person's first prompt of its root session, shortened to one line of 48 characters: the
-  "started with" of `agents()`, so a doorbell line, a delivery of messages and a task
-  never become one. A new root session (start, `/clear`, restart) starts over: the
-  default, until its own first prompt. The prompt must be the user's, by one rule
-  (`firstFrom` in `terminals/work.ts`, which the title and `agents()` both use): in a
-  terminal the person opened it always is, as it is in every root session but the first
-  of a terminal another agent opened (`openedBy`). In that first session it is the
-  user's only when the person's own submission started its turn (`byPerson`, recorded
-  with it, `judgedFirst`) and its text isn't the prompt in the opener's command, which
-  the runner keeps in memory with the open, whatever Enter came before: one whole
-  argument of the command, split and unquoted as a shell does (the prompt of
-  `claude "…"`, `codex "…"` or `agy -i "…"`), never a part of one. Until told, it counts
-  as the opener's command. Only a session the opener's command started counts: one whose
-  first word, unquoted, is a harness Novadeck knows (`terminals/commands.ts`); after a
-  command that starts no agent, as `npm test`, the session the person then starts is
-  theirs. The opener can name the terminal through `open_terminal`'s `title`. So a terminal opened with a task still takes its title from
-  the person's first prompt there. The work is tallied from the prompts as attributed,
-  so Antigravity's first typed prompt, read from its transcript, counts too.
-- **Nudges.** The prompt-time hook (`UserPromptSubmit`, Antigravity's `PreInvocation`)
-  of a root prompt its decoder calls the person's (cause `prompt`; this is looser than
-  `asked`'s `byPerson`, as a nudge needs no proof) adds Novadeck's automatic notices, a
-  paragraph each, when any is due; otherwise it adds nothing. The description nudge is
-  due when a trigger fired since the last `describe`. The artifacts notice is due once a
-  new session or a compaction fired, until it is delivered: a `describe` doesn't clear
-  it, so it still comes at the next quiet prompt when the agent described itself first,
-  then alone. When both are due they share the answer, the artifacts notice first
-  (see [Agent workspace](agent-workspace.md), "Companion pane"). Never at Stop, and
-  never in an answer that carries messages or a notice of another kind, as the
-  messages-waiting one: what is due then waits for the next quiet prompt; nor in an
-  answer that might miss the hook's deadline, which never spends what is due. The
-  description nudge's triggers:
-  1. a new root session (start, `/clear`, restart);
-  2. a compaction, where the harness reports one: Claude Code's and Codex's
-     `SessionStart` with source `compact` (decoded as `compacted`). Antigravity reports
-     none (its compaction is internal, see [Harness coverage](harness-coverage.md)), so
-     it has no such trigger;
+The prompt-time hook (`UserPromptSubmit`, Antigravity's `PreInvocation`) of a root prompt
+its decoder calls the person's (cause `prompt`) adds Novadeck's automatic notices, a
+paragraph each, when any is due; otherwise it adds nothing. Never at Stop, never in an
+answer that carries messages or a notice of another kind (the messages-waiting one: what
+is due waits for the next quiet prompt), and never in an answer that might miss the
+hook's deadline, which doesn't spend what is due.
+
+- **The bar.** Once a new root session or a compaction happened, a notice of the bar
+  beside the terminal (see [Agent workspace](agent-workspace.md), "Companion pane") says
+  what to show there and what not to. A `summarize` doesn't clear it, so it still comes at
+  the next quiet prompt when the agent summarized first.
+- **The summary.** Due when a trigger fired since the last `summarize`: while there is
+  none it asks for one; after, it shows the current summary and asks for an update only if
+  it no longer fits. When both are due they share the answer, the bar's first. The
+  triggers:
+  1. a new root session (start, `/clear`, restart or resume);
+  2. a compaction, where the harness reports one: Claude Code's and Codex's `SessionStart`
+     with source `compact` (decoded as `compacted`). Antigravity reports none (its
+     compaction is internal, see [Harness coverage](harness-coverage.md)), so it has no
+     such trigger;
   3. drift: the root's own plan's title (never a subagent's), the folder it writes in
-     most or its branch differ from both the facts at the last `describe` and those
+     most or its branch differ from both the facts at the last `summarize` and those
      drift last fired for, so work going back and forth between two folders fires once.
      A fact not known (no plan, no folder yet, a branch not read in time) is no change.
      They are read only for a prompt whose answer would otherwise be empty and with time
      left, so a delivery never waits on them;
-  4. as a backstop, 15 of those prompts since the last `describe`, or since the backstop
+  4. as a backstop, 15 of those prompts since the last `summarize`, or since the backstop
      last fired.
 
-  While nothing is described, a nudge asks for a description; after that it shows the
-  current title and summary and asks for an update only if they no longer fit. Each
-  trigger nudges once; an ignored nudge waits for the next trigger. What is pending
-  lives in the runner's memory: a runner restart is a new root session anyway.
+  What is pending lives in the runner's memory: a runner restart is a new root session
+  anyway. (For murmur it is not a new conversation: see below.)
+
+### When murmur titles a terminal
+
+Only with a describer, and only while it is usable (installed, enabled and working): murmur
+starts out as unusable until its service says otherwise, and while it is, nothing is built,
+read or serialized (no git branch or plan, no transcript, no screen), and what waited is
+dropped. When it becomes usable, every running terminal with no murmur title yet is
+titled: an agent's from its latest summary, else its first substantial prompt, and one
+with neither waits; a shell's once it has more on screen than a prompt.
+
+An **agent's terminal** (one with a bound agent) is titled on two triggers only:
+
+1. **Once**, after the person's first prompt of a root session (a new conversation:
+   start or `/clear`; not a runner restart or a resume of the same session, which keep
+   their title), taken as the terminal's mission. A prompt that says nothing of it is skipped:
+   under three words, or a greeting or pleasantry ("hey!", "try again", "thanks a lot").
+   The title then waits for the next substantial prompt, or for the first summary,
+   whichever comes first. Without a summary the digest shows that mission prompt alone,
+   so a terse later prompt ("hows going?") never becomes a title.
+2. **Every `summarize` call**, whose summary is the main input to the title; a burst of
+   calls is one job.
+
+A compaction, drift in the plan, branch or busiest folder, and more of the person's prompts
+retitle nothing by themselves: they nudge the agent to summarize (see [Nudges](#nudges)),
+and its summary then pings murmur. So murmur never retitles from a bare terse prompt, and
+a terminal whose agent never summarizes keeps the title its mission gave.
+
+Both wait for 3 seconds of quiet (`settleMs`), so a burst is one job. A **plain shell**
+is titled (never summarized) on:
+
+1. the foreground program changed and has run for 5 seconds (`shellRunMs`): `ls` or
+   `git status` never describe, a dev server or a build does. The prompt is the shell
+   itself holding the foreground (told by the foreground process group on Linux), so a
+   script its own interpreter runs, `./build.sh` or `bash deploy.sh`, is a program;
+2. the shell is back at its prompt after such a run, 3 seconds after (`shellSettleMs`);
+3. its directory changed (the prompt reports it), after the same 3 seconds of quiet. A
+   short command that follows doesn't lose it: it is asked for again at the prompt.
+
+A shell opened to run an agent (`open_terminal` with a command that starts one, or a
+resume) isn't described as a shell until the agent binds, or 10 seconds (`expectMs`)
+pass without one. A restarted terminal drops its job and what murmur kept of it.
+
+The foreground program is sampled only where the platform tells it: Linux and macOS.
+Windows has no such sample, so only the directory triggers there; none is invented.
+
+**Digests.** The terminal side builds what murmur is shown (the types are in
+`murmur/describer.ts`); the service redacts secrets from every string before the model
+sees it, and the terminal side never includes a permission's command.
+
+- An agent's: its harness, its latest summary (`summarize`), the project's folder name, the last two segments of its
+  directory, the branch, the plan's title, the three folders it writes in most (relative
+  to the project when inside it), the person's last prompts, and the tail of its last
+  reply. The prompts are the first one if it has left the last five (`work.recent`, up to
+  300 characters each, persisted with the terminal's work), then those, the current last.
+  The reply is the last assistant text since the person's latest prompt and the latest
+  tool step, read from the end of the agent's transcript through its harness's items: the
+  last 3000 characters, with terminal escapes out; the service redacts it and keeps the
+  last 1500. A harness that names no transcript gets
+  the preview its turn's end reported (about a hundred characters), and only once the turn
+  is over; the turn's own words are never guessed at.
+- A shell's: the project, the last two segments of its directory, the foreground program's
+  command line (the whole argv where the platform tells it, Linux; else its name; none at
+  the shell's own prompt), and the visible screen as logical lines: rows the terminal wrapped
+  (`isWrapped`) are joined, so a value split across rows is whole for the redaction;
+  trimmed, blank lines above and below dropped, at most the last 100 lines and 8000 characters
+  each as safety caps. The service redacts, then cuts to what the model is shown. The
+  command line is capped at 2000 characters the same way. A bare prompt with no
+  program is not described. While the terminal's alternate buffer is showing (a full-screen
+  program that draws on it, such as vim, less, htop or tmux), the screen is left out whole (`alternate` on the screen
+  read; `shellDigest` takes none of its rows): the digest has the project, folder and
+  command line, which is redacted like every string, and with no command known (no
+  foreground sampling, as on Windows) there is no digest, so nothing is asked and the title
+  stays. The triggers read no screen, so a program's redraws ask for nothing; the program's
+  start titles it, and its quitting is the prompt trigger above, which reads the normal
+  screen.
+- Both carry murmur's last title of the terminal (`Naming.murmur`) as `previous`,
+  so titles stay stable.
+
+**Coalescing.** At most one job is outstanding per terminal. A trigger waits out its quiet
+(a newer one restarts the wait); when it fires, its digest is built and any older job for
+the terminal is aborted before the describer is asked, so the newest digest wins and an
+aborted job's answer lands nowhere. A terminal that goes away drops its job. A title
+that isn't a valid terminal title is dropped.
 
 ## Runner API and UI
 
@@ -1311,11 +1381,11 @@ Escape ends the turn as theirs does. A prompt meeting a ring under way waits for
 holds the person's keys and the window's resizes as a ring does, so the two never share
 the box.
 
-Self-description adds to it: every terminal summary says who its title is from
+Naming adds to it: every terminal summary says who its title is from
 (`titleSource`), `terminals.resetTitle` hands a title back to Novadeck, and
 `terminals.create` takes the `requestId` of the agent's request it answers. A tab's
-tooltip says who its title is from: the person, the agent in `t2`, the first prompt, or
-the default. When it is the person's, the tab's menu has **Reset to automatic**
+tooltip says who its title is from: the person, murmur, the agent in `t2`, or the
+default. When it is the person's, the tab's menu has **Reset to automatic**
 (`commands.resetTitle`, which calls off any rename of that terminal in progress), which
 calls `terminals.resetTitle`; the UI forgets the person's title too, so it never sends it
 again.
@@ -1338,10 +1408,11 @@ again.
    `backend/runner/messages.ts`, the tab's mark in `terminals/companion/TabKinds.tsx`, the view in
    `terminals/companion/MessagesView.tsx`, and the title's source and reset on the tab in
    `terminals/TerminalTab.tsx`.
-4. **Self-description:** `describe(title, summary, asked?)`, the first-prompt title and
-   the nudges. Built: the title's layers and `asked`'s rule in
-   `application/runner/src/terminals/naming.ts`, the nudges in `terminals/nudges.ts`,
-   `describe` in `terminals/manager.ts` and `shell/mcp.ts`, the person's turn
+4. **Naming:** the title's layers (the person, murmur, the opener, the default) and
+   agents' own `summarize`, which replaced `describe` and the first-prompt title. Built:
+   the layers in `application/runner/src/terminals/naming.ts`, the summary tool in
+   `terminals/summarize.ts`, its nudges in `terminals/nudges.ts`, murmur's triggers and
+   digests in `terminals/murmur.ts`, their wiring in `terminals/manager.ts`, the person's turn
    (`byPerson`) in `messaging/delivery.ts` and their prompt in `messaging/messaging.ts`,
    and the runner API as `titleSource`, `terminals.resetTitle` and `create`'s
    `requestId`.

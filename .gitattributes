@@ -4,3 +4,5 @@ application/ui/src/**/plan-editor/fixtures/*.md text eol=lf
 application/ui/src/backend/demo/showcase/plans/*.md text eol=lf
 # whisper.cpp patches apply to its LF sources, so they keep LF on every platform.
 application/whisper/patches/*.patch text eol=lf
+# The same for llama.cpp's.
+application/murmur/patches/*.patch text eol=lf

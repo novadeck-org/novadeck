@@ -191,7 +191,9 @@ describe("an answer's hold of the person's input", () => {
     // The key went once released; the wheel report, held before it, never did.
     await vi.waitFor(() => expect(since()).toContain("received 1 chars"), { timeout: 5_000 })
     await new Promise((resolve) => setTimeout(resolve, 400))
+    // Neither alone nor with the key.
     expect(since()).not.toContain(`received ${wheel.length} chars`)
+    expect(since()).not.toContain(`received ${wheel.length + 1} chars`)
   })
 })
 

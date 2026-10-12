@@ -374,13 +374,13 @@ export const terminalTitle = z
 // stays as the terminal is renamed, and agents address each other by it.
 export const handle = z.string().regex(/^t[1-9][0-9]{0,8}$/)
 
-// Who a terminal's title is from: the person; an agent, by its terminal's handle (the
-// one that opened it with a title, or its own through `describe`); the person's first
-// prompt of its agent's root session (`fallback`); or its session's `default`.
+// Who a terminal's title is from: the person; murmur, the local model that describes
+// terminals; an agent, by its terminal's handle (the one that opened it with a title); or
+// its session's `default`.
 export const titleSource = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("person") }),
   z.strictObject({ kind: z.literal("agent"), by: handle }),
-  z.strictObject({ kind: z.literal("fallback") }),
+  z.strictObject({ kind: z.literal("murmur") }),
   z.strictObject({ kind: z.literal("default") }),
 ])
 
@@ -389,9 +389,9 @@ export const titleSource = z.discriminatedUnion("kind", [
 export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
-  // The title the person gave the terminal; else the one an agent gave it last, or the
-  // person's first prompt to its agent, shortened; else the runner's default for its
-  // session ("Terminal 01", "Terminal 02", … in the order they were created).
+  // The title the person gave the terminal; else murmur's latest, if it is on; else the
+  // one the agent that opened it gave; else the runner's default for its session
+  // ("Terminal 01", "Terminal 02", … in the order they were created).
   title: terminalTitle,
   // Who the title is from.
   titleSource,
@@ -665,6 +665,53 @@ export const voiceState = z.strictObject({
   failure: z.string().max(1024).nullable(),
 })
 
+// Murmur: a small model that runs on this machine's GPU and writes terminals' titles,
+// opt-in from Preferences like voice input. It has one engine and one model.
+
+// What an install is doing: downloading the engine or the model, or checking that they
+// describe, with the bytes received of the step's total.
+export const murmurInstall = z.strictObject({
+  step: z.enum(["engine", "model", "check"]),
+  received: z.int().nonnegative(),
+  total: z.int().nonnegative(),
+})
+
+// The device that passed the check after an install: its name, whether it is an
+// integrated GPU, and how long the test description took.
+export const murmurCheck = z.strictObject({
+  device: z.string().max(256),
+  integrated: z.boolean(),
+  milliseconds: z.int().nonnegative(),
+})
+
+export const murmurState = z.strictObject({
+  // Whether this build has an engine for this platform; without one nothing installs.
+  available: z.boolean(),
+  // Whether the engine and the model are on disk; false until an install finishes.
+  installed: z.boolean(),
+  // Whether the person turned murmur on; it needs to be installed.
+  enabled: z.boolean(),
+  // Whether the person wants murmur, installed or not: until they turn it off, the app
+  // offers it.
+  wanted: z.boolean(),
+  // Download sizes in bytes: the engine for this platform, and the model.
+  sizes: z.strictObject({ engine: z.int().nonnegative(), model: z.int().nonnegative() }),
+  installing: murmurInstall.nullable(),
+  // Null until a check passes. A machine with no working GPU stays null, and `failure`
+  // says murmur needs one.
+  check: murmurCheck.nullable(),
+  // Why murmur is not working, in words for the person: the last install or engine update
+  // that failed, until the next install, update or removal; the GPU it was checked on being
+  // gone (the check is then null, and Try again installs just the check); a worker that
+  // would not start; or the engine failing three jobs in a row (the check stands) until a job
+  // succeeds. Turning murmur on clears the last two.
+  failure: z.string().max(1024).nullable(),
+})
+
+export const murmurSettings = z.strictObject({
+  enabled: z.boolean(),
+})
+
 /**
  * Why a `CONFLICT` about typing into an agent's terminal is one, as its data, so a client
  * can tell what clears by itself from what the person settles in the terminal:
@@ -813,6 +860,10 @@ export type VoiceState = z.infer<typeof voiceState>
 export type VoiceUnavailable = z.infer<typeof voiceUnavailable>
 export type VoiceSettings = z.infer<typeof voiceSettings>
 export type VoiceTranscript = z.infer<typeof voiceTranscript>
+export type MurmurInstall = z.infer<typeof murmurInstall>
+export type MurmurCheck = z.infer<typeof murmurCheck>
+export type MurmurState = z.infer<typeof murmurState>
+export type MurmurSettings = z.infer<typeof murmurSettings>
 export type MessageState = z.infer<typeof messageState>
 export type DeliveryState = z.infer<typeof deliveryState>
 export type AgentMessage = z.infer<typeof agentMessage>

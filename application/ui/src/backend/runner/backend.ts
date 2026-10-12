@@ -31,6 +31,7 @@ import { createRunnerCompanions } from "./companions"
 import { createRunnerConversations } from "./conversations"
 import { createRunnerItems } from "./items"
 import { createRunnerMessages } from "./messages"
+import { createRunnerMurmur } from "./murmur"
 import { pause } from "./pause"
 import { resumableProgram } from "./resumable"
 import { createRunnerTerminal } from "./RunnerTerminal"
@@ -57,6 +58,7 @@ export type RunnerApi = Pick<
   | "agents"
   | "messages"
   | "voice"
+  | "murmur"
   | "settings"
   | "companions"
 >
@@ -962,6 +964,8 @@ export const runnerBackend = (
   )
   // The voice input addon, followed from `start` like the messages.
   const voice = createRunnerVoice(runner.voice, track)
+  // Murmur, followed the same way.
+  const murmur = createRunnerMurmur(runner.murmur, track)
   let following = false
   // Follows a terminal's messages once the runner has it: it answers "not found" before
   // then. Called whenever a shell is created or started afresh.
@@ -1219,6 +1223,7 @@ export const runnerBackend = (
     following = true
     for (const entry of entries.values()) if (!entry.closed) followWhenReady(entry)
     voice.follow()
+    murmur.follow()
     window.addEventListener("pagehide", flush)
     // The host waits for these saves, removals and closes before a close or quit can end
     // the shells, so they name what still runs.
@@ -1236,6 +1241,7 @@ export const runnerBackend = (
       messages.stop()
       conversations.stop()
       voice.stop()
+      murmur.stop()
       // The last changes are saved; nothing retries after this.
       flush()
       halted = true
@@ -1259,6 +1265,7 @@ export const runnerBackend = (
     commit,
     TerminalSurface: createRunnerTerminal(runtime, screens),
     voice: voice.voice,
+    murmur: murmur.murmur,
     typeInto: screens.typeInto,
     start,
     companions: createRunnerCompanions(runner.companions, {

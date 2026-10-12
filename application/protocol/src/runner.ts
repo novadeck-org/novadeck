@@ -24,6 +24,8 @@ import {
   type TerminalSummary,
   type RequestAnswer,
   type TranscriptChange,
+  type MurmurSettings,
+  type MurmurState,
   type VoiceModel,
   type VoiceSettings,
   type VoiceState,
@@ -203,7 +205,7 @@ export type Runner = {
     rename(terminalId: string, title: string): Promise<void>
     /**
      * Takes away the title the person gave a terminal, so its title is automatic again:
-     * the one an agent gave it last, the person's first prompt there, or its default.
+     * murmur's latest, else the one the agent that opened it gave, or its default.
      * Rejects as `rename` does.
      */
     resetTitle(terminalId: string): Promise<void>
@@ -386,6 +388,22 @@ export type Runner = {
     transcribe(clipId: string, options?: { readonly terminalId?: string }): Promise<VoiceTranscript>
     /** Forgets a clip without transcribing it. */
     discard(clipId: string): Promise<void>
+  }
+  readonly murmur: {
+    /**
+     * Follows the murmur addon: its state, then again on each change, across
+     * reconnections, each subscription starting with a fresh one. Iteration ends when the
+     * runner closes, or on `return()`.
+     */
+    watch(): AsyncIterableIterator<MurmurState, undefined>
+    /** Starts installing the engine, if missing, and the model; `watch` shows progress. */
+    install(): Promise<void>
+    /** Stops an install. */
+    cancel(): Promise<void>
+    /** Removes the engine and the model, and turns murmur off. */
+    uninstall(): Promise<void>
+    /** Changes the settings given; the others stay. */
+    set(settings: Partial<MurmurSettings>): Promise<void>
   }
   readonly settings: {
     get(): Promise<RunnerSettings>
@@ -1234,6 +1252,14 @@ export const connectRunner = async (
       transcribe: (clipId, { terminalId } = {}) =>
         call((wire) => wire.voice.transcribe({ clipId, ...(terminalId ? { terminalId } : {}) })),
       discard: (clipId) => call((wire) => wire.voice.discard({ clipId })),
+    },
+    murmur: {
+      watch: () =>
+        new Resubscription(connection, (wire, signal) => wire.murmur.watch(undefined, { signal })),
+      install: () => call((wire) => wire.murmur.install()),
+      cancel: () => call((wire) => wire.murmur.cancel()),
+      uninstall: () => call((wire) => wire.murmur.uninstall()),
+      set: (settings) => call((wire) => wire.murmur.set(settings)),
     },
     settings: {
       get: () => call((wire) => wire.settings.get()),

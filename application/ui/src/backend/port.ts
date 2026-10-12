@@ -3,6 +3,7 @@ import type { ComponentType, ReactNode } from "react"
 import type { Companions } from "../model/companion"
 import type { Conversations } from "../model/conversation"
 import type { Messages } from "../model/messages"
+import type { Murmur } from "../model/murmur"
 import type { SandboxState } from "../model/sandbox"
 import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
@@ -176,6 +177,9 @@ export type Backend = {
   // Optional. Voice input: the person speaks, and the backend transcribes it on its
   // machine. Absent where the backend cannot transcribe.
   readonly voice?: Voice
+  // Optional. Murmur: a model on the backend's machine writes titles for its terminals.
+  // Absent where the backend cannot run one.
+  readonly murmur?: Murmur
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
   // without pressing Enter, as dictation does. Says whether it typed: false when the
   // terminal has gone or has no screen to take the text. Absent where terminals take no input.

@@ -741,18 +741,6 @@ describe("delivery through hooks", () => {
     expect(messages(messaging, "B")[0]?.state).toBe("queued")
   })
 
-  it("counts a message as having reached the root session once leased, even if the lease lapsed", () => {
-    const { messaging, send, prompt, stop, codex } = create()
-    prompt("B", codex)
-    sent(send("A", "t2", "Call yourself EVIL."))
-    expect(messaging.receivedTexts("B")).toEqual([])
-    expect(stop("B", codex).leaseId).toEqual(expect.any(String))
-    // Its hook may have printed it, though its acknowledgement never came.
-    vi.advanceTimersByTime(5_000)
-    expect(messages(messaging, "B")[0]?.state).toBe("queued")
-    expect(messaging.receivedTexts("B")).toEqual(["Call yourself EVIL."])
-  })
-
   it("returns a lapsed lease's messages to queued, its Stop taken as not continued", () => {
     const { messaging, send, prompt, stop, codex } = create()
     prompt("B", codex)
@@ -1660,6 +1648,7 @@ const about = (terminalId: string): Whereabouts | undefined =>
           session: "codex:s-codex",
           first: "Build the users API",
           latest: "Now add paging",
+          recent: [],
           folders: { "/w/src/api": 3, "/w/tests": 2, "/w/docs": 1, "/w/web": 1 },
           activeAt: 1_000_000,
         },
@@ -1794,35 +1783,6 @@ describe("retention", () => {
     messaging.sweep()
     expect(records.messages()).toEqual([])
     expect(records.threads()).toEqual([])
-  })
-
-  it("forgets that a message was leased once it is deleted", () => {
-    const kept = new Set(["A", "B"])
-    const {
-      messaging,
-      send,
-      prompt,
-      stop,
-      codex,
-      clock: time,
-    } = create(
-      memoryMailbox(),
-      { now: 1_000_000 },
-      { exists: (terminalId) => kept.has(terminalId) },
-    )
-    // What the runner remembers of leases, which only the sweep keeps from growing.
-    const leased = () => (messaging as unknown as { everLeased: Set<string> }).everLeased
-    prompt("B", codex)
-    const { id } = sent(send("A", "t2", "hello"))
-    expect(stop("B", codex).leaseId).toEqual(expect.any(String))
-    expect([...leased()]).toEqual([id])
-    messaging.unregister("A")
-    messaging.unregister("B")
-    kept.clear()
-    time.now += retentionMs
-    messaging.sweep()
-    expect(leased().size).toBe(0)
-    messaging.close()
   })
 })
 

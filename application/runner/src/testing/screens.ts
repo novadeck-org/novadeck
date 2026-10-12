@@ -18,5 +18,6 @@ export const screen = (
     column: 0,
   },
   bracketedPaste: true,
+  alternate: false,
   ...given,
 })

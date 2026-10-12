@@ -711,14 +711,21 @@ given), as a spec does that must act on the screen before the turn ends.
 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo.
 
-| Package                | Responsibility                                                  |
-| ---------------------- | --------------------------------------------------------------- |
-| `application/ui`       | React frontend built with Vite, Tailwind CSS, and Lucide icons. |
-| `application/runner`   | The runner: shells and metadata, served over WebSocket or port. |
-| `application/protocol` | Shared Zod contracts and the `connectRunner` client for UIs.    |
-| `application/host`     | Electron host that starts the runner and loads the packaged UI. |
-| `application/relay`    | Rust relay for agents' Novadeck MCP server and hooks.           |
-| `scripts`              | Repository checks and automation.                               |
+| Package                  | Responsibility                                                  |
+| ------------------------ | --------------------------------------------------------------- |
+| `application/ui`         | React frontend built with Vite, Tailwind CSS, and Lucide icons. |
+| `application/runner`     | The runner: shells and metadata, served over WebSocket or port. |
+| `application/protocol`   | Shared Zod contracts and the `connectRunner` client for UIs.    |
+| `application/host`       | Electron host that starts the runner and loads the packaged UI. |
+| `application/relay`      | Rust relay for agents' Novadeck MCP server and hooks.           |
+| `application/whisper`    | Voice engine: whisper.cpp built for download (`build:engine`).  |
+| `application/murmur`     | Murmur engine: llama.cpp built for download (`build:engine`).   |
+| `application/ggml-build` | The engine build both of those share.                           |
+| `scripts`                | Repository checks and automation.                               |
+
+Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
+`pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in
+the package's `dist/`.
 
 The UI runs real shells through the runner. Projects, sessions and their terminals
 live in the runner's SQLite metadata, and each session saves its terminals' order and
@@ -1062,10 +1069,12 @@ Commits determine release eligibility; versions are currently limited to patch
 increments. Documentation-only changes do not trigger a release. See
 [.release-it.json](.release-it.json) for the release configuration.
 
-Bump `engineInterface` in `application/whisper/scripts/build.ts` with any change to the
-server flags the runner passes, the requests it makes of the server or the patched HTTP
-surface: during an update the runner dictates with an older engine only if it speaks the
-same interface.
+Bump `engineInterface` in `application/whisper/scripts/build.ts` (voice) or
+`application/murmur/scripts/build.ts` (murmur) with any change to the server flags the
+runner passes, the requests it makes of the server, the patched HTTP surface or, for
+murmur, the `--list-devices` output: during an update the runner uses an older engine only
+if it speaks the same interface. Both engines are built by the shared
+`application/ggml-build`.
 
 There are two channels. Every release from `main` is a prerelease, the early channel. The
 stable channel is GitHub's latest release that is not a prerelease, which installs, the

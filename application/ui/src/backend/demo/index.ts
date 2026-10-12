@@ -18,6 +18,7 @@ import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
+import { createDemoMurmur } from "./murmur"
 import { createMockTerminal, demoFinishes, demoSeed, demoTerminalId, terminalSlot } from "./samples"
 import { createShowcase } from "./showcase/simulation"
 import { storefrontArtifacts } from "./showcase/storefront"
@@ -50,6 +51,7 @@ export const demoBackend = (
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
   const voice = createDemoVoice()
+  const murmur = createDemoMurmur()
   // Standing in for the runner, it numbers each session's terminals itself, never
   // giving a number twice, from the workspace it last saw.
   const seed = demoSeed(Date.now())
@@ -92,6 +94,7 @@ export const demoBackend = (
     },
     TerminalSurface: createDemoTerminal(engine, introOf, runtime),
     voice,
+    murmur,
     // The demo's command line takes dictation as typed text, which it never submits.
     typeInto: (key, text) => {
       engine.setDraft(key, engine.getSnapshot(key).draft + text.replaceAll(/\s*\r?\n\s*/g, " "))
@@ -138,7 +141,7 @@ const namings: Readonly<
 > = {
   "01": { source: { kind: "person" }, automatic: "Checkout flow" },
   "02": { source: { kind: "person" }, automatic: "Terminal 02" },
-  "03": { source: { kind: "fallback" }, automatic: "Tests" },
+  "03": { source: { kind: "murmur" }, automatic: "Tests" },
   "04": { source: { kind: "agent", by: "t1" }, automatic: "Checkout review" },
   "05": { source: { kind: "person" }, automatic: "Terminal 05" },
   "06": { source: { kind: "person" }, automatic: "Terminal 06" },

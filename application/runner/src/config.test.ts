@@ -1,5 +1,9 @@
 import { join, resolve } from "node:path"
 
+import {
+  engineDirectory as murmurDirectory,
+  engineManifest as murmurManifest,
+} from "@novadeck/murmur"
 import { engineDirectory, engineManifest } from "@novadeck/whisper"
 
 import { readConfig } from "./config.js"
@@ -43,6 +47,30 @@ describe("server configuration", () => {
       engine: resolve("pack/engine.json"),
       source: "https://downloads.test/voice/",
     })
+  })
+
+  it("installs murmur beside the database, from the engine built here unless another is named", () => {
+    const token = "configuration-tests-only-not-a-real-credential"
+    const base = { NOVADECK_TOKEN: token, NOVADECK_DATABASE: "data/workspace.sqlite" }
+
+    expect(readConfig(base).murmur).toEqual({
+      engine: murmurManifest,
+      source: murmurDirectory,
+      directory: join(resolve("data"), "murmur"),
+    })
+    expect(
+      readConfig({
+        ...base,
+        NOVADECK_MURMUR_ENGINE: "pack/engine.json",
+        NOVADECK_MURMUR_SOURCE: "https://downloads.test/murmur/",
+      }).murmur,
+    ).toMatchObject({
+      engine: resolve("pack/engine.json"),
+      source: "https://downloads.test/murmur/",
+    })
+    expect(readConfig({ ...base, NOVADECK_MURMUR_SOURCE: "pack" }).murmur?.source).toBe(
+      resolve("pack"),
+    )
   })
 
   it("takes another build of the relay, as an absolute path, or leaves it to the package", () => {

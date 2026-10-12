@@ -3,6 +3,7 @@ import { useRef, useState, type ReactNode } from "react"
 
 import { shortcutGroups } from "../interaction/keymap"
 import { currentPlatform } from "../interaction/shortcuts"
+import { MURMUR_NAME } from "../model/murmur"
 import { viewModes } from "../model/state"
 import type { PreferencesValue } from "../model/types"
 import { themes, type ThemeEntry, type ThemeId } from "../theme/themes"
@@ -13,6 +14,8 @@ import { Select } from "../ui-toolkit/Select"
 import { Switch } from "../ui-toolkit/Switch"
 import { Tabs, TabList, Tab, TabPanel } from "../ui-toolkit/Tabs"
 import { AgentSwitches, agentsExplanation, type AgentSwitch } from "./AgentSwitches"
+import { murmurDescription } from "./murmur-addon"
+import { MurmurAddon, type MurmurAddonValue } from "./MurmurAddon"
 import {
   preferencesTabs,
   settingRowClasses,
@@ -97,6 +100,7 @@ export const Preferences = ({
   transcripts,
   agents,
   voice,
+  murmur,
   updates,
   notices = false,
   chat = false,
@@ -125,6 +129,8 @@ export const Preferences = ({
   }
   // Voice input, as the backend has it; absent where it has none.
   voice?: VoiceAddon
+  // Murmur, as the backend has it; absent where it has none.
+  murmur?: MurmurAddonValue
   // Which releases the desktop app follows; absent where it doesn't offer the choice.
   // `early` is undefined until the app has said.
   updates?: {
@@ -417,6 +423,9 @@ export const Preferences = ({
               description="Speak prompts into agent terminals. Speech is transcribed on this computer and never leaves it."
             >
               <VoiceInput voice={voice} open={open && tab === "addons"} portalContainer={dialog} />
+            </Section>
+            <Section title={MURMUR_NAME} description={murmurDescription}>
+              <MurmurAddon murmur={murmur} />
             </Section>
           </TabPanel>
           <TabPanel value="shortcuts" className={panelClasses}>

@@ -1,13 +1,19 @@
-import { useState, type RefObject } from "react"
+import { useState, type ComponentProps, type RefObject } from "react"
 
 import { currentPlatform, shortcutBindings, type Shortcut } from "../interaction/shortcuts"
 import type { Voice, VoiceModel, VoiceState } from "../model/voice"
 import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
-import { Progress } from "../ui-toolkit/Progress"
 import { SegmentGroup } from "../ui-toolkit/SegmentGroup"
 import { Select } from "../ui-toolkit/Select"
 import { Switch } from "../ui-toolkit/Switch"
-import { settingRowClasses, settingsCardClasses } from "./settings"
+import {
+  AddonFailure,
+  AddonRow,
+  addonNoteClasses,
+  addonRowClasses,
+  InstallProgress,
+} from "./addon-parts"
+import { settingsCardClasses } from "./settings"
 import {
   checkText,
   formatSize,
@@ -26,38 +32,18 @@ export type VoiceAddon = {
 }
 
 const models: readonly VoiceModel[] = ["turbo", "small"]
-const rowClasses = `preference-row ${settingRowClasses}`
-const noteClasses = "settings-description text-control leading-relaxed"
+const rowClasses = addonRowClasses
+const noteClasses = addonNoteClasses
+
+const Row = (props: Omit<ComponentProps<typeof AddonRow>, "scope">): React.JSX.Element => (
+  <AddonRow scope="voice" {...props} />
+)
 
 // What the person holds to dictate, when the shortcut list names it.
 const dictationKeys = (): string | undefined => {
   const bindings: Partial<Record<string, Shortcut>> = shortcutBindings(currentPlatform())
   return bindings["voice"]?.display.join(" + ")
 }
-
-const Row = ({
-  id,
-  label,
-  description,
-  children,
-}: {
-  readonly id: string
-  readonly label: string
-  readonly description?: string
-  readonly children?: React.ReactNode
-}): React.JSX.Element => (
-  <div className={rowClasses}>
-    <span className="flex min-w-0 flex-col gap-1">
-      <span id={`voice-${id}`}>{label}</span>
-      {description && (
-        <span id={`voice-${id}-description`} className={noteClasses}>
-          {description}
-        </span>
-      )}
-    </span>
-    {children}
-  </div>
-)
 
 // The model chooser, with what the chosen one is like.
 const ModelChoice = ({
@@ -107,28 +93,14 @@ const Installing = ({
   const { step, received, total, model } = installing
   const label = stepLabels[step]
   return (
-    <div
-      className={`${rowClasses} flex-col items-stretch gap-2.5`}
-      role="group"
-      aria-label="Installing"
-    >
-      <div className="flex items-center justify-between gap-6">
-        <span className="flex min-w-0 flex-col gap-1">
-          <span>{`${label}${step === "check" ? "" : `: ${step === "model" ? modelNames[model] : "speech engine"}`}`}</span>
-          {step !== "check" && (
-            <span className={noteClasses}>{`${formatSize(received)} of ${formatSize(total)}`}</span>
-          )}
-        </span>
-        <button
-          type="button"
-          className="button min-h-8 shrink-0 px-3 text-control"
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
-      </div>
-      <Progress label={label} value={step === "check" ? 0 : received} max={total} />
-    </div>
+    <InstallProgress
+      title={`${label}${step === "check" ? "" : `: ${step === "model" ? modelNames[model] : "speech engine"}`}`}
+      {...(step !== "check" && { detail: `${formatSize(received)} of ${formatSize(total)}` })}
+      label={label}
+      received={step === "check" ? 0 : received}
+      total={total}
+      onCancel={onCancel}
+    />
   )
 }
 
@@ -172,15 +144,7 @@ export const VoiceInput = ({
   if (asked && !asked.ran && state.installing) setAsked({ ...asked, ran: true })
   if (asked?.ran && !state.installing && !state.failure) setAsked(null)
   const { failure, installing, installed } = state
-  const failed = failure && (
-    <p
-      className="settings-note m-0 px-4 py-3 text-control leading-relaxed"
-      data-tone="danger"
-      role="alert"
-    >
-      {failure}
-    </p>
-  )
+  const failed = failure && <AddonFailure>{failure}</AddonFailure>
   const install = (model: VoiceModel): void => {
     setAsked({ model, ran: false })
     actions.install(model)

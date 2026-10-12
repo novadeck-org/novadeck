@@ -268,8 +268,8 @@ and the user reads those in the diff. Every harness hears this two ways, as no p
 own description carries the rule, which every harness reads alike from `tools/list`,
 and the runner's prompt-time hook adds Novadeck's artifacts notice, one paragraph, at
 the person's first quiet prompt of each root session and after a compaction
-(`artifactsNotice` in `terminals/nudges.ts`; it rides with the description nudge but a
-`describe` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"). A
+(`artifactsNotice` in `terminals/nudges.ts`; it rides with the summary nudge but a
+`summarize` never clears it; see [Agent messaging](agent-messaging.md), "Nudges"). A
 worker another agent runs by briefs alone hears it at the person's first prompt there,
 so until then its tool description is what tells it. In Antigravity an injected message
 lasts one model call, so there the notice is read once at the prompt and the tool
@@ -416,8 +416,8 @@ with every safety check again at that time:
   terminal of its project and session by its handle, such as `t3`, which `open_terminal` also
   answers with, and the message reaches that agent through its own hooks. The runner
   keeps the mailbox with the workspace and lists, pauses and releases it through
-  `messages.list`, `messages.pause` and `messages.release`. Its `describe` tool names
-  the agent's own terminal and says what it works on. See
+  `messages.list`, `messages.pause` and `messages.release`. Its `agents` listing carries
+  the summaries the terminals' agents gave through `summarize`. See
   [Agent messaging](agent-messaging.md).
 - **Pages** are any http(s) address; an address with a user name or password is
   refused. The desktop app loads them live in the pane, in Electron's `<webview>`,

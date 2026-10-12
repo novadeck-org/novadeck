@@ -1,6 +1,10 @@
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
+import {
+  engineDirectory as murmurDirectory,
+  engineManifest as murmurManifest,
+} from "@novadeck/murmur"
 import { engineDirectory, engineManifest } from "@novadeck/whisper"
 
 import type { ServerOptions } from "./server.js"
@@ -44,6 +48,8 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
   // The engine voice input downloads: the one built here unless another is named.
   const engine = environment.NOVADECK_VOICE_ENGINE?.trim()
   const source = environment.NOVADECK_VOICE_SOURCE?.trim()
+  const murmurEngine = environment.NOVADECK_MURMUR_ENGINE?.trim()
+  const murmurSource = environment.NOVADECK_MURMUR_SOURCE?.trim()
   return {
     hostname: environment.HOST?.trim() || "127.0.0.1",
     port: readPort(environment.PORT),
@@ -63,6 +69,15 @@ export const readConfig = (environment: NodeJS.ProcessEnv = process.env): Server
             : resolve(source)
           : engineDirectory,
         directory: join(dirname(database), "voice"),
+      },
+      murmur: {
+        engine: murmurEngine ? resolve(murmurEngine) : murmurManifest,
+        source: murmurSource
+          ? /^https?:\/\//i.test(murmurSource)
+            ? murmurSource
+            : resolve(murmurSource)
+          : murmurDirectory,
+        directory: join(dirname(database), "murmur"),
       },
     }),
     // Another build of the relay than `@novadeck/relay`'s, as a packaged one.

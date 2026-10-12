@@ -32,12 +32,14 @@ const open = async (from: string, signal: AbortSignal): Promise<AsyncIterable<Ui
 /**
  * Saves what is at `from`, a URL or a file, as `to` once it hashes to `sha256`. It goes to
  * `to.part` first, so a file that is there is whole, and a download that fails, or comes
- * out wrong, leaves nothing. `progress` hears the bytes received so far.
+ * out wrong or too large, leaves nothing. `progress` hears the bytes received so far.
  */
 export const download = async (options: {
   from: string
   to: string
   sha256: string
+  /** How many bytes it must be, when known: more than that is not the file, and stops the download. */
+  size?: number
   signal: AbortSignal
   progress: (received: number) => void
 }): Promise<void> => {
@@ -53,6 +55,8 @@ export const download = async (options: {
         for await (const chunk of chunks) {
           hash.update(chunk)
           received += chunk.length
+          if (options.size !== undefined && received > options.size)
+            throw new DownloadError("The download is larger than expected. Try again.")
           options.progress(received)
           yield chunk
         }

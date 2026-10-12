@@ -76,6 +76,7 @@ const peer = listing({
       session: "codex:s2",
       first: "Build the users API",
       latest: "Build the users API",
+      recent: [],
       folders: { "C:\\w\\src\\api": 2, "C:\\w\\tests\\": 1 },
       activeAt: now - 2 * 60 * 60_000,
     },
@@ -99,6 +100,7 @@ const opened = (firstByPerson: boolean, first = true) =>
         firstByPerson,
         ...(first && { opened: true as const }),
         latest: "fix the build",
+        recent: [],
         folders: {},
         activeAt: null,
       },
@@ -219,7 +221,7 @@ describe("a peer as agents read it", () => {
     ).toHaveLength("- t2: Claude Code, waiting on the user: permission to use Bash: ".length + 80)
   })
 
-  it("says who its title is from, and its agent's own summary, marked as its agent's", () => {
+  it("says who its title is from, and lists its agent's summary on a line of its own", () => {
     const titled = (
       titleSource: Whereabouts["titleSource"],
       summary: string | null = null,
@@ -234,14 +236,16 @@ describe("a peer as agents read it", () => {
     expect(titled({ kind: "agent", by: "t1" })).toEqual([
       "  title: Users API (set by t1, not the user)",
     ])
-    expect(titled({ kind: "agent", by: "t2" }, "Builds the users API.\nThen paging.")).toEqual([
-      "  title: Users API (set by its own agent, not the user)",
+    expect(titled({ kind: "murmur" }, "Builds the users API.\nThen paging.")).toEqual([
+      "  title: Users API (written by Novadeck's local model, not the user)",
       "  described by its agent: Builds the users API. / Then paging.",
     ])
-    expect(titled({ kind: "fallback" })).toEqual([
-      "  title: Users API (from the user's first prompt there)",
-    ])
     expect(titled({ kind: "default" })).toEqual(["  title: Users API"])
+    // A summary stands without a title of murmur's, as when the person named the terminal.
+    expect(titled({ kind: "person" }, "Fixes login.")).toEqual([
+      "  title: Users API",
+      "  described by its agent: Fixes login.",
+    ])
   })
 
   it("tells the latest message between the caller and the peer, either way", () => {

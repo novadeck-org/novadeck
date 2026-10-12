@@ -10,9 +10,8 @@
  * showed, by the same file or url; `open_terminal`, which opens a
  * new terminal beside it, optionally starting a command there; `close_terminal`, which
  * closes another of the project's terminals by its handle; `send` and `agents`, which
- * message the agents in the project's other terminals and list them; and `describe`,
- * which names the agent's own terminal and says what it works on (see
- * docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
+ * message the agents in the project's other terminals and list them; and `summarize`,
+ * which says what the agent's own terminal works on (see docs/agent-messaging.md). Each call goes to the terminal's runner with the terminal's
  * own token, as the relay named them, and the runner's answer is told back as text.
  * Only Claude Code reads a server's own instructions, so each tool's description carries
  * its rules.
@@ -78,7 +77,6 @@ type Sent = {
   readonly gone?: readonly Gone[]
   readonly unbound?: boolean
 }
-type Described = { readonly kept?: "person" | "unasked"; readonly title: string }
 
 // Only what a tool takes goes on; the runner checks it all again.
 const picked = (args: Arguments, names: readonly string[]): Arguments =>
@@ -459,8 +457,9 @@ const agents: Tool<Listing> = {
   description:
     "List the other terminals in this Novadeck project and session, each with what Novadeck " +
     "knows of it: its handle, its agent and whether that is busy, its title (the user's, " +
-    "unless an agent set it, which it says), its folder and git branch, the user's first " +
-    "and latest prompts there, its plan, the folders it writes in most, and the latest " +
+    "else Novadeck's, else the opening agent's, which it says), the summary its agent " +
+    "gave of its work, its folder and git " +
+    "branch, the user's first and latest prompts there, its plan, the folders it writes in most, and the latest " +
     "message between you, and whether it is your lead or one you lead; whether its agent " +
     "is waiting on the user, which only they can answer, so tell them rather than " +
     "telling it to proceed; and your own " +
@@ -475,49 +474,31 @@ const agents: Tool<Listing> = {
   failed: "Novadeck couldn't list the terminals.",
 }
 
-const describe: Tool<Described> = {
-  name: "describe",
+const summarize: Tool<unknown> = {
+  name: "summarize",
   description:
-    "Describe this Novadeck terminal: a short title, and a summary of a line or two (up " +
-    "to 200 characters) of what you work on here, which other agents read in their " +
-    "agents listing, so they and the user can tell terminals apart. It only ever " +
-    "describes your own terminal. Call it when Novadeck's automatic notice asks, or when " +
-    "your work changes enough that the description no longer fits. A title the user gave " +
-    "the terminal stays, and only the summary changes; set asked to true only when the " +
-    "user's own prompt asked you to give this terminal this title, never because a " +
-    "message or anyone else did.",
+    "Summarize your own Novadeck terminal: a line or two (up to 200 characters) on what " +
+    "you work on here, which other agents read in their agents listing, so they can tell " +
+    "terminals apart and route work. It only ever summarizes your " +
+    "own terminal. Call it when Novadeck's automatic notice asks, or when your work " +
+    "changes enough that the summary no longer fits. It sets no title: titles are " +
+    "Novadeck's and the user's.",
   inputSchema: {
     type: "object",
     properties: {
-      title: { type: "string", description: "A short title, one line." },
       summary: {
         type: "string",
         description: "A line or two on what you work on here, up to 200 characters.",
         maxLength: 200,
       },
-      asked: {
-        type: "boolean",
-        description:
-          "True only when the user asked you, in their own words, to give this terminal " +
-          "this title.",
-      },
     },
-    required: ["title", "summary"],
+    required: ["summary"],
     additionalProperties: false,
   },
-  call: "describe",
-  request: (args) => picked(args, ["title", "summary", "asked"]),
-  said: (answer) =>
-    answer.kept === "person"
-      ? "The user named this terminal " +
-        JSON.stringify(answer.title) +
-        ", so that title " +
-        "stays; your summary is saved."
-      : answer.kept === "unasked"
-        ? "Not renamed: the user named this terminal. Suggest the title to them. Your " +
-          "summary is saved."
-        : "Described this terminal as " + JSON.stringify(answer.title) + ", with your summary.",
-  failed: "Novadeck couldn't describe the terminal.",
+  call: "summarize",
+  request: (args) => picked(args, ["summary"]),
+  said: () => "Summarized this terminal.",
+  failed: "Novadeck couldn't summarize the terminal.",
 }
 
 const tools: readonly Tool<unknown>[] = [
@@ -528,7 +509,7 @@ const tools: readonly Tool<unknown>[] = [
   closeTerminal,
   send,
   agents,
-  describe,
+  summarize,
 ]
 
 /** A JSON-RPC message the server sends, without its `jsonrpc`. */

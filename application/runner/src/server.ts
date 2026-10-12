@@ -14,6 +14,8 @@ export type ServerOptions = HttpOptions &
     relay?: string
     /** Voice input's engine and where it installs; see `RunnerOptions.voice`. */
     voice?: RunnerOptions["voice"]
+    /** Murmur's engine and where it installs; see `RunnerOptions.murmur`. */
+    murmur?: RunnerOptions["murmur"]
     terminals?: TerminalOptions
     maxConnections?: number
     heartbeatMs?: number
@@ -31,6 +33,7 @@ export const startServer = async (options: ServerOptions = {}): Promise<HttpServ
     ...(options.uploads !== undefined && { uploads: options.uploads }),
     ...(options.relay !== undefined && { relay: options.relay }),
     ...(options.voice !== undefined && { voice: options.voice }),
+    ...(options.murmur !== undefined && { murmur: options.murmur }),
     // A shared, network-reachable runner keeps a cap; the desktop runner has none.
     terminals: { maxTerminals: 32, ...options.terminals },
   })

@@ -1,58 +1,27 @@
-import { spawnSync } from "node:child_process"
-import { createHash } from "node:crypto"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
+import { writeFile } from "node:fs/promises"
+import { join } from "node:path"
 
 import type { Catalog } from "../voice/catalog.js"
-import { engineProgram, type Launch } from "../voice/engine.js"
+import { engineProgram } from "../voice/engine.js"
+import { engineArchive as archive, fakeLaunchOf, folder, sha256 } from "./engines.js"
 import type { Resources } from "./resources.js"
 
+export { folder, sha256 }
+
 /** Runs the fake engine, whatever the engine's program is called. */
-export const fakeLaunch: Launch = (_program, args) => ({
-  command: process.execPath,
-  args: [join(dirname(fileURLToPath(import.meta.url)), "fake-engine.mjs"), ...args],
-})
+export const fakeLaunch = fakeLaunchOf("fake-engine.mjs")
 
-export const sha256 = (data: Uint8Array | string): string =>
-  createHash("sha256").update(data).digest("hex")
-
-/** A folder that goes with the test. */
-export const folder = async (resources: Resources): Promise<string> => {
-  const directory = await mkdtemp(join(tmpdir(), "novadeck-voice-test-"))
-  resources.defer(() => rm(directory, { recursive: true, force: true }))
-  return directory
-}
-
-/**
- * An engine archive and its manifest in a new folder, as the build leaves them: the
- * program, a test clip and a licence, packed flat. Returns the manifest's path, which
- * beside the archive is also its source. Another `release` is another engine, with another
- * checksum. `fields` adds to the manifest, as the build's `interface` does.
- */
-export const engineArchive = async (
+/** A voice engine archive, with the test clip the check transcribes; see `engineArchive` in engines. */
+export const engineArchive = (
   resources: Resources,
   release = "1",
   fields: Record<string, unknown> = {},
-): Promise<string> => {
-  const directory = await folder(resources)
-  const contents = join(directory, "contents")
-  await mkdir(contents)
-  await writeFile(join(contents, engineProgram), "not a program: tests run a fake")
-  await writeFile(join(contents, "check.wav"), Buffer.alloc(3200))
-  await writeFile(join(contents, "LICENSE"), `MIT ${release}`)
-  const file = "engine.tar.gz"
-  const packed = spawnSync("tar", ["-czf", join(directory, file), "-C", contents, "."])
-  if (packed.status !== 0) throw new Error(`tar failed: ${packed.stderr.toString()}`)
-  const archive = await readFile(join(directory, file))
-  const manifest = join(directory, "engine.json")
-  await writeFile(
-    manifest,
-    JSON.stringify({ file, sha256: sha256(archive), size: archive.length, ...fields }),
-  )
-  return manifest
-}
+): Promise<string> =>
+  archive(resources, engineProgram, {
+    release,
+    fields,
+    extras: { "check.wav": Buffer.alloc(3200) },
+  })
 
 /** Models as small files in a folder, which a download copies; each says how the fake behaves. */
 export const modelCatalog = async (

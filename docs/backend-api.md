@@ -226,15 +226,16 @@ reported a session in the shell since its last prompt, so a client can name the
 program where `process` cannot; it is `null` otherwise. `cwd` is the directory the
 shell last reported at a prompt, or where it started. `title` is, in this order: the
 name the person gave the terminal with `create` or `terminals.rename({ terminalId,
-title })`; the one an agent gave it last (`describe`, or `open_terminal`'s `title`);
-the person's first prompt of its agent's root session, shortened; or the runner's
-default for its session ("Terminal 01", "Terminal 02", …, never given twice).
-`titleSource` says which: `{ kind: "person" }`, `{ kind: "agent", by: "t2" }`,
-`{ kind: "fallback" }` or `{ kind: "default" }`. A terminal the client creates for an
+title })`; the latest title murmur, the opt-in local model, wrote for it; the one the
+agent that opened it gave through `open_terminal`'s `title`; or the runner's default for
+its session ("Terminal 01", "Terminal 02", …, never given twice). `titleSource` says
+which: `{ kind: "person" }`, `{ kind: "murmur" }`, `{ kind: "agent", by: "t2" }` or
+`{ kind: "default" }`. The summary its agent gave through `summarize` is not on the wire: only
+`agents()` lists it. A terminal the client creates for an
 agent's request (`terminals.requests`) passes that request's `requestId` to
 `terminals.create`, and takes the title the agent asked for as the agent's.
 `terminals.resetTitle({ terminalId })` takes the person's name away, so it is automatic
-again (see [Agent messaging](agent-messaging.md#self-description)). `handle` is its
+again (see [Agent messaging](agent-messaging.md#naming)). `handle` is its
 handle for agents' messages, `t3`, numbered from the same counter, so "Terminal 03" is
 `t3`; every terminal takes a number, even one created with its own title, and keeps
 its handle across renames. `command` is what it was opened to run, and
@@ -761,8 +762,7 @@ command not found`, from somewhere between 900 and 1,500 characters, or 8 and 16
   for the request that answer is for. A prompt that meets a doorbell ring
   whose prompt is yet to confirm it waits for it, up to 10 s (`CONFLICT` after). Both keys go through the bookkeeping the
   person's own do (`Terminals.keyed`): what messaging and the doorbell see of the box and
-  its Enter, the person's prompt attributed from the harness's transcript, the terminal
-  named from its first prompt. A prompt given while the agent works behaves as typing it
+  its Enter, the person's prompt attributed from the harness's transcript. A prompt given while the agent works behaves as typing it
   would: Claude Code and Antigravity queue it (their box shows "Press up to edit queued
   messages") and run it as its own turn once the turn ends; Codex shows it as "Messages to
   be submitted after next tool call", submitting it into the running turn then, or at its

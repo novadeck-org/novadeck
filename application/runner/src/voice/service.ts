@@ -1,5 +1,5 @@
-import { access, readdir, readFile, rm } from "node:fs/promises"
-import { basename, dirname, join } from "node:path"
+import { readFile } from "node:fs/promises"
+import { dirname, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import {
@@ -13,28 +13,19 @@ import {
   type VoiceUnavailable,
 } from "@novadeck/protocol"
 
+import { ActivityTracker, type Activity } from "../engines/activity.js"
+import { DownloadError, download } from "../engines/download.js"
+import { aborted, engineStatus, fetchEngine, removeContents } from "../engines/install.js"
+import { readManifest, type Manifest } from "../engines/manifest.js"
+import { modelFile, pruneModels } from "../engines/models.js"
+import type { Launch } from "../engines/server.js"
+import { EngineError, engineFolder, exists } from "../engines/unpack.js"
+import { Watchers } from "../engines/watchers.js"
 import { DomainError } from "../errors.js"
 import type { VoiceSettingsChange } from "../workspaces/store.js"
-import {
-  catalog as pinned,
-  readManifest,
-  recommend,
-  type Catalog,
-  type Manifest,
-} from "./catalog.js"
+import { catalog as pinned, recommend, type Catalog } from "./catalog.js"
 import { Clips } from "./clips.js"
-import { download, DownloadError, locate } from "./download.js"
-import {
-  Engine,
-  EngineError,
-  engineFolder,
-  engineInterface,
-  engineProgram,
-  enginesIn,
-  unpack,
-  type EngineConfig,
-  type Launch,
-} from "./engine.js"
+import { Engine, engineProgram, type EngineConfig } from "./engine.js"
 import { dictationHint, type HintFacts } from "./hint.js"
 import { wav } from "./wav.js"
 
@@ -66,16 +57,8 @@ export type VoiceOptions = {
   readonly hint?: (terminalId: string) => Promise<HintFacts | undefined>
 }
 
-const exists = (path: string): Promise<boolean> =>
-  access(path).then(
-    () => true,
-    () => false,
-  )
-
 const unavailable = (reason: VoiceUnavailable["reason"], message: string): DomainError =>
   new DomainError("VOICE_UNAVAILABLE", message, { reason })
-
-const aborted = (error: unknown): boolean => error instanceof Error && error.name === "AbortError"
 
 const explain = (error: unknown): string => {
   if (error instanceof DownloadError || error instanceof EngineError) return error.message
@@ -84,13 +67,8 @@ const explain = (error: unknown): string => {
   return `Voice input could not be installed: ${error instanceof Error ? error.message : String(error)}`
 }
 
-type Watch = { readonly owner: string; finished: boolean; wake: (() => void) | undefined }
-
 // How long the facts for a hint are read for before the clip goes without one.
 const hintMs = 500
-
-// How often progress reaches watchers, at most.
-const progressMs = 100
 // How long after a failed engine update the next clip tries it again, as when the
 // network was down: soon enough to recover by itself, not once per clip.
 export const updateRetryMs = 60_000
@@ -126,9 +104,18 @@ export class Voice {
   private running:
     | { readonly done: Promise<void>; readonly controller: AbortController }
     | undefined
-  private readonly watchers = new Set<Watch>()
-  private version = 0
+  private readonly watchers = new Watchers<VoiceState>()
+  // Transcriptions and install checks running now, which with open clips make voice busy.
+  private working = 0
   private closed = false
+
+  private readonly tracker = new ActivityTracker(() => this.working > 0 || this.clips.open())
+
+  /**
+   * Whether people are waiting on voice input: a clip is open, or a transcription or an
+   * install check is running. Other services that share the machine give way while it is.
+   */
+  readonly activity: Activity = this.tracker
 
   constructor(
     private readonly settings: VoiceSettingsStore,
@@ -142,7 +129,7 @@ export class Voice {
       ...(options.launch && { launch: options.launch }),
       ...(options.idleMs !== undefined && { idleMs: options.idleMs }),
     })
-    this.clips = new Clips(options.now)
+    this.clips = new Clips(options.now, () => this.tracker.update())
   }
 
   private clock(): number {
@@ -157,37 +144,11 @@ export class Voice {
       for (const model of ["turbo", "small"] as const)
         if ((await exists(this.modelPath(model))) && (await exists(this.vadPath())))
           models.push(model)
-    const current = manifest && engineFolder(this.directory, manifest.sha256)
-    const ready = current !== undefined && (await exists(join(current, engineProgram)))
+    const { ready, folder } = await engineStatus(this.directory, manifest, engineProgram)
     this.manifest = manifest
     this.installed = models
     this.engineReady = ready
-    this.engineDir =
-      manifest === undefined
-        ? undefined
-        : ready
-          ? current
-          : await this.olderEngine(manifest.interface)
-  }
-
-  /**
-   * An engine of an earlier build that is still unpacked and speaks `wanted`, the
-   * interface this runner launches engines with, if there is one.
-   */
-  private async olderEngine(wanted: number): Promise<string | undefined> {
-    const root = enginesIn(this.directory)
-    // Folders being unpacked start with a dot and are not whole yet.
-    const entries = (await readdir(root).catch(() => [])).filter((entry) => !entry.startsWith("."))
-    for (const entry of entries.toSorted()) {
-      // eslint-disable-next-line no-await-in-loop -- Stops at the first that runs.
-      if (await this.runs(join(root, entry), wanted)) return join(root, entry)
-    }
-    return undefined
-  }
-
-  /** Whether the engine unpacked in `folder` has its program and speaks `wanted`. */
-  private async runs(folder: string, wanted: number): Promise<boolean> {
-    return (await exists(join(folder, engineProgram))) && (await engineInterface(folder)) === wanted
+    this.engineDir = folder
   }
 
   /**
@@ -244,41 +205,13 @@ export class Voice {
     this.assertOpen()
     await this.refresh()
     this.updateEngine()
-    const watch: Watch = { owner, finished: false, wake: undefined }
-    this.watchers.add(watch)
-    const stop = () => {
-      watch.finished = true
-      watch.wake?.()
-    }
-    signal?.addEventListener("abort", stop, { once: true })
-    if (signal?.aborted) stop()
-    try {
-      let seen = -1
-      while (!watch.finished) {
-        if (seen !== this.version) {
-          seen = this.version
-          yield this.state()
-          continue
-        }
-        // eslint-disable-next-line no-await-in-loop -- Wait for the next change.
-        await new Promise<void>((resolve) => {
-          watch.wake = resolve
-        })
-      }
-    } finally {
-      signal?.removeEventListener("abort", stop)
-      this.watchers.delete(watch)
-    }
+    yield* this.watchers.stream(owner, () => this.state(), signal)
   }
 
   /** Ends an owner's watch streams, as its connection goes. */
   release(owner: string): void {
     this.clips.release(owner)
-    for (const watch of this.watchers)
-      if (watch.owner === owner) {
-        watch.finished = true
-        watch.wake?.()
-      }
+    this.watchers.release(owner)
   }
 
   /** Starts installing `model`, with the engine if it is missing; `settled` waits for the end. */
@@ -328,10 +261,7 @@ export class Voice {
     this.failure = null
     this.installing = { model: settings.model, step: "engine", received: 0, total: manifest.size }
     this.changed()
-    this.running = {
-      controller,
-      done: this.run(settings.model, manifest, controller.signal, true),
-    }
+    this.running = { controller, done: this.run(settings.model, manifest, controller.signal, true) }
   }
 
   /** Stops an install, and answers once it has. */
@@ -363,11 +293,8 @@ export class Voice {
       // The engine's program is in use until it has exited, which Windows will not delete.
       await this.engine.stop()
       // The folder itself may be one the person chose, so only what is in it goes.
-      const entries = await readdir(this.directory).catch(() => [])
       try {
-        await Promise.all(
-          entries.map((entry) => rm(join(this.directory, entry), { recursive: true, force: true })),
-        )
+        await removeContents(this.directory)
       } catch (error) {
         throw new DomainError(
           "VOICE_FAILED",
@@ -434,6 +361,14 @@ export class Voice {
    * terminal it is dictated into, where named (see `dictationHint`).
    */
   async transcribe(owner: string, clipId: string, terminalId?: string): Promise<VoiceTranscript> {
+    return this.busyWith(() => this.transcribeClip(owner, clipId, terminalId))
+  }
+
+  private async transcribeClip(
+    owner: string,
+    clipId: string,
+    terminalId?: string,
+  ): Promise<VoiceTranscript> {
     this.assertOpen()
     // Read while the engine gets ready; the clip goes without a hint that takes longer.
     const facts = terminalId === undefined ? undefined : this.hintFacts(terminalId)
@@ -474,9 +409,18 @@ export class Voice {
     await this.settled()
     await this.loading
     await this.engine.close()
-    for (const watch of this.watchers) {
-      watch.finished = true
-      watch.wake?.()
+    this.watchers.finish()
+  }
+
+  /** Runs `task` as voice work, which counts as busy until it ends. */
+  private async busyWith<T>(task: () => Promise<T>): Promise<T> {
+    this.working += 1
+    this.tracker.update()
+    try {
+      return await task()
+    } finally {
+      this.working -= 1
+      this.tracker.update()
     }
   }
 
@@ -536,28 +480,22 @@ export class Voice {
   }
 
   private modelPath(model: VoiceModel): string {
-    return join(this.directory, "models", basename(this.catalog.models[model].url))
+    return modelFile(this.directory, this.catalog.models[model])
   }
 
   private vadPath(): string {
-    return join(this.directory, "models", basename(this.catalog.vad.url))
+    return modelFile(this.directory, this.catalog.vad)
   }
 
   private changed(): void {
-    this.version += 1
-    for (const watch of this.watchers) watch.wake?.()
+    this.watchers.changed()
   }
 
   /** Updates the install's step, telling watchers at most ten times a second unless `force`. */
   private progress(install: VoiceInstall, force = false): void {
     this.installing = install
-    const now = Date.now()
-    if (!force && now - this.lastProgress < progressMs) return
-    this.lastProgress = now
-    this.changed()
+    this.watchers.progress(force)
   }
-
-  private lastProgress = 0
 
   private async run(
     model: VoiceModel,
@@ -573,30 +511,34 @@ export class Voice {
       if (!(await exists(join(folder, engineProgram)))) {
         const total = manifest.size
         this.progress({ model, step: "engine", received: 0, total }, true)
-        if (this.source === undefined)
-          throw new DownloadError("This build has nowhere to download the engine from.")
-        const archive = join(this.directory, "downloads", manifest.file)
-        await download({
-          from: locate(this.source, manifest.file),
-          to: archive,
-          sha256: manifest.sha256,
+        await fetchEngine({
+          manifest,
+          source: this.source,
+          directory: this.directory,
+          program: engineProgram,
           signal,
           progress: (received) => this.progress({ model, step: "engine", received, total }),
+          // Unpacking removes the engines this one replaces; none may be running, and no
+          // clip may start one from a folder that is going. Clips are told to wait until
+          // the new engine is there, which the refresh after the unpacking, or after a
+          // failure, settles.
+          replacing: async () => {
+            this.engineDir = undefined
+            await this.engine.stop()
+          },
         })
-        // Unpacking removes the engines this one replaces; none may be running, and no
-        // clip may start one from a folder that is going. Clips are told to wait until
-        // the new engine is there, which the refresh after the unpacking, or after a
-        // failure, settles.
-        this.engineDir = undefined
-        await this.engine.stop()
-        await unpack(archive, this.directory, manifest.sha256, manifest.interface, signal)
-        await rm(archive, { force: true })
         await this.refresh()
       }
       if (engineOnly) return
       await this.fetchModel(model, signal)
+      // The models an earlier pin named are of no use now.
+      await pruneModels(this.directory, [
+        this.modelPath("turbo"),
+        this.modelPath("small"),
+        this.vadPath(),
+      ])
       this.progress({ model, step: "check", received: 0, total: 0 }, true)
-      const check = await this.measure(model, manifest, signal)
+      const check = await this.busyWith(() => this.measure(model, manifest, signal))
       // The model checked out, so it is the one used, and voice input is on, as the person
       // installed it to use it, unless they turned it off themselves, before another model's
       // install or during this one.
@@ -651,6 +593,7 @@ export class Voice {
           from: artifact.url,
           to: path,
           sha256: artifact.sha256,
+          size: artifact.size,
           signal,
           progress: (received) =>
             this.progress({ model, step: "model", received: done + received, total }),

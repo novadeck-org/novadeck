@@ -4,10 +4,13 @@ import { basename, dirname, isAbsolute } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
 import {
+  murmurCheck,
   voiceCheck,
   voiceLanguage,
   voiceModel,
   type AgentName,
+  type MurmurCheck,
+  type MurmurSettings,
   type Project,
   type RunnerSettings,
   type VoiceCheck,
@@ -34,6 +37,11 @@ export type VoiceSettingsChange = {
   readonly [K in Exclude<keyof VoiceSettings, "enabled">]?: VoiceSettings[K] | undefined
 } & {
   /** `null` forgets the choice, as when it is turned on before an install. */
+  readonly enabled?: boolean | null | undefined
+}
+
+/** Murmur's settings to change; `enabled: null` forgets the choice, as when it is turned on before an install. */
+export type MurmurSettingsChange = {
   readonly enabled?: boolean | null | undefined
 }
 
@@ -83,7 +91,9 @@ const extras = `
     -- The latest title an agent gave it, and that agent's terminal's handle.
     agent_title TEXT,
     agent_titled_by TEXT,
-    -- What its own agent said it works on, through describe.
+    -- The title murmur last wrote for it.
+    murmur_title TEXT,
+    -- What its own agent said it works on, through summarize.
     summary TEXT,
     -- The handle of the terminal whose agent opened it; null otherwise.
     opened_by TEXT,
@@ -300,6 +310,7 @@ type TerminalRow = {
   person_title: string | null
   agent_title: string | null
   agent_titled_by: string | null
+  murmur_title: string | null
   summary: string | null
   opened_by: string | null
   led_by: string | null
@@ -317,7 +328,10 @@ const workOf = (text: string | null): Work | null => {
   }
 }
 
-type NamingRow = Pick<TerminalRow, "person_title" | "agent_title" | "agent_titled_by" | "summary">
+type NamingRow = Pick<
+  TerminalRow,
+  "person_title" | "agent_title" | "agent_titled_by" | "murmur_title" | "summary"
+>
 
 const namingOf = (row: NamingRow): Naming => ({
   person: row.person_title,
@@ -325,6 +339,7 @@ const namingOf = (row: NamingRow): Naming => ({
     row.agent_title !== null && row.agent_titled_by !== null
       ? { title: row.agent_title, by: row.agent_titled_by }
       : null,
+  murmur: row.murmur_title !== null ? { title: row.murmur_title } : null,
   summary: row.summary,
 })
 
@@ -641,7 +656,8 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
   terminal(terminalId: string): SavedTerminal | undefined {
     const row = this.queries.get`
       SELECT id, session_id, cwd, agents, prompted_at, transcript, updated_at, handle,
-        person_title, agent_title, agent_titled_by, summary, opened_by, led_by, command, last_program, work
+        person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by,
+        led_by, command, last_program, work
       FROM terminals WHERE id = ${terminalId}
     ` as TerminalRow | undefined
     return row && { ...listed(row), transcript: row.transcript }
@@ -652,12 +668,12 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
       sessionId === undefined
         ? this.queries.all`
           SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle,
-            person_title, agent_title, agent_titled_by, summary, opened_by, led_by,
+            person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by, led_by,
             command, last_program, work
           FROM terminals ORDER BY CAST(substr(handle, 2) AS INTEGER), rowid`
         : this.queries.all`
           SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle,
-            person_title, agent_title, agent_titled_by, summary, opened_by, led_by,
+            person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by, led_by,
             command, last_program, work
           FROM terminals WHERE session_id = ${sessionId}
           ORDER BY CAST(substr(handle, 2) AS INTEGER), rowid`
@@ -682,7 +698,7 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
 
   terminalIdentity(terminalId: string): TerminalIdentity | undefined {
     const row = this.queries.get`
-      SELECT handle, person_title, agent_title, agent_titled_by, summary, opened_by, led_by
+      SELECT handle, person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by, led_by
       FROM terminals WHERE id = ${terminalId}
     ` as (NamingRow & Pick<TerminalRow, "handle" | "opened_by" | "led_by">) | undefined
     return (
@@ -702,43 +718,47 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
     const now = Math.max(Date.now(), this.lastSave + 0.001)
     this.lastSave = now
     const { handle, naming, openedBy, ledBy, command, lastProgram } = terminal
-    const { person, summary } = naming
+    const { person } = naming
+    const murmurTitle = naming.murmur?.title ?? null
+    const { summary } = naming
     const agentTitle = naming.agent?.title ?? null
     const agentBy = naming.agent?.by ?? null
     const work = terminal.work === null ? null : JSON.stringify(terminal.work)
     if (terminal.transcript === undefined)
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, updated_at, handle,
-          person_title, agent_title, agent_titled_by, summary, opened_by, led_by,
-          command, last_program, work)
+          person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by,
+          led_by, command, last_program, work)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${now}, ${handle}, ${person}, ${agentTitle}, ${agentBy},
-          ${summary}, ${openedBy}, ${ledBy}, ${command}, ${lastProgram}, ${work})
+          ${murmurTitle}, ${summary}, ${openedBy}, ${ledBy}, ${command}, ${lastProgram},
+          ${work})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agents = excluded.agents, prompted_at = excluded.prompted_at,
           updated_at = excluded.updated_at, handle = excluded.handle,
           person_title = excluded.person_title, agent_title = excluded.agent_title,
-          agent_titled_by = excluded.agent_titled_by, summary = excluded.summary,
-          opened_by = excluded.opened_by, led_by = excluded.led_by, command = excluded.command,
+          agent_titled_by = excluded.agent_titled_by, murmur_title = excluded.murmur_title,
+          summary = excluded.summary, opened_by = excluded.opened_by,
+          led_by = excluded.led_by, command = excluded.command,
           last_program = excluded.last_program, work = excluded.work
       `
     else
       void this.queries.run`
         INSERT INTO terminals (id, session_id, cwd, agents, prompted_at, transcript, updated_at,
-          handle, person_title, agent_title, agent_titled_by, summary, opened_by, led_by,
-          command, last_program, work)
+          handle, person_title, agent_title, agent_titled_by, murmur_title, summary,
+          opened_by, led_by, command, last_program, work)
         VALUES (${terminal.id}, ${terminal.sessionId}, ${terminal.cwd}, ${agents},
           ${terminal.promptedAt}, ${terminal.transcript}, ${now}, ${handle}, ${person},
-          ${agentTitle}, ${agentBy}, ${summary}, ${openedBy}, ${ledBy}, ${command},
-          ${lastProgram}, ${work})
+          ${agentTitle}, ${agentBy}, ${murmurTitle}, ${summary}, ${openedBy}, ${ledBy},
+          ${command}, ${lastProgram}, ${work})
         ON CONFLICT (id) DO UPDATE SET session_id = excluded.session_id, cwd = excluded.cwd,
           agents = excluded.agents, prompted_at = excluded.prompted_at,
           transcript = excluded.transcript, updated_at = excluded.updated_at,
           handle = excluded.handle, person_title = excluded.person_title,
           agent_title = excluded.agent_title, agent_titled_by = excluded.agent_titled_by,
-          summary = excluded.summary, opened_by = excluded.opened_by, led_by = excluded.led_by,
-          command = excluded.command, last_program = excluded.last_program,
-          work = excluded.work
+          murmur_title = excluded.murmur_title, summary = excluded.summary,
+          opened_by = excluded.opened_by, led_by = excluded.led_by, command = excluded.command,
+          last_program = excluded.last_program, work = excluded.work
       `
   }
 
@@ -934,6 +954,19 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
       `
   }
 
+  /**
+   * Takes murmur's title from every kept terminal, as murmur is turned off or uninstalled,
+   * and from the disk; the ids it took it from.
+   */
+  clearMurmurTitles(): readonly string[] {
+    const rows = this.forget(
+      () => this.queries.all`
+        UPDATE terminals SET murmur_title = NULL WHERE murmur_title IS NOT NULL RETURNING id
+      `,
+    ) as { id: string }[]
+    return rows.map(({ id }) => id)
+  }
+
   /** Saves what is given; `enabled: null` forgets the choice. */
   saveVoiceSettings(settings: VoiceSettingsChange): void {
     for (const [key, value] of Object.entries(settings)) {
@@ -941,6 +974,55 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
       else if (value !== undefined)
         void this.queries.run`
         INSERT INTO settings (key, value) VALUES (${`voice.${key}`}, ${String(value)})
+        ON CONFLICT (key) DO UPDATE SET value = excluded.value
+      `
+    }
+  }
+
+  /** Murmur's settings: off until the person turns it on. */
+  murmurSettings(): MurmurSettings {
+    return { enabled: this.murmurEnabledChoice() === true }
+  }
+
+  /** Whether the person chose murmur on or off: `undefined` until they, or an install, did. */
+  murmurEnabledChoice(): boolean | undefined {
+    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.enabled'` as
+      | { value: string }
+      | undefined
+    return row === undefined ? undefined : row.value === "true"
+  }
+
+  /** The check the last install passed, as saved; `null` when there is none or it can't be read. */
+  murmurCheck(): MurmurCheck | null {
+    const row = this.queries.get`SELECT value FROM settings WHERE key = 'murmur.check'` as
+      | { value: string }
+      | undefined
+    if (row === undefined) return null
+    try {
+      const parsed = murmurCheck.safeParse(JSON.parse(row.value))
+      return parsed.success ? parsed.data : null
+    } catch {
+      return null
+    }
+  }
+
+  /** Replaces the saved check; `null` forgets it, as when murmur is removed. */
+  saveMurmurCheck(check: MurmurCheck | null): void {
+    if (check === null) void this.queries.run`DELETE FROM settings WHERE key = 'murmur.check'`
+    else
+      void this.queries.run`
+        INSERT INTO settings (key, value) VALUES ('murmur.check', ${JSON.stringify(check)})
+        ON CONFLICT (key) DO UPDATE SET value = excluded.value
+      `
+  }
+
+  /** Saves what is given; `enabled: null` forgets the choice. */
+  saveMurmurSettings(settings: MurmurSettingsChange): void {
+    for (const [key, value] of Object.entries(settings)) {
+      if (value === null) void this.queries.run`DELETE FROM settings WHERE key = ${`murmur.${key}`}`
+      else if (value !== undefined)
+        void this.queries.run`
+        INSERT INTO settings (key, value) VALUES (${`murmur.${key}`}, ${String(value)})
         ON CONFLICT (key) DO UPDATE SET value = excluded.value
       `
     }

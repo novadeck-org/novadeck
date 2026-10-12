@@ -2,7 +2,7 @@ import { describe, expect, it } from "../test.js"
 import {
   atPrompt,
   backstopPrompts,
-  described,
+  afterSummary,
   drifted,
   artifactsNotice,
   fired,
@@ -26,10 +26,10 @@ describe("nudges to describe a terminal", () => {
     expect(quietly(noNudges)).toEqual({
       nudge: false,
       artifacts: false,
-      describe: false,
+      summarize: false,
       nudges: noNudges,
     })
-    expect(quietly(personPrompted(described(noNudges, facts)))).toMatchObject({ nudge: false })
+    expect(quietly(personPrompted(afterSummary(noNudges, facts)))).toMatchObject({ nudge: false })
   })
 
   it("nudge once for each trigger, then wait for the next", () => {
@@ -49,12 +49,12 @@ describe("nudges to describe a terminal", () => {
   it("never ride along with messages: the trigger waits for an answer that has nothing else", () => {
     const pending = fired(noNudges, "session")
     const busy = take(pending, false)
-    expect(busy).toEqual({ nudge: false, artifacts: false, describe: false, nudges: pending })
+    expect(busy).toEqual({ nudge: false, artifacts: false, summarize: false, nudges: pending })
     expect(quietly(busy.nudges).nudge).toBe(true)
   })
 
   it("are cleared by a describe, which drift is then measured from", () => {
-    const after = described(noNudges, facts)
+    const after = afterSummary(noNudges, facts)
     expect(after).toEqual({
       pending: [],
       prompts: 0,
@@ -72,7 +72,7 @@ describe("nudges to describe a terminal", () => {
       { branch: "main" },
     ] satisfies Partial<Facts>[]) {
       const moved = { ...facts, ...change }
-      const once = quietly(drifted(described(noNudges, facts), moved))
+      const once = quietly(drifted(afterSummary(noNudges, facts), moved))
       expect(once.nudge).toBe(true)
       // The same drift never fires again; a further one does.
       expect(quietly(drifted(once.nudges, moved)).nudge).toBe(false)
@@ -83,7 +83,7 @@ describe("nudges to describe a terminal", () => {
   })
 
   it("nudge as a backstop after enough of the person's prompts since the last describe", () => {
-    let nudges = described(noNudges, facts)
+    let nudges = afterSummary(noNudges, facts)
     for (let count = 1; count < backstopPrompts; count += 1) nudges = personPrompted(nudges)
     expect(quietly(nudges).nudge).toBe(false)
     nudges = personPrompted(nudges)
@@ -101,7 +101,7 @@ describe("drift", () => {
   it("fires once when the work goes back and forth between two folders", () => {
     // The critic's probe: red/green, a test folder then the code, uneven counts.
     let folders: Work["folders"] = { "/r/src": 1 }
-    let nudges = described(noNudges, { plan: null, folder: "/r/src", branch: "main" })
+    let nudges = afterSummary(noNudges, { plan: null, folder: "/r/src", branch: "main" })
     let nudged = 0
     for (let prompt = 0; prompt < 20; prompt += 1) {
       const folder = prompt % 2 ? "/r/src" : "/r/test"
@@ -115,12 +115,12 @@ describe("drift", () => {
   })
 
   it("takes what isn't known, as a branch not read in time or no folder yet, for no change", () => {
-    const after = described(noNudges, facts)
+    const after = afterSummary(noNudges, facts)
     for (const unknown of [{ plan: null }, { folder: null }, { branch: null }])
       expect(quietly(drifted(after, { ...facts, ...unknown })).nudge).toBe(false)
     // Nor is something known now a change from nothing known at the describe.
     expect(
-      quietly(drifted(described(noNudges, { plan: null, folder: null, branch: null }), facts))
+      quietly(drifted(afterSummary(noNudges, { plan: null, folder: null, branch: null }), facts))
         .nudge,
     ).toBe(false)
   })
@@ -129,7 +129,7 @@ describe("drift", () => {
 describe("a prompt's nudge", () => {
   it("counts the prompt, looks at drift, and nudges only an answer with nothing else", () => {
     const moved = { ...facts, branch: "main" }
-    const busy = atPrompt(described(noNudges, facts), { quiet: false, facts: moved })
+    const busy = atPrompt(afterSummary(noNudges, facts), { quiet: false, facts: moved })
     expect(busy.nudge).toBe(false)
     expect(busy.nudges).toMatchObject({ prompts: 1, pending: ["drift"] })
     expect(atPrompt(busy.nudges, { quiet: true })).toMatchObject({
@@ -140,25 +140,25 @@ describe("a prompt's nudge", () => {
 })
 
 describe("a nudge", () => {
-  it("asks for a description while there is none, as one line of Novadeck's notice", () => {
-    const text = nudgeText({ title: "Terminal 01", summary: null })
+  it("asks for a summary while there is none, as one line of Novadeck's notice", () => {
+    const text = nudgeText({ summary: null })
     expect(text).toMatch(/^Novadeck: automatic notice, not from the user: this terminal has no/)
-    expect(text).toContain("describe tool")
+    expect(text).toContain("summarize tool")
     expect(text).not.toContain("\n")
     expect(text).not.toContain("asked")
   })
 
   it("tells a session of the bar beside it when it begins or forgot, then only of the description", () => {
-    const current = { title: "Terminal 01", summary: null }
+    const current = { summary: null }
     for (const trigger of ["session", "compaction"] as const) {
       const taken = quietly(fired(noNudges, trigger))
-      expect(taken).toMatchObject({ nudge: true, artifacts: true, describe: true })
+      expect(taken).toMatchObject({ nudge: true, artifacts: true, summarize: true })
       expect(noticesAt(taken, current).split("\n\n")).toEqual([artifactsNotice, nudgeText(current)])
       expect(quietly(taken.nudges).nudge).toBe(false)
     }
     for (const trigger of ["drift", "prompts"] as const) {
       const taken = quietly(fired(noNudges, trigger))
-      expect(taken).toMatchObject({ artifacts: false, describe: true })
+      expect(taken).toMatchObject({ artifacts: false, summarize: true })
       expect(noticesAt(taken, current)).toBe(nudgeText(current))
     }
     expect(artifactsNotice).toMatch(/^Novadeck: automatic notice, not from the user: /)
@@ -175,23 +175,23 @@ describe("a nudge", () => {
   })
 
   it("still tells of the bar after a describe came before the first quiet prompt", () => {
-    const current = { title: "API", summary: "Builds the API." }
-    // The session's first prompt carried a message, then the agent described itself.
+    const current = { summary: "Builds the API." }
+    // The session's first prompt carried a message, then the agent afterSummary itself.
     const busy = take(fired(noNudges, "session"), false)
-    const after = described(busy.nudges, facts)
+    const after = afterSummary(busy.nudges, facts)
     expect(after.pending).toEqual([])
     const taken = quietly(after)
-    expect(taken).toMatchObject({ nudge: true, artifacts: true, describe: false })
+    expect(taken).toMatchObject({ nudge: true, artifacts: true, summarize: false })
     expect(noticesAt(taken, current)).toBe(artifactsNotice)
     expect(quietly(taken.nudges).nudge).toBe(false)
   })
 
   it("shows the current description later, to update only if it no longer fits", () => {
-    const text = nudgeText({ title: "Users API", summary: "Builds the users API.\nThen paging." })
+    const text = nudgeText({ summary: "Builds the users API.\nThen paging." })
     expect(text).toBe(
-      'Novadeck: automatic notice, not from the user: this terminal is described as "Users API", ' +
-        'with the summary "Builds the users API. Then paging."; if that no longer fits your work, ' +
-        "update it with Novadeck's describe tool, and otherwise this notice can be ignored.",
+      "Novadeck: automatic notice, not from the user: this terminal's summary is " +
+        '"Builds the users API. Then paging."; if that no longer fits your work, ' +
+        "update it with Novadeck's summarize tool, and otherwise this notice can be ignored.",
     )
   })
 })

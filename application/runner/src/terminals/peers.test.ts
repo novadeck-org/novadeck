@@ -64,7 +64,7 @@ describe("what a terminal's dictation hint is made of", () => {
   })
   const terminal = (fields: Partial<PeerTerminal>): PeerTerminal => ({
     summary,
-    naming: { person: null, agent: null, summary: null },
+    naming: { person: null, agent: null, murmur: null, summary: null },
     work: null,
     activity: null,
     openedBy: null,

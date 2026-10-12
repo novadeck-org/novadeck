@@ -10,8 +10,8 @@ The repository to look in comes from `resources/app-update.yml`, which electron-
 writes into the app from its `publish` block. The release workflow fills that block from
 `github.repository` (`-c.publish.owner` and `-c.publish.repo`), and its "Check Package
 Names" step asserts the file names the repository that built the release. Nothing in the
-host names a repository: the release page and the voice engine download read the same
-validated owner and repository from that file (`update-release.ts`).
+host names a repository: the release page and the voice and murmur engine downloads read
+the same validated owner and repository from that file (`update-release.ts`).
 
 ## Channels
 

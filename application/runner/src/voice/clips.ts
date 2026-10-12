@@ -31,10 +31,33 @@ type Clip = {
 export class Clips {
   private readonly clips = new Map<string, Clip>()
 
-  constructor(private readonly now: () => number = Date.now) {}
+  constructor(
+    private readonly now: () => number = Date.now,
+    // Told after every change to which clips are kept.
+    private readonly changed: () => void = () => {},
+  ) {}
+
+  /**
+   * Whether a clip is being recorded: one touched within the keep time. It only reads, so
+   * a clip's lifetime is the same whoever asks; one past it is still there until a write
+   * sweeps it, but nobody is recording it.
+   */
+  open(): boolean {
+    const now = this.now()
+    for (const clip of this.clips.values()) if (now - clip.at <= keepMs) return true
+    return false
+  }
 
   /** Whether the clip is new, so the first part can start the engine warming up. */
   write(owner: string, id: string, offset: number, bytes: Uint8Array): boolean {
+    try {
+      return this.put(owner, id, offset, bytes)
+    } finally {
+      this.changed()
+    }
+  }
+
+  private put(owner: string, id: string, offset: number, bytes: Uint8Array): boolean {
     this.sweep()
     if (offset + bytes.length > maxClipBytes) throw new DomainError("UPLOAD_TOO_LARGE")
     const key = this.key(owner, id)
@@ -83,11 +106,13 @@ export class Clips {
 
   discard(owner: string, id: string): void {
     this.clips.delete(this.key(owner, id))
+    this.changed()
   }
 
   /** Forgets everything an owner recorded, as its connection goes. */
   release(owner: string): void {
     for (const [key, clip] of this.clips) if (clip.owner === owner) this.clips.delete(key)
+    this.changed()
   }
 
   private admit(owner: string): void {

@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process"
 import { cp, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 
 import { maxVoicePartLength } from "@novadeck/protocol"
 
@@ -14,6 +15,18 @@ const artifact = async (url: string) => {
   const data = await readFile(url)
   return { url, sha256: sha256(data), size: data.length }
 }
+
+// The interface the engine package's build wrote, so a bump follows by itself: build the
+// engine there first (`pnpm --filter @novadeck/whisper build:engine`).
+const builtInterface = async (): Promise<number> =>
+  (
+    JSON.parse(
+      await readFile(
+        fileURLToPath(new URL("../../../whisper/dist/engine.json", import.meta.url)),
+        "utf8",
+      ),
+    ) as { interface: number }
+  ).interface
 
 // Runs the real engine, which CI has none of. Point these at a whisper.cpp build's `bin`
 // folder, a small model, the voice activity model, and a 16 kHz mono WAV of English speech:
@@ -59,7 +72,12 @@ describe.skipIf(!engine || !model || !vad || !clip)("voice input with the real e
     const manifest = join(source, "engine.json")
     await writeFile(
       manifest,
-      JSON.stringify({ file: "engine.tar.gz", sha256: sha256(archive), size: archive.length }),
+      JSON.stringify({
+        file: "engine.tar.gz",
+        sha256: sha256(archive),
+        size: archive.length,
+        interface: await builtInterface(),
+      }),
     )
     const store = new WorkspaceStore()
     const voice = new Voice(store, {

@@ -4,6 +4,7 @@ import type { Backend } from "../backend/port"
 import { terminalElement } from "../interaction/dom"
 import { orderedTiles } from "../model/roster"
 import { activeProject } from "../model/state"
+import type { MurmurAddonValue } from "../preferences/MurmurAddon"
 import type { VoiceAddon } from "../preferences/VoiceInput"
 import { WelcomeDialog } from "../preferences/WelcomeDialog"
 import { CrashLoopDialog } from "../shell/CrashLoopDialog"
@@ -68,6 +69,14 @@ const useVoice = (voice: Backend["voice"]): VoiceAddon | undefined => {
   return voice && state && { state, actions: voice }
 }
 
+// The backend's murmur addon for Preferences; undefined where it has none.
+const useMurmur = (murmur: Backend["murmur"]): MurmurAddonValue | undefined => {
+  const state = useSyncExternalStore(murmur?.state.subscribe ?? always, () =>
+    murmur?.state.getSnapshot(),
+  )
+  return murmur && state && { state, actions: murmur }
+}
+
 type UpdatesSetting = {
   readonly early: boolean | undefined
   readonly onChange: (early: boolean) => void
@@ -111,6 +120,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const transcripts = useTranscripts(backend.transcripts)
   const agents = useAgents(backend.agents)
   const voice = useVoice(backend.voice)
+  const murmur = useMurmur(backend.murmur)
   const { go, closeDialog } = navigation
   const { chooseRecent, updatePreferences, openSearchResult, closeSwitcher } = commands
   const { confirmClose, cancelClose, retryAfterCrashLoop, dismissCrashLoop } = commands
@@ -213,6 +223,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           notices={backend.notices !== undefined}
           chat={backend.conversations !== undefined}
           {...(voice ? { voice } : {})}
+          {...(murmur ? { murmur } : {})}
           {...(updates ? { updates } : {})}
           {...(backend.agents
             ? { agents: { list: agents.list, onChange: backend.agents.set } }

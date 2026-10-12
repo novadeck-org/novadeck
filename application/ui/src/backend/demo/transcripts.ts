@@ -348,12 +348,11 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
         toolAction: JSON.stringify("Calling send"),
       }),
       got("step:1a", "Sent to t1."),
-      use("step:1b", "mcp_novadeck_novadeck_describe", {
-        title: "Request logging",
+      use("step:1b", "mcp_novadeck_novadeck_summarize", {
         summary: "Finds why the runtime logs every request twice.",
-        toolSummary: JSON.stringify("Title this terminal"),
+        toolSummary: JSON.stringify("Summarize this terminal"),
       }),
-      got("step:1b", "Titled."),
+      got("step:1b", "Summarized."),
       say("Before I dig in, I'll close the idle terminal and check what is on show."),
       use("step:1c", "call_mcp_tool", {
         ServerName: JSON.stringify("novadeck_novadeck"),

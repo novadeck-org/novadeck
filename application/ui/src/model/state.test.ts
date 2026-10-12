@@ -358,3 +358,35 @@ describe("companion items in the workspace", () => {
     })
   })
 })
+
+describe("a terminal's name from murmur", () => {
+  it("takes murmur's name and who gave it from the backend's update", () => {
+    const state = run(workspaceFixture(), {
+      type: "terminal/update",
+      target,
+      terminalId: "01",
+      name: "Checkout fix",
+      titleSource: { kind: "murmur" },
+    })
+    expect(state.roster.terminals.find((terminal) => terminal.id === "01")).toMatchObject({
+      name: "Checkout fix",
+      titleSource: { kind: "murmur" },
+    })
+  })
+
+  it("replaces an agent's name with murmur's as the source", () => {
+    const named = apply(workspaceFixture(), {
+      type: "terminal/update",
+      target,
+      terminalId: "01",
+      titleSource: { kind: "agent", by: "t2" },
+    })
+    const state = run(named, {
+      type: "terminal/update",
+      target,
+      terminalId: "01",
+      titleSource: { kind: "murmur" },
+    })
+    expect(state.roster.terminals[0]?.titleSource).toEqual({ kind: "murmur" })
+  })
+})

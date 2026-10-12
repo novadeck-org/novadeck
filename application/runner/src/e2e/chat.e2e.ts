@@ -64,7 +64,7 @@ for (const setup of setups) {
       await item(t1, "assistant", (text) => text.includes("Hello, chat."))
     })
 
-    it("takes a prompt as the person's own: the terminal is named as a typed prompt names it", async ({
+    it("names the terminal by no prompt: given by the chat or typed, it keeps its default title", async ({
       e2e: run,
     }) => {
       run.model.use(replies("Greet the chat", "Hello, chat."))
@@ -74,13 +74,10 @@ for (const setup of setups) {
       await chat.prompt("Greet the chat")
       await chat.until("Hello, chat.")
       await turn(typed, "Greet the chat", "Hello, chat.")
-      // A harness whose hooks name no prompt (Antigravity) may leave a quick turn's
-      // prompt unattributed, which is the same for both: the two are named alike.
-      await sleep(5000)
 
-      const [one, other] = [chat.summary(), typed.summary()]
-      expect(one.titleSource).toEqual(other.titleSource)
-      if (other.titleSource.kind === "fallback") expect(one.title).toBe(other.title)
+      // Only murmur, which is off here, or a person or an opening agent, titles a terminal.
+      for (const { titleSource } of [chat.summary(), typed.summary()])
+        expect(titleSource).toEqual({ kind: "default" })
     })
 
     it("gives its agent a multi-line prompt as one prompt, whole in the transcript", async ({

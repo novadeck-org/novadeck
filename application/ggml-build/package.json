@@ -1,0 +1,18 @@
+{
+  "name": "@novadeck/ggml-build",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The build steps the ggml engines (whisper.cpp, llama.cpp) share: fetch a pinned source, patch it, build it for this platform, sign it and pack it.",
+  "author": "mzpkdev",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2"
+  }
+}

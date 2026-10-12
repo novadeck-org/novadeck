@@ -1,11 +1,11 @@
 import { shorten } from "./work.js"
 
 /**
- * When Novadeck nudges a terminal's agent to describe its work (see
- * docs/agent-messaging.md, "Self-description"): a new root session; a compaction, where
- * the harness reports one; the work drifting from where it was at the last `describe`
- * (its plan's title, the folder it writes in most, or its branch); and, as a backstop,
- * `backstopPrompts` of the person's prompts since the last `describe`.
+ * When Novadeck nudges a terminal's agent to summarize its work (see
+ * docs/agent-messaging.md, "Naming"): a new root session; a compaction, where the harness
+ * reports one; the work drifting from where it was at the last `summarize` (its plan's
+ * title, the folder it writes in most, or its branch); and, as a backstop,
+ * `backstopPrompts` of the person's prompts since the last `summarize`.
  */
 export type Trigger = "session" | "compaction" | "drift" | "prompts"
 
@@ -21,11 +21,11 @@ export type Facts = {
 }
 
 /**
- * A terminal's nudges: the triggers that fired since the last `describe` or nudge, the
- * person's prompts counted toward the backstop, the facts at the last `describe` (null
+ * A terminal's nudges: the triggers that fired since the last `summarize` or nudge, the
+ * person's prompts counted toward the backstop, the facts at the last `summarize` (null
  * before any), and those drift last fired for; and, apart from all of these, whether
  * the session has yet to hear of the bar beside its terminal (`artifactsNotice`), which
- * only its delivery clears, never a `describe`.
+ * only its delivery clears, never a `summarize`.
  */
 export type Nudges = {
   readonly pending: readonly Trigger[]
@@ -35,7 +35,7 @@ export type Nudges = {
   readonly artifacts: boolean
 }
 
-/** How many of the person's prompts since the last `describe` nudge as a backstop. */
+/** How many of the person's prompts since the last `summarize` nudge as a backstop. */
 export const backstopPrompts = 15
 
 export const noNudges: Nudges = {
@@ -67,15 +67,15 @@ export const personPrompted = (nudges: Nudges): Nudges => {
 }
 
 // Whether facts differ where both say something: unknown on either side is no change.
-const differs = (a: Facts, b: Facts): boolean =>
+export const differs = (a: Facts, b: Facts): boolean =>
   (["plan", "folder", "branch"] as const).some(
     (fact) => a[fact] !== null && b[fact] !== null && a[fact] !== b[fact],
   )
 
 /**
  * The facts as they stand: drift fires once they differ from those at the last
- * `describe` and from those it last fired for, so work going back and forth between two
- * folders fires once, not at each turn. Nothing drifts before a `describe`.
+ * `summarize` and from those it last fired for, so work going back and forth between two
+ * folders fires once, not at each turn. Nothing drifts before a `summarize`.
  */
 export const drifted = (nudges: Nudges, facts: Facts): Nudges => {
   const { baseline, driftedTo } = nudges
@@ -85,10 +85,10 @@ export const drifted = (nudges: Nudges, facts: Facts): Nudges => {
 }
 
 /**
- * The agent described its work: no describe trigger is pending, and drift is measured
+ * The agent summarized its work: no summarize trigger is pending, and drift is measured
  * from `facts`. What the session has yet to hear of its bar stays.
  */
-export const described = (nudges: Nudges, facts: Facts): Nudges => ({
+export const afterSummary = (nudges: Nudges, facts: Facts): Nudges => ({
   pending: [],
   prompts: 0,
   baseline: facts,
@@ -100,7 +100,7 @@ export const described = (nudges: Nudges, facts: Facts): Nudges => ({
 export type Taken = {
   readonly nudge: boolean
   readonly artifacts: boolean
-  readonly describe: boolean
+  readonly summarize: boolean
   readonly nudges: Nudges
 }
 
@@ -110,11 +110,11 @@ export type Taken = {
  * anything else, as messages, when they wait.
  */
 export const take = (nudges: Nudges, quiet: boolean): Taken => {
-  const describe = nudges.pending.length > 0
+  const summarize = nudges.pending.length > 0
   const { artifacts } = nudges
-  return quiet && (describe || artifacts)
-    ? { nudge: true, artifacts, describe, nudges: { ...nudges, pending: [], artifacts: false } }
-    : { nudge: false, artifacts: false, describe: false, nudges }
+  return quiet && (summarize || artifacts)
+    ? { nudge: true, artifacts, summarize, nudges: { ...nudges, pending: [], artifacts: false } }
+    : { nudge: false, artifacts: false, summarize: false, nudges }
 }
 
 /**
@@ -131,26 +131,24 @@ export const atPrompt = (
 }
 
 /**
- * The nudge, one line worded as Novadeck's automatic notice: asking for a description
- * while there is none, else showing the current one, to update only if it no longer fits.
+ * The nudge, one line worded as Novadeck's automatic notice: asking for a summary while
+ * there is none, else showing the current one, to update only if it no longer fits.
  */
-export const nudgeText = (current: { readonly title: string; readonly summary: string | null }) =>
+export const nudgeText = (current: { readonly summary: string | null }) =>
   current.summary === null
-    ? "Novadeck: automatic notice, not from the user: this terminal has no description yet. " +
-      "When it suits, call Novadeck's describe tool with a short title and a line or two on " +
-      "what you work on here, so the user and other agents can tell terminals apart; this " +
-      "notice needs no reply."
-    : `Novadeck: automatic notice, not from the user: this terminal is described as ` +
-      `${JSON.stringify(shorten(current.title, 200))}, with the summary ` +
+    ? "Novadeck: automatic notice, not from the user: this terminal has no summary yet. " +
+      "When it suits, call Novadeck's summarize tool with a line or two on what you work " +
+      "on here; other agents read it in their agents listing. This notice needs no reply."
+    : `Novadeck: automatic notice, not from the user: this terminal's summary is ` +
       `${JSON.stringify(shorten(current.summary, 200))}; ` +
-      "if that no longer fits your work, update it with Novadeck's describe tool, and " +
+      "if that no longer fits your work, update it with Novadeck's summarize tool, and " +
       "otherwise this notice can be ignored."
 
 /**
  * What a session is told once of the bar beside its terminal (see docs/agent-workspace.md,
  * "Companion pane"): what to show there and what not to, since an agent left to itself
  * shows nothing until asked, or every file it touches once asked. Worded as Novadeck's
- * automatic notice, one paragraph; independent of `describe`.
+ * automatic notice, one paragraph; independent of `summarize`.
  */
 export const artifactsNotice =
   "Novadeck: automatic notice, not from the user: beside this terminal is a bar where you " +
@@ -173,10 +171,10 @@ export const artifactsNotice =
  * its own.
  */
 export const noticesAt = (
-  took: Pick<Taken, "artifacts" | "describe">,
-  current: { readonly title: string; readonly summary: string | null },
+  took: Pick<Taken, "artifacts" | "summarize">,
+  current: { readonly summary: string | null },
 ): string =>
   [
     ...(took.artifacts ? [artifactsNotice] : []),
-    ...(took.describe ? [nudgeText(current)] : []),
+    ...(took.summarize ? [nudgeText(current)] : []),
   ].join("\n\n")

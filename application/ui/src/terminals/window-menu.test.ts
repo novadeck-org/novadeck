@@ -1,3 +1,4 @@
+import { MURMUR_NAME } from "../model/murmur"
 import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
 import { windowMenu } from "./window-menu"
@@ -19,6 +20,13 @@ describe("a window's menu", () => {
         windowMenu({ terminal: named, onRename: ignore, onResetTitle: ignore, onClose: ignore }),
       ),
     ).toEqual(["Named by you (disabled)", "Rename", "Reset to automatic", "Close"])
+  })
+
+  it("says murmur named a terminal, which Reset leaves alone", () => {
+    const terminal = { ...terminalFixture(2, "~/p"), titleSource: { kind: "murmur" as const } }
+    expect(
+      labels(windowMenu({ terminal, onRename: ignore, onResetTitle: ignore, onClose: ignore })),
+    ).toEqual([`Named by ${MURMUR_NAME} (disabled)`, "Rename", "Close"])
   })
 
   context("for a window undocked from a terminal's companion", () => {

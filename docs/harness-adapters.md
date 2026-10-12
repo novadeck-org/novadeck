@@ -459,8 +459,9 @@ Besides the facts shared with the agent model, decoders give
   for the folders a session works in.
 - `session-observed` has `compacted` when the harness says it compacted the session's
   context: Claude Code's and Codex's `SessionStart` with source `compact`. Antigravity
-  reports no compaction. It nudges the agent to describe its terminal again (see
-  [Self-description](agent-messaging.md#self-description)).
+  reports no compaction. It nudges the agent to summarize its terminal again (see
+  [Nudges](agent-messaging.md#nudges)); murmur retitles it only when that summary
+  arrives (see [Naming](agent-messaging.md#when-murmur-titles-a-terminal)).
 - `session-observed` has `atPrompt` when the harness announced the session as its own
   input prompt came up, past any trust, onboarding or login screen: Claude Code's
   `SessionStart` with source `startup`, `clear`, `resume` or `fork`, and Antigravity's

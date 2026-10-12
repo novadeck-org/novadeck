@@ -1,8 +1,20 @@
 diff --git a/examples/server/server.cpp b/examples/server/server.cpp
-index b745f4d..e3d0918 100644
+index b745f4d..957f6cd 100644
 --- a/examples/server/server.cpp
 +++ b/examples/server/server.cpp
-@@ -67,6 +67,7 @@ struct server_params
+@@ -20,7 +20,11 @@
+ #include <functional>
+ #include <cstdlib>
+ #if defined (_WIN32)
++#include <io.h>
+ #include <windows.h>
++#else
++#include <cerrno>
++#include <unistd.h>
+ #endif
+ 
+ using namespace httplib;
+@@ -67,6 +71,7 @@ struct server_params
      int32_t write_timeout = 600;
  
      bool ffmpeg_converter = false;
@@ -10,7 +22,7 @@ index b745f4d..e3d0918 100644
  };
  
  struct whisper_params {
-@@ -249,6 +250,7 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params, serve
+@@ -249,6 +254,7 @@ bool whisper_params_parse(int argc, char ** argv, whisper_params & params, serve
  
          // server params
          else if (                   arg == "--port")            { sparams.port        = std::stoi(argv[++i]); }
@@ -18,16 +30,25 @@ index b745f4d..e3d0918 100644
          else if (                   arg == "--host")            { sparams.hostname    = argv[++i]; }
          else if (                   arg == "--public")          { sparams.public_path = argv[++i]; }
          else if (                   arg == "--request-path")    { sparams.request_path = argv[++i]; }
-@@ -651,6 +653,16 @@ int main(int argc, char ** argv) {
+@@ -651,6 +657,25 @@ int main(int argc, char ** argv) {
          return 1;
      }
  
 +    // Novadeck's runner holds this server's stdin open for as long as it lives, so the
 +    // server ends with the runner even when the runner is killed without a chance to stop it.
++    // It reads the descriptor itself: a blocked fread keeps stdin's lock, which exit() needs.
 +    if (sparams.exit_with_stdin) {
 +        std::thread([] {
 +            char buffer[256];
-+            while (fread(buffer, 1, sizeof buffer, stdin) > 0) {}
++            for (;;) {
++#if defined (_WIN32)
++                if (_read(0, buffer, sizeof buffer) <= 0) break;
++#else
++                const ssize_t n = read(STDIN_FILENO, buffer, sizeof buffer);
++                if (n < 0 && errno == EINTR) continue;
++                if (n <= 0) break;
++#endif
++            }
 +            std::_Exit(0);
 +        }).detach();
 +    }
@@ -35,7 +56,7 @@ index b745f4d..e3d0918 100644
      if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1) {
          fprintf(stderr, "error: unknown language '%s'\n", params.language.c_str());
          whisper_print_usage(argc, argv, params, sparams);
-@@ -735,9 +747,20 @@ int main(int argc, char ** argv) {
+@@ -735,9 +760,20 @@ int main(int argc, char ** argv) {
      state.store(SERVER_STATE_READY);
  
  
@@ -59,7 +80,7 @@ index b745f4d..e3d0918 100644
  
      std::string const default_content = R"(
      <html>
-@@ -820,9 +843,6 @@ int main(int argc, char ** argv) {
+@@ -820,9 +856,6 @@ int main(int argc, char ** argv) {
          return false;
      });
  
@@ -69,7 +90,7 @@ index b745f4d..e3d0918 100644
      svr->Post(sparams.request_path + sparams.inference_path, [&](const Request &req, Response &res){
          // acquire whisper model mutex lock
          std::lock_guard<std::mutex> lock(whisper_mutex);
-@@ -1172,48 +1192,7 @@ int main(int argc, char ** argv) {
+@@ -1172,48 +1205,7 @@ int main(int argc, char ** argv) {
                              "application/json");
          }
      });

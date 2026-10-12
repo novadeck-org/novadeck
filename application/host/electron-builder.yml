@@ -31,6 +31,9 @@ extraResources:
   # application/whisper.
   - from: ../whisper/dist/engine.json
     to: voice/engine.json
+  # The same for murmur's engine, llama.cpp; see application/murmur.
+  - from: ../murmur/dist/engine.json
+    to: murmur/engine.json
 # Where installed apps look for updates. Builder writes this into the app as
 # resources/app-update.yml, and beside the packages the latest*.yml files and blockmaps
 # that name them, even with --publish never. Every release from main is a prerelease until

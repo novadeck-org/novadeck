@@ -243,11 +243,11 @@ describe("a tool call's summary", () => {
       ["close", { url: "http://localhost:5173/" }, "web", "Closed", "http://localhost:5173/"],
       ["showing", {}, "read", "Checked what's shown", ""],
       [
-        "describe",
-        { title: "Cart fix", summary: "x" },
+        "summarize",
+        { summary: "Fixing the cart rounding" },
         "agent",
-        "Described this terminal",
-        "Cart fix",
+        "Summarized this terminal",
+        "Fixing the cart rounding",
       ],
     ])("labels %s", (tool, input, kind, title, detail) => {
       const expected = { kind, title, detail }

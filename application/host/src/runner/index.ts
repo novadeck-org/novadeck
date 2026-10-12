@@ -5,6 +5,8 @@ import type { MessagePortMain } from "electron"
 
 import {
   databaseArgumentPrefix,
+  murmurEngineArgumentPrefix,
+  murmurSourceArgumentPrefix,
   relayArgumentPrefix,
   voiceEngineArgumentPrefix,
   voiceSourceArgumentPrefix,
@@ -19,6 +21,8 @@ const database = argument(databaseArgumentPrefix)
 const relay = argument(relayArgumentPrefix)
 const engine = argument(voiceEngineArgumentPrefix)
 const source = argument(voiceSourceArgumentPrefix)
+const murmurEngine = argument(murmurEngineArgumentPrefix)
+const murmurSource = argument(murmurSourceArgumentPrefix)
 
 // Without `maxTerminals`, the desktop runner starts as many terminals as the user opens.
 // Its shell integration and pasted files live beside the database, in the app's own data
@@ -34,6 +38,11 @@ const runner = createRunner({
   voice: {
     ...(engine !== undefined && { engine }),
     ...(source !== undefined && { source }),
+  },
+  // Murmur's likewise, in a `murmur` folder.
+  murmur: {
+    ...(murmurEngine !== undefined && { engine: murmurEngine }),
+    ...(murmurSource !== undefined && { source: murmurSource }),
   },
 })
 

@@ -8,6 +8,8 @@ import {
 
 import {
   databaseArgumentPrefix,
+  murmurEngineArgumentPrefix,
+  murmurSourceArgumentPrefix,
   relayArgumentPrefix,
   runnerPortChannel,
   voiceEngineArgumentPrefix,
@@ -38,6 +40,9 @@ export const startRunner = (options: {
   /** The voice engine's manifest and where its archive is downloaded from. */
   engine: string
   source: string
+  /** The same for murmur's engine. */
+  murmurEngine: string
+  murmurSource: string
 }): RunnerHost => {
   let child: UtilityProcess | undefined
   let closing: Promise<void> | undefined
@@ -49,6 +54,8 @@ export const startRunner = (options: {
         `${relayArgumentPrefix}${options.relay}`,
         `${voiceEngineArgumentPrefix}${options.engine}`,
         `${voiceSourceArgumentPrefix}${options.source}`,
+        `${murmurEngineArgumentPrefix}${options.murmurEngine}`,
+        `${murmurSourceArgumentPrefix}${options.murmurSource}`,
       ],
       { serviceName: "Novadeck Runner" },
     )

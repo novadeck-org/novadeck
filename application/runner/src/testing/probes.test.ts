@@ -26,6 +26,7 @@ describe("probe fixtures", () => {
       columns: 120,
       cursor: { row: 0, column: 9 },
       bracketedPaste: false,
+      alternate: false,
     }
     const record = screenRecord(read)
     expect(record).toEqual({

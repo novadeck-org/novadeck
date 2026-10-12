@@ -15,5 +15,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["scripts/**/*.ts", "index.js", "index.d.ts"]
+  "include": ["scripts/**/*.ts", "../ggml-build/index.ts", "index.js", "index.d.ts"]
 }

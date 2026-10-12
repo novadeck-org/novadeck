@@ -188,24 +188,7 @@ export class TerminalPeers {
   }
 
   /**
-   * What other agents' words reached a terminal's agent, as a title it says the person
-   * asked for must not come from: the messages that reached its root session, and the
-   * titles and summaries of the session's other terminals.
-   */
-  seenBy(terminal: PeerTerminal): readonly string[] {
-    const { id, sessionId } = terminal.summary
-    return [
-      ...this.options.messaging.receivedTexts(id),
-      ...this.options
-        .running(sessionId)
-        .flatMap((other) =>
-          other.summary.id === id ? [] : [other.summary.title, other.naming.summary ?? ""],
-        ),
-    ]
-  }
-
-  /**
-   * What tells whether a terminal's work drifted from its description: its root's own
+   * What tells whether a terminal's work drifted from where its agent last summarized it: its root's own
    * plan's title (never a subagent's), the folder it writes in most, and its git branch.
    */
   async facts(terminal: PeerTerminal): Promise<Facts> {

@@ -96,9 +96,13 @@ try {
   fail(`The relay didn't answer as an MCP server and hook: ${error}`)
 }
 
-// The voice engine's manifest, when the build ships one, names the archive it downloads.
-const engine = join(resources, "voice", "engine.json")
-if (existsSync(engine)) {
+// An engine's manifest, when the build ships one, names the archive it downloads.
+for (const [name, label] of [
+  ["voice", "voice engine"],
+  ["murmur", "murmur engine"],
+]) {
+  const engine = join(resources, name, "engine.json")
+  if (!existsSync(engine)) continue
   try {
     const manifest = JSON.parse(readFileSync(engine, "utf8"))
     if (
@@ -107,15 +111,53 @@ if (existsSync(engine)) {
       !Number.isInteger(manifest.size) ||
       manifest.size <= 0 ||
       // The runner reads a manifest whose interface it cannot parse as no manifest at all.
-      (manifest.interface !== undefined &&
-        !(Number.isSafeInteger(manifest.interface) && manifest.interface > 0))
+      !(Number.isSafeInteger(manifest.interface) && manifest.interface > 0)
     ) {
       throw new Error(JSON.stringify(manifest))
     }
   } catch (error) {
-    fail(`The voice engine manifest is invalid: ${error}`)
+    fail(`The ${label} manifest is invalid: ${error}`)
   }
-  console.log("The packaged app carries its voice engine manifest.")
+  console.log(`The packaged app carries its ${label} manifest.`)
+}
+
+// The thread murmur redacts digests in, started as the runner starts it: a worker on the
+// script inside app.asar. The packaged executable runs the check as Node, which reads
+// asar archives the same way the app does.
+{
+  const script = join(mkdtempSync(join(tmpdir(), "novadeck-smoke-worker-")), "start-worker.mjs")
+  writeFileSync(
+    script,
+    `import { pathToFileURL } from "node:url"
+import { Worker } from "node:worker_threads"
+const worker = new Worker(pathToFileURL(process.argv[2]))
+const fail = (what) => {
+  console.error(what)
+  process.exit(1)
+}
+setTimeout(() => fail("no ready message in 20 s"), 20_000)
+worker.once("error", (error) => fail(String(error?.stack ?? error)))
+worker.once("exit", () => fail("the worker exited"))
+worker.once("message", (reply) => {
+  if (reply?.ready !== true) fail("unexpected first message: " + JSON.stringify(reply))
+  process.exit(0)
+})
+`,
+  )
+  try {
+    execFileSync(
+      executable,
+      [script, join(resources, "app.asar", "out", "main", "murmurWorker.js")],
+      {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+        timeout: 30_000,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    )
+  } catch (error) {
+    fail(`The packaged murmur worker did not start: ${error.stderr?.toString().trim() || error}`)
+  }
+  console.log("The packaged murmur worker started from app.asar.")
 }
 
 const bundle = await esbuild.build({

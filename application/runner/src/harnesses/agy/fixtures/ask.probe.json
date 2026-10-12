@@ -460,7 +460,7 @@
           "source": "SYSTEM_SDK",
           "type": "EPHEMERAL_MESSAGE",
           "status": "DONE",
-          "content": "Novadeck: automatic notice, not from the user: this terminal has no description yet. When it suits, call Novadeck's describe tool with a short title and a line or two on what you work on here, so the user and other agents can tell terminals apart; this notice needs no reply."
+          "content": "Novadeck: automatic notice, not from the user: this terminal has no summary yet. When it suits, call Novadeck's summarize tool with a line or two on what you work on here; other agents read it in their agents listing. This notice needs no reply."
         },
         {
           "step_index": 6,
@@ -483,7 +483,7 @@
           "source": "SYSTEM_SDK",
           "type": "EPHEMERAL_MESSAGE",
           "status": "DONE",
-          "content": "Novadeck: automatic notice, not from the user: this terminal has no description yet. When it suits, call Novadeck's describe tool with a short title and a line or two on what you work on here, so the user and other agents can tell terminals apart; this notice needs no reply."
+          "content": "Novadeck: automatic notice, not from the user: this terminal has no summary yet. When it suits, call Novadeck's summarize tool with a line or two on what you work on here; other agents read it in their agents listing. This notice needs no reply."
         },
         {
           "step_index": 6,

@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
+    "@novadeck/murmur": "workspace:*",
     "@novadeck/protocol": "workspace:*",
     "@novadeck/relay": "workspace:*",
     "@novadeck/whisper": "workspace:*",

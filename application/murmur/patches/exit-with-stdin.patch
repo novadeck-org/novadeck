@@ -1,0 +1,78 @@
+diff --git a/common/arg.cpp b/common/arg.cpp
+index bd5afbd..4caed78 100644
+--- a/common/arg.cpp
++++ b/common/arg.cpp
+@@ -3508,6 +3508,13 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
+             params.pooling_type = LLAMA_POOLING_TYPE_RANK;
+         }
+     ).set_examples({LLAMA_EXAMPLE_SERVER}).set_env("LLAMA_ARG_RERANKING"));
++    add_opt(common_arg(
++        {"--exit-with-stdin"},
++        "exit when standard input closes, so the server ends with the process that started it",
++        [](common_params & params) {
++            params.exit_with_stdin = true;
++        }
++    ).set_examples({LLAMA_EXAMPLE_SERVER}));
+     add_opt(common_arg(
+         {"--api-key"}, "KEY",
+         "API key to use for authentication, multiple keys can be provided as a comma-separated list (default: none)",
+diff --git a/common/common.h b/common/common.h
+index d2fe10f..0bf81ce 100644
+--- a/common/common.h
++++ b/common/common.h
+@@ -660,6 +660,7 @@ struct common_params {
+     int sleep_idle_seconds = -1;   // if >0, server will sleep after this many seconds of idle time
+ 
+     std::vector<std::string> api_keys;
++    bool exit_with_stdin = false; // Novadeck: end the server when its stdin closes
+ 
+     std::string ssl_file_key  = "";                                                                         // NOLINT
+     std::string ssl_file_cert = "";                                                                         // NOLINT
+diff --git a/tools/server/server.cpp b/tools/server/server.cpp
+index 871e827..793a757 100644
+--- a/tools/server/server.cpp
++++ b/tools/server/server.cpp
+@@ -14,12 +14,17 @@
+ 
+ #include <atomic>
+ #include <clocale>
++#include <cstdlib>
+ #include <exception>
+ #include <signal.h>
+ #include <thread> // for std::thread::hardware_concurrency
+ 
+ #if defined(_WIN32)
++#include <io.h>
+ #include <windows.h>
++#else
++#include <cerrno>
++#include <unistd.h>
+ #endif
+ 
+ static std::function<void(int)> shutdown_handler;
+@@ -113,6 +118,25 @@ int llama_server(int argc, char ** argv) {
+         return 1;
+     }
+ 
++    // Novadeck's runner holds this server's stdin open for as long as it lives, so the
++    // server ends with the runner even when the runner is killed without a chance to stop it.
++    // It reads the descriptor itself: a blocked fread keeps stdin's lock, which exit() needs.
++    if (params.exit_with_stdin) {
++        std::thread([] {
++            char buffer[256];
++            for (;;) {
++#if defined(_WIN32)
++                if (_read(0, buffer, sizeof buffer) <= 0) break;
++#else
++                const ssize_t n = read(STDIN_FILENO, buffer, sizeof buffer);
++                if (n < 0 && errno == EINTR) continue;
++                if (n <= 0) break;
++#endif
++            }
++            std::_Exit(0);
++        }).detach();
++    }
++
+     SRV_INF("%s", "initializing ...\n");
+ 
+     llama_backend_init();

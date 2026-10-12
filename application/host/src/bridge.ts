@@ -6,6 +6,10 @@ export const relayArgumentPrefix = "--novadeck-relay="
 export const voiceEngineArgumentPrefix = "--novadeck-voice-engine="
 /** Where the voice engine's archive comes from: an https address ending in "/", or a folder. */
 export const voiceSourceArgumentPrefix = "--novadeck-voice-source="
+/** The manifest of the murmur engine murmur installs: a file shipped with the app. */
+export const murmurEngineArgumentPrefix = "--novadeck-murmur-engine="
+/** Where the murmur engine's archive comes from: an https address ending in "/", or a folder. */
+export const murmurSourceArgumentPrefix = "--novadeck-murmur-source="
 
 /** Renderer-to-main request for a runner port; the answer arrives on the same channel. */
 export const runnerPortChannel = "novadeck:runner-port"

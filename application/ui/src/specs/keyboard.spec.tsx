@@ -986,7 +986,9 @@ const installVoice = async (): Promise<void> => {
   await pressShortcut("preferences")
   await expectFocusWithin(preferencesDialog())
   await preferencesDialog().getByRole("tab", { name: "Addons" }).click()
-  const addons = preferencesDialog().getByRole("tabpanel", { name: "Addons" })
+  const addons = preferencesDialog()
+    .getByRole("tabpanel", { name: "Addons" })
+    .getByRole("region", { name: "Voice input" })
   await addons.getByRole("button", { name: "Install" }).click()
   // Only an installed card offers Uninstall; the switch shows before the install too.
   await expect
@@ -1050,7 +1052,9 @@ describe("dictation", () => {
         .toHaveAttribute("aria-selected", "true")
       expect(microphone.live()).toBe(0)
 
-      const enabled = dialog.getByRole("switch", { name: "Enabled" })
+      const enabled = dialog
+        .getByRole("region", { name: "Voice input" })
+        .getByRole("switch", { name: "Enabled" })
       await expect.element(enabled).toHaveAttribute("aria-checked", "true")
       await enabled.click()
       await expect.element(enabled).toHaveAttribute("aria-checked", "false")

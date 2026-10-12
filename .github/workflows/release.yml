@@ -113,6 +113,7 @@ jobs:
               application/host/release/*.AppImage
               application/host/release/latest-linux.yml
               application/host/release/novadeck-whisper-linux-x64.tar.gz
+              application/host/release/novadeck-murmur-linux-x64.tar.gz
           - name: macOS
             os: macos-latest
             target: mac
@@ -123,6 +124,7 @@ jobs:
               application/host/release/latest-mac.yml
               application/host/release/*.blockmap
               application/host/release/novadeck-whisper-darwin-universal.tar.gz
+              application/host/release/novadeck-murmur-darwin-universal.tar.gz
           - name: Windows
             os: windows-latest
             target: win
@@ -132,6 +134,7 @@ jobs:
               application/host/release/latest.yml
               application/host/release/*.blockmap
               application/host/release/novadeck-whisper-win32-x64.tar.gz
+              application/host/release/novadeck-murmur-win32-x64.tar.gz
     steps:
       - name: Wait for Quality Checks
         if: github.event_name == 'pull_request'
@@ -191,8 +194,8 @@ jobs:
 
       # Releases from main are signed once the signing credentials are in the repository's
       # secrets and variables; pull requests, and releases before then, are left unsigned.
-      # The voice engine is signed with the app, so its build and cache follow the same
-      # choice. Only what later steps need goes to GITHUB_ENV: the Azure secrets go to the
+      # The voice and murmur engines are signed with the app, so their builds and caches
+      # follow the same choice. Only what later steps need goes to GITHUB_ENV: the Azure secrets go to the
       # two steps that sign, and the macOS key and keychain are removed after packaging.
       # See docs/release-signing.md.
       - name: Set Up Signing
@@ -245,8 +248,8 @@ jobs:
           if [[ "$EVENT_NAME" != pull_request && "$TARGET" == mac ]] &&
             configured "macOS signing" MACOS_CERTIFICATE MACOS_CERTIFICATE_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER; then
             # A keychain of its own, first in the search list, where electron-builder and the
-            # voice engine's build find the Developer ID identity. Only codesign may use the
-            # key, and the key cannot be exported from it.
+            # voice and murmur engines' builds find the Developer ID identity. Only codesign
+            # may use the key, and the key cannot be exported from it.
             keychain="$RUNNER_TEMP/signing.keychain-db"
             password="$(openssl rand -hex 24)"
             certificate="$RUNNER_TEMP/certificate.p12"
@@ -308,10 +311,11 @@ jobs:
           echo "Signing: $signed"
 
       # Voice input's engine, whisper.cpp built for this platform (see application/whisper),
-      # is compiled here, not by the Quality workflow's builds: it takes minutes, and its
-      # archive is a release asset the app downloads, while the app ships only its manifest.
-      # The voice engine's Vulkan backend, and fusermount3 for the AppImage's static runtime,
-      # which the smoke test mounts; apt skips it when the image has it.
+      # and murmur's, llama.cpp (see application/murmur), are compiled here, not by the
+      # Quality workflow's builds: each takes minutes, and its archive is a release asset the
+      # app downloads, while the app ships only its manifest. The engines' Vulkan backend, and
+      # fusermount3 for the AppImage's static runtime, which the smoke test mounts; apt skips
+      # it when the image has it.
       - name: Install Build Dependencies (Linux)
         if: matrix.target == 'linux'
         run: |
@@ -331,7 +335,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: application/whisper/dist
-          key: whisper-engine-${{ runner.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('application/whisper/scripts/**', 'application/whisper/patches/**', 'application/whisper/package.json') }}
+          key: whisper-engine-${{ runner.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('application/ggml-build/index.ts', 'application/ggml-build/package.json', 'application/whisper/scripts/**', 'application/whisper/patches/**', 'application/whisper/package.json') }}
 
       - name: Build Voice Engine
         if: steps.engine.outputs.cache-hit != 'true'
@@ -340,6 +344,21 @@ jobs:
           AZURE_CLIENT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_ID || '' }}
           AZURE_CLIENT_SECRET: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_SECRET || '' }}
         run: pnpm --filter @novadeck/whisper build:engine
+
+      - name: Restore Murmur Engine
+        id: murmur
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: application/murmur/dist
+          key: murmur-engine-${{ runner.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('application/ggml-build/index.ts', 'application/ggml-build/package.json', 'application/murmur/scripts/**', 'application/murmur/patches/**', 'application/murmur/package.json') }}
+
+      - name: Build Murmur Engine
+        if: steps.murmur.outputs.cache-hit != 'true'
+        env:
+          AZURE_TENANT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.target == 'win' && steps.signing.outputs.signed == 'true' && secrets.AZURE_CLIENT_SECRET || '' }}
+        run: pnpm --filter @novadeck/murmur build:engine
 
       # Unpacks the engine with the tar the runner uses on this platform and runs it, so a
       # missing library or backend module fails here rather than on a person's machine.
@@ -351,10 +370,104 @@ jobs:
           archive="$(ls application/whisper/dist/novadeck-whisper-*.tar.gz)"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             "$SYSTEMROOT/System32/tar.exe" -xzf "$(cygpath -w "$archive")" -C "$(cygpath -w "$engine")"
-            "$engine/whisper-server.exe" --help > /dev/null
+            server="$engine/whisper-server.exe"
           else
             tar -xzf "$archive" -C "$engine"
-            "$engine/whisper-server" --help > /dev/null
+            server="$engine/whisper-server"
+          fi
+          "$server" --help > /dev/null
+          # The flags the runner starts the server with (application/runner/src/voice/engine.ts):
+          # with a model that is not there, the server must complain of the model and exit with
+          # a failure within moments, even though its stdin stays open, as the runner holds it.
+          # The sleep holds stdin open; a server that is still there when it ends has not exited
+          # on its own, and exits 0 as its stdin closes. (A server that does not know a flag
+          # prints its usage and exits 0.) Its own time is taken by the subshell around it, as
+          # the pipeline waits for the sleep. The build checks that the patch applies.
+          flags=(--host 127.0.0.1 --port 0 --request-path /check -l en -nt -t 2 --vad --exit-with-stdin)
+          model="$engine/absent.bin"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then model="$(cygpath -m "$engine")/absent.bin"; fi
+          start=$(date +%s)
+          sleep 15 | { code=0; "$server" "${flags[@]}" -m "$model" -vm "$model" > "$RUNNER_TEMP/voice-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/voice-end.txt"; }
+          read -r status ended < "$RUNNER_TEMP/voice-end.txt"
+          tr -d '\r' < "$RUNNER_TEMP/voice-flags.txt" | tail -n 20
+          if [[ "$status" == 0 ]]; then
+            if grep -q -i -E 'unknown argument|usage:' "$RUNNER_TEMP/voice-flags.txt"; then
+              echo "::error::The server does not take the flags the runner starts it with (it printed its usage)."
+            else
+              echo "::error::The server did not fail on a missing model while its stdin was open."
+            fi
+            exit 1
+          fi
+          if (( ended - start > 10 )); then
+            echo "::error::The server took $((ended - start)) s to fail on a missing model."
+            exit 1
+          fi
+          if ! grep -q -i -E 'absent\.bin|failed to initialize whisper context' "$RUNNER_TEMP/voice-flags.txt"; then
+            echo "::error::The server did not complain of the missing model."
+            exit 1
+          fi
+
+      # The same for murmur's server, which must also list its devices with their types:
+      # the runner picks the GPU from that list. A runner has no GPU, so the list may be empty.
+      - name: Check Murmur Engine
+        shell: bash
+        run: |
+          engine="$RUNNER_TEMP/murmur-engine"
+          mkdir -p "$engine"
+          archive="$(ls application/murmur/dist/novadeck-murmur-*.tar.gz)"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            "$SYSTEMROOT/System32/tar.exe" -xzf "$(cygpath -w "$archive")" -C "$(cygpath -w "$engine")"
+            server="$engine/llama-server.exe"
+          else
+            tar -xzf "$archive" -C "$engine"
+            server="$engine/llama-server"
+          fi
+          "$server" --help > /dev/null
+          "$server" --list-devices | tr -d '\r' | tee "$RUNNER_TEMP/murmur-devices.txt"
+          grep -q '^Available devices:' "$RUNNER_TEMP/murmur-devices.txt"
+          # A runner without a GPU prints "  (none)", which is not a device.
+          if grep -E '^  [^ (]' "$RUNNER_TEMP/murmur-devices.txt" | grep -v -E ' \[(cpu|gpu|igpu|accel)\]$'; then
+            echo "::error::A device line has no type."
+            exit 1
+          fi
+          # The flags the runner starts the server with (application/runner/src/murmur/service.ts):
+          # with a model that is not there, the server must get as far as complaining of the
+          # model, not of an argument it does not know or cannot read, and exit with a failure
+          # at once even though its stdin stays open, as the runner holds it. The sleep holds
+          # stdin open; a server that is still there when it ends has not exited on its own,
+          # and exits 0 as its stdin closes. Its own time is taken by the subshell around it,
+          # as the pipeline waits for the sleep.
+          flags=(--host 127.0.0.1 --port 0 --device none -ngl 999 -c 4096 -np 1 --reasoning off --exit-with-stdin)
+          model="$engine/absent.gguf"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then model="$(cygpath -m "$engine")/absent.gguf"; fi
+          start=$(date +%s)
+          sleep 15 | { code=0; "$server" "${flags[@]}" -m "$model" > "$RUNNER_TEMP/murmur-flags.txt" 2>&1 || code=$?; echo "$code $(date +%s)" > "$RUNNER_TEMP/murmur-end.txt"; }
+          read -r status ended < "$RUNNER_TEMP/murmur-end.txt"
+          tr -d '\r' < "$RUNNER_TEMP/murmur-flags.txt" | tail -n 20
+          if [[ "$status" == 0 ]]; then
+            echo "::error::The server did not fail on a missing model while its stdin was open."
+            exit 1
+          fi
+          if (( ended - start > 10 )); then
+            echo "::error::The server took $((ended - start)) s to fail on a missing model."
+            exit 1
+          fi
+          if grep -q -i -E 'invalid argument|unknown argument|unrecognized|unrecognised|error while handling argument|invalid value|usage:' "$RUNNER_TEMP/murmur-flags.txt"; then
+            echo "::error::The server does not take the flags the runner starts it with."
+            exit 1
+          fi
+          if ! grep -q -i -E 'absent\.gguf|failed to load model|error loading model|failed to open' "$RUNNER_TEMP/murmur-flags.txt"; then
+            echo "::error::The server did not complain of the missing model."
+            exit 1
+          fi
+          # With stdin closed the patched server ends at once and cleanly; an unpatched one
+          # rejects the flag.
+          status=0
+          "$server" "${flags[@]}" -m "$model" < /dev/null > "$RUNNER_TEMP/murmur-stdin.txt" 2>&1 || status=$?
+          if [[ "$status" != 0 ]]; then
+            cat "$RUNNER_TEMP/murmur-stdin.txt"
+            echo "::error::The server did not end cleanly when its stdin closed."
+            exit 1
           fi
 
       # The relay is built with the Rust its rust-toolchain.toml names; on macOS as one
@@ -442,8 +555,10 @@ jobs:
           xcrun stapler validate "$bundle"
           hdiutil detach -force "$image" > /dev/null
 
+          mkdir -p "$verify/murmur"
           tar -xzf application/whisper/dist/novadeck-whisper-*.tar.gz -C "$verify/engine"
-          for file in "$verify"/engine/whisper-server "$verify"/engine/*.dylib; do
+          tar -xzf application/murmur/dist/novadeck-murmur-*.tar.gz -C "$verify/murmur"
+          for file in "$verify"/engine/whisper-server "$verify"/murmur/llama-server "$verify"/engine/*.dylib "$verify"/murmur/*.dylib; do
             if [[ -f "$file" && ! -L "$file" ]]; then
               codesign --verify --strict --verbose=2 "$file"
               codesign --display --verbose=2 "$file" 2>&1 | grep '^Authority=Developer ID Application: ' > /dev/null
@@ -456,11 +571,16 @@ jobs:
         run: |
           $engine = Join-Path $env:RUNNER_TEMP "novadeck-verify-engine"
           New-Item -ItemType Directory -Force -Path $engine | Out-Null
+          $murmur = Join-Path $env:RUNNER_TEMP "novadeck-verify-murmur"
+          New-Item -ItemType Directory -Force -Path $murmur | Out-Null
           $archive = Get-ChildItem application/whisper/dist -Filter "novadeck-whisper-*.tar.gz" | Select-Object -First 1
           & "$env:SystemRoot\System32\tar.exe" -xzf $archive.FullName -C $engine
+          $archive = Get-ChildItem application/murmur/dist -Filter "novadeck-murmur-*.tar.gz" | Select-Object -First 1
+          & "$env:SystemRoot\System32\tar.exe" -xzf $archive.FullName -C $murmur
           $files = @(Get-ChildItem application/host/release -Filter *.exe) +
             @(Get-ChildItem application/host/release/win-unpacked -Recurse -Include *.exe, *.dll, *.node) +
-            @(Get-ChildItem $engine -Include *.exe, *.dll -Recurse)
+            @(Get-ChildItem $engine -Include *.exe, *.dll -Recurse) +
+            @(Get-ChildItem $murmur -Include *.exe, *.dll -Recurse)
           $unsigned = $files | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne "Valid" }
           if ($unsigned) {
             $unsigned | ForEach-Object { Write-Host "::error::Not validly signed: $($_.FullName)" }
@@ -761,9 +881,9 @@ jobs:
           fi
 
       # Beside the packages, so the artifact keeps one flat folder for the release job.
-      - name: Collect Voice Engine
+      - name: Collect Engines
         shell: bash
-        run: cp application/whisper/dist/novadeck-whisper-*.tar.gz application/host/release/
+        run: cp application/whisper/dist/novadeck-whisper-*.tar.gz application/murmur/dist/novadeck-murmur-*.tar.gz application/host/release/
 
       - name: Upload Packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

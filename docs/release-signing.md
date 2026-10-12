@@ -4,12 +4,12 @@ Releases from `main` are signed on every platform once the signing credentials a
 the repository's settings. Until a platform's credentials are there, its package is
 built unsigned, as before. Pull requests are never signed.
 
-| Platform | What is signed                                                                                                   | How                                                |
-| -------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| macOS    | The app bundle and every binary in it, the relay included, plus the voice engine's server and libraries          | Developer ID, hardened runtime, notarized, stapled |
-| Windows  | The installer, its uninstaller, the app inside them, its DLLs and native modules, the relay and the voice engine | Azure Artifact Signing                             |
-| All      | Every release asset                                                                                              | GitHub build provenance attestations               |
-| All      | `SHA256SUMS`, the checksums of every asset                                                                       | A detached GPG signature, `SHA256SUMS.asc`         |
+| Platform | What is signed                                                                                                               | How                                                |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| macOS    | The app bundle and every binary in it, the relay included, plus the voice and murmur engines' servers and libraries          | Developer ID, hardened runtime, notarized, stapled |
+| Windows  | The installer, its uninstaller, the app inside them, its DLLs and native modules, the relay and the voice and murmur engines | Azure Artifact Signing                             |
+| All      | Every release asset                                                                                                          | GitHub build provenance attestations               |
+| All      | `SHA256SUMS`, the checksums of every asset                                                                                   | A detached GPG signature, `SHA256SUMS.asc`         |
 
 The release workflow turns each platform on by itself: macOS when any of its secrets is
 set, Windows when any of its `AZURE_SIGNING_*` variables is, and the checksums' signature
@@ -139,15 +139,18 @@ public key goes on warning that it has expired.
 Keep a backup of the private key off GitHub: a secret can be replaced but not read
 back, and a new key means telling everyone who trusted the old one.
 
-## The voice engine
+## The voice and murmur engines
 
-The engine is built and signed in the same job as the app, with the same identity. Its
-CI cache is keyed on that identity, so the first signed release, and the first after a
-certificate changes, builds it afresh; pull requests, never signed, keep an unsigned
-engine of their own. A signature's timestamp makes every signed build different bytes,
-so a rebuilt engine has a new SHA-256 and installed apps download it again; that happens
-only when the cache misses.
+Both engines (whisper.cpp for voice input, llama.cpp for murmur) are built and signed in
+the same job as the app, with the same identity. Each CI cache is keyed on that identity,
+so the first signed release, and the first after a certificate changes, builds them
+afresh; pull requests, never signed, keep unsigned engines of their own. A signature's
+timestamp makes every signed build different bytes, so a rebuilt engine has a new SHA-256
+and installed apps download it again; that happens only when its cache misses.
 
-The engine isn't notarized: the runner downloads it with its own HTTP client, so macOS
-doesn't quarantine it and Gatekeeper doesn't assess it. Its Developer ID signature is
+The workflow checks each engine after building it (murmur's also lists its devices) and,
+on a signed release, verifies the signatures of both archives' binaries before packaging.
+
+The engines aren't notarized: the runner downloads them with its own HTTP client, so macOS
+doesn't quarantine them and Gatekeeper doesn't assess them. Their Developer ID signature is
 what lets it run on Apple silicon, and what still stands if macOS ever asks for more.

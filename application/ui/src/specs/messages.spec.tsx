@@ -161,7 +161,7 @@ describe("Who named a terminal", () => {
     await openMessagesDemo()
     expect(await namedBy("Checkout implementation")).toBe("Named by you")
     expect(await namedBy("Checkout review")).toBe("Named by the agent in t1")
-    expect(await namedBy("Tests")).toBe("Named after its first prompt")
+    expect(await namedBy("Tests")).toBe("Named by Murmur")
   })
 
   it("can be handed back to Novadeck from the tab's menu when the person named it", async () => {

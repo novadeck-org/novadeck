@@ -83,11 +83,11 @@ export type TerminalStatus =
   | { readonly state: "failed"; readonly message: string }
 
 // Who a terminal's name is from: the person, an agent (by its terminal's handle), the
-// person's first prompt there, or the backend's default.
+// murmur, or the backend's default.
 export type TitleSource =
   | { readonly kind: "person" }
   | { readonly kind: "agent"; readonly by: string }
-  | { readonly kind: "fallback" }
+  | { readonly kind: "murmur" }
   | { readonly kind: "default" }
 
 // A terminal as its backend reports it. The backend owns all of it: which terminals a

@@ -4,6 +4,7 @@ import { dirname, join } from "node:path"
 
 import { CompanionItems } from "./companions/items.js"
 import { createHarnesses, type HarnessesOptions } from "./harnesses/service.js"
+import { Murmur } from "./murmur/service.js"
 import { createRouter, type Connection } from "./router.js"
 import { installShellFiles } from "./shell/install.js"
 import { Terminals, type TerminalOptions } from "./terminals/index.js"
@@ -39,6 +40,17 @@ export type RunnerOptions = {
    * Without an engine voice input is unavailable.
    */
   voice?: {
+    readonly engine?: string
+    readonly source?: string
+    readonly directory?: string
+  }
+  /**
+   * Murmur's engine, which writes terminals' titles: `engine` is the path to
+   * its manifest (`engine.json`), `source` where its archive is, an https URL ending in `/`
+   * or a folder, and `directory` where it and the model install, a `murmur` folder beside
+   * the database by default. Without an engine murmur is unavailable and nothing is described.
+   */
+  murmur?: {
     readonly engine?: string
     readonly source?: string
     readonly directory?: string
@@ -105,25 +117,6 @@ export const wire = (options: RunnerOptions) => {
     terminal: (terminalId) => terminals.place(terminalId),
     livePlan: (item) => terminals.livePlan(item),
   })
-  const terminals = new Terminals({
-    records: store,
-    shellFiles,
-    ...relay,
-    // Codex runs through Novadeck's shim while it is connected; see `posixCodexShim`.
-    shims: () => agents.shims(),
-    connected: (agent) => agents.connected(agent),
-    // Where each harness lives, which says how it may start with a task.
-    install: (agent) => agents.install(agent),
-    transcripts: store.settings().transcripts,
-    projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
-    // Agents message each other within a project, and the mailbox is kept with it.
-    mailbox: store,
-    projectOf: (sessionId) => store.session(sessionId).projectId,
-    items,
-    ...options.terminals,
-  })
-  const projects = new Projects(store, terminals, items)
-  const uploads = new Uploads(options.uploads)
   const voice = new Voice(store, {
     engine: options.voice?.engine,
     source: options.voice?.source,
@@ -149,13 +142,46 @@ export const wire = (options: RunnerOptions) => {
   })
   // Not awaited: the runner starts at once, and the first voice call waits for the load.
   voice.start()
-  return { store, shellFiles, agents, terminals, items, projects, uploads, voice }
+  const murmur = new Murmur(store, {
+    engine: options.murmur?.engine,
+    source: options.murmur?.source,
+    directory:
+      options.murmur?.directory ??
+      (options.database === undefined
+        ? join(tmpdir(), `novadeck-murmur-${randomUUID()}`)
+        : join(dirname(options.database), "murmur")),
+    // Voice input has priority over the GPU.
+    voice: voice.activity,
+  })
+  murmur.start()
+  const terminals = new Terminals({
+    records: store,
+    shellFiles,
+    ...relay,
+    // Codex runs through Novadeck's shim while it is connected; see `posixCodexShim`.
+    shims: () => agents.shims(),
+    connected: (agent) => agents.connected(agent),
+    // Where each harness lives, which says how it may start with a task.
+    install: (agent) => agents.install(agent),
+    transcripts: store.settings().transcripts,
+    projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
+    // Agents message each other within a project, and the mailbox is kept with it.
+    mailbox: store,
+    projectOf: (sessionId) => store.session(sessionId).projectId,
+    items,
+    // Without an engine nothing is described, so terminals have nothing to wait for.
+    ...(options.murmur?.engine !== undefined && { describer: murmur }),
+    ...options.terminals,
+  })
+  const projects = new Projects(store, terminals, items)
+  const uploads = new Uploads(options.uploads)
+  return { store, shellFiles, agents, terminals, items, projects, uploads, voice, murmur }
 }
 
 /** Owns shells and workspace metadata, independent of how clients reach it. */
 export const createRunner = (options: RunnerOptions = {}): Runner => {
   const id = randomUUID()
-  const { store, terminals, items, agents, projects, uploads, voice } = wire(options)
+  const { store, terminals, items, agents, projects, uploads, voice, murmur } = wire(options)
   const clients = new Map<string, Connection>()
   let closing: Promise<void> | undefined
   const disconnect = (connection: Connection) => {
@@ -166,6 +192,7 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
     }
     terminals.release(connection.id)
     voice.release(connection.id)
+    murmur.release(connection.id)
   }
   // A client only notices a dead link first; release its stale connection now instead
   // of after missed heartbeats, so its reconnection can reclaim terminal control.
@@ -190,6 +217,7 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
       agents,
       uploads,
       voice,
+      murmur,
       closing: () => closing !== undefined,
     }),
     snapshotBytes: options.terminals?.snapshotBytes ?? 32 * 1024 * 1024,
@@ -215,7 +243,11 @@ export const createRunner = (options: RunnerOptions = {}): Runner => {
           try {
             await voice.close()
           } finally {
-            store.close()
+            try {
+              await murmur.close()
+            } finally {
+              store.close()
+            }
           }
         }
       })()

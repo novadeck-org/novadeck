@@ -163,6 +163,12 @@ describe("Preferences", () => {
 /** The Addons tab's panel. */
 const addons = (): Locator => preferencesDialog().getByRole("tabpanel", { name: "Addons" })
 
+/** The Addons tab's voice input card, with its heading. */
+const voiceCard = (): Locator => addons().getByRole("region", { name: "Voice input" })
+
+/** The Addons tab's murmur card, with its heading. */
+const murmurCard = (): Locator => addons().getByRole("region", { name: "Murmur" })
+
 describe("Preferences Addons", () => {
   const showAddons = async (): Promise<void> => {
     await openPreferences()
@@ -175,44 +181,46 @@ describe("Preferences Addons", () => {
       await openWorkspace()
       await showAddons()
 
-      await expect.element(addons().getByText(/never leaves it/)).toBeVisible()
-      await expect.element(addons().getByText(/Most accurate, 99 languages/)).toBeVisible()
-      await expect.element(addons().getByText(/Downloads 602 MB/)).toBeVisible()
-      await addons().getByText("Small", { exact: true }).click()
-      await expect.element(addons().getByText(/Faster without a GPU/)).toBeVisible()
-      await expect.element(addons().getByText(/Downloads 218 MB/)).toBeVisible()
-      await addons().getByRole("button", { name: "Install" }).click()
+      await expect.element(voiceCard().getByText(/never leaves it/)).toBeVisible()
+      await expect.element(voiceCard().getByText(/Most accurate, 99 languages/)).toBeVisible()
+      await expect.element(voiceCard().getByText(/Downloads 602 MB/)).toBeVisible()
+      await voiceCard().getByText("Small", { exact: true }).click()
+      await expect.element(voiceCard().getByText(/Faster without a GPU/)).toBeVisible()
+      await expect.element(voiceCard().getByText(/Downloads 218 MB/)).toBeVisible()
+      await voiceCard().getByRole("button", { name: "Install" }).click()
 
-      await expect.element(addons().getByText(/Downloading engine/)).toBeVisible()
-      await expect.element(addons().getByRole("progressbar")).toBeVisible()
-      await expect.element(addons().getByRole("button", { name: "Cancel" })).toBeVisible()
-      await expect.element(addons().getByText(/Downloading model/)).toBeVisible()
+      await expect.element(voiceCard().getByText(/Downloading engine/)).toBeVisible()
+      await expect.element(voiceCard().getByRole("progressbar")).toBeVisible()
+      await expect.element(voiceCard().getByRole("button", { name: "Cancel" })).toBeVisible()
+      await expect.element(voiceCard().getByText(/Downloading model/)).toBeVisible()
 
-      const enabled = addons().getByRole("switch", { name: "Enabled" })
+      const enabled = voiceCard().getByRole("switch", { name: "Enabled" })
       // The demo's install takes a few seconds, its three steps together.
       await expect.element(enabled, { timeout: 10_000 }).toHaveAttribute("aria-checked", "true")
-      await expect.element(addons().getByText(/Checked: a test clip took/)).toBeVisible()
-      await expect.element(addons().getByRole("button", { name: /Install · 574 MB/ })).toBeVisible()
+      await expect.element(voiceCard().getByText(/Checked: a test clip took/)).toBeVisible()
+      await expect
+        .element(voiceCard().getByRole("button", { name: /Install · 574 MB/ }))
+        .toBeVisible()
     })
 
     it("stops an install on Cancel", async () => {
       await openWorkspace()
       await showAddons()
-      await addons().getByRole("button", { name: "Install" }).click()
+      await voiceCard().getByRole("button", { name: "Install" }).click()
 
-      await addons().getByRole("button", { name: "Cancel" }).click()
+      await voiceCard().getByRole("button", { name: "Cancel" }).click()
 
-      await expect.element(addons().getByRole("button", { name: "Install" })).toBeVisible()
-      await expect.element(addons().getByRole("progressbar")).not.toBeInTheDocument()
+      await expect.element(voiceCard().getByRole("button", { name: "Install" })).toBeVisible()
+      await expect.element(voiceCard().getByRole("progressbar")).not.toBeInTheDocument()
     })
   })
 
   context("when voice input is installed", () => {
     const install = async (): Promise<void> => {
       await showAddons()
-      await addons().getByRole("button", { name: "Install" }).click()
+      await voiceCard().getByRole("button", { name: "Install" }).click()
       await expect
-        .element(addons().getByRole("switch", { name: "Enabled" }), { timeout: 10_000 })
+        .element(voiceCard().getByRole("switch", { name: "Enabled" }), { timeout: 10_000 })
         .toHaveAttribute("aria-checked", "true")
     }
 
@@ -220,24 +228,86 @@ describe("Preferences Addons", () => {
       await openWorkspace()
       await install()
 
-      await addons().getByRole("switch", { name: "Enabled" }).click()
+      await voiceCard().getByRole("switch", { name: "Enabled" }).click()
       await expect
-        .element(addons().getByRole("switch", { name: "Enabled" }))
+        .element(voiceCard().getByRole("switch", { name: "Enabled" }))
         .toHaveAttribute("aria-checked", "false")
 
-      await addons().getByRole("button", { name: "Uninstall" }).click()
+      await voiceCard().getByRole("button", { name: "Uninstall" }).click()
       const confirm = page.getByRole("alertdialog", { name: "Uninstall voice input?" })
       await expect.element(confirm.getByText(/freeing 602 MB/)).toBeVisible()
       await confirm.getByRole("button", { name: "Cancel" }).click()
       await expect.element(confirm).not.toBeInTheDocument()
-      await expect.element(addons().getByRole("switch", { name: "Enabled" })).toBeVisible()
+      await expect.element(voiceCard().getByRole("switch", { name: "Enabled" })).toBeVisible()
 
-      await addons().getByRole("button", { name: "Uninstall" }).click()
+      await voiceCard().getByRole("button", { name: "Uninstall" }).click()
       await confirm.getByRole("button", { name: "Uninstall" }).click()
-      await expect.element(addons().getByRole("button", { name: "Install" })).toBeVisible()
+      await expect.element(voiceCard().getByRole("button", { name: "Install" })).toBeVisible()
       // Removing it says it isn't wanted: it stays off, and the app stops offering it.
       await expect
-        .element(addons().getByRole("switch", { name: "Enabled" }))
+        .element(voiceCard().getByRole("switch", { name: "Enabled" }))
+        .toHaveAttribute("aria-checked", "false")
+    })
+  })
+
+  context("when murmur is not installed", () => {
+    it("says what it does and installs with progress until it is on", async () => {
+      await openWorkspace()
+      await showAddons()
+
+      await expect.element(addons().getByText(/Names your terminals/)).toBeVisible()
+      await expect.element(murmurCard().getByText(/Downloads 1\.2 GB/)).toBeVisible()
+      await expect
+        .element(murmurCard().getByRole("switch", { name: "Enabled" }))
+        .toHaveAttribute("aria-checked", "true")
+      await murmurCard().getByRole("button", { name: "Install" }).click()
+
+      await expect.element(murmurCard().getByText(/Downloading engine/)).toBeVisible()
+      await expect.element(murmurCard().getByRole("progressbar")).toBeVisible()
+      await expect.element(murmurCard().getByRole("button", { name: "Cancel" })).toBeVisible()
+      await expect.element(murmurCard().getByText(/Downloading model/)).toBeVisible()
+      await expect
+        .element(murmurCard().getByText("Runs on Intel Arc Graphics."), { timeout: 10_000 })
+        .toBeVisible()
+      await expect
+        .element(murmurCard().getByRole("switch", { name: "Enabled" }))
+        .toHaveAttribute("aria-checked", "true")
+    })
+
+    it("stops an install on Cancel", async () => {
+      await openWorkspace()
+      await showAddons()
+      await murmurCard().getByRole("button", { name: "Install" }).click()
+
+      await murmurCard().getByRole("button", { name: "Cancel" }).click()
+
+      await expect.element(murmurCard().getByRole("button", { name: "Install" })).toBeVisible()
+      await expect.element(murmurCard().getByRole("progressbar")).not.toBeInTheDocument()
+    })
+  })
+
+  context("when murmur is installed", () => {
+    it("turns off, and asks before uninstalling, saying what it frees", async () => {
+      await openWorkspace()
+      await showAddons()
+      await murmurCard().getByRole("button", { name: "Install" }).click()
+      const enabled = murmurCard().getByRole("switch", { name: "Enabled" })
+      await expect.element(murmurCard().getByText(/Runs on/), { timeout: 10_000 }).toBeVisible()
+
+      await enabled.click()
+      await expect.element(enabled).toHaveAttribute("aria-checked", "false")
+
+      await murmurCard().getByRole("button", { name: "Uninstall" }).click()
+      const confirm = page.getByRole("alertdialog", { name: "Uninstall Murmur?" })
+      await expect.element(confirm.getByText(/freeing 1\.2 GB/)).toBeVisible()
+      await confirm.getByRole("button", { name: "Cancel" }).click()
+      await expect.element(confirm).not.toBeInTheDocument()
+
+      await murmurCard().getByRole("button", { name: "Uninstall" }).click()
+      await confirm.getByRole("button", { name: "Uninstall" }).click()
+      await expect.element(murmurCard().getByRole("button", { name: "Install" })).toBeVisible()
+      await expect
+        .element(murmurCard().getByRole("switch", { name: "Enabled" }))
         .toHaveAttribute("aria-checked", "false")
     })
   })

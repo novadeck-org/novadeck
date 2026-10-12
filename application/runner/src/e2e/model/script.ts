@@ -119,7 +119,7 @@ export const latest = (call: Call): string =>
   call.turns.findLast((turn) => turn.role === "user")?.text ?? ""
 
 /**
- * The name a harness gives one of Novadeck's MCP tools (`send`, `agents`, `describe`),
+ * The name a harness gives one of Novadeck's MCP tools (`send`, `agents`, `open_terminal`),
  * as each prefixes it its own way (Claude Code's `mcp__plugin_novadeck_novadeck__send`);
  * undefined when the call doesn't offer it.
  */

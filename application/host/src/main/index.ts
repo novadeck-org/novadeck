@@ -147,8 +147,30 @@ const voiceEngine = async (): Promise<{ engine: string; source: string }> => {
     // NOVADECK_VOICE_SOURCE points a build at another folder or address, as a local or
     // pull request build needs: it has no release of its own to download from.
     source:
-      process.env.NOVADECK_VOICE_SOURCE ??
-      (repository && releaseDownloadsUrl(repository, app.getVersion())) ??
+      process.env.NOVADECK_VOICE_SOURCE ||
+      (repository && releaseDownloadsUrl(repository, app.getVersion())) ||
+      "",
+  }
+}
+
+/**
+ * Where murmur finds its engine, as `voiceEngine` does for voice input: the manifest
+ * shipped beside the UI, or the one `pnpm build:engine` leaves in application/murmur,
+ * and the release this build came from once packaged.
+ */
+const murmurEngine = async (): Promise<{ murmurEngine: string; murmurSource: string }> => {
+  if (!app.isPackaged) {
+    const dist = join(app.getAppPath(), "..", "murmur", "dist")
+    return { murmurEngine: join(dist, "engine.json"), murmurSource: dist }
+  }
+  const repository = process.env.NOVADECK_MURMUR_SOURCE ? undefined : await releaseRepository()
+  return {
+    murmurEngine: join(process.resourcesPath, "murmur", "engine.json"),
+    // NOVADECK_MURMUR_SOURCE points a build at another folder or address, as a local or
+    // pull request build needs: it has no release of its own to download from.
+    murmurSource:
+      process.env.NOVADECK_MURMUR_SOURCE ||
+      (repository && releaseDownloadsUrl(repository, app.getVersion())) ||
       "",
   }
 }
@@ -445,6 +467,7 @@ const launch = async (): Promise<void> => {
     database: join(app.getPath("userData"), "workspace.sqlite"),
     relay: relayPath(),
     ...(await voiceEngine()),
+    ...(await murmurEngine()),
   })
   // A port is shell access: only the main frame of this app's own window showing its
   // own UI may ask for one.

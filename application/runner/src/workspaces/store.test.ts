@@ -272,6 +272,15 @@ describe("workspace metadata", () => {
     }
   })
 
+  it("refuses a database from before murmur titles, which has no murmur_title", ({ directory }) => {
+    const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
+    const old = new DatabaseSync(path)
+    old.exec("ALTER TABLE terminals DROP COLUMN murmur_title")
+    old.close()
+    expect(() => new WorkspaceStore(path)).toThrow(/expects murmur_title TEXT/)
+  })
+
   it("refuses a database an earlier build wrote, naming it and saying to delete it", ({
     directory,
   }) => {
@@ -348,7 +357,7 @@ const numbered = (id: string, handle: string) => ({
   agents: {},
   promptedAt: null,
   handle,
-  naming: { person: null, agent: null, summary: null },
+  naming: { person: null, agent: null, murmur: null, summary: null },
   openedBy: null,
   ledBy: null,
   command: null,
@@ -373,7 +382,8 @@ describe("saved terminals", () => {
       naming: {
         person: null,
         agent: { title: "API author", by: "t1" },
-        summary: "Builds the API.",
+        murmur: { title: "Building the API" },
+        summary: "Builds the API.\nThen its tests.",
       },
       openedBy: "t2",
       ledBy: "t2",
@@ -383,6 +393,7 @@ describe("saved terminals", () => {
         session: "claude:abc",
         first: "Build the users API",
         latest: "Now add paging",
+        recent: ["Build the users API", "Now add paging"],
         folders: { "/work/src": 4 },
         activeAt: 2_000,
       },
@@ -410,6 +421,50 @@ describe("saved terminals", () => {
     expect(reopened.terminal(terminal.id)?.transcript).toBeNull()
     reopened.removeTerminal(terminal.id)
     expect(reopened.terminal(terminal.id)).toBeUndefined()
+  })
+
+  it("keep murmur's title and the agent's summary beside the person's and the opener's title", ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const workspace = store(path)
+    const agent = { title: "Server", by: "t1" }
+    const murmur = { title: "Fixing login" }
+    const summary = "Fixes the login bug."
+    workspace.saveTerminal({
+      ...numbered("a", "t2"),
+      naming: { person: "Mine", agent, murmur, summary },
+    })
+    expect(workspace.terminal("a")?.naming).toEqual({ person: "Mine", agent, murmur, summary })
+    // Taking the person's title away leaves the other layers.
+    expect(workspace.renameTerminal("a", null)).toBe(true)
+    expect(workspace.terminalIdentity("a")?.naming).toEqual({
+      person: null,
+      agent,
+      murmur,
+      summary,
+    })
+    // The summary and murmur's title change apart.
+    const next = { title: "Fixing signup" }
+    workspace.saveTerminal({
+      ...numbered("a", "t2"),
+      naming: { person: null, agent, murmur: next, summary },
+    })
+    expect(workspace.terminals().map(({ naming }) => naming)).toEqual([
+      { person: null, agent, murmur: next, summary },
+    ])
+    workspace.saveTerminal({
+      ...numbered("a", "t2"),
+      naming: { person: null, agent, murmur: null, summary: null },
+    })
+    expect(workspace.terminal("a")?.naming).toEqual({
+      person: null,
+      agent,
+      murmur: null,
+      summary: null,
+    })
+    workspace.close()
   })
 
   it("overwrite what they forget, which may hold secrets, and empty their log after", async ({
@@ -495,6 +550,19 @@ describe("saved terminals", () => {
             workspace.dockItem(moving.id, there)
           },
         ],
+        [
+          "murmur's titles",
+          "SECRET_MURMUR_TITLE",
+          () => {
+            const naming = { person: null, agent: null, summary: null }
+            workspace.saveTerminal({
+              ...numbered(randomUUID(), "t6"),
+              sessionId: session.id,
+              naming: { ...naming, murmur: { title: "SECRET_MURMUR_TITLE" } },
+            })
+            workspace.clearMurmurTitles()
+          },
+        ],
       ]
       for (const [what, secret, forget] of forgetting) {
         forget()
@@ -529,7 +597,7 @@ describe("saved terminals", () => {
       agents: {},
       promptedAt: null,
       handle: "t1",
-      naming: { person: null, agent: null, summary: null },
+      naming: { person: null, agent: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -560,7 +628,7 @@ describe("saved terminals", () => {
         agents: {},
         promptedAt: null,
         handle: `t${index + 1}`,
-        naming: { person: null, agent: null, summary: null },
+        naming: { person: null, agent: null, murmur: null, summary: null },
         openedBy: null,
         ledBy: null,
         command: null,
@@ -604,7 +672,7 @@ describe("saved terminals", () => {
       agents: {},
       promptedAt: null,
       handle: "t1",
-      naming: { person: null, agent: null, summary: null },
+      naming: { person: null, agent: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -618,6 +686,7 @@ describe("saved terminals", () => {
     expect(reopened.terminal("a")?.naming).toEqual({
       person: "API author",
       agent: null,
+      murmur: null,
       summary: null,
     })
     expect(reopened.nextTerminalNumber("s")).toBe(3)
@@ -688,7 +757,7 @@ describe("the mailbox", () => {
       agents: {},
       promptedAt: null,
       handle: "t1",
-      naming: { person: null, agent: null, summary: null },
+      naming: { person: null, agent: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
       command: null,
@@ -732,7 +801,7 @@ const keptTerminal = (workspace: WorkspaceStore, sessionId: string, handle: stri
     agents: {},
     promptedAt: null,
     handle,
-    naming: { person: null, agent: null, summary: null },
+    naming: { person: null, agent: null, murmur: null, summary: null },
     openedBy: null,
     ledBy: null,
     command: null,
@@ -847,5 +916,44 @@ describe("companion items", () => {
     expect(reopened.items()).toEqual([{ ...shown, terminalId: second }])
     reopened.removeTerminal(second)
     expect(reopened.items()).toEqual([])
+  })
+})
+
+describe("murmur's settings", () => {
+  it("are off until chosen, and the choice is kept or forgotten", ({ directory, store }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const workspace = store(path)
+    expect(workspace.murmurSettings()).toEqual({ enabled: false })
+    expect(workspace.murmurEnabledChoice()).toBeUndefined()
+    workspace.saveMurmurSettings({ enabled: true })
+    workspace.close()
+    const reopened = store(path)
+    expect(reopened.murmurSettings()).toEqual({ enabled: true })
+    expect(reopened.murmurEnabledChoice()).toBe(true)
+    reopened.saveMurmurSettings({ enabled: false })
+    expect(reopened.murmurEnabledChoice()).toBe(false)
+    // Nothing given changes nothing; null forgets the choice.
+    reopened.saveMurmurSettings({})
+    expect(reopened.murmurEnabledChoice()).toBe(false)
+    reopened.saveMurmurSettings({ enabled: null })
+    expect(reopened.murmurEnabledChoice()).toBeUndefined()
+  })
+
+  it("keep the check the install passed, validated when read", ({ directory, store }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const workspace = store(path)
+    expect(workspace.murmurCheck()).toBeNull()
+    const check = { device: "Vulkan0", integrated: true, milliseconds: 5_200 }
+    workspace.saveMurmurCheck(check)
+    expect(workspace.murmurCheck()).toEqual(check)
+    workspace.close()
+    const database = new DatabaseSync(path)
+    database.exec("UPDATE settings SET value = '{\"device\":1}' WHERE key = 'murmur.check'")
+    database.close()
+    const reopened = store(path)
+    expect(reopened.murmurCheck()).toBeNull()
+    reopened.saveMurmurCheck(check)
+    reopened.saveMurmurCheck(null)
+    expect(reopened.murmurCheck()).toBeNull()
   })
 })

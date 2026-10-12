@@ -6,6 +6,7 @@ import { implement, ORPCError } from "@orpc/server"
 import type { CompanionItems } from "./companions/items.js"
 import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
+import type { Murmur } from "./murmur/service.js"
 import type { Terminals } from "./terminals/index.js"
 import type { Uploads } from "./terminals/uploads.js"
 import type { Voice } from "./voice/service.js"
@@ -48,10 +49,11 @@ export const createRouter = (options: {
   agents: Harnesses
   uploads: Uploads
   voice: Voice
+  murmur: Murmur
   /** Whether the runner is shutting down. */
   closing: () => boolean
 }) => {
-  const { store, terminals, projects, items, agents, uploads, voice } = options
+  const { store, terminals, projects, items, agents, uploads, voice, murmur } = options
   const api = implement(contract).$context<Context>()
   const authorized = api.use(async ({ context, next }) => {
     const connection = context.connection
@@ -285,6 +287,20 @@ export const createRouter = (options: {
       discard: authorized.voice.discard.handler(({ input, context }) =>
         voice.discard(context.connection.id, input.clipId),
       ),
+    },
+    murmur: {
+      watch: authorized.murmur.watch.handler(async function* ({ context, signal }) {
+        if (context.connection.closed) return
+        try {
+          yield* murmur.watch(context.connection.id, signal)
+        } catch (error) {
+          throw apiError(error)
+        }
+      }),
+      install: authorized.murmur.install.handler(() => murmur.install()),
+      cancel: authorized.murmur.cancel.handler(() => murmur.cancel()),
+      uninstall: authorized.murmur.uninstall.handler(() => murmur.uninstall()),
+      set: authorized.murmur.set.handler(({ input }) => murmur.set(input)),
     },
     // The store keeps the settings; the terminals apply the transcript switch.
     settings: {

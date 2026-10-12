@@ -1,19 +1,11 @@
-import { mkdir, readdir, writeFile } from "node:fs/promises"
+import { writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { EngineError } from "../engines/unpack.js"
 import { describe, expect, it } from "../test.js"
-import { engineArchive, fakeLaunch, folder } from "../testing/voice.js"
-import {
-  Engine,
-  EngineError,
-  engineFolder,
-  engineInterface,
-  engineProgram,
-  enginesIn,
-  unpack,
-  type EngineConfig,
-} from "./engine.js"
+import { fakeLaunch, folder } from "../testing/voice.js"
+import { Engine, type EngineConfig } from "./engine.js"
 import { languageCode } from "./languages.js"
 import { wav } from "./wav.js"
 
@@ -32,62 +24,6 @@ const form = () => {
   body.set("file", new Blob([new Uint8Array(wav(Buffer.alloc(320)))]), "clip.wav")
   return body
 }
-
-describe("unpacking the engine", () => {
-  it("puts the archive's files in a folder named by its checksum, and removes older engines", async ({
-    resources,
-  }) => {
-    const manifest = join(await engineArchive(resources))
-    const archive = join(manifest, "..", "engine.tar.gz")
-    const directory = await folder(resources)
-    const older = join(enginesIn(directory), "0123456789ab")
-    await mkdir(older, { recursive: true })
-
-    const target = await unpack(archive, directory, "f".repeat(64), 2)
-
-    expect(target).toBe(engineFolder(directory, "f".repeat(64)))
-    expect((await readdir(target)).toSorted()).toEqual([
-      ".interface",
-      "LICENSE",
-      "check.wav",
-      engineProgram,
-    ])
-    expect(await readdir(enginesIn(directory))).toEqual(["ffffffffffff"])
-  })
-
-  it("marks the folder with the interface it was unpacked for", async ({ resources }) => {
-    const archive = join(await engineArchive(resources), "..", "engine.tar.gz")
-    const directory = await folder(resources)
-    const bare = join(directory, "bare")
-    await mkdir(bare)
-    const torn = join(directory, "torn")
-    await mkdir(torn)
-    await writeFile(join(torn, ".interface"), "two")
-    const unreadable = join(directory, "unreadable")
-    await mkdir(join(unreadable, ".interface"), { recursive: true })
-
-    const target = await unpack(archive, directory, "c".repeat(64), 3)
-
-    await expect(engineInterface(target)).resolves.toBe(3)
-    await expect(engineInterface(bare)).resolves.toBe(1)
-    await expect(engineInterface(torn)).resolves.toBe(0)
-    await expect(engineInterface(unreadable)).resolves.toBe(0)
-  })
-
-  it("fails in words for a file that is not an archive, leaving no folder behind", async ({
-    resources,
-  }) => {
-    const directory = await folder(resources)
-    const archive = join(directory, "engine.tar.gz")
-    await writeFile(archive, "not an archive")
-
-    await expect(unpack(archive, directory, "a".repeat(64), 1)).rejects.toThrow(
-      "Could not unpack the engine",
-    )
-
-    expect(await readdir(enginesIn(directory))).toEqual([])
-  })
-})
 
 describe("the engine", () => {
   it("starts on first use, answers with the text and the language it was asked for, and keeps running", async ({

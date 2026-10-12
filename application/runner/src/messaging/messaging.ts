@@ -271,8 +271,6 @@ export class Messaging {
   private readonly threads = new Map<string, Thread>()
   private readonly leases: Leases
   private paused: boolean
-  /** Every message leased in this runner's lifetime, as one its hook may have printed. */
-  private readonly everLeased = new Set<string>()
   // Send times, for the rates: by sender, by sender and recipient, and all.
   private readonly sent = new Map<string, readonly number[]>()
   private readonly pairs = new Map<string, readonly number[]>()
@@ -725,23 +723,6 @@ export class Messaging {
   }
 
   /**
-   * The texts of the messages that may have reached the terminal's root session: delivered,
-   * or ever leased to its hooks, as a lease that lapsed may still have been printed.
-   */
-  receivedTexts(terminalId: string): readonly string[] {
-    const root = this.live.get(terminalId)?.root
-    if (!root) return []
-    return [...this.messages.values()]
-      .filter(
-        (message) =>
-          message.to.terminalId === terminalId &&
-          (message.state === "delivered" || this.everLeased.has(message.id)) &&
-          this.addressed(message, root),
-      )
-      .map(({ text }) => text)
-  }
-
-  /**
    * When the terminal last became Settled, its turn ended, or Ready, its session bound; if
    * it is either.
    */
@@ -1160,10 +1141,7 @@ export class Messaging {
    */
   forgetProject(projectId: string): void {
     for (const [id, message] of this.messages)
-      if (message.projectId === projectId) {
-        this.messages.delete(id)
-        this.everLeased.delete(id)
-      }
+      if (message.projectId === projectId) this.messages.delete(id)
     for (const [id, thread] of this.threads)
       if (thread.projectId === projectId) this.threads.delete(id)
   }
@@ -1180,10 +1158,7 @@ export class Messaging {
         !this.exists(message.to.terminalId) &&
         now - Math.max(message.sentAt, message.deliveredAt ?? 0) >= retentionMs,
     )
-    for (const { id } of old) {
-      this.messages.delete(id)
-      this.everLeased.delete(id)
-    }
+    for (const { id } of old) this.messages.delete(id)
     if (old.length > 0) this.write(() => this.records.removeMessages(old.map(({ id }) => id)))
     const kept = new Set([...this.messages.values()].map(({ thread }) => thread))
     const threads = [...this.threads.keys()].filter((id) => !kept.has(id))
@@ -1322,10 +1297,7 @@ export class Messaging {
     const messages = deliveryOf(queued, (taken) => prints(taken) <= maxDeliveryBytes)
     // The first always goes, as it fits alone; beside what the turn holds it may not.
     if (messages.length === 0 || prints(messages) > maxDeliveryBytes) return undefined
-    for (const message of messages) {
-      this.everLeased.add(message.id)
-      this.put({ ...message, state: "leased" })
-    }
+    for (const message of messages) this.put({ ...message, state: "leased" })
     const text = wrap(messages, isFromLead, mark)
     return this.leases.grant({
       terminalId: live.terminalId,

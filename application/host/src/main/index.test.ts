@@ -36,6 +36,8 @@ describe("compiled desktop host", () => {
       expect(main).toContain("runner.js")
       expect(main).toContain("voiceEngineArgumentPrefix")
       expect(main).toContain("voiceSourceArgumentPrefix")
+      expect(main).toContain("murmurEngineArgumentPrefix")
+      expect(main).toContain("murmurSourceArgumentPrefix")
       expect(main).toContain("MessageChannelMain")
       expect(main).toContain("senderFrame")
       expect(preload).toContain("novadeck:runner-port")

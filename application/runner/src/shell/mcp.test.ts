@@ -145,7 +145,7 @@ describe("Novadeck's MCP server", () => {
       NOVADECK_REPORT_TOKEN: token,
     })
 
-    it("offers its tools: show, showing, close, open_terminal, close_terminal, send, agents and describe", async () => {
+    it("offers its tools: show, showing, close, open_terminal, close_terminal, send, agents and summarize", async () => {
       const [, tools] = await session(terminal(), [initialize, list])
       expect(tools?.result?.tools?.map((tool) => tool.name)).toEqual([
         "show",
@@ -155,7 +155,7 @@ describe("Novadeck's MCP server", () => {
         "close_terminal",
         "send",
         "agents",
-        "describe",
+        "summarize",
       ])
       // Each as MCP lists a tool, without what the server keeps for itself.
       for (const tool of tools?.result?.tools ?? [])
@@ -358,41 +358,47 @@ describe("Novadeck's MCP server", () => {
       expect(close.inputSchema).toMatchObject({ required: ["to"], additionalProperties: false })
     })
 
-    it("describes only its own terminal, and says when the title stayed", async () => {
+    it("summarizes only its own terminal, naming nothing, and says it did", async () => {
       calls.length = 0
-      const described = async (runner: unknown) => {
-        answer = runner
-        const [, said] = await session(terminal(), [
-          initialize,
-          {
-            id: 3,
-            method: "tools/call",
-            params: {
-              name: "describe",
-              // A target is no argument it takes.
-              arguments: { title: "API", summary: "Builds the users API.", to: "t2" },
-            },
+      answer = { ok: true }
+      const [, said] = await session(terminal(), [
+        initialize,
+        {
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "summarize",
+            // No target and no title are arguments it takes.
+            arguments: { summary: "Builds the users API.", to: "t2", title: "Evil" },
           },
-        ])
-        return (said!.result as { content: { text: string }[] }).content[0]?.text
-      }
-      await expect(described({ ok: true, title: "API" })).resolves.toBe(
-        'Described this terminal as "API", with your summary.',
+        },
+      ])
+      expect((said!.result as { content: { text: string }[] }).content[0]?.text).toBe(
+        "Summarized this terminal.",
       )
       expect(calls).toEqual([
         {
-          type: "describe",
+          type: "summarize",
           terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
           token,
-          request: { title: "API", summary: "Builds the users API." },
+          request: { summary: "Builds the users API." },
         },
       ])
-      await expect(described({ ok: true, title: "Mine", kept: "person" })).resolves.toBe(
-        'The user named this terminal "Mine", so that title stays; your summary is saved.',
-      )
-      await expect(described({ ok: true, title: "Mine", kept: "unasked" })).resolves.toBe(
-        "Not renamed: the user named this terminal. Suggest the title to them. Your summary is saved.",
-      )
+      const [, tools] = await session(terminal(), [initialize, list])
+      const offered = (tools?.result?.tools ?? []) as {
+        name: string
+        description: string
+        inputSchema: object
+      }[]
+      const tool = offered.find(({ name }) => name === "summarize")!
+      expect(tool.description).toContain("agents listing")
+      expect(tool.description).toContain("sets no title")
+      expect(tool.inputSchema).toMatchObject({
+        required: ["summary"],
+        additionalProperties: false,
+      })
+      // Murmur's title is no tool at all.
+      expect(offered.map(({ name }) => name)).not.toContain("describe")
     })
 
     it("forwards a call to the terminal's runner with its token, and says what happened", async () => {
@@ -716,6 +722,10 @@ describe("Novadeck's MCP server", () => {
         expect(description).toContain("ask the user rather than guess")
         expect(description).toContain("end your turn rather than wait or poll")
       }
+      // The listing's summaries are guesses of a small local model, said once, in agents.
+      const listing = described.find((tool) => tool.name === "agents")!.description
+      expect(listing).toContain("the summary its agent gave of its work")
+      expect(listing).not.toContain("machine-written")
       const send = described.find((tool) => tool.name === "send")!
       expect(send.description).toContain("exact handle")
       expect(send.description).not.toMatch(/agent's name/)
@@ -800,7 +810,7 @@ describe("Novadeck's MCP server", () => {
           "close_terminal",
           "send",
           "agents",
-          "describe",
+          "summarize",
         ])
         expect(shown?.result).toMatchObject({ isError: false })
         expect(calls).toHaveLength(1)

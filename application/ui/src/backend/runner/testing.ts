@@ -178,6 +178,14 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
         note("voice transcribe", () => runner.voice.transcribe(clipId, options)),
       discard: (clipId) => note("voice discard", () => runner.voice.discard(clipId)),
     },
+    murmur: {
+      watch: () => runner.murmur.watch(),
+      install: () => note("murmur install", () => runner.murmur.install()),
+      cancel: () => note("murmur cancel", () => runner.murmur.cancel()),
+      uninstall: () => note("murmur uninstall", () => runner.murmur.uninstall()),
+      set: (settings) =>
+        note(`murmur set ${JSON.stringify(settings)}`, () => runner.murmur.set(settings)),
+    },
     companions: {
       list: (input) => runner.companions.list(input),
       watch: () => runner.companions.watch(),
