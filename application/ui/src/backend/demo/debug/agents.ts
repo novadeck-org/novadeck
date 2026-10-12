@@ -25,6 +25,7 @@ export const createDemoAgents = (): {
   readonly agents: DemoStates["agents"]
   readonly openWelcome: () => void
   readonly failNext: () => void
+  readonly limitAntigravity: () => void
 } => {
   const state = createStore(sampleAgents)
   const welcome = createStore(false)
@@ -59,5 +60,14 @@ export const createDemoAgents = (): {
     failNext: () => {
       failing = true
     },
+    // As on Windows where the person keeps their own Antigravity status line.
+    limitAntigravity: () =>
+      change("agy", (item) => ({
+        ...withoutError(item),
+        available: true,
+        connected: true,
+        busy: false,
+        limited: "own-status-line",
+      })),
   }
 }

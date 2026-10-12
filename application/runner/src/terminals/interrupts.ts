@@ -18,6 +18,11 @@ export type InterruptOptions = {
    * a second Escape then would stop nothing.
    */
   readonly settleMs?: number
+  /**
+   * How long, once Escape stopped a turn with messages queued behind it, it waits for the
+   * turn the harness starts with them, which the second Escape stops.
+   */
+  readonly queuedTurnMs?: number
 }
 
 /** What interrupts need of the terminal manager and messaging, by terminal. */
@@ -66,6 +71,7 @@ export class Interrupts {
   private readonly restoreMs: number
   private readonly restoreCalmMs: number
   private readonly settleMs: number
+  private readonly queuedTurnMs: number
 
   constructor(
     private readonly host: InterruptHost,
@@ -74,6 +80,7 @@ export class Interrupts {
     this.restoreMs = options.restoreMs ?? 2_000
     this.restoreCalmMs = options.restoreCalmMs ?? 500
     this.settleMs = options.settleMs ?? 1_000
+    this.queuedTurnMs = options.queuedTurnMs ?? 3_000
   }
 
   /**
@@ -116,8 +123,19 @@ export class Interrupts {
     let box = await this.settled(terminalId, profile)
     // Claude Code and Codex send what was queued as the next turn, or a steer, which a
     // second Escape stops; Claude Code then puts that message back in its box. One Escape
-    // does nothing at an idle prompt, and two are never written here.
+    // does nothing at an idle prompt, and two are never written here. That turn may start
+    // only after the box has settled, as once the stopped turn took a busy machine longer
+    // to end (Codex on Windows CI: its queued turn began 0.8 s after the first Escape, and a
+    // second Escape 0.6 s after it stopped nothing): it is waited for first.
+    // Text the box holds by then, with no such turn, is the person's, typed meanwhile, as
+    // nothing was put back yet: it is left as it is, as no second Escape goes over it.
     if (box !== undefined && isEmpty(box) && queued && host.alive(terminalId)) {
+      const started = await this.turnStarts(terminalId)
+      if (!started) {
+        const screen = await host.screen(terminalId)
+        const now = screen && profile.read(screen)
+        if (now !== undefined && !isEmpty(now)) return none
+      }
       host.type(terminalId, "\x1b")
       box = await this.settled(terminalId, profile)
     }
@@ -144,6 +162,25 @@ export class Interrupts {
     if (!profile.clear || (!restored && profile.collapsed(box))) throw notCleared()
     if (!(await this.cleared(terminalId, profile, box))) throw notCleared()
     return restored ? none : { returned: words }
+  }
+
+  /**
+   * Whether the terminal's agent works again, on the turn it starts with what was queued,
+   * within `queuedTurnMs`, which bounds how long this holds the terminal's input queue.
+   * Nothing else ends the wait: the second Escape must come after that turn has started,
+   * or it stops nothing. The queued messages leaving the screen says nothing either:
+   * Codex's Escape sends them at once as a steer, though the turn that runs them came
+   * 1.4 s later on Windows CI.
+   */
+  private async turnStarts(terminalId: string): Promise<boolean> {
+    const { host } = this
+    const until = Date.now() + this.queuedTurnMs
+    while (host.alive(terminalId) && Date.now() < until) {
+      if (host.working(terminalId)) return true
+      // eslint-disable-next-line no-await-in-loop -- Looks again until it works.
+      await sleep(50)
+    }
+    return host.working(terminalId)
   }
 
   /**

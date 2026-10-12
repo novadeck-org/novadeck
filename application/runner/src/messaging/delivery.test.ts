@@ -7,7 +7,6 @@ import {
   pendingEnter,
   ringableSince,
   route,
-  submitWindowFor,
   submitWindowMs,
   transition,
   unbound,
@@ -17,7 +16,7 @@ import {
 } from "./delivery.js"
 
 const run = (from: Delivery, ...events: (DeliveryEvent | readonly DeliveryEvent[])[]): Delivery =>
-  events.flat().reduce(transition, from)
+  events.flat().reduce((delivery, event) => transition(delivery, event), from)
 
 const at = 1_000_000
 // A session binds with nothing showing its prompt is up, or one its harness announced at
@@ -934,10 +933,36 @@ describe("the person's Enter window", () => {
     expect(pendingEnter(drafting, at)).toBeUndefined()
   })
 
-  it("is wider on Windows, where the hook's shell starts first", () => {
-    expect(submitWindowFor("linux")).toBe(2_000)
-    // PowerShell takes most of 15 s to start cold on a busy CI runner.
-    expect(submitWindowFor("win32")).toBeGreaterThan(15_000)
-    expect(submitWindowMs).toBe(submitWindowFor(process.platform))
+  it("judges a prompt by when its hook's shell started, where the relay told", () => {
+    const entered = run(drafting, key("enter"))
+    // Its relay started 15 s after the Enter, behind a cold PowerShell; its shell 1 s after.
+    const late = { ...prompted(at + 15_100, at + 15_000), firedAt: at + 1_000 } as const
+    expect(transition(entered, late, 20_000).byPerson).toBe(true)
+    // Its shell too started past the window: no slack makes it the person's.
+    const past = { ...late, firedAt: at + submitWindowMs + 1 } as const
+    expect(transition(entered, past, 20_000).byPerson).toBe(false)
+  })
+
+  it("takes a hook whose shell's start reads a clock tick before the Enter as after it", () => {
+    const entered = run(drafting, key("enter"))
+    // Windows' process start moves in ticks of about 15.6 ms, coarser than the Enter's.
+    const sameTick = { ...prompted(at + 900, at + 800), firedAt: at - 10 } as const
+    expect(transition(entered, sameTick, 20_000).byPerson).toBe(true)
+    const before = { ...sameTick, firedAt: at - 100 } as const
+    expect(transition(entered, before, 20_000).byPerson).toBe(false)
+  })
+
+  it("widens by the shell's slack only where the hook's shell start isn't told", () => {
+    const entered = run(drafting, key("enter"))
+    const late = prompted(at + 15_100, at + 15_000)
+    expect(transition(entered, late, 20_000).byPerson).toBe(true)
+    expect(transition(entered, late, 0).byPerson).toBe(false)
+  })
+
+  it("keeps a key typed while a held-back hook may still come as the person's draft", () => {
+    const entered = run(drafting, key("enter"))
+    const strayed = transition(entered, key("neutral", at + 5_000), 20_000)
+    expect(strayed.box.strayed).toBe(true)
+    expect(transition(entered, key("neutral", at + 5_000), 0).box.strayed).toBe(false)
   })
 })

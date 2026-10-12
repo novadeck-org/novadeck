@@ -210,6 +210,11 @@ export type DeckOptions = {
   /** The whole environment of every process the deck starts. */
   readonly env: Readonly<Record<string, string>>
   /**
+   * Whether each terminal's PATH also gains what the registry's has now, as the app's do on
+   * Windows (`TerminalOptions.freshPath`). Off by default: it would reach past the sandbox.
+   */
+  readonly freshPath?: boolean
+  /**
    * Ends what a closed runner left running, and names each process it had to end; a
    * restart fails on any. Without it, a restart looks for nothing.
    */
@@ -566,6 +571,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       terminals: {
         shell: process.platform === "win32" ? (options.env.ComSpec ?? "cmd.exe") : "/bin/bash",
         baseEnv: options.env,
+        freshPath: options.freshPath ?? false,
       },
     })
     // The runner carries on without its shell files; a test can't, as no agent would report.

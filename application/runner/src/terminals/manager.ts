@@ -1,10 +1,9 @@
-import { execFile } from "node:child_process"
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { constants, rmSync, writeFileSync } from "node:fs"
 import { access, realpath, stat } from "node:fs/promises"
 import { homedir, constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
-import { promisify } from "node:util"
+import { setTimeout as sleep } from "node:timers/promises"
 
 import type {
   AgentDetail,
@@ -21,6 +20,7 @@ import type {
   TerminalSummary,
   TranscriptChange,
 } from "@novadeck/protocol"
+import { relayPath } from "@novadeck/relay"
 import { SerializeAddon } from "@xterm/addon-serialize"
 import type { SerializeAddon as Serializer } from "@xterm/addon-serialize"
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
@@ -41,6 +41,7 @@ import { DomainError } from "../errors.js"
 import {
   apply,
   escapeVerdictMs,
+  boundSince,
   started as fresh,
   summary as activitySummary,
   type Activity,
@@ -56,12 +57,19 @@ import type {
   PromptShown,
   SessionObserved,
 } from "../harnesses/events.js"
-import { doorbellLine, quotedLine, silentFor, type Install } from "../harnesses/harness.js"
+import {
+  doorbellLine,
+  firedFacts,
+  hookShellSlackMs,
+  quotedLine,
+  silentFor,
+  type Install,
+} from "../harnesses/harness.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { lastReply, unreplied, withReplies } from "../harnesses/replies.js"
 import { followRoot, rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import { observeTelemetry, telemetrySummary, type Telemetry } from "../harnesses/telemetry.js"
-import { typedPromptStart } from "../harnesses/typed-prompts.js"
+import { transcriptWaitMs, typedPromptStart } from "../harnesses/typed-prompts.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import {
   leaseMargin,
@@ -154,6 +162,7 @@ import { snapshot } from "./snapshot.js"
 import { Subscription } from "./subscription.js"
 import { replay, transcriptOf } from "./transcript.js"
 import { transcriptChanges } from "./transcripts.js"
+import { anyRunning, relayMs, taskkillTree, Trees, type Member } from "./trees.js"
 import { TerminalWatcher } from "./watcher.js"
 import { judgedFirst, workAfter, type Work } from "./work.js"
 
@@ -253,6 +262,17 @@ export type TerminalOptions = {
    * omitted. Undefined, or a failure, is unknown.
    */
   hooksTrusted?: (agent: AgentName, cwd: string) => Promise<boolean | undefined>
+  /**
+   * The platform harnesses run their hooks on, which sets how long a hook may take to come
+   * (see `hookShellSlackMs`); the runner's own when omitted.
+   */
+  platform?: NodeJS.Platform
+  /**
+   * The runner's own relay, which on Windows reads the registry's PATH and terminals'
+   * process trees; the one `@novadeck/relay` built when omitted. Never the copy installed
+   * for agents, which may be another build's, and waits on the shell files being written.
+   */
+  relay?: string
 }
 
 type Create = {
@@ -519,15 +539,19 @@ const sameProcess = (a: ForegroundProcess | null, b: ForegroundProcess | null): 
     a.argv?.length === b.argv?.length &&
     (a.argv ?? []).every((arg, index) => arg === b.argv?.[index]))
 
-/** Ends a Windows process and every program it started, which could keep its console open. */
-const endTree = async (pid: number): Promise<void> => {
-  const windows = process.env.SystemRoot ?? "C:\\Windows"
-  await promisify(execFile)(
-    join(windows, "System32", "taskkill.exe"),
-    ["/T", "/F", "/PID", String(pid)],
-    { windowsHide: true, timeout: 5000 },
-  )
-}
+// How long a closed Windows terminal's programs have to end by themselves once its
+// console closes, as they do on its CTRL_CLOSE_EVENT, saving what they were writing, in
+// milliseconds: within the five seconds Windows gives them. What is left of the terminal's
+// tree then, as a hook's shell in a console of its own, is ended. Shorter as the runner
+// shuts down, which the app gives five seconds in all (host/src/main/runner.ts).
+const treeGraceMs = 3_000
+const shutdownTreeGraceMs = 1_000
+
+// How long ending terminals' trees may take in all as the runner shuts down, in
+// milliseconds: every relay run, taskkill and grace then takes its time from this, within
+// the five seconds the app gives the runner, with room for a shell's exit (its own 1 s wait)
+// and for closing the rest of the runner after.
+const shutdownTreesMs = 3_000
 
 /**
  * Terminals that have drawn. node-pty on Windows queues a kill until then; after, its kill
@@ -546,7 +570,7 @@ const drawnTerminals = new WeakSet<pty.IPty>()
 export const forceKill = async (
   child: Pick<pty.IPty, "pid" | "kill">,
   platform: NodeJS.Platform = process.platform,
-  end: (pid: number) => Promise<void> | void = endTree,
+  end: (pid: number) => Promise<void> | void = taskkillTree,
 ): Promise<void> => {
   if (platform !== "win32") return child.kill("SIGKILL")
   if (!(child.pid > 0)) throw new Error("The terminal's program has no process id yet.")
@@ -640,6 +664,8 @@ export class Terminals {
     items: CompanionItems | undefined
   }
   private readonly integration: Promise<Integration | undefined>
+  /** Windows' process trees, which a closed terminal's programs are ended by. */
+  private readonly trees: Trees
   private transcripts: boolean
   /** Each session's last default terminal number, without records to keep it. */
   private readonly numbers = new Map<string, number>()
@@ -667,6 +693,8 @@ export class Terminals {
   private creating = 0
   private exits = 0
   private stopping = false
+  /** When the runner's shutdown must have ended terminals' trees by, once it has begun. */
+  private shutdownBy: number | undefined
   private shutdownPromise: Promise<void> | undefined
 
   constructor(options: TerminalOptions = {}) {
@@ -700,16 +728,20 @@ export class Terminals {
       install: options.install ?? (() => Promise.resolve(undefined)),
       hooksTrusted: options.hooksTrusted,
       items: options.items,
+      platform: options.platform ?? process.platform,
+      relay: options.relay ?? relayPath,
     }
     // Child programs do not need the runner's network capability, nor the identity of a
     // Novadeck terminal the runner itself was started from.
     for (const name of inherited) delete this.options.env[name]
+    this.trees = new Trees(async () => this.options.relay)
     // Read once now, so the first terminal doesn't wait for it; see `shellEnvironment`.
-    // After the deletes, as the PowerShell that reads it gets this environment.
+    // After the deletes, as the relay, or PowerShell, that reads it gets this environment.
     if (this.options.freshPath) void this.shellEnvironment()
     this.transcripts = options.transcripts ?? true
     this.messaging = new Messaging({
       ...(options.mailbox && { records: options.mailbox }),
+      platform: this.options.platform,
       // A message is kept while either of its terminals is, running or saved.
       exists: (terminalId) =>
         this.records.has(terminalId) || this.identity(terminalId) !== undefined,
@@ -720,7 +752,10 @@ export class Terminals {
     this.doorbell =
       options.doorbell === false
         ? undefined
-        : new Doorbell(this.ringHost(), this.inputs, options.doorbell)
+        : new Doorbell(this.ringHost(), this.inputs, {
+            platform: this.options.platform,
+            ...options.doorbell,
+          })
     // A Stop Novadeck continued whose lease lapsed ended its turn after all.
     this.messaging.subscribe((change) => {
       if (change.kind !== "terminal") return
@@ -728,7 +763,11 @@ export class Terminals {
       if (record) this.lapsed(record)
     })
     this.prompts = new Prompts(this.promptHost(), this.inputs, options.prompts)
-    this.interrupts = new Interrupts(this.interruptHost(), options.interrupts)
+    this.interrupts = new Interrupts(this.interruptHost(), {
+      // The queued turn shows working only once its hook comes, which its shell holds back.
+      queuedTurnMs: 3_000 + hookShellSlackMs(this.options.platform) / 4,
+      ...options.interrupts,
+    })
     this.dialogs = new Dialogs(this.dialogsHost(), options.answers)
     this.answers = new Answers(this.answerHost(), this.inputs, options.answers)
     const doorbell = this.doorbell
@@ -2632,6 +2671,7 @@ export class Terminals {
   }
 
   private async stop(): Promise<void> {
+    this.shutdownBy = Date.now() + shutdownTreesMs
     await Promise.all([...this.records.values()].map((record) => this.terminate(record)))
     for (const record of [...this.records.values(), ...this.draining.values()]) {
       for (const subscription of record.subscribers.values()) subscription.cancel()
@@ -2763,10 +2803,9 @@ export class Terminals {
    * The environment a new shell starts from: the runner's, with PATH read anew where
    * `freshPath` asks for it, as a Windows app keeps the PATH it was started with.
    */
-  private shellEnvironment(): Promise<NodeJS.ProcessEnv> {
-    return this.options.freshPath
-      ? refreshPath(this.options.env)
-      : Promise.resolve(this.options.env)
+  private async shellEnvironment(): Promise<NodeJS.ProcessEnv> {
+    if (!this.options.freshPath) return this.options.env
+    return refreshPath(this.options.env, { relay: this.options.relay })
   }
 
   /** The shell's program, a name found on the PATH the new shell gets, as `environment`. */
@@ -2950,7 +2989,10 @@ export class Terminals {
         rows,
         cwd,
         env,
-        // Windows' built-in console host can lose input; node-pty ships a newer one.
+        // Windows' built-in console host can lose input; node-pty ships a newer one. Closing
+        // a terminal relies on it too: with it, node-pty's kill closes the pseudoconsole,
+        // which sends its programs CTRL_CLOSE_EVENT, and ends only the shell (see `kill`);
+        // without it, it ends everything on the console at once.
         useConptyDll: process.platform === "win32",
       })
       return {
@@ -3097,7 +3139,7 @@ export class Terminals {
     }
     const record = this.records.get(report.terminalId)
     if (!record || record.exitQueued || !sameToken(record.token, report.token)) return silent
-    const decoded = harnesses[report.agent].decode(report)
+    const decoded = firedFacts(harnesses[report.agent].decode(report), report)
     // A turn's end its hook named no reply for reads the reply from the agent's
     // transcript; any other report goes on at once.
     const events =
@@ -3111,7 +3153,8 @@ export class Terminals {
               : undefined,
           )
     // Its prompt shows before any session of its binds, as Antigravity's status line says.
-    const shown = harnesses[report.agent].shown?.(report)
+    const promptShown = harnesses[report.agent].shown?.(report)
+    const shown = promptShown && firedFacts([promptShown], report)[0]
     if (events.length === 0 && !shown) return silent
     const { process: child } = record
     const disconnections = this.disconnections.get(report.agent)
@@ -3187,6 +3230,8 @@ export class Terminals {
       }
       changed = true
       // A newly bound session waits for its first prompt; one still bound keeps its activity.
+      // What its hooks told from before it bound is past, but for one fired with the hook
+      // that bound it (see `boundTogetherMs`).
       const same =
         before !== null &&
         next.binding !== null &&
@@ -3195,7 +3240,7 @@ export class Terminals {
       if (!same) {
         record.activity = next.binding
           ? fresh(
-              event.startedAt,
+              boundSince(event),
               harnesses[next.binding.agent].wakes,
               harnesses[next.binding.agent].records,
             )
@@ -3427,18 +3472,24 @@ export class Terminals {
     const { root, transcript } = record
     const typedEntry = root && harnesses[root.agent].messaging.typedEntry
     if (!root || !typedEntry || !transcript) return events
-    // The person's Enter, judged by when the turn's hook started, as delivery judges it.
+    // The person's Enter, judged by when the turn's hook fired, as delivery judges it.
     const started = events.find((event) => event.type === "turn-started")
-    const told = await typedPromptStart(events, {
-      root,
-      typedEntry,
-      transcript,
-      // What was seen of this transcript, not another's.
-      seen: record.seenEntry?.transcript === transcript ? record.seenEntry.id : undefined,
-      enteredAt: started && this.messaging.pendingSubmission(id, started.startedAt),
-      ringing: this.messaging.ringing(id),
-      startedWith: record.startedWith,
-    })
+    const told = await typedPromptStart(
+      events,
+      {
+        root,
+        typedEntry,
+        transcript,
+        // What was seen of this transcript, not another's.
+        seen: record.seenEntry?.transcript === transcript ? record.seenEntry.id : undefined,
+        enteredAt:
+          started && this.messaging.pendingSubmission(id, started.startedAt, started.firedAt),
+        ringing: this.messaging.ringing(id),
+        startedWith: record.startedWith,
+      },
+      undefined,
+      { waitMs: transcriptWaitMs(this.options.platform) },
+    )
     if (told.seen !== undefined) record.seenEntry = { transcript, id: told.seen }
     return told.events
   }
@@ -3645,7 +3696,7 @@ export class Terminals {
     if (replaced === undefined || binding.sessionId !== replaced) return
     if (sessionPrefix !== undefined && binding.sessionId.startsWith(sessionPrefix)) return
     // Judged as the title came, not after what was asked since.
-    this.messaging.shown(id, agent, sessionPrefix ?? null, true, shown.startedAt)
+    this.messaging.shown(id, agent, sessionPrefix ?? null, true, shown.startedAt, shown.firedAt)
     this.endBinding(record, replaced)
   }
 
@@ -3826,7 +3877,12 @@ export class Terminals {
    * Escape ended, where no Stop came for it and the harness keeps no records that would
    * say how it ended: undefined where there is nothing to read, and the read's undefined
    * where it holds none, can't be read, or the screen doesn't show the turn went on
-   * uninterrupted, as Antigravity may say it stopped under a reply it kept. Only on
+   * uninterrupted, as Antigravity may say it stopped under a reply it kept. The screen is
+   * what tells: an Escape between a response's words and the tool call after them leaves
+   * the words recorded alone as the response, just as a reply that won is recorded, and
+   * Antigravity drew its interruption under them every time (probed 2026-10-11, 1.2.14,
+   * the call streamed 1.5 s after the words); a step's time is no help, as the cut-off
+   * one came 56 to 94 ms after the key, where a reply that just won lands too. Only on
    * Windows, the one place a reply that won the race was seen to fire no Stop (Antigravity
    * 1.2.14): elsewhere its Stop tells.
    */
@@ -4132,19 +4188,22 @@ export class Terminals {
     try {
       const group = await this.hangUp(record.process)
       const child = record.process
-      // Windows hangs up no group: closing the console ends only what is attached to it,
-      // never what a program there started apart from it, as an agent's hooks, which then
-      // run on (a PowerShell 7 hook whose Codex was closed as it started stayed there). The
-      // terminal's whole tree is ended first, while it still leads back to its shell. Not
-      // once the shell has exited, its exit only waiting behind draws: its id may name
-      // another process by now.
-      if (
+      // Windows hangs up no group: closing the console sends what is attached to it
+      // CTRL_CLOSE_EVENT, and node-pty ends the shell, but nothing reaches what a program
+      // there started apart from it, as an agent's hooks in consoles of their own, which
+      // then run on (a PowerShell 7 hook whose Codex was closed as it started stayed
+      // there). The terminal's tree is read first, while it still leads back to its shell,
+      // and what of it outlives the console's close by `treeGraceMs` is ended. Not once
+      // the shell has exited, its exit only waiting behind draws: its id may name another
+      // process by now. Where the relay can't read it, taskkill ends the tree at once.
+      const owned =
         process.platform === "win32" &&
         child.pid > 0 &&
         drawnTerminals.has(child) &&
         !record.exitQueued
-      )
-        await endTree(child.pid).catch(() => {})
+      const tree = owned ? await this.trees.read(child.pid, this.runMs(relayMs)) : undefined
+      if (owned && tree === undefined)
+        await taskkillTree(child.pid, this.runMs(5_000)).catch(() => {})
       try {
         child.kill()
       } catch {
@@ -4154,7 +4213,9 @@ export class Terminals {
         // A Windows terminal that has drawn ran node-pty's kill, which ended its shell, whose
         // id may already name another process.
         const ended = process.platform === "win32" && drawnTerminals.has(child)
-        const forced = ended ? Promise.resolve() : forceKill(child)
+        const forced = ended
+          ? Promise.resolve()
+          : forceKill(child, process.platform, (pid) => this.endTreeNow(pid))
         forced.then(
           // node-pty on Windows reports an exit only once the console closes, which a program
           // the kill could not end can still keep open.
@@ -4164,11 +4225,67 @@ export class Terminals {
           () => this.exit(record, { code: null, signal: null }),
         )
       }, 1000)
-      await record.exited
+      await Promise.all([record.exited, tree && this.endLeft(tree)])
       if (group !== undefined) resumeGroup(group)
     } finally {
       if (timer) clearTimeout(timer)
     }
+  }
+
+  /**
+   * Ends what is left of a closed terminal's process tree once it has had `treeGraceMs`
+   * to end by itself: the tree read before the close, and what its members started since,
+   * as an agent's hook run as it closes, or left running as they ended, read again from
+   * each by its start.
+   */
+  private async endLeft(tree: readonly Member[]): Promise<void> {
+    const began = Date.now()
+    // A close already waiting as shutdown begins waits no longer than shutdown's own grace.
+    const graceEnds = () =>
+      this.shutdownBy === undefined
+        ? began + treeGraceMs
+        : Math.min(began + treeGraceMs, this.shutdownBy - shutdownTreesMs + shutdownTreeGraceMs)
+    while (anyRunning(tree) && Date.now() < graceEnds())
+      // eslint-disable-next-line no-await-in-loop -- Waits for them to end.
+      await sleep(100)
+    const again = await Promise.all(
+      tree.map((member) => this.trees.read(member, this.runMs(relayMs))),
+    )
+    const left = new Map(
+      [...tree, ...again.flatMap((each) => each ?? [])].map((member) => [
+        `${member.pid}:${member.startedAt}`,
+        member,
+      ]),
+    )
+    const members = [...left.values()]
+    if (!anyRunning(members)) return
+    await this.trees.end(members, this.runMs(relayMs))
+    // A pid that still answers a moment later is said, so a process the relay didn't end,
+    // as where it ran out of time, shows. Nothing more is ended by pid alone: another
+    // process may have taken one meanwhile, which the relay rightly refused.
+    await sleep(200)
+    const answering = members.filter((member) => anyRunning([member]))
+    if (answering.length > 0)
+      console.error(
+        "Novadeck: after ending a closed terminal's processes, these pids still answer, each that process or one given its pid since:",
+        answering.map(({ pid, startedAt }) => `${pid} (started ${startedAt})`).join(", "),
+      )
+  }
+
+  /**
+   * How long a relay or taskkill run may take now: `usual`, or as the runner shuts down,
+   * what is left of its time for terminals' trees, never under a quarter second.
+   */
+  private runMs(usual: number): number {
+    if (this.shutdownBy === undefined) return usual
+    return Math.max(250, Math.min(usual, this.shutdownBy - Date.now()))
+  }
+
+  /** Ends a Windows process and every one under it now, by taskkill where the relay can't. */
+  private async endTreeNow(pid: number): Promise<void> {
+    const tree = await this.trees.read(pid)
+    if (tree === undefined) return taskkillTree(pid)
+    await this.trees.end(tree)
   }
 
   /**

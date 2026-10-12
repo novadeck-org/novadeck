@@ -10,7 +10,12 @@ import { apply as applyActivity, started, summary } from "../activity.js"
 import type { ActivityEvent } from "../events.js"
 import type { Install } from "../harness.js"
 import { decode, shown } from "./decode.js"
-import { statusLineCommand, statusLineSettings, windowsStatusLine } from "./settings.js"
+import {
+  statusLineCommand,
+  statusLineLimit,
+  statusLineSettings,
+  windowsStatusLine,
+} from "./settings.js"
 
 const { payloads } = loadProbe(import.meta.dirname, "statusline.probe.json") as {
   payloads: Report["payload"][]
@@ -528,6 +533,28 @@ describe("connecting Antigravity's status line", () => {
     await apply(fixture.install)
     await revert(windows)
     expect(read(fixture.settings).statusLine).toEqual({ type: "command", command: "echo mine" })
+  })
+
+  it("says messaging is limited on Windows only where the person's own line stays", async ({
+    fixture,
+  }) => {
+    const { apply } = settingsOf(fixture)
+    const limited = statusLineLimit(() => join(fixture.root, "antigravity-cli"))
+    const windows = { ...fixture.install, platform: "win32" as const }
+    await apply(windows)
+    expect(await limited(windows)).toBeUndefined()
+    writeFileSync(
+      fixture.settings,
+      JSON.stringify({ statusLine: { type: "command", command: "echo mine" } }),
+    )
+    await apply(windows)
+    expect(await limited(windows)).toBe("own-status-line")
+    // Elsewhere Novadeck's line runs theirs after it.
+    expect(await limited(fixture.install)).toBeUndefined()
+    // A line of theirs without a command shows Antigravity's own, and Novadeck's goes in.
+    writeFileSync(fixture.settings, JSON.stringify({ statusLine: { enabled: true } }))
+    await apply(windows)
+    expect(await limited(windows)).toBeUndefined()
   })
 })
 

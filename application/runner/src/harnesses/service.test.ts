@@ -8,10 +8,11 @@ import { connectRunner, messagePort } from "@novadeck/protocol/client"
 import { vi } from "vitest"
 
 import { createRunner, servePort } from "../index.js"
-import { installShellFiles } from "../shell/install.js"
+import { cmdPrints, installShellFiles } from "../shell/install.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
+import { agy } from "./agy/index.js"
 import { createHarnesses } from "./service.js"
 
 const windows = process.platform === "win32"
@@ -67,7 +68,10 @@ type Fixture = {
 const it = base.extend<{ fixture: Fixture }>({
   fixture: async ({ resources }, use) => {
     const root = mkdtempSync(join(tmpdir(), "novadeck-agents-"))
-    resources.defer(() => rmSync(root, { recursive: true, force: true }))
+    // The relay copied in may still be reading the registry for a background lookup.
+    resources.defer(() =>
+      rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }),
+    )
     const home = join(root, "home")
     const bin = join(root, "bin")
     mkdirSync(home)
@@ -120,6 +124,10 @@ const it = base.extend<{ fixture: Fixture }>({
     await use({ root, home, bin, paths, environment, agents, calls })
   },
 })
+
+// The events an Antigravity hooks file registers.
+const hookEvents = (path: string) =>
+  Object.keys((JSON.parse(readFileSync(path, "utf8")) as { novadeck: object }).novadeck)
 
 const installed = (home: string, ...agents: string[]) => {
   const homes = { claude: [".claude"], codex: [".codex"], agy: [".gemini", "antigravity-cli"] }
@@ -211,6 +219,28 @@ describe("agents Novadeck can connect", () => {
     expect(readFileSync(copy, "utf8")).toBe('{"novadeck":{}}')
     expect(await agents.refresh()).toEqual([])
   })
+
+  // Windows CI's quirks job sets an AutoRun that prints (NOVADECK_TEST_CMD_AUTORUN=1), which
+  // no test may on a developer's machine.
+  it.runIf(process.platform === "win32" && process.env.NOVADECK_TEST_CMD_AUTORUN === "1")(
+    "take PreToolUse out of a connected Antigravity's copy where cmd prints before every command",
+    async ({ fixture }) => {
+      expect(await cmdPrints()).toBe("prints")
+      installed(fixture.home, "agy")
+      const agents = fixture.agents()
+      expect(hookEvents(join(fixture.paths.plugins.agy, "hooks.json"))).not.toContain("PreToolUse")
+      // Connected before cmd printed: its copy still has Antigravity ask Novadeck first.
+      await agents.set("agy", true)
+      const copy = join(fixture.home, ".gemini", "config", "plugins", "novadeck", "hooks.json")
+      const asking = agy
+        .files("win32", { mcp: { command: "mcp" } })
+        .find(({ path }) => path === "hooks.json")!.content
+      writeFileSync(copy, asking)
+      expect(hookEvents(copy)).toContain("PreToolUse")
+      expect(await agents.refresh()).toEqual(["agy"])
+      expect(hookEvents(copy)).not.toContain("PreToolUse")
+    },
+  )
 
   it("never undo a disconnect asked for before the refresh looked", async ({ fixture }) => {
     installed(fixture.home, "agy")

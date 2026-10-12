@@ -137,7 +137,7 @@ describe("compiled desktop runner", () => {
         )
       } finally {
         await runner.close()
-        await rm(directory, { recursive: true, force: true })
+        await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
       }
     }, 30_000)
 
@@ -175,7 +175,7 @@ describe("compiled desktop runner", () => {
         await client.close()
       } finally {
         await runner.close()
-        await rm(directory, { recursive: true, force: true })
+        await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
       }
     }, 60_000)
 
@@ -197,7 +197,9 @@ describe("compiled desktop runner", () => {
         await again.close()
         await second.close()
       } finally {
-        await rm(directory, { recursive: true, force: true })
+        // The relay copied in for agents may be held a moment after it was written, as an
+        // antivirus scans a fresh copy: retried for up to about 5.5 s, Node backing off linearly.
+        await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
       }
     }, 20_000)
   })

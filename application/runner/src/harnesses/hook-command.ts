@@ -1,0 +1,77 @@
+import type { AgentName } from "@novadeck/protocol"
+
+/**
+ * The shell a harness runs a hook command in, as each was probed:
+ * - `sh`: every harness on Linux and macOS, as `sh -c "<command>"`;
+ * - `powershell`: Claude Code (its `shell: "powershell"`) and Codex on Windows, PowerShell
+ *   7 where installed, Codex with `-NoProfile`, as its binary passes PowerShell (0.159.3:
+ *   `%COMSPEC%` stayed as written, `$PSVersionTable` read);
+ * - `cmd`: Antigravity on Windows, as `cmd /c "<command>"` without `/d`, its double quotes
+ *   escaped as `\"`, which cmd keeps (probed 2026-10-11, 1.2.14).
+ */
+export type Dialect = "sh" | "powershell" | "cmd"
+
+/**
+ * The programs a dialect's shell runs as, by their file names without `.exe`, as the
+ * relay names a hook's ancestors.
+ */
+export const dialectPrograms: Readonly<Record<Dialect, readonly string[]>> = {
+  sh: ["sh", "bash", "dash", "zsh"],
+  powershell: ["pwsh", "powershell"],
+  cmd: ["cmd"],
+}
+
+/** What a hook command runs: Novadeck's launcher, for `agent`'s `event`. */
+export type HookCall = {
+  readonly agent: AgentName
+  readonly event: string
+  /**
+   * What the command prints where the launcher can't run: unset, or set but gone, as a
+   * variable that outlives its Novadeck (a plugin is global; tmux carries variables on).
+   * Without one it prints nothing there, and exits 0 whatever the launcher did.
+   */
+  readonly fallback?: string | undefined
+}
+
+const shQuote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`
+const psQuote = (value: string): string => `'${value.replaceAll("'", "''")}'`
+
+// What cmd's `echo` prints as written, in a parenthesised block: no quote, which the
+// harness escapes where cmd keeps the escape, and nothing cmd reads as syntax.
+const cmdSafe = /^[^"&|<>^%()\r\n]*$/
+
+/**
+ * The command a harness's plugin runs for a hook, in the harness's shell. It runs the
+ * launcher Novadeck's shells name in NOVADECK_HOOK, with the agent and the event. Outside
+ * Novadeck's shells, or with a launcher set but gone, it prints `fallback`, or nothing,
+ * and never fails the harness:
+ * - `sh` and `powershell` check the launcher is there first.
+ * - `cmd` holds no double quote, and reads the launcher unquoted, as Novadeck's shells name
+ *   it by its short name, without spaces. A launcher whose path still has one, or `&`,
+ *   which cmd splits a line at once it has put the path in, breaks the line. Without a
+ *   fallback the command runs in a cmd of its own (`/d`, so no AutoRun), then exits 0
+ *   whatever that did: with no runnable launcher, a broken line included, it prints
+ *   nothing. Antigravity's PreToolUse needs that, as an answer that isn't JSON, or a
+ *   non-zero exit, let the tool run unasked, where none left it to the person's policy.
+ */
+export const hookCommand = (dialect: Dialect, { agent, event, fallback }: HookCall): string => {
+  if (!/^[A-Za-z]+$/.test(event)) throw new Error(`A hook event is a word: ${event}`)
+  const run = `${agent} ${event}`
+  switch (dialect) {
+    case "sh":
+      return fallback === undefined
+        ? `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" ${run} || true`
+        : `if [ -x "$NOVADECK_HOOK" ]; then "$NOVADECK_HOOK" ${run}; else echo ${shQuote(fallback)}; fi`
+    case "powershell": {
+      const found = `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { & $env:NOVADECK_HOOK ${run} }`
+      return fallback === undefined ? found : `${found} else { ${psQuote(fallback)} }`
+    }
+    case "cmd": {
+      if (fallback === undefined)
+        return `cmd /d /c if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% ${run})) & exit /b 0`
+      if (!cmdSafe.test(fallback) || fallback.trim() !== fallback || fallback === "")
+        throw new Error(`cmd can't echo this hook's fallback as written: ${fallback}`)
+      return `if defined NOVADECK_HOOK (if exist %NOVADECK_HOOK% (%NOVADECK_HOOK% ${run}) else (echo ${fallback})) else (echo ${fallback})`
+    }
+  }
+}

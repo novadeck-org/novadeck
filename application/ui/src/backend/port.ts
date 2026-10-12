@@ -247,6 +247,8 @@ export type AgentConnection = {
   readonly busy: boolean
   // Why the last change did not work, for the person.
   readonly error?: string
+  // What keeps its messaging from working whole while connected, as the runner says.
+  readonly limited?: "own-status-line" | undefined
 }
 
 // What the debug panel may ask of the workspace.

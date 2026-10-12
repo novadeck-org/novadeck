@@ -15,6 +15,12 @@ export type SessionObserved = {
   readonly sessionId: string
   readonly evidence: Continuity
   readonly startedAt: number
+  /**
+   * When the agent fired the hook that told it: when the hook's shell started, before that
+   * shell's own start, where the relay could tell (see shell/hook.ts); only the person's
+   * Enter is judged by it, as `startedAt` orders everything else.
+   */
+  readonly firedAt?: number
   readonly instance: string | null
   /** The harness's own directory, when it is an absolute path here. */
   readonly cwd?: string
@@ -53,6 +59,12 @@ export type PromptShown = {
   readonly agent: AgentName
   readonly instance: string | null
   readonly startedAt: number
+  /**
+   * When the agent fired the hook that told it: when the hook's shell started, before that
+   * shell's own start, where the relay could tell (see shell/hook.ts); only the person's
+   * Enter is judged by it, as `startedAt` orders everything else.
+   */
+  readonly firedAt?: number
   readonly sessionPrefix?: string
 }
 
@@ -81,6 +93,12 @@ export type ActivityEvent = {
   readonly sessionId: string
   readonly instance: string | null
   readonly startedAt: number
+  /**
+   * When the agent fired the hook that told it: when the hook's shell started, before that
+   * shell's own start, where the relay could tell (see shell/hook.ts); only the person's
+   * Enter is judged by it, as `startedAt` orders everything else.
+   */
+  readonly firedAt?: number
 } & (
   | {
       readonly type: "turn-started"

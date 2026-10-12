@@ -46,6 +46,7 @@ against the hook timeout (ten minutes) rather than a test's. A harness left out 
 | `NOVADECK_E2E_CACHE`          | Where harnesses are installed. Defaults to `$XDG_CACHE_HOME/novadeck/e2e`, or `~/.cache/novadeck/e2e` without XDG_CACHE_HOME                                                                                                                                                                                |
 | `NOVADECK_E2E_HARNESS=latest` | Installs and runs each harness's newest release instead of its pin, as a drift check                                                                                                                                                                                                                        |
 | `NOVADECK_E2E_AGENTS`         | The harnesses to run, comma-separated (`claude`, `codex`, `agy`); all when unset. `selected(setup)` in `fixture.ts` reads it                                                                                                                                                                                |
+| `NOVADECK_E2E_SPACED=1`       | Names the sandbox with a space (`novadeck e2e-…`), so the home and Novadeck's launcher are too, as Windows CI's quirks job runs it                                                                                                                                                                          |
 | `NOVADECK_E2E_TRACES`         | Where a failed test writes its trace (`trace.ts`): each hook's report and when its hook started, the person's keys, each delivery change, each fact told an agent's activity and what it made of it, each answer to a hook, and the model's calls. CI uploads them as an artifact. Unset, nothing is traced |
 
 In CI (`.github/workflows/e2e.yml`) each harness runs in a job of its own, which runs
@@ -67,6 +68,22 @@ consoles several times slower, and runs without the network namespace, which Win
 lacks (see Isolation). Every job sets `NOVADECK_E2E_TRACES`, and one whose tests failed
 or that was cancelled uploads the traces its failed tests wrote, as the
 `e2e-traces-<harness>-<os>` artifact, kept seven days.
+
+A `… (Windows quirks)` job per harness covers what those green Windows jobs can't, as
+people's machines differ from the runner's. It changes the runner's own machine, which
+no test may do on a developer's: a PowerShell profile for every user that prints, checked
+to print in a new PowerShell (Claude Code's hooks run in PowerShell, and Codex's, which it
+starts with `-NoProfile`), a folder the user's PATH in the registry
+gains after the runner started, holding `novadeck-registry-marker.cmd`, and, last, in
+Antigravity's job, a cmd AutoRun that prints. With `NOVADECK_E2E_SPACED=1` its sandbox,
+and so the home and Novadeck's launcher, is named with a space, which cmd reads by its
+short name. It runs `messaging`, `requests` and `lifecycle` for its harness;
+`windows-quirks.e2e.ts` (Claude Code's job) opens a terminal whose PATH is read from the
+registry, as the app's are, and runs the marker; and with the AutoRun set, a test in
+`harnesses/service.test.ts` (`NOVADECK_TEST_CMD_AUTORUN=1`) checks that Antigravity's
+PreToolUse goes unregistered, and that a connected copy that still has it is installed
+again without it. These tests skip anywhere else. Its traces upload as
+`e2e-traces-<harness>-Windows-quirks`.
 
 ## What is pinned
 
@@ -260,8 +277,11 @@ network:
   processes' memory, an antivirus may quarantine it; reap then fails saying so, naming
   the program to allow. Windows has no signal to ask with, so one still running after
   its three seconds is ended (TerminateProcess), then, two seconds later, ended with
-  what it started (`taskkill /T /F`, awaited), each once the process is checked by its
-  start to be the same one. What it started taskkill finds by parent pid, unchecked.
+  what it started, awaited, each once the process is checked by its start to be the
+  same one. What it started is the tree Novadeck's relay reads (`novadeck-relay tree`,
+  see backend-api.md), which counts a process as a child only if it started no earlier
+  than its recorded parent, and ends each only as the process it was, as the runner
+  ends a closed terminal's programs.
 - **Enter only on text seen to land.** A deck terminal's `submit` types the text, waits
   until the screen shows it once more than it did before, and only then presses Enter.
   `press` refuses anything holding a carriage return or line feed, the keypad's Enter

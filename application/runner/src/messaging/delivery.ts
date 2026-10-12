@@ -136,18 +136,32 @@ export type DeliveryState = Delivery["state"]
 export const maxContinuations = 2
 
 /**
- * How soon after the person's bare Enter a root turn's hook must start for the turn to be
- * their submission, on a platform. On Windows the hook's shell starts first (PowerShell
- * for Claude Code and Codex, cmd for Antigravity), which takes seconds on a busy machine:
- * on CI a prompt whose hook started past 2 s went without the messages waiting for it,
- * delivered at the turn's Stop instead (2026-10-10). The wider window there may take a
- * turn the agent starts by itself soon after a bare Enter as the person's.
+ * How soon after the person's bare Enter a root turn's hook must fire for the turn to be
+ * their submission, in milliseconds, judged by when its agent fired it: on Windows when
+ * the hook's shell started (`firedAt`, see shell/hook.ts), before that shell's own start,
+ * which takes seconds on a busy machine; elsewhere when the hook started.
  */
-export const submitWindowFor = (platform: NodeJS.Platform): number =>
-  platform === "win32" ? 20_000 : 2_000
+export const submitWindowMs = 2_000
 
-/** How soon after the person's bare Enter a root turn must start to be their submission. */
-export const submitWindowMs = submitWindowFor(process.platform)
+// How much later than `firedAt` a hook may have fired, as the clocks differ: a process's
+// creation time moves in Windows' clock ticks (about 15.6 ms), the person's Enter in the
+// runner's finer one, so a hook fired within the Enter's tick can read before it.
+const firedClockMs = 50
+
+/**
+ * When a hook fired, as its delivery event tells, and the window the person's Enter
+ * before it is judged in: by its shell's start where told; otherwise by when its relay
+ * started, after that shell, so the window grows by how long the shell may take to start
+ * (`slackMs`, see `hookShellSlackMs`). That wider window may take a turn the agent starts
+ * by itself soon after a bare Enter as the person's.
+ */
+export const firing = (
+  { at, firedAt }: { readonly at: number; readonly firedAt?: number | undefined },
+  slackMs: number,
+): { readonly at: number; readonly windowMs: number } =>
+  firedAt === undefined
+    ? { at, windowMs: submitWindowMs + slackMs }
+    : { at: firedAt + firedClockMs, windowMs: submitWindowMs + firedClockMs }
 
 /**
  * A key the person sent, as `terminals/keys.ts` tells it: a bare Enter, a harness's queue
@@ -184,10 +198,22 @@ export type KeyKind = "enter" | "queue" | "neutral" | "escape" | "accept" | "con
  * - `asked-cleared`: no request waits on the person any more;
  * - `ring`: the doorbell starts ringing a Settled terminal, with its nonce;
  * - `ring-failed`: that ring's test paste failed, or no doorbell prompt confirmed it.
+ * A hook's `bound`, `shown` and `prompt` also tell `firedAt`, when its shell started,
+ * where its relay could tell (see `firing`).
  */
 export type DeliveryEvent =
-  | { readonly type: "bound"; readonly ready: boolean; readonly at: number }
-  | { readonly type: "shown"; readonly at: number; readonly replaces: boolean }
+  | {
+      readonly type: "bound"
+      readonly ready: boolean
+      readonly at: number
+      readonly firedAt?: number
+    }
+  | {
+      readonly type: "shown"
+      readonly at: number
+      readonly replaces: boolean
+      readonly firedAt?: number
+    }
   | { readonly type: "unbound" }
   | {
       readonly type: "prompt"
@@ -195,6 +221,7 @@ export type DeliveryEvent =
       readonly nonce?: string
       readonly at: number
       readonly startedAt: number
+      readonly firedAt?: number
     }
   | {
       readonly type: "stop"
@@ -342,10 +369,15 @@ const arrived = (delivery: Delivery): Counts => {
  * session is the command that replaced the old one: what it might have queued was the
  * old session's, now gone, as one Enter can't both queue a prompt and run a /clear.
  */
-const atPrompt = (delivery: Delivery, at: number): Delivery => {
+const atPrompt = (
+  delivery: Delivery,
+  event: { readonly at: number; readonly firedAt?: number },
+  slackMs: number,
+): Delivery => {
   const next = arrived(delivery)
   const { box } = delivery
-  const entered = pendingEnter(delivery, at) !== undefined
+  const fired = firing(event, slackMs)
+  const entered = pendingEnter(delivery, fired.at, fired.windowMs) !== undefined
   // Only when that Enter is the one that set `queuing`: one before it queued a prompt that
   // may stay.
   const queuing =
@@ -353,11 +385,14 @@ const atPrompt = (delivery: Delivery, at: number): Delivery => {
   const kept = delivery.state !== "unbound" && (queuing || box.queued || (!box.empty && !entered))
   return next.box.typedSinceEnter || kept
     ? { ...next, box: typed(emptyBox), state: "drafting" }
-    : { ...next, state: "ready", since: at }
+    : { ...next, state: "ready", since: event.at }
 }
 
-/** The delivery after an event; the same delivery when it changes nothing. */
-export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery => {
+/**
+ * The delivery after an event; the same delivery when it changes nothing. `slackMs` is
+ * how much later a hook may come for the shell it starts in (see `firing`).
+ */
+export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0): Delivery => {
   // Left, Home and End move a caret only through a draft the person typed since their last
   // Enter. Anywhere else the harness's box may be empty, even where Novadeck doesn't know
   // it so (a ring's line its Enter just submitted, the person's Enter whose hook hasn't
@@ -371,8 +406,13 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
     if (delivery.state === "unbound" || box.typedSinceEnter) return delivery
     if (event.asked) return asked(delivery)
     // Only an Enter still within its window can have a prompt to keep the person's: one
-    // that started none is long past, and the key is input as anywhere else.
-    if (pendingEnter(delivery, event.at) === undefined && !box.queuing && !box.queued)
+    // that started none is long past, and the key is input as anywhere else. Judged as the
+    // key comes, before a hook its shell holds back may have.
+    if (
+      pendingEnter(delivery, event.at, submitWindowMs + slackMs) === undefined &&
+      !box.queuing &&
+      !box.queued
+    )
       return keyed(delivery, false, event.at)
     return drafted(delivery, { ...box, empty: false, strayed: true })
   }
@@ -408,7 +448,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
       }
     // Only a session announced at its own prompt may be rung before its first turn.
     if (!event.ready) return { ...arrived(delivery), state: "fresh" }
-    return atPrompt(delivery, event.at)
+    return atPrompt(delivery, event, slackMs)
   }
   // What the person typed after their last Enter outlasts the binding's end, which may be
   // noticed only as the next agent binds.
@@ -426,7 +466,9 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
   // The agent's prompt shows before any session binds: as a session announced at its
   // prompt would, from no session, or replacing the one bound.
   if (event.type === "shown")
-    return delivery.state === "unbound" || event.replaces ? atPrompt(delivery, event.at) : delivery
+    return delivery.state === "unbound" || event.replaces
+      ? atPrompt(delivery, event, slackMs)
+      : delivery
   // With no agent bound, only whether the person typed after their last Enter counts, for
   // the session that binds next. Starting an agent takes an Enter, which clears it all.
   if (delivery.state === "unbound") {
@@ -445,7 +487,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
         // A ring's own prompt confirms it: the box held only its line, unless the person
         // typed while it rang. Another nonce's while ringing is no confirmation.
         if (delivery.state === "ringing" && event.nonce !== delivery.nonce)
-          return transition(delivery, { ...event, by: "harness" })
+          return transition(delivery, { ...event, by: "harness" }, slackMs)
         // Outside a ring it proves nothing of the box: a late hook of a failed ring, an
         // agent's first prompt after the person typed, or a stale line the person's Enter
         // submitted, which may have left text (a newline, a suggestion) in the box. Any
@@ -472,16 +514,17 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
         return delivery.stoppedAt !== undefined && event.startedAt > delivery.stoppedAt
           ? turn(delivery, event.startedAt)
           : delivery
-      // The person's submission: their bare Enter shortly before its hook started, with
+      // The person's submission: their bare Enter shortly before its hook fired, with
       // nothing typed before that, or a prompt they queued during the turn that just ended
-      // and typed nothing after. Judged by when the hook started, not when it was heard,
-      // as a loaded machine boots the hook late. A turn the harness started is never
-      // theirs. Any doubt leaves a draft. Mid-ring the box holds the doorbell's line too:
-      // no prompt empties it but its own.
+      // and typed nothing after. Judged by when the hook fired, not when it was heard, as a
+      // loaded machine boots the hook late (see `firing`). A turn the harness started is
+      // never theirs. Any doubt leaves a draft. Mid-ring the box holds the doorbell's line
+      // too: no prompt empties it but its own.
+      const fired = firing({ at: event.startedAt, firedAt: event.firedAt }, slackMs)
       const person =
         event.by === "prompt" &&
         delivery.state !== "ringing" &&
-        (pendingEnter(delivery, event.startedAt) !== undefined || box.queued)
+        (pendingEnter(delivery, fired.at, fired.windowMs) !== undefined || box.queued)
       // Only a prompt uses up the person's Enter, or the prompt they queued. Keys after
       // its hook started are a new draft.
       const after: Box =
@@ -512,16 +555,16 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
         byPerson: person,
         box: { ...after, queuing: false, escapedAt: null },
       })
-      // The person's Escape after the Enter it answers and after its hook started may have
+      // The person's Escape after the Enter it answers and after its hook fired may have
       // cancelled the turn before any other hook ran: Unknown, its prompt back in the box.
       const { enteredAt, escapedAt } = box
       const cancelled =
         event.by === "prompt" &&
         enteredAt !== null &&
         escapedAt !== null &&
-        enteredAt <= event.startedAt &&
+        enteredAt <= fired.at &&
         enteredAt <= escapedAt &&
-        event.startedAt < escapedAt
+        fired.at < escapedAt
       return cancelled
         ? { ...counts(started), box: typed(started.box), state: "unknown", escapedAt }
         : started
@@ -616,14 +659,18 @@ export const transition = (delivery: Delivery, event: DeliveryEvent): Delivery =
 }
 
 /**
- * When the person's bare Enter came, if a root turn whose hook started at `now` would be
- * their submission: within the window after it, and before any key they typed after it.
- * The one check of the window.
+ * When the person's bare Enter came, if a root turn whose hook fired at `now` would be
+ * their submission: within `windowMs` after it (see `firing`), and before any key they
+ * typed after it. The one check of the window.
  */
-export const pendingEnter = (delivery: Delivery, now: number): number | undefined => {
+export const pendingEnter = (
+  delivery: Delivery,
+  now: number,
+  windowMs = submitWindowMs,
+): number | undefined => {
   const { enteredAt: at, typedAt } = delivery.box
   // An Enter after `now`, as one after a title judged as it came, submitted nothing then.
-  if (at === null || at > now || now - at > submitWindowMs) return undefined
+  if (at === null || at > now || now - at > windowMs) return undefined
   return typedAt === null || typedAt > now ? at : undefined
 }
 

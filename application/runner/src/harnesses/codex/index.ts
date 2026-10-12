@@ -12,6 +12,7 @@ import {
   type Harness,
   type Install,
 } from "../harness.js"
+import { hookCommand, type Dialect } from "../hook-command.js"
 import { box } from "./box.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
@@ -39,15 +40,14 @@ const events = [
 ]
 
 // On Windows Codex runs a hook command in its shell there, PowerShell (7 where installed),
-// not cmd (probed 2026-10-09, 0.159.3: %COMSPEC% stayed as written, $PSVersionTable read),
-// with -NoProfile, as its binary passes PowerShell. A launcher that is set but gone, as a
-// variable that outlived its Novadeck, does nothing, as `|| true` does elsewhere.
-// Codex asks the person to review its hooks again whenever this text changes, so
-// `hooks.test.ts` pins it.
+// not cmd (probed 2026-10-09, 0.159.3), with -NoProfile.
+const hookDialect = (platform: NodeJS.Platform): Dialect =>
+  platform === "win32" ? "powershell" : "sh"
+
+// Without Novadeck it needs nothing printed. Codex asks the person to review its hooks
+// again whenever this text changes, so `hooks.test.ts` pins it.
 const hook = (platform: NodeJS.Platform, event: string): string =>
-  platform === "win32"
-    ? `if ($env:NOVADECK_HOOK -and (Test-Path -LiteralPath $env:NOVADECK_HOOK)) { & $env:NOVADECK_HOOK codex ${event} }`
-    : `[ -n "$NOVADECK_HOOK" ] && "$NOVADECK_HOOK" codex ${event} || true`
+  hookCommand(hookDialect(platform), { agent: "codex", event })
 
 // A Stop's reason continues the turn as a user-role hook prompt, which the delivery's
 // wrapper still attributes to its sender; a prompt's context is a developer message, and
@@ -88,6 +88,7 @@ export const codex = {
     { argv: ["codex", "plugin", "remove", id], optional: true },
     { argv: ["codex", "plugin", "marketplace", "remove", "novadeck"], optional: true },
   ],
+  hookDialect,
   hook,
   files: (platform, launchers) => [
     { path: join(".claude-plugin", "marketplace.json"), content: marketplace },

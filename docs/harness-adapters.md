@@ -287,8 +287,10 @@ type Harness = {
   /** Its plugin commands, run in order; a failing one marked `optional` is skipped. */
   readonly connect: (install: Install) => readonly Command[]
   readonly disconnect: readonly Command[]
-  /** The command its plugin's hook runs, through the harness's own shell. */
-  readonly hook: (platform: NodeJS.Platform) => string
+  /** The shell it runs hook commands in: `sh`, `powershell` or `cmd`. */
+  readonly hookDialect: (platform: NodeJS.Platform) => Dialect
+  /** The command its plugin runs for a hook event, `hookCommand`'s in that shell. */
+  readonly hook: (platform: NodeJS.Platform, event: string) => string
   /** Plugin manifests and hook registrations, relative to its plugin directory. */
   readonly files: (platform: NodeJS.Platform) => readonly File[]
   /** Programs Novadeck's shells put first on PATH while it is connected, as Codex's shim. */
@@ -1100,7 +1102,15 @@ outstanding operations before their late results can change state.
 The hook runs in a short-lived process, Novadeck's relay (`application/relay`), through
 a launcher in Novadeck's integration directory, so it needs no install inside the
 person's project. It is one program for every harness, copied in on each start.
-Each plugin's hook command passes the harness and the event.
+Each plugin's hook command passes the harness and the event. Every harness writes it
+through one module, `harnesses/hook-command.ts`: `hookCommand(dialect, { agent, event,
+fallback })` in the shell the harness declares (`hookDialect(platform)`): `sh` on Linux
+and macOS, PowerShell for Claude Code and Codex on Windows, and cmd for Antigravity
+there. The quoting, the launcher check, and what a command prints without Novadeck (its
+`fallback`, or nothing, exiting 0) live there, and `hook-command.test.ts` runs each form
+in its real shell, on Windows CI for PowerShell and cmd. Codex's text is pinned by hash
+(`codex/hooks.test.ts`), as Codex asks people to review its hooks again whenever it
+changes.
 
 The relay does the following:
 

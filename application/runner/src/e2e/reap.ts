@@ -5,6 +5,9 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 
+import { relayPath } from "@novadeck/relay"
+
+import { anyRunning, taskkillTree, Trees } from "../terminals/trees.js"
 import type { Sandbox } from "./sandbox.js"
 
 type Scope = Pick<Sandbox, "root" | "home" | "started">
@@ -190,6 +193,10 @@ const windowsList = async (sandbox: Scope): Promise<readonly Process[]> => {
   return rows.map(({ pid, comm, start }) => ({ pid, comm, start, stopped: false }))
 }
 
+// The tree a stuck process left, read and ended through Novadeck's relay, as the e2e suite
+// builds it.
+const trees = new Trees(async () => relayPath)
+
 const windows: Table = {
   list: windowsList,
   // A pid alone, between listings: a process found a moment before isn't replaced by
@@ -206,21 +213,32 @@ const windows: Table = {
     const now = await windowsList(sandbox)
     return found.filter((one) => now.some((it) => it.pid === one.pid && it.start === one.start))
   },
-  // Windows has no signal to ask with: ending one is TerminateProcess, and forcibly
-  // `taskkill /T` ends what it started too, waited for, so nothing of it holds the
-  // sandbox's files once `reap` returns. Only the process itself is checked to be the one
-  // found; taskkill finds what it started by parent pid, as the runner's own tree kill.
+  // Windows has no signal to ask with: ending one is TerminateProcess, and forcibly it
+  // ends what it started too, as the runner's own tree kill does: the tree Novadeck's
+  // relay reads, where a process counts as a child only if it started no earlier than its
+  // recorded parent, so an unrelated one given an ended parent's pid isn't, and each is
+  // ended only as the process it was. Only a tree whose root is the process found, by its
+  // start, is ended, and waited for, so nothing of it holds the sandbox's files once
+  // `reap` returns.
   end: async (one, forcibly) => {
-    try {
-      if (forcibly)
-        await promisify(execFile)("taskkill", ["/PID", String(one.pid), "/T", "/F"], {
-          windowsHide: true,
-          timeout: 30_000,
-        })
-      else process.kill(one.pid)
-    } catch {
-      // Gone meanwhile.
+    if (!forcibly) {
+      try {
+        process.kill(one.pid)
+      } catch {
+        // Gone meanwhile.
+      }
+      return
     }
+    const tree = await trees.read(one.pid)
+    // Where the relay can't read it, taskkill ends the tree, awaited, as it did before:
+    // only the root is checked, just before, by its start.
+    if (tree === undefined) return taskkillTree(one.pid).catch(() => {})
+    if (tree[0]?.startedAt !== one.start) return
+    await trees.end(tree)
+    const deadline = Date.now() + 30_000
+    while (anyRunning(tree) && Date.now() < deadline)
+      // eslint-disable-next-line no-await-in-loop -- Waits for them to end.
+      await new Promise((resolve) => setTimeout(resolve, 50))
   },
 }
 

@@ -543,9 +543,16 @@ work with it, and an option without a value would be read as the agent.
    `{"relay":2,"kind":"hook","terminalId","token","agent","event","seq","deadline","ancestors","env","payload"}`.
    - `seq` is when the hook started, and `deadline` when it gives up, in epoch
      milliseconds with a fraction.
-   - `ancestors` is up to eight `{ pid, name }`, nearest first. They come from `/proc`
-     on Linux and the kernel on macOS, named by the path each was started by; Windows
-     sends none.
+   - `ancestors` is up to eight `{ pid, name, startedAt }`, nearest first, `startedAt`
+     in epoch milliseconds and left out where unknown. They come from `/proc` on Linux
+     and the kernel on macOS, named by the path each was started by, and on Windows from
+     a process snapshot, named by their program without `.exe`, where the walk stops at
+     a recorded parent that started after its child, another process given an ended
+     parent's pid. The runner names the agent's process from them, and on Windows, where
+     a hook's shell starts slowly, when the agent fired the hook (`firedAt`): when the
+     ancestor just below the agent started, the shell the hook runs in, seconds before
+     `seq`. Elsewhere `seq` tells, and the ancestor below the agent may be a long-lived
+     process of its own, as under a wrapper script that doesn't `exec` it.
    - `env` holds the variables `relay.json` names, by name, as the hook found them:
      `CLAUDE_PID`, `CURSOR_VERSION` and `CODEX_THREAD_ID`.
    - `payload` is the agent's JSON as text, unread. The runner prunes it.
@@ -562,6 +569,21 @@ for Claude Code's status line. For the status line, the relay also runs the pers
 command, as their Claude Code settings name it, beside the report, and prints it. Without
 the relay, the hook launcher prints what `relay.json` would, as it is written from the
 same tables.
+
+On Windows the runner also runs the relay for what it would otherwise start PowerShell
+or taskkill for:
+
+- `novadeck-relay environment` prints the registry's environment variables,
+  unexpanded: a line for each text value of the machine's and then the user's
+  `Environment` key, `machine` or `user`, its name and its value, each in base64 of
+  its UTF-8. A new terminal's PATH is built from them, as Windows builds a new
+  console's. Where the relay can't run, Windows PowerShell prints the same lines.
+- `novadeck-relay tree <pid>...` prints, a JSON line per pid,
+  `{"root":<pid>,"processes":[{"pid","startedAt"},...]}`: the process and every one
+  under it, counting a process as a child only if it started no earlier than its
+  recorded parent.
+- `novadeck-relay end <pid>:<startedAt>...` ends each of those processes still running
+  that started then, and no other given its pid since.
 
 The runner saves, per terminal, in a `terminals` table next to the sessions: its
 session, last directory, latest session per agent, when it last showed a prompt, and

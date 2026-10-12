@@ -1694,6 +1694,38 @@ describe("a turn the person's Escape ended", () => {
       ]
       return screenWith({ rows, cursor: { row: rows.length - 2, column: 2 } })
     }
+    // As the probe captured them: the transcript's two steps, and the screen's rows.
+    const cutOff = [
+      JSON.stringify({
+        step_index: 0,
+        source: "USER_EXPLICIT",
+        type: "USER_INPUT",
+        status: "DONE",
+        content: "<USER_REQUEST>\nCheck the folder\n</USER_REQUEST>",
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: "MODEL",
+        type: "PLANNER_RESPONSE",
+        status: "DONE",
+        created_at: "2026-10-11T17:09:15Z",
+        content: "Let me check the folder.",
+      }),
+    ]
+    const cutOffRows = [
+      rule,
+      "> Check the folder",
+      "",
+      "  Let me check the folder.",
+      "⢿  Generating...",
+      "",
+      "  ⎿  Interrupted · What should Antigravity CLI do instead?",
+      rule,
+      ">",
+      rule,
+      "? for shortcuts",
+    ]
+    const cutOffScreen = screenWith({ rows: cutOffRows, cursor: { row: 8, column: 2 } })
     const windows = process.platform === "win32"
     const cases = [
       [
@@ -1710,6 +1742,10 @@ describe("a turn the person's Escape ended", () => {
         "interrupted",
       ],
       ["no reply since the prompt", [answered, asked], shown(false), "interrupted"],
+      // An Escape between a response's words and the tool call after them: Antigravity
+      // records the words alone as the response, then draws its interruption (probed
+      // 2026-10-11, 1.2.14, the call streamed 1.5 s after the words, every run).
+      ["the words before a call the Escape cut off", cutOff, cutOffScreen, "interrupted"],
     ] as const
     try {
       for (const [what, lines, screen, outcome] of cases) {

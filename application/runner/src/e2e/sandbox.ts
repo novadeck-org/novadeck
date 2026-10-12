@@ -249,13 +249,22 @@ export type SandboxOptions = {
 }
 
 /**
+ * The sandbox folder's name, before its random part: with a space where
+ * NOVADECK_E2E_SPACED=1 asks for one, as a profile folder like `C:\Users\Ada Lovelace`
+ * has, so the home, and Novadeck's launcher inside the sandbox, are named with one too:
+ * Windows CI's quirks job runs so, where cmd reads the launcher by its short name.
+ */
+const sandboxName = (): string =>
+  process.env.NOVADECK_E2E_SPACED === "1" ? "novadeck e2e-" : "novadeck-e2e-"
+
+/**
  * Makes a sandbox under the system's temporary folder; the caller removes `root`. Node
  * reaches PATH through a folder of its own, as the one it is installed in may hold global
  * installs of the very harnesses under test.
  */
 export const createSandbox = (options: SandboxOptions): Sandbox => {
   const started = windows ? Date.now() : sinceBoot()
-  const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-e2e-")))
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), sandboxName())))
   const folder = (...parts: string[]) => {
     const path = join(root, ...parts)
     mkdirSync(path, { recursive: true, mode: 0o700 })

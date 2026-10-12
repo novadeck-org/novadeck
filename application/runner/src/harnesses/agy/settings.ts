@@ -126,6 +126,24 @@ export const statusLineSettings = (home: (install: Install) => string) => ({
 })
 
 /**
+ * What keeps messaging with Antigravity from working whole: on Windows, the person's own
+ * status line, which keeps Novadeck's out (see above). Its messaging is rooted in its
+ * status line, which alone tells its prompt has come up before a session binds: with the
+ * person's own, it was never seen Ready at its first prompt, so no message woke it before
+ * the person's first prompt there (probed 2026-10-11, 1.2.14). Once a turn had run, rings
+ * and deliveries went through. Elsewhere Novadeck's line runs the person's own after it.
+ */
+export const statusLineLimit =
+  (home: (install: Install) => string) =>
+  async (install: Install): Promise<"own-status-line" | undefined> => {
+    if (install.platform !== "win32") return undefined
+    const settings = await read(settingsFile(home(install))).catch(() => undefined)
+    if (!settings || ownOf(settings.statusLine) !== undefined) return undefined
+    const command = line(settings.statusLine)?.command
+    return typeof command === "string" && command ? "own-status-line" : undefined
+  }
+
+/**
  * Whether Antigravity trusts `cwd`: its settings list it among `trustedWorkspaces`, the
  * same path once normalized, links left unresolved, so another way to the folder isn't
  * taken as trusted and the agent starts plain. A folder inside a trusted one isn't taken

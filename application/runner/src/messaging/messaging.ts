@@ -4,7 +4,7 @@ import { z } from "zod"
 import { DomainError } from "../errors.js"
 import type { Binding } from "../harnesses/bindings.js"
 import type { ActivityEvent, Background, HarnessEvent } from "../harnesses/events.js"
-import { silentFor, type MessagingProfile } from "../harnesses/harness.js"
+import { hookShellSlackMs, silentFor, type MessagingProfile } from "../harnesses/harness.js"
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import type { HookAnswer } from "../shell/reports.js"
@@ -18,6 +18,7 @@ import {
   transition,
   unbound,
   type Delivery,
+  firing,
   pendingEnter,
   type DeliveryEvent,
   type KeyKind,
@@ -157,6 +158,11 @@ export type MessagingOptions = {
   readonly restoreMs?: number
   /** Whether a terminal exists, running or kept; one running counts when omitted. */
   readonly exists?: (terminalId: string) => boolean
+  /**
+   * The platform the harnesses' hooks run on, whose shells may hold a hook back (see
+   * `hookShellSlackMs`); the runner's own when omitted.
+   */
+  readonly platform?: NodeJS.Platform
 }
 
 /**
@@ -255,6 +261,8 @@ const deliveredBytes = (message: Message): number => {
 export class Messaging {
   private readonly records: MailboxRecords
   private readonly now: () => number
+  /** How much later a hook may come, for the shell it starts in (see `firing`). */
+  private readonly slackMs: number
   private readonly exists: (terminalId: string) => boolean
   /** Everyone following changes: the doorbell, and each `messages.watch`. */
   private readonly listeners = new Set<(change: MessagingChange) => void>()
@@ -280,6 +288,7 @@ export class Messaging {
   constructor(options: MessagingOptions = {}) {
     this.records = options.records ?? memoryMailbox()
     this.now = options.now ?? Date.now
+    this.slackMs = hookShellSlackMs(options.platform ?? process.platform)
     this.exists = options.exists ?? ((terminalId) => this.live.has(terminalId))
     this.leases = new Leases(options.leaseMs ?? 5_000, (lease) => this.lapse(lease))
     this.paused = this.read(() => this.records.messagingPaused(), false)
@@ -418,13 +427,14 @@ export class Messaging {
     prefix: string | null,
     replaces = false,
     at = this.now(),
+    firedAt?: number,
   ): void {
     const live = this.live.get(terminalId)
     if (!live || (live.root && !replaces)) return
     const learned = live.shown?.agent !== agent || live.shown.prefix !== prefix
     live.shown = { agent, prefix }
     live.untrusted = null
-    this.step(live, { type: "shown", at, replaces })
+    this.step(live, { type: "shown", at, replaces, ...(firedAt !== undefined && { firedAt }) })
     // A prefix it learns later may make other messages its own.
     if (learned) this.changed(terminalId)
   }
@@ -746,12 +756,15 @@ export class Messaging {
   }
 
   /**
-   * When the person's bare Enter came, if a root turn whose hook started at `startedAt`
-   * would be their submission: within the window, before anything they typed after it.
+   * When the person's bare Enter came, if a root turn whose hook started at `startedAt`,
+   * its shell at `firedAt` where told, would be their submission: within the window,
+   * before anything they typed after it.
    */
-  pendingSubmission(terminalId: string, startedAt: number): number | undefined {
+  pendingSubmission(terminalId: string, startedAt: number, firedAt?: number): number | undefined {
     const delivery = this.live.get(terminalId)?.delivery
-    return delivery && pendingEnter(delivery, startedAt)
+    if (!delivery) return undefined
+    const fired = firing({ at: startedAt, ...(firedAt !== undefined && { firedAt }) }, this.slackMs)
+    return pendingEnter(delivery, fired.at, fired.windowMs)
   }
 
   /** The doorbell starts ringing the terminal with its nonce; false when it may not now. */
@@ -1379,7 +1392,7 @@ export class Messaging {
           )
             this.gone(message)
       } else if (change.type === "new")
-        this.rootAt(live, change.root, change.guess, change.ready, change.startedAt)
+        this.rootAt(live, change.root, change.guess, change.ready, change.startedAt, change.firedAt)
       else this.correct(live, change.from, change.root, change.confirmed)
     }
   }
@@ -1397,6 +1410,7 @@ export class Messaging {
     guess: boolean,
     ready: boolean,
     startedAt = this.now(),
+    firedAt?: number,
   ): void {
     live.root = root
     // Its first session came: from now on, only a bound session takes messages.
@@ -1405,7 +1419,12 @@ export class Messaging {
     live.untrusted = null
     // Judged by when the hook that bound it started, not when it was heard, as a loaded
     // machine boots the hook late: the person's Enter before it may have submitted.
-    this.step(live, { type: "bound", ready, at: startedAt })
+    this.step(live, {
+      type: "bound",
+      ready,
+      at: startedAt,
+      ...(firedAt !== undefined && { firedAt }),
+    })
     for (const message of this.messages.values()) {
       if (message.to.terminalId !== live.terminalId) continue
       if (message.to.sessionId === null) {
@@ -1465,6 +1484,7 @@ export class Messaging {
           ...(event.nonce !== undefined && { nonce: event.nonce }),
           at: this.now(),
           startedAt: event.startedAt,
+          ...(event.firedAt !== undefined && { firedAt: event.firedAt }),
         })
         // A new root turn: the prompt that started it, if a prompt with text did.
         if (live.delivery.epoch !== epoch)
@@ -1503,7 +1523,7 @@ export class Messaging {
 
   private step(live: Live, event: DeliveryEvent): void {
     const before = live.delivery
-    live.delivery = transition(before, event)
+    live.delivery = transition(before, event, this.slackMs)
     if (live.delivery === before) return
     // A turn that ended, or a new one, leaves the last one's delivery behind.
     if ((running(before) && !running(live.delivery)) || live.delivery.epoch !== before.epoch)

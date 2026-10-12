@@ -594,6 +594,10 @@ export const agentIntegration = z.strictObject({
   agent: agentName,
   available: z.boolean(),
   connected: z.boolean(),
+  // What keeps a connected agent's messaging from working whole, where something does:
+  // `own-status-line`, Antigravity on Windows running the person's own status line, which
+  // keeps Novadeck's out, so it is never seen Ready at its first prompt.
+  limited: z.enum(["own-status-line"]).optional(),
 })
 
 // Runner-wide settings a client can change.

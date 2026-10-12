@@ -8,7 +8,7 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
-import type { HarnessEvent } from "../harnesses/events.js"
+import type { ActivityEvent, HarnessEvent } from "../harnesses/events.js"
 import { doorbellLine } from "../harnesses/harness.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot, type Root } from "../harnesses/roots.js"
@@ -46,7 +46,7 @@ const asHeard = -1
 const started = (
   bound: Binding,
   cause: "prompt" | "harness" | "call" = "prompt",
-): HarnessEvent => ({ type: "turn-started", ...fact(bound), startedAt: asHeard, cause })
+): ActivityEvent => ({ type: "turn-started", ...fact(bound), startedAt: asHeard, cause })
 
 const stopped = (bound: Binding, background = false): HarnessEvent => ({
   type: "turn-ended",
@@ -123,6 +123,8 @@ const create = (
     now: () => time.now,
     sweepMs: 0,
     restoreMs: 0,
+    // Hooks' shells start at once, on whatever platform the tests run.
+    platform: "linux",
     ...options,
   })
   messaging.subscribe((change) => {
@@ -1893,6 +1895,34 @@ describe("the person's submissions", () => {
     expect(messaging.pendingSubmission("B", entered + submitWindowMs + 100)).toBeUndefined()
     ask("B", codex, "UserPromptSubmit", [
       { ...started(codex), startedAt: entered + submitWindowMs - 500 },
+    ])
+    stop("B", codex)
+    expect(messaging.delivery("B")?.state).toBe("settled")
+  })
+
+  it("are judged by when the hook's shell started on Windows, where the relay tells it", () => {
+    const {
+      messaging,
+      ask,
+      stop,
+      codex,
+      clock: time,
+    } = create(undefined, undefined, {
+      platform: "win32",
+    })
+    messaging.keys("B", ["content"], false)
+    messaging.keys("B", ["enter"], false)
+    const entered = time.now
+    // Its relay started 15 s after the Enter, behind a cold PowerShell.
+    time.now += 15_100
+    const relayed = entered + 15_000
+    // Told when its shell started, it is judged by that, in the 2 s window.
+    expect(messaging.pendingSubmission("B", relayed, entered + 1_000)).toBe(entered)
+    expect(messaging.pendingSubmission("B", relayed, entered + submitWindowMs + 1)).toBeUndefined()
+    // Untold, by when the relay started, in a window wider by the shell's slack.
+    expect(messaging.pendingSubmission("B", relayed)).toBe(entered)
+    ask("B", codex, "UserPromptSubmit", [
+      { ...started(codex), startedAt: relayed, firedAt: entered + 1_000 },
     ])
     stop("B", codex)
     expect(messaging.delivery("B")?.state).toBe("settled")

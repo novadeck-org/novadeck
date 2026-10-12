@@ -5,6 +5,7 @@ import {
   agentSessionId,
   replyPreviewLength,
   type AgentCoverage,
+  type AgentIntegration,
   type AgentName,
   type TranscriptItem,
 } from "@novadeck/protocol"
@@ -13,6 +14,7 @@ import type { Report } from "../shell/reports.js"
 import type { BoxProfile } from "./box.js"
 import type { DialogAdapter } from "./dialogs.js"
 import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
+import type { Dialect } from "./hook-command.js"
 
 /** Where a harness lives on this machine, as its setup and inspection need it. */
 export type Install = {
@@ -54,7 +56,12 @@ export type Harness = {
   /** Its plugin commands, run in order. */
   readonly connect: (install: Install) => readonly Command[]
   readonly disconnect: readonly Command[]
-  /** The command its plugin runs for a hook `event`, through the harness's own shell. */
+  /** The shell it runs its hook commands in on `platform` (see `hook-command.ts`). */
+  readonly hookDialect: (platform: NodeJS.Platform) => Dialect
+  /**
+   * The command its plugin runs for a hook `event`, in that shell: `hookCommand`'s, with
+   * what it prints without Novadeck.
+   */
   readonly hook: (platform: NodeJS.Platform, event: string) => string
   /**
    * Its plugin's manifests, hook registrations and MCP server, relative to its plugin
@@ -75,6 +82,11 @@ export type Harness = {
     readonly directory: (install: Install) => string
     readonly files: readonly string[]
   }
+  /**
+   * What keeps its messaging from working whole once connected, where something does, as
+   * Antigravity's own status line on Windows (`AgentIntegration.limited`).
+   */
+  readonly limited?: (install: Install) => Promise<AgentIntegration["limited"]>
   /**
    * Changes its own settings once connected, and puts them back before disconnecting, for
    * what it offers no way to set per launch, as Antigravity's status line.
@@ -276,12 +288,35 @@ export type UserEntry = {
 }
 
 /**
- * How long a harness lets one of Novadeck's hooks run, in seconds; one slower is dropped
- * silently. Well above the hook's own limit, so the hook always ends by itself. On Windows
- * the shell the hook runs in counts too: PowerShell takes most of 15 s to start cold on a
- * busy CI runner, where a Codex hook dropped so carried none of the messages waiting.
+ * How much later than elsewhere a hook may reach the runner on `platform`, for the shell
+ * it runs in, in milliseconds: on Windows the hook starts in PowerShell (Claude Code,
+ * Codex) or cmd (Antigravity), which takes most of 15 s to start cold on a busy CI runner,
+ * where a Codex hook dropped for it carried none of the messages waiting; elsewhere a
+ * shell starts at once. Every wait on a hook's arrival grows by it.
  */
-export const hookSeconds = (platform: NodeJS.Platform): number => (platform === "win32" ? 30 : 10)
+export const hookShellSlackMs = (platform: NodeJS.Platform): number =>
+  platform === "win32" ? 20_000 : 0
+
+/**
+ * How long a harness lets one of Novadeck's hooks run, in seconds; one slower is dropped
+ * silently. Well above the hook's own limit, so the hook always ends by itself, and more by
+ * the time its shell may take to start.
+ */
+export const hookSeconds = (platform: NodeJS.Platform): number =>
+  10 + hookShellSlackMs(platform) / 1000
+
+/**
+ * What a hook's report decoded to, each fact its hook told (started at its `seq`, not
+ * read from a transcript) with when the agent fired that hook (`Report.firedAt`), where
+ * the relay could tell.
+ */
+export const firedFacts = <Fact extends { readonly startedAt: number }>(
+  facts: readonly Fact[],
+  { seq, firedAt }: { readonly seq: number; readonly firedAt?: number | undefined },
+): readonly Fact[] =>
+  firedAt === undefined
+    ? facts
+    : facts.map((fact) => (fact.startedAt === seq ? { ...fact, firedAt } : fact))
 
 export const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
 

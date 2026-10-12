@@ -326,7 +326,7 @@ const createNotificationActions = (): readonly [DemoAction, DemoAction] => {
 }
 
 export const createDemoStates = (): DemoStates => {
-  const { agents, openWelcome, failNext: failAgents } = createDemoAgents()
+  const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
   const { updates, offer, finish, failInstall } = createDemoUpdates()
   // Each press offers a newer version than the last, so its notice comes up again.
@@ -600,6 +600,11 @@ export const createDemoStates = (): DemoStates => {
           label: "Refresh",
           hint: "Looks at the agents again; errors clear",
           run: () => agents.refresh(),
+        },
+        {
+          label: "Antigravity limited",
+          hint: "Antigravity shows connected, with a warning under its name in Preferences: its own status line keeps messages from waking it until it has been sent a prompt",
+          run: limitAntigravity,
         },
         { label: "Welcome", hint: "Opens the first-run dialog", run: openWelcome },
       ],

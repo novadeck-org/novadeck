@@ -57,7 +57,9 @@ const it = base.extend<{ shim: Fixture }>({
   },
 })
 
-describe("codex shim", () => {
+// Each test writes the shell files first, which on a cold Windows runner, with cmd's AutoRun
+// check and a fresh relay for the antivirus to scan, took most of 31 s the first time.
+describe("codex shim", { timeout: 60_000 }, () => {
   it("runs the real codex without its shared server, its title telling its state, passing every argument on", ({
     shim,
   }) => {

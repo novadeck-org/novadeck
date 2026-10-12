@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { AgentName } from "@novadeck/protocol"
+import { beforeAll } from "vitest"
 
 import { plugin, type Start } from "../harnesses/harness.js"
 import { harnesses } from "../harnesses/registry.js"
@@ -81,6 +82,18 @@ const timedOut = (result: SpawnSyncReturns<string>) =>
 const events = { claude: "SessionStart", codex: "SessionStart", agy: "PreInvocation" } as const
 
 describe("agent plugin hook commands", () => {
+  // The first cmdlet a cold Windows PowerShell runs, as Test-Path in Claude Code's and
+  // Codex's hooks, has it build its module analysis cache first, over every module on
+  // PSModulePath: on a CI runner, with many, that took up to 45 s (it timed out the first
+  // case to reach Test-Path, as later cases took under 1 s). Warmed once, each case times
+  // the hook itself.
+  beforeAll(() => {
+    if (windows)
+      spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "Test-Path ."], {
+        timeout: 170_000,
+      })
+  }, 180_000)
+
   // Codex and Antigravity trust a hook by its definition, so a change asks whoever
   // connected them to review Novadeck's hook again: change these on purpose only.
   it("change only on purpose", () => {

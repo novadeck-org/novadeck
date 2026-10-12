@@ -4,6 +4,7 @@ import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
 
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
+import { relayPath } from "@novadeck/relay"
 
 import { DomainError } from "../errors.js"
 import type { ShellPaths } from "../shell/scripts.js"
@@ -23,6 +24,12 @@ export type HarnessesOptions = {
   readonly platform?: NodeJS.Platform
   /** How long one of an agent's plugin commands may take, in milliseconds. */
   readonly timeoutMs?: number
+  /**
+   * The runner's own relay, which reads Windows' registry for PATH; the one
+   * `@novadeck/relay` built when omitted. Never the copy installed for agents, which may
+   * be another build's.
+   */
+  readonly relay?: string
 }
 
 const exists = (path: string): Promise<boolean> =>
@@ -84,8 +91,8 @@ const loginShellEnvironment = (env: NodeJS.ProcessEnv) =>
  * desktop menu. Only `echo` and `env` run in that shell, so any shell will do. Windows
  * keeps PATH in the registry instead, read anew there; see `refreshPath`.
  */
-const loginEnvironment = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform) =>
-  platform === "win32" ? refreshPath(env, { platform }) : loginShellEnvironment(env)
+const loginEnvironment = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform, relay: string) =>
+  platform === "win32" ? refreshPath(env, { platform, relay }) : loginShellEnvironment(env)
 
 // The program to run: the one on PATH, or where the harness's installer puts it otherwise.
 const locate = async (program: string, harness: Harness, install: Install): Promise<string> => {
@@ -149,23 +156,30 @@ export const createHarnesses = (
   const base = options.env ?? process.env
   const home = options.home ?? base.HOME ?? homedir()
   const platform = options.platform ?? process.platform
+  const relay = options.relay ?? relayPath
   const timeoutMs = options.timeoutMs ?? 60_000
   // Looked up in the background from the start, and again before each change. Listing
   // and spawning shells never wait for it: until it answers they use the app's own.
   let latest: NodeJS.ProcessEnv | undefined
   const lookUp = () =>
-    (options.login === false ? Promise.resolve(base) : loginEnvironment(base, platform)).then(
-      (found) => {
-        latest = found
-        return found
-      },
-    )
+    (options.login === false
+      ? Promise.resolve(base)
+      : loginEnvironment(base, platform, relay)
+    ).then((found) => {
+      latest = found
+      return found
+    })
   void lookUp()
-  const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => ({
-    agent: harness.id,
-    available: await exists(harness.home(install)),
-    connected: await harness.connected(install),
-  })
+  const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => {
+    const connected = await harness.connected(install)
+    const limited = connected ? await harness.limited?.(install).catch(() => undefined) : undefined
+    return {
+      agent: harness.id,
+      available: await exists(harness.home(install)),
+      connected,
+      ...(limited !== undefined && { limited }),
+    }
+  }
   // Where each harness lives, once the shell files say where its plugin is.
   const installs = async (fresh = false) => {
     const shell = await paths()

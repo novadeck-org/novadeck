@@ -490,6 +490,14 @@ describe("keymap", () => {
           ])
         })
 
+        it("waits while a modal dialog is open that hasn't taken focus yet", () => {
+          // A confirmation opened from a menu's button, which still holds focus.
+          const opening = { environment: { modalOpen: () => true } }
+          expect(
+            route(platform, "capture", digit(2, { target: { editing: true } }), opening),
+          ).toEqual([])
+        })
+
         it("waits while a dialog is open and swallows repeats", () => {
           expect(keydown(platform, digit(2), { state: { dialog: true } })).toEqual([])
           expect(

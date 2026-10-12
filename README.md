@@ -668,7 +668,9 @@ given), as a spec does that must act on the screen before the turn ends.
 - **Selected terminal, Agent, New terminals, Notices, Agents, Folders:** put a
   terminal, an agent, the notifications and the pickers in each of their states.
   The "Turn" actions end after 3 s, and "Agent finishes elsewhere" needs the
-  Preferences switch "Notify when an agent finishes" on.
+  Preferences switch "Notify when an agent finishes" on. Agents' "Antigravity limited"
+  connects Antigravity with the note Preferences shows where its own status line keeps
+  Novadeck's out, as on Windows.
 
 ## Repository map
 

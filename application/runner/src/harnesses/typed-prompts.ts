@@ -2,7 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 
 import type { HarnessEvent } from "./events.js"
 import { tailLines } from "./follow.js"
-import { doorbellNonce, promptStart, type UserEntry } from "./harness.js"
+import { doorbellNonce, firedFacts, promptStart, type UserEntry } from "./harness.js"
 import { rootedIn, type Root } from "./roots.js"
 
 /**
@@ -106,10 +106,14 @@ export const typedPromptStart = async (
       if (!typed || !entry) return { events, seen: known }
       const started = events[index]!
       const { agent, sessionId, instance, startedAt } = started
+      const firedAt = "firedAt" in started ? started.firedAt : undefined
+      // The turn's start keeps when its hook fired, which the person's Enter is judged by.
+      const [typedStart] = firedFacts(
+        [promptStart({ agent, sessionId, instance, startedAt }, entry.text)],
+        { seq: startedAt, firedAt },
+      )
       return {
-        events: events.map((event, at) =>
-          at === index ? promptStart({ agent, sessionId, instance, startedAt }, entry.text) : event,
-        ),
+        events: events.map((event, at) => (at === index ? typedStart! : event)),
         seen: known,
       }
     }

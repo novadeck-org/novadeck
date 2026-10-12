@@ -3,6 +3,7 @@ import { useEffect } from "react"
 import {
   classifyKeyTarget,
   insideOwnKeys,
+  modalDialogOpen,
   navigateHome,
   terminalTabInteractionActive,
   workspaceOverlayOpen,
@@ -24,6 +25,7 @@ import { domEffects } from "./effects"
 const environment: KeyEnvironment = {
   overlayOpen: workspaceOverlayOpen,
   tabInteraction: terminalTabInteractionActive,
+  modalOpen: modalDialogOpen,
 }
 
 const keyInput = (event: KeyboardEvent): KeyInput => ({

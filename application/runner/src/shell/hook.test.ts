@@ -1,5 +1,12 @@
 import { spawn } from "node:child_process"
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import {
+  copyFileSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -216,6 +223,50 @@ describe("agent hook", () => {
         child.on("exit", () => resolve(child.pid))
       })
       await expect.poll(() => fixture.reports[0]?.instance).toBe(String(pid))
+    },
+  )
+
+  // A copy of cmd named agy stands in for Antigravity, and runs the hook in a cmd of its
+  // own, as Antigravity runs its hooks: the shell the agent started for it.
+  it.runIf(process.platform === "win32")(
+    "names its agent's process on Windows, and when the agent started the hook's shell",
+    async ({ fixture, resources }) => {
+      const directory = mkdtempSync(join(tmpdir(), "novadeck-agy-"))
+      resources.defer(() =>
+        rmSync(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }),
+      )
+      const agy = join(directory, "agy.exe")
+      copyFileSync(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "cmd.exe"), agy)
+      const before = Date.now()
+      const pid = await new Promise<number | undefined>((resolve) => {
+        const child = spawn(
+          agy,
+          [
+            "/d",
+            "/c",
+            `cmd /d /c ""${relayPath}" hook --config "${relayConfigFile}" agy PreInvocation"`,
+          ],
+          {
+            env: {
+              ...process.env,
+              CLAUDE_PID: "",
+              NOVADECK_TERMINAL_ID: terminalId,
+              NOVADECK_REPORT: fixture.endpoint,
+              NOVADECK_REPORT_TOKEN: token,
+            },
+            stdio: ["pipe", "ignore", "inherit"],
+            windowsVerbatimArguments: true,
+          },
+        )
+        child.stdin.end(JSON.stringify(start()))
+        child.on("exit", () => resolve(child.pid))
+      })
+      await expect.poll(() => fixture.reports[0]?.instance).toBe(String(pid))
+      const { seq, firedAt } = fixture.reports[0]!
+      expect(firedAt).toBeDefined()
+      expect(firedAt!).toBeLessThanOrEqual(seq)
+      // The inner cmd started after its agy did, which the test started.
+      expect(firedAt!).toBeGreaterThanOrEqual(before - 50)
     },
   )
 
@@ -607,6 +658,12 @@ describe("agent hook asking", () => {
   })
 })
 
+// A hook's shell under Codex, started at `startedAt` where told.
+const shell = (startedAt?: number) => [
+  { pid: 20, name: "pwsh", ...(startedAt !== undefined && { startedAt }) },
+  { pid: 30, name: "codex", startedAt: 0 },
+]
+
 describe("reading a relay's hook", () => {
   const hook = (given: object = {}) => ({
     agent: "codex",
@@ -632,6 +689,63 @@ describe("reading a relay's hook", () => {
       env: { CLAUDE_PID: "4242" },
     })
     expect(relayHook(claude)?.report.instance).toBe("4242")
+  })
+
+  it("tells when the agent fired it: when the shell it started the hook in started", () => {
+    // The relay under the hook launcher's cmd, under PowerShell, under Codex.
+    const ancestors = [
+      { pid: 10, name: "cmd", startedAt: 900 },
+      { pid: 20, name: "pwsh", startedAt: 400 },
+      { pid: 30, name: "codex", startedAt: 100 },
+    ]
+    expect(relayHook(hook({ ancestors }), "win32")?.report.firedAt).toBe(400)
+    // Claude Code, by its own pid.
+    const claude = hook({ agent: "claude", ancestors, env: { CLAUDE_PID: "30" } })
+    expect(relayHook(claude, "win32")?.report.firedAt).toBe(400)
+    // The relay started by the agent itself: its own start.
+    const direct = [{ pid: 30, name: "codex", startedAt: 100 }]
+    expect(relayHook(hook({ ancestors: direct }), "win32")?.report.firedAt).toBe(1_000)
+  })
+
+  it("tells no firing where it can't, or where the shell's start makes no sense", () => {
+    const firedAt = (ancestors: object[]) => relayHook(hook({ ancestors }), "win32")?.report.firedAt
+    expect(firedAt(shell())).toBeUndefined()
+    // Not the agent's: no firing either.
+    expect(firedAt([{ pid: 20, name: "pwsh", startedAt: 400 }])).toBeUndefined()
+    // After the relay started, past what clocks read apart may differ.
+    expect(firedAt(shell(1_020))).toBe(1_000)
+    expect(firedAt(shell(1_200))).toBeUndefined()
+    // Longer before it than any shell takes to start.
+    expect(firedAt(shell(1_000 - 61_000))).toBeUndefined()
+  })
+
+  it("tells no firing on Windows where the process below the agent isn't its hooks' shell", () => {
+    // A wrapper named codex, with Codex itself, node, below it: Codex runs hooks in PowerShell.
+    const wrapped = [
+      { pid: 10, name: "pwsh", startedAt: 900 },
+      { pid: 20, name: "node", startedAt: 400 },
+      { pid: 30, name: "codex", startedAt: 300 },
+    ]
+    expect(relayHook(hook({ ancestors: wrapped }), "win32")?.report.firedAt).toBeUndefined()
+    // Antigravity runs them in cmd.
+    const agy = [
+      { pid: 20, name: "cmd", startedAt: 400 },
+      { pid: 30, name: "agy", startedAt: 300 },
+    ]
+    expect(
+      relayHook(hook({ agent: "agy", event: "Stop", ancestors: agy }), "win32")?.report.firedAt,
+    ).toBe(400)
+  })
+
+  it("tells no firing where a shell starts at once, as the hook's own start tells", () => {
+    // Under a wrapper named codex that doesn't exec it, the agent itself is the ancestor
+    // below the one named codex, started long before the hook.
+    const wrapped = [
+      { pid: 20, name: "node", startedAt: 400 },
+      { pid: 30, name: "codex", startedAt: 300 },
+    ]
+    for (const platform of ["linux", "darwin"] as const)
+      expect(relayHook(hook({ ancestors: wrapped }), platform)?.report.firedAt).toBeUndefined()
   })
 
   it("cuts a payload too large to keep harder, and drops one too large even then", async () => {

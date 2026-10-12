@@ -90,7 +90,9 @@ export const wire = (options: RunnerOptions) => {
           console.error("Novadeck shell integration is unavailable:", error)
           return undefined
         })
-  const agents = createHarnesses(() => shellFiles, options.agents)
+  // The runner's own calls of the relay use the build's, never the copy for agents.
+  const relay = options.relay === undefined ? {} : { relay: options.relay }
+  const agents = createHarnesses(() => shellFiles, { ...relay, ...options.agents })
   // A connected agent that keeps its own copy of the plugin gets the files just written,
   // where they differ from that copy (see `Harness.installed`).
   void shellFiles
@@ -106,6 +108,7 @@ export const wire = (options: RunnerOptions) => {
   const terminals = new Terminals({
     records: store,
     shellFiles,
+    ...relay,
     // Codex runs through Novadeck's shim while it is connected; see `posixCodexShim`.
     shims: () => agents.shims(),
     connected: (agent) => agents.connected(agent),

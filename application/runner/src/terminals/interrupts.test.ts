@@ -17,9 +17,10 @@ const terminal = (
     prompt?: string
     /** What the box holds before the Escape. */
     draft?: string
-    working?: boolean
-    /** Whether the screen shows messages queued behind the turn. */
-    queued?: boolean
+    /** Whether its turn works, or how it says so as each key comes. */
+    working?: boolean | (() => boolean)
+    /** Whether the screen shows messages queued behind the turn, or how it does as it's read. */
+    queued?: boolean | (() => boolean)
     /** Whether the harness has keys that clear its box; they empty it where it `clears`. */
     clear?: boolean
     clears?: boolean
@@ -44,14 +45,16 @@ const terminal = (
     collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
     ...(options.clear === false ? {} : { clear: () => CLEAR }),
     shell: { expands: true, starts: false, footer: () => false },
-    queued: () => options.queued === true,
+    queued: () =>
+      typeof options.queued === "function" ? options.queued() : options.queued === true,
     collapses: () => false,
     ...(options.viewport === undefined ? {} : { viewport: () => options.viewport! }),
     room: (rows) => rows - 3,
   }
   const host: InterruptHost = {
     admit: () => undefined,
-    working: () => options.working !== false,
+    working: () =>
+      typeof options.working === "function" ? options.working() : options.working !== false,
     alive: () => true,
     profile: () => profile,
     prompt: () => options.prompt,
@@ -77,8 +80,21 @@ const terminal = (
       return true
     },
   }
-  const interrupts = new Interrupts(host, { restoreMs: 600, restoreCalmMs: 100, settleMs: 0 })
-  return { interrupt: () => interrupts.interrupt("terminal"), typed, written }
+  const interrupts = new Interrupts(host, {
+    restoreMs: 600,
+    restoreCalmMs: 100,
+    settleMs: 0,
+    queuedTurnMs: 1_000,
+  })
+  return {
+    interrupt: () => interrupts.interrupt("terminal"),
+    typed,
+    written,
+    // The person's own typing, which the box shows.
+    personTypes: (text: string) => {
+      box = text
+    },
+  }
 }
 
 describe("interrupts", () => {
@@ -164,6 +180,92 @@ describe("interrupts", () => {
     expect(await t.interrupt()).toEqual({ returned: "Queued beta\nQueued gamma" })
     expect(t.typed).toEqual([ESC, ESC])
     expect(t.written).toEqual([CLEAR])
+  })
+
+  it("presses the second Escape for queued messages only once their turn works", async () => {
+    // The stopped turn ends, and the harness starts the queued one 300 ms after the Escape,
+    // as a busy machine may, past when the box has settled.
+    const pressed: number[] = []
+    const t = terminal({
+      queued: true,
+      prompt: "Hold on",
+      working: () => pressed.length === 0 || Date.now() - pressed[0]! >= 300,
+      after: (escapes) => {
+        pressed.push(Date.now())
+        return escapes === 2 ? "Queued beta" : undefined
+      },
+    })
+    expect(await t.interrupt()).toEqual({ returned: "Queued beta" })
+    expect(t.typed).toEqual([ESC, ESC])
+    expect(pressed[1]! - pressed[0]!).toBeGreaterThanOrEqual(300)
+  })
+
+  it("waits for the queued turn, whatever the screen says of the queue", async () => {
+    // The queue leaves the screen at the Escape; its turn shows working only at 600 ms, as a
+    // hook held back would: the second Escape waits for it.
+    const pressed: number[] = []
+    const since = () => (pressed.length === 0 ? 0 : Date.now() - pressed[0]!)
+    const queued = {
+      queued: () => pressed.length === 0,
+      prompt: "Hold on",
+      working: () => pressed.length === 0 || since() >= 600,
+    }
+    const waits = terminal({
+      ...queued,
+      after: (escapes) => {
+        pressed.push(Date.now())
+        return escapes === 2 ? "Queued beta" : undefined
+      },
+    })
+    expect(await waits.interrupt()).toEqual({ returned: "Queued beta" })
+    expect(pressed[1]! - pressed[0]!).toBeGreaterThanOrEqual(600)
+  }, 10_000)
+
+  it("leaves what the person typed while no queued turn came, pressing no second Escape over it", async () => {
+    const t = terminal({ queued: true, prompt: "Hold on", working: () => t.typed.length === 0 })
+    const stopping = t.interrupt()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    t.personTypes("mine")
+    expect(await stopping).toEqual({ returned: null })
+    expect(t.typed).toEqual([ESC])
+    expect(t.written).toEqual([])
+  })
+
+  it("presses the second Escape once the cap passes with no queued turn and an empty box", async () => {
+    const pressed: number[] = []
+    const t = terminal({
+      queued: true,
+      prompt: "Hold on",
+      working: () => pressed.length === 0,
+      after: () => {
+        pressed.push(Date.now())
+        return undefined
+      },
+    })
+    expect(await t.interrupt()).toEqual({ returned: null })
+    expect(t.typed).toEqual([ESC, ESC])
+    // The stub's cap is 1 s.
+    expect(pressed[1]! - pressed[0]!).toBeGreaterThanOrEqual(1_000)
+  })
+
+  it("returns the person's text with the queued one where the queued turn came after they typed", async () => {
+    const pressed: number[] = []
+    const t = terminal({
+      queued: true,
+      prompt: "Hold on",
+      working: () => pressed.length === 0 || Date.now() - pressed[0]! >= 600,
+      // The second Escape stops the queued turn, which puts its message after theirs.
+      after: (escapes) => {
+        pressed.push(Date.now())
+        return escapes === 2 ? "mine\nQueued beta" : undefined
+      },
+    })
+    const stopping = t.interrupt()
+    // Past the box settling after the first Escape, before the queued turn comes.
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    t.personTypes("mine")
+    expect(await stopping).toEqual({ returned: "mine\nQueued beta" })
+    expect(t.typed).toEqual([ESC, ESC])
   })
 
   it("returns nothing where the first Escape alone leaves the box empty and nothing is queued", async () => {

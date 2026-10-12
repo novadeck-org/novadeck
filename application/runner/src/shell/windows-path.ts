@@ -95,10 +95,11 @@ export const registryFolders = (
   ]
 }
 
-// Each key's text values unexpanded, a line each (see `registryFolders`); base64 keeps
-// any folder's name, which a console code page would not, as reg.exe's output loses "Ł".
-// .NET alone, no cmdlet: one, as ConvertTo-Json, has PowerShell look through every
-// module on PSModulePath first, which took past five seconds on a CI runner with many.
+// Each key's text values unexpanded, a line each (see `registryFolders`), as the relay
+// prints them, for where it can't run; base64 keeps any folder's name, which a console
+// code page would not, as reg.exe's output loses "Ł". .NET alone, no cmdlet: one, as
+// ConvertTo-Json, has PowerShell look through every module on PSModulePath first, which
+// took past five seconds on a CI runner with many.
 const lookup = [
   "$b64 = { param($text) [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($text)) }",
   "$read = { param($scope, $key) if ($key) { foreach ($name in $key.GetValueNames()) { $value = $key.GetValue($name, '', 'DoNotExpandEnvironmentNames'); if ($value -is [string]) { $scope + ' ' + (& $b64 $name) + ' ' + (& $b64 $value) } } } }",
@@ -107,28 +108,52 @@ const lookup = [
 ].join("; ")
 
 /**
- * PATH's folders as the registry has them now; "timeout" where the read ran past
- * `timeoutMs`, as on a cold start with an antivirus scanning PowerShell; or undefined
- * where it failed outright, as where PowerShell may not run or the answer isn't one.
+ * PATH's folders, from what `program` prints of the registry; "timeout" where it ran past
+ * `timeoutMs`, as on a cold start with an antivirus scanning it; or undefined where it
+ * failed outright, as where it may not run or its answer isn't one.
  */
-const readRegistry = (env: NodeJS.ProcessEnv, timeoutMs: number) =>
+const readWith = (
+  program: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+) =>
   new Promise<readonly string[] | "timeout" | undefined>((resolve) => {
-    const root = env.SystemRoot ?? env.SYSTEMROOT ?? "C:\\Windows"
-    const powershell = join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
-    execFile(
-      powershell,
-      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", lookup],
-      { env, timeout: timeoutMs, windowsHide: true },
-      (error, stdout) =>
-        resolve(
-          error
-            ? (error as { killed?: boolean }).killed
-              ? "timeout"
-              : undefined
-            : registryFolders(stdout, env),
-        ),
+    execFile(program, args, { env, timeout: timeoutMs, windowsHide: true }, (error, stdout) =>
+      resolve(
+        error
+          ? (error as { killed?: boolean }).killed
+            ? "timeout"
+            : undefined
+          : registryFolders(stdout, env),
+      ),
     )
   })
+
+/**
+ * PATH's folders as the registry has them now, as `readWith` tells them: read by
+ * Novadeck's relay (`novadeck-relay environment`), which ships with it, where it is given
+ * one; by Windows PowerShell where none is, or it fails outright. PowerShell is what
+ * machines that lock programs down block (AppLocker, WDAC, Constrained Language Mode),
+ * and what starts slowly on a cold boot.
+ */
+export const readRegistry = async (
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+  relay?: string,
+): Promise<readonly string[] | "timeout" | undefined> => {
+  const relayed =
+    relay === undefined ? undefined : await readWith(relay, ["environment"], env, timeoutMs)
+  if (relayed !== undefined) return relayed
+  const root = env.SystemRoot ?? env.SYSTEMROOT ?? "C:\\Windows"
+  const powershell = join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+  return readWith(
+    powershell,
+    ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", lookup],
+    env,
+    timeoutMs,
+  )
+}
 
 // The registry's folders last read, for every caller; until when no read is tried after
 // one that failed; and the read under way, if any: one PowerShell at a time, not one per
@@ -140,6 +165,7 @@ let timeouts = 0
 let reading: Promise<readonly string[] | undefined> | undefined
 
 type Timing = {
+  readonly relay: string | undefined
   readonly timeoutMs: number
   readonly maxAgeMs: number
   readonly retryMs: number
@@ -148,7 +174,7 @@ type Timing = {
 
 const folders = (
   env: NodeJS.ProcessEnv,
-  { timeoutMs, maxAgeMs, retryMs, timeoutRetryMs }: Timing,
+  { relay, timeoutMs, maxAgeMs, retryMs, timeoutRetryMs }: Timing,
   read: typeof readRegistry,
 ): Promise<readonly string[] | undefined> => {
   const now = Date.now()
@@ -156,7 +182,7 @@ const folders = (
   // Where the registry can't be read, as where PowerShell may not run, no caller waits on
   // it again for a while: each gets the last answer, however old, or none.
   if (failedUntil !== undefined && now <= failedUntil) return Promise.resolve(last?.folders)
-  reading ??= read(env, timeoutMs).then((found) => {
+  reading ??= read(env, timeoutMs, relay).then((found) => {
     if (Array.isArray(found)) last = { at: now, folders: found }
     // A read that only ran long, as the first after a cold boot, is tried again soon; where
     // PowerShell is always that slow, each time later, up to `retryMs`.
@@ -181,12 +207,13 @@ const folders = (
  * After a read that failed, none is tried again for `retryMs`, or `timeoutRetryMs` after
  * one that only ran past `timeoutMs`, doubled for each such read in a row up to `retryMs`.
  * Elsewhere, and when the registry can't be read, `env` stays as it is, or gains what
- * was read last.
+ * was read last. `relay` is Novadeck's relay, which reads it (see `readRegistry`).
  */
 export const refreshPath = async (
   env: NodeJS.ProcessEnv,
   {
     platform = process.platform,
+    relay,
     timeoutMs = 5_000,
     maxAgeMs = 30_000,
     retryMs = 300_000,
@@ -194,6 +221,7 @@ export const refreshPath = async (
     read = readRegistry,
   }: {
     readonly platform?: NodeJS.Platform
+    readonly relay?: string | undefined
     readonly timeoutMs?: number
     readonly maxAgeMs?: number
     readonly retryMs?: number
@@ -202,7 +230,7 @@ export const refreshPath = async (
   } = {},
 ): Promise<NodeJS.ProcessEnv> => {
   if (platform !== "win32") return env
-  const found = await folders(env, { timeoutMs, maxAgeMs, retryMs, timeoutRetryMs }, read)
+  const found = await folders(env, { relay, timeoutMs, maxAgeMs, retryMs, timeoutRetryMs }, read)
   if (!found) return env
   const key = pathKey(env)
   return { ...env, [key]: mergePath(env[key] ?? "", found) }

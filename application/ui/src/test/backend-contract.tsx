@@ -183,7 +183,8 @@ export const describeBackendContract = (name: string, options: BackendContractOp
       })
     })
 
-    context("when its surface renders", () => {
+    // The first mounts the terminal surface cold, which took 14 s on a busy Windows runner.
+    context("when its surface renders", { timeout: 30_000 }, () => {
       it("marks the content root for view transitions, layout styles and Canvas", () => {
         const { root } = withTerminal().mount()
         expect(root.hasAttribute("data-terminal-content")).toBe(true)

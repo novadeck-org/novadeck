@@ -1,5 +1,14 @@
+import { relayPath } from "@novadeck/relay"
+
 import { describe, expect, it } from "../test.js"
-import { forgetPath, mergePath, pathKey, refreshPath, registryFolders } from "./windows-path.js"
+import {
+  forgetPath,
+  mergePath,
+  pathKey,
+  readRegistry,
+  refreshPath,
+  registryFolders,
+} from "./windows-path.js"
 
 const windows = process.platform === "win32"
 // The lookup's answer: a line for each of a key's values as the registry holds it,
@@ -215,5 +224,17 @@ describe("refreshing PATH", () => {
     expect(folders.length).toBeGreaterThan(1)
     expect(refreshed).not.toHaveProperty("PATH")
     forgetPath()
+  })
+
+  it.runIf(windows)("reads the registry through Novadeck's relay as PowerShell does", async () => {
+    const relayed = await readRegistry(process.env, 30_000, relayPath)
+    const powershell = await readRegistry(process.env, 30_000)
+    expect(Array.isArray(relayed) && relayed.length).toBeGreaterThan(0)
+    expect(relayed).toEqual(powershell)
+  })
+
+  it.runIf(windows)("reads it through PowerShell where the relay can't run", async () => {
+    const missing = await readRegistry(process.env, 30_000, "C:\\Nowhere\\novadeck-relay.exe")
+    expect(missing).toEqual(await readRegistry(process.env, 30_000))
   })
 })

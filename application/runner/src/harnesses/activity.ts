@@ -150,6 +150,28 @@ type Escape = {
  */
 export const escapeVerdictMs = 1500
 
+/**
+ * How long before the hook that bound a session another hook the harness fired with it
+ * may have started, in milliseconds: Antigravity fires its status line and a model call's
+ * PreInvocation at once, and either may start, and be heard, first. A newly bound
+ * session's activity takes facts from that long before the binding's hook fired (its
+ * `firedAt`, on Windows its shell's start): each fact is compared by its relay's start,
+ * never earlier than its own firing, so one fired with the binding is kept, however long
+ * its own shell took to start. The relays' starts alone can't tell: two hooks fired
+ * together start their own cmd or PowerShell, and under load their relays start well over
+ * 250 ms apart. On CI (2026-10-11, Windows) the
+ * PreInvocation that started a session's first turn had started 5 µs, and once 1.4 ms,
+ * before the status line that bound the session, was heard after it, and was dropped as
+ * older than the binding, with every fact after it: the turn never showed.
+ */
+const boundTogetherMs = 250
+
+/** When a session bound by `bound`, a hook's fact, takes facts from (see `boundTogetherMs`). */
+export const boundSince = (bound: {
+  readonly startedAt: number
+  readonly firedAt?: number
+}): number => (bound.firedAt ?? bound.startedAt) - boundTogetherMs
+
 /** A freshly bound agent waits for its first prompt. */
 export const started = (at: number, wakes = true, records = true): Activity => ({
   state: "idle",

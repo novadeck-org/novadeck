@@ -16,6 +16,18 @@ const textEntry =
 // dialogs (Ark's) and confirmations. The terminal switcher is neither.
 const modalDialog = '[data-scope="dialog"][data-part="content"], [role="alertdialog"]'
 
+/**
+ * Whether a modal dialog is open, wherever focus is: one just opened may not have taken it
+ * yet, as a confirmation opened from a menu's button that still holds it.
+ */
+export const modalDialogOpen = (): boolean =>
+  [...document.querySelectorAll(modalDialog)].some(
+    (dialog) =>
+      dialog.getAttribute("aria-hidden") !== "true" &&
+      !dialog.hasAttribute("hidden") &&
+      dialog.getAttribute("data-state") !== "closed",
+  )
+
 export const workspaceShortcutTarget = (target: EventTarget | null): boolean =>
   !(target instanceof Element && target.closest(editingOrOverlay))
 

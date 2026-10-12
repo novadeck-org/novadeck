@@ -1225,6 +1225,30 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await reading
   })
 
+  it("starts the turn whose hook fired with the status line that bound its session", async ({
+    shell,
+  }) => {
+    const bin = reporter(shell.home, [
+      // Antigravity fires both at once: the status line's starts last, and is heard first.
+      {
+        agent: "agy",
+        sessionId: "c1",
+        seq: 2,
+        source: "",
+        event: "StatusLine",
+        fields: { conversation_id: "c1", agent_state: "working" },
+      },
+      { agent: "agy", sessionId: "c1", seq: 1.99, source: "", event: "PreInvocation" },
+    ])
+    const manager = shell.manager({
+      env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
+    })
+    const next = shell.watch(manager)
+    const terminal = await create(manager, shell)
+    manager.write({ terminalId: terminal.id, data: "report\r" }, "owner")
+    await next((summary) => summary.activity?.state === "working")
+  })
+
   it("keeps a plan the agent drafts beside its terminal, read as it changes", async ({ shell }) => {
     const plans = join(shell.home, ".claude", "plans")
     mkdirSync(plans, { recursive: true })

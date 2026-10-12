@@ -57,6 +57,17 @@ const entry = (text: string, id: number, at = Date.parse("2026-10-01T12:00:06Z")
 })
 
 describe("a typed prompt where hooks name none", () => {
+  it("keeps when the turn's hook fired, as the person's Enter is judged by it", async () => {
+    const fired = { ...started, firedAt: 0.5 } as HarnessEvent
+    const { events } = await typedPromptStart(
+      [fired],
+      { root, typedEntry, transcript: "/t.jsonl", seen: 9, enteredAt, ringing: undefined },
+      () => Promise.resolve(entry("Review a.ts", 10)),
+      { waitMs: 2, gapMs: 1 },
+    )
+    expect(events[0]).toMatchObject({ type: "turn-started", cause: "prompt", firedAt: 0.5 })
+  })
+
   it("is a new typed entry's, told as Claude Code's and Codex's prompts are", async () => {
     await expect(told(entry("fix the build", 12))).resolves.toEqual({
       events: [{ ...started, cause: "prompt", prompt: "fix the build" }],

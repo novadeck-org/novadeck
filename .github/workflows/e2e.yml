@@ -6,7 +6,9 @@ on:
     paths:
       - .github/workflows/e2e.yml
       - application/protocol/**
+      - application/relay/**
       - application/runner/**
+      - scripts/e2e/**
       - package.json
       - pnpm-lock.yaml
   schedule:
@@ -201,3 +203,122 @@ jobs:
             ${{ env.NOVADECK_E2E_CACHE }}/agy-*
             !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
           key: ${{ steps.agy.outputs.cache-primary-key }}
+
+  # What a green Windows job above can't catch, as people's machines differ from the
+  # runner's: a PowerShell profile that prints (Claude Code's hooks run in PowerShell, and
+  # Codex's, which it starts with -NoProfile, so its job shows that holds), a home and Novadeck's launcher in a folder named with a space (cmd reads
+  # Antigravity's launcher by its short name), a folder the registry's PATH gained after
+  # the app started (a new terminal's PATH is read from the registry), and a cmd AutoRun
+  # that prints (Antigravity's PreToolUse guard and plugin refresh). Each changes this
+  # runner's own machine, which no test may do on a developer's. The core scenarios run
+  # for each harness; the AutoRun last, as it turns Antigravity's messaging off by design.
+  quirks:
+    name: ${{ matrix.setup.name }} (Windows quirks)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        setup:
+          - agents: claude
+            name: Claude Code
+            # The registry's PATH needs no harness: it runs in one job.
+            files: messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts windows-quirks.e2e.ts
+          - agents: codex
+            name: Codex
+            files: messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts
+          - agents: agy
+            name: Antigravity
+            files: messaging.e2e.ts requests.e2e.ts lifecycle.e2e.ts
+            autorun: true
+    env:
+      NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
+      NOVADECK_E2E_TRACES: ${{ github.workspace }}/e2e-traces
+      NOVADECK_E2E_AGENTS: ${{ matrix.setup.agents }}
+      NOVADECK_E2E_HARNESS: ${{ (github.event_name == 'schedule' || inputs.harness == 'latest') && 'latest' || 'pinned' }}
+      # The sandbox, its home and Novadeck's launcher inside it, named with a space.
+      NOVADECK_E2E_SPACED: "1"
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set Up Toolchain
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      - name: Hash Pins
+        id: pins
+        if: env.NOVADECK_E2E_HARNESS == 'pinned'
+        run: |
+          node -e 'const { createHash } = require("node:crypto"); const pins = require("./application/runner/src/e2e/harnesses.json"); for (const harness of ["claude", "codex", "agy"]) console.log(harness + "=" + createHash("sha256").update(JSON.stringify(pins[harness] ?? null)).digest("hex"))' >> "$GITHUB_OUTPUT"
+
+      # The e2e jobs' caches, restored only: those jobs save them.
+      - name: Restore Harness
+        if: env.NOVADECK_E2E_HARNESS == 'pinned'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ env.NOVADECK_E2E_CACHE }}/${{ matrix.setup.agents }}-*
+            !${{ env.NOVADECK_E2E_CACHE }}/*.tmp
+          key: e2e-harnesses-${{ runner.os }}-${{ matrix.setup.agents }}-${{ steps.pins.outputs[matrix.setup.agents] }}-${{ hashFiles('application/runner/src/e2e/install.ts') }}
+
+      - name: Build Protocol and Relay
+        run: pnpm --filter @novadeck/protocol --filter @novadeck/relay build
+
+      - name: Install Harnesses
+        run: node scripts/e2e/install/main.ts
+
+      # A profile for every user and host that prints, as many people's do; a folder the
+      # user's PATH in the registry gains now, after this job's runner started, so no later
+      # step has it on its own PATH; and whether this volume keeps the short names cmd reads
+      # a launcher with a space by.
+      - name: Set Up Quirks
+        shell: pwsh
+        run: |
+          Set-Content -LiteralPath (Join-Path $PSHOME 'profile.ps1') -Value 'Write-Output "novadeck-ci: a profile printed this"'
+          # The profile prints in a new PowerShell, or this quirk would test nothing.
+          $printed = pwsh -NoLogo -Command 'exit 0'
+          if (-not ($printed -match 'a profile printed this')) { throw "A new PowerShell printed no profile line: $printed" }
+          $folder = Join-Path $env:RUNNER_TEMP 'novadeck registry folder'
+          New-Item -ItemType Directory -Force $folder | Out-Null
+          Set-Content -LiteralPath (Join-Path $folder 'novadeck-registry-marker.cmd') -Value '@echo registry marker ran'
+          $user = [Environment]::GetEnvironmentVariable('Path', 'User')
+          [Environment]::SetEnvironmentVariable('Path', "$user;$folder", 'User')
+          "NOVADECK_E2E_REGISTRY_FOLDER=$folder" >> $env:GITHUB_ENV
+          fsutil 8dot3name query $env:SystemDrive | Out-Host
+          exit 0
+
+      - name: Run E2E
+        env:
+          FILES: ${{ matrix.setup.files }}
+        run: |
+          # Each file a word of its own.
+          # shellcheck disable=SC2086
+          pnpm --filter @novadeck/runner test:e2e $FILES
+
+      # Last: cmd prints before every command from here on.
+      - name: Test cmd AutoRun
+        if: ${{ !cancelled() && matrix.setup.autorun }}
+        shell: pwsh
+        env:
+          NOVADECK_TEST_CMD_AUTORUN: "1"
+        run: |
+          $key = 'HKCU:\Software\Microsoft\Command Processor'
+          if (-not (Test-Path $key)) { New-Item -Path $key | Out-Null }
+          Set-ItemProperty -Path $key -Name AutoRun -Value 'echo novadeck-ci: an AutoRun printed this'
+          pnpm --filter @novadeck/runner exec vitest run src/harnesses/service.test.ts
+
+      - name: Upload E2E Traces
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-traces-${{ matrix.setup.name }}-Windows-quirks
+          path: ${{ env.NOVADECK_E2E_TRACES }}
+          if-no-files-found: ignore
+          retention-days: 7
