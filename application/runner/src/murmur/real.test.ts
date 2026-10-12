@@ -14,14 +14,14 @@ const builtInterface = async (): Promise<number> =>
   (
     JSON.parse(
       await readFile(
-        fileURLToPath(new URL("../../../murmur/dist/engine.json", import.meta.url)),
+        fileURLToPath(new URL("../../../../engines/murmur/dist/engine.json", import.meta.url)),
         "utf8",
       ),
     ) as { interface: number }
   ).interface
 
 // Runs the real engine, which CI has none of. Point these at the `bin` folder of a
-// llama.cpp build with Novadeck's patches (see application/murmur) and at the model:
+// llama.cpp build with Novadeck's patches (see engines/murmur) and at the model:
 //   NOVADECK_MURMUR_REAL_ENGINE NOVADECK_MURMUR_REAL_MODEL
 const { NOVADECK_MURMUR_REAL_ENGINE: engine, NOVADECK_MURMUR_REAL_MODEL: model } = process.env
 

@@ -2,7 +2,7 @@ import { cp } from "node:fs/promises"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { buildEngine } from "../../ggml-build/index.ts"
+import { buildEngine } from "@novadeck/ggml-build"
 
 // The llama.cpp engine murmur downloads, built for this platform:
 //
@@ -12,7 +12,7 @@ import { buildEngine } from "../../ggml-build/index.ts"
 //
 // The archive holds `llama-server`, the libraries and backend modules it loads and
 // llama.cpp's licence, all flat. It does not hold the model: the runner downloads that
-// apart. The build itself, shared with the voice engine, is application/ggml-build.
+// apart. The build itself, shared with the voice engine, is engines/ggml-build.
 
 const root = fileURLToPath(new URL("..", import.meta.url))
 

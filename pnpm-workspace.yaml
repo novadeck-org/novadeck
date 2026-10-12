@@ -1,5 +1,6 @@
 packages:
   - application/*
+  - engines/*
 
 publicHoistPattern:
   - electron

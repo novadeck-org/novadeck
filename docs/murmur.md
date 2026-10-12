@@ -7,7 +7,7 @@ Qwen3.5-2B (Q4_K_M, 1.28 GB) on llama.cpp's `llama-server`, an engine of its own
 voice input's, installed from Preferences > Addons. Without it, terminals keep their default
 titles.
 
-Code: `application/runner/src/murmur`, the engine build in `application/murmur`.
+Code: `application/runner/src/murmur`, the engine build in `engines/murmur`.
 
 ## What it reads
 
@@ -194,4 +194,4 @@ runs the real engine when `NOVADECK_MURMUR_REAL_ENGINE` (an unpacked engine fold
 
 llama-server's flags are built by `serverArguments` and pinned by a test. Changing them, or the
 HTTP surface murmur uses, means bumping `engineInterface` in
-`application/murmur/scripts/build.ts`.
+`engines/murmur/scripts/build.ts`.

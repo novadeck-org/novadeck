@@ -2,7 +2,7 @@ import { cp } from "node:fs/promises"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { buildEngine } from "../../ggml-build/index.ts"
+import { buildEngine } from "@novadeck/ggml-build"
 
 // The whisper.cpp engine voice input downloads, built for this platform:
 //
@@ -12,7 +12,7 @@ import { buildEngine } from "../../ggml-build/index.ts"
 //
 // The archive holds `whisper-server`, the libraries and backend modules it loads, a
 // sample of speech for the post-install check and whisper.cpp's licence, all flat. The
-// build itself, shared with the murmur engine, is application/ggml-build.
+// build itself, shared with the murmur engine, is engines/ggml-build.
 
 const root = fileURLToPath(new URL("..", import.meta.url))
 

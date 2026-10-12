@@ -28,11 +28,11 @@ extraResources:
       - novadeck-relay*
   # The manifest of the voice engine, which voice input downloads on install from this
   # release; the archive it names is a release asset, not part of the app. See
-  # application/whisper.
-  - from: ../whisper/dist/engine.json
+  # engines/whisper.
+  - from: ../../engines/whisper/dist/engine.json
     to: voice/engine.json
-  # The same for murmur's engine, llama.cpp; see application/murmur.
-  - from: ../murmur/dist/engine.json
+  # The same for murmur's engine, llama.cpp; see engines/murmur.
+  - from: ../../engines/murmur/dist/engine.json
     to: murmur/engine.json
 # Where installed apps look for updates. Builder writes this into the app as
 # resources/app-update.yml, and beside the packages the latest*.yml files and blockmaps

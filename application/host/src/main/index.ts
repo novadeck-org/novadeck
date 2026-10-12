@@ -157,14 +157,14 @@ const releaseRepository = async (): Promise<ReturnType<typeof releaseRepositoryO
 
 /**
  * Where voice input finds its engine: the manifest shipped beside the UI, or the one
- * `pnpm build:engine` leaves in application/whisper; and the folder or address its
+ * `pnpm build:engine` leaves in engines/whisper; and the folder or address its
  * archive is downloaded from, which is the release this build came from once packaged,
  * in the repository app-update.yml names. Without one the source is empty, and installing
  * the engine fails rather than download from a guess.
  */
 const voiceEngine = async (): Promise<{ engine: string; source: string }> => {
   if (!app.isPackaged) {
-    const dist = join(app.getAppPath(), "..", "whisper", "dist")
+    const dist = join(app.getAppPath(), "..", "..", "engines", "whisper", "dist")
     return { engine: join(dist, "engine.json"), source: dist }
   }
   const repository = process.env.NOVADECK_VOICE_SOURCE ? undefined : await releaseRepository()
@@ -181,12 +181,12 @@ const voiceEngine = async (): Promise<{ engine: string; source: string }> => {
 
 /**
  * Where murmur finds its engine, as `voiceEngine` does for voice input: the manifest
- * shipped beside the UI, or the one `pnpm build:engine` leaves in application/murmur,
+ * shipped beside the UI, or the one `pnpm build:engine` leaves in engines/murmur,
  * and the release this build came from once packaged.
  */
 const murmurEngine = async (): Promise<{ murmurEngine: string; murmurSource: string }> => {
   if (!app.isPackaged) {
-    const dist = join(app.getAppPath(), "..", "murmur", "dist")
+    const dist = join(app.getAppPath(), "..", "..", "engines", "murmur", "dist")
     return { murmurEngine: join(dist, "engine.json"), murmurSource: dist }
   }
   const repository = process.env.NOVADECK_MURMUR_SOURCE ? undefined : await releaseRepository()

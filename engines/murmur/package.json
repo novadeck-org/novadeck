@@ -1,8 +1,8 @@
 {
-  "name": "@novadeck/whisper",
+  "name": "@novadeck/murmur",
   "version": "0.0.0",
   "private": true,
-  "description": "The whisper.cpp engine voice input downloads, built for each platform.",
+  "description": "The llama.cpp engine murmur downloads, built for each platform.",
   "author": "mzpkdev",
   "type": "module",
   "exports": {
@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "@novadeck/ggml-build": "workspace:*",
     "@types/node": "^26.6.4",
     "typescript": "^7.0.2"
   }

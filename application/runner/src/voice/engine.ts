@@ -32,7 +32,7 @@ const spec: ServerSpec<EngineConfig, Facts> = {
     const path = `/${token()}`
     const threads = Math.min(8, Math.max(2, Math.floor(availableParallelism() / 2)))
     // Changing these flags, or the requests this class makes of the server, changes the
-    // interface: bump `engineInterface` in application/whisper/scripts/build.ts with it.
+    // interface: bump `engineInterface` in engines/whisper/scripts/build.ts with it.
     return {
       path,
       args: [

@@ -22,7 +22,7 @@ const builtInterface = async (): Promise<number> =>
   (
     JSON.parse(
       await readFile(
-        fileURLToPath(new URL("../../../whisper/dist/engine.json", import.meta.url)),
+        fileURLToPath(new URL("../../../../engines/whisper/dist/engine.json", import.meta.url)),
         "utf8",
       ),
     ) as { interface: number }

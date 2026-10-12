@@ -1088,7 +1088,7 @@ describe("the model file", () => {
 })
 
 describe("llama-server's arguments", () => {
-  // Changing these means bumping `engineInterface` in application/murmur/scripts/build.ts.
+  // Changing these means bumping `engineInterface` in engines/murmur/scripts/build.ts.
   it("are pinned", () => {
     expect(serverArguments("/m/model.gguf", "Vulkan0", 8080)).toEqual([
       "--host",

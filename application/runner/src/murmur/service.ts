@@ -138,7 +138,7 @@ type Facts = Readonly<Record<string, never>>
 
 // llama-server's arguments. Changing these flags, or the HTTP surface murmur relies on
 // (`/health`, `/v1/chat/completions`, the key in `LLAMA_API_KEY`), means bumping
-// `engineInterface` in application/murmur/scripts/build.ts, so an engine unpacked for the
+// `engineInterface` in engines/murmur/scripts/build.ts, so an engine unpacked for the
 // old ones is fetched again; whisper's engine has the same rule.
 export const serverArguments = (model: string, device: string, port: number): string[] => [
   "--host",

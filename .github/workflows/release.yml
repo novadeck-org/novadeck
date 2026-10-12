@@ -310,8 +310,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Signing: $signed"
 
-      # Voice input's engine, whisper.cpp built for this platform (see application/whisper),
-      # and murmur's, llama.cpp (see application/murmur), are compiled here, not by the
+      # Voice input's engine, whisper.cpp built for this platform (see engines/whisper),
+      # and murmur's, llama.cpp (see engines/murmur), are compiled here, not by the
       # Quality workflow's builds: each takes minutes, and its archive is a release asset the
       # app downloads, while the app ships only its manifest. The engines' Vulkan backend, and
       # fusermount3 for the AppImage's static runtime, which the smoke test mounts; apt skips
@@ -334,8 +334,8 @@ jobs:
         id: engine
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: application/whisper/dist
-          key: whisper-engine-${{ runner.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('application/ggml-build/index.ts', 'application/ggml-build/package.json', 'application/whisper/scripts/**', 'application/whisper/patches/**', 'application/whisper/package.json') }}
+          path: engines/whisper/dist
+          key: whisper-engine-${{ runner.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/index.ts', 'engines/ggml-build/package.json', 'engines/whisper/scripts/**', 'engines/whisper/patches/**', 'engines/whisper/package.json') }}
 
       - name: Build Voice Engine
         if: steps.engine.outputs.cache-hit != 'true'
@@ -349,8 +349,8 @@ jobs:
         id: murmur
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: application/murmur/dist
-          key: murmur-engine-${{ runner.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('application/ggml-build/index.ts', 'application/ggml-build/package.json', 'application/murmur/scripts/**', 'application/murmur/patches/**', 'application/murmur/package.json') }}
+          path: engines/murmur/dist
+          key: murmur-engine-${{ runner.os }}-${{ runner.arch }}-${{ steps.signing.outputs.engine }}-${{ hashFiles('engines/ggml-build/index.ts', 'engines/ggml-build/package.json', 'engines/murmur/scripts/**', 'engines/murmur/patches/**', 'engines/murmur/package.json') }}
 
       - name: Build Murmur Engine
         if: steps.murmur.outputs.cache-hit != 'true'
@@ -367,7 +367,7 @@ jobs:
         run: |
           engine="$RUNNER_TEMP/voice-engine"
           mkdir -p "$engine"
-          archive="$(ls application/whisper/dist/novadeck-whisper-*.tar.gz)"
+          archive="$(ls engines/whisper/dist/novadeck-whisper-*.tar.gz)"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             "$SYSTEMROOT/System32/tar.exe" -xzf "$(cygpath -w "$archive")" -C "$(cygpath -w "$engine")"
             server="$engine/whisper-server.exe"
@@ -414,7 +414,7 @@ jobs:
         run: |
           engine="$RUNNER_TEMP/murmur-engine"
           mkdir -p "$engine"
-          archive="$(ls application/murmur/dist/novadeck-murmur-*.tar.gz)"
+          archive="$(ls engines/murmur/dist/novadeck-murmur-*.tar.gz)"
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             "$SYSTEMROOT/System32/tar.exe" -xzf "$(cygpath -w "$archive")" -C "$(cygpath -w "$engine")"
             server="$engine/llama-server.exe"
@@ -556,8 +556,8 @@ jobs:
           hdiutil detach -force "$image" > /dev/null
 
           mkdir -p "$verify/murmur"
-          tar -xzf application/whisper/dist/novadeck-whisper-*.tar.gz -C "$verify/engine"
-          tar -xzf application/murmur/dist/novadeck-murmur-*.tar.gz -C "$verify/murmur"
+          tar -xzf engines/whisper/dist/novadeck-whisper-*.tar.gz -C "$verify/engine"
+          tar -xzf engines/murmur/dist/novadeck-murmur-*.tar.gz -C "$verify/murmur"
           for file in "$verify"/engine/whisper-server "$verify"/murmur/llama-server "$verify"/engine/*.dylib "$verify"/murmur/*.dylib; do
             if [[ -f "$file" && ! -L "$file" ]]; then
               codesign --verify --strict --verbose=2 "$file"
@@ -573,9 +573,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path $engine | Out-Null
           $murmur = Join-Path $env:RUNNER_TEMP "novadeck-verify-murmur"
           New-Item -ItemType Directory -Force -Path $murmur | Out-Null
-          $archive = Get-ChildItem application/whisper/dist -Filter "novadeck-whisper-*.tar.gz" | Select-Object -First 1
+          $archive = Get-ChildItem engines/whisper/dist -Filter "novadeck-whisper-*.tar.gz" | Select-Object -First 1
           & "$env:SystemRoot\System32\tar.exe" -xzf $archive.FullName -C $engine
-          $archive = Get-ChildItem application/murmur/dist -Filter "novadeck-murmur-*.tar.gz" | Select-Object -First 1
+          $archive = Get-ChildItem engines/murmur/dist -Filter "novadeck-murmur-*.tar.gz" | Select-Object -First 1
           & "$env:SystemRoot\System32\tar.exe" -xzf $archive.FullName -C $murmur
           $files = @(Get-ChildItem application/host/release -Filter *.exe) +
             @(Get-ChildItem application/host/release/win-unpacked -Recurse -Include *.exe, *.dll, *.node) +
@@ -901,7 +901,7 @@ jobs:
       # Beside the packages, so the artifact keeps one flat folder for the release job.
       - name: Collect Engines
         shell: bash
-        run: cp application/whisper/dist/novadeck-whisper-*.tar.gz application/murmur/dist/novadeck-murmur-*.tar.gz application/host/release/
+        run: cp engines/whisper/dist/novadeck-whisper-*.tar.gz engines/murmur/dist/novadeck-murmur-*.tar.gz application/host/release/
 
       - name: Upload Packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
