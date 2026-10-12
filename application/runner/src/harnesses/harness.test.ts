@@ -1,12 +1,12 @@
 import { join } from "node:path"
 
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { replyPreview, sessionStart } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
 import type { AgentName } from "@novadeck/protocol"
 
-import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
 import { loadProbe } from "../testing/probes.js"
-import type { HarnessEvent } from "./events.js"
-import { replyPreview, sessionStart } from "./harness.js"
 import { harnesses } from "./registry.js"
 
 describe("a SessionStart source", () => {

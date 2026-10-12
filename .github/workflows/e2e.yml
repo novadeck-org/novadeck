@@ -8,6 +8,7 @@ on:
       - application/protocol/**
       - application/relay/**
       - application/runner/**
+      - harnesses/**
       - scripts/e2e/**
       - package.json
       - pnpm-lock.yaml

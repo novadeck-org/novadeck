@@ -2,12 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
-import type { AgentName } from "@novadeck/protocol"
-
-import type { Report } from "../shell/reports.js"
-import { describe, expect, it } from "../test.js"
-import { loadProbe } from "../testing/probes.js"
-import type { HarnessEvent } from "./events.js"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
 import {
   continuationPrompt,
   doorbellLine,
@@ -17,7 +12,12 @@ import {
   withoutDoorbell,
   type Launchers,
   silentFor,
-} from "./harness.js"
+} from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
+import type { AgentName } from "@novadeck/protocol"
+
+import { describe, expect, it } from "../test.js"
+import { loadProbe } from "../testing/probes.js"
 import { harnesses } from "./registry.js"
 
 const delivery =

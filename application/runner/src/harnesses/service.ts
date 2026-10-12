@@ -3,13 +3,13 @@ import { access, readFile, rm, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
 
+import type { Harness, Install } from "@novadeck/harness-core/harness"
 import type { AgentIntegration, AgentName } from "@novadeck/protocol"
 import { relayPath } from "@novadeck/relay"
 
 import { DomainError } from "../errors.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { refreshPath } from "../shell/windows-path.js"
-import type { Harness, Install } from "./harness.js"
 import { agents, harnesses } from "./registry.js"
 
 export type HarnessesOptions = {

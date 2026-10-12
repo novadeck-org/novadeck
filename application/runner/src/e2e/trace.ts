@@ -1,11 +1,12 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import type { Harness } from "../harnesses/harness.js"
+import type { Harness } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
+
 import { agents, harnesses } from "../harnesses/registry.js"
 import type { DeliveryEvent } from "../messaging/delivery.js"
 import { Messaging } from "../messaging/messaging.js"
-import type { Report } from "../shell/reports.js"
 import { Terminals } from "../terminals/manager.js"
 import type { FakeModel } from "./model/server.js"
 

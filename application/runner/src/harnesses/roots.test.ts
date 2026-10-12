@@ -1,8 +1,8 @@
+import type { HarnessEvent } from "@novadeck/harness-core/events"
 import type { AgentName } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
 import type { Binding } from "./bindings.js"
-import type { HarnessEvent } from "./events.js"
 import { followRoot, guessed, rootedIn, type Root } from "./roots.js"
 
 const binding = (agent: AgentName, sessionId: string, instance: string | null = "7"): Binding => ({

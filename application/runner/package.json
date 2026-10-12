@@ -14,7 +14,7 @@
     "./app": "./src/app.ts"
   },
   "scripts": {
-    "dev": "tsx watch src/cli.ts",
+    "dev": "tsx watch --conditions=development src/cli.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/cli.js",
     "test": "vitest run",
@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
+    "@novadeck/harness-core": "workspace:*",
     "@novadeck/murmur": "workspace:*",
     "@novadeck/protocol": "workspace:*",
     "@novadeck/relay": "workspace:*",

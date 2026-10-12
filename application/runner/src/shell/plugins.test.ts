@@ -3,10 +3,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { hookSeconds, plugin, type Start } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 import { beforeAll } from "vitest"
 
-import { hookSeconds, plugin, type Start } from "../harnesses/harness.js"
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"

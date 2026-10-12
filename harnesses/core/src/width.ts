@@ -1,7 +1,7 @@
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
 import type { IUnicodeVersionProvider } from "@xterm/headless"
 
-/** The version the emulator measures with (see `terminals/manager.ts`). */
+/** The version the emulator measures with (see the runner's `terminals/manager.ts`). */
 const version = "15-graphemes"
 
 // The emulator's own measure, without a terminal to hold it: the addon is activated on a

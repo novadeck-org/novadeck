@@ -1,10 +1,10 @@
+import type { ActivityEvent, Background, HarnessEvent } from "@novadeck/harness-core/events"
+import { hookShellSlackMs, silentFor, type MessagingProfile } from "@novadeck/harness-core/harness"
 import type { AgentName, MessageThread, TerminalMessages } from "@novadeck/protocol"
 import { z } from "zod"
 
 import { DomainError } from "../errors.js"
 import type { Binding } from "../harnesses/bindings.js"
-import type { ActivityEvent, Background, HarnessEvent } from "../harnesses/events.js"
-import { hookShellSlackMs, silentFor, type MessagingProfile } from "../harnesses/harness.js"
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import type { HookAnswer } from "../shell/reports.js"

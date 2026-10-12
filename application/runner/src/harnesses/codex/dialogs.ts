@@ -1,5 +1,3 @@
-import type { RequestAnswer } from "@novadeck/protocol"
-
 import type {
   DialogAdapter,
   DialogRead,
@@ -7,7 +5,9 @@ import type {
   ReadDialog,
   RequestFacts,
   ScreenRequest,
-} from "../dialogs.js"
+} from "@novadeck/harness-core/dialogs"
+import type { RequestAnswer } from "@novadeck/protocol"
+
 import { mcpName, mcpTool } from "./decode.js"
 
 /**

@@ -9,7 +9,8 @@ import {
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { Harness } from "../harnesses/harness.js"
+import type { Harness } from "@novadeck/harness-core/harness"
+
 import { harnesses } from "../harnesses/registry.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"

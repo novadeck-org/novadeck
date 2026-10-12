@@ -9,8 +9,9 @@ import {
   type MessagingProfile,
   type Harness,
   type Install,
-} from "../harness.js"
-import { hookCommand, type Dialect } from "../hook-command.js"
+} from "@novadeck/harness-core/harness"
+import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+
 import { box } from "./box.js"
 import { decode, shown } from "./decode.js"
 import { dialogs } from "./dialogs.js"
@@ -28,7 +29,8 @@ const installedPlugin = ({ home }: Install) => join(gemini(home), "config", "plu
 // Linux, 1.2.14), so that one's answer is "ask", which leaves the call to the person's
 // own policy, here as in Novadeck's shells.
 const ask = '{"decision":"ask"}'
-// It runs its hooks in cmd on Windows, as `cmd /c "<command>"` (see `hook-command.ts`).
+// It runs its hooks in cmd on Windows, as `cmd /c "<command>"` (see harness-core's
+// `hook-command.ts`).
 const hookDialect = (platform: NodeJS.Platform): Dialect => (platform === "win32" ? "cmd" : "sh")
 
 // Each event's answer where the launcher is unset, or set but missing or not runnable: one

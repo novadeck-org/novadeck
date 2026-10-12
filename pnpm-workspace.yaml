@@ -1,6 +1,7 @@
 packages:
   - application/*
   - engines/*
+  - harnesses/*
 
 publicHoistPattern:
   - electron

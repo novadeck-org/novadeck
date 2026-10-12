@@ -1,8 +1,16 @@
 import { join } from "node:path"
 
+import {
+  compact,
+  isEmpty,
+  sameText,
+  wrappedRows,
+  type BoxProfile,
+} from "@novadeck/harness-core/box"
+import { type ScreenText } from "@novadeck/harness-core/screen"
 import headless from "@xterm/headless"
 
-import { screenText, type ScreenText } from "../terminals/screen.js"
+import { screenText } from "../terminals/screen.js"
 import { describe, expect, it } from "../test.js"
 import { loadProbe } from "../testing/probes.js"
 import { screen as screenWith } from "../testing/screens.js"
@@ -11,7 +19,6 @@ import {
   shellCommandOf as agyShellCommand,
   shellFooter as agyFooter,
 } from "./agy/box.js"
-import { compact, isEmpty, sameText, wrappedRows, type BoxProfile } from "./box.js"
 import { box as claude, shellFooter as claudeFooter } from "./claude/box.js"
 import { box as codex, shellFooter as codexFooter } from "./codex/box.js"
 

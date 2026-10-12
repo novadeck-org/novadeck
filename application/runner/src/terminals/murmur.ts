@@ -1,9 +1,9 @@
 import { basename, isAbsolute, relative, sep } from "node:path"
 
+import { tailLines } from "@novadeck/harness-core/follow"
 import { terminalTitle, type AgentName, type ForegroundProcess } from "@novadeck/protocol"
 
 import type { Activity, Request } from "../harnesses/activity.js"
-import { tailLines } from "../harnesses/follow.js"
 import type { Items } from "../harnesses/replies.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import type {

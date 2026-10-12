@@ -1,10 +1,10 @@
 import { join } from "node:path"
 
+import { plugin, type Launchers, type Machine, type Start } from "@novadeck/harness-core/harness"
+import { header } from "@novadeck/harness-core/header"
 import type { AgentName } from "@novadeck/protocol"
 
-import { plugin, type Launchers, type Machine, type Start } from "../harnesses/harness.js"
 import { agents, harnesses } from "../harnesses/registry.js"
-import { header } from "./header.js"
 import { hookVariables } from "./hook.js"
 import { mcpVersions } from "./mcp.js"
 

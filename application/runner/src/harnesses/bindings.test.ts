@@ -1,6 +1,7 @@
+import type { SessionObserved } from "@novadeck/harness-core/events"
+
 import { describe, expect, it } from "../test.js"
 import { observe, type Facts, type Sessions } from "./bindings.js"
-import type { SessionObserved } from "./events.js"
 
 const idle: Sessions = { sessions: {}, binding: null, cwd: "/home" }
 const facts: Facts = {

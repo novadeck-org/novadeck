@@ -5,12 +5,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSy
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
 
+import type { ActivityEvent } from "@novadeck/harness-core/events"
 import type { TerminalChange, TerminalEvent } from "@novadeck/protocol"
 import headless from "@xterm/headless"
 import { vi } from "vitest"
 
 import { escapeVerdictMs, started as fresh, type Activity } from "../harnesses/activity.js"
-import type { ActivityEvent } from "../harnesses/events.js"
 import { describe, expect, it as base } from "../test.js"
 import { command, ptyOptions, ptyTrace } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"

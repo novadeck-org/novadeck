@@ -1,4 +1,4 @@
-import type { ScreenText } from "../terminals/screen.js"
+import type { ScreenText } from "@novadeck/harness-core/screen"
 
 /**
  * A screen as a test builds one: the rows, and the rest as a plain screen has it unless

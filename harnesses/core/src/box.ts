@@ -1,10 +1,10 @@
-import type { ScreenText } from "../terminals/screen.js"
-import { cells } from "../terminals/width.js"
+import type { ScreenText } from "./screen.js"
+import { cells } from "./width.js"
 
 /**
  * What a harness's input box holds, as its adapter reads it off the screen. Only a
  * harness knows how its box is drawn; prompts only ask what it holds (see
- * `terminals/prompts.ts`).
+ * the runner's `terminals/prompts.ts`).
  */
 export type InputBox = {
   /**

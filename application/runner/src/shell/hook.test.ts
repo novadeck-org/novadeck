@@ -12,20 +12,14 @@ import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { type Report } from "@novadeck/harness-core/report"
 import { relayPath } from "@novadeck/relay"
 
 import { agents, harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
 import { relayHook } from "./hook.js"
 import { installShellFiles } from "./install.js"
-import {
-  listenForReports,
-  unanswered,
-  unheard,
-  type Ack,
-  type HookAnswer,
-  type Report,
-} from "./reports.js"
+import { listenForReports, unanswered, unheard, type Ack, type HookAnswer } from "./reports.js"
 import { relayConfig } from "./scripts.js"
 
 type Fixture = {

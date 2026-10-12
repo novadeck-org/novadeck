@@ -10,11 +10,11 @@ import {
   type TranscriptItem,
 } from "@novadeck/protocol"
 
-import type { Report } from "../shell/reports.js"
 import type { BoxProfile } from "./box.js"
 import type { DialogAdapter } from "./dialogs.js"
 import type { HarnessEvent, PlanSource, PromptShown } from "./events.js"
 import type { Dialect } from "./hook-command.js"
+import type { Report } from "./report.js"
 
 /** Where a harness lives on this machine, as its setup and inspection need it. */
 export type Install = {
@@ -271,7 +271,8 @@ export type MessagingProfile = {
   /**
    * Where its hooks name no prompt (as Antigravity's, whose every turn decodes as
    * harness-started), what one line of its transcript records as typed into its box, if
-   * that is what it records: from it `typed-prompts.ts` tells a root turn's prompt.
+   * that is what it records: from it the runner's `typed-prompts.ts` tells a root turn's
+   * prompt.
    */
   readonly typedEntry?: (line: string) => UserEntry | undefined
 }

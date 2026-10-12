@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { Harness } from "../harnesses/harness.js"
+import type { Harness } from "@novadeck/harness-core/harness"
+
 import { harnesses } from "../harnesses/registry.js"
 import type { FolderQuestion } from "./agents/agent.js"
 import { setups } from "./agents/index.js"

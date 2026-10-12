@@ -2,10 +2,10 @@ import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import type { Install } from "@novadeck/harness-core/harness"
 import { afterEach } from "vitest"
 
 import { describe, expect, it } from "../../test.js"
-import type { Install } from "../harness.js"
 import { confirmingPrefix, startedSession, title, titleSetting, titleWorking } from "./title.js"
 
 describe("Codex's terminal title", () => {

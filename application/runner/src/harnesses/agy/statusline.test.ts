@@ -3,12 +3,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import type { Report } from "../../shell/reports.js"
+import type { ActivityEvent } from "@novadeck/harness-core/events"
+import type { Install } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
+
 import { describe, expect, it as base } from "../../test.js"
 import { loadProbe } from "../../testing/probes.js"
 import { apply as applyActivity, started, summary } from "../activity.js"
-import type { ActivityEvent } from "../events.js"
-import type { Install } from "../harness.js"
 import { decode, shown } from "./decode.js"
 import {
   statusLineCommand,

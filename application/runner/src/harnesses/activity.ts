@@ -1,8 +1,8 @@
+import type { ActivityEvent, Background, PlanSource } from "@novadeck/harness-core/events"
+import { ref } from "@novadeck/harness-core/harness"
 import type { AgentActivity } from "@novadeck/protocol"
 
 import type { Binding } from "./bindings.js"
-import type { ActivityEvent, Background, PlanSource } from "./events.js"
-import { ref } from "./harness.js"
 
 /** The reference clients know a subagent by. */
 export const subagentRef = (id: string): string => ref("subagent", id)

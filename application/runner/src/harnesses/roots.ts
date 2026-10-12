@@ -1,8 +1,8 @@
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { MessagingProfile } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 
 import type { Binding } from "./bindings.js"
-import type { HarnessEvent } from "./events.js"
-import type { MessagingProfile } from "./harness.js"
 
 /**
  * The root session of a terminal's agent: the session its person works with, as

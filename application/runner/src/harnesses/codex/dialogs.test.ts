@@ -1,11 +1,11 @@
+import type { RequestFacts } from "@novadeck/harness-core/dialogs"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { Report } from "@novadeck/harness-core/report"
+import type { ScreenText } from "@novadeck/harness-core/screen"
 import type { RequestAnswer } from "@novadeck/protocol"
 
-import type { Report } from "../../shell/reports.js"
-import type { ScreenText } from "../../terminals/screen.js"
 import { describe, expect, it } from "../../test.js"
 import { loadProbe } from "../../testing/probes.js"
-import type { RequestFacts } from "../dialogs.js"
-import type { HarnessEvent } from "../events.js"
 import { harnesses } from "../registry.js"
 import { dialogs } from "./dialogs.js"
 

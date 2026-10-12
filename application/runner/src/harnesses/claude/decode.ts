@@ -1,7 +1,6 @@
 import { basename, dirname, extname } from "node:path"
 
-import type { Report } from "../../shell/reports.js"
-import type { Background, HarnessEvent } from "../events.js"
+import type { Background, HarnessEvent } from "@novadeck/harness-core/events"
 import {
   absolute,
   withRequestCwd,
@@ -16,8 +15,9 @@ import {
   withMode,
   type WrittenPlan,
   shortName,
-} from "../harness.js"
-import { at as writtenAt, record } from "../items.js"
+} from "@novadeck/harness-core/harness"
+import { at as writtenAt, record } from "@novadeck/harness-core/items"
+import type { Report } from "@novadeck/harness-core/report"
 
 /**
  * Claude Code's hooks, as normalized facts.
@@ -363,4 +363,4 @@ export const transcriptPlans = (line: string): readonly WrittenPlan[] => {
   })
 }
 
-export { maxPlan } from "../harness.js"
+export { maxPlan } from "@novadeck/harness-core/harness"

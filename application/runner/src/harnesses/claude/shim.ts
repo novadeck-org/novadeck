@@ -1,4 +1,4 @@
-import { header } from "../../shell/header.js"
+import { header } from "@novadeck/harness-core/header"
 
 // Claude Code's commands other than a session, which a status line has no part in.
 const commands = [

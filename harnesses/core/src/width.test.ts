@@ -1,7 +1,7 @@
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
 import headless from "@xterm/headless"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../test.js"
 import { cells } from "./width.js"
 
 const family = "\u{1f468}‍\u{1f469}‍\u{1f467}"

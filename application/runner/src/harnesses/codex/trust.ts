@@ -2,7 +2,7 @@ import { spawn } from "node:child_process"
 import { readdir, stat } from "node:fs/promises"
 import { join } from "node:path"
 
-import type { Install } from "../harness.js"
+import type { Install } from "@novadeck/harness-core/harness"
 
 /** Novadeck's plugin, as Codex names the plugin a hook comes from. */
 const pluginId = "novadeck@novadeck"

@@ -4,11 +4,11 @@ import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { plugin } from "@novadeck/harness-core/harness"
 import { relayPath } from "@novadeck/relay"
 import { afterAll, beforeAll, onTestFinished } from "vitest"
 
 import { readDismissRequest, readRequest } from "../companions/request.js"
-import { plugin } from "../harnesses/harness.js"
 import { unboundNote } from "../messaging/peers.js"
 import { describe, expect, it } from "../test.js"
 import { installShellFiles } from "./install.js"

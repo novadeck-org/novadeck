@@ -1,6 +1,7 @@
 import { dirname } from "node:path"
 
-import type { HarnessEvent } from "../harnesses/events.js"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 
 /**

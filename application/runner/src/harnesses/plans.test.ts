@@ -1,11 +1,12 @@
 import { resolve } from "node:path"
 
-import type { Report } from "../shell/reports.js"
+import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
+import type { Report } from "@novadeck/harness-core/report"
+
 import { describe, expect, it } from "../test.js"
 import { apply, started } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import { maxPlan, planFile } from "./claude/decode.js"
-import type { ActivityEvent, HarnessEvent } from "./events.js"
 import { harnesses } from "./registry.js"
 
 // An absolute path on this platform.

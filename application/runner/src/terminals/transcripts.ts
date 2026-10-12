@@ -1,7 +1,6 @@
+import { followLines } from "@novadeck/harness-core/follow"
+import type { Harness } from "@novadeck/harness-core/harness"
 import type { TranscriptChange } from "@novadeck/protocol"
-
-import { followLines } from "../harnesses/follow.js"
-import type { Harness } from "../harnesses/harness.js"
 
 // Items per change, as the protocol takes them, and how many may wait unread before the
 // file's reading pauses.

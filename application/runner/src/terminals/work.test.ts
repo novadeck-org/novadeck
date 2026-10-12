@@ -1,4 +1,5 @@
-import type { HarnessEvent } from "../harnesses/events.js"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+
 import type { Root } from "../harnesses/roots.js"
 import { describe, expect, it } from "../test.js"
 import {

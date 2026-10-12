@@ -1,9 +1,15 @@
 import { posix, win32 } from "node:path"
 
+import type {
+  DialogAdapter,
+  DialogRead,
+  KeyStep,
+  ReadDialog,
+  RequestFacts,
+} from "@novadeck/harness-core/dialogs"
+import { cells } from "@novadeck/harness-core/width"
 import type { RequestAnswer } from "@novadeck/protocol"
 
-import { cells } from "../../terminals/width.js"
-import type { DialogAdapter, DialogRead, KeyStep, ReadDialog, RequestFacts } from "../dialogs.js"
 import { elicitationTool } from "./decode.js"
 
 /**

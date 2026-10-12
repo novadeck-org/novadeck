@@ -2,11 +2,12 @@ import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "n
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import type { Report } from "../../shell/reports.js"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+import type { Report } from "@novadeck/harness-core/report"
+
 import { describe, expect, it } from "../../test.js"
 import { loadProbe } from "../../testing/probes.js"
 import { apply, started } from "../activity.js"
-import type { HarnessEvent } from "../events.js"
 import { decode } from "./decode.js"
 import { followRollout, followSubagent, rolloutEvents, subagentEvents } from "./rollout.js"
 

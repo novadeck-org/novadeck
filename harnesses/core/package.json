@@ -1,0 +1,81 @@
+{
+  "name": "@novadeck/harness-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The contract every agent harness adapter fills in, and the helpers they share: hook reports, events, dialogs, input boxes, transcripts and plugin files.",
+  "author": "mzpkdev",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./box": {
+      "development": "./src/box.ts",
+      "types": "./dist/box.d.ts",
+      "default": "./dist/box.js"
+    },
+    "./dialogs": {
+      "development": "./src/dialogs.ts",
+      "types": "./dist/dialogs.d.ts",
+      "default": "./dist/dialogs.js"
+    },
+    "./events": {
+      "development": "./src/events.ts",
+      "types": "./dist/events.d.ts",
+      "default": "./dist/events.js"
+    },
+    "./follow": {
+      "development": "./src/follow.ts",
+      "types": "./dist/follow.d.ts",
+      "default": "./dist/follow.js"
+    },
+    "./harness": {
+      "development": "./src/harness.ts",
+      "types": "./dist/harness.d.ts",
+      "default": "./dist/harness.js"
+    },
+    "./header": {
+      "development": "./src/header.ts",
+      "types": "./dist/header.d.ts",
+      "default": "./dist/header.js"
+    },
+    "./hook-command": {
+      "development": "./src/hook-command.ts",
+      "types": "./dist/hook-command.d.ts",
+      "default": "./dist/hook-command.js"
+    },
+    "./items": {
+      "development": "./src/items.ts",
+      "types": "./dist/items.d.ts",
+      "default": "./dist/items.js"
+    },
+    "./report": {
+      "development": "./src/report.ts",
+      "types": "./dist/report.d.ts",
+      "default": "./dist/report.js"
+    },
+    "./screen": {
+      "development": "./src/screen.ts",
+      "types": "./dist/screen.d.ts",
+      "default": "./dist/screen.js"
+    },
+    "./width": {
+      "development": "./src/width.ts",
+      "types": "./dist/width.d.ts",
+      "default": "./dist/width.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/protocol": "workspace:*",
+    "@xterm/addon-unicode-graphemes": "0.4.0",
+    "@xterm/headless": "6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

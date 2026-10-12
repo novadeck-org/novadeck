@@ -1,6 +1,7 @@
+import type { TelemetryObserved } from "@novadeck/harness-core/events"
+
 import { describe, expect, it } from "../test.js"
 import type { Binding } from "./bindings.js"
-import type { TelemetryObserved } from "./events.js"
 import { observeTelemetry, telemetrySummary } from "./telemetry.js"
 
 const binding: Binding = { agent: "codex", sessionId: "s", instance: null }

@@ -3,8 +3,8 @@ import type { RequestAnswer, RequestDialog } from "@novadeck/protocol"
 /**
  * Answering a request from outside the agent's TUI, as the person would with its keys.
  * Each harness has an adapter (`Harness["dialogs"]`, in its own folder) that alone knows
- * how its dialogs look and which keys answer them; the shared driver
- * (`terminals/answers.ts`) only reads the screen, asks the adapter, presses what it says
+ * how its dialogs look and which keys answer them; the shared driver (the runner's
+ * `terminals/answers.ts`) only reads the screen, asks the adapter, presses what it says
  * and checks what it predicts. Nothing outside an adapter parses a dialog.
  *
  * An adapter never guesses. It recognises a dialog only in full, and only where what it

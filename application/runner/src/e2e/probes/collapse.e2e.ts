@@ -7,10 +7,10 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { compact } from "@novadeck/harness-core/box"
 import headless from "@xterm/headless"
 
 import { box as agyBox } from "../../harnesses/agy/box.js"
-import { compact } from "../../harnesses/box.js"
 import { box as claudeBox } from "../../harnesses/claude/box.js"
 import { box as codexBox } from "../../harnesses/codex/box.js"
 import { screenText } from "../../terminals/screen.js"

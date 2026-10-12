@@ -1,5 +1,5 @@
-import type { Harness, UserEntry } from "../harness.js"
-import { at, entry, record, textOf } from "../items.js"
+import type { Harness, UserEntry } from "@novadeck/harness-core/harness"
+import { at, entry, record, textOf } from "@novadeck/harness-core/items"
 
 // The person's words within the context Antigravity wraps a prompt in.
 const request = /<USER_REQUEST>\n?([\s\S]*?)\n?<\/USER_REQUEST>/

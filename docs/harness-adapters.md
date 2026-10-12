@@ -85,31 +85,47 @@ An adapter does not receive the terminal manager, workspace store, UI, or raw
 runner RPC router. It receives the values and limited I/O facilities needed by
 its feature. Shared code does not inspect Claude/Codex/AGY names to decide behavior.
 
-Keep the implementation within `application/runner/src/harnesses/` initially:
+The contract and the helpers every adapter shares live in their own package,
+`@novadeck/harness-core` (`harnesses/core/`); the adapters, the registry and the
+services that use them live in `application/runner/src/harnesses/`:
 
 ```text
-harnesses/
+harnesses/core/src/          # @novadeck/harness-core
   harness.ts       # The Harness type and shared plugin helpers
+  events.ts        # Dependency-light normalized facts
+  box.ts           # BoxProfile and the shared readers (`ruledBox`, `markedBox`)
+  dialogs.ts       # DialogAdapter, for answering a harness's dialogs
+  hook-command.ts  # The hook command line, per shell dialect
+  follow.ts        # The shared JSONL follower
+  items.ts, report.ts, screen.ts, width.ts, header.ts
+application/runner/src/harnesses/
   registry.ts      # harnesses: Record<AgentName, Harness>
   eligibility.ts   # Availability of features such as resume, with typed reasons
   service.ts       # createHarnesses: inspection, setup and lifecycle
   bindings.ts      # Pure ownership and observation transitions
-  model.ts         # Accepted state → agent model snapshots/changes
-  events.ts        # Dependency-light normalized facts
+  activity.ts      # Accepted state → agent activity
   claude/
     index.ts       # claude: Harness
     decode.ts      # Its hook reports, as normalized events
     box.ts         # Its input box, as it reads off the screen (`box: BoxProfile`)
-  box.ts           # BoxProfile and the shared readers (`ruledBox`, `markedBox`)
   codex/           # Same shape; its shim is in its `shims`
   agy/
 ```
 
+An adapter imports only `@novadeck/harness-core` and `@novadeck/protocol`, never the
+runner's own modules.
+
+`@novadeck/harness-core` builds to `dist`, which builds, packaging and `tsc` use. Its
+exports also name its sources under the `development` condition, which vitest, the
+runner's `pnpm dev` (`tsx --conditions=development`) and the host's `pnpm dev` (Vite's
+own `development` condition in electron-vite's dev build) resolve, so an edit to it
+reaches them without a build. `tsc` and the editor still read its built types: rebuild
+it (`pnpm --filter @novadeck/harness-core build`) after changing its contract.
+
 Split a harness into more files (a transcript reader, say) only when its
 `index.ts` gets hard to read. `shell/` keeps shell-specific
-startup/quoting; it no longer assembles harness manifests. This does not need a
-new npm package. Public data types live in `application/protocol`, with no imports
-back into provider implementations.
+startup/quoting; it no longer assembles harness manifests. Public data types live in
+`application/protocol`, with no imports back into provider implementations.
 
 ## Agent model
 
@@ -1104,7 +1120,7 @@ The hook runs in a short-lived process, Novadeck's relay (`application/relay`), 
 a launcher in Novadeck's integration directory, so it needs no install inside the
 person's project. It is one program for every harness, copied in on each start.
 Each plugin's hook command passes the harness and the event. Every harness writes it
-through one module, `harnesses/hook-command.ts`: `hookCommand(dialect, { agent, event,
+through one module, `harnesses/core/src/hook-command.ts`: `hookCommand(dialect, { agent, event,
 fallback })` in the shell the harness declares (`hookDialect(platform)`): `sh` on Linux
 and macOS, PowerShell for Claude Code and Codex on Windows, and cmd for Antigravity
 there. The quoting, the launcher check, and what a command prints without Novadeck (its
@@ -1231,7 +1247,7 @@ nothing else, confirmed by its hook, never retried; see
       turn stays open until the next turn starts. Later sources (Claude Code's
       transcript, the status line) close that gap.
    3. Subagents and transcripts. It starts with a shared JSONL follower
-      (`harnesses/follow.ts`) and a harness `watch` the manager runs for each
+      (`harnesses/core/src/follow.ts`) and a harness `watch` the manager runs for each
       binding: Claude Code's watch follows the session transcript, whose
       interruption record ends the turn and settles its requests after an Esc
       or a denial. Claude Code's and Codex's `SubagentStart` and

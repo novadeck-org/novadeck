@@ -1,12 +1,12 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { isEmpty, sameText, wrappedRows, type BoxProfile } from "@novadeck/harness-core/box"
+import type { ScreenText } from "@novadeck/harness-core/screen"
 import { normalisedText, promptRefusal, shellCommand } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import { isEmpty, sameText, wrappedRows, type BoxProfile } from "../harnesses/box.js"
 import type { HoldBudget, InputEntry, InputQueue } from "./input-queue.js"
 import { bracketedPaste } from "./ring.js"
-import type { ScreenText } from "./screen.js"
 
 /** What prompts need of the terminal manager and messaging, by terminal. */
 export type PromptHost = {
@@ -67,7 +67,7 @@ const inPaste = (text: string): string => text.replace(/\r\n?|\n/g, "\r")
  * text as one bracketed paste with the person's keys held, then Enter once the box shows
  * exactly that text, or its placeholder for it, on two reads running, both through the
  * same bookkeeping the person's keys get. The harness's adapter reads the box (see
- * `harnesses/box.ts`): the paste goes in only where it is empty, so it never merges into
+ * harness-core's `box.ts`): the paste goes in only where it is empty, so it never merges into
  * a draft, and Enter only where it holds nothing else. It never presses Enter after a
  * failed check: the text stays as a draft. Prompts to one terminal take their turn in the
  * terminal's input queue, with answers, interrupts and the doorbell's rings, and wait for a

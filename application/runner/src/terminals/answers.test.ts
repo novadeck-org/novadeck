@@ -1,7 +1,7 @@
+import type { DialogAdapter, RequestFacts } from "@novadeck/harness-core/dialogs"
 import { requestAnswer } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import type { DialogAdapter, RequestFacts } from "../harnesses/dialogs.js"
 import { describe, expect, it } from "../test.js"
 import { fakeAdapter, FakeTui } from "../testing/dialogs.js"
 import { screen } from "../testing/screens.js"

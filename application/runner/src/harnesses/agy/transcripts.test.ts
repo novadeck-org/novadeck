@@ -1,4 +1,5 @@
-import type { Report } from "../../shell/reports.js"
+import type { Report } from "@novadeck/harness-core/report"
+
 import { describe, expect, it } from "../../test.js"
 import { loadProbe } from "../../testing/probes.js"
 import { decode } from "./decode.js"

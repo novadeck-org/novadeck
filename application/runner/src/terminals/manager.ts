@@ -5,6 +5,24 @@ import { homedir, constants as system } from "node:os"
 import { basename, delimiter, isAbsolute, join, resolve as resolvePath } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { isEmpty, type BoxProfile } from "@novadeck/harness-core/box"
+import type { RequestFacts } from "@novadeck/harness-core/dialogs"
+import type {
+  ActivityEvent,
+  HarnessEvent,
+  PromptShown,
+  SessionObserved,
+} from "@novadeck/harness-core/events"
+import {
+  doorbellLine,
+  firedFacts,
+  hookShellSlackMs,
+  quotedLine,
+  silentFor,
+  type Install,
+} from "@novadeck/harness-core/harness"
+import { type Report } from "@novadeck/harness-core/report"
+import { type ScreenText } from "@novadeck/harness-core/screen"
 import type {
   AgentDetail,
   AgentName,
@@ -51,24 +69,8 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import { observe, type Binding } from "../harnesses/bindings.js"
-import { isEmpty, type BoxProfile } from "../harnesses/box.js"
 import { actorOf, agentDetail, requestRef } from "../harnesses/detail.js"
-import type { RequestFacts } from "../harnesses/dialogs.js"
 import { resumeAvailability } from "../harnesses/eligibility.js"
-import type {
-  ActivityEvent,
-  HarnessEvent,
-  PromptShown,
-  SessionObserved,
-} from "../harnesses/events.js"
-import {
-  doorbellLine,
-  firedFacts,
-  hookShellSlackMs,
-  quotedLine,
-  silentFor,
-  type Install,
-} from "../harnesses/harness.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { lastReply, unreplied, withReplies } from "../harnesses/replies.js"
 import { followRoot, rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
@@ -94,7 +96,6 @@ import {
   type Ack,
   type Call,
   type HookAnswer,
-  type Report,
   type Reports,
 } from "../shell/reports.js"
 import { pathKey, refreshPath } from "../shell/windows-path.js"
@@ -170,7 +171,7 @@ import type {
   TerminalRecords,
 } from "./records.js"
 import { freshNonce } from "./ring.js"
-import { screenText, type ScreenText } from "./screen.js"
+import { screenText } from "./screen.js"
 import { snapshot } from "./snapshot.js"
 import { Subscription } from "./subscription.js"
 import { readSummarizeRequest, type SummarizeAnswer } from "./summarize.js"

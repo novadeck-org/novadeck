@@ -1,9 +1,9 @@
+import { hookShellSlackMs } from "@novadeck/harness-core/harness"
+import { dialectPrograms } from "@novadeck/harness-core/hook-command"
+import type { Report } from "@novadeck/harness-core/report"
 import { agentName } from "@novadeck/protocol"
 
-import { hookShellSlackMs } from "../harnesses/harness.js"
-import { dialectPrograms } from "../harnesses/hook-command.js"
 import { harnesses } from "../harnesses/registry.js"
-import type { Report } from "./reports.js"
 
 /**
  * An agent hook, as the runner takes it from Novadeck's relay (see application/relay).

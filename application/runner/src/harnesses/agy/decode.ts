@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto"
 import { extname, isAbsolute, relative } from "node:path"
 
-import type { Report } from "../../shell/reports.js"
-import type { HarnessEvent, PromptShown } from "../events.js"
-import { absolute, shortName, sessionId, text } from "../harness.js"
+import type { HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
+import { absolute, shortName, sessionId, text } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
 
 /**
  * Antigravity's hooks, as normalized facts. Every hook names the conversation it runs in,

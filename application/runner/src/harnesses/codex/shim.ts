@@ -1,4 +1,5 @@
-import { header } from "../../shell/header.js"
+import { header } from "@novadeck/harness-core/header"
+
 import { titleSetting } from "./title.js"
 
 // Interactive Codex runs its sessions, and their hooks, in a shared background server

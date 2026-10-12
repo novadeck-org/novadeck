@@ -2,9 +2,10 @@ import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { doorbellLine, type UserEntry } from "@novadeck/harness-core/harness"
+
 import { describe, expect, it } from "../test.js"
-import type { HarnessEvent } from "./events.js"
-import { doorbellLine, type UserEntry } from "./harness.js"
 import { harnesses } from "./registry.js"
 import type { Root } from "./roots.js"
 import { lastUserInput, typedPromptStart, type TypedPrompts } from "./typed-prompts.js"

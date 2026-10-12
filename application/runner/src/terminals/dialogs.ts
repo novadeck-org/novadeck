@@ -1,15 +1,14 @@
 import { createHash } from "node:crypto"
 
-import { requestDialog, type AgentName, type RequestDialog } from "@novadeck/protocol"
-
 import type {
   DialogAdapter,
   DialogRead,
   ReadDialog,
   RequestFacts,
   ScreenRequest,
-} from "../harnesses/dialogs.js"
-import type { ScreenText } from "./screen.js"
+} from "@novadeck/harness-core/dialogs"
+import type { ScreenText } from "@novadeck/harness-core/screen"
+import { requestDialog, type AgentName, type RequestDialog } from "@novadeck/protocol"
 
 /** A request waiting on the person, as the tracker looks for its dialog. */
 export type Waiting = {

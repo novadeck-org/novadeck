@@ -1,5 +1,3 @@
-import type { RequestAnswer } from "@novadeck/protocol"
-
 import type {
   DialogAdapter,
   DialogRead,
@@ -7,7 +5,8 @@ import type {
   ReadDialog,
   RequestFacts,
   ScreenRequest,
-} from "../dialogs.js"
+} from "@novadeck/harness-core/dialogs"
+import type { RequestAnswer } from "@novadeck/protocol"
 
 /**
  * Antigravity's dialogs, as its TUI draws them and takes keys (probed 2026-10-06, 1.2.14;

@@ -1,8 +1,9 @@
-import { doorbellLine } from "../harnesses/harness.js"
+import { doorbellLine } from "@novadeck/harness-core/harness"
+import type { ScreenText } from "@novadeck/harness-core/screen"
+
 import { describe, expect, it } from "../test.js"
 import { loadProbe } from "../testing/probes.js"
 import { checkPaste, findLine, freshNonce, gate } from "./ring.js"
-import type { ScreenText } from "./screen.js"
 
 type Pair = {
   readonly name: string

@@ -2,9 +2,9 @@ import { appendFileSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import type { TranscriptEntry } from "@novadeck/harness-core/harness"
 import type { TranscriptChange } from "@novadeck/protocol"
 
-import type { TranscriptEntry } from "../harnesses/harness.js"
 import { describe, expect, it as base } from "../test.js"
 import { transcriptChanges } from "./transcripts.js"
 

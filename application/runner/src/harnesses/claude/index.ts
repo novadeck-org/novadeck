@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { followLines } from "../follow.js"
+import { followLines } from "@novadeck/harness-core/follow"
 import {
   hookSeconds,
   json,
@@ -11,8 +11,9 @@ import {
   type MessagingProfile,
   type Harness,
   type Install,
-} from "../harness.js"
-import { hookCommand, type Dialect } from "../hook-command.js"
+} from "@novadeck/harness-core/harness"
+import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
+
 import { box } from "./box.js"
 import { decode, transcriptPlans } from "./decode.js"
 import { dialogs } from "./dialogs.js"

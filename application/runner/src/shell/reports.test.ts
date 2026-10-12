@@ -1,5 +1,6 @@
 import { connect } from "node:net"
 
+import { type Report } from "@novadeck/harness-core/report"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
@@ -10,7 +11,6 @@ import {
   unheard,
   type Ack,
   type Call,
-  type Report,
   type ReportHandlers,
 } from "./reports.js"
 

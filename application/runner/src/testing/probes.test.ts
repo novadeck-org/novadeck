@@ -2,7 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import type { ScreenText } from "../terminals/screen.js"
+import type { ScreenText } from "@novadeck/harness-core/screen"
+
 import { describe, expect, it } from "../test.js"
 import { loadProbe, screenOf, screenRecord } from "./probes.js"
 

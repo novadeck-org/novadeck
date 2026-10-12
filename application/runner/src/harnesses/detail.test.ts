@@ -1,15 +1,15 @@
 import { join } from "node:path"
 
+import type { ActivityEvent } from "@novadeck/harness-core/events"
+import { subjectOf } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
 import { agentDetail as schema } from "@novadeck/protocol"
 
-import type { Report } from "../shell/reports.js"
 import { describe, expect, it } from "../test.js"
 import { loadProbe } from "../testing/probes.js"
 import { apply, started, type Activity } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import { agentDetail, rootRef } from "./detail.js"
-import type { ActivityEvent } from "./events.js"
-import { subjectOf } from "./harness.js"
 import { harnesses } from "./registry.js"
 
 type Scenario = { events: { event: string; payload: Report["payload"] }[] }

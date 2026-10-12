@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto"
 import { join } from "node:path"
 
+import type { Launchers } from "@novadeck/harness-core/harness"
+
 import { describe, expect, it } from "../../test.js"
-import type { Launchers } from "../harness.js"
 import { codex } from "./index.js"
 
 const launchers: Launchers = { mcp: { command: "/data/shell/mcp" } }

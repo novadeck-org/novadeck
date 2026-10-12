@@ -1,8 +1,8 @@
+import { ref } from "@novadeck/harness-core/harness"
 import type { AgentDetail, RequestDialog } from "@novadeck/protocol"
 
 import { subagentRef, summary, type Activity, type Request } from "./activity.js"
 import type { Binding } from "./bindings.js"
-import { ref } from "./harness.js"
 import { harnesses } from "./registry.js"
 import { telemetrySummary, type Telemetry } from "./telemetry.js"
 

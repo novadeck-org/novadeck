@@ -1,9 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { AgentTelemetry } from "@novadeck/protocol"
-
-import type { HarnessEvent } from "../events.js"
-import { followLines } from "../follow.js"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { followLines } from "@novadeck/harness-core/follow"
 import {
   bounded,
   callId,
@@ -12,7 +10,9 @@ import {
   type Harness,
   type Run,
   type WrittenPlan,
-} from "../harness.js"
+} from "@novadeck/harness-core/harness"
+import type { AgentTelemetry } from "@novadeck/protocol"
+
 import { callOf, mcpTool } from "./decode.js"
 import { transcripts } from "./transcripts.js"
 

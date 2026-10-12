@@ -1,8 +1,8 @@
 import { readdir, stat } from "node:fs/promises"
 import { join } from "node:path"
 
-import type { PromptShown } from "../events.js"
-import type { Install } from "../harness.js"
+import type { PromptShown } from "@novadeck/harness-core/events"
+import type { Install } from "@novadeck/harness-core/harness"
 
 /**
  * The items Novadeck's shim gives Codex's terminal title, as one `-c` setting: its run

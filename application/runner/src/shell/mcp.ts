@@ -16,7 +16,8 @@
  * Only Claude Code reads a server's own instructions, so each tool's description carries
  * its rules.
  */
-import { plugin } from "../harnesses/harness.js"
+import { plugin } from "@novadeck/harness-core/harness"
+
 import { maxMessageBytes } from "../messaging/mailbox.js"
 import { unboundNote } from "../messaging/peers.js"
 import type { CallType } from "./reports.js"

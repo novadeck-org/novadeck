@@ -1,13 +1,18 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type {
+  DialogAdapter,
+  DialogRead,
+  KeyStep,
+  RequestFacts,
+} from "@novadeck/harness-core/dialogs"
+import type { ScreenText } from "@novadeck/harness-core/screen"
 import { hasControlCharacters, promptRefusal, type RequestAnswer } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import type { DialogAdapter, DialogRead, KeyStep, RequestFacts } from "../harnesses/dialogs.js"
 import { identified, twin } from "./dialogs.js"
 import type { InputEntry, InputHold, InputQueue } from "./input-queue.js"
 import { bracketedPaste } from "./ring.js"
-import type { ScreenText } from "./screen.js"
 
 /** Another request waiting: its ref, who asks and what it asks. */
 type Other = {

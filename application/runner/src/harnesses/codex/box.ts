@@ -1,4 +1,4 @@
-import { agreeing, markedBox, type BoxProfile, type Markers } from "../box.js"
+import { agreeing, markedBox, type BoxProfile, type Markers } from "@novadeck/harness-core/box"
 
 /** The markers leading its box's first row: `›` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: "›", shell: "!" }

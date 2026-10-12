@@ -1,10 +1,11 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { doorbellLine, hookShellSlackMs } from "../harnesses/harness.js"
+import { doorbellLine, hookShellSlackMs } from "@novadeck/harness-core/harness"
+import type { ScreenText } from "@novadeck/harness-core/screen"
+
 import { coalesced } from "./coalesce.js"
 import type { InputEntry, InputQueue } from "./input-queue.js"
 import { bracketedPaste, calmMs, checkPaste, freshNonce, gate } from "./ring.js"
-import type { ScreenText } from "./screen.js"
 
 /** What the doorbell needs of the terminal manager and messaging, by terminal. */
 export type DoorbellHost = {

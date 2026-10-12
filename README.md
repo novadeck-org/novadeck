@@ -740,7 +740,8 @@ given), as a spec does that must act on the screen before the turn ends.
 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo. `application/` holds
 what makes up the app; `engines/` holds the native inference engines Novadeck downloads
-once installed, and the build they share.
+once installed, and the build they share; `harnesses/` holds what the agent harness
+adapters share.
 
 | Package                | Responsibility                                                  |
 | ---------------------- | --------------------------------------------------------------- |
@@ -752,6 +753,7 @@ once installed, and the build they share.
 | `engines/whisper`      | Voice engine: whisper.cpp built for download (`build:engine`).  |
 | `engines/murmur`       | Murmur engine: llama.cpp built for download (`build:engine`).   |
 | `engines/ggml-build`   | The engine build both of those share.                           |
+| `harnesses/core`       | The harness adapters' contract and the helpers they share.      |
 | `scripts`              | Repository checks and automation.                               |
 
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or

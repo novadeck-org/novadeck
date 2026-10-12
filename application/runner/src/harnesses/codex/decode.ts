@@ -1,7 +1,6 @@
 import { isAbsolute, resolve } from "node:path"
 
-import type { Report } from "../../shell/reports.js"
-import type { HarnessEvent } from "../events.js"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
 import {
   absolute,
   withRequestCwd,
@@ -12,7 +11,8 @@ import {
   sessionStart,
   subjectOf,
   text,
-} from "../harness.js"
+} from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
 
 /**
  * Codex's hooks, as normalized facts.

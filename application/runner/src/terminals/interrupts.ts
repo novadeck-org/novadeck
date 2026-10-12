@@ -1,10 +1,16 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import {
+  endsText,
+  isEmpty,
+  sameText,
+  type BoxProfile,
+  type InputBox,
+} from "@novadeck/harness-core/box"
+import type { ScreenText } from "@novadeck/harness-core/screen"
 import type { InterruptResult } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import { endsText, isEmpty, sameText, type BoxProfile, type InputBox } from "../harnesses/box.js"
-import type { ScreenText } from "./screen.js"
 
 /** The waits of an interrupt, in milliseconds. */
 export type InterruptOptions = {

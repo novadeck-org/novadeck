@@ -1,8 +1,8 @@
 import { readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 
-import type { Harness } from "../harness.js"
-import { at, entry, joined, record, textOf } from "../items.js"
+import type { Harness } from "@novadeck/harness-core/harness"
+import { at, entry, joined, record, textOf } from "@novadeck/harness-core/items"
 
 // Context Codex writes into the conversation as the person's message.
 const context =

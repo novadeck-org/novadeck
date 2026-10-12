@@ -2,31 +2,35 @@ import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { describe, expect, it as base } from "../test.js"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+
 import { followLines } from "./follow.js"
 
 type Fixture = { path: string; lines: string[]; follow: () => void }
 
-const it = base.extend<{ file: Fixture }>({
-  file: async ({ resources }, use) => {
-    const directory = mkdtempSync(join(tmpdir(), "novadeck-follow-"))
-    const controller = new AbortController()
-    resources.defer(() => {
-      controller.abort()
-      rmSync(directory, { recursive: true, force: true })
-    })
-    const path = join(directory, "transcript.jsonl")
-    const lines: string[] = []
-    const follow = () =>
-      void followLines(path, controller.signal, (line) => lines.push(line), { intervalMs: 20 })
-    await use({ path, lines, follow })
-  },
+let file: Fixture
+let stop: () => void
+
+beforeEach(() => {
+  const directory = mkdtempSync(join(tmpdir(), "novadeck-follow-"))
+  const controller = new AbortController()
+  const path = join(directory, "transcript.jsonl")
+  const lines: string[] = []
+  const follow = () =>
+    void followLines(path, controller.signal, (line) => lines.push(line), { intervalMs: 20 })
+  file = { path, lines, follow }
+  stop = () => {
+    controller.abort()
+    rmSync(directory, { recursive: true, force: true })
+  }
 })
+
+afterEach(() => stop())
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 150))
 
 describe("following a file's lines", () => {
-  it("reads only what is written after it starts, whole lines at a time", async ({ file }) => {
+  it("reads only what is written after it starts, whole lines at a time", async () => {
     writeFileSync(file.path, "old\n")
     file.follow()
     await settle()
@@ -36,14 +40,14 @@ describe("following a file's lines", () => {
     await expect.poll(() => file.lines).toEqual(["new", "partial"])
   })
 
-  it("reads a file that appears later from its start", async ({ file }) => {
+  it("reads a file that appears later from its start", async () => {
     file.follow()
     await settle()
     writeFileSync(file.path, "first\nsecond\n")
     await expect.poll(() => file.lines).toEqual(["first", "second"])
   })
 
-  it("reads a rewritten file again from its start", async ({ file }) => {
+  it("reads a rewritten file again from its start", async () => {
     writeFileSync(file.path, "a long line before the rewrite\n")
     file.follow()
     await settle()
@@ -51,7 +55,7 @@ describe("following a file's lines", () => {
     await expect.poll(() => file.lines).toEqual(["short"])
   })
 
-  it("keeps a character whole when a write splits it", async ({ file }) => {
+  it("keeps a character whole when a write splits it", async () => {
     writeFileSync(file.path, "")
     file.follow()
     await settle()
@@ -62,7 +66,7 @@ describe("following a file's lines", () => {
     await expect.poll(() => file.lines).toEqual(["żółw"])
   })
 
-  it("waits for a slow reader before reading more", async ({ file }) => {
+  it("waits for a slow reader before reading more", async () => {
     writeFileSync(file.path, "a\n")
     const lines: string[] = []
     const controller = new AbortController()

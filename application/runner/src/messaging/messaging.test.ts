@@ -1,3 +1,5 @@
+import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
+import { doorbellLine } from "@novadeck/harness-core/harness"
 import type { AgentName } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
@@ -8,8 +10,6 @@ import {
   type Activity,
 } from "../harnesses/activity.js"
 import type { Binding } from "../harnesses/bindings.js"
-import type { ActivityEvent, HarnessEvent } from "../harnesses/events.js"
-import { doorbellLine } from "../harnesses/harness.js"
 import { harnesses } from "../harnesses/registry.js"
 import { followRoot, type Root } from "../harnesses/roots.js"
 import { typedPromptStart } from "../harnesses/typed-prompts.js"

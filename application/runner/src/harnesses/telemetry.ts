@@ -1,8 +1,8 @@
+import type { TelemetryObserved } from "@novadeck/harness-core/events"
 import type { AgentTelemetry } from "@novadeck/protocol"
 
 import { bound } from "./activity.js"
 import type { Binding } from "./bindings.js"
-import type { TelemetryObserved } from "./events.js"
 
 /**
  * The bound session's tokens and quotas, as of the latest record that named them (`at`),

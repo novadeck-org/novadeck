@@ -1,6 +1,6 @@
+import { doorbell } from "@novadeck/harness-core/harness"
 import type { AgentName, MessageState } from "@novadeck/protocol"
 
-import { doorbell } from "../harnesses/harness.js"
 import { expectedAgent } from "../terminals/commands.js"
 import type { AgentSetup, Trait } from "./agents/agent.js"
 import { poll, withScreen, type DeckTerminal } from "./deck.js"

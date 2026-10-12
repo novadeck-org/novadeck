@@ -1,8 +1,9 @@
-import type { BoxProfile, InputBox } from "../harnesses/box.js"
+import type { BoxProfile, InputBox } from "@novadeck/harness-core/box"
+import type { ScreenText } from "@novadeck/harness-core/screen"
+
 import { describe, expect, it } from "../test.js"
 import { screen as screenOf } from "../testing/screens.js"
 import { Interrupts, type InterruptHost } from "./interrupts.js"
-import type { ScreenText } from "./screen.js"
 
 const ESC = "\x1b"
 const CLEAR = "<clear>"

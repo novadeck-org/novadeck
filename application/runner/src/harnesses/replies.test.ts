@@ -2,9 +2,10 @@ import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+
 import { describe, expect, it } from "../test.js"
 import { loadProbe } from "../testing/probes.js"
-import type { HarnessEvent } from "./events.js"
 import { harnesses } from "./registry.js"
 import { lastReply, withReplies } from "./replies.js"
 

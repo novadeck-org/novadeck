@@ -1,7 +1,7 @@
 import { readFile, rename, writeFile } from "node:fs/promises"
 import { join, resolve } from "node:path"
 
-import type { Install } from "../harness.js"
+import type { Install } from "@novadeck/harness-core/harness"
 
 /**
  * Antigravity takes its status line only from its user settings, so connecting it puts

@@ -4,9 +4,9 @@ import { open, realpath, stat, type FileHandle } from "node:fs/promises"
 import { basename, extname, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 
+import type { PlanSource } from "@novadeck/harness-core/events"
 import type { AgentName, ItemContent } from "@novadeck/protocol"
 
-import type { PlanSource } from "../harnesses/events.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { ItemRecord } from "./records.js"
 import { failure, maxUrlChars, type PresentFailure } from "./request.js"

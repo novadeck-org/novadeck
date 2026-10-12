@@ -1,8 +1,14 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
-import type { HarnessEvent } from "./events.js"
-import { tailLines } from "./follow.js"
-import { doorbellNonce, firedFacts, promptStart, type UserEntry } from "./harness.js"
+import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { tailLines } from "@novadeck/harness-core/follow"
+import {
+  doorbellNonce,
+  firedFacts,
+  promptStart,
+  type UserEntry,
+} from "@novadeck/harness-core/harness"
+
 import { rootedIn, type Root } from "./roots.js"
 
 /**

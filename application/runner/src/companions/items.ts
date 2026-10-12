@@ -3,6 +3,7 @@ import { realpath } from "node:fs/promises"
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import type { PlanSource } from "@novadeck/harness-core/events"
 import type {
   AgentName,
   CompanionChange,
@@ -12,7 +13,6 @@ import type {
 } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
-import type { PlanSource } from "../harnesses/events.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import { Watcher } from "../terminals/watcher.js"
 import {

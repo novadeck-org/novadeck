@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path"
 
-import type { Harness } from "../harness.js"
-import { at, entry, joined, record, textOf } from "../items.js"
+import type { Harness } from "@novadeck/harness-core/harness"
+import { at, entry, joined, record, textOf } from "@novadeck/harness-core/items"
 
 // A subagent id Claude Code names its transcript by, as it writes them.
 const safeId = /^[\w-]{1,128}$/
