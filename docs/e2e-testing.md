@@ -91,7 +91,7 @@ and so the home and Novadeck's launcher, is named with a space, which cmd reads 
 short name. It runs `messaging`, `requests` and `lifecycle` for its harness;
 `windows-quirks.e2e.ts` (Claude Code's job) opens a terminal whose PATH is read from the
 registry, as the app's are, and runs the marker; and with the AutoRun set, a test in
-`harnesses/service.test.ts` (`NOVADECK_TEST_CMD_AUTORUN=1`) checks that Antigravity's
+`application/runner/src/harnesses/service.test.ts` (`NOVADECK_TEST_CMD_AUTORUN=1`) checks that Antigravity's
 PreToolUse goes unregistered, and that a connected copy that still has it is installed
 again without it. These tests skip anywhere else. Its traces upload as
 `e2e-traces-<harness>-Windows-quirks`.
@@ -759,9 +759,9 @@ error in tool execution`, Claude Code's other `<tool_use_error>`s such as a miss
 ## Probe fixtures
 
 The probes under `src/e2e/probes/` record what a real harness showed, and the adapters'
-tests replay it from `harnesses/<agent>/fixtures/*.probe.json` and
+tests replay it from `harnesses/<agent>/src/fixtures/*.probe.json` and
 `terminals/fixtures/doorbell-<agent>.json`. Every screen in them has one shape, a
-`ScreenRecord` (`src/testing/probes.ts`), the one the input-box probe first used:
+`ScreenRecord` (`harnesses/core/src/testing/probes.ts`), the one the input-box probe first used:
 
 ```json
 {
@@ -779,7 +779,7 @@ tests replay it from `harnesses/<agent>/fixtures/*.probe.json` and
 - `bright` holds only the rows whose dim cells blank some of their text (a placeholder
   suggestion), as they read undimmed; every other row reads as `rows` does.
 - `columns`, `cursor` and `bracketedPaste` are optional, kept where the probe knew them.
-  Read back, they default as `testing/screens.ts` does: 80 columns, the cursor on the last
+  Read back, they default as `harnesses/core/src/testing/screens.ts` does: 80 columns, the cursor on the last
   row that shows anything, bracketed paste on. `styles` is a probe's note on each row's
   style runs, for a reader's eyes; no test reads it.
 - A screen sits wherever its fixture needs it (`screens.wide`, `steps[].screen`, a doorbell
@@ -804,7 +804,7 @@ probe output, and keep their own loader.
 
 1. Pin it in `harnesses.json` (an npm package, or an archive with its SHA-512) and make
    sure `installHarness` can install it. Its name must be one of the protocol's
-   `agentName`s.
+   `agentName`s, a row of its harness table (`application/protocol/src/harnesses.ts`).
 2. Write its API's dialect in `src/e2e/model/`, unless it speaks one already there: it
    parses requests into `Call`s and encodes `Reply`s the way the harness reads them. It
    also answers the side endpoints the harness calls on the way to its prompt. To find
@@ -846,10 +846,15 @@ probe output, and keep their own loader.
    - The requests' traits: `rewind`, what Esc-Esc opens at its idle prompt and whether
      it swallows a paste; and `popup`, a popup it raises by itself after its Stop, which
      a reply's `usage` or `limits` (and the `popup` seed) can bring about.
-4. Add the setup to `setups` in `src/e2e/agents/index.ts`. That one list drives the
+4. Add the setup to `byAgent` in `src/e2e/agents/index.ts` (a compile error until then),
+   whose `setups` lists them in the protocol's order. That one list drives the
    messaging scenarios and the tripwire, so every scenario runs for it and its home is
    watched. A gap it shows goes in `known-gaps.ts`, with the test that pins it.
-5. Add it to the CI matrix in `.github/workflows/e2e.yml`, with its display name.
+5. Add it to `.github/workflows/e2e.yml`: a row of the `e2e` matrix with its display name
+   and one of the Windows `quirks` matrix with its files, its id in the Mixed row's
+   `agents`, its id in both Hash Pins steps' list, and its own Restore and Save cache
+   steps beside the others'. Nothing fails where one is missed: the Mixed job leaves it
+   out, and its install is never cached.
 
 ## Claude Code against the fake model
 

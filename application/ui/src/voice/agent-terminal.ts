@@ -1,7 +1,8 @@
+import { harnesses } from "../model/harnesses"
 import type { TerminalMetadata } from "../model/types"
 
 // The agent CLIs Novadeck runs, by `programName`: Claude Code, Codex and Antigravity.
-const agentPrograms = new Set(["claude", "codex", "agy"])
+const agentPrograms: ReadonlySet<string> = new Set(harnesses.map(({ id }) => id))
 
 // Whether a terminal is running a coding agent, which is where a mic button earns its
 // place: a prompt there is prose, spoken more easily than typed. A running agent that

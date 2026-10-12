@@ -1,8 +1,8 @@
 import { callId } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
 import { decode } from "./decode.js"
 import { transcriptEvents, type Calls } from "./transcript.js"
 

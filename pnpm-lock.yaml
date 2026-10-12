@@ -131,6 +131,15 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.1
         version: 2.1.1(hono@4.13.13)
+      '@novadeck/harness-agy':
+        specifier: workspace:*
+        version: link:../../harnesses/agy
+      '@novadeck/harness-claude':
+        specifier: workspace:*
+        version: link:../../harnesses/claude
+      '@novadeck/harness-codex':
+        specifier: workspace:*
+        version: link:../../harnesses/codex
       '@novadeck/harness-core':
         specifier: workspace:*
         version: link:../../harnesses/core
@@ -376,6 +385,63 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+
+  harnesses/agy:
+    dependencies:
+      '@novadeck/harness-core':
+        specifier: workspace:*
+        version: link:../core
+      '@novadeck/protocol':
+        specifier: workspace:*
+        version: link:../../application/protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.4)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.0(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.4)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.4)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
+  harnesses/claude:
+    dependencies:
+      '@novadeck/harness-core':
+        specifier: workspace:*
+        version: link:../core
+      '@novadeck/protocol':
+        specifier: workspace:*
+        version: link:../../application/protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.4)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.0(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.4)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.4)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
+
+  harnesses/codex:
+    dependencies:
+      '@novadeck/harness-core':
+        specifier: workspace:*
+        version: link:../core
+      '@novadeck/protocol':
+        specifier: workspace:*
+        version: link:../../application/protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/node@26.6.4)(@vitest/browser-playwright@5.0.3)(@vitest/ui@5.0.3)(jsdom@30.1.0(@noble/hashes@2.4.0))(msw@2.15.0(@types/node@26.6.4)(typescript@7.0.2))(vite@7.3.6(@types/node@26.6.4)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15))
 
   harnesses/core:
     dependencies:

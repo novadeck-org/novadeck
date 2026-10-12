@@ -1,12 +1,11 @@
 import { windowName } from "./agent-usage"
+import { harnesses } from "./harnesses"
 import type { TerminalMetadata } from "./types"
 
 // The agents whose subscriptions Novadeck hears of, by program name, as people call them.
-const agentNames: Readonly<Record<string, string>> = {
-  claude: "Claude Code",
-  codex: "Codex",
-  agy: "Antigravity",
-}
+const agentNames: Readonly<Record<string, string>> = Object.fromEntries(
+  harnesses.map(({ id, name }) => [id, name]),
+)
 
 // One of a subscription's limit windows: its length as people say it ("5h", "7d"), how
 // much of it is used, as a fraction, and when it resets, where its agent says.
@@ -33,7 +32,7 @@ export type AgentAccount = {
 
 // Where an agent's subscription stands among the others until the person moves it: in
 // this order, then any other agent after them.
-const defaultOrder = ["claude", "codex", "agy"]
+const defaultOrder: readonly string[] = harnesses.map(({ id }) => id)
 
 const rank = (program: string, order: readonly string[]): number => {
   const placed = order.indexOf(program)

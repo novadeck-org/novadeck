@@ -2,8 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { describe, expect, it } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { describe, expect, it } from "vitest"
+
 import { transcripts } from "./transcripts.js"
 
 const { records } = loadProbe(import.meta.dirname, "rollout.probe.json") as { records: object[] }

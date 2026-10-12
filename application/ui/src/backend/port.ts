@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode } from "react"
 
 import type { Companions } from "../model/companion"
 import type { Conversations } from "../model/conversation"
+import type { AgentName } from "../model/harnesses"
 import type { Messages } from "../model/messages"
 import type { Murmur } from "../model/murmur"
 import type { InstallResult, PortableState } from "../model/portable"
@@ -152,7 +153,7 @@ export type Backend = {
   readonly agents?: {
     readonly state: Store<readonly AgentConnection[]>
     // Connects or disconnects the agent; the state shows the change as it goes.
-    readonly set: (agent: AgentId, connected: boolean) => void
+    readonly set: (agent: AgentName, connected: boolean) => void
     // Looks again at which agents are installed and connected.
     readonly refresh: () => void
     // Whether to offer connecting them when the app opens for the first time.
@@ -239,8 +240,6 @@ export type Backend = {
   readonly DebugPanel?: ComponentType<DebugPanelProps>
 }
 
-export type AgentId = "claude" | "codex" | "agy"
-
 // How the page looks, for the window around it: the scheme its native parts use
 // (`system` while the page follows the system, so the page keeps seeing the system's
 // own), and the ground, `--color-canvas` as `#rrggbb`, that the window shows before
@@ -259,7 +258,7 @@ export type Notice = {
 
 // An agent the backend can connect, as the Preferences switches show it.
 export type AgentConnection = {
-  readonly agent: AgentId
+  readonly agent: AgentName
   // Installed where the backend runs.
   readonly available: boolean
   readonly connected: boolean

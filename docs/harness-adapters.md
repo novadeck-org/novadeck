@@ -35,7 +35,7 @@ transcripts and telemetry are fixed only after per-harness coverage probes
 | `runner/src/shell/agents.ts`              | Detect config, inspect plugin connection, plan install/remove commands        | `home`, `connected`, `connect`/`disconnect`; shared inspection and setup |
 | `runner/src/shell/resume.ts`              | Build the exact resume command for an identified session                      | `resume` field                                                           |
 | `runner/src/shell/scripts.ts`             | Provider manifests, hook configuration, Codex launch shim                     | `files` and `shims`; shared artifact writer                              |
-| `runner/src/shell/hook.ts`                | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in the runner; one shared hook script            |
+| `runner/src/shell/hook.ts`                | Native payload interpretation, nested-session filtering, hook response format | Per-harness `decode.ts` in its package; one shared hook script           |
 | `runner/src/shell/reports.ts`             | Authenticate and accept session reports                                       | Shared ingress and binding policy                                        |
 | `runner/src/terminals/manager.ts`         | PTY lifetime, resume claims, persistence, foreground ownership                | Terminal manager, using the harness service                              |
 | `ui/src/model/process.ts` and `resume.ts` | Provider recognition and resume eligibility                                   | `programs` and shared recognition; UI keeps generic program presentation |
@@ -86,8 +86,9 @@ runner RPC router. It receives the values and limited I/O facilities needed by
 its feature. Shared code does not inspect Claude/Codex/AGY names to decide behavior.
 
 The contract and the helpers every adapter shares live in their own package,
-`@novadeck/harness-core` (`harnesses/core/`); the adapters, the registry and the
-services that use them live in `application/runner/src/harnesses/`:
+`@novadeck/harness-core` (`harnesses/core/`), and each adapter is a package of its own
+beside it; the registry and the services that use them live in
+`application/runner/src/harnesses/`:
 
 ```text
 harnesses/core/src/          # @novadeck/harness-core
@@ -98,29 +99,56 @@ harnesses/core/src/          # @novadeck/harness-core
   hook-command.ts  # The hook command line, per shell dialect
   follow.ts        # The shared JSONL follower
   items.ts, report.ts, screen.ts, width.ts, header.ts
+  testing/         # Test helpers: probes.ts (`loadProbe`), screens.ts, dialogs.ts
+harnesses/claude/src/        # @novadeck/harness-claude
+  index.ts         # claude: Harness
+  decode.ts        # Its hook reports, as normalized events
+  box.ts           # Its input box, as it reads off the screen (`box: BoxProfile`)
+  fixtures/        # Its probes, read by the tests beside them
+harnesses/codex/src/         # @novadeck/harness-codex: same shape; its shim is in its `shims`
+harnesses/agy/src/           # @novadeck/harness-agy
 application/runner/src/harnesses/
   registry.ts      # harnesses: Record<AgentName, Harness>
   eligibility.ts   # Availability of features such as resume, with typed reasons
   service.ts       # createHarnesses: inspection, setup and lifecycle
   bindings.ts      # Pure ownership and observation transitions
   activity.ts      # Accepted state → agent activity
-  claude/
-    index.ts       # claude: Harness
-    decode.ts      # Its hook reports, as normalized events
-    box.ts         # Its input box, as it reads off the screen (`box: BoxProfile`)
-  codex/           # Same shape; its shim is in its `shims`
-  agy/
 ```
 
-An adapter imports only `@novadeck/harness-core` and `@novadeck/protocol`, never the
-runner's own modules.
+An adapter imports only `@novadeck/harness-core`, `@novadeck/protocol`, Node and its
+own files, never the runner's modules or another adapter, and harness-core depends on
+neither; `.oxlintrc.json` enforces both. A test that needs the runner's internals (the
+activity machine, say) stays in the runner and reads the adapter's fixtures from its
+package.
 
-`@novadeck/harness-core` builds to `dist`, which builds, packaging and `tsc` use. Its
-exports also name its sources under the `development` condition, which vitest, the
+Each of these packages builds to `dist`, which builds, packaging and `tsc` use. Their
+exports also name their sources under the `development` condition, which vitest, the
 runner's `pnpm dev` (`tsx --conditions=development`) and the host's `pnpm dev` (Vite's
-own `development` condition in electron-vite's dev build) resolve, so an edit to it
-reaches them without a build. `tsc` and the editor still read its built types: rebuild
-it (`pnpm --filter @novadeck/harness-core build`) after changing its contract.
+own `development` condition in electron-vite's dev build) resolve, so an edit to one
+reaches them without a build. `tsc` and the editor still read the built types: rebuild
+a package (`pnpm --filter @novadeck/harness-core build`) after changing its contract.
+
+What every harness is, as data, is one row of `application/protocol/src/harnesses.ts`:
+its id (also its program's name), its names, the script a Node CLI runs, the variables
+its sessions set on their children and the paths of its secrets. The protocol's
+`agentName` comes from it, and so do the lists and labels the UI and the runner show, so
+the UI reads it without loading any adapter.
+
+Adding a harness:
+
+1. Its row in `application/protocol/src/harnesses.ts`.
+2. Its package, `harnesses/<id>` (`@novadeck/harness-<id>`), shaped like the others, with
+   its probes in `src/fixtures/`.
+3. Its line in `application/runner/src/harnesses/registry.ts` (a compile error until
+   then) and the runner's dependency on its package.
+4. Its lint fence: an override for its folder in `.oxlintrc.json`, and its name in the
+   other adapters' and harness-core's (`scripts/harnesses/fence.test.ts` fails until
+   then).
+5. Its end-to-end setup, pin and CI rows (see `docs/e2e-testing.md`, "Adding a harness").
+6. What stays by hand: its icon in the UI's welcome dialog (a type error until then) and
+   its process profile (`application/ui/src/terminals/processes/profiles.ts`), its coverage in
+   `docs/harness-coverage.md`, and any variable of its hooks' environment the runner's
+   `shell/hook.ts` tells nested agents apart by.
 
 Split a harness into more files (a transcript reader, say) only when its
 `index.ts` gets hard to read. `shell/` keeps shell-specific
@@ -427,7 +455,7 @@ runner:
 readonly decode: (report: Report) => readonly HarnessEvent[]
 ```
 
-Decoding in the runner keeps decoders ordinary, tested TypeScript beside their
+Decoding in the runner's process keeps decoders ordinary, tested TypeScript beside their
 harness, checked against the captured fixtures, with no separate build for the
 hook process. The payload travels only over Novadeck's local report socket to
 the runner, which already sees the terminal's output. `decode` performs no I/O,
@@ -570,7 +598,7 @@ Antigravity has none: its `PreInvocation` asks before every model call, so its
 `tool` event keeps the short one.
 
 The terminal manager follows each terminal's root session as its profile's `root`
-says (`harnesses/roots.ts`): the bound session; or, for `status-line`, a guess (the
+says (`application/runner/src/harnesses/roots.ts`): the bound session; or, for `status-line`, a guess (the
 session that bound, then that of the first model call after it bound, or of one
 messages wait for) until the status line names the root conversation, which alone
 names another. Messaging reads the root from there. The doorbell knows nothing of how a
@@ -607,7 +635,7 @@ Enter included, that runs what the box holds or answers a dialog. A prompt or an
 that can't read what it needs writes nothing and is refused (`CONFLICT`), and the chat
 falls back to the terminal, where the person sees what the agent shows. The thresholds and
 drawings each reader rests on are probed, with fixtures from real screens
-(`harnesses/*/fixtures/input-box.probe.json`, `shell-mode.probe.json`, `ask.probe.json`;
+(`harnesses/*/src/fixtures/input-box.probe.json`, `shell-mode.probe.json`, `ask.probe.json`;
 `e2e/probes/`); see [Harness coverage](harness-coverage.md).
 
 ### Answer driver

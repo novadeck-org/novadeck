@@ -11,7 +11,8 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { screenRecord } from "../../testing/probes.js"
+import { screenRecord } from "@novadeck/harness-core/testing/probes"
+
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate } from "../model/script.js"

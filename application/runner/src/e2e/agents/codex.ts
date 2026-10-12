@@ -3,7 +3,8 @@ import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { promisify } from "node:util"
 
-import { trustedIn } from "../../harnesses/codex/trust.js"
+import { trustedIn } from "@novadeck/harness-codex/trust"
+
 import type { DeckTerminal } from "../deck.js"
 import { responses } from "../model/responses.js"
 import { asked } from "../model/script.js"

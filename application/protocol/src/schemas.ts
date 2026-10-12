@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { harnessIds } from "./harnesses.js"
+
 export const protocolVersion = 1
 export const id = z.uuid()
 export const name = z.string().trim().min(1).max(200)
@@ -55,7 +57,7 @@ export const foregroundProcess = z.strictObject({
 // Agents whose sessions Novadeck identifies and can resume once connected: Claude Code,
 // Codex and Antigravity. An agent session id is what the agent itself names its
 // session: a UUID today, kept to a plain token so a shell can run it as it is.
-export const agentName = z.enum(["claude", "codex", "agy"])
+export const agentName = z.enum(harnessIds)
 export const agentSessionId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
 
 // How long the start of an agent's last reply runs at most, in UTF-16 code units: enough

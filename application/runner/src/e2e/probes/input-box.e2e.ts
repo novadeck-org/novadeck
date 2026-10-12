@@ -2,18 +2,18 @@
 // in each state a prompt meets it: empty (welcome, after a turn, mid-turn), holding a draft,
 // holding a pasted short text, several lines, a long line that wraps, and a long paste.
 // Runs only with NOVADECK_E2E_PROBES=1, by path; writes what it saw to
-// $PROBE_OUT/<agent>-<pin|latest>.json, each state a `ScreenRecord` (testing/probes.ts: the
+// $PROBE_OUT/<agent>-<pin|latest>.json, each state a `ScreenRecord` (harness-core's testing/probes.ts: the
 // rows that show anything, the bright rows where dim cells blank some, the cursor), plus the
-// style runs of its rows. The adapters' fixtures (harnesses/*/fixtures/input-box.probe.json)
+// style runs of its rows. The adapters' fixtures (harnesses/*/src/fixtures/input-box.probe.json)
 // are copies of these files.
 /* eslint-disable no-await-in-loop -- A probe's steps run in order, each after the screen settles. */
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { screenRecord } from "@novadeck/harness-core/testing/probes"
 import headless from "@xterm/headless"
 
 import { screenText } from "../../terminals/screen.js"
-import { screenRecord } from "../../testing/probes.js"
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate } from "../model/script.js"

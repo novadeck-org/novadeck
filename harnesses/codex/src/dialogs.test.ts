@@ -2,12 +2,12 @@ import type { RequestFacts } from "@novadeck/harness-core/dialogs"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
 import type { ScreenText } from "@novadeck/harness-core/screen"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { RequestAnswer } from "@novadeck/protocol"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
-import { harnesses } from "../registry.js"
 import { dialogs } from "./dialogs.js"
+import { codex } from "./index.js"
 
 type Hook = { readonly event: string; readonly payload: Report["payload"] }
 type Scenario = {
@@ -33,7 +33,7 @@ const hooks = (name: string, source = probe): readonly Hook[] =>
     ({ event, payload }) => ({ event: event!, payload: { ...payload!, session_id: session } }),
   )
 const decoded = (hook: Hook, fields: Partial<Report> = {}): readonly HarnessEvent[] =>
-  harnesses.codex.decode({
+  codex.decode({
     terminalId: "t",
     token: "0".repeat(48),
     agent: "codex",
@@ -715,7 +715,7 @@ describe("Codex's hooks, as attention", () => {
   })
 
   it("register the PreToolUse hook for those two tools alone", () => {
-    const file = harnesses.codex
+    const file = codex
       .files("linux", { mcp: { command: "node", args: [] } } as never)
       .find(({ path }) => path.endsWith("hooks.json"))!
     const registered = JSON.parse(file.content).hooks.PreToolUse

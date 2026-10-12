@@ -1,6 +1,7 @@
 import { ArrowRight, ScrollText, Sparkles, type LucideIcon } from "lucide-react"
 import { useRef, useState, type ComponentType, type CSSProperties, type RefObject } from "react"
 
+import { harnesses } from "../model/harnesses"
 import { Checkbox } from "../ui-toolkit/Checkbox"
 import { deckName, DeckMark, DeckPattern, DeckWordmark } from "../ui-toolkit/DeckLogo"
 import { Dialog, DialogDescription, DialogTitle } from "../ui-toolkit/Dialog"
@@ -14,11 +15,8 @@ type Choices = Record<AgentSwitch["agent"], boolean>
 // Every agent found on this computer starts chosen; the person opts out, not in.
 const installed = (agents: readonly AgentSwitch[], id: AgentSwitch["agent"]): boolean =>
   agents.find(({ agent }) => agent === id)?.available ?? false
-const choicesFrom = (agents: readonly AgentSwitch[]): Choices => ({
-  claude: installed(agents, "claude"),
-  codex: installed(agents, "codex"),
-  agy: installed(agents, "agy"),
-})
+const choicesFrom = (agents: readonly AgentSwitch[]): Choices =>
+  Object.fromEntries(harnesses.map(({ id }) => [id, installed(agents, id)])) as Choices
 
 export type TranscriptsSetting = {
   readonly enabled: boolean

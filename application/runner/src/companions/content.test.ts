@@ -12,8 +12,10 @@ import {
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
+
 import { describe, expect, it as base } from "../test.js"
-import { loadProbe } from "../testing/probes.js"
+import { adapterFolder } from "../testing/adapters.js"
 import {
   captureWindow,
   loadFile,
@@ -362,10 +364,7 @@ const presented = (plan: string, timestamp: string) =>
 
 describe("a plan presented as text", () => {
   it("is read back from a Codex rollout with Codex's own decoder", async ({ directory }) => {
-    const fixture = loadProbe(
-      join(import.meta.dirname, "..", "harnesses", "codex"),
-      "plan.probe.json",
-    ) as { records: object[] }
+    const fixture = loadProbe(adapterFolder("codex"), "plan.probe.json") as { records: object[] }
     const rollout = join(directory, "rollout.jsonl")
     writeFileSync(rollout, fixture.records.map((record) => `${JSON.stringify(record)}\n`).join(""))
     const plan = await readTextPlan("codex", rollout)

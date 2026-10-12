@@ -3,12 +3,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { agy } from "@novadeck/harness-agy/index"
+import { claude } from "@novadeck/harness-claude/index"
+import { codex } from "@novadeck/harness-codex/index"
 import { hookCommand, type Dialect } from "@novadeck/harness-core/hook-command"
 
 import { describe, expect, it } from "../test.js"
-import { agy } from "./agy/index.js"
-import { claude } from "./claude/index.js"
-import { codex } from "./codex/index.js"
 
 const windows = process.platform === "win32"
 

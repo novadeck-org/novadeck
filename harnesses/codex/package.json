@@ -1,0 +1,71 @@
+{
+  "name": "@novadeck/harness-codex",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Codex harness adapter: hooks, rollouts, transcripts, dialogs and input box.",
+  "author": "mzpkdev",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./box": {
+      "development": "./src/box.ts",
+      "types": "./dist/box.d.ts",
+      "default": "./dist/box.js"
+    },
+    "./decode": {
+      "development": "./src/decode.ts",
+      "types": "./dist/decode.d.ts",
+      "default": "./dist/decode.js"
+    },
+    "./dialogs": {
+      "development": "./src/dialogs.ts",
+      "types": "./dist/dialogs.d.ts",
+      "default": "./dist/dialogs.js"
+    },
+    "./index": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./rollout": {
+      "development": "./src/rollout.ts",
+      "types": "./dist/rollout.d.ts",
+      "default": "./dist/rollout.js"
+    },
+    "./shim": {
+      "development": "./src/shim.ts",
+      "types": "./dist/shim.d.ts",
+      "default": "./dist/shim.js"
+    },
+    "./title": {
+      "development": "./src/title.ts",
+      "types": "./dist/title.d.ts",
+      "default": "./dist/title.js"
+    },
+    "./transcripts": {
+      "development": "./src/transcripts.ts",
+      "types": "./dist/transcripts.d.ts",
+      "default": "./dist/transcripts.js"
+    },
+    "./trust": {
+      "development": "./src/trust.ts",
+      "types": "./dist/trust.d.ts",
+      "default": "./dist/trust.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/harness-core": "workspace:*",
+    "@novadeck/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

@@ -1,6 +1,6 @@
 import { randomBytes, randomInt } from "node:crypto"
 
-import type { AgentName, MessageState } from "@novadeck/protocol"
+import { harnesses, type AgentName, type MessageState } from "@novadeck/protocol"
 
 /**
  * The mailbox's rules, as pure functions over its records (see docs/agent-messaging.md,
@@ -188,10 +188,8 @@ export const allowSend = (
   return recent.length < limit ? [...recent, now] : undefined
 }
 
-const labels: { readonly [agent in AgentName]: string } = {
-  claude: "Claude Code",
-  codex: "Codex",
-  agy: "Antigravity",
+const labels = Object.fromEntries(harnesses.map(({ id, name }) => [id, name])) as {
+  readonly [agent in AgentName]: string
 }
 
 /** The harness's name as people know it. */

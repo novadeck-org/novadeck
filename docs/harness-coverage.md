@@ -10,7 +10,7 @@ signaled, including failure and interruption; **partial** means some of it is;
 Evidence:
 
 - **Probed** means captured from a real run on 2026-09-29. Sanitized payloads are in
-  `application/runner/src/harnesses/<id>/fixtures/`, and `fixtures.test.ts` checks
+  `harnesses/<id>/src/fixtures/`, and the runner's `harnesses/fixtures.test.ts` checks
   the claims below that rest on them.
 - **Documented** means the harness's own documentation, not yet seen in a run.
 

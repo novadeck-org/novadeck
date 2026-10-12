@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { delimiter, join } from "node:path"
 import { MessageChannel } from "node:worker_threads"
 
+import { agy } from "@novadeck/harness-agy/index"
 import { connectRunner, messagePort } from "@novadeck/protocol/client"
 import { vi } from "vitest"
 
@@ -12,7 +13,6 @@ import { cmdPrints, installShellFiles } from "../shell/install.js"
 import type { ShellPaths } from "../shell/scripts.js"
 import { describe, expect, it as base } from "../test.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { agy } from "./agy/index.js"
 import { createHarnesses } from "./service.js"
 
 const windows = process.platform === "win32"

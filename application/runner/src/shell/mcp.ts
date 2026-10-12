@@ -17,6 +17,7 @@
  * its rules.
  */
 import { plugin } from "@novadeck/harness-core/harness"
+import { harnessIds, harnesses } from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/mailbox.js"
 import { unboundNote } from "../messaging/peers.js"
@@ -221,6 +222,12 @@ const close: Tool<Dismissed> = {
   failed: "Novadeck couldn't close it.",
 }
 
+// "claude (Claude Code), codex (Codex) or agy (Antigravity)": the ids the tool takes, as named.
+const agentChoices = harnesses
+  .map(({ id, name }) => `${id} (${name})`)
+  .join(", ")
+  .replace(/, ([^,]*)$/, " or $1")
+
 const openTerminal: Tool<Opened> = {
   name: "open_terminal",
   description:
@@ -249,10 +256,8 @@ const openTerminal: Tool<Opened> = {
       },
       agent: {
         type: "string",
-        enum: ["claude", "codex", "agy"],
-        description:
-          "An agent to start there with message as its task: claude (Claude Code), codex " +
-          "(Codex) or agy (Antigravity). Not with command.",
+        enum: harnessIds,
+        description: `An agent to start there with message as its task: ${agentChoices}. Not with command.`,
       },
       message: {
         type: "string",

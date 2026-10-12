@@ -1,4 +1,5 @@
 import type { ChatItem } from "./conversation"
+import { harnesses } from "./harnesses"
 import type { AgentStatus } from "./types"
 
 // A conversation's items as a chat shows them: the person's messages, the agent's text,
@@ -588,15 +589,5 @@ export const turnStatus = (agent: AgentStatus | undefined): TurnStatus | null =>
 }
 
 // An agent as its harness names it, as a person does.
-export const agentName = (agent: string | null): string => {
-  switch (agent) {
-    case "claude":
-      return "Claude"
-    case "codex":
-      return "Codex"
-    case "agy":
-      return "Antigravity"
-    default:
-      return "The agent"
-  }
-}
+export const agentName = (agent: string | null): string =>
+  harnesses.find(({ id }) => id === agent)?.shortName ?? "The agent"

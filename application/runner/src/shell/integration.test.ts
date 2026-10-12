@@ -17,6 +17,7 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
+import { codex as codexHarness } from "@novadeck/harness-codex/index"
 import type {
   AgentDetail,
   AgentName,
@@ -27,7 +28,6 @@ import type {
 import { vi } from "vitest"
 
 import { CompanionItems } from "../companions/items.js"
-import { codex as codexHarness } from "../harnesses/codex/index.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
 import { Latest } from "../terminals/latest.js"
 import { readyReturnMs } from "../terminals/manager.js"

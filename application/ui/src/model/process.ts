@@ -1,3 +1,5 @@
+import { harnesses } from "./harnesses"
+
 // What a backend knows of a terminal's foreground process, as the runner reports it:
 // its name, and its command line where the platform tells.
 export type ForegroundProcess = {
@@ -27,10 +29,10 @@ const shells = new Set([
 
 // Node CLIs whose foreground process is "node": the script it runs names the program,
 // either the package's entry point or an installed launcher named after the program.
-const nodeLaunchers: readonly { readonly script: string; readonly program: string }[] = [
-  { script: "/@openai/codex/bin/codex.js", program: "codex" },
-  { script: "/@anthropic-ai/claude-code/cli.js", program: "claude" },
-]
+const nodeLaunchers: readonly { readonly script: string; readonly program: string }[] =
+  harnesses.flatMap(({ id, nodeScript }) =>
+    nodeScript === undefined ? [] : [{ script: nodeScript, program: id }],
+  )
 const nodePrograms = new Set(nodeLaunchers.map((launcher) => launcher.program))
 
 // "/usr/bin/zsh", "-zsh" (a login shell) and "pwsh.exe" all name the program "zsh" or "pwsh".
@@ -72,7 +74,7 @@ export const runningProgram = (process: ForegroundProcess | null, agent: string 
 export const isShellProcess = (program: string): boolean => shells.has(program)
 
 // The agents Novadeck hears from through their hooks, by program name.
-const agentPrograms = new Set(["claude", "codex", "agy"])
+const agentPrograms: ReadonlySet<string> = new Set(harnesses.map(({ id }) => id))
 
 // Takes a name from `programName`.
 export const isAgentProgram = (program: string): boolean => agentPrograms.has(program)

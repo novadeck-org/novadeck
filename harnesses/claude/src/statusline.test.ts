@@ -1,7 +1,7 @@
 import type { Report } from "@novadeck/harness-core/report"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
 import { decode } from "./decode.js"
 
 type Window = { used_percentage: number; resets_at: number }

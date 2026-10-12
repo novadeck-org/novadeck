@@ -1,8 +1,8 @@
 import { doorbellLine } from "@novadeck/harness-core/harness"
 import type { ScreenText } from "@novadeck/harness-core/screen"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 
 import { describe, expect, it } from "../test.js"
-import { loadProbe } from "../testing/probes.js"
 import { checkPaste, findLine, freshNonce, gate } from "./ring.js"
 
 type Pair = {

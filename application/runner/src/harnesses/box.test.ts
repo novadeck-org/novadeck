@@ -1,5 +1,10 @@
-import { join } from "node:path"
-
+import {
+  box as agy,
+  shellCommandOf as agyShellCommand,
+  shellFooter as agyFooter,
+} from "@novadeck/harness-agy/box"
+import { box as claude, shellFooter as claudeFooter } from "@novadeck/harness-claude/box"
+import { box as codex, shellFooter as codexFooter } from "@novadeck/harness-codex/box"
 import {
   compact,
   isEmpty,
@@ -8,19 +13,13 @@ import {
   type BoxProfile,
 } from "@novadeck/harness-core/box"
 import { type ScreenText } from "@novadeck/harness-core/screen"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import headless from "@xterm/headless"
 
 import { screenText } from "../terminals/screen.js"
 import { describe, expect, it } from "../test.js"
-import { loadProbe } from "../testing/probes.js"
-import { screen as screenWith } from "../testing/screens.js"
-import {
-  box as agy,
-  shellCommandOf as agyShellCommand,
-  shellFooter as agyFooter,
-} from "./agy/box.js"
-import { box as claude, shellFooter as claudeFooter } from "./claude/box.js"
-import { box as codex, shellFooter as codexFooter } from "./codex/box.js"
+import { adapterFolder } from "../testing/adapters.js"
 
 // Each harness's input box, read off the screens real runs drew (fixtures/input-box.probe.json,
 // from e2e/probes/input-box.e2e.ts): the pinned version and the latest of 2026-10-07.
@@ -29,7 +28,7 @@ type Fixture = {
 }
 
 const fixture = (harness: string): Fixture =>
-  loadProbe<Fixture>(join(import.meta.dirname, harness), "input-box.probe.json")
+  loadProbe<Fixture>(adapterFolder(harness), "input-box.probe.json")
 
 const hold = (...lines: string[]) => lines.join("\n")
 const three = hold("one", "two", "three")
@@ -306,7 +305,7 @@ describe("boxes read from synthetic screens", () => {
 type ShellCase = { step: string; version: string; shell: boolean; rows: string[] }
 const shellCases = (harness: string): ShellCase[] =>
   loadProbe<{ cases: (Omit<ShellCase, "rows"> & { screen: ScreenText })[] }>(
-    join(import.meta.dirname, harness),
+    adapterFolder(harness),
     "shell-mode.probe.json",
   ).cases.map(({ screen: shown, ...rest }) => ({ ...rest, rows: [...shown.rows] }))
 

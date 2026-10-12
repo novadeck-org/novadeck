@@ -1,9 +1,10 @@
+import { harnesses, type AgentName } from "../model/harnesses"
 import { Switch } from "../ui-toolkit/Switch"
 import { settingRowClasses, settingsCardClasses } from "./settings"
 
 // An agent the person can connect, as its switch shows it.
 export type AgentSwitch = {
-  readonly agent: "claude" | "codex" | "agy"
+  readonly agent: AgentName
   readonly available: boolean
   readonly connected: boolean
   readonly busy: boolean
@@ -11,11 +12,9 @@ export type AgentSwitch = {
   readonly limited?: "own-status-line" | undefined
 }
 
-export const agentLabels: Record<AgentSwitch["agent"], string> = {
-  claude: "Claude Code",
-  codex: "Codex",
-  agy: "Antigravity",
-}
+export const agentLabels = Object.fromEntries(
+  harnesses.map(({ id, name }) => [id, name]),
+) as Record<AgentName, string>
 
 // Only a state worth knowing gets a note; the switch already shows on or off.
 export const agentNote = ({

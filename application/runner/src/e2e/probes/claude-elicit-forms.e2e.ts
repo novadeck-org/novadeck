@@ -2,8 +2,9 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { dialogs } from "../../harnesses/claude/dialogs.js"
-import type { ScreenRecord } from "../../testing/probes.js"
+import { dialogs } from "@novadeck/harness-claude/dialogs"
+import type { ScreenRecord } from "@novadeck/harness-core/testing/probes"
+
 import { claude } from "../agents/claude.js"
 import type { DeckTerminal } from "../deck.js"
 import { describe, e2e, supported } from "../fixture.js"

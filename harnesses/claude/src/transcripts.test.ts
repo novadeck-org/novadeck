@@ -1,7 +1,8 @@
 import { dirname, join } from "node:path"
 
-import { describe, expect, it } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
+import { describe, expect, it } from "vitest"
+
 import { transcripts } from "./transcripts.js"
 
 const { scenarios } = loadProbe(import.meta.dirname, "transcript.probe.json") as {

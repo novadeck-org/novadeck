@@ -1,11 +1,10 @@
-import { join } from "node:path"
-
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { AgentName } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import { loadProbe } from "../testing/probes.js"
+import { adapterFolder } from "../testing/adapters.js"
 import {
   apply,
   boundSince,
@@ -24,7 +23,7 @@ import { harnesses } from "./registry.js"
 type Scenario = { events: { event: string; payload: Report["payload"] }[] }
 const scenario = (agent: AgentName, name: string): Scenario =>
   (
-    loadProbe(join(import.meta.dirname, agent), "interactive.probe.json") as {
+    loadProbe(adapterFolder(agent), "interactive.probe.json") as {
       scenarios: { [name: string]: Scenario }
     }
   ).scenarios[name]!
@@ -709,10 +708,7 @@ type HookProbe = { events: { event: string; payload: Report["payload"] }[] }
 describe("subagents from captured hooks", () => {
   for (const agent of ["claude", "codex"] as const)
     it(`start and stop under ${agent}'s root session, by their own id`, () => {
-      const { events } = loadProbe(
-        join(import.meta.dirname, agent),
-        "hooks.probe.json",
-      ) as HookProbe
+      const { events } = loadProbe(adapterFolder(agent), "hooks.probe.json") as HookProbe
       const facts = events.flatMap(({ event, payload }, seq) =>
         harnesses[agent]
           .decode({

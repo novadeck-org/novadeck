@@ -9,14 +9,14 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { box as agyBox } from "@novadeck/harness-agy/box"
+import { box as claudeBox } from "@novadeck/harness-claude/box"
+import { box as codexBox } from "@novadeck/harness-codex/box"
+import { screenRecord } from "@novadeck/harness-core/testing/probes"
 import headless from "@xterm/headless"
 
-import { box as agyBox } from "../../harnesses/agy/box.js"
-import { box as claudeBox } from "../../harnesses/claude/box.js"
-import { box as codexBox } from "../../harnesses/codex/box.js"
 import { collapsible } from "../../terminals/prompts.js"
 import { screenText } from "../../terminals/screen.js"
-import { screenRecord } from "../../testing/probes.js"
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate } from "../model/script.js"

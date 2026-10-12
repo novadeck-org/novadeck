@@ -12,6 +12,8 @@ import {
 import { tmpdir } from "node:os"
 import { basename, delimiter, dirname, join } from "node:path"
 
+import { harnessIds } from "@novadeck/protocol"
+
 /**
  * Where an end-to-end test runs its harnesses: a throwaway home and project, and an
  * environment made only of what the sandbox sets, never the developer's. Nothing in it
@@ -143,9 +145,9 @@ const pwshHome = (): string | undefined => {
   return pwsh ?? undefined
 }
 
-// Programs a folder on the sandbox's PATH must never hold: a harness under test, or Node,
-// which installs harnesses globally beside it.
-const forbidden = ["node", "npm", "npx", "claude", "codex", "agy"].flatMap((name) => [
+// Programs a folder on the sandbox's PATH must never hold: a harness under test (each
+// program is named as its harness is), or Node, which installs harnesses globally beside it.
+const forbidden = ["node", "npm", "npx", ...harnessIds].flatMap((name) => [
   `${name}.exe`,
   `${name}.cmd`,
 ])

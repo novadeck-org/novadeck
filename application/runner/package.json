@@ -24,6 +24,9 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
+    "@novadeck/harness-agy": "workspace:*",
+    "@novadeck/harness-claude": "workspace:*",
+    "@novadeck/harness-codex": "workspace:*",
     "@novadeck/harness-core": "workspace:*",
     "@novadeck/murmur": "workspace:*",
     "@novadeck/protocol": "workspace:*",

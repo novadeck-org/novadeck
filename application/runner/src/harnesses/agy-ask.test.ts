@@ -3,18 +3,19 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { decode } from "@novadeck/harness-agy/decode"
+import { agy } from "@novadeck/harness-agy/index"
 import type { ActivityEvent, HarnessEvent } from "@novadeck/harness-core/events"
 import { silentFor, type Launchers, type Machine } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 
-import { describe, expect, it } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
-import { apply, started } from "../activity.js"
-import { decode } from "./decode.js"
-import { agy } from "./index.js"
+import { describe, expect, it } from "../test.js"
+import { adapterFolder } from "../testing/adapters.js"
+import { apply, started } from "./activity.js"
 
 type Hook = { event: string; in?: Report["payload"] }
-const { scenarios } = loadProbe(import.meta.dirname, "ask.probe.json") as {
+const { scenarios } = loadProbe(adapterFolder("agy"), "ask.probe.json") as {
   scenarios: {
     command: { pending: { hooks: Hook[] } }
     ask_question: { pending: { hooks: Hook[] } }

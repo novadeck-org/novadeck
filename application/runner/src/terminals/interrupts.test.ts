@@ -1,8 +1,8 @@
 import type { BoxProfile, InputBox } from "@novadeck/harness-core/box"
 import type { ScreenText } from "@novadeck/harness-core/screen"
+import { screen as screenOf } from "@novadeck/harness-core/testing/screens"
 
 import { describe, expect, it } from "../test.js"
-import { screen as screenOf } from "../testing/screens.js"
 import { Interrupts, type InterruptHost } from "./interrupts.js"
 
 const ESC = "\x1b"

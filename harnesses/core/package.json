@@ -57,6 +57,21 @@
       "types": "./dist/screen.d.ts",
       "default": "./dist/screen.js"
     },
+    "./testing/dialogs": {
+      "development": "./src/testing/dialogs.ts",
+      "types": "./dist/testing/dialogs.d.ts",
+      "default": "./dist/testing/dialogs.js"
+    },
+    "./testing/probes": {
+      "development": "./src/testing/probes.ts",
+      "types": "./dist/testing/probes.d.ts",
+      "default": "./dist/testing/probes.js"
+    },
+    "./testing/screens": {
+      "development": "./src/testing/screens.ts",
+      "types": "./dist/testing/screens.d.ts",
+      "default": "./dist/testing/screens.js"
+    },
     "./width": {
       "development": "./src/width.ts",
       "types": "./dist/width.d.ts",

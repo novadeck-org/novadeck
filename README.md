@@ -125,8 +125,7 @@ and is answered right there: pick an option, give your own words where the agent
 dialog takes them (a refusal with instructions, plan feedback, an answer of your own), or
 fill the form's fields and accept or decline it. Novadeck answers by pressing the
 dialog's keys in the agent's terminal, as you would, then checks that it took; each
-agent's dialogs are read by its own adapter (`harnesses/<agent>/dialogs.ts` in the
-runner), which checks what it reads against what the agent asked and never guesses. When
+agent's dialogs are read by its own adapter (`harnesses/<agent>/src/dialogs.ts`), which checks what it reads against what the agent asked and never guesses. When
 it can't read a dialog, as after an agent update changed it, or an answer didn't take,
 the card shows the dialog's text as the terminal draws it, with **Answer in terminal**. The choice and
 the draft last until the agent ends; a reload starts in the terminal again. The
@@ -741,20 +740,23 @@ given), as a spec does that must act on the screen before the turn ends.
 This is a TypeScript monorepo using pnpm workspaces and Turborepo. `application/` holds
 what makes up the app; `engines/` holds the native inference engines Novadeck downloads
 once installed, and the build they share; `harnesses/` holds what the agent harness
-adapters share.
+adapters and the contract they share.
 
-| Package                | Responsibility                                                  |
-| ---------------------- | --------------------------------------------------------------- |
-| `application/ui`       | React frontend built with Vite, Tailwind CSS, and Lucide icons. |
-| `application/runner`   | The runner: shells and metadata, served over WebSocket or port. |
-| `application/protocol` | Shared Zod contracts and the `connectRunner` client for UIs.    |
-| `application/host`     | Electron host that starts the runner and loads the packaged UI. |
-| `application/relay`    | Rust relay for agents' Novadeck MCP server and hooks.           |
-| `engines/whisper`      | Voice engine: whisper.cpp built for download (`build:engine`).  |
-| `engines/murmur`       | Murmur engine: llama.cpp built for download (`build:engine`).   |
-| `engines/ggml-build`   | The engine build both of those share.                           |
-| `harnesses/core`       | The harness adapters' contract and the helpers they share.      |
-| `scripts`              | Repository checks and automation.                               |
+| Package                | Responsibility                                                   |
+| ---------------------- | ---------------------------------------------------------------- |
+| `application/ui`       | React frontend built with Vite, Tailwind CSS, and Lucide icons.  |
+| `application/runner`   | The runner: shells and metadata, served over WebSocket or port.  |
+| `application/protocol` | Shared Zod contracts and the `connectRunner` client for UIs.     |
+| `application/host`     | Electron host that starts the runner and loads the packaged UI.  |
+| `application/relay`    | Rust relay for agents' Novadeck MCP server and hooks.            |
+| `engines/whisper`      | Voice engine: whisper.cpp built for download (`build:engine`).   |
+| `engines/murmur`       | Murmur engine: llama.cpp built for download (`build:engine`).    |
+| `engines/ggml-build`   | The engine build both of those share.                            |
+| `harnesses/core`       | The harness adapters' contract and the helpers they share.       |
+| `harnesses/claude`     | The Claude Code adapter: hooks, transcripts, dialogs, input box. |
+| `harnesses/codex`      | The Codex adapter, same shape.                                   |
+| `harnesses/agy`        | The Antigravity adapter, same shape.                             |
+| `scripts`              | Repository checks and automation.                                |
 
 Build an engine locally with `pnpm --filter @novadeck/whisper build:engine` or
 `pnpm --filter @novadeck/murmur build:engine`; the archive and `engine.json` land in

@@ -2,7 +2,8 @@
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import type { ScreenRecord } from "../../testing/probes.js"
+import type { ScreenRecord } from "@novadeck/harness-core/testing/probes"
+
 import { claude } from "../agents/claude.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { answers, own, result } from "../scenarios.js"

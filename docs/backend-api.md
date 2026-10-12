@@ -693,7 +693,7 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   never a shell command.
 
   The runner holds the person's keys and reads the agent's input box off its screen,
-  through the harness's adapter (`harnesses/*/box.ts`, which knows how that harness draws it,
+  through the harness's adapter (`harnesses/*/src/box.ts`, which knows how that harness draws it,
   which of its text is a faint suggestion, not the person's, and whether it is in its shell
   mode): where the box is not on the screen, or still holds anything after waiting up to 3 s
   for it to read empty and in its prompt mode (the TUI may be clearing the text of the
@@ -720,7 +720,7 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   columns less the marker's two (tabs spread to multiples of eight columns), plus a row of
   margin, take more rows than the harness leaves for its box; a text the harness certainly
   collapses to a placeholder is not refused. The rows left and the thresholds are each
-  harness's own, probed, in `docs/harness-coverage.md` and `harnesses/*/box.ts`. A box's own
+  harness's own, probed, in `docs/harness-coverage.md` and `harnesses/*/src/box.ts`. A box's own
   lines may be indented, tab and trailing spaces included, and hold blank lines; text is
   compared without its white space, and without the emoji a harness drew blank, unless the
   text is only emoji. The runner's headless terminal counts wide characters (emoji
@@ -771,7 +771,7 @@ command not found`, from somewhere between 900 and 1,500 characters, or 8 and 16
   them over and keeps that deadline, so one that is refused at once lets none go earlier. The
   client's `agents.prompt(terminalId, text)` is that call.
 
-- A request's `dialog` in `agents.detail` is what its harness's adapter (`harnesses/<harness>/dialogs.ts`,
+- A request's `dialog` in `agents.detail` is what its harness's adapter (`harnesses/<harness>/src/dialogs.ts`,
   the only code that knows how a harness draws its dialogs) read from the terminal's
   screen, so it can be answered (`agents.answer`): `choices` (a permission's or a plan's
   options, each with an id, its label and whether it takes the person's words: typed

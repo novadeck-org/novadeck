@@ -20,6 +20,10 @@
     "./bridge": {
       "types": "./dist/bridge.d.ts",
       "default": "./dist/bridge.js"
+    },
+    "./harnesses": {
+      "types": "./dist/harnesses.d.ts",
+      "default": "./dist/harnesses.js"
     }
   },
   "scripts": {

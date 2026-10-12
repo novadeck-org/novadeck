@@ -1,9 +1,9 @@
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { screen } from "@novadeck/harness-core/testing/screens"
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
-import { screen } from "../testing/screens.js"
 import { confirmMs, Doorbell, type DoorbellHost } from "./doorbell.js"
 import { InputQueue } from "./input-queue.js"
 

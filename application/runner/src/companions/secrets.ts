@@ -1,5 +1,7 @@
 import { basename, sep } from "node:path"
 
+import { harnesses } from "@novadeck/protocol"
+
 // Files that often hold secrets: a key, credentials, an environment file, an agent's or a
 // tool's login, a shell's history. Novadeck shows them, as any file the person can
 // read, but never puts one on screen by itself, as while the person shares it.
@@ -29,10 +31,10 @@ const secretNames = [
   /\.(pem|key|p12|pfx|keystore|jks|tfstate)$/i,
 ]
 // Where tools keep their logins under names too plain to hold everywhere: the GitHub
-// CLI's hosts.yml (in "GitHub CLI" on Windows), Codex's auth.json, and gcloud's folder.
+// CLI's hosts.yml (in "GitHub CLI" on Windows), gcloud's folder, and the harnesses' own.
 const secretPaths = [
   /[\\/](gh|GitHub CLI)[\\/]hosts\.ya?ml$/i,
-  /[\\/]\.codex[\\/]auth\.json$/i,
+  ...harnesses.flatMap((harness) => harness.secretPaths.map((source) => new RegExp(source, "i"))),
   /[\\/](\.config|AppData[\\/]Roaming)[\\/]gcloud[\\/]/i,
 ]
 

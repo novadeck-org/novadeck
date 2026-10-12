@@ -4,7 +4,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { screenRecord } from "../../testing/probes.js"
+import { screenRecord } from "@novadeck/harness-core/testing/probes"
+
 import { agy } from "../agents/agy.js"
 import type { DeckTerminal } from "../deck.js"
 import { describe, e2e, expect, supported, type E2E } from "../fixture.js"

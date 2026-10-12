@@ -3,16 +3,16 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { HarnessEvent } from "@novadeck/harness-core/events"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 
 import { describe, expect, it } from "../test.js"
-import { loadProbe } from "../testing/probes.js"
+import { adapterFolder } from "../testing/adapters.js"
 import { harnesses } from "./registry.js"
 import { lastReply, withReplies } from "./replies.js"
 
-const { transcript: steps } = loadProbe(
-  join(import.meta.dirname, "agy"),
-  "transcript.probe.json",
-) as { transcript: object[] }
+const { transcript: steps } = loadProbe(adapterFolder("agy"), "transcript.probe.json") as {
+  transcript: object[]
+}
 const items = harnesses.agy.transcripts!.items
 
 const folder = (resources: { defer: (cleanup: () => void) => void }) => {

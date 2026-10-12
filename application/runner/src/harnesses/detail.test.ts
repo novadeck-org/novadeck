@@ -1,12 +1,11 @@
-import { join } from "node:path"
-
 import type { ActivityEvent } from "@novadeck/harness-core/events"
 import { subjectOf } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { agentDetail as schema } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import { loadProbe } from "../testing/probes.js"
+import { adapterFolder } from "../testing/adapters.js"
 import { apply, started, type Activity } from "./activity.js"
 import type { Binding } from "./bindings.js"
 import { agentDetail, rootRef } from "./detail.js"
@@ -17,10 +16,9 @@ type Scenario = { events: { event: string; payload: Report["payload"] }[] }
 // A captured Claude Code scenario's activity as its first request waits on the person,
 // bound to the session it names.
 const replay = (name: string): { binding: Binding; activity: Activity } => {
-  const { scenarios } = loadProbe(
-    join(import.meta.dirname, "claude"),
-    "interactive.probe.json",
-  ) as { scenarios: { [name: string]: Scenario } }
+  const { scenarios } = loadProbe(adapterFolder("claude"), "interactive.probe.json") as {
+    scenarios: { [name: string]: Scenario }
+  }
   let binding: Binding | undefined
   let activity = started(0)
   const events = scenarios[name]!.events

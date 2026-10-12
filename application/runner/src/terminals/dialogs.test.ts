@@ -1,8 +1,8 @@
 import type { DialogAdapter, ScreenRequest } from "@novadeck/harness-core/dialogs"
+import { fakeAdapter, FakeTui } from "@novadeck/harness-core/testing/dialogs"
 import type { AgentName } from "@novadeck/protocol"
 
 import { describe, expect, it } from "../test.js"
-import { fakeAdapter, FakeTui } from "../testing/dialogs.js"
 import { Dialogs, rawText, type Waiting } from "./dialogs.js"
 
 const request = (ref: string, command: string): Waiting => ({

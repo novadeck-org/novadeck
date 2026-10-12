@@ -4,8 +4,8 @@ import { join } from "node:path"
 
 import type { Install } from "@novadeck/harness-core/harness"
 import { afterEach } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../../test.js"
 import { confirmingPrefix, startedSession, title, titleSetting, titleWorking } from "./title.js"
 
 describe("Codex's terminal title", () => {

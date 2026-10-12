@@ -3,13 +3,14 @@
 // the `!` typed first; what its screens show, whether it runs at once or queues mid-turn, and
 // what its session files record. Runs only with NOVADECK_E2E_PROBES=1, by path; writes what it
 // saw to $PROBE_OUT/<agent>.json, and with PROBE_PART=variants or trailing to
-// <agent>-<part>.json. The decoders' fixtures (harnesses/*/fixtures/shell.probe.json) are
+// <agent>-<part>.json. The decoders' fixtures (harnesses/*/src/fixtures/shell.probe.json) are
 // samples of these files' raw session lines.
 /* eslint-disable no-await-in-loop -- A probe's steps run in order, each after the screen settles. */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { screenRecord } from "../../testing/probes.js"
+import { screenRecord } from "@novadeck/harness-core/testing/probes"
+
 import { setups } from "../agents/index.js"
 import { describe, e2e, supported } from "../fixture.js"
 import { asked, gate, text } from "../model/script.js"

@@ -1,10 +1,10 @@
 import type { DialogAdapter, RequestFacts } from "@novadeck/harness-core/dialogs"
+import { fakeAdapter, FakeTui } from "@novadeck/harness-core/testing/dialogs"
+import { screen } from "@novadeck/harness-core/testing/screens"
 import { requestAnswer } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import { describe, expect, it } from "../test.js"
-import { fakeAdapter, FakeTui } from "../testing/dialogs.js"
-import { screen } from "../testing/screens.js"
 import { Answers, type AnswerHost } from "./answers.js"
 import { identified } from "./dialogs.js"
 import { InputQueue } from "./input-queue.js"

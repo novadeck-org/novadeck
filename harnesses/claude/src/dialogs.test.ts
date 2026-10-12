@@ -1,10 +1,10 @@
 import type { DialogRead, KeyStep, RequestFacts } from "@novadeck/harness-core/dialogs"
 import type { ScreenText } from "@novadeck/harness-core/screen"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { RequestAnswer } from "@novadeck/protocol"
 import { vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
 import { decode } from "./decode.js"
 import { dialogs } from "./dialogs.js"
 import { claude } from "./index.js"
@@ -1133,6 +1133,7 @@ describe("Claude Code's permission dialogs", () => {
           compared++
           if (dialogs.read(one.rows, editAsks(two.old, two.fresh)) !== undefined) {
             // Only where the other request does to the file what this one does.
+            // oxlint-disable-next-line vitest/no-conditional-expect -- Only the pairs that agree are checked.
             expect(
               effect(file, two.old, two.fresh),
               `${JSON.stringify(file)} ${JSON.stringify([one.old, one.fresh])} / ${JSON.stringify([two.old, two.fresh])}`,
@@ -1191,6 +1192,7 @@ describe("Claude Code's permission dialogs", () => {
           ) {
             if (two === one) accepted++
             // Only what draws this very screen, and then it is the same text.
+            // oxlint-disable-next-line vitest/no-conditional-expect -- Only the pairs that draw it are checked.
             expect(two, JSON.stringify([one, two])).toBe(one)
           }
         }

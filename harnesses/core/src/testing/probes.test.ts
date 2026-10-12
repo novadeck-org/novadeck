@@ -3,8 +3,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { ScreenText } from "@novadeck/harness-core/screen"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../test.js"
 import { loadProbe, screenOf, screenRecord } from "./probes.js"
 
 describe("probe fixtures", () => {

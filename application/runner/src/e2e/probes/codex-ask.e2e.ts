@@ -9,9 +9,10 @@ import {
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { screenRecord, type ScreenRecord } from "@novadeck/harness-core/testing/probes"
 import { afterAll } from "vitest"
 
-import { screenRecord, type ScreenRecord } from "../../testing/probes.js"
+import { adapterFolder } from "../../testing/adapters.js"
 import { codex } from "../agents/codex.js"
 import type { DeckTerminal } from "../deck.js"
 import { poll } from "../deck.js"
@@ -23,13 +24,13 @@ import { prompted } from "../scenarios.js"
 // PROBE, not a test of Novadeck: how Codex (the pin, 0.159.3, or the newest with NOVADECK_E2E_HARNESS=latest) asks the person for things in its
 // interactive TUI, which hooks fire, what its rollout records and which keys answer, for
 // the chat view's "answer from the chat" decision. Each scenario writes what it saw into
-// harnesses/codex/fixtures/ask.probe.json (afterAll), scrubbed of the sandbox's paths.
+// harnesses/codex/src/fixtures/ask.probe.json (afterAll), scrubbed of the sandbox's paths.
 
 const it = e2e(codex)
 
 // The pinned release writes ask.probe.json; with NOVADECK_E2E_HARNESS=latest the newest
 // writes ask.probe.<version>.json beside it, so the pin's screens are never overwritten.
-const fixtureFolder = join(import.meta.dirname, "..", "..", "harnesses", "codex", "fixtures")
+const fixtureFolder = join(adapterFolder("codex"), "fixtures")
 
 type Json = Record<string, unknown>
 const captured: Record<string, Json> = {}

@@ -11,7 +11,8 @@ import {
 } from "node:fs"
 import { join } from "node:path"
 
-import { screenRecord, type ScreenRecord } from "../../testing/probes.js"
+import { screenRecord, type ScreenRecord } from "@novadeck/harness-core/testing/probes"
+
 import type { DeckTerminal } from "../deck.js"
 import type { E2E } from "../fixture.js"
 

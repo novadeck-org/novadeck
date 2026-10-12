@@ -1,9 +1,9 @@
 import type { DialogRead, KeyStep, RequestFacts } from "@novadeck/harness-core/dialogs"
 import type { ScreenText } from "@novadeck/harness-core/screen"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import type { RequestAnswer } from "@novadeck/protocol"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
 import { dialogs } from "./dialogs.js"
 
 type Screens = { [name: string]: ScreenText }

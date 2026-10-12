@@ -1,3 +1,4 @@
 export { contract, errors, type ErrorCode, type WireClient } from "./contract.js"
 export { hasControlCharacters, normalisedText, promptRefusal, shellCommand } from "./prompts.js"
+export { harnesses, harnessIds } from "./harnesses.js"
 export * from "./schemas.js"

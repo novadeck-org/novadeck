@@ -2,14 +2,20 @@ import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "n
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { decode } from "@novadeck/harness-codex/decode"
+import {
+  followRollout,
+  followSubagent,
+  rolloutEvents,
+  subagentEvents,
+} from "@novadeck/harness-codex/rollout"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import type { Report } from "@novadeck/harness-core/report"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 
-import { describe, expect, it } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
-import { apply, started } from "../activity.js"
-import { decode } from "./decode.js"
-import { followRollout, followSubagent, rolloutEvents, subagentEvents } from "./rollout.js"
+import { describe, expect, it } from "../test.js"
+import { adapterFolder } from "../testing/adapters.js"
+import { apply, started } from "./activity.js"
 
 type Record_ = {
   type: string
@@ -17,7 +23,7 @@ type Record_ = {
   payload: { type?: string } & Record<string, unknown>
 }
 const records = (
-  loadProbe(import.meta.dirname, "rollout.probe.json") as {
+  loadProbe(adapterFolder("codex"), "rollout.probe.json") as {
     records: Record_[]
   }
 ).records
@@ -143,7 +149,7 @@ describe("a Codex turn's end, as its rollout records it", () => {
 })
 
 describe("Codex in Plan Mode, as captured", () => {
-  const plan = loadProbe(import.meta.dirname, "plan.probe.json") as {
+  const plan = loadProbe(adapterFolder("codex"), "plan.probe.json") as {
     records: object[]
     hooks: { event: string; permission_mode: string | null }[]
   }
@@ -174,7 +180,7 @@ describe("following a Codex rollout", () => {
     const path = join(directory, "rollout.jsonl")
     // As captured: Codex writes the turn's start in Plan Mode, then its SessionStart hook
     // binds the session.
-    const plan = loadProbe(import.meta.dirname, "plan.probe.json") as {
+    const plan = loadProbe(adapterFolder("codex"), "plan.probe.json") as {
       records: { timestamp: string }[]
     }
     writeFileSync(path, plan.records.map((record) => `${JSON.stringify(record)}\n`).join(""))
@@ -286,7 +292,7 @@ const named = (hook: Hook, name: string) => hook.kind === "start" && hook.event 
 
 describe("an MCP tool approval the person cancelled, as captured", () => {
   const scenario = (
-    loadProbe(import.meta.dirname, "ask.probe.json") as {
+    loadProbe(adapterFolder("codex"), "ask.probe.json") as {
       scenarios: { [name: string]: { hooksAll: Hook[]; rolloutAfter: Record_[] } }
     }
   ).scenarios["mcp-tool-approval-esc"]!

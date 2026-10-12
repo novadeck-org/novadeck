@@ -11,8 +11,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { afterEach, beforeEach, vi } from "vitest"
+import { describe, expect, it } from "vitest"
 
-import { describe, expect, it } from "../../test.js"
 import { failureMs, forgetTrust, hooksTrusted, trustedIn } from "./trust.js"
 
 // One hook as Codex's app-server lists it, as probed with 0.159.3.

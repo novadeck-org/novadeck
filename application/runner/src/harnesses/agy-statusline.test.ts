@@ -3,22 +3,23 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import type { ActivityEvent } from "@novadeck/harness-core/events"
-import type { Install } from "@novadeck/harness-core/harness"
-import type { Report } from "@novadeck/harness-core/report"
-
-import { describe, expect, it as base } from "../../test.js"
-import { loadProbe } from "../../testing/probes.js"
-import { apply as applyActivity, started, summary } from "../activity.js"
-import { decode, shown } from "./decode.js"
+import { decode, shown } from "@novadeck/harness-agy/decode"
 import {
   statusLineCommand,
   statusLineLimit,
   statusLineSettings,
   windowsStatusLine,
-} from "./settings.js"
+} from "@novadeck/harness-agy/settings"
+import type { ActivityEvent } from "@novadeck/harness-core/events"
+import type { Install } from "@novadeck/harness-core/harness"
+import type { Report } from "@novadeck/harness-core/report"
+import { loadProbe } from "@novadeck/harness-core/testing/probes"
 
-const { payloads } = loadProbe(import.meta.dirname, "statusline.probe.json") as {
+import { describe, expect, it as base } from "../test.js"
+import { adapterFolder } from "../testing/adapters.js"
+import { apply as applyActivity, started, summary } from "./activity.js"
+
+const { payloads } = loadProbe(adapterFolder("agy"), "statusline.probe.json") as {
   payloads: Report["payload"][]
 }
 const report = (payload: Report["payload"], seq = 5): Report => ({
@@ -136,7 +137,7 @@ describe("Antigravity's status line, as captured", () => {
   })
 
   it("says whether the agent plans, by the mode it names only when not the default", () => {
-    const { cycleMode } = loadProbe(import.meta.dirname, "modes.probe.json") as {
+    const { cycleMode } = loadProbe(adapterFolder("agy"), "modes.probe.json") as {
       cycleMode: Record<string, string | null>
     }
     const conversation = payloads.at(-1)!.conversation_id
@@ -304,7 +305,7 @@ describe("Antigravity's status line, as captured", () => {
 })
 describe("Antigravity's status line, listing its subagents", () => {
   const { payloads: snapshots } = JSON.parse(
-    readFileSync(join(import.meta.dirname, "fixtures", "subagents.probe.json"), "utf8"),
+    readFileSync(join(adapterFolder("agy"), "fixtures", "subagents.probe.json"), "utf8"),
   ) as { payloads: Report["payload"][] }
   const conversationId = snapshots[0]!.conversation_id as string
   const binding = { agent: "agy", sessionId: conversationId, instance: "7" } as const

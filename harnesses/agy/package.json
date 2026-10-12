@@ -1,0 +1,56 @@
+{
+  "name": "@novadeck/harness-agy",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Antigravity harness adapter: hooks, transcripts, dialogs and input box.",
+  "author": "mzpkdev",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./box": {
+      "development": "./src/box.ts",
+      "types": "./dist/box.d.ts",
+      "default": "./dist/box.js"
+    },
+    "./decode": {
+      "development": "./src/decode.ts",
+      "types": "./dist/decode.d.ts",
+      "default": "./dist/decode.js"
+    },
+    "./dialogs": {
+      "development": "./src/dialogs.ts",
+      "types": "./dist/dialogs.d.ts",
+      "default": "./dist/dialogs.js"
+    },
+    "./index": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./settings": {
+      "development": "./src/settings.ts",
+      "types": "./dist/settings.d.ts",
+      "default": "./dist/settings.js"
+    },
+    "./transcripts": {
+      "development": "./src/transcripts.ts",
+      "types": "./dist/transcripts.d.ts",
+      "default": "./dist/transcripts.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@novadeck/harness-core": "workspace:*",
+    "@novadeck/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

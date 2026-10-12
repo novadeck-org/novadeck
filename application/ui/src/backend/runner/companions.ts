@@ -1,8 +1,9 @@
-import type {
-  AgentName,
-  CompanionItem as RunnerItem,
-  CompanionWindow as RunnerWindow,
-  ItemContent as RunnerContent,
+import {
+  harnesses,
+  type AgentName,
+  type CompanionItem as RunnerItem,
+  type CompanionWindow as RunnerWindow,
+  type ItemContent as RunnerContent,
 } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/protocol/client"
 
@@ -20,11 +21,10 @@ import type { CompanionWindowMeta } from "../../model/types"
 // can't write one yet.
 
 // Agents by the names the person knows them by.
-export const agentNames: Record<AgentName, string> = {
-  claude: "Claude Code",
-  codex: "Codex",
-  agy: "Antigravity",
-}
+export const agentNames = Object.fromEntries(harnesses.map(({ id, name }) => [id, name])) as Record<
+  AgentName,
+  string
+>
 
 // An item as the workspace holds it; its session is where the workspace keeps it.
 export const itemOf = ({ sessionId: _session, plan, id, ...item }: RunnerItem): CompanionItem => ({

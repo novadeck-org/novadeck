@@ -139,7 +139,7 @@ export const claude = {
       }),
     },
     // The settings Novadeck's shim adds: its hook as the status line, which passes on the
-    // person's own (see shell/hook.ts).
+    // person's own (see the runner's shell/hook.ts).
     ...(platform === "win32"
       ? []
       : [
