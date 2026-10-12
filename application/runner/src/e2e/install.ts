@@ -45,7 +45,10 @@ const platformRelease = z.strictObject({
 const archivePin = z.strictObject({
   version: z.string().regex(versionPattern),
   bin: z.string().min(1),
-  releases: z.partialRecord(z.enum(["linux-x64", "win32-x64"]), platformRelease),
+  releases: z.partialRecord(
+    z.enum(["linux-x64", "win32-x64", "darwin-arm64", "darwin-x64"]),
+    platformRelease,
+  ),
 })
 
 const pin = z.union([npmPin, archivePin])

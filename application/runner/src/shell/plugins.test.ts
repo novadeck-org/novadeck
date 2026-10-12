@@ -6,7 +6,7 @@ import { join } from "node:path"
 import type { AgentName } from "@novadeck/protocol"
 import { beforeAll } from "vitest"
 
-import { plugin, type Start } from "../harnesses/harness.js"
+import { hookSeconds, plugin, type Start } from "../harnesses/harness.js"
 import { harnesses } from "../harnesses/registry.js"
 import { describe, expect, it as base } from "../test.js"
 import { installShellFiles } from "./install.js"
@@ -210,6 +210,9 @@ describe("agent plugins", () => {
       "PreToolUse",
       "PostToolUse",
     ])
+    // Codex clamps an Interrupt hook past 3 seconds, warning at every start.
+    expect(codexHooks.Interrupt[0].hooks[0].timeout).toBe(3)
+    expect(codexHooks.Stop[0].hooks[0].timeout).toBe(hookSeconds(process.platform))
     expect(read(agy, "plugin.json")).toEqual({ name: "novadeck" })
     expect(Object.keys(read(agy, "hooks.json").novadeck)).toEqual([
       "PreInvocation",

@@ -9,17 +9,27 @@ give the same result every time.
 
 ## Running
 
-The suite runs on Linux and Windows. On Linux its keyring cut is a dead D-Bus address,
-which doesn't keep a harness from the macOS Keychain, and its leftover-process check reads
-`/proc`. On Windows the sandbox moves the user's folders too (USERPROFILE, APPDATA,
-LOCALAPPDATA, TEMP), Claude Code and Codex keep their logins in files there, and a test
-of Antigravity refuses to start while the Credential Manager holds its login
-(`credentials.ts`), as no environment moves that store; the leftover-process check reads
-each process's folder and environment through a small lister it compiles once. Windows
-runs need what CI's runners have: PowerShell 7, Git for Windows, and symlinks (an
-administrator, or Developer Mode). On anything else the fixture fails each test, saying
-so; a scenario file can skip instead with `describe.skipIf(!supported)`, `supported`
-coming from `fixture.ts`.
+The suite runs on Linux, Windows and macOS. On Linux its keyring cut is a dead D-Bus
+address, and its leftover-process check reads `/proc`. On Windows the sandbox moves the
+user's folders too (USERPROFILE, APPDATA, LOCALAPPDATA, TEMP), Claude Code and Codex keep
+their logins in files there, and a test of Antigravity refuses to start while the
+Credential Manager holds its login (`credentials.ts`), as no environment moves that store;
+the leftover-process check reads each process's folder and environment through a small
+lister it compiles once. Windows runs need what CI's runners have: PowerShell 7, Git for
+Windows, and symlinks (an administrator, or Developer Mode). On macOS no environment moves
+the login Keychain either, but only Antigravity's login there is in reach: Claude Code
+names its Keychain items after `CLAUDE_CONFIG_DIR`, the sandbox's own, and Codex is told to
+keep its login in a file. So, as on Windows, a test of Antigravity refuses to start while
+the Keychain holds its item (service `gemini`, account `antigravity`), asked for by its
+attributes alone, never its secret. The leftover-process check asks `ps` and `lsof`, and
+macOS shows no environment of its own programs (bash, sleep), so one of those is found by
+its working folder, as a child of a process found, or in a process group of one, never the
+tests' own. Codex follows the system's Reduce motion and then draws no logo on
+its first screen, a state one scenario rings it in: GitHub's macOS image turns it on, so
+the E2E workflow turns it off there first, and a Mac with it on fails that scenario, saying
+so. Anywhere else the fixture fails each test, saying why (`unsupported` in `support.ts`);
+a scenario file can skip instead with `describe.skipIf(!supported)`, `supported` coming
+from `fixture.ts`.
 
 ```sh
 npm run test:e2e                  # from the repository root; builds the protocol and relay first
@@ -62,11 +72,12 @@ missed is saved even when the tests fail, so the next run needn't install again,
 once a `<cache>/<harness>-*` folder holding the harness's program exists: a failed or
 cancelled install saves nothing under the key.
 
-Each of these jobs runs on Linux and on Windows (`windows-latest`, named `… (Windows)`).
-A Windows job has 45 minutes, against Linux's 20, as Windows starts processes and
-consoles several times slower, and runs without the network namespace, which Windows
-lacks (see Isolation). Every job sets `NOVADECK_E2E_TRACES`, and one whose tests failed
-or that was cancelled uploads the traces its failed tests wrote, as the
+Each of these jobs runs on Linux, on Windows (`windows-latest`, named `… (Windows)`) and
+on macOS (`macos-latest`, Apple silicon, named `… (macOS)`). A Windows job has 45 minutes
+and a macOS one 30, against Linux's 20, as both start processes slower, and both run
+without the network namespace, which neither has (see Isolation). A macOS job first turns
+off the image's Reduce motion (see Running). Every job sets `NOVADECK_E2E_TRACES`, and one
+whose tests failed or that was cancelled uploads the traces its failed tests wrote, as the
 `e2e-traces-<harness>-<os>` artifact, kept seven days.
 
 A `… (Windows quirks)` job per harness covers what those green Windows jobs can't, as
@@ -174,6 +185,29 @@ network:
     refuses to start while that login is there (`credentials.ts`, reading only the
     targets' names from `cmdkey /list`), asking to sign out or to leave it out with
     `NOVADECK_E2E_AGENTS`.
+
+  On macOS no bus stands between a harness and the login Keychain either, and the
+  Keychain and the user's defaults (`defaults`, `cfprefsd`) are the user's whatever HOME
+  says, so each harness's was checked again (2026-10-11):
+
+  - Claude Code keeps its login in the Keychain, and names its login's items after
+    `CLAUDE_CONFIG_DIR`, the sandbox's own (`Claude Code-credentials-<8 hex>`), so it
+    never sees the developer's. Not every item: its device key store may use a fixed
+    `Claude Code-device-keys`, which the suite was never seen to reach (2.1.287, every
+    Claude Code scenario on a Mac). The sandbox's own `security`, on its PATH before the
+    system's, refuses it any item with no such suffix, named by argument (`-s`, `-sName`)
+    or anywhere on the input of `security -i`, as Claude Code writes, whatever its spacing
+    or quotes, passing nothing on, so the developer's is neither read nor overwritten
+    through it, and the test fails should one be asked for (`keychainGuard` in
+    `sandbox.ts`), in CI too. It sees only `security` called by name, as Claude Code
+    calls it.
+  - Codex is told to keep its login in a file, as everywhere.
+  - Antigravity's go-keyring asks `/usr/bin/security` for service `gemini`, account
+    `antigravity`, a name the sandbox can't change. A test of Antigravity refuses to
+    start while the Keychain holds it (`credentials.ts`, asking by its attributes alone,
+    never its secret, and failing the run where the Keychain can't be asked).
+  - The defaults are the developer's: Codex reads the system's Reduce motion there, which
+    is why the E2E workflow turns it off on GitHub's macOS image (see Running).
 
 - **No network.** The fake model is also every process's `HTTP(S)_PROXY`, with
   `NODE_USE_ENV_PROXY=1` so Node's own `fetch` takes it too. It refuses each tunnel and

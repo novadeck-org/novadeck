@@ -124,6 +124,7 @@ import { InputQueue, type HoldBudget, type InputHold } from "./input-queue.js"
 import { Interrupts, type InterruptHost, type InterruptOptions } from "./interrupts.js"
 import { keysOf, splitReports } from "./keys.js"
 import { Latest } from "./latest.js"
+import { withLocale } from "./locale.js"
 import { type MouseEncoding, mouseReporting, watchMouseEncoding } from "./mouse.js"
 import {
   cleanSummary,
@@ -705,7 +706,11 @@ export class Terminals {
           ? (process.env.COMSPEC ?? "cmd.exe")
           : (process.env.SHELL ?? "/bin/sh")),
       shellArgs: options.shellArgs,
-      env: { ...(options.baseEnv ?? process.env), ...options.env, TERM: "xterm-256color" },
+      env: withLocale({
+        ...(options.baseEnv ?? process.env),
+        ...options.env,
+        TERM: "xterm-256color",
+      }),
       freshPath: options.freshPath ?? options.baseEnv === undefined,
       maxTerminals:
         options.maxTerminals === undefined

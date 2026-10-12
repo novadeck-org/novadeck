@@ -157,6 +157,12 @@ that close rather than the final quit. A system shutdown or log-off saves the sa
 on Linux and macOS it quits the app, and on Windows the window saves as soon as the
 session may end.
 
+Shells start with the runner's environment. On macOS, where an app started from the Dock
+or Finder gets no locale, a runner with none of `LANG`, `LC_ALL` and `LC_CTYPE` gives its
+shells `LANG` for the system's language and country in UTF-8 (`AppleLocale`, its `@rg=`
+region override left out), as Terminal.app does (`en_US.UTF-8` when the system has no such
+locale), so typing a character such as "ż" works in bash.
+
 Use the terminal header's resize control to alternate between two sizes. In Canvas,
 **Enlarge** matches the current Canvas viewport aspect ratio at a fixed area equivalent
 to 1200×800, independent of zoom. **Compact** sets 600×400. Extreme ratios respect the

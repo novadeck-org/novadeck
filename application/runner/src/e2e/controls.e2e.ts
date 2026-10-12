@@ -169,6 +169,8 @@ for (const setup of setups) {
           "Novadeck to see the tool's request",
         )
         const calls = run.model.mark()
+        // Pressed into the dialog once drawn whole, which may drop a key before.
+        await t1.settled()
         t1.press(approval!.deny)
 
         // A denial is an abnormal end: Unknown, never Settled, and its request resolved.

@@ -1,11 +1,13 @@
 import { execFileSync } from "node:child_process"
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   symlinkSync,
+  writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, delimiter, dirname, join } from "node:path"
@@ -13,9 +15,15 @@ import { basename, delimiter, dirname, join } from "node:path"
 /**
  * Where an end-to-end test runs its harnesses: a throwaway home and project, and an
  * environment made only of what the sandbox sets, never the developer's. Nothing in it
- * can reach the developer's real configuration, login or keyring, with one gap on
- * Windows: the registry, which no environment moves. A terminal's `cmd /k`, as the
- * runner starts one, and Antigravity's `cmd /c` for its hooks run the developer's
+ * can reach the developer's real configuration, login or keyring, with a gap on each of
+ * Windows and macOS, where a store is the user's whatever the environment says. On macOS,
+ * the login Keychain and the user's defaults: Claude Code names its login's Keychain items
+ * after the sandbox's folder, and its `security` is the sandbox's own, which refuses it any
+ * item with no such suffix (`keychainGuard`); Codex keeps its login in a file; a test of
+ * Antigravity, whose item has a fixed name, refuses to start while it is there
+ * (`credentials.ts`); and Codex reads Reduce motion from the defaults. On Windows, the
+ * registry. A terminal's `cmd /k`, as the runner starts one, and Antigravity's `cmd /c`
+ * for its hooks run the developer's
  * `HKCU\Software\Microsoft\Command Processor\AutoRun` (clink, doskey macros, a `cd`),
  * as cmd does without `/d`; the runner leaves it so, as a person's terminal should run
  * it. A developer with one set may see a test fail that CI, which has none, passes.
@@ -28,7 +36,7 @@ export type Sandbox = {
   readonly project: string
   /**
    * The environment every sandboxed process gets: HOME, XDG folders, a PATH of the pinned
-   * harnesses and system tools, a dead D-Bus address so no keyring is reachable, the fake
+   * harnesses and system tools, a dead D-Bus address so no secret service answers, the fake
    * model as HTTP(S)_PROXY with loopback exempt (Node's fetch included), and npm's
    * prefix inside the sandbox so a harness that updates itself can't touch a global
    * install. On Windows also the user's folders, which programs there find their home
@@ -39,9 +47,15 @@ export type Sandbox = {
   /**
    * When the sandbox was made: every process of the sandbox started at or after it. On
    * Linux in clock ticks since boot, as `/proc/<pid>/stat` gives a process's start; on
-   * Windows in milliseconds since the epoch, as a process's creation time converts to.
+   * Windows and macOS in milliseconds since the epoch, as a process's creation time and
+   * `ps`'s start convert to.
    */
   readonly started: number
+  /**
+   * On macOS, where the sandbox's `security` writes the Keychain service each program
+   * asked it for, one a line (see `keychainGuard`); none elsewhere.
+   */
+  readonly keychainLog?: string
 }
 
 const windows = process.platform === "win32"
@@ -258,12 +272,47 @@ const sandboxName = (): string =>
   process.env.NOVADECK_E2E_SPACED === "1" ? "novadeck e2e-" : "novadeck-e2e-"
 
 /**
+ * Claude Code's Keychain items with no folder's suffix: the person's own login, never one a
+ * Claude Code given the sandbox's `CLAUDE_CONFIG_DIR` should ask for, as it names each
+ * item `-` and 8 hex digits of that folder's SHA-256 after it (`harness-coverage.md`).
+ */
+export const unsuffixedClaudeItem = /^Claude Code(?!.*-[0-9a-f]{8}$)/
+
+/**
+ * On macOS, a `security` of the sandbox's own, on its PATH before the system's, as Claude
+ * Code calls it by name (`keychain-guard.sh`): it writes each service asked for to `log`,
+ * whether given as `-s`, joined as `-sName` or, as Claude Code writes its items, anywhere
+ * on the input of `security -i` (an interactive `-i` read among the global options, as
+ * getopt does), and answers "not found" (exit 44), passing nothing on, where one
+ * is a Claude Code item with no folder's suffix, the person's own, such as its fixed
+ * `Claude Code-device-keys`; the rest goes to `real`. Claude Code is then never given the
+ * person's items, nor can it overwrite them, and its test fails, in CI too, which holds
+ * none. Antigravity calls `/usr/bin/security` by its path, which this can't see; its login
+ * is refused as Windows' is (`credentials.ts`).
+ */
+export const keychainGuard = (folder: string, log: string, real = "/usr/bin/security"): void => {
+  const program = join(folder, "security")
+  const guard = readFileSync(new URL("keychain-guard.sh", import.meta.url), "utf8")
+  writeFileSync(program, `#!/bin/sh\nlog=${shellQuote(log)}\nreal=${shellQuote(real)}\n${guard}`)
+  chmodSync(program, 0o755)
+}
+
+// A word sh reads as the text itself, whatever it holds.
+const shellQuote = (text: string): string => `'${text.replaceAll("'", "'\\''")}'`
+
+/** The Keychain services the sandbox's programs asked for, in order (see `keychainGuard`). */
+export const keychainAsks = (sandbox: Pick<Sandbox, "keychainLog">): readonly string[] => {
+  if (!sandbox.keychainLog || !existsSync(sandbox.keychainLog)) return []
+  return readFileSync(sandbox.keychainLog, "utf8").split("\n").filter(Boolean)
+}
+
+/**
  * Makes a sandbox under the system's temporary folder; the caller removes `root`. Node
  * reaches PATH through a folder of its own, as the one it is installed in may hold global
  * installs of the very harnesses under test.
  */
 export const createSandbox = (options: SandboxOptions): Sandbox => {
-  const started = windows ? Date.now() : sinceBoot()
+  const started = process.platform === "linux" ? sinceBoot() : Date.now()
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), sandboxName())))
   const folder = (...parts: string[]) => {
     const path = join(root, ...parts)
@@ -276,6 +325,9 @@ export const createSandbox = (options: SandboxOptions): Sandbox => {
   const node = folder("node")
   symlinkSync(process.execPath, join(node, basename(process.execPath)))
   const system = windows ? windowsEnvironment(home, folder) : undefined
+  const keychain = process.platform === "darwin" ? folder("keychain") : undefined
+  const keychainLog = keychain && join(runtime, "keychain.log")
+  if (keychain && keychainLog) keychainGuard(keychain, keychainLog)
   const proxy = options.proxy
   const loopback = "127.0.0.1,localhost"
   const env: Record<string, string> = {
@@ -286,7 +338,12 @@ export const createSandbox = (options: SandboxOptions): Sandbox => {
     SHELL: windows ? (system?.env.ComSpec ?? "cmd.exe") : "/bin/bash",
     TERM: "xterm-256color",
     LANG: "C.UTF-8",
-    PATH: [...options.bins, node, ...(system?.path ?? ["/usr/bin", "/bin"])].join(delimiter),
+    PATH: [
+      ...options.bins,
+      node,
+      ...(keychain ? [keychain] : []),
+      ...(system?.path ?? ["/usr/bin", "/bin"]),
+    ].join(delimiter),
     TMPDIR: folder("tmp"),
     XDG_CONFIG_HOME: folder("home", ".config"),
     XDG_DATA_HOME: folder("home", ".local", "share"),
@@ -308,7 +365,7 @@ export const createSandbox = (options: SandboxOptions): Sandbox => {
     // Node's own fetch takes the proxy only when told to.
     NODE_USE_ENV_PROXY: "1",
   }
-  return { root, home, project, env, started }
+  return { root, home, project, env, started, ...(keychainLog && { keychainLog }) }
 }
 
 // The clock ticks a second that /proc counts processes' start in.

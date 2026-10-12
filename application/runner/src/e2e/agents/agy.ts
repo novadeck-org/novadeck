@@ -53,6 +53,9 @@ export const agy: AgentSetup = {
   // Its login on Windows, through go-keyring's Credential Manager store, as
   // `gemini:antigravity` (seen 2026-10-09, 1.2.14 and 1.3.2).
   credentials: [/^gemini:antigravity$/i],
+  // The same item in the macOS Keychain, which go-keyring asks for through
+  // `/usr/bin/security` by service and account, whatever HOME says (1.2.14).
+  keychain: [{ service: "gemini", account: "antigravity" }],
   hosts: [
     "generativelanguage.googleapis.com",
     "cloudcode-pa.googleapis.com",

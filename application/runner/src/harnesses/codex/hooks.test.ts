@@ -16,12 +16,13 @@ const hooks = (platform: NodeJS.Platform) =>
 describe("the hooks Novadeck gives Codex", () => {
   // Codex asks every person who connected it to review its hooks again whenever their text
   // changes, as an update brings: change them only meaning to, and pin the new text here.
+  // Last changed for an Interrupt hook's 3 s, Codex's most, so it warns at no start.
   it("are what people reviewed", () => {
     const digest = (platform: NodeJS.Platform) =>
       createHash("sha256").update(hooks(platform)).digest("hex")
     expect({ linux: digest("linux"), win32: digest("win32") }).toEqual({
-      linux: "4b4d795cede153b605ffbb78bb53ce0af0e4466d95d066738a53725abdf96c0c",
-      win32: "c441465c9587415b49cc821a0f02bf65501dba502c68b064b94f3f2db7b72634",
+      linux: "a8d4fb0d03a33b226c2d26d4250023d41e28a5b360b2794cf6a5cc4a91f50ccf",
+      win32: "d0489122108a4f5f25045e770f098e4acd21f2e5816816db6e77cff1bad1ed3e",
     })
   })
 })

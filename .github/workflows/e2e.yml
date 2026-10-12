@@ -31,19 +31,20 @@ concurrency:
 
 jobs:
   e2e:
-    # The Linux jobs keep their names; the Windows ones say so.
-    name: ${{ matrix.setup.name }}${{ matrix.os == 'windows-latest' && ' (Windows)' || '' }}
+    # The Linux jobs keep their names; the Windows and macOS ones say so.
+    name: ${{ matrix.setup.name }}${{ matrix.os == 'windows-latest' && ' (Windows)' || matrix.os == 'macos-latest' && ' (macOS)' || '' }}
     runs-on: ${{ matrix.os }}
-    # Windows starts processes and consoles several times slower, and has no namespace.
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || 20 }}
+    # Windows starts processes and consoles several times slower, and has no namespace;
+    # macOS's runners are slower than Linux's too.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 45 || matrix.os == 'macos-latest' && 30 || 20 }}
     defaults:
       run:
-        # Git's bash on Windows, so every step reads alike on both.
+        # Git's bash on Windows, so every step reads alike on all three.
         shell: bash
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         setup:
           - agents: claude
             name: Claude Code
@@ -123,16 +124,24 @@ jobs:
       - name: Install Harnesses
         run: node scripts/e2e/install/main.ts
 
+      # GitHub's macOS image turns on Reduce motion, which Codex follows: it then draws no
+      # logo on its first screen, a state the suite rings it in. Back to a Mac's default.
+      - name: Allow Motion
+        if: runner.os == 'macOS'
+        run: |
+          defaults write com.apple.universalaccess reduceMotion -bool false
+          [ "$(defaults read com.apple.universalaccess reduceMotion)" = 0 ]
+
       # The whole suite, with the tests of every harness left out skipped (the mixed job
       # runs its own files alone). On Linux in a network namespace whose only interface is
-      # loopback: no route out, proxy or not. Windows has no such namespace: there the
-      # fake model's proxy, which refuses every tunnel, and the suite's own checks for
-      # strays and foreign credentials keep the harnesses off the network.
+      # loopback: no route out, proxy or not. Windows and macOS have no such namespace:
+      # there the fake model's proxy, which refuses every tunnel, and the suite's own
+      # checks for strays and foreign credentials keep the harnesses off the network.
       - name: Run E2E
         env:
           FILES: ${{ matrix.setup.files }}
         run: |
-          if [ "$RUNNER_OS" = Windows ]; then
+          if [ "$RUNNER_OS" != Linux ]; then
             pnpm --filter @novadeck/runner test:e2e ${FILES:+"$FILES"}
           else
             node scripts/e2e/isolated/main.ts -- pnpm --filter @novadeck/runner test:e2e ${FILES:+"$FILES"}

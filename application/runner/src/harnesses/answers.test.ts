@@ -195,7 +195,7 @@ const handlers = (value: unknown): { command: string; timeout?: number }[] => {
 }
 
 describe("each harness's hook registrations", () => {
-  it("set a timeout well above the hook's own limit, as a slower hook is dropped silently", () => {
+  it("set a timeout above the hook's own limit, as a slower hook is dropped silently", () => {
     // On Windows the shell the hook runs in starts slowly on a busy machine, so more.
     expect(hookSeconds("linux")).toBeGreaterThan(5)
     expect(hookSeconds("win32")).toBeGreaterThanOrEqual(30)
@@ -206,7 +206,11 @@ describe("each harness's hook registrations", () => {
         ...handlers(file("agy", "hooks.json", platform).novadeck),
       ]
       expect(registered.length).toBeGreaterThan(15)
-      for (const handler of registered) expect(handler.timeout).toBe(hookSeconds(platform))
+      for (const handler of registered)
+        if (handler.command.includes("codex Interrupt"))
+          // Codex's most for an Interrupt hook, which reports within 2 seconds.
+          expect(handler.timeout).toBe(3)
+        else expect(handler.timeout).toBe(hookSeconds(platform))
     }
   })
 

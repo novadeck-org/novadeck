@@ -1,10 +1,18 @@
 import { spawn } from "node:child_process"
 import { mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { basename, join } from "node:path"
+
+import { vi } from "vitest"
 
 import { describe, expect, it } from "../test.js"
-import { reap, sandboxProcesses } from "./reap.js"
+import {
+  parseDarwinFolders,
+  parseDarwinProcesses,
+  reap,
+  sandboxed,
+  sandboxProcesses,
+} from "./reap.js"
 
 describe.skipIf(process.platform !== "linux")("reap", () => {
   it("ends a process left in the sandbox, naming it, and one stopped as stopped", async ({
@@ -75,4 +83,196 @@ describe.skipIf(process.platform !== "win32")("reap on Windows", () => {
     expect(other.exitCode).toBeNull()
     expect(await reap(sandbox)).toEqual([])
   }, 60_000)
+})
+
+describe.skipIf(process.platform !== "darwin")("reap on macOS", () => {
+  it("ends what runs in the sandbox or has its home, naming it, and nothing else", async ({
+    resources,
+  }) => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-")))
+    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-other-")))
+    resources.defer(() => rmSync(root, { recursive: true, force: true }))
+    resources.defer(() => rmSync(elsewhere, { recursive: true, force: true }))
+    const sandbox = { root, home: join(root, "home"), started: Date.now() }
+    const start = (cwd: string, env: NodeJS.ProcessEnv) => {
+      // Node rather than a system program such as sleep: macOS shows no environment of its
+      // own programs, and the harnesses are never one. Each in a group of its own, as a
+      // harness in its terminal is: one stopped in the tests' own group would stop with it
+      // whatever job control does to that group.
+      const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60_000)"], {
+        cwd,
+        env,
+        stdio: "ignore",
+        detached: true,
+      })
+      resources.defer(() => {
+        child.kill("SIGKILL")
+      })
+      return child
+    }
+    const name = basename(process.execPath)
+    const inside = start(root, {})
+    const stopped = start(root, {})
+    process.kill(stopped.pid!, "SIGSTOP")
+    const homed = start(elsewhere, { HOME: sandbox.home })
+    const other = start(elsewhere, { HOME: elsewhere })
+    // Each has started, so ps and lsof see it.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    const leftovers = await reap(sandbox)
+
+    expect(leftovers.toSorted()).toEqual(
+      [
+        `${name} (${inside.pid})`,
+        `${name} (${stopped.pid}, stopped)`,
+        `${name} (${homed.pid})`,
+      ].toSorted(),
+    )
+    expect(other.exitCode).toBeNull()
+    expect(await reap(sandbox)).toEqual([])
+  }, 30_000)
+
+  it("ends a system program one of them started elsewhere, which shows no environment", async ({
+    resources,
+  }) => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-")))
+    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-other-")))
+    resources.defer(() => rmSync(root, { recursive: true, force: true }))
+    resources.defer(() => rmSync(elsewhere, { recursive: true, force: true }))
+    const sandbox = { root, home: join(root, "home"), started: Date.now() }
+    // A shell of the sandbox's, in a group of its own, that leaves sleep running elsewhere:
+    // macOS shows neither's environment, and sleep's folder isn't the sandbox's.
+    const shell = spawn("/bin/sh", ["-c", `cd '${elsewhere}' && /bin/sleep 60 & wait`], {
+      cwd: root,
+      env: {},
+      stdio: "ignore",
+      detached: true,
+    })
+    resources.defer(() => {
+      try {
+        process.kill(-shell.pid!, "SIGKILL")
+      } catch {
+        // Ended by the reaping, as it should be.
+      }
+    })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    const leftovers = await reap(sandbox)
+
+    // The shell, the subshell it runs the backgrounded line in, and sleep.
+    expect(leftovers.map((one) => one.replace(/ \(.*/, "")).toSorted()).toEqual([
+      "sh",
+      "sh",
+      "sleep",
+    ])
+    expect(await reap(sandbox)).toEqual([])
+  }, 30_000)
+
+  it("ends one found through its parent though that parent has gone since, and it ignores SIGTERM", async ({
+    resources,
+  }) => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-")))
+    const elsewhere = realpathSync.native(mkdtempSync(join(tmpdir(), "novadeck-reap-other-")))
+    resources.defer(() => rmSync(root, { recursive: true, force: true }))
+    resources.defer(() => rmSync(elsewhere, { recursive: true, force: true }))
+    const sandbox = { root, home: join(root, "home"), started: Date.now() }
+    // A shell of the sandbox's starts sleep elsewhere, deaf to SIGTERM, and leaves within
+    // the reaper's 3 s grace, 2 s in, long enough for a slow first look to find it: sleep is
+    // the sandbox's only through the shell, found before it went.
+    const shell = spawn(
+      "/bin/sh",
+      ["-c", `(trap '' TERM; cd '${elsewhere}' && exec /bin/sleep 60) & /bin/sleep 2`],
+      { cwd: root, env: {}, stdio: "ignore", detached: true },
+    )
+    resources.defer(() => {
+      try {
+        process.kill(-shell.pid!, "SIGKILL")
+      } catch {
+        // Ended by the reaping, as it should be.
+      }
+    })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    const leftovers = await reap(sandbox)
+
+    const sleeping = leftovers.filter((one) => one.startsWith("sleep ("))
+    expect(sleeping).toHaveLength(1)
+    const pid = Number(/\((\d+)/.exec(sleeping[0]!)![1])
+    // Gone once launchd has reaped it, which may take a moment after the SIGKILL.
+    await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow(), { timeout: 2_000 })
+    expect(await reap(sandbox)).toEqual([])
+  }, 30_000)
+})
+
+describe("macOS's process listing", () => {
+  it("reads each process's pid, parent, group, state, start and command's name", () => {
+    const output = [
+      "  412     1   412 Ss   Thu Oct  9 11:03:47 2026     /bin/bash",
+      "51234   412 51234 T    Fri Oct 10 09:00:01 2026     /Applications/Some App.app/Contents/MacOS/Some App",
+      "  777   412   412 Z    Thu Oct  9 11:03:48 2026     (node)",
+      "not a process",
+    ].join("\n")
+
+    expect(parseDarwinProcesses(output)).toEqual([
+      {
+        pid: 412,
+        ppid: 1,
+        pgid: 412,
+        comm: "bash",
+        start: new Date(2026, 9, 9, 11, 3, 47).getTime(),
+        stopped: false,
+        zombie: false,
+      },
+      {
+        pid: 51234,
+        ppid: 412,
+        pgid: 51234,
+        comm: "Some App",
+        start: new Date(2026, 9, 10, 9, 0, 1).getTime(),
+        stopped: true,
+        zombie: false,
+      },
+      {
+        pid: 777,
+        ppid: 412,
+        pgid: 412,
+        comm: "(node)",
+        start: new Date(2026, 9, 9, 11, 3, 48).getTime(),
+        stopped: false,
+        zombie: true,
+      },
+    ])
+  })
+
+  it("counts a found process's children and its group's, however deep, but never the tests' group", () => {
+    const processes = [
+      // A harness found by its folder, a child it started elsewhere, and that child's own.
+      { pid: 10, ppid: 5, pgid: 10 },
+      { pid: 11, ppid: 10, pgid: 11 },
+      { pid: 12, ppid: 11, pgid: 11 },
+      // A background job of the harness's group, its parent gone.
+      { pid: 13, ppid: 1, pgid: 10 },
+      // The tests' own group, which holds a found process's parent and a stray of its own.
+      { pid: 20, ppid: 1, pgid: 20 },
+      { pid: 21, ppid: 20, pgid: 20 },
+      { pid: 22, ppid: 20, pgid: 20 },
+      // Another program altogether.
+      { pid: 30, ppid: 1, pgid: 30 },
+    ]
+
+    expect([...sandboxed(processes, new Set([10, 21]), 20)].toSorted((a, b) => a - b)).toEqual([
+      10, 11, 12, 13, 21,
+    ])
+  })
+
+  it("reads each process's working folder from lsof's fields", () => {
+    const output = ["p412", "fcwd", "n/private/tmp/novadeck e2e", "p413", "fcwd", "n/"].join("\n")
+
+    expect(parseDarwinFolders(output)).toEqual(
+      new Map([
+        [412, "/private/tmp/novadeck e2e"],
+        [413, "/"],
+      ]),
+    )
+  })
 })

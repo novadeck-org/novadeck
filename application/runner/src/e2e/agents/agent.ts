@@ -337,4 +337,13 @@ export type AgentSetup = {
    * refuses to start while one is there, and fails should one appear.
    */
   readonly credentials?: readonly RegExp[]
+  /**
+   * On macOS, the Keychain items the harness keeps its login as, under a fixed name: as
+   * Windows' targets, a test of it refuses to start while one is there, and fails should
+   * one appear, named `service:account` as Windows names its target.
+   */
+  readonly keychain?: readonly KeychainItem[]
 }
+
+/** A generic password in the macOS Keychain, by the attributes that name it. */
+export type KeychainItem = { readonly service: string; readonly account: string }

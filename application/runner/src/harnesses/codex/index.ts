@@ -39,6 +39,11 @@ const events = [
   "PostToolUse",
 ]
 
+// Codex runs an Interrupt hook for 3 seconds at most, and warns at every start of a plugin
+// that asks for longer (0.159.3, `normalize_command_hook`), which hides its first screen's
+// logo behind the warning's banner. The hook reports an Interrupt within 2 seconds.
+const interruptSeconds = 3
+
 // On Windows Codex runs a hook command in its shell there, PowerShell (7 where installed),
 // not cmd (probed 2026-10-09, 0.159.3), with -NoProfile.
 const hookDialect = (platform: NodeJS.Platform): Dialect =>
@@ -123,7 +128,7 @@ export const codex = {
                   {
                     type: "command",
                     command: hook(platform, event),
-                    timeout: hookSeconds(platform),
+                    timeout: event === "Interrupt" ? interruptSeconds : hookSeconds(platform),
                   },
                 ],
               },

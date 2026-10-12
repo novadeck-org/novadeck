@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
@@ -25,6 +26,24 @@ import {
 // What only Codex needs beyond the shared scenarios (messaging.e2e.ts).
 
 const it = e2e(codex)
+
+/**
+ * Whether macOS asks for less motion (Reduce motion), which Codex follows; never
+ * elsewhere, nor where the setting can't be read.
+ */
+const reducedMotion = (): boolean => {
+  if (process.platform !== "darwin") return false
+  try {
+    return (
+      execFileSync("defaults", ["read", "com.apple.universalaccess", "reduceMotion"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim() === "1"
+    )
+  } catch {
+    return false
+  }
+}
 
 /** Ten rows in a row holding braille, as Codex draws its logo. */
 const logo = /(?:^.*[⠀-⣿].*\n){10}/m
@@ -77,15 +96,29 @@ describe.skipIf(!supported)("Codex", () => {
     const t2 = await start(run, codex)
     // The case this covers: the logo shows as t2 is rung. On Windows Codex draws it on some
     // machines and not others (on GitHub's Windows Server 2025 runners, never; seen
-    // 2026-10-09, 0.159.3): where it draws none, the case isn't there to test.
-    if (process.platform !== "win32") await t2.until(logo)
-    else if (
-      !(await t2.until(logo, 10_000).then(
-        () => true,
-        () => false,
-      ))
-    )
-      skip("Codex drew no logo on this Windows machine, so there is no first screen to ring")
+    // 2026-10-09, 0.159.3): where it draws none, the case isn't there to test. Elsewhere it
+    // draws none while a warning's banner shows, nor where macOS asks for less motion;
+    // should it not, the failure says why.
+    if (process.platform === "win32") {
+      if (
+        !(await t2.until(logo, 10_000).then(
+          () => true,
+          () => false,
+        ))
+      )
+        skip("Codex drew no logo on this Windows machine, so there is no first screen to ring")
+    } else
+      await t2.until(logo).catch(async (error: unknown) => {
+        if (reducedMotion())
+          throw new Error(
+            "Codex draws no logo where macOS asks for less motion: turn Reduce motion off (System Settings › Accessibility › Display)",
+            { cause: error },
+          )
+        if (!/\d+ warnings?/.test(await t2.screen())) throw error
+        t2.press("\x1bOQ")
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        throw new Error(`Codex drew no logo, warning:\n${await t2.screen()}`, { cause: error })
+      })
     const calls = run.model.mark()
     const mark = t2.mark()
 

@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process"
+import { type ChildProcess, spawn } from "node:child_process"
+import { once } from "node:events"
 import {
   copyFileSync,
   mkdtempSync,
@@ -98,7 +99,7 @@ const it = base.extend<{ fixture: Fixture }>({
         )
         let printed = ""
         child.stdout.on("data", (data: Buffer) => (printed += data.toString()))
-        child.on("exit", (code) => {
+        void finished(child).then((code) => {
           // Claude Code shows some hooks' output to the model; Antigravity reads it as JSON,
           // and denies a tool whose PreToolUse answer does not say "ask".
           const quiet = event === "PreToolUse" ? '{"decision":"ask"}\n' : "{}\n"
@@ -120,7 +121,7 @@ const it = base.extend<{ fixture: Fixture }>({
         })
         let printed = ""
         child.stdout.on("data", (data: Buffer) => (printed += data.toString()))
-        child.on("exit", () => resolve(printed))
+        void finished(child).then(() => resolve(printed))
         child.stdin.end(JSON.stringify(payload))
       })
     await use({
@@ -150,11 +151,23 @@ const launched = (launcher: string, args: readonly string[], env: NodeJS.Process
     })
     let printed = ""
     child.stdout.on("data", (data: Buffer) => (printed += data.toString()))
-    child.on("exit", () => resolve(printed))
+    void finished(child).then(() => resolve(printed))
     // cmd's own answer reads none of it.
     child.stdin.on("error", () => {})
     child.stdin.end(JSON.stringify({ conversationId: session }))
   })
+
+/**
+ * The child's exit code once it has exited and its output has ended: an exit may come
+ * before the last of what it printed has been read, as it can on a busy machine.
+ */
+const finished = async (child: ChildProcess): Promise<number | null> => {
+  const [[code]] = await Promise.all([
+    once(child, "exit") as Promise<[number | null]>,
+    child.stdout ? once(child.stdout, "end") : Promise.resolve(),
+  ])
+  return code
+}
 
 const start = (fields: object = {}) => ({
   hook_event_name: "SessionStart",
@@ -413,7 +426,7 @@ describe("agent hook", () => {
       })
       let out = ""
       child.stdout.on("data", (data: Buffer) => (out += data.toString()))
-      child.on("exit", () => resolve(out))
+      void finished(child).then(() => resolve(out))
       child.stdin.write("{")
     })
     expect(printed).toBe('{"decision":"ask"}\n')

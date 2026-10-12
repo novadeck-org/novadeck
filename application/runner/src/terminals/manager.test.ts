@@ -16,7 +16,7 @@ import { command, ptyOptions, ptyTrace } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { screen as screenWith } from "../testing/screens.js"
 import { WorkspaceStore } from "../workspaces/store.js"
-import { InputQueue, type HoldBudget } from "./input-queue.js"
+import { type HoldBudget, InputQueue } from "./input-queue.js"
 import { forceKill, Terminals } from "./manager.js"
 
 const cwd = process.cwd()
@@ -182,15 +182,16 @@ describe("an answer's hold of the person's input", () => {
     // What the children traced from here on, however much a busy machine traced before.
     const mark = traced().length
     const since = (): string => traced().slice(mark).join("\n")
-    // 16 characters, which no other write of this test has: the child traces lengths.
-    manager.write({ terminalId: terminal.id, data: "\x1b[<64;123;456M" }, "creator")
+    // A length no other write of this test has: the child traces lengths.
+    const wheel = "\x1b[<64;123;456M"
+    manager.write({ terminalId: terminal.id, data: wheel }, "creator")
     manager.write({ terminalId: terminal.id, data: "k" }, "creator")
     hold.release()
     hold.settle()
-    // The key went once released; the wheel report never did.
+    // The key went once released; the wheel report, held before it, never did.
     await vi.waitFor(() => expect(since()).toContain("received 1 chars"), { timeout: 5_000 })
     await new Promise((resolve) => setTimeout(resolve, 400))
-    expect(since()).not.toContain("received 16 chars")
+    expect(since()).not.toContain(`received ${wheel.length} chars`)
   })
 })
 
@@ -1455,6 +1456,32 @@ describe.skipIf(process.platform === "win32")("terminal environment", () => {
       ),
     ).toContain("[|own|]")
   })
+
+  it.runIf(process.platform === "darwin")(
+    "gives a shell on macOS a UTF-8 LANG where the runner has no locale, as an app opened from the Dock has none",
+    async ({ terminals }) => {
+      // sh with no startup files: a developer's own rc can't set LANG for it.
+      const manager = terminals.manager({
+        shell: "/bin/sh",
+        shellArgs: [],
+        baseEnv: { PATH: process.env.PATH },
+        env: { PS1: "", ENV: "" },
+      })
+      const terminal = await manager.create(
+        { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+        "owner",
+      )
+      const stream = terminals.attach(manager, terminal.id, "owner")
+      await stream.next()
+      manager.write({ terminalId: terminal.id, data: "printf '[%s]\\n' \"$LANG\"\n" }, "owner")
+      const events = await until(manager, stream, "owner", (_event, text) =>
+        /\[[^\]\r\n]*\]\r\n/.test(text),
+      )
+      const printed = events.map((event) => ("data" in event ? event.data : "")).join("")
+
+      expect(printed).toMatch(/\[[a-z]{2,3}_[A-Z]{2}\.UTF-8\]/)
+    },
+  )
 })
 
 describe.skipIf(process.platform === "win32")("terminal limits", () => {
