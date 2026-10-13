@@ -1,0 +1,25 @@
+/* Categorical hues for the visual pages: low chroma, so greys still lead and the accent
+   (selected, hovered) stays the loudest thing on the page. */
+:root {
+  --h-claude: oklch(0.62 0.07 50);
+  --h-codex: oklch(0.6 0.07 250);
+  --h-agy: oklch(0.6 0.07 150);
+  --g-ui: oklch(0.62 0.06 250);
+  --g-runner: oklch(0.62 0.06 150);
+  --g-protocol: oklch(0.62 0.06 300);
+  --g-host: oklch(0.62 0.06 50);
+  --g-other: oklch(0.6 0.01 90);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --h-claude: oklch(0.72 0.08 50);
+    --h-codex: oklch(0.72 0.08 250);
+    --h-agy: oklch(0.72 0.08 150);
+    --g-ui: oklch(0.72 0.07 250);
+    --g-runner: oklch(0.72 0.07 150);
+    --g-protocol: oklch(0.72 0.07 300);
+    --g-host: oklch(0.72 0.07 50);
+    --g-other: oklch(0.7 0.01 90);
+  }
+}

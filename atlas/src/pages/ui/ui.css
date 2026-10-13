@@ -1,0 +1,182 @@
+/* The UI page's wiring diagram: boxes standing on the workspace like small windows. */
+.uw-box {
+  cursor: pointer;
+  outline: none;
+}
+.uw-box rect.face {
+  fill: var(--color-paper);
+  stroke: var(--window-border-color);
+  stroke-width: 1;
+  transition:
+    stroke 120ms,
+    opacity 120ms;
+}
+.uw-box:hover rect.face {
+  stroke: var(--color-line-strong);
+}
+.uw-box:focus-visible rect.face {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.uw-box[data-lit="2"] rect.face {
+  stroke: var(--color-ink);
+  stroke-width: 1.5;
+}
+.uw-box[data-lit="1"] rect.face {
+  stroke: var(--color-ink);
+  stroke-width: 1;
+  opacity: 0.7;
+}
+.uw-box[data-selected="true"] rect.face {
+  stroke: var(--accent);
+  stroke-width: 1.75;
+}
+/* Dashed outline is the one mark for "not traced"; nothing else is dashed. Selected, it
+   keeps the dashes and takes the accent. */
+.uw-box[data-gap="true"] rect.face,
+.uw-key-gap {
+  stroke-dasharray: 4 3;
+}
+.uw-box[data-gap="true"]:not([data-selected="true"]) rect.face,
+.uw-key-gap {
+  stroke: var(--color-warning-fg);
+}
+.uw-key-gap {
+  fill: none;
+  stroke-width: 1.25;
+}
+.uw-box[data-dim="true"] {
+  opacity: 0.45;
+}
+.uw-box .bar {
+  fill: var(--accent);
+  opacity: 0;
+}
+.uw-box[data-selected="true"] .bar {
+  opacity: 1;
+}
+.uw-title {
+  fill: var(--color-ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+.uw-count {
+  fill: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 500;
+}
+.uw-unit {
+  fill: var(--color-muted);
+  font-size: 11px;
+}
+.uw-sub {
+  fill: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.uw-gap {
+  fill: var(--color-warning-fg);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.uw-edge {
+  fill: none;
+  stroke: var(--color-line-strong);
+  stroke-width: 1.25;
+  transition:
+    stroke 120ms,
+    opacity 120ms;
+}
+.uw-edge[data-back="true"] {
+  stroke-dasharray: 0.1 5;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+.uw-edge[data-lit="2"] {
+  stroke: var(--color-ink);
+  stroke-width: 2;
+}
+.uw-edge[data-lit="1"] {
+  stroke: var(--color-ink);
+  stroke-width: 1.25;
+  opacity: 0.55;
+}
+.uw-edge[data-dim="true"] {
+  opacity: 0.22;
+}
+.uw-label {
+  fill: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  paint-order: stroke;
+  stroke: var(--color-paper);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+.uw-note {
+  fill: var(--color-muted);
+  font-size: 11px;
+}
+
+/* The three marks of an action's path: out of the UI, out to the runner, back from it. */
+.up-dots {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+.up-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-line-strong);
+  box-sizing: border-box;
+}
+.up-dot[data-state="on"] {
+  background: var(--_hue);
+  border-color: var(--_hue);
+}
+.up-dot[data-state="soft"] {
+  background: color-mix(in srgb, var(--_hue) 28%, transparent);
+  border-color: var(--_hue);
+}
+.up-dot[data-state="gap"] {
+  border-style: dashed;
+  border-color: var(--color-warning-fg);
+}
+.up-dot[data-state="off"] {
+  opacity: 0.35;
+}
+
+.up-step {
+  position: relative;
+  padding-left: 22px;
+  padding-bottom: 10px;
+}
+.up-step::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  bottom: -2px;
+  border-left: 1px dashed var(--color-line-strong);
+}
+.up-step:last-child::before {
+  display: none;
+}
+.up-step > .up-mark {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--_hue, var(--color-line-strong));
+}
+.up-gap {
+  border: 1px dashed var(--color-warning-fg);
+  border-radius: var(--radius-control);
+  color: var(--color-warning-fg);
+  padding: 4px 8px;
+  font-size: var(--text-caption);
+}

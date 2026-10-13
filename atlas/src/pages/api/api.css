@@ -1,0 +1,15 @@
+/* The reference's code pane, as code reads in Novadeck's panes: a light step off the
+   paper, floating beside the reference, and Graphite's syntax hues. */
+.code-pane {
+  --code-bg: var(--color-fill);
+  --code-fg: var(--color-ink);
+  --code-dim: var(--color-muted);
+  --code-line: var(--color-line);
+  --code-key: var(--color-syntax-property);
+  --code-str: var(--color-syntax-string);
+  --code-num: var(--color-syntax-number);
+  --code-kw: var(--color-syntax-keyword);
+  --code-type: var(--color-syntax-type);
+  background: var(--code-bg);
+  color: var(--code-fg);
+}

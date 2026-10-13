@@ -1,0 +1,299 @@
+/* Novadeck's chrome, replicated rather than imported, as the theme is: the header, the
+   footer, the sidebar, windows, and the segmented, icon-button, badge, label, item and
+   Deck mark recipes, copied from application/ui/src/shell/region.css,
+   terminals/window.css and ui-toolkit/*.css with only what the atlas uses. Copy again when
+   those change. Imported into the components layer, so utilities still win. */
+
+/* Regions: each a ground under the grain, with an edge toward the workspace. */
+.app-header,
+.app-footer {
+  background: var(--region-image), var(--region-header-bg);
+  border-color: var(--region-header-border-color);
+  color: var(--color-ink);
+}
+.app-header {
+  border-bottom: var(--border-width) solid var(--region-header-border-color);
+}
+.app-footer {
+  border-top: var(--border-width) solid var(--region-sidebar-border-color);
+  color: var(--color-muted);
+}
+/* In trouble (broken anchors), the whole bar takes the warning tone. */
+.app-footer[data-tone="warning"] {
+  background: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning-fg) 25%, transparent);
+  color: var(--color-warning-fg);
+}
+.footer-divider {
+  border-inline-start: var(--border-width) solid var(--region-sidebar-border-color);
+}
+.app-footer[data-tone] .footer-divider {
+  border-inline-start-color: color-mix(in srgb, currentColor 20%, transparent);
+}
+.footer-status {
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.sidebar {
+  background: var(--region-image), var(--region-sidebar-bg);
+  border-right: var(--border-width) solid var(--region-sidebar-border-color);
+  color: var(--color-ink);
+}
+
+/* The segmented recipe: a carved track, the active segment raised out of it. */
+.segmented {
+  display: inline-flex;
+  gap: 4px;
+  padding: 2px;
+  border: var(--border-width) solid var(--color-line);
+  border-radius: var(--radius-control);
+  background-color: var(--color-shell);
+  box-shadow: var(--segmented-shadow);
+}
+.segment {
+  --_bg: transparent;
+  --_fg: var(--color-muted);
+  --_border-color: transparent;
+  --_shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--radius-control);
+  background-color: var(--_bg);
+  color: var(--_fg);
+  box-shadow: var(--_shadow);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface);
+}
+@media (hover: hover) {
+  .segment:hover {
+    --_bg: var(--color-soft);
+    --_fg: var(--color-ink);
+  }
+}
+.segment:is([aria-current="page"], [aria-pressed="true"], [data-active="true"]) {
+  --_bg: var(--color-paper);
+  --_fg: var(--color-ink);
+  --_border-color: var(--color-line);
+  --_shadow: var(--shadow-control);
+}
+a.segment:hover {
+  color: var(--_fg);
+}
+
+/* The icon button: quiet until the pointer reaches it. */
+.icon-button {
+  --_bg: transparent;
+  --_fg: var(--color-muted);
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 8px;
+  border-radius: var(--radius-control);
+  background-color: var(--_bg);
+  color: var(--_fg);
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .icon-button:hover {
+    --_bg: var(--color-soft);
+    --_fg: var(--color-ink);
+  }
+}
+.icon-button.small {
+  min-width: 24px;
+  height: 24px;
+  padding: 6px;
+}
+
+/* Keys and badges, in the mono. A hint is a key set quietly inside a control. */
+kbd.hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--color-muted);
+  opacity: 0.7;
+}
+.badge {
+  border: var(--border-width) solid var(--color-line);
+  border-radius: var(--radius-control);
+  background-color: var(--color-soft);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+}
+
+/* Section labels: small capitals in the mono, after a terminal's chrome. */
+.section-label {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+}
+.section-label .count {
+  letter-spacing: normal;
+}
+
+/* Rows: a selected row stands up on paper with the window's outline and the accent's
+   bar at its leading edge (glowing in dark). */
+.item {
+  --_bg: transparent;
+  --_border-color: transparent;
+  --_shadow: none;
+  --_indicator-opacity: 0;
+  position: relative;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--radius-control);
+  background-color: var(--_bg);
+  box-shadow: var(--_shadow);
+  color: var(--color-ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface);
+}
+.item::before {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: 0;
+  width: 2px;
+  background-color: var(--color-strong);
+  box-shadow: var(--item-selected-indicator-shadow);
+  opacity: var(--_indicator-opacity);
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .item:hover {
+    --_bg: var(--color-soft);
+    color: var(--color-ink);
+  }
+}
+.item:is([data-selected="true"], [aria-current="page"]) {
+  --_bg: var(--color-paper);
+  --_border-color: var(--window-border-color);
+  --_shadow: var(--shadow-control);
+  --_indicator-opacity: 1;
+}
+
+/* Windows: paper on the workspace with the window's outline, a heading whose leading
+   edge carries the selection bar, and a dashed rule under it. */
+.pane {
+  border: var(--border-width) solid var(--window-border-color);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-paper);
+  box-shadow: var(--shadow-panel);
+}
+.pane.floating {
+  box-shadow: var(--shadow-floating);
+}
+.pane.selected {
+  border-color: var(--window-selected-border-color);
+  box-shadow: var(--shadow-floating);
+}
+.pane-heading {
+  position: relative;
+  border-bottom: var(--border-width) dashed var(--color-line);
+}
+.pane-heading::before {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: -1px;
+  width: 2px;
+  background-color: var(--color-strong);
+  box-shadow: var(--item-selected-indicator-shadow);
+}
+.pane-heading.quiet::before {
+  content: none;
+}
+
+/* Fields are carved a little. */
+.field {
+  border: var(--border-width) solid var(--color-line);
+  border-radius: var(--radius-control);
+  background-color: var(--field-bg);
+  box-shadow: var(--field-shadow);
+  color: var(--color-ink);
+}
+.field::placeholder {
+  color: var(--color-muted);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--color-strong);
+}
+
+/* The Deck mark: the brand tile's ">_" with two terminal cards fanned behind it. */
+.deck-mark {
+  --_face: 23.8px;
+  --_k1: 2.1px;
+  --_k2: 4.2px;
+  --_radius: 2px;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+.deck-card,
+.deck-face {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--_face);
+  height: var(--_face);
+  border-radius: var(--_radius);
+}
+.deck-card {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-shadow) 7%, transparent);
+}
+.deck-card.near {
+  transform: translate(var(--_k1), calc(var(--_k1) * -1));
+  background: var(--deck-mark-card-near-bg);
+}
+.deck-card.far {
+  transform: translate(var(--_k2), calc(var(--_k2) * -1));
+  background: var(--deck-mark-card-far-bg);
+}
+.deck-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-tile-fg);
+  background: var(--brand-tile-bg);
+  box-shadow:
+    inset 0 0 0 1px var(--brand-tile-border-color),
+    inset 0 1px 0 color-mix(in srgb, var(--brand-tile-fg) 8%, transparent),
+    0 1px 2px color-mix(in srgb, var(--color-shadow) 12%, transparent);
+}
+.deck-face svg {
+  width: 64%;
+  height: 64%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+/* The dot grid behind the app's Focus and Grid windows, in the accent. */
+.workspace.dots::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--color-strong) 0.8px, transparent 0.8px);
+  background-size: 24px 24px;
+  opacity: var(--canvas-dots-opacity);
+  pointer-events: none;
+}
