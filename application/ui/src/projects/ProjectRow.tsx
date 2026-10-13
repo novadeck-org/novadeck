@@ -1,5 +1,5 @@
 import { useSortable } from "@dnd-kit/react/sortable"
-import { Check, Pin, PinOff, Trash2 } from "lucide-react"
+import { Pin, PinOff, Trash2 } from "lucide-react"
 import { useEffect, useRef } from "react"
 
 import type { Project } from "../model/types"
@@ -73,9 +73,11 @@ export const ProjectRow = ({
             handleRef(node)
           }}
           aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-          className={`item standalone workspace-switcher-project flex w-full min-w-0 items-center gap-3 px-2.5 py-[9px] text-left ${removable ? "pr-[70px]" : "pr-10"} ${selected ? "selected" : ""}`}
+          className={`item standalone workspace-switcher-project flex w-full min-w-0 items-center gap-3 px-2.5 py-[9px] text-left ${removable ? "pr-[70px]" : "pr-10"}`}
           type="button"
           aria-current={selected ? "true" : undefined}
+          // Raised and marked with the item's bar, as a selected item is.
+          data-selected={selected ? "true" : undefined}
           aria-description={status && statusText[status]}
           data-project-status={status}
           onClick={onSelect}
@@ -100,14 +102,6 @@ export const ProjectRow = ({
             </strong>
             <small className="item-detail truncate text-caption">{project.directory}</small>
           </span>
-          {selected && (
-            <Check
-              aria-label="Current workspace"
-              className="shrink-0"
-              size={15}
-              strokeWidth={1.8}
-            />
-          )}
           {status && <span aria-hidden="true" className="project-status-mark" />}
         </button>
       </Tooltip>

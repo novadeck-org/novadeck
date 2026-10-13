@@ -1,6 +1,7 @@
 /* The item recipe: one row of a list, such as a sidebar row, a menu or select option, or
    a search result. A selected item is raised out of its list and marked with a bar at
-   its leading edge; a highlighted one, under the keyboard or the pointer in a list Ark
+   its leading edge, and keeps that ground and its own text when it is highlighted too; a
+   highlighted one, under the keyboard or the pointer in a list Ark
    manages, is tinted and outlined. An item that takes focus itself, a plain button,
    shows the focus ring inside its edge. Its icon is secondary and its detail text muted.
 
@@ -90,6 +91,10 @@
   --_border-color: var(--item-selected-border-color, var(--color-line));
   --_shadow: var(--item-selected-shadow, var(--shadow-control));
   --_indicator-opacity: 1;
+  /* The highlight's text is set for its own ground, which the selected one replaces. */
+  --_icon-fg: var(--item-icon-fg, var(--color-muted));
+  --_detail-fg: var(--item-detail-fg, var(--color-muted));
+  color: inherit;
 }
 .item[data-disabled] {
   --_bg: transparent;

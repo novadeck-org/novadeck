@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 
+import { themes } from "../theme/themes"
+
 const root = document.documentElement
 
 // What the page computes for a custom property, with this theme and scheme on <html>.
@@ -33,5 +35,43 @@ describe("theme scoping", () => {
       tokenIn("graphite", "dark", "--color-paper"),
     )
     expect(tokenIn("phosphor-green", "dark", "--sidebar-create-border-color")).toBe("")
+  })
+})
+
+// A selected item on the page, highlighted too where asked.
+const selectedItem = (highlighted: boolean): HTMLElement => {
+  const element = document.createElement("button")
+  element.className = "item standalone"
+  element.dataset.selected = "true"
+  if (highlighted) element.dataset.highlighted = ""
+  element.innerHTML =
+    '<svg></svg><span>storefront</span><small class="item-detail">~/storefront</small>'
+  document.body.append(element)
+  return element
+}
+
+describe("a selected item", () => {
+  it("keeps its own text when it is highlighted too, in every theme", () => {
+    // Two selected items, one also highlighted, as the current project's row is under the
+    // pointer or the keyboard.
+    const plain = selectedItem(false)
+    const lit = selectedItem(true)
+    try {
+      for (const theme of themes)
+        for (const scheme of theme.schemes) {
+          tokenIn(theme.id, scheme, "--color-paper")
+          const where = `${theme.id} ${scheme}`
+          const style = getComputedStyle(lit)
+          expect(style.backgroundColor, where).toBe(getComputedStyle(plain).backgroundColor)
+          expect(style.color, where).toBe(getComputedStyle(plain).color)
+          for (const part of ["svg", ".item-detail"])
+            expect(getComputedStyle(lit.querySelector(part)!).color, `${where} ${part}`).toBe(
+              getComputedStyle(plain.querySelector(part)!).color,
+            )
+        }
+    } finally {
+      plain.remove()
+      lit.remove()
+    }
   })
 })

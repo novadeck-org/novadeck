@@ -20,7 +20,6 @@ import { pinsThatFit } from "./pins-fit"
 import { needsPerson, statusText, type ProjectStatus } from "./project-status"
 
 type Pin = { readonly id: string; readonly name: string; readonly directory: string }
-type Line = { readonly left: number; readonly width: number; readonly slide: boolean }
 
 // As in the switcher's list: a pin follows the pointer once it has moved a few pixels, so a
 // click still switches to it, and the keyboard moves pins with Alt and the arrows, so
@@ -58,7 +57,7 @@ const offBar = (strip: HTMLElement | null, point: Point): boolean => {
 // pass the last pin shown.
 // A project dragged out of the switcher's list (`usePinDrop`) comes in pinned, and the bar
 // drags its pin on from the pointer as it would any pin's; an empty bar opens for such a
-// drag, ready for the first.
+// drag, ready for the first, and says so until the drag is let go.
 export const PinsBar = ({
   pins,
   current,
@@ -90,6 +89,11 @@ export const PinsBar = ({
   const [items, setItems] = useState(pins)
   if ((pins.length > 0 || dropping) && pins !== items) setItems(pins)
   const open = (pins.length > 0 || dropping) && !hidden
+  // The drag from the switcher's list brings a project the bar hasn't pinned: the bar says
+  // where to drop it until the drag is let go, the list long closed by then.
+  const bringing = handoff
+    ? !handoff.wasPinned
+    : drag?.accepts === true && !pins.some(({ id }) => id === drag.id)
 
   // A page that loads with pins shows the bar as it is; only later changes slide.
   const [animated, setAnimated] = useState(false)
@@ -114,23 +118,18 @@ export const PinsBar = ({
   const [leaving, setLeaving] = useState(false)
   const off = useRef(false)
   const [count, setCount] = useState(items.length)
+  // The words saying where to drop have room after the last pin shown, as in an empty bar.
+  const [roomy, setRoomy] = useState(true)
+  const dropHint = useRef<HTMLSpanElement | null>(null)
   // As the bar slides out the pins stay as they were shown, so they slide away in view.
   const shown = Math.min(count, items.length)
-  // The line under the current pin, where it shows: it slides from pin to pin, but is
-  // put in place without sliding when it first shows and after a drag.
-  const [line, setLine] = useState<Line | null>(null)
-  const placed = useRef<{ drags: number; current: string } | null>(null)
   const strip = useRef<HTMLDivElement | null>(null)
 
   // Measures before paint, and again as the bar or a pin changes size.
   useLayoutEffect(() => {
     const element = row.current
     if (!element) return
-    // An empty bar, open for a drop, has no line; the next shows without sliding.
-    if (items.length === 0) {
-      placed.current = null
-      return
-    }
+    if (items.length === 0) return
     const measure = (): void => {
       const style = getComputedStyle(element)
       const available =
@@ -139,29 +138,40 @@ export const PinsBar = ({
       const widths = buttons.map((button) => button.offsetWidth)
       const fit = pinsThatFit(available, widths, parseFloat(style.columnGap) || 0)
       setCount(fit)
-      const index = items.findIndex(({ id }) => id === current)
-      const pin = index >= 0 && index < fit ? buttons[index] : undefined
-      if (!pin) {
-        placed.current = null
-        setLine(null)
-        return
-      }
-      const next = { left: pin.offsetLeft, width: pin.offsetWidth }
-      // Only a switch slides it: a pin moved by the keyboard or unpinned jumps at once, and
-      // so does the line under it.
-      const moves = placed.current?.drags === drags && placed.current.current !== current
-      placed.current = { drags, current }
-      setLine((was) =>
-        was && was.left === next.left && was.width === next.width ? was : { ...next, slide: moves },
+      room()
+    }
+    // Whether the words saying where to drop clear every pin that shows where it sits, the
+    // slot a dragged pin holds included but not the pin itself, which follows the pointer.
+    // A drag moves pins among each other without resizing any, so they are checked again
+    // as it does.
+    const room = (): void => {
+      const limit = element.clientWidth - (dropHint.current?.offsetWidth ?? 0)
+      // dnd-kit's placeholder holds the slot, unseen by its own rule; the pins hidden for
+      // want of room are hidden by their own style.
+      const seen = [...element.querySelectorAll<HTMLElement>(".pin")].filter(
+        (pin) =>
+          pin.hasAttribute("data-dnd-placeholder") ||
+          (pin.dataset.dragging !== "true" && pin.style.visibility !== "hidden"),
       )
+      setRoomy(seen.every((pin) => pin.offsetLeft + pin.offsetWidth <= limit))
     }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     for (const pin of element.querySelectorAll(".pin")) observer.observe(pin)
-    return () => observer.disconnect()
-    // A drag's end remounts the pins, which are then observed again.
-  }, [items, drags, current])
+    const moves = new MutationObserver(room)
+    moves.observe(element, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["inert", "style"],
+    })
+    return () => {
+      observer.disconnect()
+      moves.disconnect()
+    }
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A drag's end remounts the pins, which are then observed again.
+  }, [items, drags])
 
   // Where a point along the bar lands among the pins shown, the dragged project's own pin
   // aside, for a drag handed over from the switcher's list: before the first pin whose
@@ -188,6 +198,11 @@ export const PinsBar = ({
   // Off the bar, a dragged pin shows it will go, but a project pinned before it was handed
   // over stays pinned wherever it is let go.
   const unpinning = leaving && !handoff?.wasPinned
+  // A project dragged from the switcher's list, which the bar can take, draws the eye to
+  // the bar as the drag starts, and marks it for as long as the drag lasts, the more so
+  // while its pin is over the bar.
+  const receiving = dropping || handoff !== null
+  const over = handoff !== null && !leaving
 
   // Tells which show, once at first and then only when they change.
   const told = useRef<readonly string[] | null>(null)
@@ -204,6 +219,8 @@ export const PinsBar = ({
       className="pins-bar"
       data-open={open ? "true" : undefined}
       data-animated={animated ? "true" : undefined}
+      data-receiving={receiving ? "true" : undefined}
+      data-over={over ? "true" : undefined}
       inert={!open}
     >
       <div className="pins-bar-clip">
@@ -217,9 +234,6 @@ export const PinsBar = ({
             role="group"
             aria-label="Pinned projects"
             className="pins-bar-row relative flex min-w-0 flex-1 items-stretch pl-2 pr-1"
-            // A pin handed over from the switcher is dragged from the moment it arrives.
-            data-dragging={dragging || arriving ? "true" : undefined}
-            data-arriving={arriving ? "true" : undefined}
           >
             <DragDropProvider
               key={drags}
@@ -290,24 +304,16 @@ export const PinsBar = ({
                 )
               })}
             </DragDropProvider>
-            {items.length === 0 && dropping && (
-              <span className="pins-bar-empty mx-auto self-center text-label">
-                Drop here to pin
-              </span>
-            )}
-            {line && items.length > 0 && (
-              <span
-                className="pins-bar-indicator"
-                data-slide={line.slide ? "true" : undefined}
-                style={
-                  {
-                    "--_left": `${line.left}px`,
-                    "--_width": `${line.width}px`,
-                  } as React.CSSProperties
-                }
-                aria-hidden="true"
-              />
-            )}
+            {/* Always there to be measured, it shows only where it fits after the pins. */}
+            <span
+              ref={dropHint}
+              className="pins-bar-drop-hint text-label"
+              data-shown={
+                receiving && bringing && (items.length === 0 || roomy) ? "true" : undefined
+              }
+            >
+              Drop here to pin
+            </span>
           </div>
         </div>
       </div>

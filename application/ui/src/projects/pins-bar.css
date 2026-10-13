@@ -7,20 +7,24 @@
    (a `.project-status-mark`, with the glyphs and tones of project-status.css) after them,
    while an agent waits on the person or a finished agent's reply waits unread. The mark's
    slot is always there, empty or not, so a pin's width never changes; a project only
-   working shows none. An empty bar, open for a project dragged out of the switcher, says
-   so in `.pins-bar-empty`.
+   working shows none.
 
-   The current pin has ink text, a stronger number and a line under it, over the bar's
-   edge, as the tabs have: `.pins-bar-indicator`, one line that slides from pin to pin.
+   A project dragged out of the switcher's list opens an empty bar for it. As such a drag
+   starts, a soft band of the accent sweeps once across the bar, empty or not, and while
+   it lasts the bar's edge takes the accent, in full once the dragged pin is over the bar.
+   For a project not pinned yet, `.pins-bar-drop-hint` says where to drop it, at the bar's
+   end, where it fits after the pins.
+
+   The current pin has ink text, a bolder name and a stronger number.
 
    Hooks: on `.pins-bar`, data-open="true" while it shows, and data-animated="true" once
-   the page is up, from which it slides. On `.pins-bar-row`, data-dragging="true" while a
-   pin is dragged, and data-arriving="true" while a pin handed over from the switcher
-   isn't under the pointer yet; the line fades out under the first, and goes at once
-   under the second. On a pin, aria-current="true" for the current project, and
-   data-project-status="question" | "attention" | "failed" | "done" (never "running");
-   data-dragging="true" on the pin being dragged along the bar, which lifts as a dragged
-   row of the switcher does, fading in, while the others slide aside;
+   the page is up, from which it slides; data-receiving="true" while a project dragged
+   from the switcher can be dropped on it, and data-over="true" while its pin is over the
+   bar. On the drop hint, data-shown="true" while it shows. On a pin,
+   aria-current="true" for the current project, and data-project-status="question" |
+   "attention" | "failed" | "done" (never "running"); data-dragging="true" on the pin
+   being dragged along the bar, which lifts as a dragged row of the switcher does, fading
+   in, while the others slide aside;
    data-leaving="true" on it once dragged well off the bar, where letting go unpins it;
    and data-arriving="true" on the handed-over pin, unseen until it is under the pointer.
 
@@ -34,8 +38,8 @@
    --pin-drag-bg (--item-selected-bg, paper), --pin-drag-border-color
    (--item-selected-border-color, line), --pin-drag-shadow (shadow-control): the pin being
    dragged, raised and outlined as a selected item is.
-   --pins-bar-indicator-bg (--tabs-indicator-bg, strong),
-   --pins-bar-indicator-shadow (--tabs-indicator-shadow, none): the current pin's line. */
+   --pins-bar-drop-fg (strong): the bar taking a drag from the switcher, its sweep, edge
+   and words mixed from it. */
 .pins-bar {
   --_height: var(--pins-bar-height, 34px);
   display: grid;
@@ -64,10 +68,48 @@
     --pins-bar-border-color,
     var(--region-header-border-color, var(--color-line))
   );
+  --_drop: var(--pins-bar-drop-fg, var(--color-strong));
+  position: relative;
   height: var(--_height);
   border-bottom: var(--border-width) solid var(--_border-color);
   background-color: var(--pins-bar-bg, var(--region-header-bg, var(--color-paper)));
   background-image: var(--pins-bar-image, var(--region-header-image, none));
+  transition:
+    border-color var(--motion-state) var(--ease-interface),
+    box-shadow var(--motion-state) var(--ease-interface);
+}
+/* A place to drop the project dragged from the switcher: its edge takes some of the
+   accent, and all of it, a line as strong as the tabs' indicator, once the pin is over it. */
+.pins-bar[data-receiving="true"] .pins-bar-strip {
+  border-bottom-color: color-mix(in srgb, var(--_drop) 45%, var(--_border-color));
+}
+.pins-bar[data-over="true"] .pins-bar-strip {
+  border-bottom-color: var(--_drop);
+  box-shadow: inset 0 calc(-1 * var(--border-width)) 0 var(--_drop);
+}
+/* The band that sweeps once across the bar as the drag starts, over everything in it. */
+.pins-bar-strip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--_drop) 14%, transparent),
+    transparent
+  );
+  background-repeat: no-repeat;
+  background-size: 40% 100%;
+  background-position: -70% 0;
+  pointer-events: none;
+}
+.pins-bar[data-receiving="true"] .pins-bar-strip::after {
+  animation: pins-bar-sweep 1100ms var(--ease-interface);
+}
+@keyframes pins-bar-sweep {
+  to {
+    background-position: 170% 0;
+  }
 }
 .pin {
   --_fg: var(--pin-fg, var(--color-muted));
@@ -104,36 +146,6 @@
   font-weight: 500;
   cursor: default;
 }
-/* The current pin's line, over the bar's edge, inset from the pin's sides; set by the
-   current pin's --_left and --_width, and sliding to the next as the tabs' line does. */
-.pins-bar-indicator {
-  position: absolute;
-  bottom: calc(-1 * var(--border-width));
-  left: 0;
-  width: calc(var(--_width) - 20px);
-  height: 2px;
-  translate: calc(var(--_left) + 10px) 0;
-  background-color: var(--pins-bar-indicator-bg, var(--tabs-indicator-bg, var(--color-strong)));
-  box-shadow: var(--pins-bar-indicator-shadow, var(--tabs-indicator-shadow, none));
-  pointer-events: none;
-  transition: opacity var(--motion-state) var(--ease-interface);
-}
-.pins-bar-indicator[data-slide="true"] {
-  transition:
-    translate var(--motion-state) var(--ease-interface),
-    width var(--motion-state) var(--ease-interface),
-    opacity var(--motion-state) var(--ease-interface);
-}
-/* The pins slide aside under a drag, and the line fades out, to fade back in under the
-   current pin after. */
-.pins-bar-row[data-dragging="true"] .pins-bar-indicator {
-  opacity: 0;
-}
-/* A pin handed over from the switcher may land elsewhere than its line was: the line goes
-   at once rather than fade where the pin no longer is. */
-.pins-bar-row[data-arriving="true"] .pins-bar-indicator {
-  transition: none;
-}
 .pin:focus-visible {
   --_fg: var(--pin-hover-fg, var(--color-ink));
   /* Inside the edge: the pin fills the bar's height, which clips what is outside. */
@@ -153,9 +165,23 @@
       var(--pin-drag-border-color, var(--item-selected-border-color, var(--color-line))),
     var(--pin-drag-shadow, var(--shadow-control));
 }
-/* An empty bar, open for a project dragged from the switcher's list, says so. */
-.pins-bar-empty {
-  color: var(--pin-fg, var(--color-muted));
+/* Where to drop, at the bar's end: always there, so it can be measured, but seen only
+   where it fits after the pins. */
+.pins-bar-drop-hint {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: 10px 14px;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--_drop) 80%, var(--pin-fg, var(--color-muted)));
+  pointer-events: none;
+  visibility: hidden;
+}
+.pins-bar-drop-hint[data-shown="true"] {
+  visibility: visible;
 }
 /* A pin handed over from the switcher's drag stays unseen until it is under the pointer,
    then fades in. */
@@ -171,9 +197,11 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .pins-bar[data-animated="true"],
-  .pins-bar-indicator,
-  .pins-bar-indicator[data-slide="true"],
+  .pins-bar-strip,
   .pin {
     transition: none;
+  }
+  .pins-bar[data-receiving="true"] .pins-bar-strip::after {
+    animation: none;
   }
 }
