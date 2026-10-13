@@ -1,0 +1,43 @@
+name: Save E2E Harness
+description: Saves one installed harness to the e2e cache, once its program is there.
+
+inputs:
+  harness:
+    description: The harness, a key of harnesses.json (claude, codex, agy).
+    required: true
+  cache:
+    description: The folder the harnesses install into (the job's NOVADECK_E2E_CACHE).
+    required: true
+  key:
+    description: The cache key, the restore's `cache-primary-key`.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Whether the harness finished installing: a folder for it, not a staging one, that
+    # holds its program (`agy.exe` on Windows). A cancelled or failed install leaves none,
+    # and saves nothing.
+    - name: Check Harness
+      id: installed
+      shell: bash
+      env:
+        HARNESS: ${{ inputs.harness }}
+        CACHE: ${{ inputs.cache }}
+      run: |
+        bin=$(jq -r --arg harness "$HARNESS" '.[$harness].bin' application/runner/src/e2e/harnesses.json)
+        found=false
+        for folder in "$CACHE/$HARNESS"-*; do
+          case "$folder" in *.tmp) continue ;; esac
+          if [ -x "$folder/node_modules/.bin/$bin" ] || [ -x "$folder/bin/$bin" ] || [ -x "$folder/bin/$bin.exe" ]; then found=true; fi
+        done
+        echo "found=$found" >> "$GITHUB_OUTPUT"
+
+    - name: Save Cache
+      if: steps.installed.outputs.found == 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ inputs.cache }}/${{ inputs.harness }}-*
+          !${{ inputs.cache }}/*.tmp
+        key: ${{ inputs.key }}

@@ -1,0 +1,41 @@
+name: Restore E2E Harness
+description: Restores one pinned harness from the e2e cache, keyed by its pin and the installer.
+
+inputs:
+  harness:
+    description: The harness, a key of harnesses.json (claude, codex, agy).
+    required: true
+  cache:
+    description: The folder the harnesses install into (the job's NOVADECK_E2E_CACHE).
+    required: true
+
+outputs:
+  cache-hit:
+    description: Whether the cache was restored from its exact key.
+    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-primary-key:
+    description: The key the cache was looked up by, which `save` stores it under.
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+
+runs:
+  using: composite
+  steps:
+    # The harness's own pin, hashed alone, so moving one harness's pin keeps the others'
+    # caches. Hashed inside node, so a failure fails the step rather than hashing nothing.
+    - name: Hash Pin
+      id: pin
+      shell: bash
+      env:
+        HARNESS: ${{ inputs.harness }}
+      run: |
+        node -e 'const { createHash } = require("node:crypto"); const pins = require("./application/runner/src/e2e/harnesses.json"); const pin = pins[process.env.HARNESS]; if (!pin) throw new Error("No pin for " + process.env.HARNESS); console.log("hash=" + createHash("sha256").update(JSON.stringify(pin)).digest("hex"))' >> "$GITHUB_OUTPUT"
+
+    # Only the harness's own folders go in, never npm's cache (home) or unfinished staging.
+    - name: Restore Cache
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ inputs.cache }}/${{ inputs.harness }}-*
+          !${{ inputs.cache }}/*.tmp
+        key: e2e-harnesses-${{ runner.os }}-${{ inputs.harness }}-${{ steps.pin.outputs.hash }}-${{ hashFiles('application/runner/src/e2e/install.ts') }}

@@ -144,7 +144,8 @@ Adding a harness:
 4. Its lint fence: an override for its folder in `.oxlintrc.json`, and its name in the
    other adapters' and harness-core's (`scripts/harnesses/fence.test.ts` fails until
    then).
-5. Its end-to-end setup, pin and CI rows (see `docs/e2e-testing.md`, "Adding a harness").
+5. Its end-to-end setup, its pin, and its cache steps in the E2E workflow (see
+   `docs/e2e-testing.md`, "Adding a harness").
 6. What stays by hand: its icon in the UI's welcome dialog (a type error until then) and
    its process profile (`application/ui/src/terminals/processes/profiles.ts`), its coverage in
    `docs/harness-coverage.md`, and any variable of its hooks' environment the runner's

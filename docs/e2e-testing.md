@@ -70,7 +70,30 @@ unfinished staging (`*.tmp`), npm's own cache (`<cache>/home`) or anything else 
 job restores the cache of each harness it runs. Unless the run was cancelled, one it
 missed is saved even when the tests fail, so the next run needn't install again, but only
 once a `<cache>/<harness>-*` folder holding the harness's program exists: a failed or
-cancelled install saves nothing under the key.
+cancelled install saves nothing under the key. The key, the folders and that check live in
+the local actions `.github/actions/e2e-harness-cache/restore` and `…/save`, which hash the
+harness's pin themselves; the workflow calls each once per harness, as steps can't loop.
+
+A `plan` job runs first and decides which rows the jobs get (`scripts/e2e/plan`; its rules
+are unit-tested in `plan.test.ts`), so a pull request runs only what it can affect. The
+nightly schedule and a manual dispatch run everything, and so does a pull request when
+turbo's list of affected packages (`turbo ls --affected`, from the pull request's base to
+its head) or git's list of changed files can't be had. Otherwise:
+
+- Everything runs when a package other than an adapter, the runner, the UI or the host is
+  affected (`@novadeck/harness-core`, `protocol`, `relay`, the engines, or one added later,
+  so a new package runs everything until a rule says otherwise; an adapter not yet pinned
+  counts as one; a package outside the paths that trigger this workflow, a new
+  `application/<name>` say, needs its path added there for its changes to run anything),
+  or a changed file is in `application/runner/` (the suite and
+  the pins), `scripts/e2e/`, `.github/actions/e2e-harness-cache/`, or is
+  `.github/workflows/e2e.yml`, the root `package.json`, `pnpm-lock.yaml`,
+  `pnpm-workspace.yaml` or `turbo.json`. The runner is judged by its files, not by turbo:
+  turbo calls it affected by any adapter, which would run everything for one harness.
+- Otherwise each affected adapter package (`@novadeck/harness-<id>`) runs that harness's
+  jobs, on all three systems, with the Windows quirks job, and the Mixed job with them.
+- Otherwise (documentation, the UI, the host) no E2E job runs. None is a required check,
+  so a skipped one blocks no merge.
 
 Each of these jobs runs on Linux, on Windows (`windows-latest`, named `… (Windows)`) and
 on macOS (`macos-latest`, Apple silicon, named `… (macOS)`). A Windows job has 45 minutes
@@ -850,11 +873,10 @@ probe output, and keep their own loader.
    whose `setups` lists them in the protocol's order. That one list drives the
    messaging scenarios and the tripwire, so every scenario runs for it and its home is
    watched. A gap it shows goes in `known-gaps.ts`, with the test that pins it.
-5. Add it to `.github/workflows/e2e.yml`: a row of the `e2e` matrix with its display name
-   and one of the Windows `quirks` matrix with its files, its id in the Mixed row's
-   `agents`, its id in both Hash Pins steps' list, and its own Restore and Save cache
-   steps beside the others'. Nothing fails where one is missed: the Mixed job leaves it
-   out, and its install is never cached.
+5. Give it a Restore and a Save step in `.github/workflows/e2e.yml`, beside the others'.
+   Its rows, its place in the Mixed row and its pin's hash come from `harnesses.json`, and
+   its display name from the protocol's harness table. Nothing fails where the steps are
+   missing: its install just isn't cached.
 
 ## Claude Code against the fake model
 
