@@ -42,7 +42,7 @@ export const NovaMark = ({
 
 // The wordmark: "Nova" regular and "deck" semibold. Sized by the
 // surrounding font size; `animated` raises it letter by letter.
-export const DeckWordmark = ({
+export const Wordmark = ({
   animated = false,
   className,
 }: {
@@ -56,7 +56,7 @@ export const DeckWordmark = ({
   return (
     <span
       className={cn(
-        "deck-word inline-flex items-baseline font-semibold *:inline-block",
+        "wordmark inline-flex items-baseline font-semibold *:inline-block",
         animated && "animated",
         className,
       )}
@@ -137,4 +137,4 @@ export const NovaPattern = ({
 }
 
 // The brand name for assistive technology, which the marks above leave out.
-export const deckName = "Novadeck"
+export const brandName = "Novadeck"

@@ -6,7 +6,7 @@ import { Checkbox } from "../ui-toolkit/Checkbox"
 import { Dialog, DialogDescription, DialogTitle } from "../ui-toolkit/Dialog"
 import { ClaudeIcon } from "../ui-toolkit/icons/ClaudeIcon"
 import { CodexIcon } from "../ui-toolkit/icons/CodexIcon"
-import { deckName, NovaMark, NovaPattern, DeckWordmark } from "../ui-toolkit/NovaLogo"
+import { brandName, NovaMark, NovaPattern, Wordmark } from "../ui-toolkit/NovaLogo"
 import { agentLabels, agentNote, type AgentSwitch } from "./AgentSwitches"
 import { WelcomePreview } from "./WelcomePreview"
 
@@ -141,10 +141,10 @@ const WelcomeForm = ({
         <div
           className="welcome-brand flex items-center gap-2.5 text-[23px] font-semibold"
           role="img"
-          aria-label={deckName}
+          aria-label={brandName}
         >
           <NovaMark size={35} animated />
-          <DeckWordmark animated />
+          <Wordmark animated />
         </div>
         <div className="mt-10 max-[819px]:mt-6">
           <DialogTitle

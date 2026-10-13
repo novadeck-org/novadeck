@@ -15,7 +15,8 @@ directories:
   # The app icon's sources; `build/` is ignored by git, so they live here.
   buildResources: resources
 # The Nova mark on a Graphite tile, rendered from resources/icon.svg by
-# scripts/render-icons.mjs; builder converts the 1024 px PNG for macOS and Windows.
+# scripts/render-icons.mjs; builder converts the 1024 px PNG for macOS. Windows has its own
+# icon.ico, which keeps the hand-placed small sizes.
 icon: resources/icon.png
 files:
   - out/**
@@ -105,6 +106,9 @@ mac:
       arch:
         - universal
 win:
+  # The executable, installer and uninstaller icon; builder takes it when nothing more
+  # specific is set.
+  icon: resources/icon.ico
   # Signed through Azure Artifact Signing when the release workflow passes
   # azureSignOptions; see docs/release-signing.md. Executables are signed by default; the
   # libraries and native modules too, so antivirus heuristics see a known publisher.

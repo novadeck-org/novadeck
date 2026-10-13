@@ -1,11 +1,11 @@
 /* The nova-logo recipe: the Nova mark (`.nova-mark`: four `.nova-chevron`s, `.right`,
-   `.left`, `.up` and `.down`, around the `.nova-cursor`) and the wordmark (`.deck-word`).
+   `.left`, `.up` and `.down`, around the `.nova-cursor`) and the wordmark (`.wordmark`).
    `.animated` assembles the mark, or raises the wordmark letter by letter; without motion
    both simply stand in place. The component sets each letter's place (--_i).
 
    Tokens, each optional (its fallback in brackets):
    --nova-mark-fg (ink): the chevrons. --nova-mark-core-fg (strong): the cursor.
-   --deck-word-fg (ink): the wordmark. */
+   --wordmark-fg (ink): the wordmark. */
 .nova-mark {
   /* The chevrons' miter tips sit just inside the viewBox; let the fire's overshoot pass it. */
   overflow: visible;
@@ -34,8 +34,8 @@
   --_dx: 0px;
   --_dy: -22px;
 }
-.deck-word {
-  color: var(--deck-word-fg, var(--color-ink));
+.wordmark {
+  color: var(--wordmark-fg, var(--color-ink));
 }
 
 /* Assembling: the cursor lights first (about 0.45s in) and blinks once, then the chevrons
@@ -59,8 +59,8 @@
   .nova-mark.animated .nova-chevron.up {
     animation-delay: 1.09s;
   }
-  .deck-word.animated > span {
-    animation: deck-rise 0.6s var(--ease-interface) both;
+  .wordmark.animated > span {
+    animation: wordmark-rise 0.6s var(--ease-interface) both;
     animation-delay: calc(0.9s + var(--_i) * 45ms);
   }
 }
@@ -90,7 +90,7 @@
     opacity: 1;
   }
 }
-@keyframes deck-rise {
+@keyframes wordmark-rise {
   from {
     opacity: 0;
     transform: translateY(0.62em);

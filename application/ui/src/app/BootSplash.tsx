@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react"
 
-import { NovaMark, DeckWordmark, deckName } from "../ui-toolkit/NovaLogo"
+import { NovaMark, Wordmark, brandName } from "../ui-toolkit/NovaLogo"
 import { fieldSlots } from "./boot-field"
 
 const slots = fieldSlots()
@@ -71,10 +71,10 @@ export const BootSplash = ({
         ))}
       </div>
       <div className="boot-splash-hero pointer-events-none absolute inset-0 z-4 flex flex-col items-center justify-center gap-14">
-        <div className="flex items-center gap-[26px]" role="img" aria-label={deckName}>
+        <div className="flex items-center gap-[26px]" role="img" aria-label={brandName}>
           <NovaMark size={94} animated={!finished} />
           <span className="flex flex-col gap-2.5">
-            <DeckWordmark
+            <Wordmark
               animated={!finished}
               className="boot-splash-word -mt-[0.08em] -mb-[0.12em] overflow-hidden pt-[0.08em] pb-[0.12em] text-[52px] leading-none"
             />
