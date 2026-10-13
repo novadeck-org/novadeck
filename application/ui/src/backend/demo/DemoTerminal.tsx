@@ -29,7 +29,7 @@ type DemoTerminalSurfaceProps = Omit<TerminalSurfaceProps, "terminalKey" | "rend
   DemoTerminalSnapshot & {
     onCommand: (command: string) => void
     onDraftChange: (draft: string) => void
-    onScrollChange: (offset: number) => void
+    onScrollChange: (offset: number | "end") => void
     // Where the terminal's agent is read and answered, where the demo links its screen
     // to it: its conversation then follows the intro, and the command line talks to it.
     link?: { readonly agent: DemoAgentLink; readonly key: TerminalKey }
@@ -124,10 +124,12 @@ const DemoTerminalSurface = ({
       previousOutput.current.length !== entries.length ||
       previousOutput.current.cleared !== cleared ||
       previousOutput.current.mark !== mark
+    const end = output.current.scrollHeight
     output.current.scrollTop = changed
-      ? output.current.scrollHeight
-      : (savedScroll.current ??
-        (entries.length || cleared || mark ? output.current.scrollHeight : 0))
+      ? end
+      : savedScroll.current === "end"
+        ? end
+        : (savedScroll.current ?? (entries.length || cleared || mark ? end : 0))
     previousOutput.current = { length: entries.length, cleared, mark }
   }, [entries.length, cleared, mark])
   useEffect(() => {
@@ -175,8 +177,12 @@ const DemoTerminalSurface = ({
       {...(session ? {} : root)}
       className={`terminal-content demo-output min-h-0 flex-1 overflow-auto [&_strong]:font-semibold${session ? "" : " nodrag nopan"}${ending ? " mb-7" : ""}`}
       onScroll={(event) => {
-        savedScroll.current = event.currentTarget.scrollTop
-        onScrollChange(event.currentTarget.scrollTop)
+        const { scrollTop, scrollHeight, clientHeight } = event.currentTarget
+        // A narrower layout can clamp the offset on its way out, so what is kept is that
+        // it sat at the bottom, not how far down that was. Within two pixels counts, as a
+        // zoomed page rounds its heights but not its offset.
+        savedScroll.current = scrollHeight - clientHeight - scrollTop <= 2 ? "end" : scrollTop
+        onScrollChange(savedScroll.current)
       }}
     >
       {!cleared &&

@@ -65,6 +65,105 @@ const mount = (terminal: TerminalMetadata, withRuntime: boolean) => {
   return { view, connection, showScreen, restart, input, press }
 }
 
+// The output as the layout gives it: 1000 tall in a 400 window, so 600 is the bottom.
+const metrics = (scrollHeight: number): void => {
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(scrollHeight)
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(400)
+}
+const scrollTo = (output: HTMLElement, top: number): void => {
+  output.scrollTop = top
+  act(() => void output.dispatchEvent(new Event("scroll")))
+}
+
+describe("a demo terminal's scroll across a remount", () => {
+  const workspace: Workspace = {
+    activeProjectId: "p",
+    projects: [
+      {
+        id: "p",
+        name: "novadeck",
+        directory: "~",
+        activeSessionId: "s",
+        history: [
+          { id: "s", name: "s", visitedAt: 0, state: createTerminalState([shell], "grid", "grid") },
+        ],
+      },
+    ],
+  }
+  afterEach(() => vi.restoreAllMocks())
+
+  const session = () => {
+    const engine = createDemoEngine()
+    engine.reconcile(workspace, [])
+    const Surface = createDemoTerminal(engine)
+    const props = {
+      terminalKey: key,
+      terminal: shell,
+      projectName: "novadeck",
+      fontSize: 13,
+      focusInput: false,
+      onInputFocused: () => {},
+      renderWindow: (content: ReactNode) => content,
+    }
+    const open = () => {
+      const view = render(createElement(Surface, props))
+      mounted.push(view)
+      return { view, output: view.container.querySelector<HTMLElement>(".demo-output")! }
+    }
+    return { open }
+  }
+  it("stays at the bottom when the layout grew meanwhile", () => {
+    metrics(1000)
+    const { open } = session()
+    const first = open()
+    scrollTo(first.output, 600)
+    first.view.unmount()
+    // Back wider, so the content is taller than the offset it was left at.
+    metrics(1200)
+    expect(open().output.scrollTop).toBe(1200)
+  })
+
+  it("stays at the bottom when a narrower layout clamped the offset on its way out", () => {
+    metrics(1000)
+    const { open } = session()
+    const first = open()
+    scrollTo(first.output, 300)
+    metrics(800)
+    scrollTo(first.output, 400)
+    first.view.unmount()
+    metrics(1200)
+    expect(open().output.scrollTop).toBe(1200)
+  })
+
+  it("takes a fraction short of the bottom, as a zoomed page leaves it, as the bottom", () => {
+    metrics(1000)
+    const { open } = session()
+    const first = open()
+    scrollTo(first.output, 598.6)
+    first.view.unmount()
+    metrics(1200)
+    expect(open().output.scrollTop).toBe(1200)
+  })
+
+  it("keeps a place a few pixels above the bottom", () => {
+    metrics(1000)
+    const { open } = session()
+    const first = open()
+    scrollTo(first.output, 595)
+    first.view.unmount()
+    expect(open().output.scrollTop).toBe(595)
+  })
+
+  it("keeps the place of a terminal the person scrolled up", () => {
+    metrics(1000)
+    const { open } = session()
+    const first = open()
+    scrollTo(first.output, 250)
+    first.view.unmount()
+    expect(open().output.scrollTop).toBe(250)
+  })
+})
+
 describe("demo terminal surface", () => {
   context("without a runtime", () => {
     it("is its own root and shows no ending", () => {

@@ -765,6 +765,26 @@ App:
   `?demo=update` and `?demo=update-available` open variants that already have one
   waiting, for specs.
 
+### Visitor build
+
+A clickable, public version of the demo, for a website. `pnpm dev:try` serves it in vite
+mode `try` (http://127.0.0.1:5190); `pnpm build:try` writes static files to
+`application/ui/dist-try` (beside `dist/`, which the desktop app packages), with relative
+paths and a hash router, so any static host serves them from any path, and
+`pnpm preview:try` serves them on http://127.0.0.1:5191.
+
+It runs the agents demo's storefront and its other projects with no debug panel, chat
+view, voice, murmur, agent connections, notices or updates, and no Welcome dialog
+(`backend/demo/visitor/`). A scenario plays the agents on the verbs alone (`beats.ts`):
+agents in the other projects finish, ask and fail, and the switcher, the bell and the tabs
+mark each, a little over two minutes in all and quieter at the end. A beat never acts on
+the selected terminal, nor on one the person's own prompt works, and waits while they click,
+type or scroll (`scenario.ts`). A strip above the header says the agents are simulated and
+links to the download; a card lists four things to try and ticks them off
+(`app/Visitor.tsx`); under 760 px wide a panel pointing to a desktop browser replaces the
+app, whose UI unmounts behind it and comes back on widening. Typing into a shell answers as a
+simulated one (`mockReply`).
+
 ## Repository map
 
 This is a TypeScript monorepo using pnpm workspaces and Turborepo. `application/` holds

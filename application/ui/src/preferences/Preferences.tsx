@@ -104,6 +104,7 @@ export const Preferences = ({
   updates,
   notices = false,
   chat = false,
+  visitor = false,
 }: {
   open: boolean
   tab: PreferencesTab
@@ -122,6 +123,9 @@ export const Preferences = ({
   notices?: boolean
   // Whether the backend reads agents' conversations, which the chat view shows.
   chat?: boolean
+  // Whether this is the website's demo, whose Addons (chat view, voice input, murmur)
+  // all need the desktop app, so it has no tab for them.
+  visitor?: boolean
   // Agents whose sessions resume once connected; absent where the backend has none.
   agents?: {
     readonly list: readonly AgentSwitch[]
@@ -148,6 +152,8 @@ export const Preferences = ({
     setOpenSelect(null)
     if (panels.current) panels.current.scrollTop = 0
   }
+  // A URL can still name the Addons section, which a visitor's demo has no tab for.
+  const shown = visitor && tab === "addons" ? "general" : tab
   const lastView = value.enabledViews.length === 1
   const { appearance } = value
   const theme: ThemeEntry<ThemeId> =
@@ -173,7 +179,7 @@ export const Preferences = ({
       positionerClassName="fixed inset-0 z-50 flex items-center justify-center"
       className="modal flex h-[min(640px,calc(100dvh-48px))] w-[min(540px,calc(100vw-32px))] flex-col overflow-hidden max-[480px]:w-[calc(100vw-24px)]"
     >
-      <Tabs value={tab} onValueChange={changeTab} className="flex min-h-0 flex-1 flex-col">
+      <Tabs value={shown} onValueChange={changeTab} className="flex min-h-0 flex-1 flex-col">
         <div className="modal-header preferences-heading shrink-0 px-6 pt-5 max-[480px]:px-4">
           <div className="flex items-center justify-between gap-4">
             <h2 id="preferences-title" className="modal-title m-0 text-title font-medium">
@@ -192,11 +198,13 @@ export const Preferences = ({
             label="Preference sections"
             indicatorClassName="bottom-[-1px] h-0.5"
           >
-            {preferencesTabs.map(({ id, label }) => (
-              <Tab key={id} value={id} className="relative min-h-9 px-0.5 text-left text-body">
-                {label}
-              </Tab>
-            ))}
+            {preferencesTabs
+              .filter(({ id }) => !(visitor && id === "addons"))
+              .map(({ id, label }) => (
+                <Tab key={id} value={id} className="relative min-h-9 px-0.5 text-left text-body">
+                  {label}
+                </Tab>
+              ))}
           </TabList>
         </div>
         <div ref={panels} className="preferences-panels grid min-h-0 flex-1 overflow-y-auto">
@@ -216,7 +224,7 @@ export const Preferences = ({
                     if (chosen)
                       onChange({ ...value, appearance: { ...appearance, theme: chosen.id } })
                   }}
-                  open={open && tab === "general" && openSelect === "theme"}
+                  open={open && shown === "general" && openSelect === "theme"}
                   onOpenChange={(expanded) => setOpenSelect(expanded ? "theme" : null)}
                   portalContainer={dialog}
                 />
@@ -309,7 +317,7 @@ export const Preferences = ({
                   items={fontSizes}
                   value={String(value.fontSize)}
                   onValueChange={(size) => onChange({ ...value, fontSize: Number(size) })}
-                  open={open && tab === "general" && openSelect === "font-size"}
+                  open={open && shown === "general" && openSelect === "font-size"}
                   onOpenChange={(expanded) => setOpenSelect(expanded ? "font-size" : null)}
                   portalContainer={dialog}
                 />
@@ -391,43 +399,49 @@ export const Preferences = ({
               </Section>
             )}
           </TabPanel>
-          <TabPanel value="addons" className={panelClasses}>
-            <Section
-              title="Chat view"
-              description="Show agents as a conversation instead of their terminal."
-            >
-              <div className={settingsCardClasses}>
-                <div className={`preference-row ${settingRowClasses}`}>
-                  <SettingText
-                    id="chat-view-label"
-                    label="Open agents in chat"
-                    description={
-                      chat
-                        ? "Every terminal running a supported agent shows its chat. Answer there, or in the terminal when the chat can't."
-                        : "Not available here."
-                    }
-                    descriptionId="chat-view-description"
-                  />
-                  <Switch
-                    checked={value.chatView}
-                    onChange={(chatView) => onChange({ ...value, chatView })}
-                    labelledBy="chat-view-label"
-                    describedBy="chat-view-description"
-                    disabled={!chat}
-                  />
+          {!visitor && (
+            <TabPanel value="addons" className={panelClasses}>
+              <Section
+                title="Chat view"
+                description="Show agents as a conversation instead of their terminal."
+              >
+                <div className={settingsCardClasses}>
+                  <div className={`preference-row ${settingRowClasses}`}>
+                    <SettingText
+                      id="chat-view-label"
+                      label="Open agents in chat"
+                      description={
+                        chat
+                          ? "Every terminal running a supported agent shows its chat. Answer there, or in the terminal when the chat can't."
+                          : "Not available here."
+                      }
+                      descriptionId="chat-view-description"
+                    />
+                    <Switch
+                      checked={value.chatView}
+                      onChange={(chatView) => onChange({ ...value, chatView })}
+                      labelledBy="chat-view-label"
+                      describedBy="chat-view-description"
+                      disabled={!chat}
+                    />
+                  </div>
                 </div>
-              </div>
-            </Section>
-            <Section
-              title="Voice input"
-              description="Speak prompts into agent terminals. Speech is transcribed on this computer and never leaves it."
-            >
-              <VoiceInput voice={voice} open={open && tab === "addons"} portalContainer={dialog} />
-            </Section>
-            <Section title={MURMUR_NAME} description={murmurDescription}>
-              <MurmurAddon murmur={murmur} />
-            </Section>
-          </TabPanel>
+              </Section>
+              <Section
+                title="Voice input"
+                description="Speak prompts into agent terminals. Speech is transcribed on this computer and never leaves it."
+              >
+                <VoiceInput
+                  voice={voice}
+                  open={open && tab === "addons"}
+                  portalContainer={dialog}
+                />
+              </Section>
+              <Section title={MURMUR_NAME} description={murmurDescription}>
+                <MurmurAddon murmur={murmur} />
+              </Section>
+            </TabPanel>
+          )}
           <TabPanel value="shortcuts" className={panelClasses}>
             {shortcutGroups(currentPlatform()).map(({ title, description, items }) => (
               <Section

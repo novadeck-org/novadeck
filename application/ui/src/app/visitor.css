@@ -1,0 +1,57 @@
+/* The visitor build's recipes: the strip above the header, the card of things to try and
+   the panel that replaces the app in a window too narrow for it.
+
+   Hooks: `data-done` on a hint once the person did it.
+
+   Tokens, each optional (its fallback in brackets):
+   --visitor-bar-bg (shell), --visitor-bar-fg (muted), --visitor-bar-border-color (line):
+   the strip. --visitor-bar-mark-fg (ink): the word "Demo" in it.
+   --visitor-download-fg (ink): its download link; underlined under the pointer.
+   --visitor-hints-shadow (shadow-floating): the card of hints, lifted off the page.
+   --visitor-hint-done-fg (muted): a hint that is done.
+   --visitor-phone-bg (canvas), --visitor-phone-fg (ink), --visitor-phone-muted-fg (muted):
+   the narrow window's panel. The hints card is a `.card`. */
+.visitor-bar {
+  --_bg: var(--visitor-bar-bg, var(--color-shell));
+  --_fg: var(--visitor-bar-fg, var(--color-muted));
+  --_border-color: var(--visitor-bar-border-color, var(--color-line));
+  @apply h-7;
+  border-bottom: var(--border-width) solid var(--_border-color);
+  background-color: var(--_bg);
+  color: var(--_fg);
+}
+.visitor-bar-mark {
+  color: var(--visitor-bar-mark-fg, var(--color-ink));
+}
+.visitor-download {
+  color: var(--visitor-download-fg, var(--color-ink));
+  text-underline-offset: 2px;
+}
+.visitor-download:is(:hover, :focus-visible) {
+  text-decoration: underline;
+}
+.visitor-hints {
+  --_shadow: var(--visitor-hints-shadow, var(--shadow-floating));
+  bottom: 2.5rem;
+}
+/* Zen's dock sits at the same corner, and open it is taller than the footer the card
+   clears: the card rises above it. */
+[data-zen="true"] .visitor-hints {
+  bottom: 4.75rem;
+}
+.visitor-hints-list {
+  list-style: none;
+}
+.visitor-hint[data-done="true"] {
+  color: var(--visitor-hint-done-fg, var(--color-muted));
+}
+.visitor-hint[data-done="true"] span {
+  text-decoration: line-through;
+}
+.visitor-phone {
+  background-color: var(--visitor-phone-bg, var(--color-canvas));
+  color: var(--visitor-phone-fg, var(--color-ink));
+}
+.visitor-phone-text {
+  color: var(--visitor-phone-muted-fg, var(--color-muted));
+}

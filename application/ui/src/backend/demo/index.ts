@@ -262,7 +262,7 @@ export const withConversations = (
 
 // The agents demo's storefront terminals hold what their agents showed, on their bars,
 // to open, peek at and move; nothing there changes.
-const withStorefrontArtifacts = (backend: Backend): Backend => {
+export const withStorefrontArtifacts = (backend: Backend): Backend => {
   const session = { projectId: "storefront", workspaceSessionId: "initial" }
   const showcase = createShowcase({
     agents: [],

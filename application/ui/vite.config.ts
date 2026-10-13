@@ -26,11 +26,11 @@ const contentSecurityPolicy = (): Plugin => {
         throw new Error("Content Security Policy connect-src placeholder is missing")
       }
 
-      const sources = contentSecurityPolicyConnectSources(
-        apiUrl,
-        environment.command === "serve",
-        runnerUrl,
-      )
+      // The visitor build reaches nothing but the page's own origin.
+      const sources =
+        environment.mode === "try" && environment.command === "build"
+          ? ["'self'"]
+          : contentSecurityPolicyConnectSources(apiUrl, environment.command === "serve", runnerUrl)
       return html.replace(connectSourcesPlaceholder, sources.join(" "))
     },
   }

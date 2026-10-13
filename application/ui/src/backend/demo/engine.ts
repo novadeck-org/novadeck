@@ -25,7 +25,9 @@ const openingOf = (terminal: TerminalMetadata): Opening => ({
 export type DemoTerminalSnapshot = {
   readonly opening: Opening
   readonly draft: string
-  readonly scrollOffset: number | undefined
+  // Where the output was scrolled to: "end" while it sat at the bottom, so a remount, whose
+  // layout may differ, keeps it there instead of at a pixel offset.
+  readonly scrollOffset: number | "end" | undefined
   readonly entries: readonly Entry[]
   readonly cleared: boolean
 }
@@ -37,7 +39,7 @@ export type DemoEngine = {
   readonly getSnapshot: (key: TerminalKey) => DemoTerminalSnapshot
   readonly subscribe: (key: TerminalKey, listener: () => void) => () => void
   readonly setDraft: (key: TerminalKey, draft: string) => void
-  readonly setScrollOffset: (key: TerminalKey, scrollOffset: number) => void
+  readonly setScrollOffset: (key: TerminalKey, scrollOffset: number | "end") => void
   readonly run: (key: TerminalKey, command: string) => void
 }
 

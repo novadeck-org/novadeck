@@ -238,6 +238,10 @@ export type Backend = {
   // Optional. The debug panel, where this launch offers it: it triggers the states
   // the backend can be in. See README "Debug panel".
   readonly DebugPanel?: ComponentType<DebugPanelProps>
+  // Optional. Marks a public build for a website's visitors: the app shows it is a
+  // simulation, with a call to download, and a few things to try. `answered` is true once
+  // the person answered the permission request in Checkout review.
+  readonly visitor?: { readonly answered: Store<boolean> }
 }
 
 // How the page looks, for the window around it: the scheme its native parts use

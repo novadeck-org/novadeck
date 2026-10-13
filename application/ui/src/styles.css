@@ -34,6 +34,7 @@
 @import "./terminals/companion/pane.css" layer(components);
 @import "./terminals/companion/artifact.css" layer(components);
 @import "./terminals/companion/mail.css" layer(components);
+@import "./app/visitor.css" layer(components);
 @import "./shell/region.css" layer(components);
 @import "./shell/panels.css" layer(components);
 @import "./shell/empty-state.css" layer(components);
