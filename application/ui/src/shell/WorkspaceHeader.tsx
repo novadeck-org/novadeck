@@ -14,7 +14,7 @@ import type { Project, ViewMode } from "../model/types"
 import type { ProjectArrangement } from "../projects/project-arrangement"
 import type { ProjectStatus } from "../projects/project-status"
 import { WorkspaceSwitcher } from "../projects/WorkspaceSwitcher"
-import { DeckMark } from "../ui-toolkit/DeckLogo"
+import { NovaMark } from "../ui-toolkit/NovaLogo"
 import { SegmentGroup } from "../ui-toolkit/SegmentGroup"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 
@@ -103,7 +103,7 @@ export const WorkspaceHeader = ({
     >
       <div className="header-workspace max-[701px]:gap-2 flex min-w-0 items-center gap-4">
         <Link to={homeTo} className="brand flex shrink-0 items-center" aria-label="Novadeck home">
-          <DeckMark size={28} className="brand-symbol" />
+          <NovaMark size={28} className="brand-symbol" />
         </Link>
         <WorkspaceSwitcher
           projects={projects}

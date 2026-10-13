@@ -1,11 +1,11 @@
 import type { CSSProperties, ReactNode } from "react"
 
-import { DeckMark, DeckWordmark, deckName } from "../ui-toolkit/DeckLogo"
+import { NovaMark, DeckWordmark, deckName } from "../ui-toolkit/NovaLogo"
 import { fieldSlots } from "./boot-field"
 
 const slots = fieldSlots()
 
-// The full-window boot splash: the Deck lockup over a field of terminal slots jacking
+// The full-window boot splash: the Nova lockup over a field of terminal slots jacking
 // in, a hairline that fills with real progress, and the current phase.
 export const BootSplash = ({
   line,
@@ -72,7 +72,7 @@ export const BootSplash = ({
       </div>
       <div className="boot-splash-hero pointer-events-none absolute inset-0 z-4 flex flex-col items-center justify-center gap-14">
         <div className="flex items-center gap-[26px]" role="img" aria-label={deckName}>
-          <DeckMark size={94} animated={!finished} />
+          <NovaMark size={94} animated={!finished} />
           <span className="flex flex-col gap-2.5">
             <DeckWordmark
               animated={!finished}

@@ -28,18 +28,17 @@ export const nav = [
   { to: "/flows", label: "Flows", icon: Workflow },
 ]
 
-// Novadeck's mark: the ">_" tile with two terminal cards fanned behind it.
-const DeckMark = () => (
-  <span aria-hidden="true" className="deck-mark">
-    <span className="deck-card far" />
-    <span className="deck-card near" />
-    <span className="deck-face">
-      <svg viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-        <path d="m5 16.5 5.5-5.5-5.5-5.5" />
-        <path d="M12.5 18.5h6.5" />
-      </svg>
-    </span>
-  </span>
+// Novadeck's mark: four chevrons firing outward from a block cursor.
+const NovaMark = () => (
+  <svg aria-hidden="true" viewBox="3 3 58 58" width={28} height={28} className="nova-mark">
+    <g fill="none" strokeWidth="7">
+      <polyline className="nova-chevron" points="46,22 56,32 46,42" />
+      <polyline className="nova-chevron" points="18,22 8,32 18,42" />
+      <polyline className="nova-chevron" points="22,18 32,8 42,18" />
+      <polyline className="nova-chevron" points="22,46 32,56 42,46" />
+    </g>
+    <rect className="nova-cursor" x="28" y="23" width="8" height="18" />
+  </svg>
 )
 
 // The header, as the app's: the mark and the atlas's name, the page switch where the
@@ -47,7 +46,7 @@ const DeckMark = () => (
 const Header = ({ onSearch }: { onSearch: () => void }) => (
   <header className="app-header grid h-16 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 px-4">
     <Link to="/" className="flex min-w-0 items-center gap-4 text-fg no-underline hover:text-fg">
-      <DeckMark />
+      <NovaMark />
       <span className="truncate text-body font-medium">Atlas</span>
     </Link>
     <nav aria-label="Pages" className="segmented">

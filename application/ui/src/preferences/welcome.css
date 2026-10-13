@@ -1,12 +1,12 @@
 /* The welcome recipe: the first-run dialog. Its content arrives in reading order behind
-   the assembling Deck mark, and the headline's second line types itself. Its agent and
+   the assembling Nova mark, and the headline's second line types itself. Its agent and
    transcript choices are `.choice-card`s (settings.css).
 
    Parts:
    `.welcome-overlay`: a variant of `.overlay` that blurs further.
    `.welcome-intro`: the column holding the headline and the preview, beside the
    choices (under them on narrow screens) across a hairline.
-   `.welcome-pattern`: the Deck pattern behind the intro.
+   `.welcome-pattern`: the Nova pattern behind the intro.
    `.welcome-brand`, `.welcome-headline`, `.welcome-heading`: the wordmark's line, the
    headline and the choices' heading, set tight.
    `.welcome-enter` and `.welcome-rise` arrive `--_at` after the dialog opens; each

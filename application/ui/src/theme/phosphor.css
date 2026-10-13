@@ -99,6 +99,10 @@
   --color-scrim: rgb(0 6 0 / 0.65);
   --color-selection: #134a20;
   --color-shadow: rgb(0 0 0);
+  /* The Nova mark's cursor: the beam at its whitest, so it reads as the lit part beside
+     chevrons in the green's own colour. */
+  --nova-mark-core-fg: #c8ffd0;
+
   /* Tones: tints of the tube, each keeping its warning apart by hue as far as a green
      monitor can. */
   --color-success: #0d2a14;
@@ -157,6 +161,10 @@
   --color-scrim: rgb(6 3 0 / 0.65);
   --color-selection: #4a2f0c;
   --color-shadow: rgb(0 0 0);
+  /* The Nova mark's cursor: the beam at its whitest, so it reads as the lit part beside
+     chevrons in the amber's own colour. */
+  --nova-mark-core-fg: #ffe2b0;
+
   /* Tones: tints of the tube, each keeping its warning apart by hue as far as an amber
      monitor can. */
   --color-success: #1c1c06;

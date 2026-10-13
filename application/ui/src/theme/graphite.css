@@ -15,7 +15,7 @@
    `oklch(from var(--color-paper) calc(l - n) c h)`, so they keep its hue and follow it
    if it changes; a component token whose offset both schemes share is declared once
    (foundation tokens are restated, as below). Warmer or tinted colours (strong lines,
-   the selected outline, selection, tones), the near Deck card and the grain-compensated
+   the selected outline, selection, tones) and the grain-compensated
    grounds stay literal.
 
    The light block is shared: what it declares holds in dark too. An alias (var()) or an
@@ -204,12 +204,9 @@
   --demo-form-bg: oklch(from var(--color-paper) calc(l - 0.021) c h);
   --demo-form-shadow: var(--field-shadow);
 
-  /* Brand: the logo tile is dark in both schemes, its glyph the bright cyan; the Deck
-     mark's cards step back from the face into the paper. */
+  /* Brand: the choice-card tiles are dark in both schemes, their glyphs the bright cyan. */
   --brand-tile-bg: linear-gradient(180deg, #2e2d2a, #181816);
   --brand-tile-fg: #00e5d6;
-  --deck-mark-card-near-bg: #c3bfb6;
-  --deck-mark-card-far-bg: oklch(from var(--color-paper) calc(l - 0.1) c h);
 
   /* Fixed: a live page assumes a white ground whatever the scheme, so the ground behind
      one while it loads stays white; section labels are set in the mono, after the small
@@ -351,8 +348,6 @@
   /* Brand: the tile stays slate with a light edge, its glyph the cyan. */
   --brand-tile-bg: linear-gradient(180deg, #2f3137, #24262b);
   --brand-tile-border-color: #595c64;
-  --deck-mark-card-near-bg: #34373e;
-  --deck-mark-card-far-bg: oklch(from var(--color-paper) calc(l + 0.038) c h);
 
   /* Glow: the accent's thin lines (the selection bars, the tab underline, the running
      sweep) glow like neon tubes, a bright core with a soft bloom, in the cyan. Only
@@ -364,7 +359,7 @@
 }
 
 /* The welcome's start button is the dialog's one primary action, so it takes the accent
-   as its fill, where the logo and icon tiles carry it only in their glyph. */
+   as its fill, where the choice-card tiles carry it only in their glyph. */
 :root:where(:not([data-theme]), [data-theme="graphite"]) .welcome-start {
   --brand-tile-bg: linear-gradient(180deg, #00877e, var(--color-strong));
   --brand-tile-fg: var(--color-on-strong);

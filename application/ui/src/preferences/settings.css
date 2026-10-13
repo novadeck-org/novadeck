@@ -35,7 +35,7 @@
    (shadow-panel): checked. --choice-card-disabled-fg (muted): disabled.
    --choice-card-tile-bg (shell), --choice-card-tile-fg (ink),
    --choice-card-tile-border-color (line): the icon tile at rest. Checked, it takes
-   --brand-tile-bg, --brand-tile-fg and --brand-tile-border-color, like the Deck mark.
+   --brand-tile-bg, --brand-tile-fg and --brand-tile-border-color.
    --choice-card-tile-disabled-opacity (0.7). */
 
 .preferences-panels {

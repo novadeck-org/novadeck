@@ -10,7 +10,7 @@
    pointer's place on the stage (--_mx, --_my, and --_px, --_py from -1 to 1), each
    line's length and start (--_chars, --_at) and the tour's step (--_step).
 
-   Opening: the stacked cards of the Deck mark deal out onto the stage, then each
+   Opening: the stacked cards deal out onto the stage, then each
    terminal types its lines. Without motion everything is simply in place.
 
    Tokens, each optional (its fallback in brackets):

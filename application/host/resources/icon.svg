@@ -1,16 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -10 114 114" width="1024" height="1024">
-  <!-- The Deck mark: two terminal cards fanned behind the charcoal ">_" square. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- The Nova mark on a Graphite tile, as the website draws it (NovaMark.astro in novadeck-website).
+       Large sizes follow the macOS icon grid: an 824 px body inset 100 px, corner radius 185 px.
+       16, 24 and 32 px swap to hand-placed pixel versions (the .sNN groups, at the size's own
+       tile inset), so their strokes land on whole pixels. The media queries read the viewport,
+       which scripts/render-icons.mjs sets to the size being rendered. -->
+  <style>
+    .s16, .s24, .s32 { display: none; }
+    @media (max-width: 16px) { .big { display: none; } .s16 { display: inline; } }
+    @media (min-width: 17px) and (max-width: 24px) { .big { display: none; } .s24 { display: inline; } }
+    @media (min-width: 25px) and (max-width: 32px) { .big { display: none; } .s32 { display: inline; } }
+  </style>
   <defs>
-    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3f443d"/>
-      <stop offset="1" stop-color="#30342e"/>
-    </linearGradient>
+    <filter id="lift" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
   </defs>
-  <rect x="14" y="0" width="80" height="80" rx="6" fill="#eaece8" stroke="#262826" stroke-opacity="0.07"/>
-  <rect x="7" y="7" width="80" height="80" rx="6" fill="#d9ddd6" stroke="#262826" stroke-opacity="0.07"/>
-  <rect x="0" y="14" width="80" height="80" rx="6" fill="url(#face)"/>
-  <g transform="translate(14.4 28.4) scale(2.1333)" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="m5 16.5 5.5-5.5-5.5-5.5" stroke="#ffffff"/>
-    <path d="M12.5 18.5h6.5" stroke="#12b0c4"/>
+  <g class="big">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="#1d1f23" filter="url(#lift)"/>
+    <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#fff" stroke-opacity="0.08" stroke-width="3"/>
+    <g transform="translate(512 512) scale(8.2) translate(-32 -32)">
+      <g fill="none" stroke="#e8e9ed" stroke-width="7">
+        <polyline points="46,22 56,32 46,42"/>
+        <polyline points="18,22 8,32 18,42"/>
+        <polyline points="22,18 32,8 42,18"/>
+        <polyline points="22,46 32,56 42,46"/>
+      </g>
+      <rect x="28" y="23" width="8" height="18" fill="#00e5d6"/>
+    </g>
   </g>
+    <g class="s16" transform="scale(64)"><rect x="1" y="1" width="14" height="14" rx="3.5" fill="#1d1f23"/>
+    <g shape-rendering="crispEdges"><path fill="#e8e9ed" d="M7 3h1v1h-1zM8 3h1v1h-1zM6 4h1v1h-1zM9 4h1v1h-1zM4 6h1v1h-1zM11 6h1v1h-1zM3 7h1v1h-1zM12 7h1v1h-1zM3 8h1v1h-1zM12 8h1v1h-1zM4 9h1v1h-1zM11 9h1v1h-1zM6 11h1v1h-1zM9 11h1v1h-1zM7 12h1v1h-1zM8 12h1v1h-1z"/><path fill="#00e5d6" d="M7 6h1v1h-1zM8 6h1v1h-1zM7 7h1v1h-1zM8 7h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1zM7 9h1v1h-1zM8 9h1v1h-1z"/></g></g>
+  <g class="s24" transform="scale(42.666666666666664)"><rect x="1" y="1" width="22" height="22" rx="5" fill="#1d1f23"/>
+    <g shape-rendering="crispEdges"><path fill="#e8e9ed" d="M11 4h1v1h-1zM12 4h1v1h-1zM10 5h1v1h-1zM11 5h1v1h-1zM12 5h1v1h-1zM13 5h1v1h-1zM9 6h1v1h-1zM10 6h1v1h-1zM13 6h1v1h-1zM14 6h1v1h-1zM6 9h1v1h-1zM17 9h1v1h-1zM5 10h1v1h-1zM6 10h1v1h-1zM17 10h1v1h-1zM18 10h1v1h-1zM4 11h1v1h-1zM5 11h1v1h-1zM18 11h1v1h-1zM19 11h1v1h-1zM4 12h1v1h-1zM5 12h1v1h-1zM18 12h1v1h-1zM19 12h1v1h-1zM5 13h1v1h-1zM6 13h1v1h-1zM17 13h1v1h-1zM18 13h1v1h-1zM6 14h1v1h-1zM17 14h1v1h-1zM9 17h1v1h-1zM10 17h1v1h-1zM13 17h1v1h-1zM14 17h1v1h-1zM10 18h1v1h-1zM11 18h1v1h-1zM12 18h1v1h-1zM13 18h1v1h-1zM11 19h1v1h-1zM12 19h1v1h-1z"/><path fill="#00e5d6" d="M10 9h1v1h-1zM11 9h1v1h-1zM12 9h1v1h-1zM13 9h1v1h-1zM10 10h1v1h-1zM11 10h1v1h-1zM12 10h1v1h-1zM13 10h1v1h-1zM10 11h1v1h-1zM11 11h1v1h-1zM12 11h1v1h-1zM13 11h1v1h-1zM10 12h1v1h-1zM11 12h1v1h-1zM12 12h1v1h-1zM13 12h1v1h-1zM10 13h1v1h-1zM11 13h1v1h-1zM12 13h1v1h-1zM13 13h1v1h-1zM10 14h1v1h-1zM11 14h1v1h-1zM12 14h1v1h-1zM13 14h1v1h-1z"/></g></g>
+  <g class="s32" transform="scale(32)"><rect x="3" y="3" width="26" height="26" rx="6" fill="#1d1f23"/>
+    <g shape-rendering="crispEdges"><path fill="#e8e9ed" d="M15 8h1v1h-1zM16 8h1v1h-1zM14 9h1v1h-1zM15 9h1v1h-1zM16 9h1v1h-1zM17 9h1v1h-1zM13 10h1v1h-1zM14 10h1v1h-1zM17 10h1v1h-1zM18 10h1v1h-1zM10 13h1v1h-1zM21 13h1v1h-1zM9 14h1v1h-1zM10 14h1v1h-1zM21 14h1v1h-1zM22 14h1v1h-1zM8 15h1v1h-1zM9 15h1v1h-1zM22 15h1v1h-1zM23 15h1v1h-1zM8 16h1v1h-1zM9 16h1v1h-1zM22 16h1v1h-1zM23 16h1v1h-1zM9 17h1v1h-1zM10 17h1v1h-1zM21 17h1v1h-1zM22 17h1v1h-1zM10 18h1v1h-1zM21 18h1v1h-1zM13 21h1v1h-1zM14 21h1v1h-1zM17 21h1v1h-1zM18 21h1v1h-1zM14 22h1v1h-1zM15 22h1v1h-1zM16 22h1v1h-1zM17 22h1v1h-1zM15 23h1v1h-1zM16 23h1v1h-1z"/><path fill="#00e5d6" d="M14 13h1v1h-1zM15 13h1v1h-1zM16 13h1v1h-1zM17 13h1v1h-1zM14 14h1v1h-1zM15 14h1v1h-1zM16 14h1v1h-1zM17 14h1v1h-1zM14 15h1v1h-1zM15 15h1v1h-1zM16 15h1v1h-1zM17 15h1v1h-1zM14 16h1v1h-1zM15 16h1v1h-1zM16 16h1v1h-1zM17 16h1v1h-1zM14 17h1v1h-1zM15 17h1v1h-1zM16 17h1v1h-1zM17 17h1v1h-1zM14 18h1v1h-1zM15 18h1v1h-1zM16 18h1v1h-1zM17 18h1v1h-1z"/></g></g>
 </svg>

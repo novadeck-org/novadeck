@@ -87,12 +87,6 @@
     inset 0 1px 1px color-mix(in srgb, var(--color-shadow) 7%, transparent),
     0 1px 0 rgb(255 255 255 / 0.5);
   --item-selected-indicator-shadow: none;
-  /* Brand: the logo tile dark in both schemes, its glyph the bright cyan. */
-  --brand-tile-bg: linear-gradient(180deg, #2e2d2a, #181816);
-  --brand-tile-fg: #00e5d6;
-  --brand-tile-border-color: transparent;
-  --deck-mark-card-near-bg: #c3bfb6;
-  --deck-mark-card-far-bg: oklch(from var(--color-paper) calc(l - 0.1) c h);
   /* Shape and type */
   --radius-control: 2px;
   --radius-panel: 3px;
@@ -165,10 +159,6 @@
       inset 0 1px 2px color-mix(in srgb, var(--color-shadow) 35%, transparent),
       0 1px 0 rgb(255 255 255 / 0.04);
     --item-selected-indicator-shadow: 0 0 2px rgb(0 229 214 / 0.7), 0 0 8px rgb(0 229 214 / 0.35);
-    --brand-tile-bg: linear-gradient(180deg, #2f3137, #24262b);
-    --brand-tile-border-color: #595c64;
-    --deck-mark-card-near-bg: #34373e;
-    --deck-mark-card-far-bg: oklch(from var(--color-paper) calc(l + 0.038) c h);
   }
 }
 

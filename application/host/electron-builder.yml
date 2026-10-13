@@ -14,8 +14,8 @@ directories:
   output: release
   # The app icon's sources; `build/` is ignored by git, so they live here.
   buildResources: resources
-# The Deck mark, rendered from resources/icon.svg by scripts/render-icons.mjs; builder
-# converts the 1024 px PNG for macOS and Windows.
+# The Nova mark on a Graphite tile, rendered from resources/icon.svg by
+# scripts/render-icons.mjs; builder converts the 1024 px PNG for macOS and Windows.
 icon: resources/icon.png
 files:
   - out/**

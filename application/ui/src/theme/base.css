@@ -30,7 +30,7 @@
   --canvas-dots-opacity: 0.16;
   --terminal-idle-opacity: 0.5;
   --terminal-hover-opacity: 0.75;
-  /* Brand: the logo tile and the welcome start button. */
+  /* Brand: the welcome start button and the choice-card tiles. */
   --brand-tile-border-color: transparent;
 }
 
