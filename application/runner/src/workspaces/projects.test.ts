@@ -68,4 +68,50 @@ describe("project removal", () => {
       expect(reopened.windows(session.id)).toMatchObject([{ id: windowId, itemId: item.id }])
     },
   )
+  it.skipIf(process.platform === "win32")(
+    "lets terminals start in a project whose removal failed after its terminals closed",
+    async ({ resources }) => {
+      const directory = mkdtempSync(join(tmpdir(), "novadeck-projects-"))
+      resources.defer(() => rmSync(directory, { recursive: true, force: true }))
+      const store = new WorkspaceStore(join(directory, "workspace.sqlite"))
+      resources.defer(() => store.close())
+      const items = new CompanionItems({
+        records: store,
+        terminal: (terminalId) => terminals.place(terminalId),
+      })
+      const terminals: Terminals = new Terminals({
+        shell: "/bin/sh",
+        shellArgs: ["-c", "exec cat"],
+        records: store,
+        mailbox: store,
+        doorbell: false,
+        items,
+      })
+      resources.defer(() => terminals.shutdown())
+      const projects = new Projects(store, terminals, items)
+      const project = await store.createProject({ id: randomUUID(), name: "Kept", cwd: directory })
+      const session = store.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
+      const create = () =>
+        terminals.create(
+          { id: randomUUID(), sessionId: session.id, cwd: directory, cols: 80, rows: 24 },
+          "owner",
+        )
+      const closed = await create()
+      // Deleting it fails once its terminals have closed.
+      const removeProject = store.removeProject.bind(store)
+      store.removeProject = () => {
+        throw new Error("The disk is full.")
+      }
+
+      await expect(projects.remove(project.id)).rejects.toThrow("The disk is full.")
+
+      expect(projects.list().map(({ id }) => id)).toContain(project.id)
+      await expect(create()).resolves.toMatchObject({ sessionId: session.id })
+      // What was closed stays closed.
+      await expect(
+        terminals.restart({ terminalId: closed.id, cols: 80, rows: 24 }, "owner"),
+      ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+      store.removeProject = removeProject
+    },
+  )
 })

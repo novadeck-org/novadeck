@@ -161,7 +161,7 @@ for (const setup of setups) {
             clearInterval(watching)
             held.open()
             // Each run's terminal goes, so later cases don't run under the load of earlier ones.
-            await run.deck.terminals.close({ terminalId: t.id }, "e2e").catch(() => {})
+            await run.deck.terminals.close({ terminalId: t.id }).catch(() => {})
             out[key].push(record)
             writeFileSync(
               join(

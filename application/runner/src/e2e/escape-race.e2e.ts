@@ -109,7 +109,7 @@ for (const setup of setups) {
           // hold a finish for `finishGraceMs` for it.)
           if (read[0] === "interrupted") expect(read, why).not.toContain("completed")
         }
-        await run.deck.terminals.close({ terminalId: t1.id }, "e2e").catch(() => {})
+        await run.deck.terminals.close({ terminalId: t1.id }).catch(() => {})
       }
       expect(
         lost,

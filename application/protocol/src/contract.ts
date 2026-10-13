@@ -140,7 +140,8 @@ export const contract = {
     // A session resumes in one terminal only, never beside another terminal running it.
     // `command` runs once at the new shell's first prompt, as if typed there; a shell
     // that can't run one, as without Novadeck's shell integration, is SPAWN_FAILED. A
-    // command goes with neither `restore` nor `resume`.
+    // command goes with neither `restore` nor `resume`. A terminal closed in the runner's
+    // lifetime, or one in a project being removed, is TERMINAL_NOT_FOUND: closed for good.
     create: procedure
       .input(
         z

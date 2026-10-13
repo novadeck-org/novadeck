@@ -36,5 +36,7 @@ export const command = (
     /** Starts a program that shares the terminal and runs until ended, reporting its id. */
     | { type: "spawn" }
     /** Renames the child, which Linux then reports as the terminal's foreground process. */
-    | { type: "title"; value: string },
+    | { type: "title"; value: string }
+    /** Ignores hangups, so the child ends only when it is killed. */
+    | { type: "ignoreHangup" },
 ): string => `${Buffer.from(JSON.stringify(value)).toString("base64")}\n`

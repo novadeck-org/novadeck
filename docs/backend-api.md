@@ -297,8 +297,7 @@ ten seconds (`timeout`). `connectRunner` accepts a `signal` to cancel the first
 connection; it does not retry that one, so a UI can report a wrong URL or token.
 A MessagePort transport detects a closed runner through the port's `close` event,
 which Electron and Node.js provide. `attach(id, { mode: "observe" })` follows a terminal
-without controlling it; its `write`, `resize`, and `close` reject with
-`CONTROL_REQUIRED`.
+without controlling it; its `write` and `resize` reject with `CONTROL_REQUIRED`.
 
 ### Serving a runner
 
@@ -417,12 +416,17 @@ not command completion.
   but not processes, live terminal records, or replay cursors. There is no persistent
   process supervisor.
 - `terminals.close({ terminalId })`, or `runner.terminals.close(id)` without an
-  attachment, succeeds for the controlling connection or when no connection holds
-  control, and rejects with `CONTROL_IN_USE` otherwise. Once the shell has exited, the
-  runner forgets the terminal: `list` omits it, watchers receive `removed`, and later
-  calls report `TERMINAL_NOT_FOUND`. Attached viewers still receive `exited` first. A
-  shell that exits on its own keeps its record until eviction, and the terminal itself
-  until it is closed. A terminal kept only as saved closes the same way.
+  attachment, closes the terminal for good from any connection, whoever controls it. The
+  runner forgets it as the close begins: `list` omits it, watchers receive `removed`,
+  what restores it is deleted, and nothing saves it again, so a runner that stops before
+  the shell has exited does not bring it back. It then ends the shell; attached viewers
+  still receive `exited`, and later calls report `TERMINAL_NOT_FOUND`. A close reaches a
+  runner that is shutting down too; only a stopped one refuses it, with
+  `RUNTIME_CLOSING`. A shell that exits on its own keeps its record until eviction, and
+  the terminal itself until it is closed. A terminal kept only as saved closes the same
+  way. The runner refuses to create a terminal closed in its lifetime again, restoring
+  or not, even one a `create` was restoring as it closed, with `TERMINAL_NOT_FOUND`: a
+  client takes that as the terminal closed elsewhere.
 - `terminals.restart({ terminalId, cols, rows, resume? })`, or
   `runner.terminals.restart(id, { cols, rows, resume })`, starts a fresh shell in a
   retained exited terminal: the same ID and session, in the shell's last reported
@@ -430,7 +434,7 @@ not command completion.
   earlier one above a separator while transcripts are on. With `resume`, the fresh
   shell resumes that agent's session instead, as for `create`, and then the earlier
   screen is not shown. The
-  same control rule as closing applies, and the caller then holds control. The
+  caller needs control unless no connection holds it, and then holds control. The
   summary's `run` counts shells, 1 at creation and one more per restart, so a client
   can discard a late report about an earlier run. Watchers receive `changed`;
   viewers attach again and get the new screen as a snapshot, even with a cursor from

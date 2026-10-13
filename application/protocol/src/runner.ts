@@ -193,9 +193,9 @@ export type Runner = {
      */
     watch(): AsyncIterableIterator<TerminalWatchItem, undefined>
     /**
-     * Ends the shell and, once it has exited, removes the terminal: `list` omits it and
-     * watchers see `removed`. Needs no attachment, but rejects with `CONTROL_IN_USE`
-     * while another connection controls the terminal.
+     * Closes the terminal for good, whoever controls it: the runner forgets it at once,
+     * so `list` omits it, watchers see `removed` and a restart does not bring it back,
+     * then ends its shell. Needs no attachment.
      */
     close(terminalId: string): Promise<void>
     /**

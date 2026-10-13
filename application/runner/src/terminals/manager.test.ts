@@ -676,9 +676,6 @@ describe.skipIf(process.platform === "win32")("terminal manager", () => {
     expect(() =>
       manager.resize({ terminalId: terminal.id, cols: 40, rows: 10 }, "observer"),
     ).toThrow(expect.objectContaining({ code: "CONTROL_REQUIRED" }))
-    await expect(manager.close({ terminalId: terminal.id }, "observer")).rejects.toMatchObject({
-      code: "CONTROL_IN_USE",
-    })
     const pending = controller.next()
     signal.abort()
     expect((await pending).done).toBe(true)
@@ -874,7 +871,7 @@ describe.skipIf(process.platform === "win32")("terminal manager", () => {
     const pid = Number(/PID=(\d+)\r?\n/.exec(await untilPid(manager, stream))![1])
     const control = terminals.attach(manager, terminal.id, "control")
     await control.next()
-    await manager.close({ terminalId: terminal.id }, "control")
+    await manager.close({ terminalId: terminal.id })
     expect(manager.list()).toEqual([])
     expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
     const second = await manager.create(
@@ -1217,21 +1214,21 @@ describe("terminal closing", () => {
     const observer = terminals.attach(manager, closed.id, "observer", undefined, "observe")
     await observer.next()
 
-    await manager.close({ terminalId: closed.id }, "owner")
+    await manager.close({ terminalId: closed.id })
     expect(await watch.until((change) => change.type === "removed")).toEqual({
       type: "removed",
       terminalId: closed.id,
       sessionId: "session",
     })
     expect(manager.list().map((terminal) => terminal.id)).toEqual([ended.id])
-    // Its id stays taken while the observer is still attached.
+    // Closed for good: its id never starts a terminal again.
     await expect(
       manager.create({ id: closed.id, sessionId: "session", cwd, cols: 80, rows: 24 }, "owner"),
-    ).rejects.toMatchObject({ code: "CONFLICT" })
+    ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
     // The observer still drains and acknowledges its stream through the exit.
     const events = await until(manager, observer, "observer", (event) => event.type === "exited")
     expect(events.at(-1)).toMatchObject({ type: "exited" })
-    await expect(manager.close({ terminalId: closed.id }, "owner")).rejects.toMatchObject({
+    await expect(manager.close({ terminalId: closed.id })).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",
     })
     await expect(terminals.attach(manager, closed.id, "late").next()).rejects.toMatchObject({
@@ -1265,14 +1262,12 @@ describe("terminal closing", () => {
       })
       expect(isRunning(started)).toBe(true)
 
-      await manager.close({ terminalId: terminal.id }, "owner")
+      await manager.close({ terminalId: terminal.id })
       await vi.waitFor(() => expect(isRunning(started)).toBe(false), { timeout: 15_000 })
     },
   )
 
-  it("lets any connection close a terminal nobody controls, but not another's", async ({
-    terminals,
-  }) => {
+  it("lets any connection close a terminal, whoever controls it", async ({ terminals }) => {
     const manager = terminals.manager(ptyOptions)
     const create = () =>
       manager.create({ id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 }, "owner")
@@ -1281,14 +1276,14 @@ describe("terminal closing", () => {
     const controller = terminals.attach(manager, held.id, "owner")
     await controller.next()
     manager.release("owner")
-    await manager.close({ terminalId: released.id }, "other")
+    await manager.close({ terminalId: released.id })
     expect(manager.list().map((terminal) => terminal.id)).toEqual([held.id])
+    // Another window controls it: closing it here still ends it, as it is gone here.
     const retaken = terminals.attach(manager, held.id, "holder")
     await retaken.next()
-    await expect(manager.close({ terminalId: held.id }, "other")).rejects.toMatchObject({
-      code: "CONTROL_IN_USE",
-    })
-    await expect(manager.close({ terminalId: randomUUID() }, "other")).rejects.toMatchObject({
+    await manager.close({ terminalId: held.id })
+    expect(manager.list()).toEqual([])
+    await expect(manager.close({ terminalId: randomUUID() })).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",
     })
   })
@@ -1419,6 +1414,19 @@ describe("project closing", () => {
     await expect(
       manager.restart({ terminalId: id, cols: 80, rows: 24 }, "owner"),
     ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+  })
+
+  it("starts no terminal in a closed project's sessions, unless the project stays", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    await manager.closeProject("project", ["session"])
+    const create = () =>
+      manager.create({ id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 }, "owner")
+    await expect(create()).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+    // Its removal failed after the close: terminals start in it again.
+    manager.projectKept(["session"])
+    await expect(create()).resolves.toMatchObject({ sessionId: "session" })
   })
 })
 
@@ -1860,12 +1868,122 @@ describe("saving a terminal that was closed", () => {
       const record = inside.records.get(id)
       expect(store.terminal(id)).toBeDefined()
 
-      await manager.close({ terminalId: id }, "creator")
+      await manager.close({ terminalId: id })
       expect(store.terminal(id)).toBeUndefined()
       inside.save(record, false)
       inside.save(record, true)
 
       expect(store.terminal(id)).toBeUndefined()
+    } finally {
+      store.close()
+    }
+  })
+
+  it("forgets one closed as the runner stops, before its shell has ended", async ({
+    terminals,
+  }) => {
+    const { store, sessionId } = await stored()
+    try {
+      const manager = terminals.manager({ ...ptyOptions, records: store })
+      const { id } = await manager.create(
+        { id: randomUUID(), sessionId, cwd, cols: 80, rows: 24 },
+        "creator",
+      )
+      // A shell that ignores the hangup ends only at the forced kill, a second later.
+      const stream = terminals.attach(manager, id, "creator")
+      manager.write({ terminalId: id, data: command({ type: "ignoreHangup" }) }, "creator")
+      await until(manager, stream, "creator", (_event, text) => text.includes("HANGUP_IGNORED"))
+
+      const closing = manager.close({ terminalId: id })
+      // Forgotten as the close begins, before the shell has ended.
+      expect(store.terminal(id)).toBeUndefined()
+      // The app quits meanwhile: the runner's last save must not keep it.
+      await manager.shutdown()
+      await closing
+
+      expect(store.terminal(id)).toBeUndefined()
+    } finally {
+      store.close()
+    }
+  })
+
+  it("does not restore one closed while its restore was under way", async ({ terminals }) => {
+    const { store, sessionId } = await stored()
+    try {
+      const first = terminals.manager({ ...ptyOptions, records: store })
+      const { id } = await first.create(
+        { id: randomUUID(), sessionId, cwd, cols: 80, rows: 24 },
+        "creator",
+      )
+      await first.shutdown()
+      expect(store.terminal(id)).toBeDefined()
+
+      // The next runner keeps it only as saved, until a window restores it.
+      const manager = terminals.manager({ ...ptyOptions, records: store })
+      const restoring = manager.create(
+        { id, sessionId, cwd, cols: 80, rows: 24, restore: true },
+        "creator",
+      )
+      await manager.close({ terminalId: id })
+
+      await expect(restoring).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+      expect(store.terminal(id)).toBeUndefined()
+      expect(manager.list()).toEqual([])
+    } finally {
+      store.close()
+    }
+  })
+
+  it("starts or attaches nothing to one closed while its shell still ends", async ({
+    terminals,
+  }) => {
+    const { store, sessionId } = await stored()
+    try {
+      const manager = terminals.manager({ ...ptyOptions, records: store })
+      const { id } = await manager.create(
+        { id: randomUUID(), sessionId, cwd, cols: 80, rows: 24 },
+        "creator",
+      )
+      const stream = terminals.attach(manager, id, "creator")
+      manager.write({ terminalId: id, data: command({ type: "ignoreHangup" }) }, "creator")
+      await until(manager, stream, "creator", (_event, text) => text.includes("HANGUP_IGNORED"))
+
+      const closing = manager.close({ terminalId: id })
+      // Another window, back from away, restores it or attaches to it meanwhile.
+      await expect(
+        manager.create({ id, sessionId, cwd, cols: 80, rows: 24, restore: true }, "other"),
+      ).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+      await expect(terminals.attach(manager, id, "other").next()).rejects.toMatchObject({
+        code: "TERMINAL_NOT_FOUND",
+      })
+      await closing
+
+      expect(store.terminal(id)).toBeUndefined()
+    } finally {
+      store.close()
+    }
+  })
+
+  it("does not start one closed before its restore, though nothing of it was saved", async ({
+    terminals,
+  }) => {
+    const { store, sessionId } = await stored()
+    try {
+      const manager = terminals.manager({ ...ptyOptions, records: store })
+      // A window restores a terminal the runner has no record of, as after a runner
+      // restart, and the person closes it meanwhile.
+      const id = randomUUID()
+      const restoring = manager.create(
+        { id, sessionId, cwd, cols: 80, rows: 24, restore: true },
+        "creator",
+      )
+      await expect(manager.close({ terminalId: id })).rejects.toMatchObject({
+        code: "TERMINAL_NOT_FOUND",
+      })
+
+      await expect(restoring).rejects.toMatchObject({ code: "TERMINAL_NOT_FOUND" })
+      expect(store.terminal(id)).toBeUndefined()
+      expect(manager.list()).toEqual([])
     } finally {
       store.close()
     }

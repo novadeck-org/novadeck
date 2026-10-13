@@ -353,6 +353,8 @@ export const runnerBackend = (
   // Terminals the runner reported that this window didn't ask for, as another window's or
   // an agent's, on their way into the workspace: they exist, so nothing creates them.
   const adopted = new Map<string, TerminalSummary>()
+  // Terminals closed here, which nothing the runner still says of them brings back.
+  const closedHere = new Set<string>()
   // Names the person gave terminals, until the runner reports them as theirs.
   const renamed = new Map<string, string>()
   // Titles the person gave terminals, which a terminal is created with; the runner names
@@ -382,6 +384,15 @@ export const runnerBackend = (
     entry.status = status
     const { terminalId } = entry.key
     return [{ type: "terminal/status", target: target(entry.key), terminalId, status }]
+  }
+  // The runner refuses to start a terminal closed for good, as by another window while
+  // this one was away: it goes here too, rather than linger as failed.
+  const closedElsewhere = (entry: RunnerEntry): false => {
+    if (!entry.closed)
+      dispatch([
+        { type: "terminal/close", target: target(entry.key), terminalId: entry.key.terminalId },
+      ])
+    return false
   }
   const settle = (entry: RunnerEntry, status: TerminalStatus): void => {
     if (entry.closed) return
@@ -602,14 +613,18 @@ export const runnerBackend = (
     }
   }
 
-  // Ends the shell, retrying while the runner is unreachable. A terminal already gone,
-  // or one another window controls, is left as it is.
-  // A lost terminal is closed too, so the runner forgets what would restore it.
+  // Ends the shell, retrying while the runner is unreachable or restarting, whatever
+  // window controls it: a closed terminal is gone for good. One already gone is left as it is.
+  // A lost terminal is closed too, so the runner forgets what would restore it, at once:
+  // a restore still queued is cancelled, one under way the runner refuses, and waiting
+  // behind the queue could let a quit come first.
   const endShell = (entry: RunnerEntry): Promise<void> => {
     const closing = (async () => {
-      if (!(await entry.ready) && !entry.requested && !entry.lost) return
+      const waits = !entry.lost
+      if (waits && !(await entry.ready) && !entry.requested && !entry.lost) return
       await untilAnswered(() => runner.terminals.close(entry.key.terminalId), {
         done: ["TERMINAL_NOT_FOUND", "TERMINAL_EXITED", "NOT_FOUND"],
+        again: ["RUNTIME_CLOSING"],
       }).catch(() => {})
     })()
     closes.add(closing)
@@ -710,7 +725,7 @@ export const runnerBackend = (
       each.history.some((session) => session.id === summary.sessionId),
     )
     const terminal = runnerTerminal(summary, quickExitMs)
-    if (!project || !terminal || adopted.has(summary.id)) return
+    if (!project || !terminal || adopted.has(summary.id) || closedHere.has(summary.id)) return
     adopted.set(summary.id, summary)
     dispatch([
       {
@@ -767,6 +782,7 @@ export const runnerBackend = (
     ).catch((error: unknown) => {
       if (launch) launch.failure = error
       if (error instanceof Cancelled) return false
+      if (hasCode(error, "TERMINAL_NOT_FOUND")) return closedElsewhere(entry)
       settle(entry, error instanceof CrashLoop ? crashLoop : (lostStatus(error) ?? failedToCreate))
       return false
     })
@@ -871,6 +887,7 @@ export const runnerBackend = (
       .catch((error: unknown) => {
         entry.starting = false
         if (error instanceof Cancelled) return false
+        if (hasCode(error, "TERMINAL_NOT_FOUND")) return closedElsewhere(entry)
         settle(
           entry,
           error instanceof CrashLoop ? crashLoop : (lostStatus(error) ?? failedToCreate),
@@ -1012,6 +1029,7 @@ export const runnerBackend = (
     },
     close: (entry, key) => {
       entry.closed = true
+      closedHere.add(key.terminalId)
       entries.delete(key.terminalId)
       messages.unfollow(key)
       // A removed project's terminals are closed by the runner, as it removes the project.

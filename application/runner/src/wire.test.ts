@@ -949,9 +949,6 @@ describe("terminal attachment and recovery API", () => {
     await expect(
       observer.client.terminals.resize({ terminalId: terminal.id, cols: 100, rows: 30 }),
     ).rejects.toMatchObject({ code: "CONTROL_REQUIRED" })
-    await expect(
-      observer.client.terminals.close({ terminalId: terminal.id }),
-    ).rejects.toMatchObject({ code: "CONTROL_IN_USE" })
     const blocked = await reader(resources, observer.client, terminal.id)
     await expect(blocked.next()).rejects.toMatchObject({ code: "CONTROL_IN_USE" })
     await owner.disconnect()

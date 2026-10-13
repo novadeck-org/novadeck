@@ -529,7 +529,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         }
       }
       expect(alive()).toBe(true)
-      if (how === "close") await manager.close({ terminalId: id }, "owner")
+      if (how === "close") await manager.close({ terminalId: id })
       else await manager.shutdown()
       await expect.poll(alive, { timeout: 5_000 }).toBe(false)
     })
@@ -1125,7 +1125,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     // Disconnecting the agent ends its binding.
     manager.forgetAgent("claude")
     await expect.poll(() => snapshots.at(-1)).toMatchObject({ agent: null, requests: [] })
-    await manager.close({ terminalId: terminal.id }, "owner")
+    await manager.close({ terminalId: terminal.id })
     await reading
     await expect(manager.detail(terminal.id).next()).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",
@@ -1519,7 +1519,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, second, /plain\r?\n[\s\S]*\$ /)
     expect(await screen(manager, second)).not.toContain("args:")
     // Once the terminal that resumed it closes, the session is free again.
-    await manager.close({ terminalId: first }, "owner")
+    await manager.close({ terminalId: first })
     manager.write({ terminalId: second, data: "exit\r" }, "owner")
     await shell.watch(manager)((summary) => summary.id === second && summary.exit !== null)
     await manager.restart({ terminalId: second, cols: 100, rows: 20, resume: "claude" }, "owner")
@@ -1708,10 +1708,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     second.rename({ terminalId: id, title: "API" })
     await expect(restoring).resolves.toMatchObject({ title: "API" })
     expect(shell.store.terminal(id)?.naming.person).toBe("API")
-    await second.close({ terminalId: id }, "owner")
+    await second.close({ terminalId: id })
     expect(shell.store.terminal(id)).toBeUndefined()
     expect(second.list(shell.sessionId)).toEqual([])
-    await expect(second.close({ terminalId: id }, "owner")).rejects.toMatchObject({
+    await expect(second.close({ terminalId: id })).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",
     })
     expect(() => second.rename({ terminalId: id, title: "x" })).toThrow(
@@ -2041,7 +2041,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       handle: "t1",
     })
     // Numbers aren't given twice, even once a terminal closes.
-    await manager.close({ terminalId: second.id }, "owner")
+    await manager.close({ terminalId: second.id })
     expect(await create(manager, shell)).toMatchObject({ title: "Terminal 04", handle: "t4" })
   })
 })
@@ -2210,7 +2210,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect(items.load(env!.id, true)).resolves.toMatchObject({
         content: { lines: ["TOKEN=x"] },
       })
-      await manager.close({ terminalId: terminal.id }, "owner")
+      await manager.close({ terminalId: terminal.id })
       // Closed, the terminal took what its bar held along.
       expect(shell.store.items()).toEqual([])
     })
@@ -2805,7 +2805,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
 
       // One watcher stops; the other follows on until the terminal closes.
       await second.return(undefined)
-      await manager.close({ terminalId: codex.id }, "owner")
+      await manager.close({ terminalId: codex.id })
       // It may tell first that its agent went, and the message with it; then it ends.
       for await (const listing of first) expect(listing.threads[0]?.messages[0]?.state).toBe("gone")
       await expect(manager.watchMessages(codex.id).next()).rejects.toMatchObject({
@@ -2928,7 +2928,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const items = shell.items(manager)
       expect(items.bar(codex.id)).toHaveLength(1)
 
-      // A window controls it, so a close from anywhere else is refused.
+      // A window controls it, which a close goes past.
       const window = new AbortController()
       const events: string[] = []
       const viewing = (async () => {
@@ -2940,9 +2940,6 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           events.push(event.type)
       })()
       await expect.poll(() => events).toContain("snapshot")
-      await expect(manager.close({ terminalId: codex.id }, "elsewhere")).rejects.toMatchObject({
-        code: "CONTROL_IN_USE",
-      })
       const changes: TerminalChange[] = []
       const watching = new AbortController()
       const watched = (async () => {
@@ -3024,7 +3021,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await watched
     })
 
-    it("refuses a terminal already closing, and closes none once the runner stops", async ({
+    it("refuses a terminal already closing, and still closes one as the runner stops", async ({
       shell,
     }) => {
       const manager = shell.manager()
@@ -3058,13 +3055,13 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         reason: "t3 is already closing.",
       })
       await expect(closing).resolves.toEqual({ ok: true, handle: "t3" })
-      // The runner stops while a close ends the shell: it keeps the terminal, saved.
+      // The runner stops while a close ends the shell: the terminal is closed all the same.
       const stopped = manager.closePeer({ ...calls.first, request: { to: "t4" } })
       await new Promise((resolve) => setImmediate(resolve))
       const stopping = manager.shutdown()
       await expect(stopped).resolves.toEqual(unansweredCalls.close)
       await stopping
-      expect(shell.store.terminal(last!.id)).toBeDefined()
+      expect(shell.store.terminal(last!.id)).toBeUndefined()
       expect(shell.store.terminal(target!.id)).toBeUndefined()
     })
 

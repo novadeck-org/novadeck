@@ -374,35 +374,19 @@ describe("runner client workspace", () => {
 })
 
 describe("runner client terminal closing", () => {
-  it("closes terminals without attaching, unless another connection controls them", async ({
-    resources,
-  }) => {
+  it("closes terminals without attaching, whoever controls them", async ({ resources }) => {
     const app = await deployed(resources)
     const creator = await app.connect()
     const other = await app.connect()
     const { id: sessionId } = await session(creator, app.directory)
     const held = await creator.terminals.create(shell(sessionId))
     const left = await creator.terminals.create(shell(sessionId))
-    await expect(other.terminals.close(held.id)).rejects.toMatchObject({ code: "CONTROL_IN_USE" })
-    await creator.terminals.close(held.id)
+    // Its creator controls it; another connection closes it all the same, for good.
+    await other.terminals.close(held.id)
     await expect(creator.terminals.list({ sessionId })).resolves.toEqual([
       expect.objectContaining({ id: left.id }),
     ])
-    // Once its creator has gone, nobody controls the terminal and anyone may close it.
-    await creator.close()
-    // The runner releases control when it notices the disconnection.
-    let closed = false
-    while (!closed) {
-      // eslint-disable-next-line no-await-in-loop -- Retry until the release lands.
-      closed = await other.terminals.close(left.id).then(
-        () => true,
-        async (error: unknown) => {
-          expect(error).toMatchObject({ code: "CONTROL_IN_USE" })
-          await new Promise((resolve) => setTimeout(resolve, 10))
-          return false
-        },
-      )
-    }
+    await creator.terminals.close(left.id)
     await expect(other.terminals.list({ sessionId })).resolves.toEqual([])
     await expect(other.terminals.close(left.id)).rejects.toMatchObject({
       code: "TERMINAL_NOT_FOUND",

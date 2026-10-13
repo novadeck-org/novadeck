@@ -747,13 +747,17 @@ export class Terminals {
   private readonly dialogs: Dialogs
   /** Sessions given out to resume, as agent:session, and the terminal each went to. */
   private readonly claims = new Map<string, string>()
-  /** Sessions whose project is going, whose terminals no restart starts again. */
+  /** Terminals closed in this runner's lifetime, which no create brings back. */
+  private readonly closedIds = new Set<string>()
+  /** Sessions whose project is going or gone, in which no terminal starts again. */
   private readonly closingSessions = new Set<string>()
   /** How many times each harness was disconnected, so a report that waited meanwhile is dropped. */
   private readonly disconnections = new Map<AgentName, number>()
   private creating = 0
   private exits = 0
   private stopping = false
+  /** The runner has stopped: its records may be closed, and nothing reads or forgets them. */
+  private stopped = false
   /** When the runner's shutdown must have ended terminals' trees by, once it has begun. */
   private shutdownBy: number | undefined
   private shutdownPromise: Promise<void> | undefined
@@ -900,6 +904,8 @@ export class Terminals {
    */
   async create(input: Create, ownerId: string): Promise<TerminalSummary> {
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    // A closed terminal stays closed, even while its shell is still ending.
+    if (this.closedIds.has(input.id)) throw new DomainError("TERMINAL_NOT_FOUND")
     // Checked before eviction, so a retained exited record keeps its id taken.
     this.available(input.id)
     this.evict(true)
@@ -927,6 +933,10 @@ export class Terminals {
       const connected = await this.connected(input.resume)
       const env = await environment
       if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+      // Closed, even while it was being restored, as from another window, or its project is
+      // going: it stays closed, and none starts there.
+      if (this.closedIds.has(input.id) || this.closingSessions.has(input.sessionId))
+        throw new DomainError("TERMINAL_NOT_FOUND")
       // A concurrent creation may have taken the id meanwhile.
       this.available(input.id)
       // Read again after every wait above: a rename meanwhile, as from another window,
@@ -1063,7 +1073,10 @@ export class Terminals {
   list(sessionId?: string): TerminalSummary[] {
     const live = new Map(
       [...this.records.values()]
-        .filter((record) => sessionId === undefined || record.summary.sessionId === sessionId)
+        .filter(
+          (record) =>
+            !record.closed && (sessionId === undefined || record.summary.sessionId === sessionId),
+        )
         .map((record) => [record.summary.id, { ...record.summary }] as const),
     )
     let kept: readonly ListedTerminal[] = []
@@ -1842,7 +1855,7 @@ export class Terminals {
 
   /**
    * Starts a fresh shell in an exited terminal, keeping its id, session and directory.
-   * The caller gains control; like closing, it needs control unless nobody holds it.
+   * The caller gains control, and needs it unless nobody holds it.
    * Viewers attach again for the new screen. A failed start leaves the terminal exited.
    */
   async restart(
@@ -1851,7 +1864,7 @@ export class Terminals {
   ): Promise<TerminalSummary> {
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
     const record = this.record(input.terminalId)
-    if (this.closingSessions.has(record.summary.sessionId))
+    if (record.closed || this.closingSessions.has(record.summary.sessionId))
       throw new DomainError("TERMINAL_NOT_FOUND")
     if (record.summary.exit === null || record.restarting)
       throw new DomainError("CONFLICT", "Only an exited terminal can restart.")
@@ -1874,6 +1887,7 @@ export class Terminals {
         if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
         // Closed meanwhile, or its project is closing: no shell starts in it again.
         if (
+          record.closed ||
           this.records.get(input.terminalId) !== record ||
           this.closingSessions.has(record.summary.sessionId)
         )
@@ -1962,11 +1976,13 @@ export class Terminals {
   }
 
   /**
-   * Ends the shell and, once it has exited, forgets the terminal. The caller needs
-   * control, unless no connection holds it.
+   * Forgets the terminal, then ends its shell. A close is for good: it goes whatever
+   * window controls it, and what restores it goes first, so a runner that stops before
+   * the shell has ended, as the app quits, keeps nothing of it to bring back.
    */
-  async close(input: { terminalId: string }, ownerId: string): Promise<void> {
-    if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+  async close(input: { terminalId: string }): Promise<void> {
+    if (this.stopped) throw new DomainError("RUNTIME_CLOSING")
+    this.closedIds.add(input.terminalId)
     const record = this.records.get(input.terminalId)
     if (!record) {
       // A terminal kept only as saved closes by forgetting it.
@@ -1976,11 +1992,33 @@ export class Terminals {
       for (const watcher of this.watchers.keys()) watcher.removed(saved)
       return
     }
-    if (record.controller !== undefined && record.controller !== ownerId)
-      throw new DomainError("CONTROL_IN_USE")
+    this.closeForGood(record)
     await this.terminate(record)
     this.remove(record)
+    // What its programs left on their way out, as an agent registering again, goes too.
     this.forget(input.terminalId)
+  }
+
+  /** Whether the session's terminal with this handle is closing, its shell not yet ended. */
+  private closingHere(sessionId: string, handle: string): boolean {
+    return [...this.records.values()].some(
+      ({ closed, summary }) =>
+        closed && summary.sessionId === sessionId && summary.handle === handle,
+    )
+  }
+
+  /**
+   * Starts closing a running terminal for good: watchers hear it is gone, nothing
+   * announces or saves it again, and what restores it is forgotten before its shell ends.
+   */
+  private closeForGood(record: Record): void {
+    if (record.closed) return
+    record.closed = true
+    this.closedIds.add(record.summary.id)
+    for (const watcher of this.watchers.keys()) watcher.removed(record.summary)
+    // The agent sessions it claimed stay its own until its shell has ended, so none
+    // resumes elsewhere while it still runs there.
+    this.forget(record.summary.id, { claims: false })
   }
 
   /**
@@ -1991,17 +2029,24 @@ export class Terminals {
   async closeProject(projectId: string, sessionIds: readonly string[]): Promise<void> {
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
     const sessions = new Set(sessionIds)
-    // Marked first, so a restart under way can't swap a fresh shell in behind the close.
+    // Marked first, so a restart or create under way can't start a shell behind the close,
+    // and left marked once closed: the project and its sessions are going for good.
     for (const sessionId of sessions) this.closingSessions.add(sessionId)
     try {
       await this.closeSessions(sessions)
-    } finally {
+    } catch (error) {
       for (const sessionId of sessions) this.closingSessions.delete(sessionId)
+      throw error
     }
-    // Shutting down meanwhile kept what the shells left saved: the project stays, for the
-    // next runner to remove.
+    // Shutting down meanwhile: the project, and what of its terminals was only saved, stay
+    // for the next runner to remove.
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
     this.messaging.forgetProject(projectId)
+  }
+
+  /** The project stays after all, as its removal failed: terminals start in it again. */
+  projectKept(sessionIds: readonly string[]): void {
+    for (const sessionId of sessionIds) this.closingSessions.delete(sessionId)
   }
 
   /** Closes every terminal of the sessions, running or kept, whoever controls them. */
@@ -2009,6 +2054,7 @@ export class Terminals {
     const running = [...this.records.values()].filter(({ summary }) =>
       sessions.has(summary.sessionId),
     )
+    for (const record of running) this.closeForGood(record)
     await Promise.all(
       running.map(async (record) => {
         await this.terminate(record)
@@ -2022,6 +2068,7 @@ export class Terminals {
         kept = this.options.records?.terminals(sessionId) ?? []
       })
       for (const terminal of kept) {
+        this.closedIds.add(terminal.id)
         this.forget(terminal.id)
         for (const watcher of this.watchers.keys()) watcher.removed(terminal)
       }
@@ -2029,17 +2076,20 @@ export class Terminals {
     }
   }
 
-  /** Forgets what restores the terminal, and the sessions it claimed. */
-  private forget(terminalId: string): void {
+  /** Forgets what restores the terminal, and unless told not to, the sessions it claimed. */
+  private forget(terminalId: string, { claims = true } = {}): void {
     // Its items go first, so watchers hear of each before its record cascades them away.
     this.options.items?.terminalClosed(terminalId)
     this.messaging.unregister(terminalId)
     this.doorbell?.forget(terminalId)
     this.dialogs.forget(terminalId)
     this.murmur?.gone(terminalId)
-    for (const [key, claimant] of this.claims) if (claimant === terminalId) this.claims.delete(key)
+    if (claims)
+      for (const [key, claimant] of this.claims)
+        if (claimant === terminalId) this.claims.delete(key)
     this.openers.delete(terminalId)
-    this.persisting(() => this.options.records?.removeTerminal(terminalId))
+    // Forgotten while the runner stops too, as a close then still stands.
+    this.persisting(() => this.options.records?.removeTerminal(terminalId), "untilStopped")
   }
 
   /**
@@ -2240,8 +2290,8 @@ export class Terminals {
       await this.enqueue(record, () => {
         if (signal?.aborted || pending.released) return
         if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
-        // Closed while this attachment waited its turn.
-        if (this.records.get(input.terminalId) !== record)
+        // Closed, or closing, while this attachment waited its turn.
+        if (record.closed || this.records.get(input.terminalId) !== record)
           throw new DomainError("TERMINAL_NOT_FOUND")
         if (record.subscribers.has(ownerId)) throw new DomainError("ALREADY_ATTACHED")
         const mode = input.mode ?? "control"
@@ -2526,6 +2576,8 @@ export class Terminals {
     if (!read.ok) return read
     const { to } = read.request
     if (to === record.summary.handle) return refused(selfRefusal(to))
+    // Already on its way out, and forgotten, as another close ended its shell.
+    if (this.closingHere(record.summary.sessionId, to)) return refused(`${to} is already closing.`)
     const target = await this.peers.target(record, to)
     if (!target.ok) return target
     // Closed, or the runner stopped, while the terminals were described.
@@ -2533,7 +2585,7 @@ export class Terminals {
     if (this.stopping || this.records.get(call.terminalId) !== record || !closing)
       return unansweredCalls.close
     // Already on its way out, as another close ended its shell: nothing more to charge.
-    if (closing.closing) return refused(`${target.handle} is already closing.`)
+    if (closing.closing || closing.closed) return refused(`${target.handle} is already closing.`)
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
     prune(this.closed, now, closeLimit.windowMs)
@@ -2544,8 +2596,10 @@ export class Terminals {
     this.allClosed = all
     const { agent } = target
     const others = this.messaging.waitingFor(target.terminalId, call.terminalId)
+    this.closeForGood(closing)
     await this.terminate(closing)
-    // The runner began to stop meanwhile: it keeps the terminal, saved, so it isn't closed.
+    // The runner began to stop meanwhile: the terminal is closed all the same, but the
+    // caller is going too.
     if (this.stopping) return unansweredCalls.close
     this.remove(closing)
     this.forget(target.terminalId)
@@ -2833,6 +2887,7 @@ export class Terminals {
     this.records.clear()
     this.draining.clear()
     this.pendingOwners.clear()
+    this.stopped = true
     await (await this.integration)?.reports.close()
   }
 
@@ -2851,7 +2906,9 @@ export class Terminals {
 
   /** Reports the record's current summary to every watcher. */
   private announce(record: Record): void {
-    for (const watcher of this.watchers.keys()) watcher.changed({ ...record.summary })
+    // A closed terminal's watchers already heard it is gone; its exit must not add it back.
+    if (!record.closed)
+      for (const watcher of this.watchers.keys()) watcher.changed({ ...record.summary })
     this.detailed(record)
   }
 
@@ -4273,7 +4330,7 @@ export class Terminals {
     let saved: SavedTerminal | undefined
     this.persisting(() => {
       saved = this.options.records?.terminal(terminalId)
-    })
+    }, "untilStopped")
     return saved && (sessionId === undefined || saved.sessionId === sessionId) ? saved : undefined
   }
 
@@ -4313,12 +4370,16 @@ export class Terminals {
   }
 
   /**
-   * Runs a write to the records, unless the runner is stopping; a failure is logged.
-   * True once it is written, or when there are no records to write to.
+   * Runs a write to the records, unless the runner is stopping, or with "untilStopped" a
+   * read or removal until it has stopped; a failure is logged. True once it is done, or
+   * when there are no records.
    */
-  private persisting(work: () => void): boolean {
+  private persisting(
+    work: () => void,
+    until: "untilStopped" | "untilStopping" = "untilStopping",
+  ): boolean {
     if (!this.options.records) return true
-    if (this.stopping) return false
+    if (until === "untilStopping" ? this.stopping : this.stopped) return false
     try {
       work()
       return true

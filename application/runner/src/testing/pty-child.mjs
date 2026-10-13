@@ -84,6 +84,10 @@ process.stdin.on("data", (data) => {
       )
     }
     if (command.type === "title") process.title = command.value
+    if (command.type === "ignoreHangup") {
+      process.on("SIGHUP", () => {})
+      process.stdout.write("HANGUP_IGNORED\r\n")
+    }
     if (command.type === "spawn") {
       const started = spawn(process.execPath, ["-e", "setInterval(() => {}, 1e6)"], {
         stdio: ["ignore", "inherit", "inherit"],

@@ -40,6 +40,8 @@ export type TestRunner = {
   // Cuts the current link and resolves once the client noticed; it reconnects over a
   // fresh port shortly after.
   readonly drop: () => Promise<void>
+  // Connects a client of its own, as another window.
+  readonly another: () => Promise<Runner>
   readonly close: () => Promise<void>
 }
 
@@ -64,6 +66,7 @@ export const startTestRunner = async (options: RunnerOptions = {}): Promise<Test
     return Promise.resolve(port2)
   }
   const client = await connectRunner(messagePort(connect), { retryDelay: () => 200 })
+  const others: Runner[] = []
   const reload = () => loadListing(client, () => crypto.randomUUID(), Date.now)
   return {
     client,
@@ -73,7 +76,19 @@ export const startTestRunner = async (options: RunnerOptions = {}): Promise<Test
       current?.()
       for await (const status of client.watch()) if (status.state === "reconnecting") return
     },
+    another: async () => {
+      const other = await connectRunner(
+        messagePort(() => {
+          const { port1, port2 } = new MessageChannel()
+          links.add(servePort(service, port1))
+          return Promise.resolve(port2)
+        }),
+      )
+      others.push(other)
+      return other
+    },
     close: async () => {
+      await Promise.all(others.map((other) => other.close()))
       await client.close()
       for (const dispose of links) dispose()
       await service.close()

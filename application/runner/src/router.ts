@@ -172,9 +172,7 @@ export const createRouter = (options: {
       restart: authorized.terminals.restart.handler(async ({ input, context }) =>
         terminals.restart(input, context.connection.id),
       ),
-      close: authorized.terminals.close.handler(({ input, context }) =>
-        terminals.close(input, context.connection.id),
-      ),
+      close: authorized.terminals.close.handler(({ input }) => terminals.close(input)),
       rename: authorized.terminals.rename.handler(({ input }) => terminals.rename(input)),
       resetTitle: authorized.terminals.resetTitle.handler(({ input }) =>
         terminals.resetTitle(input),

@@ -18,7 +18,7 @@ type Action =
 
 const owner = (client: number): string => `client-${client}`
 
-const permissions = async (model: Model, real: Real): Promise<void> => {
+const permissions = (model: Model, real: Real): void => {
   for (const client of [0, 1, 2]) {
     const input = { terminalId: real.id, data: "" }
     if (model.controller === client)
@@ -30,14 +30,6 @@ const permissions = async (model: Model, real: Real): Promise<void> => {
       expect(() =>
         real.manager.resize({ terminalId: real.id, cols: 80, rows: 24 }, owner(client)),
       ).toThrow(expect.objectContaining({ code: "CONTROL_REQUIRED" }))
-      // Closing needs control only while another client holds it.
-      if (model.controller === undefined) continue
-      // eslint-disable-next-line no-await-in-loop -- Each client's denied capability is checked independently.
-      await expect(
-        real.manager.close({ terminalId: real.id }, owner(client)),
-      ).rejects.toMatchObject({
-        code: "CONTROL_IN_USE",
-      })
     }
   }
   expect(real.manager.get(real.id).exit).toBeNull()
@@ -92,7 +84,7 @@ class Step implements fc.AsyncCommand<Model, Real> {
       )
         model.controller = undefined
     }
-    await permissions(model, real)
+    permissions(model, real)
   }
 
   toString(): string {

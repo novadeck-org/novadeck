@@ -70,7 +70,13 @@ export class Projects {
     await this.terminals.closeProject(projectId, sessions)
     // In the same tick as the records go, so nothing new lands in between: watchers hear
     // of each item and window left, as its window outlived its terminal.
-    this.items.sessionsRemoved(sessions)
-    this.store.removeProject(projectId)
+    try {
+      this.items.sessionsRemoved(sessions)
+      this.store.removeProject(projectId)
+    } catch (error) {
+      // It stays, so terminals may start in it again.
+      this.terminals.projectKept(sessions)
+      throw error
+    }
   }
 }
