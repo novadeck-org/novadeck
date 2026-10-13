@@ -24,6 +24,14 @@ updates:
           - "*"
         update-types:
           - "major"
+    # Vite 8 needs electron-vite 6, still in beta: under Vite 8 the stable 5.x
+    # bundles electron into the main process. plugin-react 6 needs Vite 8.
+    # Lift both once electron-vite 6 is stable.
+    ignore:
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "build"
       include: "scope"

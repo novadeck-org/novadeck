@@ -2,7 +2,7 @@ name: Dependabot
 
 on:
   pull_request_target:
-    types: [closed, opened, reopened, synchronize, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review]
 
 permissions:
   contents: write
@@ -18,8 +18,7 @@ jobs:
     if: >-
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.base.ref == github.event.repository.default_branch &&
-      !github.event.pull_request.draft &&
-      (github.event.action != 'closed' || github.event.pull_request.merged)
+      !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -38,16 +37,13 @@ jobs:
 
       - name: Check Automerge Readiness
         id: readiness
-        if: github.event.action != 'closed'
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           GH_TOKEN: ${{ github.token }}
         run: node scripts/dependabot/automerge/main.ts
 
       - name: Read Dependabot Update
-        if: >-
-          (github.event.action == 'closed' && github.event.pull_request.merged) ||
-          steps.readiness.outputs.ready == 'true'
+        if: steps.readiness.outputs.ready == 'true'
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
@@ -55,7 +51,6 @@ jobs:
 
       - name: Enable Automerge
         if: >-
-          github.event.action != 'closed' &&
           steps.readiness.outputs.ready == 'true' &&
           (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor')
@@ -65,21 +60,9 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
 
-      - name: Dispatch Release After Merge
-        if: >-
-          ((github.event.action == 'closed' && github.event.pull_request.merged) ||
-          steps.readiness.outputs.ready == 'true') &&
-          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor')
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node scripts/dependabot/release/main.ts
-
       - name: Disable Ineligible Automerge
         if: >-
           always() &&
-          github.event.action != 'closed' &&
           (steps.readiness.outcome != 'success' ||
           steps.readiness.outputs.ready != 'true' ||
           steps.metadata.outcome != 'success' ||
