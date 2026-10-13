@@ -218,7 +218,10 @@ describe("refreshing PATH", () => {
     const env: NodeJS.ProcessEnv = { Path: "C:\\Nowhere" }
     for (const [name, value] of Object.entries(process.env))
       if (name.toUpperCase() !== "PATH") env[name] = value
-    const refreshed = await refreshPath(env)
+    // The product's 5 s read limit is for a user waiting on a terminal, and a cold PowerShell
+    // on a loaded runner can pass it (then the PATH rightly stays as it was); this test is
+    // about what a read finds, so it waits as long as the sibling reads do.
+    const refreshed = await refreshPath(env, { relay: relayPath, timeoutMs: 30_000 })
     const folders = (refreshed.Path ?? "").split(";")
     expect(folders[0]).toBe("C:\\Nowhere")
     expect(folders.length).toBeGreaterThan(1)

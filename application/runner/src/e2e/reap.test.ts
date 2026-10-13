@@ -77,8 +77,10 @@ describe.skipIf(process.platform !== "win32")("reap on Windows", () => {
 
     const leftovers = await reap(sandbox)
 
+    // Each named with its recorded parent, this worker, which still runs.
+    const parent = `parent node#${process.pid} running`
     expect(leftovers.toSorted()).toEqual(
-      [`node.exe (${inside.pid})`, `node.exe (${homed.pid})`].toSorted(),
+      [`node.exe (${inside.pid}, ${parent})`, `node.exe (${homed.pid}, ${parent})`].toSorted(),
     )
     expect(other.exitCode).toBeNull()
     expect(await reap(sandbox)).toEqual([])

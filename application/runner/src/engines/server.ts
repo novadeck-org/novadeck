@@ -96,6 +96,9 @@ const causeLine = /error|fail|out of memory|unable|cannot|invalid/i
 // What servers print once they serve: llama.cpp's "listening on http://..." and whisper's
 // "whisper server listening at http://...".
 const serving = /listening (on|at) http/i
+// What an engine that could not bind its port says, in its own words or the system's.
+const portTaken = /address already in use|EADDRINUSE|bind (to |HTTP )?server socket/i
+const portAttempts = 3
 const prefix = /^\s*\d+(\.\d+)+ [A-Z] /
 
 /**
@@ -309,9 +312,31 @@ export class Server<Config extends { readonly folder: string }, Facts> {
       this.running = undefined
       await this.end(current)
     }
-    const running = await this.launch(config, key)
+    // The port was free when picked, but something else may take it before the engine
+    // binds it: another process, or an outgoing connection's. Another port settles that.
+    for (let attempt = 1; ; attempt += 1) {
+      // eslint-disable-next-line no-await-in-loop -- A start is tried again only once it failed.
+      const running = await this.launch(config, key)
+      try {
+        // eslint-disable-next-line no-await-in-loop -- Same.
+        return await this.serve(running, generation)
+      } catch (error) {
+        const retry =
+          attempt < portAttempts &&
+          generation === this.generation &&
+          !this.closed &&
+          running.output.some((line) => portTaken.test(line))
+        if (!retry) throw error
+      }
+    }
+  }
+
+  private async serve(running: Running<Facts>, generation: number): Promise<Running<Facts>> {
     this.starting = running
     try {
+      // A stop that came while it launched has not seen it in `starting`; do not wait for it to load.
+      if (generation !== this.generation || this.closed)
+        throw new EngineError("The engine was stopped while it started.")
       await running.ready
       // A stop or close that came while it loaded ended it, or must: nothing may outlive it.
       if (generation !== this.generation || this.closed)

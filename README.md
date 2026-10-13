@@ -1,6 +1,6 @@
 # Novadeck
 
-A terminal workspace for organizing projects, sessions, and parallel work.
+A desktop terminal workspace for organizing projects, sessions, and parallel work.
 
 Focus on one terminal, arrange several in a grid, or spread them across a zoomable
 canvas. Keep related work together and switch between sessions from the sidebar.

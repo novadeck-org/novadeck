@@ -155,6 +155,14 @@ type Escape = {
 export const escapeVerdictMs = 1500
 
 /**
+ * How long past `escapeVerdictMs` a harness that fires no Stop for a reply it kept has to
+ * draw its word that the Escape stopped the turn (Antigravity on Windows), which a loaded
+ * machine may draw after the reply, not with it: a screen that shows the reply alone is
+ * read again for this long before the reply is taken as having won.
+ */
+export const escapeScreenMs = 1000
+
+/**
  * How long before the hook that bound a session another hook the harness fired with it
  * may have started, in milliseconds: Antigravity fires its status line and a model call's
  * PreInvocation at once, and either may start, and be heard, first. A newly bound

@@ -11,7 +11,12 @@ import type { TerminalChange, TerminalEvent } from "@novadeck/protocol"
 import headless from "@xterm/headless"
 import { vi } from "vitest"
 
-import { escapeVerdictMs, started as fresh, type Activity } from "../harnesses/activity.js"
+import {
+  escapeScreenMs,
+  escapeVerdictMs,
+  started as fresh,
+  type Activity,
+} from "../harnesses/activity.js"
 import { describe, expect, it as base } from "../test.js"
 import { command, ptyOptions, ptyTrace } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
@@ -1683,6 +1688,7 @@ describe("a turn the person's Escape ended", () => {
     }
   })
 
+  // Each case can wait out the whole window, and a timeout would leave the platform stubbed.
   it("reads completed with no Stop, on Windows, where Antigravity's transcript holds the reply and its screen shows no interruption", async ({
     terminals,
   }) => {
@@ -1694,6 +1700,7 @@ describe("a turn the person's Escape ended", () => {
     const inside = manager as unknown as Inside & { screenOf: (id: string) => Promise<unknown> }
     const record = inside.records.get(terminal.id)! as {
       transcript: string | null
+      verdict?: unknown
     } & (typeof inside.records extends Map<string, infer R> ? R : never)
     const binding = { agent: "agy", sessionId: "s", instance: null } as const
     record.binding = binding
@@ -1755,15 +1762,30 @@ describe("a turn the person's Escape ended", () => {
       "? for shortcuts",
     ]
     const cutOffScreen = screenWith({ rows: cutOffRows, cursor: { row: 8, column: 2 } })
-    const windows = process.platform === "win32"
+    const unreadable = screenWith({ rows: ["$ "] })
     const cases = [
-      [
-        "the reply, shown alone",
-        [asked, answered],
-        shown(false),
-        windows ? "completed" : "interrupted",
-      ],
+      ["the reply, shown alone", [asked, answered], shown(false), "completed"],
       ["the reply, with the interruption", [asked, answered], shown(true), "interrupted"],
+      // The word drawn after the reply, as a loaded machine may.
+      [
+        "the reply, then the interruption",
+        [asked, answered],
+        [shown(false), shown(true)],
+        "interrupted",
+      ],
+      // A read mid-redraw tells nothing: the reads after it do.
+      [
+        "the reply, after an unreadable read",
+        [asked, answered],
+        [unreadable, shown(false)],
+        "completed",
+      ],
+      [
+        "the reply, with no read after the window that tells",
+        [asked, answered],
+        [shown(false), unreadable],
+        "interrupted",
+      ],
       [
         "the reply, with no box to read",
         [asked, answered],
@@ -1776,11 +1798,19 @@ describe("a turn the person's Escape ended", () => {
       // 2026-10-11, 1.2.14, the call streamed 1.5 s after the words, every run).
       ["the words before a call the Escape cut off", cutOff, cutOffScreen, "interrupted"],
     ] as const
+    // The wait for the screen runs on Windows only.
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!
+    Object.defineProperty(process, "platform", { value: "win32" })
     try {
       for (const [what, lines, screen, outcome] of cases) {
         record.transcript = join(directory, `${randomUUID()}.jsonl`)
         writeFileSync(record.transcript, `${lines.join("\n")}\n`)
-        inside.screenOf = () => Promise.resolve(screen)
+        // One screen a read once the window has passed, the last for the rest; the first
+        // for anything that looks before.
+        const reads = [screen].flat()
+        let reading = 0
+        inside.screenOf = () =>
+          Promise.resolve(reads[record.verdict ? 0 : Math.min(reading++, reads.length - 1)])
         record.activity = fresh(0, true, false)
         inside.applyFact(record, {
           ...binding,
@@ -1793,14 +1823,15 @@ describe("a turn the person's Escape ended", () => {
         // eslint-disable-next-line no-await-in-loop -- Each case waits for its own verdict.
         await vi.waitFor(
           () => expect(record.activity?.lastTurn?.escaped?.settled ?? true).toBe(true),
-          { timeout: escapeVerdictMs + 2000 },
+          { timeout: escapeVerdictMs + escapeScreenMs + 2000 },
         )
         expect(record.activity?.lastTurn?.outcome, what).toBe(outcome)
       }
     } finally {
+      Object.defineProperty(process, "platform", platform)
       rmSync(directory, { recursive: true, force: true })
     }
-  })
+  }, 60_000)
 })
 
 describe("saving a terminal that was closed", () => {

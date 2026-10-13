@@ -1,4 +1,5 @@
 import { writeFile } from "node:fs/promises"
+import { createServer, type Server as Listener } from "node:net"
 import { join } from "node:path"
 
 import { describe, expect, it } from "../test.js"
@@ -66,6 +67,12 @@ const launchWith = async (
   return { directory, launch }
 }
 
+// Holds a port as another process could, and never reports an error of its own.
+const squat = (port: number): Listener =>
+  createServer()
+    .on("error", () => {})
+    .listen(port, "127.0.0.1")
+
 describe("a server", () => {
   it("runs the program under a path of its own, with the environment its spec and the launch give", async ({
     resources,
@@ -97,6 +104,102 @@ describe("a server", () => {
     expect(again).toBe(first)
     expect(other).not.toBe(first)
     expect(first.stopped).toBe(true)
+  })
+
+  it("starts again on another port when something takes the one it was given", async ({
+    resources,
+  }) => {
+    const { directory, launch } = await launchWith(resources)
+    const squatters: Listener[] = []
+    resources.defer(() => squatters.forEach((squatter) => squatter.close()))
+    const ports: string[] = []
+    // Takes the port of the first two starts, as another process could between choosing it and the engine binding it.
+    const taken: Launch = (program, args) => {
+      const port = args[args.indexOf("--port") + 1] ?? ""
+      ports.push(port)
+      if (ports.length <= 2) squatters.push(squat(Number(port)))
+      return launch(program, args)
+    }
+    const server = new Server(spec, { launch: taken })
+    resources.defer(() => server.close())
+
+    const running = await server.acquire({ folder: directory, key: "a" })
+
+    expect(ports).toHaveLength(3)
+    expect(new Set(ports).size).toBe(3)
+    expect(String(running.port)).toBe(ports[2])
+  })
+
+  it("gives up when the port stays taken", async ({ resources }) => {
+    const { directory, launch } = await launchWith(resources)
+    const squatters: Listener[] = []
+    resources.defer(() => squatters.forEach((squatter) => squatter.close()))
+    let starts = 0
+    const taken: Launch = (program, args) => {
+      starts += 1
+      squatters.push(squat(Number(args[args.indexOf("--port") + 1])))
+      return launch(program, args)
+    }
+    const server = new Server(spec, { launch: taken })
+    resources.defer(() => server.close())
+
+    await expect(server.start({ folder: directory, key: "a" })).rejects.toThrow(
+      /Demo failed: the engine stopped while starting/,
+    )
+    expect(starts).toBe(3)
+  })
+
+  it("starts once when it fails for another reason than a port", async ({ resources }) => {
+    const directory = await folder(resources)
+    let starts = 0
+    const server = new Server(spec, {
+      launch: () => {
+        starts += 1
+        return {
+          command: process.execPath,
+          // llama.cpp's client-side bind failure is not its server's port being taken.
+          args: [
+            "-e",
+            "console.error('Failed to bind IP address'); console.error('error loading model'); process.exit(1)",
+          ],
+        }
+      },
+    })
+    resources.defer(() => server.close())
+
+    await expect(server.start({ folder: directory, key: "a" })).rejects.toThrow(
+      /Demo failed: the engine stopped while starting/,
+    )
+    expect(starts).toBe(1)
+  })
+
+  it("does not start again once it was stopped between two attempts", async ({ resources }) => {
+    const { directory, launch } = await launchWith(resources)
+    const squatters: Listener[] = []
+    resources.defer(() => squatters.forEach((squatter) => squatter.close()))
+    const launched: ReturnType<Launch>[] = []
+    let stopping: Promise<void> | undefined
+    // The first start loses its port. The second is launched as a stop arrives, and is an
+    // engine that never serves, so only the stop can end the start.
+    const taken: Launch = (program, args) => {
+      const first = launched.length === 0
+      if (first) squatters.push(squat(Number(args[args.indexOf("--port") + 1])))
+      else stopping = server.stop()
+      const result = first
+        ? launch(program, args)
+        : { command: process.execPath, args: ["-e", "setInterval(() => {}, 1000)"] }
+      launched.push(result)
+      return result
+    }
+    const server = new Server(spec, { launch: taken })
+    resources.defer(() => server.close())
+
+    await expect(server.start({ folder: directory, key: "a" })).rejects.toThrow(
+      "The engine was stopped while it started.",
+    )
+    await stopping
+    expect(launched).toHaveLength(2)
+    expect(server.facts).toBeUndefined()
   })
 
   it("explains a failed start by its cause, not by the generic lines the engine ends with", async ({

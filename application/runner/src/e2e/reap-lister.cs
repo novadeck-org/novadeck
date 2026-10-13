@@ -3,8 +3,10 @@
 // than the caller and this one, whose working folder is inside the sandbox or whose HOME
 // or USERPROFILE is its home, read from their parameters (the offsets are a 64-bit PEB's
 // and its RTL_USER_PROCESS_PARAMETERS'), as JSON: their pids, names and starts in
-// milliseconds since the epoch. A process it may not read, another user's or the system's,
-// never counts, as a sandbox's is always this user's.
+// milliseconds since the epoch, and how its recorded parent stands (name and pid, then
+// running, gone, taken by a later process, or unreadable), which tells a leftover the
+// terminal's tree could not reach from one it should have held. A process it may not
+// read, another user's or the system's, never counts, as a sandbox's is always this user's.
 // Its arguments: the sandbox's start, root and home, and the caller's pid.
 using System;
 using System.Diagnostics;
@@ -24,6 +26,7 @@ public static class NovadeckReap {
     var bytes = Read(handle, address, 8);
     return bytes == null ? IntPtr.Zero : (IntPtr)BitConverter.ToInt64(bytes, 0);
   }
+  // Its working folder, its environment block and its recorded parent's pid.
   static string[] Of(int pid) {
     IntPtr handle = OpenProcess(0x0410, false, pid);
     if (handle == IntPtr.Zero) return null;
@@ -44,9 +47,24 @@ public static class NovadeckReap {
       long size = sized == null ? 0 : BitConverter.ToInt64(sized, 0);
       if (size <= 0 || size > (1 << 20)) size = 32768;
       var environment = Read(handle, block, (int)size);
-      return new[] { cwd, environment == null ? "" : Encoding.Unicode.GetString(environment) };
+      return new[] {
+        cwd, environment == null ? "" : Encoding.Unicode.GetString(environment), ((long)info[5]).ToString()
+      };
     } finally {
       CloseHandle(handle);
+    }
+  }
+  // Never throws: a parent that exits meanwhile must not drop the process it is told for.
+  static string Parent(int pid, DateTime created) {
+    Process one;
+    try { one = Process.GetProcessById(pid); } catch (Exception) { return "#" + pid + " gone"; }
+    string name = "";
+    try { name = one.ProcessName; } catch (Exception) { return "#" + pid + " gone"; }
+    try {
+      bool later = one.StartTime.ToUniversalTime() > created;
+      return name + "#" + pid + (later ? " taken by a later process" : " running");
+    } catch (Exception) {
+      return name + "#" + pid + " unreadable";
     }
   }
   static string Quoted(string text) {
@@ -79,10 +97,12 @@ public static class NovadeckReap {
           if (!own) continue;
         }
         long start = new DateTimeOffset(DateTime.SpecifyKind(created, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+        string kin = Parent(int.Parse(read[2]), created);
         if (found.Length > 1) found.Append(",");
         found.Append("{\"pid\":").Append(process.Id)
           .Append(",\"comm\":").Append(Quoted(process.ProcessName + ".exe"))
-          .Append(",\"start\":").Append(start).Append("}");
+          .Append(",\"start\":").Append(start)
+          .Append(",\"parent\":").Append(Quoted(kin)).Append("}");
       } catch {
         // Gone meanwhile.
       }

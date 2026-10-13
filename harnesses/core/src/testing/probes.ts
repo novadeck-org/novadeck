@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-import type { ScreenText } from "@novadeck/harness-core/screen"
-
+import type { ScreenText } from "../screen.js"
 import { screen } from "./screens.js"
 
 /**

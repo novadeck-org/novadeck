@@ -448,6 +448,13 @@ describe("PTY lifecycle API", () => {
     })
     await output.untilText("BUSY_STARTED")
     await client.terminals.write({ terminalId: terminal.id, data: "\u0003" })
+    // The REPL reports the interruption, then redraws its prompt. Input typed before that
+    // can be lost on Windows, so wait for the redrawn prompt.
+    const redrawn = () => {
+      const at = output.text().indexOf("ERR_SCRIPT_EXECUTION_INTERRUPTED")
+      return at >= 0 && output.text().slice(at).includes("0J> ")
+    }
+    if (!redrawn()) await output.until(redrawn, "prompt redrawn after the interruption")
     await client.terminals.write({
       terminalId: terminal.id,
       data: 'console.log("INTERRUPT_" + "RECOVERED")\r',

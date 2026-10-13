@@ -1,6 +1,5 @@
-import type { DialogAdapter, DialogRead, KeyStep } from "@novadeck/harness-core/dialogs"
-import type { ScreenText } from "@novadeck/harness-core/screen"
-
+import type { DialogAdapter, DialogRead, KeyStep } from "../dialogs.js"
+import type { ScreenText } from "../screen.js"
 import { screen } from "./screens.js"
 
 /**

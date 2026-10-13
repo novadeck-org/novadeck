@@ -7,7 +7,7 @@ import {
   type ComponentType,
 } from "react"
 import { HashRouter } from "react-router"
-import { afterEach, vi } from "vitest"
+import { afterEach, beforeAll, vi } from "vitest"
 
 import { context, describe, expect, it } from "../test"
 import { itemFixture } from "../test/fixtures"
@@ -94,13 +94,22 @@ const first = "storefront-initial-01"
 const second = "storefront-initial-02"
 
 // Rendering the whole page in jsdom is slow on small CI runners, Windows in particular.
-vi.setConfig({ testTimeout: 30_000 })
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 
 // Tests run on the backend app/backend.ts picks for them, which is ready at once.
 const demoBackend = () => {
   if (!("createBackend" in selectBackend)) throw new Error("Tests expect a ready backend")
   return selectBackend.createBackend
 }
+
+// The mocks above wait on the real module, and a second import from the same module that
+// arrives meanwhile is answered with the real one, unmocked. Slowly loading runners hit that
+// when the page imports Canvas on demand twice at once, and Canvas then goes uncounted. Load
+// them once here, alone, so every later import gets the mock.
+beforeAll(async () => {
+  await import("../layouts/canvas/Canvas")
+  await import("../search/TerminalSearch")
+})
 
 const mounted = new Set<{ unmount: () => void }>()
 afterEach(() => {

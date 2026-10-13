@@ -59,6 +59,7 @@ import {
 import { DomainError } from "../errors.js"
 import {
   apply,
+  escapeScreenMs,
   escapeVerdictMs,
   boundSince,
   started as fresh,
@@ -4079,9 +4080,21 @@ export class Terminals {
     return lastReply(record.transcript, items)
       .then(async (reply) => {
         if (reply === undefined || !interrupted) return reply
-        const screen = await this.screenOf(record.summary.id)
-        // A screen that can't tell, as one mid-redraw, keeps the Escape's word.
-        return screen && interrupted(screen) === false ? reply : undefined
+        // The word may be drawn after the reply, so the screen is read again until the
+        // window ends: the Escape stands where a read shows the word, or where the last
+        // read can't tell (mid-redraw, under a dialog), and the reply won only where the
+        // last shows it alone.
+        const until = Date.now() + escapeScreenMs
+        for (;;) {
+          // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
+          const screen = await this.screenOf(record.summary.id)
+          if (!screen) return undefined
+          const shown = interrupted(screen)
+          if (shown === true) return undefined
+          if (Date.now() >= until) return shown === false ? reply : undefined
+          // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
+          await sleep(250, undefined, { ref: false })
+        }
       })
       .catch(() => undefined)
   }

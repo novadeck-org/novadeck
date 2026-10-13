@@ -22,6 +22,8 @@ type Process = {
   readonly comm: string
   readonly start: number
   readonly stopped: boolean
+  /** Where the system is asked, how its recorded parent stands, for a leftover's report. */
+  readonly parent?: string
 }
 
 /** How a platform finds the sandbox's processes, tells whether one still runs, and ends it. */
@@ -189,8 +191,9 @@ const windowsList = async (sandbox: Scope): Promise<readonly Process[]> => {
     readonly pid: number
     readonly comm: string
     readonly start: number
+    readonly parent: string
   }[]
-  return rows.map(({ pid, comm, start }) => ({ pid, comm, start, stopped: false }))
+  return rows.map(({ pid, comm, start, parent }) => ({ pid, comm, start, stopped: false, parent }))
 }
 
 // The tree a stuck process left, read and ended through Novadeck's relay, as the e2e suite
@@ -428,8 +431,10 @@ const ended = async (sandbox: Scope, found: readonly Process[], ms: number): Pro
 }
 
 // How a leftover is reported: `claude (123)`, or `claude (123, stopped)` for one that
-// could never have exited by itself.
-const named = (one: Process): string => `${one.comm} (${one.pid}${one.stopped ? ", stopped" : ""})`
+// could never have exited by itself; on Windows too its recorded parent, `cmd#12 gone`,
+// which tells a program the terminal's tree could not reach from one it should have.
+const named = (one: Process): string =>
+  `${one.comm} (${one.pid}${one.stopped ? ", stopped" : ""}${one.parent ? `, parent ${one.parent}` : ""})`
 
 /**
  * Ends the processes still running in the sandbox once its deck has closed: those that

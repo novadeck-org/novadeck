@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop -- Each attempt runs after the one before has settled. */
 import { setTimeout as sleep } from "node:timers/promises"
 
-import { escapeVerdictMs } from "../harnesses/activity.js"
+import { escapeScreenMs, escapeVerdictMs } from "../harnesses/activity.js"
 import { setups } from "./agents/index.js"
 import { describe, e2e, expect, supported } from "./fixture.js"
 import { asked, gate } from "./model/script.js"
@@ -85,7 +85,7 @@ for (const setup of setups) {
         t1.press("\x1b")
         held.open()
         // The harness has had its say, and the runner the window to hear it.
-        await sleep(escapeVerdictMs + 1500)
+        await sleep(escapeVerdictMs + escapeScreenMs + 1500)
         clearInterval(watching)
 
         const shown = await t1.screen()
