@@ -171,7 +171,7 @@ const extras = `
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     terminal_id TEXT REFERENCES terminals(id) ON DELETE CASCADE,
     window_id TEXT UNIQUE REFERENCES companion_windows(id) ON DELETE CASCADE,
-    -- A file's resolved path, a page's address, or a plan's slot, unique on one bar.
+    -- A file's resolved path, a page's pageKey, or a plan's slot, unique on one bar.
     pointer_key TEXT NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('image', 'file', 'page', 'plan')),
     path TEXT,

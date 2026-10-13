@@ -3,7 +3,7 @@ import type { AgentName, CompanionItem } from "@novadeck/protocol"
 /**
  * An item as the runner keeps it: a pointer, never a copy, held by one terminal's bar or
  * one window. `pointerKey` tells two items apart on one bar: a file's resolved path, a
- * page's address, or a plan's slot (`plan:<agent session>:<actor>`). A plan points at its
+ * page's `pageKey`, or a plan's slot (`plan:<agent session>:<actor>`). A plan points at its
  * file, or for one presented as text at the transcript or rollout that records it.
  */
 export type ItemRecord = {

@@ -2,7 +2,7 @@ import {
   companionKeyId,
   itemIdOf,
   notesIn,
-  ownItemWith,
+  shownItemWith,
   type CompanionItem,
   type CompanionKey,
   type Companions,
@@ -53,8 +53,8 @@ type Running = Holder & {
   file: string
   writes: number
   version: number
-  // Its plan's item on its own bar, and every item it ever had for its plan: one moved
-  // or undocked away stays the person's, and still shows the plan.
+  // Its plan's item, on its own bar or wherever the person moved it, and every item it
+  // ever had for its plan: each still shows the plan.
   planId: string
   planIds: Set<string>
   // How many of `artifacts.next` it has shown.
@@ -190,20 +190,25 @@ export const createShowcase = (
     written(agent)
   }
   // The agent wrote its plan: a new version, which its bar marks. As the runner does, it
-  // updates the plan on its own bar; one the person moved or undocked stays where it is,
-  // and the plan comes to its own bar anew.
+  // updates the plan where it is, on its own bar or where the person moved it; one the
+  // person closed comes to its own bar anew.
   const wrote = (agent: Running, text: string): void => {
     const own = current().find((item) => item.id === agent.planId)
-    const away =
-      own && !("terminalId" in own.holder && own.holder.terminalId === agent.key.terminalId)
-    if (away || (started && !own)) {
+    if (started && !own) {
       agent.planId = `${agent.sample.plan.id}-${agent.planIds.size + 1}`
       agent.planIds.add(agent.planId)
       agent.version = 0
     }
     agent.version += 1
     write(agent, text)
-    report?.([{ type: "item/upsert", target: agent.key, item: planItemOf(agent, now()) }])
+    const item = planItemOf(agent, now())
+    report?.([
+      {
+        type: "item/upsert",
+        target: agent.key,
+        item: own ? { ...item, holder: own.holder } : item,
+      },
+    ])
   }
 
   // The agent reads the plan file and writes over it: its next revision, when it's
@@ -218,10 +223,10 @@ export const createShowcase = (
     wrote(agent, text)
   }
 
-  // The agent shows something: on its own bar, updating what's there of the same file or
-  // page, or anew.
+  // The agent shows something: on its own bar, updating what it showed of the same file
+  // or page, there or wherever the person moved it, or anew.
   const show = (agent: Running, artifact: SampleArtifact, asked: boolean): void => {
-    const own = ownItemWith(current(), agent.key.terminalId, artifact.item)
+    const own = shownItemWith(current(), agent.key.terminalId, artifact.item)
     const item: CompanionItem = own
       ? { ...own, version: own.version + 1, asked, shownAt: now() }
       : itemOf(agent, artifact, { asked, shownAt: now() })

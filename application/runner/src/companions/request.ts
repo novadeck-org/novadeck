@@ -68,6 +68,8 @@ export type PresentAnswer =
       readonly name: string
       readonly opened: boolean
       readonly again: boolean
+      /** Where the person had moved what it updated, away from the agent's bar. */
+      readonly moved?: string
       readonly held?: true
       readonly tooLarge?: true
     }

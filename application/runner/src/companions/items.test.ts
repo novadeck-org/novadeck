@@ -159,9 +159,13 @@ describe("what an agent closes", () => {
     fixture.items.undock(id, randomUUID())
     await expect(fixture.items.dismiss(t1, { file: { path: "a.ts" } })).resolves.toMatchObject({
       ok: false,
-      reason: expect.stringContaining("Nothing is showing"),
+      reason: expect.stringContaining('"a.ts" was moved by the user into a window of its own'),
     })
     fixture.items.move(id, t2.terminalId)
+    await expect(fixture.items.dismiss(t1, { file: { path: "a.ts" } })).resolves.toMatchObject({
+      ok: false,
+      reason: expect.stringContaining('"a.ts" was moved by the user to t2'),
+    })
     await expect(fixture.items.dismiss(t2, { file: { path: "a.ts" } })).resolves.toMatchObject({
       ok: false,
       reason: expect.stringContaining("placed beside you from t1"),
@@ -201,6 +205,109 @@ describe("what an agent closes", () => {
 })
 
 describe("what an agent shows", () => {
+  it("updates what it showed where the person moved it, a window or another bar", async ({
+    fixture,
+  }) => {
+    writeFileSync(join(fixture.directory, "a.ts"), "a\n")
+    writeFileSync(join(fixture.directory, "b.ts"), "b\n")
+    writeFileSync(join(fixture.directory, "c.ts"), "c\n")
+    const t1 = fixture.terminal("t1")
+    const t2 = fixture.terminal("t2")
+    const a = await fixture.items.show(t1, { file: { path: "a.ts" } })
+    const b = await fixture.items.show(t1, { file: { path: "b.ts" } })
+    const c = await fixture.items.attach({ terminalId: t1.terminalId, path: "c.ts" })
+    const aId = a.ok ? a.id : ""
+    const bId = b.ok ? b.id : ""
+    const windowId = randomUUID()
+    fixture.items.undock(aId, windowId)
+    fixture.items.move(bId, t2.terminalId)
+    fixture.items.undock(c.id, randomUUID())
+    const watch = watching(fixture.items)
+    await expect(
+      fixture.items.show(t1, { file: { path: "a.ts" }, title: "Renamed", open: true }),
+    ).resolves.toMatchObject({
+      id: aId,
+      again: true,
+      opened: false,
+      moved: "into a window of its own",
+    })
+    await expect(
+      fixture.items.show(t1, { file: { path: "b.ts" }, open: true }),
+    ).resolves.toMatchObject({ id: bId, again: true, opened: true, moved: "to t2" })
+    expect(fixture.items.bar(t1.terminalId)).toEqual([])
+    expect(fixture.items.list(fixture.sessionId)).toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({ id: aId, holder: { windowId }, name: "Renamed", version: 2 }),
+        expect.objectContaining({ id: bId, holder: { terminalId: t2.terminalId }, version: 2 }),
+      ]),
+      windows: expect.arrayContaining([
+        expect.objectContaining({ id: windowId, title: "Renamed" }),
+      ]),
+    })
+    // The window it renamed says so.
+    await expect
+      .poll(() => watch.seen)
+      .toContainEqual({ type: "window", window: expect.objectContaining({ title: "Renamed" }) })
+    await watch.stop()
+    expect(fixture.items.listing(t1.terminalId)).toBe(
+      [
+        "Showing beside your terminal in Novadeck (2):",
+        `- file "Renamed": ${join(fixture.directory, "a.ts")} (moved by the user into a window of its own, shown by you)`,
+        `- file "b.ts": ${join(fixture.directory, "b.ts")} (moved by the user to t2, shown by you)`,
+      ].join("\n"),
+    )
+    // What the person attached, or another terminal's agent shows, is its own.
+    await expect(fixture.items.show(t1, { file: { path: "c.ts" } })).resolves.toMatchObject({
+      again: false,
+    })
+    await expect(fixture.items.show(t2, { file: { path: "a.ts" } })).resolves.toMatchObject({
+      again: false,
+    })
+  })
+
+  it("keeps a server on this machine one page at any route, and any page one at any anchor", async ({
+    fixture,
+  }) => {
+    const t1 = fixture.terminal("t1")
+    const site = await fixture.items.show(t1, { url: "http://localhost:4323/download" })
+    const siteId = site.ok ? site.id : ""
+    for (const url of [
+      "http://localhost:4323/download#linux",
+      "http://127.0.0.1:4323/#faq",
+      "http://[::1]:4323/?q=1",
+      "http://0.0.0.0:4323",
+      "http://[::]:4323/docs",
+    ])
+      // eslint-disable-next-line no-await-in-loop -- Each show updates what the one before kept.
+      await expect(fixture.items.show(t1, { url })).resolves.toMatchObject({
+        id: siteId,
+        again: true,
+      })
+    const artifact = await fixture.items.show(t1, { url: "https://claude.ai/artifact/A" })
+    await expect(
+      fixture.items.show(t1, { url: "https://claude.ai/artifact/A#opt-e" }),
+    ).resolves.toMatchObject({ id: artifact.ok ? artifact.id : "", again: true })
+    // Another port or scheme of this machine, or another route elsewhere, is another page.
+    for (const url of [
+      "http://localhost:4330/",
+      "https://localhost:4323/",
+      "https://claude.ai/artifact/B",
+      "https://claude.ai/artifact/A?v=2",
+    ])
+      // eslint-disable-next-line no-await-in-loop -- Each show adds beside the one before.
+      await expect(fixture.items.show(t1, { url })).resolves.toMatchObject({ again: false })
+    expect(fixture.items.bar(t1.terminalId)).toHaveLength(6)
+    expect(fixture.items.bar(t1.terminalId)[0]).toMatchObject({
+      id: siteId,
+      url: "http://[::]:4323/docs",
+      version: 6,
+    })
+    await expect(
+      fixture.items.dismiss(t1, { url: "http://127.0.0.1:4323/elsewhere" }),
+    ).resolves.toMatchObject({ ok: true, kind: "page" })
+    expect(fixture.items.bar(t1.terminalId).map(({ id }) => id)).not.toContain(siteId)
+  })
+
   it("lands on its own bar, and showing it again updates it there", async ({ fixture }) => {
     writeFileSync(join(fixture.directory, "a.ts"), "const a = 1\n")
     const t1 = fixture.terminal("t1")
@@ -373,10 +480,11 @@ describe("moving items", () => {
       items: [expect.objectContaining({ id: itemId })],
       windows: [],
     })
-    // The agent in t1 shows it again: a new item on its own bar; the moved one stays.
+    // The agent in t1 shows it again: the moved one is updated where it is.
     const reshown = await fixture.items.show(t1, { file: { path: "a.ts" } })
-    expect(reshown).toMatchObject({ again: false })
-    expect(fixture.items.bar(t2.terminalId)).toMatchObject([{ id: itemId, version: 1 }])
+    expect(reshown).toMatchObject({ id: itemId, again: true })
+    expect(fixture.items.bar(t1.terminalId)).toEqual([])
+    expect(fixture.items.bar(t2.terminalId)).toMatchObject([{ id: itemId, version: 2 }])
     // What the watch said, applied in order, is what the runner keeps.
     const reconciled = () => {
       const items = new Map<string, unknown>()
@@ -393,7 +501,7 @@ describe("moving items", () => {
       items: expect.arrayContaining(kept.items),
       windows: kept.windows,
     })
-    expect(reconciled().items).toHaveLength(2)
+    expect(reconciled().items).toHaveLength(1)
     expect(kept.items.map(({ id }) => id)).not.toContain(copy.ok ? copy.id : "")
     await watch.stop()
   })
@@ -574,6 +682,24 @@ describe("plans beside their terminal", () => {
         `- plan "Fix the redirect, take two": ${path} (your plan)`,
       ].join("\n"),
     )
+  })
+
+  it("update a plan where the person moved it", async ({ fixture }) => {
+    const path = join(fixture.directory, "p.md")
+    writeFileSync(path, "# P\n")
+    const t1 = fixture.terminal("t1")
+    const plan = { source: { kind: "file", path } as const, path }
+    await fixture.items.planObserved(t1, slot, plan, 1)
+    const [item] = fixture.items.bar(t1.terminalId)
+    const windowId = randomUUID()
+    fixture.items.undock(item!.id, windowId)
+    writeFileSync(path, "# Take two\n")
+    await fixture.items.planObserved(t1, slot, plan, 2)
+    expect(fixture.items.bar(t1.terminalId)).toEqual([])
+    expect(fixture.items.list(fixture.sessionId)).toMatchObject({
+      items: [{ id: item!.id, holder: { windowId }, name: "Take two", version: 2 }],
+      windows: [{ id: windowId, title: "Take two" }],
+    })
   })
 
   it("go from their own bar once another session binds there, moved ones staying", async ({

@@ -520,6 +520,44 @@ describe("Novadeck's MCP server", () => {
           { type: "text", text: "Showing notes.md again, updated, to the user in Novadeck." },
         ],
       })
+      // Moved away by the person, it was updated there.
+      await expect(
+        said({
+          ok: true,
+          id: "a",
+          kind: "file",
+          name: "notes.md",
+          opened: false,
+          again: true,
+          moved: "into a window of its own",
+        }),
+      ).resolves.toMatchObject({
+        content: [
+          {
+            type: "text",
+            text: "notes.md was moved by the user into a window of its own, so it's updated there.",
+          },
+        ],
+      })
+      await expect(
+        said({
+          ok: true,
+          id: "b",
+          kind: "file",
+          name: ".env",
+          opened: false,
+          again: true,
+          moved: "to t2",
+          held: true,
+        }),
+      ).resolves.toMatchObject({
+        content: [
+          {
+            type: "text",
+            text: ".env was moved by the user to t2, so it's updated there. It may hold secrets, so it doesn't open by itself.",
+          },
+        ],
+      })
       // An image too large to preview is still listed.
       await expect(
         said({ ok: true, id: "c", kind: "image", name: "big.png", opened: true, tooLarge: true }),

@@ -162,6 +162,20 @@ describe("showcase agents", () => {
       showcase.told(studio, "show")
       expect(reported).toMatchObject([{ item: { id: "studio-projects", version: 2 } }])
     })
+
+    it("updates what it showed where the person moved it", () => {
+      const [projects] = studioArtifacts.opened!
+      const sample = {
+        ...studioAgent,
+        artifacts: { shown: [], opened: [projects!], next: [projects!] },
+      }
+      const { showcase, reported, hold } = running([{ key: studio, handle: "t1", sample }])
+      hold("studio-projects", { windowId: "w1" })
+      showcase.told(studio, "show")
+      expect(reported).toMatchObject([
+        { item: { id: "studio-projects", version: 2, holder: { windowId: "w1" } } },
+      ])
+    })
   })
 
   context("when the person saves an edit", () => {
@@ -202,17 +216,13 @@ describe("showcase agents", () => {
       expect(planText(studioPlan)).toBe(studioAgent.text)
     })
 
-    it("leaves a plan the person undocked where it is, and writes its plan anew on its bar", () => {
+    it("updates a plan the person undocked where it is", () => {
       const { showcase, reported, hold, planText } = running()
       hold(studioPlan, { windowId: "w1" })
       showcase.told(studio, "use a grotesk")
       expect(reported).toMatchObject([
-        {
-          type: "item/upsert",
-          item: { id: `${studioPlan}-2`, version: 1, holder: { terminalId: "01" } },
-        },
+        { type: "item/upsert", item: { id: studioPlan, holder: { windowId: "w1" } } },
       ])
-      // The undocked one still shows the plan as it now stands.
       expect(planText(studioPlan)).toContain("confident grotesk")
     })
 

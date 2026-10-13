@@ -330,8 +330,9 @@ with every safety check again at that time:
   harness's own decoders (`Harness.plans`, see [harness adapters](harness-adapters.md)),
   so a moved one keeps working after its terminal closes and after a restart; while
   that terminal still runs the session, its live activity is read first. No plan text
-  is copied into the database. When another agent session binds the terminal, the
-  plans its own bar mirrored of the earlier one go; moved ones stay.
+  is copied into the database. A plan the person moved into a window or onto another
+  bar is updated there. When another agent session binds the terminal, the plans its
+  own bar mirrored of the earlier one go; moved ones stay.
 - **Other items** come from Novadeck's MCP server, which ships inside the agent plugin
   Novadeck already installs: `.mcp.json` for Claude Code, `mcpServers` in Codex's
   plugin manifest (with `env_vars` naming the terminal's variables, since Codex starts
@@ -342,9 +343,9 @@ with every safety check again at that time:
   sets when the user asked to see it (`asked`). A new kind of artifact adds a source key
   of its own rather than more fields beside these. `close` takes the same `file` (its
   path alone) or `url` and removes what the agent showed under it from its own bar, as
-  the person closing it would; what the person attached, or another terminal placed
-  there, is refused with a word on whose it is, and plans are never addressable this
-  way. The server finds its terminal
+  the person closing it would; what the person attached, moved away from it, or another
+  terminal placed there is refused with a word on whose it is, and plans are never
+  addressable this way. The server finds its terminal
   from `NOVADECK_TERMINAL_ID`, `NOVADECK_REPORT` and `NOVADECK_REPORT_TOKEN`. Like
   the hooks, it is installed for every session, but outside Novadeck's terminals it
   lists no tools, so the agent never sees `show`, and a call anyway does nothing.
@@ -363,13 +364,18 @@ with every safety check again at that time:
   user name or password, or is too long. Binary files are accepted and load as
   `binary`; an image over 8 MB is accepted and loads as too large to preview, which the
   answer says. Showing the same file or page again updates the item on the agent's own
-  bar; one moved elsewhere is never touched. A file that often holds secrets (`.env`,
+  bar, or else the latest it showed that the person moved into a window or onto another
+  bar, where it stays. Items are told apart by a file's real path or a page's `pageKey`
+  (`protocol/src/pages.ts`): its address without the fragment, or for a server on this
+  machine (`localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0` and `[::]` alike) its scheme and port
+  alone, so a dev server stays one item whatever route the agent shows. A file that often holds secrets (`.env`,
   keys, credentials, agents' and tools' logins, shell history) is held: it never opens
   by itself, even when the agent says the person asked; the pane never falls back to
   it, its taskbar peek shows no preview, and it goes by its own name, not the agent's
   title. So none appears unasked while they share their screen. A file that resolves
   to such a file only later is held when it loads. The server's `showing` tool lists
-  what the agent's bar holds now, with where each item points and who put it there.
+  what the agent's bar holds now, with where each item points and who put it there,
+  then what it showed that the person moved elsewhere.
   The UI follows each item with `companions.content`, never by path.
 - **New terminals** come from the same server's second tool, `open_terminal`, listed
   only inside Novadeck's terminals like `show`. It opens a terminal beside the agent's,

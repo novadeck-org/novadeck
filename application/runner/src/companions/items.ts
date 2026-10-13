@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
+import { pageKey } from "@novadeck/protocol"
 import type {
   AgentName,
   CompanionChange,
@@ -154,8 +155,9 @@ const keyOf = (content: ItemContent): string =>
  * What agents show and the person attaches beside terminals, kept as pointers: each item
  * is held by one terminal's bar or one undocked window, survives restarts, and goes when
  * it is closed, with its holder, or with its session. An agent's show lands on its own
- * bar, updating what it showed there before; plans mirror each agent session's latest
- * plans on the bar of the terminal they run in. Content is read from disk as it loads.
+ * bar, updating what it showed there before, or wherever the person moved that since;
+ * plans mirror each agent session's latest plans on the bar of the terminal they run in,
+ * or where the person moved them. Content is read from disk as it loads.
  */
 export class CompanionItems {
   private readonly records: ItemRecords
@@ -181,8 +183,8 @@ export class CompanionItems {
   /**
    * Shows what an agent asked to, on its own terminal's bar: a file any path reaches, as
    * a viewer would, or an http(s) page. Showing the same again updates it, with a later
-   * version; an item moved elsewhere is never touched. It opens when the agent says the
-   * person asked, unless it may hold secrets.
+   * version, where it is: on the bar, or in the window or on the other bar the person
+   * moved it to. It opens when the agent says the person asked, unless it may hold secrets.
    */
   async show(place: TerminalPlace, request: PresentRequest): Promise<PresentAnswer> {
     if (this.stopping) return failure("Novadeck is closing.")
@@ -200,13 +202,16 @@ export class CompanionItems {
       kept = undefined
     }
     if (!kept) return failure("Novadeck couldn't show it.")
+    const moved = kept.item.terminalId !== place.terminalId
     return {
       ok: true,
       id: kept.item.id,
       kind: kept.item.kind,
       name: kept.item.name,
-      opened: asked,
+      // A window isn't brought forward; another bar opens it there.
+      opened: asked && kept.item.windowId === null,
       again: kept.again,
+      ...(moved && { moved: this.whereMoved(kept.item) }),
       ...(pointer.held && { held: true }),
       ...(tooLarge && { tooLarge: true }),
     }
@@ -215,8 +220,8 @@ export class CompanionItems {
   /**
    * Closes what an agent showed on its own terminal's bar, named by the file or page it
    * gave `show`; the item leaves the bar and the pane. Only the agent's own items close
-   * this way: one the person attached, or another terminal placed there, stays, and the
-   * answer says so.
+   * this way: one the person attached, another terminal placed there, or the person moved
+   * away from it stays, and the answer says so.
    */
   async dismiss(place: TerminalPlace, request: DismissRequest): Promise<DismissAnswer> {
     if (this.stopping) return failure("Novadeck is closing.")
@@ -225,6 +230,12 @@ export class CompanionItems {
     const item = this.records
       .barItems(place.terminalId)
       .find((each) => each.pointerKey === keyed.key)
+    const moved = item ?? this.shown(place, keyed.key)
+    if (moved && !item)
+      return failure(
+        `${JSON.stringify(moved.name)} was moved by the user ${this.whereMoved(moved)}, so it ` +
+          "isn't yours to close; tell the user if it should go.",
+      )
     if (!item)
       return failure(
         `Nothing is showing beside your terminal at ${named(keyed.given)}; showing lists what is.`,
@@ -273,16 +284,31 @@ export class CompanionItems {
 
   /**
    * What a terminal's bar holds, as its agent reads it through `showing`: each item with
-   * where it points, and who put it there.
+   * where it points, and who put it there; then what the agent showed that the person
+   * moved into a window or onto another bar, which its show still updates.
    */
   listing(terminalId: string): string {
-    const items = this.records.barItems(terminalId)
+    const bar = this.records.barItems(terminalId)
+    const sessionId = this.options.terminal(terminalId)?.sessionId
+    const moved = (sessionId === undefined ? [] : this.records.items(sessionId)).filter(
+      (item) =>
+        item.kind !== "plan" &&
+        item.by === "agent" &&
+        item.from.terminalId === terminalId &&
+        item.terminalId !== terminalId,
+    )
+    const items = [...bar, ...moved]
     if (items.length === 0) return "Nothing is showing beside your terminal in Novadeck."
     const lines = items.map((item) => {
       const own = item.from.terminalId === terminalId
       const range = item.lines ? ` lines ${item.lines.from}–${item.lines.to}` : ""
       const where = item.url ?? item.path ?? ""
-      const placed = own ? undefined : `placed here from ${item.from.handle}`
+      const placed =
+        item.terminalId !== terminalId
+          ? `moved by the user ${this.whereMoved(item)}`
+          : own
+            ? undefined
+            : `placed here from ${item.from.handle}`
       const whose =
         item.kind === "plan"
           ? own
@@ -550,7 +576,7 @@ export class CompanionItems {
       ),
       held: false,
     }
-    const own = this.records.barItems(place.terminalId).find((item) => item.pointerKey === key)
+    const own = this.shown(place, key)
     if (own) {
       // An older observation, as a replay, changes nothing it already has.
       if (own.observedAt !== null && at <= own.observedAt) {
@@ -566,7 +592,8 @@ export class CompanionItems {
       })
       return
     }
-    // A replay of what an item moved away already holds, as after a restart, adds nothing.
+    // A replay of what an item of another terminal already holds, as one its session ran
+    // in before, adds nothing.
     const kept = this.records.itemsAt(place.sessionId, key)
     if (kept.some((item) => item.observedAt !== null && item.observedAt >= at)) return
     this.save({
@@ -600,7 +627,7 @@ export class CompanionItems {
         ok: true,
         tooLarge: false,
         pointer: {
-          pointerKey: href,
+          pointerKey: pageKey(href),
           kind: "page",
           path: null,
           url: href,
@@ -637,8 +664,8 @@ export class CompanionItems {
   }
 
   /**
-   * The key a `close` request names, as `show` keyed the item: a page's address as
-   * read, or a file's real path; once the file is gone, its real path still, from the
+   * The key a `close` request names, as `show` keyed the item: a page's `pageKey`, or a
+   * file's real path; once the file is gone, its real path still, from the
    * deepest folder of it that remains, so a symlinked folder on the way still matches. A
    * plan's key (`plan:…`) is never a path or an address, so no request reaches one.
    */
@@ -648,7 +675,7 @@ export class CompanionItems {
   ): Promise<{ readonly ok: true; readonly key: string; readonly given: string } | PresentFailure> {
     if ("url" in request) {
       const page = pageAt(request.url)
-      return page.ok ? { ok: true, key: page.url.href, given: page.url.href } : page
+      return page.ok ? { ok: true, key: pageKey(page.url.href), given: page.url.href } : page
     }
     const key = await realPath(resolve(place.cwd, request.file.path))
     return { ok: true, key, given: request.file.path }
@@ -672,9 +699,10 @@ export class CompanionItems {
   }
 
   /**
-   * Keeps a pointer on a terminal's own bar: updating the item it holds under it, or
-   * adding one. Undefined once the terminal is gone; TERMINAL_NOT_FOUND once its record
-   * is, and any other failure to keep it as it is.
+   * Keeps a pointer on a terminal's own bar: updating the item it holds under it, or for
+   * its agent the one it showed that the person moved since, or adding one. Undefined once
+   * the terminal is gone; TERMINAL_NOT_FOUND once its record is, and any other failure to
+   * keep it as it is.
    */
   private keep(
     place: TerminalPlace,
@@ -682,9 +710,12 @@ export class CompanionItems {
     origin: { readonly by: ItemRecord["by"]; readonly asked: boolean },
   ): { item: ItemRecord; again: boolean } | undefined {
     if (this.stopping || !this.options.terminal(place.terminalId)) return undefined
-    const own = this.records
-      .barItems(place.terminalId)
-      .find((item) => item.pointerKey === pointer.pointerKey)
+    const own =
+      origin.by === "agent"
+        ? this.shown(place, pointer.pointerKey)
+        : this.records
+            .barItems(place.terminalId)
+            .find((item) => item.pointerKey === pointer.pointerKey)
     const item: ItemRecord = own
       ? { ...own, ...pointer, version: own.version + 1, asked: origin.asked, shownAt: Date.now() }
       : {
@@ -704,9 +735,35 @@ export class CompanionItems {
     return { item, again: own !== undefined }
   }
 
+  /**
+   * What a terminal's agent showed under a pointer, which showing it again updates: the
+   * item its bar holds under it, else the latest the agent showed there that the person
+   * moved into a window or onto another bar.
+   */
+  private shown(place: TerminalPlace, pointerKey: string): ItemRecord | undefined {
+    return (
+      this.records.barItems(place.terminalId).find((item) => item.pointerKey === pointerKey) ??
+      this.records
+        .itemsAt(place.sessionId, pointerKey)
+        .findLast((item) => item.by === "agent" && item.from.terminalId === place.terminalId)
+    )
+  }
+
+  /** Where the person moved an item away from its bar, as its agent reads it. */
+  private whereMoved(item: ItemRecord): string {
+    if (item.terminalId === null) return "into a window of its own"
+    return `to ${this.options.terminal(item.terminalId)?.handle ?? "another terminal"}`
+  }
+
   private save(item: ItemRecord): void {
+    const before = this.records.item(item.id)
     this.records.saveItem(item)
     this.changed(item)
+    // A window goes by its item's name until the person names it.
+    if (item.windowId !== null && before !== undefined && before.name !== item.name) {
+      const window = this.records.window(item.windowId)
+      if (window) this.windowChanged(window)
+    }
   }
 
   private delete(itemId: string): void {

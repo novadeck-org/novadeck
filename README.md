@@ -578,7 +578,9 @@ says why: the file is gone, can't be read or is no longer a file, it's too large
 preview, it isn't text, or the plan it pointed at is gone. A file that may hold secrets,
 such as `.env` or a key, never opens by itself: it says so until you open it. The agent
 lists what is beside its terminal with Novadeck's `showing` tool, and showing the same
-file or page again updates it. Each gets an icon in the taskbar, as an OS taskbar has, with
+file or page again updates it. A page from a server on your own machine is the same
+page whatever route or anchor it's at, so a dev server stays one item as the agent
+moves through it. Each gets an icon in the taskbar, as an OS taskbar has, with
 several of a kind (images, files, pages, or plans) stacked under one; only Messages
 never stack. A markdown file the agent shows reads as a document, formatted like a plan
 with its outline, but read-only: it's the agent's file, not a plan to edit or note (the
@@ -600,7 +602,7 @@ where both are on screen); a terminal with nothing to show grows an empty bar wh
 icon is dragged over it. It now belongs to that bar: its peek, menu and pane still say
 which terminal it came from, and an image or file stacks with the bar's own like any
 other. If that bar already holds the same file or page, the moved one replaces it. Its
-agent showing it again puts a new one on its own bar and leaves the moved one alone.
+agent showing it again updates it where you put it, as it does an undocked window.
 **Send back to** its terminal, on its right-click, or a drag onto that terminal's bar,
 moves it home. Items go with the terminal whose bar holds them when it closes, and the
 backend keeps where each is across restarts. Messages are the exception: a terminal's

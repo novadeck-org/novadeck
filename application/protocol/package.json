@@ -24,6 +24,10 @@
     "./harnesses": {
       "types": "./dist/harnesses.d.ts",
       "default": "./dist/harnesses.js"
+    },
+    "./pages": {
+      "types": "./dist/pages.d.ts",
+      "default": "./dist/pages.js"
     }
   },
   "scripts": {

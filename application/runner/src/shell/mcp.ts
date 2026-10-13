@@ -49,6 +49,7 @@ type Shown = {
   readonly name: string
   readonly opened?: boolean
   readonly again?: boolean
+  readonly moved?: string
   readonly held?: boolean
   readonly tooLarge?: boolean
 }
@@ -99,8 +100,9 @@ const show: Tool<Shown> = {
     "shown; the files a change touches on the way aren't, and the user reads those in the " +
     "diff. Set open to true only when they asked to see it, which a revision of " +
     "something you are iterating on with them is; otherwise it waits for them in Novadeck, " +
-    "marked new. Showing the same file or page again updates it beside you, so one item " +
-    "per deliverable; while they have it open, each save shows at once.",
+    "marked new. Showing the same file or page again updates it, beside you or wherever " +
+    "the user moved it, so one item per deliverable; while they have it open, each save " +
+    "shows at once.",
   inputSchema: {
     type: "object",
     properties: {
@@ -132,7 +134,9 @@ const show: Tool<Shown> = {
         type: "string",
         description:
           "Instead of file: a web page's http or https address, such as http://localhost:5173/, " +
-          "which Novadeck opens live in its browser view.",
+          "which Novadeck opens live in its browser view. A server on this machine is one " +
+          "item whatever route or #anchor you give, so showing another route navigates that " +
+          "item to it; another port is another item.",
       },
       title: {
         type: "string",
@@ -149,18 +153,22 @@ const show: Tool<Shown> = {
   // Whole, so the runner's strict reading names a key that belongs to no source.
   request: (args) => args,
   said: (answer) =>
-    (answer.opened
-      ? "Showing " +
-        answer.name +
-        (answer.again ? " again, updated," : "") +
-        " to the user in Novadeck."
-      : answer.held
-        ? answer.name +
-          " may hold secrets, so it doesn't open by itself: it's waiting for the user in " +
-          "Novadeck, marked new, to open if they choose."
-        : answer.name +
-          (answer.again ? " is updated and" : " is") +
-          " waiting for the user in Novadeck, marked new.") +
+    (answer.moved !== undefined
+      ? `${answer.name} was moved by the user ${answer.moved}, so it's updated there` +
+        (answer.opened ? " and opened." : ".") +
+        (answer.held ? " It may hold secrets, so it doesn't open by itself." : "")
+      : answer.opened
+        ? "Showing " +
+          answer.name +
+          (answer.again ? " again, updated," : "") +
+          " to the user in Novadeck."
+        : answer.held
+          ? answer.name +
+            " may hold secrets, so it doesn't open by itself: it's waiting for the user in " +
+            "Novadeck, marked new, to open if they choose."
+          : answer.name +
+            (answer.again ? " is updated and" : " is") +
+            " waiting for the user in Novadeck, marked new.") +
     (answer.tooLarge ? " It's too large to preview, so Novadeck lists it by its name only." : ""),
   failed: "Novadeck couldn't show it.",
 }
@@ -170,7 +178,8 @@ const showing: Tool<Listing> = {
   description:
     "List what is showing beside your terminal in Novadeck now: each image, file, page " +
     "and plan, with where it points and whether you showed it, the user attached it, or " +
-    "it was placed there from another terminal. Check it before showing after a while, " +
+    "it was placed there from another terminal, and what you showed that the user moved " +
+    "into a window or beside another terminal. Check it before showing after a while, " +
     "to update what is there rather than add beside it, and to close what no longer " +
     "applies.",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
@@ -190,8 +199,8 @@ const close: Tool<Dismissed> = {
     "preview whose server you stopped or a screenshot replaced by a newer one under " +
     "another name; showing the same file or page again updates it instead. Don't close what " +
     "the user may still be looking at unless they asked. Only what you showed yourself " +
-    "closes this way: what the user attached, or another terminal placed beside you, " +
-    "stays, and you're told. showing lists what is there. For a terminal, use " +
+    "closes this way: what the user attached, moved away from you, or another terminal " +
+    "placed beside you stays, and you're told. showing lists what is there. For a terminal, use " +
     "close_terminal instead.",
   inputSchema: {
     type: "object",

@@ -1,3 +1,4 @@
+import { pageKey } from "./pages"
 import type { WorkspaceTarget } from "./types"
 
 // What agents put in front of the user beside their terminals: the plans they write,
@@ -84,10 +85,15 @@ export const windowOfItem = (item: CompanionItem): string | undefined =>
 
 type Pointer = Pick<CompanionItem, "kind" | "path" | "url">
 
-// What a file or page item points at, so showing the same thing again finds it. A plan
-// has none here: which agent's plan slot it fills is the backend's to know.
+// What a file or page item points at, so showing the same thing again finds it: a page
+// by the runner's own key for it. A plan has none here: which agent's plan slot it fills
+// is the backend's to know.
 const pointerOf = (item: Pointer): string | null =>
-  item.kind === "plan" ? null : item.kind === "page" ? `page:${item.url}` : `file:${item.path}`
+  item.kind === "plan"
+    ? null
+    : item.kind === "page"
+      ? `page:${pageKey(item.url ?? "")}`
+      : `file:${item.path}`
 
 export const samePointer = (a: Pointer, b: Pointer): boolean => {
   const pointer = pointerOf(a)
@@ -102,6 +108,22 @@ export const ownItemWith = (
   pointer: Pointer,
 ): CompanionItem | undefined =>
   items.find((item) => isOnBar(item, terminalId) && samePointer(item, pointer))
+
+// What terminal `terminalId`'s agent showed that points where `pointer` does, which it
+// updates by showing it again: the item on its own bar, else the latest it showed that
+// the person moved into a window or onto another bar.
+export const shownItemWith = (
+  items: readonly CompanionItem[],
+  terminalId: string,
+  pointer: Pointer,
+): CompanionItem | undefined =>
+  ownItemWith(items, terminalId, pointer) ??
+  items
+    .toSorted((a, b) => a.shownAt - b.shownAt)
+    .findLast(
+      (item) =>
+        item.by === "agent" && item.from.terminalId === terminalId && samePointer(item, pointer),
+    )
 
 // What an item holds as it loads, from the file or page it points at now.
 

@@ -109,8 +109,12 @@ const typeOnlyPackages: Record<string, readonly string[]> = {
   "app/commands/": [],
   "interaction/": [],
 }
-// The one file in model/ that reads the wire package: its data-only table of harnesses.
-const harnessTable = "model/harnesses.ts"
+// The files in model/ that read the wire package, each through one data-only entry: its
+// table of harnesses, and the key that tells pages apart.
+const protocolData: Record<string, string> = {
+  "model/harnesses.ts": "@novadeck/protocol/harnesses",
+  "model/pages.ts": "@novadeck/protocol/pages",
+}
 const testLayers = new Set(["specs/", "test/", "test.ts"])
 const vendors: Record<string, readonly string[]> = {
   clsx: ["class-name.ts"],
@@ -135,7 +139,7 @@ const vendors: Record<string, readonly string[]> = {
   "react-router": ["app/", "shell/"],
   "react-dom": ["layouts/transition.ts", "main.tsx", "test/"],
   // The runner client, its test runner, and the terminal emulator serve one adapter.
-  "@novadeck": ["backend/runner/", harnessTable],
+  "@novadeck": ["backend/runner/", ...Object.keys(protocolData)],
   "@xterm": ["backend/runner/"],
 }
 
@@ -189,7 +193,7 @@ const importViolation = (file: string, layer: string | undefined) => {
   const allowed = layer ? allowedFor(file, layer) : []
   return ({ specifier, typeOnly }: { specifier: string; typeOnly: boolean }): string[] => {
     if (!specifier.startsWith(".")) {
-      if (file === harnessTable && specifier === "@novadeck/protocol/harnesses") return []
+      if (protocolData[file] === specifier) return []
       if (isTest(file) || (layer && (adapterOf(layer) || testLayers.has(layer)))) return []
       const limited = layer ? typeOnlyPackages[layer] : undefined
       const ok = limited
