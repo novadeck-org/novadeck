@@ -32,15 +32,16 @@ export const savedSessions = (): Locator => page.getByRole("list", { name: "Save
 export const savedSession = (name: string): Locator =>
   savedSessions().getByRole("button", { name: `Open ${name}`, exact: true })
 
+const currentEntry = (): Element | undefined =>
+  savedSessions()
+    .getByRole("button")
+    .elements()
+    .find((entry) => entry.getAttribute("aria-current") === "true")
+
 /** The name of the session marked current in the Sessions sidebar. */
 export const currentSessionName = async (): Promise<string> => {
-  const current = (): Element | undefined =>
-    savedSessions()
-      .getByRole("button")
-      .elements()
-      .find((entry) => entry.getAttribute("aria-current") === "true")
-  await expect.poll(current).toBeDefined()
-  return current()!
+  await expect.poll(currentEntry).toBeDefined()
+  return currentEntry()!
     .getAttribute("aria-label")!
     .replace(/^Open /, "")
 }

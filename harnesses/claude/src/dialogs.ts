@@ -699,13 +699,14 @@ const marked = (rows: readonly string[], row: RegExp, n: number): boolean =>
     return match?.[1] === "❯" && Number(match[2]) === n
   })
 
+const planGone = (later: readonly string[]): boolean =>
+  !later.some((each) => planTitle.test(each) || planQuestion.test(each)) && idle(later)
+
 const plan = (rows: readonly string[], facts: RequestFacts): DialogRead | undefined => {
   if (facts.kind !== "plan" || facts.tool !== "ExitPlanMode") return undefined
   const input = record(facts.input)
   if (!input) return undefined
   const file = string(input.planFilePath)?.replaceAll("\\", "/")
-  const gone = (later: readonly string[]): boolean =>
-    !later.some((each) => planTitle.test(each) || planQuestion.test(each)) && idle(later)
 
   const long = last(rows, (each) => planQuestion.test(each))
   if (long >= 0) {
@@ -754,7 +755,7 @@ const plan = (rows: readonly string[], facts: RequestFacts): DialogRead | undefi
         }
         return answer.text === undefined ? [{ press: key }] : undefined
       },
-      gone,
+      planGone,
       3,
     )
   }
@@ -775,7 +776,7 @@ const plan = (rows: readonly string[], facts: RequestFacts): DialogRead | undefi
       const key = digit(n)
       return key && answer.text === undefined ? [{ press: key }] : undefined
     },
-    gone,
+    planGone,
   )
 }
 
@@ -1295,19 +1296,21 @@ const formButtons = /^ {2}(?:❯ | {2})Accept(?: {4}| {2}❯ )Decline$/
 const formOptionRow = /^ {8}(❯ | {2})◯ (.+)$/
 const formFooter = "  Esc to cancel · ↑/↓ to navigate"
 
+/** The row where a field opens: its marker, status and label, then what it holds. */
+const fieldRow = (field: FormField) =>
+  new RegExp(`^ {2}(❯| ) ([*✔⚠ ]) ${escaped(field.label)}: (.*)$`)
+
 /** The form on screen, row by row, in the order of its fields; undefined unless all of it reads. */
 const formScreen = (rows: readonly string[], form: Form): FormScreen | undefined => {
   const heading = last(rows, (each) => each === `  MCP server “${form.server}” requests your input`)
   if (heading < 0) return undefined
   const after = rows.slice(heading + 1)
-  const open = (field: FormField) =>
-    new RegExp(`^ {2}(❯| ) ([*✔⚠ ]) ${escaped(field.label)}: (.*)$`)
-  const first = after.findIndex((each) => open(form.fields[0]!).test(each))
+  const first = after.findIndex((each) => fieldRow(form.fields[0]!).test(each))
   if (first < 0 || !wraps(quoted(after.slice(0, first)), form.message)) return undefined
   const states: FieldState[] = []
   let at = first
   for (const [index, field] of form.fields.entries()) {
-    const match = open(field).exec(after[at] ?? "")
+    const match = fieldRow(field).exec(after[at] ?? "")
     if (!match) return undefined
     const lines: string[] = []
     const options: { hl: boolean; label: string }[] = []
@@ -1316,7 +1319,7 @@ const formScreen = (rows: readonly string[], form: Form): FormScreen | undefined
     for (; at < after.length; at++) {
       const row = after[at]!
       if (row === "") continue
-      if (formButtons.test(row) || (next && open(next).test(row))) break
+      if (formButtons.test(row) || (next && fieldRow(next).test(row))) break
       const choice = formOptionRow.exec(row)
       if (choice) options.push({ hl: choice[1] === "❯ ", label: choice[2]! })
       else if (/^ {8}\S/.test(row)) lines.push(row.trim())
@@ -1387,6 +1390,9 @@ const settled = (test: (rows: readonly string[]) => boolean, ms = 400) => {
   }
 }
 
+const onField = (index: number) => (screen: FormScreen) =>
+  screen.fields.every((each, at) => each.hl === (at === index)) && screen.buttons === null
+
 const formKeys = (form: Form, answer: RequestAnswer): readonly KeyStep[] | undefined => {
   if (answer.type !== "form") return undefined
   const { fields } = form
@@ -1425,8 +1431,6 @@ const formKeys = (form: Form, answer: RequestAnswer): readonly KeyStep[] | undef
     timeoutMs: 5000,
     why,
   })
-  const onField = (index: number) => (screen: FormScreen) =>
-    screen.fields.every((each, at) => each.hl === (at === index)) && screen.buttons === null
   const steps: KeyStep[] = []
   const toButtons = (): void => {
     for (let index = 0; index < fields.length; index++) {

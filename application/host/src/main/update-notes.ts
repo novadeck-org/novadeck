@@ -74,6 +74,9 @@ const linesOfHtml = (html: string): string[] =>
     .replace(/[<>]/gu, "")
     .split(/[\r\n]+/u)
 
+const htmlText = (value: unknown): string =>
+  typeof value === "string" ? value.slice(0, readLength) : ""
+
 /**
  * The notes of a release as plain-text lines for the page: one per list item or paragraph,
  * without markup, entities, control characters or empty lines, each at most
@@ -82,13 +85,11 @@ const linesOfHtml = (html: string): string[] =>
  * changelog; anything else, or notes with no text, give no lines.
  */
 export const releaseNotesLines = (notes: unknown): string[] => {
-  const html = (value: unknown): string =>
-    typeof value === "string" ? value.slice(0, readLength) : ""
   const sources: string[] = Array.isArray(notes)
     ? notes.map((entry: unknown) =>
-        typeof entry === "object" && entry !== null && "note" in entry ? html(entry.note) : "",
+        typeof entry === "object" && entry !== null && "note" in entry ? htmlText(entry.note) : "",
       )
-    : [html(notes)]
+    : [htmlText(notes)]
   return sources
     .flatMap(linesOfHtml)
     .map(tidy)

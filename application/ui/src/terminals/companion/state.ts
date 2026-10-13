@@ -347,6 +347,17 @@ const forgetPlan = (session: Session, id: ItemId): void => {
     each.delete(id)
 }
 
+// A record without the items that are gone.
+const keep = <Value>(
+  present: ReadonlyMap<ItemId, unknown>,
+  record: Readonly<Record<ItemId, Value>>,
+) => {
+  const kept = Object.entries(record).filter(([id]) => present.has(id as ItemId))
+  return kept.length === Object.keys(record).length
+    ? record
+    : (Object.fromEntries(kept) as Record<ItemId, Value>)
+}
+
 // Follows every plan in the workspace, stops following what's gone, and forgets it.
 const reconcile = (session: Session, workspace: Workspace): void => {
   const present = new Map<ItemId, { readonly target: WorkspaceTarget; readonly plan: boolean }>()
@@ -380,16 +391,10 @@ const reconcile = (session: Session, workspace: Workspace): void => {
     else follow(session, target, id, { watchers: 0, plan: true })
   }
   session.panes.update((state) => {
-    const keep = <Value>(record: Readonly<Record<ItemId, Value>>) => {
-      const kept = Object.entries(record).filter(([id]) => present.has(id as ItemId))
-      return kept.length === Object.keys(record).length
-        ? record
-        : (Object.fromEntries(kept) as Record<ItemId, Value>)
-    }
     const next = {
-      plans: keep(state.plans),
-      content: keep(state.content),
-      revealed: keep(state.revealed),
+      plans: keep(present, state.plans),
+      content: keep(present, state.content),
+      revealed: keep(present, state.revealed),
     }
     return next.plans === state.plans &&
       next.content === state.content &&

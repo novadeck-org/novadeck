@@ -29,6 +29,12 @@
   },
   "overrides": [
     {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/*.e2e.ts"],
+      "rules": {
+        "unicorn/consistent-function-scoping": "off"
+      }
+    },
+    {
       "files": ["**/*.d.ts"],
       "rules": {
         "typescript/consistent-type-definitions": "off"

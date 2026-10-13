@@ -31,9 +31,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@orpc/client": "1.15.4",
-    "@orpc/contract": "1.15.4",
-    "@orpc/standard-server-peer": "1.15.4",
+    "@orpc/client": "1.15.5",
+    "@orpc/contract": "1.15.5",
+    "@orpc/standard-server-peer": "1.15.5",
     "zod": "4.6.5"
   },
   "devDependencies": {

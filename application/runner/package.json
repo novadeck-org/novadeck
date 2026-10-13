@@ -23,7 +23,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.1",
+    "@hono/node-server": "^2.1.4",
     "@novadeck/harness-agy": "workspace:*",
     "@novadeck/harness-claude": "workspace:*",
     "@novadeck/harness-codex": "workspace:*",
@@ -32,18 +32,18 @@
     "@novadeck/protocol": "workspace:*",
     "@novadeck/relay": "workspace:*",
     "@novadeck/whisper": "workspace:*",
-    "@orpc/server": "1.15.4",
+    "@orpc/server": "1.15.5",
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/addon-unicode-graphemes": "0.4.0",
     "@xterm/headless": "6.0.0",
     "hono": "^4.13.13",
     "node-pty": "1.2.0-beta.14",
-    "ws": "8.21.3",
+    "ws": "8.22.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^26.6.4",
-    "@types/ws": "8.18.1",
+    "@types/node": "^26.6.5",
+    "@types/ws": "8.18.2",
     "fast-check": "4.10.2",
     "tsx": "^4.20.6",
     "typescript": "^7.0.2",

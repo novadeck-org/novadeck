@@ -772,6 +772,9 @@ export const runnerBackend = (
     })
   }
 
+  const reply = (answer: TerminalRequestAnswer) =>
+    runner.terminals.answerRequest(answer).catch(() => {})
+
   // Tells the runner how an agent's request went: the terminal the app added, once the
   // runner started it, or why not. One that couldn't start closes again, as the agent
   // hears why. A runner that no longer waits for the answer needs none.
@@ -780,8 +783,6 @@ export const runnerBackend = (
     result: { readonly terminalId: string } | { readonly reason: string },
   ): Promise<void> => {
     const { requestId } = request
-    const reply = (answer: TerminalRequestAnswer) =>
-      runner.terminals.answerRequest(answer).catch(() => {})
     if ("reason" in result) return reply({ requestId, reason: result.reason })
     const { terminalId } = result
     const entry = entries.get(terminalId)
@@ -792,6 +793,11 @@ export const runnerBackend = (
     if (entry && !entry.closed)
       dispatch([{ type: "terminal/close", target: target(entry.key), terminalId }])
     return reply({ requestId, reason: launchFailure(launch) })
+  }
+
+  // A runner that keeps dying while a shell starts is a crash loop; stop waiting.
+  const stillWanted = (): void => {
+    if (restartingOften()) throw new CrashLoop()
   }
 
   // Starts a fresh shell for the terminal, keeping its id: a restart when the runner
@@ -813,10 +819,6 @@ export const runnerBackend = (
     const { terminalId, workspaceSessionId } = entry.key
     const { cols, rows } = entry.size
     const agent = resumableProgram(restoredOf(entry))
-    // A runner that keeps dying while this shell starts is a crash loop; stop waiting.
-    const stillWanted = (): void => {
-      if (restartingOften()) throw new CrashLoop()
-    }
     const retry: Retry = { done: ["CONFLICT"], stillWanted, cancelled: () => entry.closed }
     const resume = agent ? { resume: agent } : {}
     const create = () => {
@@ -1327,12 +1329,12 @@ export const runnerBackend = (
     ...(options.sandbox ? { sandbox: options.sandbox } : {}),
     ...(options.portable ? { portable: options.portable } : {}),
   }
+  const busy = (): boolean => saves.busy() || pending.size > 0
   return {
     backend,
     holds: (key) => registry.get(key) !== undefined,
     restart: runtime.restart,
     idle: async () => {
-      const busy = (): boolean => saves.busy() || pending.size > 0
       while (busy()) {
         flush()
         // eslint-disable-next-line no-await-in-loop -- Settled work may start more.

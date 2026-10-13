@@ -313,7 +313,7 @@ and reason; none is listed today.
   colours can show them. A selected item has an indicator, not only a fill.
 - **JS reads tokens, never colours.** Code that needs a colour outside CSS, such as the
   xterm theme, resolves the token through a hidden probe element (`color:
-var(--terminal-bg)` read back with `getComputedStyle`), because a token can hold
+  var(--terminal-bg)` read back with `getComputedStyle`), because a token can hold
   `color-mix()`, and reads again on `novadeck:themechange`. `tokenColors` in
   `theme/probe.ts` does this.
 

@@ -148,6 +148,17 @@ const run = (
     })
   })
 
+const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => {
+  const connected = await harness.connected(install)
+  const limited = connected ? await harness.limited?.(install).catch(() => undefined) : undefined
+  return {
+    agent: harness.id,
+    available: await exists(harness.home(install)),
+    connected,
+    ...(limited !== undefined && { limited }),
+  }
+}
+
 /** The harnesses Novadeck can connect, and connecting or disconnecting each one. */
 export const createHarnesses = (
   paths: () => Promise<ShellPaths | undefined>,
@@ -170,16 +181,6 @@ export const createHarnesses = (
       return found
     })
   void lookUp()
-  const state = async (harness: Harness, install: Install): Promise<AgentIntegration> => {
-    const connected = await harness.connected(install)
-    const limited = connected ? await harness.limited?.(install).catch(() => undefined) : undefined
-    return {
-      agent: harness.id,
-      available: await exists(harness.home(install)),
-      connected,
-      ...(limited !== undefined && { limited }),
-    }
-  }
   // Where each harness lives, once the shell files say where its plugin is.
   const installs = async (fresh = false) => {
     const shell = await paths()

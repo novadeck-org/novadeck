@@ -58,11 +58,12 @@ const installing: InstallResult = { kind: "installing" }
 // Each press is another release, so the notice that comes once per version comes again.
 let patch = 79
 
+const release = (days: number): UpdateOffer => releaseOffer(`0.0.${(patch += 1)}`, days)
+
 // The panel's group for portable copies. Each action boots the demo again as one, with
 // the host's answer to an install armed.
 export const portableGroup = (launch: DemoLaunch): DemoActionGroup => {
   const boot = (portable: DemoPortable | undefined) => () => launch.setPortable(portable)
-  const release = (days: number): UpdateOffer => releaseOffer(`0.0.${(patch += 1)}`, days)
   return {
     section: "App",
     title: "Portable",

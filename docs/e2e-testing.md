@@ -414,7 +414,7 @@ for (const setup of setups) {
   have the behaviour at all, as Claude Code has no hooks review, and its setup says so in
   `absent`, with what a probe of the pinned version found, as Codex's `background` does:
   `absent: { background: "nothing it starts wakes it once its turn has ended (probed
-2026-10-02, 0.159.3)" }`. `lacking` fails on a missing trait with no reason there. A
+  2026-10-02, 0.159.3)" }`. `lacking` fails on a missing trait with no reason there. A
   missing trait never stands in for a gap: a behaviour the harness has that Novadeck
   doesn't yet support the same way is a gap, recorded in `known-gaps.ts` and raised as a
   blocker (see [Known gaps](#known-gaps)).
@@ -555,10 +555,10 @@ for (const setup of setups) {
   probed in the sandbox: Claude Code's
   `<tool_use_error>` for an unknown tool (`Error: No such tool available`) or arguments
   it won't take (`InputValidationError`), Codex's `unsupported call: <tool>` and `failed
-to parse function arguments`, and Antigravity's `Encountered error in tool validation`,
+  to parse function arguments`, and Antigravity's `Encountered error in tool validation`,
   for both. Not refusals, so the scenarios that provoke them keep working: a tool's own
   errors (Novadeck's "has no agent Novadeck can deliver to", Antigravity's `Encountered
-error in tool execution`, Claude Code's other `<tool_use_error>`s such as a missing
+  error in tool execution`, Claude Code's other `<tool_use_error>`s such as a missing
   file) and the person denying a tool, whose result never reaches the model. A new
   harness's `rejection` comes from probing it, never from a guess.
 - **Holding a turn** pins down how something travels. The round trip holds t2's answer

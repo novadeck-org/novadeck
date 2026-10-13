@@ -142,6 +142,9 @@ const Options = ({
   </div>
 )
 
+const excerpt = (text: string | null): React.JSX.Element | null =>
+  text ? <p className="mt-1 muted whitespace-pre-wrap">{clip(text, 400)}</p> : null
+
 const Body = ({
   request,
   agent,
@@ -152,15 +155,13 @@ const Body = ({
   progress: number
 }): React.JSX.Element => {
   const dialog: ChatDialog | null = request.dialog
-  const lines = (text: string | null): React.JSX.Element | null =>
-    text ? <p className="mt-1 muted whitespace-pre-wrap">{clip(text, 400)}</p> : null
   if (!dialog)
     return (
       <>
         <p>
           <strong>{request.tool}</strong>
         </p>
-        {lines(request.subject)}
+        {excerpt(request.subject)}
         <p className="mt-2 muted text-[0.85em]">Waiting for the dialog to show…</p>
       </>
     )
@@ -177,8 +178,8 @@ const Body = ({
                 : `Allow ${request.tool}?`)}
           </strong>
         </p>
-        {lines(dialog.detail?.includes(request.subject ?? "") ? null : request.subject)}
-        {lines(dialog.detail)}
+        {excerpt(dialog.detail?.includes(request.subject ?? "") ? null : request.subject)}
+        {excerpt(dialog.detail)}
         <Options options={dialog.options} />
         <p className="mt-2 muted text-[0.85em]">
           Type a number and press Enter

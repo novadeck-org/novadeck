@@ -620,7 +620,7 @@ forgets it, including one from an earlier runner.
   is installed into it, read from the agent's own configuration.
   `agents.set({ agent, connected })` installs or removes the plugin with the agent's
   own commands (`claude plugin marketplace add` + `plugin install`, `codex plugin
-marketplace add` + `plugin add`, `agy plugin install`, and their removals). They run
+  marketplace add` + `plugin add`, `agy plugin install`, and their removals). They run
   directly, with `PATH`, `CLAUDE_CONFIG_DIR` and `CODEX_HOME` as the user's login shell
   has them (read with `$SHELL -ilc 'echo …; env'`, in the background so listing never
   waits), falling back to `~/.claude/local/claude` for Claude Code's local install; on
@@ -743,7 +743,7 @@ marketplace add` + `plugin add`, `agy plugin install`, and their removals). They
   collapsed text is only where its shell mode runs what the placeholder stands for
   (`BoxProfile.shell.expands`: Claude Code and Codex ran 1,500-character and 16-line
   commands so); Antigravity runs the placeholder's own text (`[Pasted text #1 +16 lines]:
-command not found`, from somewhere between 900 and 1,500 characters, or 8 and 16 lines),
+  command not found`, from somewhere between 900 and 1,500 characters, or 8 and 16 lines),
   so there no Enter is pressed (`PROMPT_FAILED`, the command left unsent in its box). Given
   while the agent works: Claude Code and Antigravity queue the command and run it after the
   turn; Codex runs it at once, no model call. Where the `!` never switched the box in time
