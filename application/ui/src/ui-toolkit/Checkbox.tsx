@@ -28,7 +28,7 @@ export const Checkbox = ({
       className="checkbox-input absolute inset-0 m-0 size-full cursor-[inherit]"
     />
     <Check
-      size={11}
+      size={12}
       strokeWidth={2.25}
       aria-hidden="true"
       className="checkbox-mark pointer-events-none relative"

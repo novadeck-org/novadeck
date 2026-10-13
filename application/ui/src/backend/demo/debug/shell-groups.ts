@@ -1,5 +1,6 @@
 import type { ConnectFailure } from "../../port"
 import { bootFailures } from "./boot-failures"
+import { iconGuidesGroup } from "./icon-guides"
 import { sampleFix } from "./sandbox"
 import type { DemoActionGroup, DemoStates } from "./types"
 import type { DemoLaunch, DemoShell } from "./with-debug"
@@ -17,7 +18,7 @@ const failureCopy: Record<ConnectFailure["kind"], { label: string; hint: string 
 }
 
 // The panel's groups for the shell around the demo: how it starts, how it fails to,
-// its runner and its sandbox.
+// its runner, its sandbox and the guides drawn over it.
 export const shellGroups = ({
   launch,
   shell,
@@ -110,5 +111,6 @@ export const shellGroups = ({
         },
       ],
     },
+    iconGuidesGroup,
   ]
 }

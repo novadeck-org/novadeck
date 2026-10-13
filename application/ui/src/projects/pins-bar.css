@@ -72,6 +72,9 @@
   position: relative;
   height: var(--_height);
   border-bottom: var(--border-width) solid var(--_border-color);
+  /* As much above as the edge below, so the strip's even height leaves even pins and
+     what they centre lands on whole pixels, not half a pixel low. */
+  padding-top: var(--border-width);
   background-color: var(--pins-bar-bg, var(--region-header-bg, var(--color-paper)));
   background-image: var(--pins-bar-image, var(--region-header-image, none));
   transition:

@@ -79,7 +79,7 @@ const ChoiceCard = ({
       {note && (
         <span
           id={noteId}
-          className="settings-note text-caption leading-relaxed"
+          className="settings-note text-caption leading-4.5"
           data-tone={error ? "danger" : undefined}
           role={error ? "alert" : undefined}
         >

@@ -5,7 +5,7 @@ import { settingRowClasses } from "./settings"
 // and a failure's note.
 
 export const addonRowClasses = `preference-row ${settingRowClasses}`
-export const addonNoteClasses = "settings-description text-control leading-relaxed"
+export const addonNoteClasses = "settings-description text-control leading-5"
 
 // A setting's row in an addon's card. `scope` names the addon, so the label and its
 // description get ids no other card's row has.
@@ -77,11 +77,7 @@ export const InstallProgress = ({
 
 // Why an install or a change failed, in the card.
 export const AddonFailure = ({ children }: { readonly children: string }): React.JSX.Element => (
-  <p
-    className="settings-note m-0 px-4 py-3 text-control leading-relaxed"
-    data-tone="danger"
-    role="alert"
-  >
+  <p className="settings-note m-0 px-4 py-3 text-control leading-5" data-tone="danger" role="alert">
     {children}
   </p>
 )

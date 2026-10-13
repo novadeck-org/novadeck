@@ -30,7 +30,7 @@ export const EmptyWorkspace = ({
       <section className="panel empty-state pointer-events-auto relative flex w-full max-w-96 flex-col items-center p-8">
         <NovaMark size={44} className="empty-state-icon mb-4" />
         <h2 className="empty-state-title text-title leading-6 font-medium">No terminals open</h2>
-        <p className="empty-state-description mt-2 max-w-60 text-body leading-relaxed">
+        <p className="empty-state-description mt-2 max-w-60 text-body leading-5.25">
           Open a terminal or pick up a previous session.
         </p>
         <div className="empty-state-actions mt-5 flex flex-wrap items-center justify-center gap-2">

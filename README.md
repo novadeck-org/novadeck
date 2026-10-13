@@ -747,6 +747,10 @@ App:
 - **Sandbox:** boot as a host running without Electron's sandbox, for the footer's No
   sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
   and "Sandboxed" back to normal.
+- **Guides:** "Toggle icon guides" draws a dashed box over every icon (`svg.lucide`) and a
+  dashed line through its middle, 20 px past each side, both 1 px and half see-through
+  (`--icon-guide-color` changes them), for checking how icons line up with their text;
+  it stays on through the demo's boots and reloads in this tab.
 - **Portable:** boot again as a portable copy, which never updates itself and is the way to
   install the app that does. "No release known" shows the quiet Install Novadeck chip (Install when
   narrow), which never opens by itself; its panel offers Later and Install Novadeck, and

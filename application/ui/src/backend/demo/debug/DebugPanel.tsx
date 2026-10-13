@@ -375,14 +375,12 @@ export const createDebugPanel = ({
                                       className="debug-reboots flex items-center"
                                       title="Boots the demo again"
                                     >
-                                      <RotateCcw size={11} aria-hidden />
+                                      <RotateCcw size={12} aria-hidden />
                                       <span className="sr-only">(boots the demo again)</span>
                                     </span>
                                   )}
                                 </span>
-                                <span className="debug-hint text-caption leading-[1.4]">
-                                  {action.hint}
-                                </span>
+                                <span className="debug-hint text-caption">{action.hint}</span>
                               </button>
                             ))}
                           </div>

@@ -159,7 +159,7 @@ export const WorkspaceHeader = ({
             aria-label="Find a terminal"
             onClick={onSearch}
           >
-            <Search size={15} />
+            <Search size={14} />
             <span className="max-[701px]:hidden">Search</span>
             <kbd className="hint mb-[-2px] ml-3 max-[701px]:hidden">{searchShortcut}</kbd>
           </button>

@@ -29,6 +29,9 @@
   --_fg: var(--region-header-fg, var(--color-ink));
   --_border-color: var(--region-header-border-color, var(--color-line));
   border-bottom: var(--border-width) solid var(--_border-color);
+  /* As much above as the edge below, so the bar's even height leaves an even box and
+     what it centres lands on whole pixels, not half a pixel low. */
+  padding-top: var(--border-width);
   background-color: var(--_bg);
   background-image: var(--region-header-image, none);
   color: var(--_fg);
@@ -43,6 +46,9 @@
   position: relative;
   border-top-width: var(--border-width);
   border-top-style: solid;
+  /* As much below as the edge above, so the bar's even height leaves an even box and
+     what it centres lands on whole pixels, not half a pixel low. */
+  padding-bottom: var(--border-width);
   transition:
     background-color var(--motion-state) var(--ease-interface),
     border-color var(--motion-state) var(--ease-interface),
@@ -185,6 +191,7 @@
   gap: 6px;
   padding: 10px 12px 12px;
   font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
 }
 .usage-agent-name {
   display: flex;
@@ -193,6 +200,7 @@
   margin: 0;
   color: var(--color-ink);
   font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
   font-weight: 600;
 }
 .usage-row {
@@ -203,6 +211,7 @@
   color: var(--color-muted);
   font-family: var(--font-mono);
   font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
   font-variant-numeric: tabular-nums;
 }
 .usage-row .usage-bar {
@@ -238,6 +247,7 @@
   padding: 12px 14px 14px;
   color: var(--color-muted);
   font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
   letter-spacing: normal;
   text-transform: none;
   font-weight: 400;
@@ -250,6 +260,7 @@
   margin: 0;
   color: var(--color-ink);
   font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
   font-weight: 600;
 }
 .update-notes {
@@ -312,6 +323,7 @@
   color: var(--color-ink);
   font-family: var(--font-mono);
   font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
   overflow-x: auto;
   white-space: pre-wrap;
   user-select: all;
@@ -322,6 +334,9 @@
   --_fg: var(--region-rail-fg, var(--color-ink));
   --_border-color: var(--region-rail-border-color, var(--color-line));
   border-right: var(--border-width) solid var(--_border-color);
+  /* An unseen edge to match on the left, so the rail's even width leaves an even box
+     and its toggles land on whole pixels, not half of one. */
+  border-left: var(--border-width) solid transparent;
   background-color: var(--_bg);
   background-image: var(--region-rail-image, none);
   color: var(--_fg);

@@ -4,6 +4,7 @@ import type { BackendConnection, ConnectBackend } from "../../port"
 import { clearUpdateRaised } from "../../update-raised"
 import { keepVariant, rememberVariant, requestedVariant } from "../variants"
 import { bootFailures } from "./boot-failures"
+import { restoreIconGuides } from "./icon-guides"
 import type { DemoPortable } from "./portable"
 import { createDebugDemo, type DemoLaunch } from "./with-debug"
 
@@ -19,6 +20,7 @@ const unavailable = (code: string): Error => {
 export const connectDemo = (rehearsals: BootRehearsals): ConnectBackend => {
   let variant = requestedVariant()
   keepVariant(variant)
+  restoreIconGuides()
   let slowAttach = false
   let sandbox: SandboxState | undefined
   let portable: DemoPortable | undefined

@@ -46,6 +46,7 @@
     color: var(--dictation-fg, var(--color-ink));
     box-shadow: var(--dictation-shadow, var(--shadow-floating));
     font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
   }
   .dictation-overlay[hidden] {
     display: none;
@@ -89,6 +90,7 @@
     background-color: var(--_bg);
     color: var(--dictation-fg, var(--color-ink));
     font-size: var(--text-caption);
+    line-height: var(--text-caption--line-height);
     overflow: hidden;
     white-space: nowrap;
     pointer-events: none;

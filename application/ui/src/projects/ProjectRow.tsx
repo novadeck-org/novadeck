@@ -88,14 +88,14 @@ export const ProjectRow = ({
             onStep(event.key === "ArrowUp" ? -1 : 1)
           }}
         >
-          <span className="workspace-switcher-project-copy flex min-w-0 flex-1 flex-col gap-0.75">
+          <span className="workspace-switcher-project-copy flex min-w-0 flex-1 flex-col gap-1">
             <strong className="flex min-w-0 items-center gap-1.5 text-body font-medium">
               <span className="truncate">{project.name}</span>
               {pinned && (
                 <Pin
                   aria-label="Pinned"
                   className="workspace-switcher-pinned shrink-0"
-                  size={11}
+                  size={12}
                   strokeWidth={1.8}
                 />
               )}

@@ -78,7 +78,7 @@ const PaneActions = ({
           aria-label="Undock to its own window"
           onClick={onUndock}
         >
-          <AppWindow size={13} strokeWidth={1.75} aria-hidden />
+          <AppWindow size={14} strokeWidth={1.75} aria-hidden />
         </button>
       </Tooltip>
     )}
@@ -89,7 +89,7 @@ const PaneActions = ({
         aria-label="Minimize to the taskbar"
         onClick={onHide}
       >
-        <PanelRightClose size={13} strokeWidth={1.75} aria-hidden />
+        <PanelRightClose size={14} strokeWidth={1.75} aria-hidden />
       </button>
     </Tooltip>
   </span>

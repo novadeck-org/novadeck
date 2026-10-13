@@ -96,7 +96,7 @@ export const MarkAllReadButton = ({
           settleFocus(items.find(({ kind }) => !dismissable(kind)))
         }}
       >
-        <CheckCheck size={15} strokeWidth={1.6} />
+        <CheckCheck size={14} strokeWidth={1.6} />
       </button>
     </Tooltip>
   )
@@ -203,7 +203,7 @@ export const NotificationsPanel = ({
                           aria-label={`Mark ${item.terminalName} read`}
                           onClick={dismiss}
                         >
-                          <Check size={13} strokeWidth={1.5} />
+                          <Check size={14} strokeWidth={1.5} />
                         </button>
                       </Tooltip>
                     ),

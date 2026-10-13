@@ -86,6 +86,9 @@
   --_bg: var(--window-header-bg, var(--window-bg, var(--color-paper)));
   --_border-color: var(--window-header-border-color, var(--color-line));
   border-bottom: var(--border-width) solid var(--_border-color);
+  /* As much above as the edge below, so the even height leaves an even box and what it
+     centres lands on whole pixels, not half a pixel low. */
+  padding-top: var(--border-width);
   background-color: var(--_bg);
 }
 .terminal-header svg {
@@ -109,6 +112,7 @@
   color: var(--window-metadata-fg, var(--color-muted));
   font-family: var(--window-metadata-font, var(--font-mono));
   font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
   text-overflow: ellipsis;
 }
 /* What the agent runs on, floating over its terminal's top right (WindowStats.tsx), over
@@ -133,6 +137,7 @@
   color: var(--window-metadata-fg, var(--color-muted));
   font-family: var(--window-metadata-font, var(--font-mono));
   font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
   white-space: nowrap;
 }
 /* Opened up, its backing turns solid and feathers out a little, so the words never mix

@@ -39,7 +39,10 @@
   --_fg: var(--field-quiet-fg, var(--color-muted));
   --_border-color: var(--field-quiet-border-color, var(--color-line));
   --_shadow: none;
-  border-width: 0 0 var(--border-width);
+  /* Its rule underneath, and an unseen one to match on top, so an even height leaves an
+     even box and what it centres lands on whole pixels, not half a pixel low. */
+  border-width: var(--border-width) 0;
+  border-top-color: transparent;
   border-radius: 0;
 }
 .field-input {

@@ -210,6 +210,7 @@
   overflow: hidden;
   border-bottom: 1px dashed color-mix(in srgb, var(--_border-color) 55%, transparent);
   font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
   font-weight: 500;
   white-space: nowrap;
   text-overflow: ellipsis;

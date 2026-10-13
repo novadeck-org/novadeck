@@ -63,7 +63,7 @@ export const ConfirmDialog = <Subject,>({
       className={`modal ${widthClassName} flex flex-col gap-2 p-5`}
     >
       <DialogTitle className="modal-title m-0 text-heading font-medium">{heading}</DialogTitle>
-      <DialogDescription className="modal-description m-0 text-body leading-[1.5]">
+      <DialogDescription className="modal-description m-0 text-body">
         {shown === null ? null : description(shown)}
       </DialogDescription>
       <div className="mt-3 flex justify-end gap-2">

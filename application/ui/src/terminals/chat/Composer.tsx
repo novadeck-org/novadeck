@@ -235,7 +235,7 @@ export const Composer = ({
                 aria-disabled={stopping || undefined}
                 onClick={stop}
               >
-                <Square size={11} fill="currentColor" aria-hidden />
+                <Square size={10} fill="currentColor" aria-hidden />
               </button>
             </Tooltip>
           )}
@@ -247,7 +247,7 @@ export const Composer = ({
               disabled={empty || sending || refused}
               aria-busy={sending || undefined}
             >
-              <ArrowUp size={15} strokeWidth={2} aria-hidden />
+              <ArrowUp size={16} strokeWidth={2} aria-hidden />
             </button>
           </Tooltip>
         </div>

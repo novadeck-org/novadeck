@@ -94,7 +94,7 @@ export const TerminalSwitcher = ({
                 onClick={() => onSelect(terminal.id)}
                 className={searchResultClasses}
               >
-                <Terminal size={15} strokeWidth={1.5} aria-hidden="true" />
+                <Terminal size={14} strokeWidth={1.5} aria-hidden="true" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <p className="m-0 truncate text-body leading-4 font-medium">{terminal.name}</p>
                   <p className="switcher-process item-detail m-0 truncate text-caption">

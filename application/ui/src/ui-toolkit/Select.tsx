@@ -73,7 +73,7 @@ export const Select = ({
             placeholder={placeholder}
           />
           <ArkSelect.Indicator className="field-indicator">
-            <ChevronDown size={13} aria-hidden="true" />
+            <ChevronDown size={12} aria-hidden="true" />
           </ArkSelect.Indicator>
         </ArkSelect.Trigger>
       </ArkSelect.Control>
@@ -99,7 +99,7 @@ export const Select = ({
                   </span>
                 )}
                 <ArkSelect.ItemIndicator>
-                  <Check size={13} strokeWidth={1.8} aria-hidden="true" />
+                  <Check size={14} strokeWidth={1.8} aria-hidden="true" />
                 </ArkSelect.ItemIndicator>
               </ArkSelect.Item>
             ))}

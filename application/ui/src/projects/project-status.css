@@ -18,6 +18,8 @@
   width: 1ch;
   font-family: var(--font-mono);
   font-weight: 700;
+  /* An even line of its own, not the row's 1.5, so it centres on whole pixels. */
+  line-height: 20px;
   text-align: center;
 }
 [data-project-status="question"] > .project-status-mark::before {

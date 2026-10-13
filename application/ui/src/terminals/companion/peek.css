@@ -90,6 +90,7 @@
   min-width: 0;
   padding: 0 2px;
   font-size: var(--text-code);
+  line-height: var(--text-code--line-height);
   color: var(--_fg);
 }
 .plan-peek-name svg {
@@ -139,6 +140,7 @@
 .peek-plan b {
   margin-bottom: 2px;
   font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
   font-weight: 600;
   color: var(--prose-heading-fg, var(--color-ink));
 }
@@ -149,6 +151,7 @@
 /* The agents its threads are with, by name: no heading marks. */
 .peek-mail {
   font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
 }
 .peek-mail span::before {
   content: none;
@@ -178,6 +181,7 @@
   height: 100%;
   padding: 8px;
   font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
   text-align: center;
   color: var(--peek-card-fg, var(--color-muted));
 }

@@ -37,7 +37,7 @@ const viewIcons = { focus: PanelLeft, grid: LayoutGrid, canvas: SquareDashedMous
 
 // Section titles match the sidebar's panel titles.
 const sectionTitleClasses = "section-label m-0 text-label font-medium"
-const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-relaxed"
+const sectionDescriptionClasses = "settings-description m-0 mt-1.5 text-control leading-5"
 const panelClasses =
   "preferences-panel col-start-1 row-start-1 flex flex-col gap-6 px-6 py-5 data-[state=open]:visible data-[state=open]:opacity-100 data-[state=closed]:invisible data-[state=closed]:pointer-events-none data-[state=closed]:opacity-0 max-[480px]:px-4"
 
@@ -84,7 +84,7 @@ const SettingText = ({
 }): React.JSX.Element => (
   <span className="flex min-w-0 flex-col gap-1">
     <span id={id}>{label}</span>
-    <span id={descriptionId} className="settings-description text-control leading-relaxed">
+    <span id={descriptionId} className="settings-description text-control leading-5">
       {description}
     </span>
   </span>

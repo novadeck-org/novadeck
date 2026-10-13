@@ -26,8 +26,10 @@
   :where(.demo-output) {
     @apply p-6 text-[length:var(--terminal-font-size,13px)] leading-[1.75];
   }
+  /* The meta block keeps the output's line, as the terminal's rows do. */
   :where(.terminal-meta) {
     @apply mb-8 gap-x-5 gap-y-0.5 text-control;
+    line-height: inherit;
   }
   :where(.file-list) {
     @apply grid-cols-3 gap-x-10;
@@ -123,6 +125,7 @@
   }
   .terminal-compact .terminal-meta {
     @apply mb-3 gap-x-3 text-label;
+    line-height: inherit;
   }
   .terminal-compact .output-gap {
     margin-top: 13px;

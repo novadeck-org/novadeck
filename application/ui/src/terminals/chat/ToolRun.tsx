@@ -80,7 +80,7 @@ const ToolRow = ({
         onClick={() => setOpen((value) => !value)}
       >
         <ChevronRight size={12} className="chat-tool-chevron" aria-hidden />
-        <Icon size={13} strokeWidth={1.75} className="chat-tool-icon" aria-hidden />
+        <Icon size={14} strokeWidth={1.75} className="chat-tool-icon" aria-hidden />
         <span className="chat-tool-title">{summary.title}</span>
         {summary.detail && <span className="chat-tool-detail">{summary.detail}</span>}
         {running && <span className="sr-only">(running)</span>}

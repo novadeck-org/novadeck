@@ -53,7 +53,9 @@
   align-items: center;
   gap: 6px;
   height: 56px;
-  padding: 0 10px;
+  /* As much below as the edge above, so the bar's even height leaves an even box and
+     its icons land on whole pixels, not half a pixel low. */
+  padding: 0 10px var(--border-width);
   border-top: var(--border-width) solid var(--taskbar-border-color, var(--color-line));
   background-color: var(--taskbar-bg, var(--color-shell));
   /* Lighting up as a drop target, and back. */
@@ -115,6 +117,7 @@
 }
 .plan-tb-empty-hint {
   font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
   color: var(--taskbar-hint-fg, var(--color-muted));
 }
 

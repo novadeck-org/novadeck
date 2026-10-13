@@ -51,7 +51,7 @@ const MenuEntries = ({
           <ArkMenu.TriggerItem className={itemClasses}>
             {item.icon}
             <span className="flex-1">{item.label}</span>
-            <ChevronRight size={13} strokeWidth={1.5} aria-hidden />
+            <ChevronRight size={12} strokeWidth={1.5} aria-hidden />
           </ArkMenu.TriggerItem>
           <Portal>
             <ArkMenu.Positioner className="context-menu-positioner z-50!">

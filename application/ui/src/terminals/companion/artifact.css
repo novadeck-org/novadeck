@@ -41,6 +41,7 @@
   min-height: 0;
   overflow: auto;
   font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
   color: var(--artifact-status-fg, var(--color-muted));
 }
 /* What can't show, and why, with what can be done about it. */
@@ -55,6 +56,7 @@
   padding: 24px;
   text-align: center;
   font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
   color: var(--artifact-unavailable-fg, var(--color-muted));
 }
 .artifact-unavailable p {
@@ -232,6 +234,7 @@
   background-color: var(--_bg);
   color: var(--_fg);
   font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
   text-decoration: none;
 }
 .artifact-open:hover {

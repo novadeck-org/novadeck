@@ -1,0 +1,28 @@
+/* The debug panel's icon guides: while the page's root has data-icon-guides, every
+   icon (`svg.lucide`, which Lucide puts on each it draws) gets a dashed box on its edges
+   and a dashed line across its middle that runs 20px past each side, both 1px and half
+   see-through, so the icon still shows under them. An svg takes no ::before or ::after,
+   so the line is a border image: its middle band, 1px tall from the icon's half down so it
+   lands on whole pixels for an even size, filled with dashes and pushed out sideways.
+   Neither moves anything; an icon in a box that clips its overflow has its guides clipped
+   too.
+
+   Tokens, each optional (its fallback in brackets):
+   --icon-guide-color (danger-fg at half strength): the box and the line. */
+
+@layer components {
+  :root[data-icon-guides] svg.lucide {
+    --_color: var(--icon-guide-color, color-mix(in srgb, var(--color-danger-fg) 50%, transparent));
+    outline: 1px dashed var(--_color);
+    outline-offset: 0;
+    border-image-source: repeating-linear-gradient(
+      to right,
+      var(--_color) 0 3px,
+      transparent 3px 5px
+    );
+    border-image-slice: 0 fill;
+    border-image-width: 50% 0 calc(50% - 1px);
+    border-image-outset: 0 20px;
+    border-image-repeat: stretch;
+  }
+}

@@ -148,7 +148,7 @@ type Place = { readonly url: string; readonly back: boolean; readonly forward: b
 const OpenInBrowser = ({ url }: { url: string }): React.JSX.Element => (
   // The desktop app opens a new window's http(s) address in the person's browser.
   <a className="artifact-open" href={url} target="_blank" rel="noreferrer">
-    <ExternalLink size={13} aria-hidden="true" />
+    <ExternalLink size={14} aria-hidden="true" />
     Open in browser
   </a>
 )
@@ -201,7 +201,7 @@ const LivePage = ({ url, actions }: Actions & { url: string }): React.JSX.Elemen
           disabled={!place.back}
           onClick={() => view.current?.goBack()}
         >
-          <ArrowLeft size={13} />
+          <ArrowLeft size={14} />
         </button>
         <button
           className="icon-button"
@@ -209,10 +209,10 @@ const LivePage = ({ url, actions }: Actions & { url: string }): React.JSX.Elemen
           disabled={!place.forward}
           onClick={() => view.current?.goForward()}
         >
-          <ArrowRight size={13} />
+          <ArrowRight size={14} />
         </button>
         <button className="icon-button" aria-label="Reload" onClick={() => view.current?.reload()}>
-          <RotateCw size={13} />
+          <RotateCw size={14} />
         </button>
         <span className="artifact-url">{place.url}</span>
         <OpenInBrowser url={place.url} />

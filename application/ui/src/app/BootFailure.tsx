@@ -54,7 +54,7 @@ export const BootFailure = ({
   return (
     <div role="alert" className="flex max-w-90 flex-col items-center gap-2 text-center">
       <p className="m-0 text-lead font-medium">{failureTitle(failure)}</p>
-      <p className="boot-failure-note m-0 text-body leading-[1.5]">{failure.message}</p>
+      <p className="boot-failure-note m-0 text-body">{failure.message}</p>
       {retryIn !== undefined && (
         <p className="boot-failure-note m-0 text-body tabular-nums">{retryCountdown(retryIn)}</p>
       )}

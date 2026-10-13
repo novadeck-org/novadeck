@@ -124,7 +124,7 @@ export const ZenDock = ({
                         aria-pressed={view === id}
                         onClick={() => onViewChange(id)}
                       >
-                        <Icon size={15} strokeWidth={1.6} />
+                        <Icon size={16} strokeWidth={1.6} />
                       </button>
                     </Tooltip>
                   ))}

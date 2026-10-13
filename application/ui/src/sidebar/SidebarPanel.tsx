@@ -55,7 +55,7 @@ export const SidebarPanel = ({
             aria-label={`Hide ${title.toLowerCase()}`}
             onClick={onClose}
           >
-            <X size={15} strokeWidth={1.6} />
+            <X size={14} strokeWidth={1.6} />
           </button>
         </Tooltip>
       </div>

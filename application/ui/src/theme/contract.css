@@ -31,4 +31,18 @@
   --text-lead: 14px; /* the page's own size, plans' prose */
   --text-heading: 15px; /* dialog headings */
   --text-title: 16px; /* a section's title */
+
+  /* The line each role takes: the page's 1.5 where that is a whole number of pixels, and
+     otherwise (16.5, 18.75, 19.5, 22.5) the even number nearest it, so stacked rows stay
+     on the pixel grid. Every role sets its own, so text of one role inside another's
+     doesn't take on the outer ratio. A ratio, as 1.5 is, so text inside at a size of its
+     own works out its own line. */
+  --text-label--line-height: 1.5;
+  --text-caption--line-height: calc(16 / 11);
+  --text-control--line-height: 1.5;
+  --text-code--line-height: calc(18 / 12.5);
+  --text-body--line-height: calc(20 / 13);
+  --text-lead--line-height: 1.5;
+  --text-heading--line-height: calc(22 / 15);
+  --text-title--line-height: 1.5;
 }

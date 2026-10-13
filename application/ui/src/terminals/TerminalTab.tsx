@@ -220,9 +220,9 @@ export const TerminalTab = ({
                 onClick={() => onVisibilityChange(!hidden)}
               >
                 {hidden ? (
-                  <EyeOff size={13} strokeWidth={1.5} />
+                  <EyeOff size={14} strokeWidth={1.5} />
                 ) : (
-                  <Eye size={13} strokeWidth={1.5} />
+                  <Eye size={14} strokeWidth={1.5} />
                 )}
               </button>
             </Tooltip>
@@ -234,7 +234,7 @@ export const TerminalTab = ({
                   aria-label={`Save name for ${terminal.name}`}
                   onClick={onRenameSave}
                 >
-                  <Check size={13} strokeWidth={1.5} />
+                  <Check size={14} strokeWidth={1.5} />
                 </button>
               </Tooltip>
             ) : (
@@ -250,7 +250,7 @@ export const TerminalTab = ({
                   aria-label={`Rename ${terminal.name}`}
                   onClick={onBeginRename}
                 >
-                  <Pencil size={13} strokeWidth={1.5} />
+                  <Pencil size={14} strokeWidth={1.5} />
                 </button>
               </Tooltip>
             )}

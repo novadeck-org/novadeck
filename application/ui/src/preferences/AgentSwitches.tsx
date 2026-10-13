@@ -60,7 +60,7 @@ export const AgentSwitches = ({
             {limit && (
               <span
                 id={`agent-${item.agent}-limit`}
-                className="settings-note text-control leading-relaxed"
+                className="settings-note text-control leading-5"
                 data-tone="warning"
               >
                 {limit}
@@ -69,7 +69,7 @@ export const AgentSwitches = ({
             {note && item.error && (
               <span
                 id={`agent-${item.agent}-note`}
-                className="settings-note text-control leading-relaxed"
+                className="settings-note text-control leading-5"
                 data-tone="danger"
                 role="alert"
               >

@@ -61,7 +61,7 @@ export const SidebarRail = ({
             aria-controls={`${id}-panel`}
             aria-expanded={activePanel}
           >
-            <Icon size={17} />
+            <Icon size={16} />
             {status && <NotificationBadge text={status.text} />}
           </ToggleGroupItem>
         )

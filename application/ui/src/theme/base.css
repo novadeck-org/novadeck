@@ -89,6 +89,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-size: var(--text-lead);
+  line-height: var(--text-lead--line-height);
   user-select: none;
 }
 /* Tailwind's own defaults would set code in a face the theme never chose. */

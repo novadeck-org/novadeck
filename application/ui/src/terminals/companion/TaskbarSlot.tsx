@@ -194,7 +194,7 @@ export const TaskbarSlot = ({
     return {
       id: member.key,
       name: look.name,
-      icon: <Icon size={13} strokeWidth={1.5} />,
+      icon: <Icon size={14} strokeWidth={1.5} />,
       preview: preview(member, actions),
       state: indicator(member, showing),
       onOpen: () => actions.open(member.key),

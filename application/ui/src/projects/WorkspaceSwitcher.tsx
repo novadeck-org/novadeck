@@ -68,7 +68,7 @@ export const WorkspaceSwitcher = ({
         trigger={
           <button
             ref={trigger}
-            className="button ghost workspace-switcher-trigger relative inline-flex min-h-9 min-w-0 w-full max-w-full items-center justify-start gap-1.5 px-[9px] text-body leading-[1.5] font-medium"
+            className="button ghost workspace-switcher-trigger relative inline-flex min-h-9 min-w-0 w-full max-w-full items-center justify-start gap-1.5 px-[9px] text-body font-medium"
             type="button"
             aria-label="Switch workspace"
             aria-description={elsewhere && `Another project: ${statusText[elsewhere]}`}
@@ -114,7 +114,7 @@ export const WorkspaceSwitcher = ({
                 onOpenFolder?.()
               }}
             >
-              <FolderOpen aria-hidden="true" className="shrink-0" size={15} strokeWidth={1.65} />
+              <FolderOpen aria-hidden="true" className="shrink-0" size={14} strokeWidth={1.65} />
               <span>Open folder…</span>
             </button>
           </div>

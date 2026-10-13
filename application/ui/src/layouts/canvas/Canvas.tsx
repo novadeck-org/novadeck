@@ -623,7 +623,7 @@ const TerminalCanvas = ({
         {
           value: "terminal",
           label: "Terminal",
-          icon: <Plus size={13} aria-hidden="true" />,
+          icon: <Plus size={14} aria-hidden="true" />,
           onSelect: () => {
             if (!contextPosition.current) return
             const id = onCreate()
