@@ -71,6 +71,8 @@ type Followed = {
   // How many places show it, and whether it's a plan, which is followed regardless.
   watchers: number
   plan: boolean
+  // Once nothing shows it, the wait before it's let go.
+  lingering?: ReturnType<typeof setTimeout> | undefined
 }
 
 type Session = {
@@ -110,6 +112,9 @@ const withPlan = (
   })
   return changed
 }
+
+// How long what an item held stays once nothing shows it.
+const lingerMs = 30_000
 
 // Typing reaches the file once it pauses, not on every keystroke.
 const typingPause = 400
@@ -320,6 +325,7 @@ const unfollow = (session: Session, id: ItemId): void => {
   const entry = session.followed.get(id)
   if (!entry) return
   session.followed.delete(id)
+  clearTimeout(entry.lingering)
   entry.stop()
 }
 
@@ -332,6 +338,18 @@ const release = (session: Session, id: ItemId): void => {
     const { [id]: _gone, ...content } = state.content
     return { ...state, content }
   })
+}
+
+// Nothing shows it now: it goes after a while, so switching back to a terminal soon after
+// finds it as it was, without loading it again.
+const linger = (session: Session, id: ItemId, entry: Followed): void => {
+  if (entry.watchers > 0 || entry.plan) return
+  clearTimeout(entry.lingering)
+  entry.lingering = setTimeout(() => {
+    entry.lingering = undefined
+    if (entry.watchers === 0 && !entry.plan && session.followed.get(id) === entry)
+      release(session, id)
+  }, lingerMs)
 }
 
 // A plan that's gone: its saves stop, and what they kept goes.
@@ -373,7 +391,7 @@ const reconcile = (session: Session, workspace: Workspace): void => {
     if (!found) unfollow(session, id)
     else if (entry.plan && !found.plan) {
       entry.plan = false
-      if (entry.watchers === 0) release(session, id)
+      linger(session, id, entry)
     }
   }
   const planned = new Set([
@@ -454,14 +472,15 @@ export const createPanes = ({
   const watch = (target: WorkspaceTarget, id: ItemId): (() => void) => {
     const entry =
       session.followed.get(id) ?? follow(session, target, id, { watchers: 0, plan: false })
+    clearTimeout(entry.lingering)
+    entry.lingering = undefined
     entry.watchers += 1
     let released = false
     return () => {
       if (released) return
       released = true
       entry.watchers -= 1
-      if (entry.watchers === 0 && !entry.plan && session.followed.get(id) === entry)
-        release(session, id)
+      linger(session, id, entry)
     }
   }
   const reveal = (target: WorkspaceTarget, id: ItemId): void => {
@@ -471,7 +490,7 @@ export const createPanes = ({
     const entry = session.followed.get(id)
     if (!entry || entry.reveal) return
     unfollow(session, id)
-    follow(session, target, id, { watchers: entry.watchers, plan: entry.plan })
+    linger(session, id, follow(session, target, id, { watchers: entry.watchers, plan: entry.plan }))
   }
   const plan = (target: WorkspaceTarget, id: ItemId): PlanActions => ({
     edit: (text, marks) => {

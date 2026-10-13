@@ -123,6 +123,11 @@
   scale: 0.97;
   pointer-events: none;
 }
+/* A terminal Focus keeps mounted while another shows: not laid out or painted, and its
+   emulator stops drawing until it shows again. */
+.terminal-visibility[data-parked] {
+  display: none;
+}
 @starting-style {
   .terminal-visibility {
     opacity: 0;

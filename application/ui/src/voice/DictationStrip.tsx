@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react"
 import type { Store } from "../model/store"
 import type { TerminalKey } from "../model/types"
 import { maxClipSeconds } from "../model/voice"
+import { useShown } from "../ui-toolkit/shown"
 import { dictationKey, type DictationController } from "./dictation"
 
 import "./dictation.css"
@@ -124,8 +125,11 @@ export const DictationStrip = ({
 }): React.JSX.Element => {
   const { view, level, docks } = controller
   const key = dictationKey(terminalKey)
-  // While it is on screen, this window shows what concerns its terminal.
+  // While it is on screen, this window shows what concerns its terminal. Kept out of
+  // sight, it leaves that to the footer.
+  const shown = useShown()
   useEffect(() => {
+    if (!shown) return
     const count = (by: number): void => {
       docks.update((each) => {
         const next = new Map(each)
@@ -137,7 +141,7 @@ export const DictationStrip = ({
     }
     count(1)
     return () => count(-1)
-  }, [docks, key])
+  }, [docks, key, shown])
   const { phase, target, mode, startedAt, notice } = useSyncExternalStore(
     view.subscribe,
     view.getSnapshot,

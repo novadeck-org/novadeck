@@ -6,6 +6,7 @@ export type WebviewElement = HTMLWebViewElement & {
   goForward(): void
   reload(): void
   getURL(): string
+  setAudioMuted(muted: boolean): void
 }
 
 // Made here rather than by React, which leaves `allowpopups` off the element; Electron

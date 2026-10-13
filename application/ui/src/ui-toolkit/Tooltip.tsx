@@ -1,8 +1,9 @@
 import { Portal } from "@ark-ui/react/portal"
 import { Tooltip as ArkTooltip } from "@ark-ui/react/tooltip"
-import { useState, type ReactElement, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react"
 
 import { useRestingPointer } from "./resting-pointer"
+import { useShown } from "./shown"
 
 export type TooltipProps = {
   content: ReactNode
@@ -28,14 +29,22 @@ export const Tooltip = ({
   placement = "bottom",
 }: TooltipProps): React.JSX.Element => {
   const [open, setOpen] = useState(false)
+  // Its trigger going out of sight takes the tooltip with it, and one about to open
+  // stays shut.
+  const shown = useShown()
+  if (!shown && open) setOpen(false)
+  const onScreen = useRef(shown)
+  useEffect(() => {
+    onScreen.current = shown
+  }, [shown])
   const resting = useRestingPointer(restDelay, () => {
-    if (!disabled) setOpen(true)
+    if (onScreen.current && !disabled) setOpen(true)
   })
   return (
     <ArkTooltip.Root
       disabled={disabled}
       ids={children.props.id ? { trigger: children.props.id } : undefined}
-      open={open && !disabled}
+      open={open && shown && !disabled}
       // The pointer opens it by resting, not by Ark's delay; keyboard focus still does.
       onOpenChange={({ open: next }) => {
         if (!next || !resting.over()) setOpen(next)

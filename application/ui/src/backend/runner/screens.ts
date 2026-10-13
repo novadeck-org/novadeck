@@ -313,13 +313,19 @@ export const createScreens = (runtime: SurfaceRuntime) => {
     // A host opened before it had a slot took the page's colours and font; once in one,
     // it takes its region's.
     let placed = element.isConnected
+    // Out of sight, as a view keeps a terminal it isn't showing, it has no size. Shown
+    // again, it takes the size it has now at once, not after a pause.
+    let sized = Boolean(element.clientWidth && element.clientHeight)
     const resizes = new ResizeObserver(() => {
       if (!placed && element.isConnected) {
         placed = true
         retheme()
       }
+      const was = sized
+      sized = Boolean(element.clientWidth && element.clientHeight)
       clearTimeout(settling)
-      settling = setTimeout(() => followed.refit(), resizeSettleMs)
+      if (sized && !was) followed.refit()
+      else settling = setTimeout(() => followed.refit(), resizeSettleMs)
     })
     resizes.observe(element)
     window.addEventListener(themeChangeEvent, retheme)

@@ -299,10 +299,36 @@ describe("following items", () => {
     expect(follows.map((each) => each.id)).toEqual([planItem.id, hero.id])
     expect(panes.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
     release()
-    expect(stopped).toEqual([])
     again()
+    expect(stopped).toEqual([])
+    // What it held goes a while after the last place showing it.
+    vi.advanceTimersByTime(30_000)
     expect(stopped).toEqual([hero.id])
-    // What it held goes with the last place showing it.
+    expect(panes.store.getSnapshot().content).not.toHaveProperty(hero.id)
+  })
+
+  it("keeps what it held when something shows it again soon, without loading it again", () => {
+    const { companions, follows, stopped } = backend()
+    const { panes } = connected(companions)
+    panes.watch(target, hero.id)()
+    vi.advanceTimersByTime(29_000)
+    const release = panes.watch(target, hero.id)
+    vi.advanceTimersByTime(30_000)
+    expect(follows.filter((each) => each.id === hero.id)).toHaveLength(1)
+    expect(stopped).toEqual([])
+    expect(panes.store.getSnapshot().content[hero.id]).toMatchObject({ reason: "held" })
+    release()
+    vi.advanceTimersByTime(30_000)
+    expect(stopped).toEqual([hero.id])
+  })
+
+  it("lets go of what's revealed while nothing shows it", () => {
+    const { companions, stopped } = backend()
+    const { panes } = connected(companions)
+    panes.watch(target, hero.id)()
+    panes.reveal(target, hero.id)
+    vi.advanceTimersByTime(30_000)
+    expect(stopped).toEqual([hero.id, hero.id])
     expect(panes.store.getSnapshot().content).not.toHaveProperty(hero.id)
   })
 

@@ -118,20 +118,35 @@ const DemoTerminalSurface = ({
     commandInput.current.focus({ preventScroll: true })
     onInputFocused()
   }, [focusInput, onInputFocused])
+  // Where the output scrolls to once it's on screen, when it changed while out of sight.
+  const deferred = useRef<number | "end" | null>(null)
   useEffect(() => {
     if (!output.current) return
     const changed =
       previousOutput.current.length !== entries.length ||
       previousOutput.current.cleared !== cleared ||
       previousOutput.current.mark !== mark
-    const end = output.current.scrollHeight
-    output.current.scrollTop = changed
-      ? end
+    const to = changed
+      ? "end"
       : savedScroll.current === "end"
-        ? end
-        : (savedScroll.current ?? (entries.length || cleared || mark ? end : 0))
+        ? "end"
+        : (savedScroll.current ?? (entries.length || cleared || mark ? "end" : 0))
     previousOutput.current = { length: entries.length, cleared, mark }
+    // Kept out of sight, the output has no box to scroll yet.
+    if (!output.current.clientHeight) deferred.current = to
+    output.current.scrollTop = to === "end" ? output.current.scrollHeight : to
   }, [entries.length, cleared, mark])
+  useEffect(() => {
+    const element = output.current
+    if (!element) return
+    const shows = new ResizeObserver(() => {
+      if (deferred.current === null || !element.clientHeight) return
+      element.scrollTop = deferred.current === "end" ? element.scrollHeight : deferred.current
+      deferred.current = null
+    })
+    shows.observe(element)
+    return () => shows.disconnect()
+  }, [])
   useEffect(() => {
     const element = frame.current ?? output.current
     if (!element) return

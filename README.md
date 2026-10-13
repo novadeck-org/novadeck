@@ -142,7 +142,12 @@ Switching between Focus, Grid and Canvas mounts a new surface, which takes the s
 xterm and attachment from `backend/runner/screens.ts` instead of opening and attaching
 again. A terminal no view shows keeps them while its session is on screen, and for 30
 minutes after its session leaves the screen, so going back to a session or project finds
-its output in place; they go when that time passes or the terminal closes.
+its output in place; they go when that time passes or the terminal closes. Focus keeps
+the last four terminals it displayed mounted, parked out of sight with `display:none`,
+so switching back finds a terminal's companion pane as it was: a page still loaded, a
+plan's editor, where each was scrolled. A component that docks status, opens over the
+page or plays sound reads `useShown()` (`ui-toolkit/shown.ts`), which Focus sets false
+for a terminal it parks, and leaves that to what is on screen.
 
 The runner owns every terminal: which terminals a session has, their names (the ones
 you give them; else one an agent gave, or your first prompt to its agent, shortened;
@@ -935,7 +940,8 @@ windowed view from the workspace store, and a new App seeds sessions with it. Th
 companion panes' store in `terminals/companion/state.ts` holds what the panes load,
 by item: each plan as the person edits it, what each item last loaded, and the secret
 files the person chose to see; it follows the backend's companions and messages from an
-effect. What a taskbar shows is derived from it and the workspace in
+effect. What an item loaded stays 30 seconds after nothing shows it, then goes, so a
+large image doesn't stay in memory. What a taskbar shows is derived from it and the workspace in
 `terminals/companion/bar.ts`, never stored.
 `WorkspaceProvider` creates the backend, the stores, the drag session
 (`terminals/drag-session.ts`), the navigator, and the commands once per App, in a pure

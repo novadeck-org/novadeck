@@ -10,6 +10,7 @@ import {
   type PageContent,
   type UnavailableReason,
 } from "../../model/companion"
+import { useShown } from "../../ui-toolkit/shown"
 import { isMarkdown } from "./artifact-icons"
 import { DocumentViewer } from "./DocumentViewer"
 import type { HighlightedLine } from "./highlight"
@@ -156,11 +157,23 @@ const LivePage = ({ url, actions }: Actions & { url: string }): React.JSX.Elemen
   const frame = useRef<HTMLDivElement>(null)
   const view = useRef<WebviewElement | null>(null)
   const [place, setPlace] = useState<Place>({ url, back: false, forward: false })
+  // Kept out of sight, the page goes quiet: it stops drawing on its own, but not playing.
+  const shown = useShown()
+  const muted = useRef(!shown)
+  useEffect(() => {
+    muted.current = !shown
+    try {
+      view.current?.setAudioMuted(!shown)
+    } catch {
+      // Not attached yet: dom-ready mutes it.
+    }
+  }, [shown])
   useEffect(() => {
     const element = createWebview(url)
     view.current = element
     const update = (): void => {
       try {
+        element.setAudioMuted(muted.current)
         setPlace({
           url: element.getURL(),
           back: element.canGoBack(),

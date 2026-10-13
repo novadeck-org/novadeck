@@ -180,6 +180,32 @@ describe("A plan", () => {
   })
 })
 
+describe("Switching terminals in Focus", () => {
+  it("finds a plan's pane as it was left, without building it again", async () => {
+    await openShowcase("focus")
+    await terminalTab("Build Studio").click()
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    const path = companionPane("Build Studio").getByText("plans/studio.md", { exact: true })
+    await expect.element(path).toBeVisible()
+    const scroll = path.element().closest(".plan-reader")!.querySelector(".plan-document-scroll")!
+    await expect.poll(() => scroll.querySelector(".cm-editor")).not.toBeNull()
+    const editor = scroll.querySelector(".cm-editor")
+    await expect.poll(() => scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight + 100)
+    scroll.scrollTop = 100
+    await expect.poll(() => scroll.scrollTop).toBe(100)
+
+    await terminalTab("Refactor auth").click()
+    // Past its fade out, parked.
+    await expect.poll(() => scroll.closest("[data-parked]")).not.toBeNull()
+    await terminalTab("Build Studio").click()
+
+    await expect.element(path).toBeVisible()
+    expect(scroll.isConnected).toBe(true)
+    expect(scroll.querySelector(".cm-editor")).toBe(editor)
+    expect(scroll.scrollTop).toBe(100)
+  })
+})
+
 /** The states of what a tab shows of its terminal's bar, in order. */
 const tabKinds = (name: string): string[] =>
   [...terminalTab(name).element().querySelectorAll(".terminal-tab-kind")].map(

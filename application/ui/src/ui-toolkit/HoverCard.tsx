@@ -1,8 +1,9 @@
 import { HoverCard as ArkHoverCard } from "@ark-ui/react/hover-card"
 import { Portal } from "@ark-ui/react/portal"
-import { useEffect, useState, type ReactElement, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react"
 
 import { useRestingPointer } from "./resting-pointer"
+import { useShown } from "./shown"
 
 export type HoverCardProps = {
   trigger: ReactElement
@@ -58,8 +59,17 @@ export const HoverCard = ({
     },
     [owner],
   )
+  // Its trigger going out of sight takes the peek with it, and one about to open stays shut.
+  const shown = useShown()
+  const onScreen = useRef(shown)
+  useEffect(() => {
+    onScreen.current = shown
+    if (shown || showing?.owner !== owner) return
+    showing.close()
+    showing = undefined
+  }, [shown, owner])
   const resting = useRestingPointer(restDelay, () => {
-    if (!menuOpen()) setOpen(true)
+    if (onScreen.current && !menuOpen()) setOpen(true)
   })
   return (
     <ArkHoverCard.Root

@@ -22,6 +22,15 @@ import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine } from "./engine"
 import { createMockTerminal } from "./samples"
 
+// jsdom has no resizes; the demo terminal watches for its output coming back on screen.
+vi.hoisted(() => {
+  globalThis.ResizeObserver ??= class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  }
+})
+
 const key: TerminalKey = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }
 const shell: TerminalMetadata = {
   id: "01",

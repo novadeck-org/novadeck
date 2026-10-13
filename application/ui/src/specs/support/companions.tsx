@@ -10,7 +10,7 @@ import { openWorkspace, terminal, terminalTab } from "./workspace"
  * Opens the showcase: project studio, where Codex in Build Studio has a plan, images and
  * files, Claude Code in Refactor auth has a plan, and Dev server has nothing to show.
  */
-export const openShowcase = async (view: "grid" | "canvas" = "grid"): Promise<void> => {
+export const openShowcase = async (view: "focus" | "grid" | "canvas" = "grid"): Promise<void> => {
   await openWorkspace(`/projects/studio/sessions/initial/${view}?demo=showcase`)
 }
 
