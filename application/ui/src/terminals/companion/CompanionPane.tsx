@@ -112,7 +112,7 @@ export const ArtifactTab = ({
     artifact={item}
     load={useContent(panes, target, item)}
     actions={actions}
-    onReveal={() => panes.reveal(target, item.id)}
+    onReveal={() => panes.reveal(item.id)}
   />
 )
 

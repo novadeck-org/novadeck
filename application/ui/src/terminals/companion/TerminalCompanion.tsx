@@ -192,7 +192,7 @@ export const TerminalCompanion = ({
   // The person picked something that may hold secrets: it shows.
   const picked = (key: BarKey): void => {
     const found = members.find((each) => each.key === key)
-    if (found?.kind === "item" && found.item.held) panes.reveal(target, found.key)
+    if (found?.kind === "item" && found.item.held) panes.reveal(found.key)
   }
   const openPicked = (key: BarKey): void => {
     picked(key)
