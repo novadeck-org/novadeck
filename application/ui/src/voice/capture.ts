@@ -41,7 +41,7 @@ type Tap = {
 const describe = (failure: unknown): string => {
   const name = failure instanceof DOMException ? failure.name : ""
   if (name === "NotAllowedError" || name === "SecurityError")
-    return "Microphone access is blocked. Allow it for novadeck in your system's privacy settings."
+    return "Microphone access is blocked. Allow it for Novadeck in your system's privacy settings."
   if (name === "NotFoundError" || name === "OverconstrainedError") return "No microphone found."
   if (name === "NotReadableError" || name === "AbortError")
     return "The microphone is busy or unavailable."

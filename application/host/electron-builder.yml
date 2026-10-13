@@ -1,5 +1,7 @@
 appId: dev.mzpk.novadeck
-productName: novadeck.
+productName: Novadeck
+# The file names stay lowercase: the executable, and on macOS the bundle, novadeck.app,
+# which builder names after it. The product name is what menus, the Dock and helpers show.
 executableName: novadeck
 asar: true
 # PTY libraries and their spawn helpers must run from the real filesystem.
@@ -60,9 +62,7 @@ mac:
   # universal merge sees them unchanged in the x64 and arm64 copies, and each runs the
   # architecture of the host.
   x64ArchFiles: "{Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-*/*,Contents/Resources/relay/*}"
-  # Electron resolves helpers from CFBundleName; builder strips the branding's trailing dot.
   extendInfo:
-    CFBundleName: novadeck
     NSMicrophoneUsageDescription: Novadeck uses the microphone for voice input, transcribed on this computer.
     # What macOS shows when a program run in a terminal asks; see the entitlements.
     NSCameraUsageDescription: A program running in Novadeck wants to use the camera.

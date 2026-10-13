@@ -160,7 +160,7 @@ describe("backend gate", () => {
         "failed",
       )
       expect(page.container.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe(
-        "novadeck.",
+        "Novadeck",
       )
     })
 

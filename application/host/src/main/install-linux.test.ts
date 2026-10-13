@@ -92,7 +92,7 @@ describe("the menu entry", () => {
       [
         "[Desktop Entry]",
         "Type=Application",
-        "Name=novadeck.",
+        "Name=Novadeck",
         "Comment=A workspace for parallel terminals.",
         'Exec="/home/me/.local/share/novadeck/novadeck.AppImage" %U',
         "Icon=/home/me/icon.png",

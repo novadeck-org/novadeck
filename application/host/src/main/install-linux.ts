@@ -73,7 +73,7 @@ export const desktopEntry = (image: string, icon: string | undefined): string =>
   [
     "[Desktop Entry]",
     "Type=Application",
-    "Name=novadeck.",
+    "Name=Novadeck",
     "Comment=A workspace for parallel terminals.",
     `Exec="${execQuote(image)}" %U`,
     `Icon=${icon ?? "novadeck"}`,

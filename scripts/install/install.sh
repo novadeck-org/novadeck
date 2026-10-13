@@ -205,7 +205,7 @@ install_appimage() {
   cat > "$data/applications/dev.mzpk.novadeck.desktop" << EOF
 [Desktop Entry]
 Type=Application
-Name=novadeck.
+Name=Novadeck
 Comment=A workspace for parallel terminals.
 Exec="$(exec_quote "$image")" %U
 Icon=${icon:-novadeck}

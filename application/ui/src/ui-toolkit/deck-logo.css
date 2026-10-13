@@ -1,16 +1,16 @@
 /* The deck-logo recipe: the Deck mark (`.deck-mark`: two `.deck-card`s, `.far` and
    `.near`, fanned behind the `.deck-face` and its `.deck-glyph`) and the wordmark
-   (`.deck-word`, ending in a `.deck-word-stop`). `.large` deepens the face's shadow,
-   and `.animated` assembles the mark, or raises the wordmark letter by letter; without
-   motion both simply stand in place. The component sets the mark's proportions inline
-   (--_face, --_k1, --_k2, --_radius) and each letter's place (--_i).
+   (`.deck-word`). `.large` deepens the face's shadow, and `.animated` assembles the
+   mark, or raises the wordmark letter by letter; without motion both simply stand in
+   place. The component sets the mark's proportions inline (--_face, --_k1, --_k2,
+   --_radius) and each letter's place (--_i).
 
    Tokens, each optional (its fallback in brackets):
    --brand-tile-bg, --brand-tile-fg, --brand-tile-border-color (theme/base.css): the
    face and its glyph.
    --deck-mark-card-near-bg, --deck-mark-card-far-bg (blends of the lines): the cards.
    --deck-mark-card-border-color (a faint shadow): their edge.
-   --deck-word-fg (ink), --deck-word-stop-fg (muted): the wordmark and its full stop. */
+   --deck-word-fg (ink): the wordmark. */
 .deck-card,
 .deck-face {
   position: absolute;
@@ -83,9 +83,6 @@
 }
 .deck-word {
   color: var(--deck-word-fg, var(--color-ink));
-}
-.deck-word-stop {
-  color: var(--deck-word-stop-fg, var(--color-muted));
 }
 
 /* Assembling: the face pops in, the cards fan out, the prompt draws itself and the

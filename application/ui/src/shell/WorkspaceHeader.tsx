@@ -102,7 +102,7 @@ export const WorkspaceHeader = ({
       className="app-header max-[1001px]:gap-3 max-[701px]:h-15 max-[701px]:px-3 max-[701px]:gap-2 max-[335px]:px-1 h-16 shrink-0 items-center gap-6 px-4 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
     >
       <div className="header-workspace max-[701px]:gap-2 flex min-w-0 items-center gap-4">
-        <Link to={homeTo} className="brand flex shrink-0 items-center" aria-label="novadeck. home">
+        <Link to={homeTo} className="brand flex shrink-0 items-center" aria-label="Novadeck home">
           <DeckMark size={28} className="brand-symbol" />
         </Link>
         <WorkspaceSwitcher

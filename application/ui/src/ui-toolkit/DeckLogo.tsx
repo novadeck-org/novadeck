@@ -54,7 +54,7 @@ export const DeckMark = ({
   )
 }
 
-// The wordmark: "nova" regular, "deck" semibold and a muted full stop. Sized by the
+// The wordmark: "Nova" regular and "deck" semibold. Sized by the
 // surrounding font size; `animated` raises it letter by letter.
 export const DeckWordmark = ({
   animated = false,
@@ -64,9 +64,8 @@ export const DeckWordmark = ({
   readonly className?: string | undefined
 }): React.JSX.Element => {
   const letters = [
-    ..."nova".split("").map((letter) => ({ letter, className: "font-normal" })),
+    ..."Nova".split("").map((letter) => ({ letter, className: "font-normal" })),
     ..."deck".split("").map((letter) => ({ letter, className: undefined })),
-    { letter: ".", className: "deck-word-stop" },
   ]
   return (
     <span
@@ -170,4 +169,4 @@ export const DeckPattern = ({
 }
 
 // The brand name for assistive technology, which the marks above leave out.
-export const deckName = "novadeck."
+export const deckName = "Novadeck"
