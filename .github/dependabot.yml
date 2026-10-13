@@ -1,13 +1,29 @@
 version: 2
 
+# Monthly and grouped, so each ecosystem opens at most one or two PRs a month
+# instead of one per dependency every week, each running the full CI and
+# packaging matrix. Majors get their own group so they can't hold back the
+# minor and patch bumps that automerge. Security updates ignore this schedule
+# and still land promptly.
 updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "09:00"
       timezone: "Europe/Warsaw"
+    groups:
+      npm:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      npm-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
     commit-message:
       prefix: "build"
       include: "scope"
@@ -15,10 +31,21 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "09:30"
       timezone: "Europe/Warsaw"
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      actions-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
     commit-message:
       prefix: "build"
       include: "scope"
@@ -27,14 +54,21 @@ updates:
   - package-ecosystem: "cargo"
     directory: "/application/relay"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "09:00"
       timezone: "Europe/Warsaw"
     groups:
       crates:
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      crates-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
     commit-message:
       prefix: "build"
       include: "scope"
