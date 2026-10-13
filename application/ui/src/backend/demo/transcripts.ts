@@ -214,36 +214,7 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
         prompt: "Run src/checkout specs five times and report which ones fail or time out.",
       }),
     ]),
-    // A dialog the chat can't read, as after an agent update changed it.
-    requests: [
-      {
-        id: "03:raw",
-        kind: "permission",
-        tool: "Bash",
-        subject: "pnpm test --filter cart --repeat 5",
-        choices: [],
-        subagent: true,
-        answered: false,
-        dialog: {
-          type: "raw",
-          reason: "unrecognized",
-          text: [
-            "╭──────────────────────────────────────────────────────────╮",
-            "│ Bash command                                             │",
-            "│                                                          │",
-            "│   pnpm test --filter cart --repeat 5                     │",
-            "│   Run the cart specs five times                          │",
-            "│                                                          │",
-            "│ Allow this command?                                      │",
-            "│                                                          │",
-            "│ ❯ [a] Allow once                                         │",
-            "│   [s] Allow for this session                             │",
-            "│   [d] Deny                                               │",
-            "╰──────────────────────────────────────────────────────────╯",
-          ].join("\n"),
-        },
-      },
-    ],
+    requests: [],
   },
   "04": {
     items: written("04", now, [
@@ -438,8 +409,13 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
           },
         ],
       }),
+      use("step:9", "mcp_deploy_configure_target", {
+        message: "Configure the deploy target",
+      }),
     ]),
-    // Antigravity says nothing of what it waits on; its question is read from its screen.
+    // Antigravity says nothing of what it waits on, so Novadeck holds what its screen
+    // shows: a question, a form an MCP server asks for, and a dialog the chat can't read,
+    // as after an agent update changed it.
     requests: [
       {
         id: "05:question",
@@ -485,6 +461,81 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
           ],
         },
       },
+      {
+        id: "05:form",
+        kind: "question",
+        tool: "mcp_deploy_configure_target",
+        subject: null,
+        choices: [],
+        subagent: false,
+        answered: false,
+        dialog: {
+          type: "form",
+          id: "05:f",
+          message: "Configure the deploy target",
+          fields: [
+            {
+              id: "target",
+              label: "Target name",
+              description: "As it is named in the deploy config",
+              kind: "text",
+              choices: [],
+              required: true,
+            },
+            {
+              id: "environment",
+              label: "Environment",
+              description: null,
+              kind: "choice",
+              choices: ["staging", "production"],
+              required: true,
+            },
+            {
+              id: "replicas",
+              label: "Replicas",
+              description: null,
+              kind: "number",
+              choices: [],
+              required: false,
+            },
+            {
+              id: "dryRun",
+              label: "Dry run first",
+              description: "Shows what would change without deploying",
+              kind: "boolean",
+              choices: [],
+              required: false,
+            },
+          ],
+        },
+      },
+      {
+        id: "05:raw",
+        kind: "permission",
+        tool: "run_command",
+        subject: "pnpm test --filter cart --repeat 5",
+        choices: [],
+        subagent: false,
+        answered: false,
+        dialog: {
+          type: "raw",
+          reason: "unrecognized",
+          text: [
+            "╭──────────────────────────────────────────────────────────╮",
+            "│ Run command                                              │",
+            "│                                                          │",
+            "│   pnpm test --filter cart --repeat 5                     │",
+            "│   Run the cart specs five times                          │",
+            "│                                                          │",
+            "│ Allow this command?                                      │",
+            "│                                                          │",
+            "│ ❯ [a] Allow once                                         │",
+            "│   [s] Allow for this session                             │",
+            "│   [d] Deny                                               │",
+            "╰──────────────────────────────────────────────────────────╯",
+          ].join("\n"),
+        },
+      },
     ],
     outcomes: {
       "05:question": (answer, dialog) => {
@@ -519,6 +570,16 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
           reply: `Noted: ${said}. I'll set the deploy up that way.`,
         }
       },
+      "05:form": (answer) =>
+        answer.type === "form" && answer.action === "accept"
+          ? {
+              items: [got("step:9", `User accepted: ${JSON.stringify(answer.values)}`)],
+              reply: `Deploying ${String(answer.values.target ?? "the target")} to ${String(answer.values.environment ?? "staging")}.`,
+            }
+          : {
+              items: [got("step:9", "User declined to provide the configuration.")],
+              reply: "Understood, I won't deploy. Tell me when you want to try again.",
+            },
     },
   },
   "06": {
@@ -559,73 +620,8 @@ export const agentTranscripts = (now: number): Readonly<Record<string, DemoTrans
       say(
         "## Build\n\nIt passes now. The failure was an import from the wrong module, fixed in `src/checkout/total.ts`.\n\n| Asset | Size |\n| --- | --- |\n| JavaScript | 214 kB (68 kB gzip) |\n| CSS | 18 kB |\n\nI left `pnpm preview` running in the background so you can open it at <http://localhost:4173>.",
       ),
-      use("toolu_06e", "mcp__deploy__configure_target", {
-        message: "Configure the deploy target",
-      }),
     ]),
-    // An MCP server asks for a form.
-    requests: [
-      {
-        id: "06:form",
-        kind: "question",
-        tool: "mcp__deploy__configure_target",
-        subject: null,
-        choices: [],
-        subagent: false,
-        answered: false,
-        dialog: {
-          type: "form",
-          id: "06:d",
-          message: "Configure the deploy target",
-          fields: [
-            {
-              id: "target",
-              label: "Target name",
-              description: "As it is named in the deploy config",
-              kind: "text",
-              choices: [],
-              required: true,
-            },
-            {
-              id: "environment",
-              label: "Environment",
-              description: null,
-              kind: "choice",
-              choices: ["staging", "production"],
-              required: true,
-            },
-            {
-              id: "replicas",
-              label: "Replicas",
-              description: null,
-              kind: "number",
-              choices: [],
-              required: false,
-            },
-            {
-              id: "dryRun",
-              label: "Dry run first",
-              description: "Shows what would change without deploying",
-              kind: "boolean",
-              choices: [],
-              required: false,
-            },
-          ],
-        },
-      },
-    ],
-    outcomes: {
-      "06:form": (answer) =>
-        answer.type === "form" && answer.action === "accept"
-          ? {
-              items: [got("toolu_06e", `User accepted: ${JSON.stringify(answer.values)}`)],
-              reply: `Deploying ${String(answer.values.target ?? "the target")} to ${String(answer.values.environment ?? "staging")}.`,
-            }
-          : {
-              items: [got("toolu_06e", "User declined to provide the configuration.")],
-              reply: "Understood, I won't deploy. Tell me when you want to try again.",
-            },
-    },
+    requests: [],
   },
 })
 
@@ -653,7 +649,33 @@ export const showcaseTranscripts = (now: number): Readonly<Record<string, DemoTr
         "The plan is ready in `plans/studio.md`. Approve it to start, or tell me what to change.",
       ),
     ]),
-    requests: [],
+    requests: [
+      {
+        id: "01:plan",
+        kind: "plan",
+        tool: "ExitPlanMode",
+        subject: "Studio portfolio",
+        choices: ["Yes, implement this plan", "No, stay in Plan mode"],
+        subagent: false,
+        answered: false,
+        dialog: {
+          type: "choices",
+          id: "01:d",
+          title: "Implement this plan?",
+          detail: "Studio portfolio\n1. Set the visual direction\n2. Build the home page",
+          options: [
+            { id: "1", label: "Yes, implement this plan", text: null },
+            { id: "2", label: "No, stay in Plan mode", text: "prompt" },
+          ],
+        },
+      },
+    ],
+    outcomes: {
+      "01:plan": (answer) =>
+        answer.type === "choice" && answer.option === "2"
+          ? { items: [], prompt: answer.text ?? "Keep planning." }
+          : { items: [], reply: "Approved. Starting with the visual direction." },
+    },
   },
   "03": {
     items: written("03", now, [
@@ -685,6 +707,37 @@ export const showcaseTranscripts = (now: number): Readonly<Record<string, DemoTr
         "Expiry is checked three different ways: strictly, with a minute of slack, and with a day of grace on admin routes. I've written a plan to consolidate it in `~/.claude/plans/refactor-auth.md`.",
       ),
     ]),
-    requests: [],
+    requests: [
+      {
+        id: "03:plan",
+        kind: "plan",
+        tool: "ExitPlanMode",
+        subject: "Refactor auth",
+        choices: [
+          "Yes, and auto-accept edits",
+          "Yes, and manually approve edits",
+          "No, and tell Claude what to change",
+        ],
+        subagent: false,
+        answered: false,
+        dialog: {
+          type: "choices",
+          id: "03:d",
+          title: "Claude has written up a plan and is ready to execute. Would you like to proceed?",
+          detail: "Refactor auth\nOne expiry rule for every route",
+          options: [
+            { id: "1", label: "Yes, and auto-accept edits", text: null },
+            { id: "2", label: "Yes, and manually approve edits", text: null },
+            { id: "3", label: "No, and tell Claude what to change", text: "prompt" },
+          ],
+        },
+      },
+    ],
+    outcomes: {
+      "03:plan": (answer) =>
+        answer.type === "choice" && answer.option === "3"
+          ? { items: [], prompt: answer.text ?? "Keep planning." }
+          : { items: [], reply: "Approved. Starting with the shared expiry check." },
+    },
   },
 })

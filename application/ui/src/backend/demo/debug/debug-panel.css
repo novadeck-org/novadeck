@@ -1,51 +1,58 @@
-/* The debug-panel recipe: the demo's debug panel is `.debug-floater`, a round button
-   floating at the page's bottom right, see-through until hovered, focused or open (aria-expanded), and `.debug-panel`,
-   the card that rises out of it with `.debug-panel-tail` pointing back at it. The card
-   has a `.debug-panel-header` with its `.debug-panel-mark` and `.debug-chip`s (a chip
-   may take data-tone), `.debug-group` toggles (aria-expanded, with a
-   `.debug-group-chevron` and `.debug-group-count`), `.debug-action` buttons with their
-   `.debug-hint`s, and a `.debug-panel-note`. Tokens, each optional:
+/* The debug-panel recipe: the demo's debug panel is `.debug-drawer`, kept below the
+   page's bottom edge at its middle until opened (data-open). Its `.debug-handle`, a small
+   tab that stays above the edge with its `.debug-handle-label` (dropped when narrow) and
+   `.debug-handle-chevron`, opens and closes it, see-through until hovered, focused or
+   open (aria-expanded). Under the handle is `.debug-panel`, the card that slides up.
+   The card has a `.debug-panel-header` with its `.debug-panel-mark`, `.debug-chip`s (a
+   chip may take data-tone), a `.debug-label` beside the demo switch (`.segment` buttons) and a `.debug-search`
+   field with its `.debug-search-clear`. Its body has `.debug-section` headings over
+   `.debug-group` toggles (aria-expanded, disabled while searching, with a
+   `.debug-group-chevron` and `.debug-group-count`), their `.debug-action` buttons with
+   their `.debug-hint`s and, on one that boots the demo again, a `.debug-reboots` mark;
+   and a `.debug-panel-note` at its foot. Tokens, each optional:
    --debug-panel-bg (paper), --debug-panel-fg (ink), --debug-panel-border-color (line),
    --debug-panel-radius (radius-popover), --debug-panel-shadow (shadow-floating): the
-   card and its tail.
+   card, and the handle while open, which joins the card.
    --debug-mark-bg (ink), --debug-mark-fg (paper): the mark in its header.
-   --debug-muted-fg (muted): chips, group toggles, counts and hints.
+   --debug-muted-fg (muted): chips, labels, section headings, counts, hints and marks.
    --debug-action-bg (shell), --debug-action-border-color (line): chips and the note.
    --debug-action-hover-bg (soft): an action while hovered.
-   --debug-floater-bg (paper), --debug-floater-fg (muted), --debug-floater-border-color
-   (line), --debug-floater-rest-fill (30%, of the background, at rest),
-   --debug-floater-rest-opacity (0.6), --debug-floater-shadow (shadow-floating, once
-   active), --debug-floater-active-fg (ink): the button, and while hovered or open. */
+   --debug-handle-bg (paper), --debug-handle-fg (muted), --debug-handle-border-color
+   (line), --debug-handle-rest-fill (30%, of the background, at rest),
+   --debug-handle-rest-opacity (0.85), --debug-handle-active-fg (ink): the handle, and
+   while hovered or open. */
 
 @layer components {
-  /* The debug panel: a floating card that rises out of its button, a tail on its foot
-     pointing back down at it. */
+  /* The drawer: closed, it sits below the bottom edge but for its handle. Its height is
+     the panel's, so the slide needs no measure of it. */
+  .debug-drawer {
+    --_handle-height: calc(var(--spacing) * 6);
+    translate: 0 calc(100% - var(--_handle-height));
+    transition: translate var(--motion-layout) var(--ease-interface);
+  }
+  .debug-drawer[data-open] {
+    translate: 0 0;
+  }
+  /* The card, flush with the bottom edge, its top corners round. Hidden once it has slid
+     away, so its shadow doesn't show above the edge. */
   .debug-panel {
+    --_radius: var(--debug-panel-radius, var(--radius-popover));
     border: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
-    border-radius: var(--debug-panel-radius, var(--radius-popover));
+    border-bottom-color: transparent;
+    border-radius: var(--_radius) var(--_radius) 0 0;
     background-color: var(--debug-panel-bg, var(--color-paper));
     color: var(--debug-panel-fg, var(--color-ink));
     box-shadow: var(--debug-panel-shadow, var(--shadow-floating));
-    transform-origin: calc(100% - 24px) 100%;
-    transition:
-      opacity var(--motion-state) var(--ease-interface),
-      scale var(--motion-state) var(--ease-interface);
+    visibility: hidden;
+    transition: visibility 0s linear var(--motion-layout);
+  }
+  .debug-drawer[data-open] .debug-panel {
+    visibility: visible;
+    transition-delay: 0s;
   }
   /* Focused only to hold keys after a click off its controls; its controls show focus. */
   .debug-panel:focus {
     outline: none;
-  }
-  @starting-style {
-    .debug-panel {
-      opacity: 0;
-      scale: 0.96;
-    }
-  }
-  .debug-panel-tail {
-    rotate: 45deg;
-    border-right: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
-    border-bottom: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
-    background-color: var(--debug-panel-bg, var(--color-paper));
   }
   .debug-panel-header {
     border-bottom: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
@@ -66,18 +73,44 @@
     background-color: var(--debug-action-bg, var(--color-shell));
     color: var(--debug-muted-fg, var(--color-muted));
   }
-  .debug-group,
+  .debug-label,
+  .debug-section,
   .debug-hint,
-  .debug-group-count {
+  .debug-group-count,
+  .debug-group-chevron,
+  .debug-reboots,
+  .debug-search-clear {
     color: var(--debug-muted-fg, var(--color-muted));
   }
-  .debug-group {
-    border-radius: var(--radius-control);
+  .debug-section {
     letter-spacing: 0.05em;
     text-transform: uppercase;
   }
-  .debug-group:hover {
+  .debug-group {
+    --_bg: transparent;
+    border-radius: var(--radius-control);
+    background-color: var(--_bg);
+  }
+  .debug-group:hover:not(:disabled) {
+    --_bg: var(--debug-action-hover-bg, var(--color-soft));
+  }
+  .debug-group:disabled {
+    color: inherit;
+    cursor: default;
+  }
+  .debug-search-clear {
+    border-radius: 999px;
+  }
+  .debug-search-clear:hover {
+    background-color: var(--debug-action-hover-bg, var(--color-soft));
     color: var(--debug-panel-fg, var(--color-ink));
+  }
+  /* The field shows where typing goes; the browser's own clear button gives way to ours. */
+  .debug-search:focus-within {
+    --_border-color: var(--field-open-border-color, var(--color-line-strong));
+  }
+  .debug-search input::-webkit-search-cancel-button {
+    appearance: none;
   }
   .debug-group-chevron {
     transition: rotate var(--motion-state) var(--ease-interface);
@@ -95,7 +128,9 @@
   }
   .debug-group:focus-visible,
   .debug-action:focus-visible,
-  .debug-floater:focus-visible {
+  .debug-panel .segment:focus-visible,
+  .debug-search-clear:focus-visible,
+  .debug-handle:focus-visible {
     outline: 2px solid var(--focus-ring-color, var(--color-strong));
     outline-offset: 1px;
   }
@@ -103,35 +138,50 @@
     border-top: var(--border-width) solid var(--debug-panel-border-color, var(--color-line));
     background-color: var(--debug-action-bg, var(--color-shell));
     color: var(--debug-panel-fg, var(--color-ink));
-    border-radius: 0 0 var(--debug-panel-radius, var(--radius-popover))
-      var(--debug-panel-radius, var(--radius-popover));
   }
 
-  /* The button. At rest it is glass: the page shows through a thin fill, blurred, under
-     a faint icon. Hovered, focused or open, it turns solid. */
-  .debug-floater {
-    border: var(--border-width) solid var(--debug-floater-border-color, var(--color-line));
-    border-radius: 999px;
+  /* The handle: a tab on the drawer's top edge, short enough to sit in the footer's
+     empty middle. At rest it is glass, the page showing through a thin fill under faint
+     words. Hovered or focused it turns solid; open, it takes the card's colours and covers
+     the card's top border, so the two read as one. */
+  .debug-handle {
+    --_border-color: var(--debug-handle-border-color, var(--color-line));
+    margin-bottom: calc(var(--border-width) * -1);
+    border: var(--border-width) solid var(--_border-color);
+    border-bottom-color: transparent;
+    border-radius: var(--radius-control) var(--radius-control) 0 0;
     background-color: color-mix(
       in srgb,
-      var(--debug-floater-bg, var(--color-paper)) var(--debug-floater-rest-fill, 30%),
+      var(--debug-handle-bg, var(--color-paper)) var(--debug-handle-rest-fill, 30%),
       transparent
     );
     backdrop-filter: blur(6px);
-    color: var(--debug-floater-fg, var(--color-muted));
-    opacity: var(--debug-floater-rest-opacity, 0.6);
+    color: var(--debug-handle-fg, var(--color-muted));
+    opacity: var(--debug-handle-rest-opacity, 0.85);
     transition:
       opacity var(--motion-state) var(--ease-interface),
       color var(--motion-state) var(--ease-interface),
-      background-color var(--motion-state) var(--ease-interface),
-      box-shadow var(--motion-state) var(--ease-interface);
+      background-color var(--motion-state) var(--ease-interface);
   }
-  .debug-floater:hover,
-  .debug-floater:focus-visible,
-  .debug-floater[aria-expanded="true"] {
-    background-color: var(--debug-floater-bg, var(--color-paper));
-    box-shadow: var(--debug-floater-shadow, var(--shadow-floating));
-    color: var(--debug-floater-active-fg, var(--color-ink));
+  .debug-handle:hover,
+  .debug-handle:focus-visible {
+    background-color: var(--debug-handle-bg, var(--color-paper));
+    color: var(--debug-handle-active-fg, var(--color-ink));
+    opacity: 1;
+  }
+  .debug-handle-chevron {
+    opacity: 0.7;
+  }
+  /* Narrow, the footer's chips reach its middle; the handle keeps to its icons. */
+  @media (width < 36rem) {
+    .debug-handle-label {
+      display: none;
+    }
+  }
+  .debug-handle[aria-expanded="true"] {
+    --_border-color: var(--debug-panel-border-color, var(--color-line));
+    background-color: var(--debug-panel-bg, var(--color-paper));
+    color: var(--debug-handle-active-fg, var(--color-ink));
     opacity: 1;
   }
 }

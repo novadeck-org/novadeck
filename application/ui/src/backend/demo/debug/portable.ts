@@ -64,31 +64,37 @@ export const portableGroup = (launch: DemoLaunch): DemoActionGroup => {
   const boot = (portable: DemoPortable | undefined) => () => launch.setPortable(portable)
   const release = (days: number): UpdateOffer => releaseOffer(`0.0.${(patch += 1)}`, days)
   return {
+    section: "App",
     title: "Portable",
     actions: [
       {
-        label: "Portable",
-        hint: "Boots again as a portable copy with no release known: an Install Novadeck chip (Install when narrow) that never opens by itself; its panel says this copy can't update itself, with Later and Install Novadeck. Pressing Install Novadeck turns the chip to Installing…, which never ends",
+        label: "No release known",
+        hint: "Install chip; installing never ends",
+        reboots: true,
         run: boot({ install: installing }),
       },
       {
-        label: "Portable, update available",
-        hint: "Boots again as a portable copy with a release from two days ago: an Update available chip and a notice, raised once per version, with Install Novadeck and Release notes, no Download; the next boot shows only the chip",
+        label: "Update available",
+        hint: "2-day-old release: chip, notice once per version",
+        reboots: true,
         run: () => launch.setPortable({ install: installing, offer: release(2) }),
       },
       {
-        label: "Portable, stale update",
-        hint: "Boots again as a portable copy 20 days behind a release: the same notice, raised at every boot, not only the first",
+        label: "Stale update",
+        hint: "20 days behind: notice at every boot",
+        reboots: true,
         run: () => launch.setPortable({ install: installing, offer: release(20) }),
       },
       {
-        label: "Portable, newer installed",
-        hint: "Boots again as a portable copy that finds a newer install: press Install Novadeck and the panel says Novadeck 0.0.99 is already installed, with Later and Open Novadeck",
+        label: "Newer install exists",
+        hint: "Install offers Open Novadeck (0.0.99)",
+        reboots: true,
         run: boot({ install: { kind: "newer", version: "0.0.99" } }),
       },
       {
-        label: "Portable, install fails",
-        hint: "Boots again as a portable copy whose install fails: press Install Novadeck and the panel says why it could not, keeping Install Novadeck to try again",
+        label: "Install fails",
+        hint: "Says why; Install stays to retry",
+        reboots: true,
         run: boot({
           install: {
             kind: "failed",
@@ -97,13 +103,15 @@ export const portableGroup = (launch: DemoLaunch): DemoActionGroup => {
         }),
       },
       {
-        label: "Portable, slow answer",
-        hint: "Boots again as a portable copy whose host takes four seconds to say so: the Install Novadeck chip comes late, and with No sandbox set under Startup, that chip stays away meanwhile instead of flashing",
+        label: "Slow host",
+        hint: "Chip comes after 4 s",
+        reboots: true,
         run: boot({ install: installing, answerAfterMs: 4000 }),
       },
       {
-        label: "Not portable",
-        hint: "Boots again as an installed copy: no install chip",
+        label: "Installed copy",
+        hint: "No install chip",
+        reboots: true,
         run: boot(undefined),
       },
     ],

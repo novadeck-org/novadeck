@@ -1,6 +1,5 @@
-import { isAgentProgram } from "../../../model/process"
 import { terminalAsks, type TerminalAsk } from "../../../model/terminal-ending"
-import type { AgentStatus, AgentTurnEnd, TerminalMetadata, Workspace } from "../../../model/types"
+import type { AgentStatus, TerminalMetadata, Workspace } from "../../../model/types"
 import type { BackendAction, TerminalKey } from "../../port"
 
 // The actions that put a terminal in a state, as the backend would report it. Pure, so
@@ -34,7 +33,7 @@ export const othersOf = (workspace: Workspace | undefined, key: TerminalKey): Te
         terminal.state !== "failed",
     ) ?? []
 
-export const setStatus = (
+const setStatus = (
   key: TerminalKey,
   status: Extract<BackendAction, { type: "terminal/status" }>["status"],
 ): BackendAction => ({
@@ -44,7 +43,7 @@ export const setStatus = (
   status,
 })
 
-export const setProcess = (key: TerminalKey, process: string): BackendAction => ({
+const setProcess = (key: TerminalKey, process: string): BackendAction => ({
   type: "terminal/process",
   target: target(key),
   terminalId: key.terminalId,
@@ -94,18 +93,8 @@ export const backToPrompt = (key: TerminalKey, shell = "zsh"): BackendAction[] =
 ]
 
 // What its agent says now, for a terminal already running one.
-export const agentSays = (key: TerminalKey, agent: AgentStatus): BackendAction[] => [
+const agentSays = (key: TerminalKey, agent: AgentStatus): BackendAction[] => [
   setStatus(key, { state: "running", agent }),
-]
-
-// An agent in the terminal with this status; a terminal not running one becomes Claude Code.
-export const agentIn = (
-  key: TerminalKey,
-  terminal: TerminalMetadata | undefined,
-  agent: AgentStatus,
-): BackendAction[] => [
-  ...(terminal && isAgentProgram(terminal.process) ? [] : [setProcess(key, "claude")]),
-  ...agentSays(key, agent),
 ]
 
 // An agent started at the prompt, resting.
@@ -121,95 +110,33 @@ export const unheardAgent = (key: TerminalKey, program: string): BackendAction[]
 ]
 
 export const resting: AgentStatus = { working: false }
-export const working: AgentStatus = { working: true }
-export const planning: AgentStatus = { working: true, planning: true }
-
-// An agent waiting on the person; `headline` is murmur's, for a question or a plan.
-export const asking = (
-  kind: "permission" | "question" | "plan",
-  count: number,
-  headline?: string,
-): AgentStatus => ({
-  working: true,
-  attention: { kind, count, ...(headline ? { headline } : {}) },
-})
-
-export const withSubagents: AgentStatus = {
-  working: true,
-  subagents: [
-    { id: "sub-1", type: "Explore" },
-    { id: "sub-2", type: "code-reviewer" },
-    { id: "sub-3", type: null },
-  ],
-}
-
-// Subagents it runs, counted, in the middle of its turn or after it: it works until they
-// finish. Else work its turn left that runs on without it, counted or not.
-export const finishingSubagents: AgentStatus = {
-  working: true,
-  background: { agents: 2, tasks: 0 },
-}
-export const backgroundWork: AgentStatus = { working: false, background: { agents: 1, tasks: 2 } }
-export const uncountedWork: AgentStatus = { working: false, background: { agents: 0, tasks: 0 } }
 
 // Context and rate limits, as an agent's records tell them.
-export const withUsage = (now: number): AgentStatus => ({
-  working: false,
-  usage: {
-    context: { occupied: 84_000, capacity: 200_000 },
-    limits: [
-      { minutes: 300, used: 0.42, resetsAt: now + 2 * 3_600_000 },
-      { minutes: 10_080, used: 0.78, resetsAt: now + 3 * 86_400_000 },
-    ],
-    model: "gpt-6-astra",
-    effort: "medium",
-  },
+export const withUsage = (now: number): NonNullable<AgentStatus["usage"]> => ({
+  context: { occupied: 84_000, capacity: 200_000 },
+  limits: [
+    { minutes: 300, used: 0.42, resetsAt: now + 2 * 3_600_000 },
+    { minutes: 10_080, used: 0.78, resetsAt: now + 3 * 86_400_000 },
+  ],
+  model: "gpt-6-astra",
+  effort: "medium",
 })
 
 // How much its context holds, where its harness doesn't say of how much.
-export const contextOnly: AgentStatus = {
-  working: false,
-  usage: {
-    context: { occupied: 84_000, capacity: null },
-    limits: [],
-    model: "Opus 5.5",
-    effort: null,
-  },
-}
-
-const replies: Record<AgentTurnEnd["outcome"], string | undefined> = {
-  completed: "Done. The checkout total now rounds per line, and the tests pass.",
-  failed: "I could not finish: the test suite fails to compile.",
-  interrupted: "Stopped before the second file.",
-  unknown: undefined,
-}
-
-// An agent whose turn just ended, with the start of its last reply where its harness says,
-// and murmur's gist of it where given.
-export const turnEnded = (
-  outcome: AgentTurnEnd["outcome"],
-  now: number,
-  gist?: { readonly text: string; readonly asks?: true },
-): AgentStatus => {
-  const reply = replies[outcome]
-  return {
-    working: false,
-    lastTurn: {
-      outcome,
-      ...(reply ? { reply } : {}),
-      ...(gist ? { gist: gist.text, ...(gist.asks ? { asks: true as const } : {}) } : {}),
-      at: now,
-    },
-  }
+export const contextOnly: NonNullable<AgentStatus["usage"]> = {
+  context: { occupied: 84_000, capacity: null },
+  limits: [],
+  model: "Opus 5.5",
+  effort: null,
 }
 
 // What murmur would say of each notification, in its words, for the notification center to
 // show without it.
-const murmurHeadlines = {
+export const murmurHeadlines = {
   question: "Asks which database to use",
   plan: "Plan to split the billing service",
 } as const
-const murmurGists = {
+export const murmurGists = {
   done: { text: "Checkout totals round per line, tests pass", asks: true },
   failed: { text: "Test suite no longer compiles" },
 } as const
@@ -251,52 +178,6 @@ export const otherTerminals = (
 export const dealKinds = (count: number): TerminalAsk[] =>
   Array.from({ length: count }, (_, index) => terminalAsks[index % terminalAsks.length]!)
 
-const requests = {
-  question: "question",
-  permission: "permission",
-  plan: "plan",
-} as const
-
-// The start of a notification: a request waits at once; a finish begins as the agent
-// works, and `endNotification` ends its turn. With `murmur`, a question or a plan has the
-// headline murmur would write.
-export const beginNotification = (
-  kind: TerminalAsk,
-  key: TerminalKey,
-  terminal: TerminalMetadata | undefined,
-  murmur = false,
-): BackendAction[] =>
-  agentIn(
-    key,
-    terminal,
-    kind === "done" || kind === "failed"
-      ? working
-      : asking(
-          requests[kind],
-          1,
-          murmur && (kind === "question" || kind === "plan") ? murmurHeadlines[kind] : undefined,
-        ),
-  )
-
-// The end of a finish's turn, which the app marks unread when the person looks elsewhere;
-// nothing for a request. With `murmur`, the reply has the gist murmur would write.
-export const endNotification = (
-  kind: TerminalAsk,
-  key: TerminalKey,
-  now: number,
-  murmur = false,
-): BackendAction[] =>
-  kind === "done" || kind === "failed"
-    ? agentSays(
-        key,
-        turnEnded(
-          kind === "done" ? "completed" : "failed",
-          now,
-          murmur ? murmurGists[kind] : undefined,
-        ),
-      )
-    : []
-
 // The keys of the terminals the predicate picks, in every session of every project.
 const terminalsWhere = (
   workspace: Workspace | undefined,
@@ -312,13 +193,18 @@ const terminalsWhere = (
     ),
   ) ?? []
 
-// The terminals that ask for the person or hold a finished turn.
-export const noisyTerminals = (workspace: Workspace | undefined): TerminalKey[] =>
+// The agents that still work, wait on the person, hold a finished turn or leave work
+// running behind it: what resting leaves nothing of.
+export const noisyAgents = (workspace: Workspace | undefined): TerminalKey[] =>
   terminalsWhere(
     workspace,
     (terminal) =>
       terminal.state === "running" &&
-      (terminal.agent?.attention !== undefined || terminal.agent?.lastTurn !== undefined),
+      (terminal.agent?.working === true ||
+        terminal.agent?.attention !== undefined ||
+        terminal.agent?.lastTurn !== undefined ||
+        terminal.agent?.background !== undefined ||
+        (terminal.agent?.subagents?.length ?? 0) > 0),
   )
 
 // The terminals back at their shell's prompt. One may still hold an unread finish from

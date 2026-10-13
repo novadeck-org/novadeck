@@ -1,45 +1,35 @@
 import { isAgentProgram } from "../../../model/process"
 import { createStore } from "../../../model/store"
 import { terminalAsks } from "../../../model/terminal-ending"
-import type { AgentStatus, AgentTurnEnd, Workspace } from "../../../model/types"
+import type { TerminalMetadata, Workspace } from "../../../model/types"
 import type { BackendAction, TerminalKey } from "../../port"
 import { terminalKeyId } from "../../registry"
+import type { DemoAgentVerbs } from "../agent-link"
 import { createDemoAgents } from "./agents"
 import { createDebugChat } from "./chat"
 import { createDemoFolders } from "./folders"
 import { createDemoNotices } from "./notices"
 import {
-  agentIn,
-  agentSays,
-  asking,
   backToPrompt,
-  beginNotification,
   cleanExit,
+  contextOnly,
   dealKinds,
-  endNotification,
   exitedWithCode,
   failedToStart,
   killedBy,
-  noisyTerminals,
+  murmurGists,
+  murmurHeadlines,
+  noisyAgents,
   othersOf,
   otherTerminals,
-  planning,
   promptTerminals,
   rename,
-  resting,
   runAgent,
   runProgram,
   starting,
   terminalOf,
-  turnEnded,
   unheardAgent,
-  backgroundWork,
-  contextOnly,
-  finishingSubagents,
-  uncountedWork,
-  withSubagents,
   withUsage,
-  working,
 } from "./terminals"
 import type {
   DemoAction,
@@ -68,6 +58,8 @@ const noticeMs = 4000
 const murmured = (index: number): boolean =>
   index >= terminalAsks.length && index < 2 * terminalAsks.length
 
+const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
 const later = (ms: number, run: () => void): void => void setTimeout(run, ms)
 
 // An action on the selected terminal, or the note that asks for one.
@@ -76,7 +68,9 @@ const onSelected = (
   hint: string,
   run: (
     key: TerminalKey,
-    context: DemoActionContext & { readonly dispatch: NonNullable<DemoActionContext["dispatch"]> },
+    context: DemoActionContext & {
+      readonly dispatch: NonNullable<DemoActionContext["dispatch"]>
+    },
   ) => void,
 ): DemoAction => ({
   label,
@@ -89,46 +83,6 @@ const onSelected = (
   },
 })
 
-const agentAction = (
-  label: string,
-  hint: string,
-  status: (now: number) => AgentStatus,
-): DemoAction =>
-  onSelected(label, hint, (key, { dispatch, workspace }) =>
-    dispatch(agentIn(key, terminalOf(workspace(), key), status(Date.now()))),
-  )
-
-// Whether the terminal still runs an agent, which an agent's later word needs; not after it
-// ended or went back to its shell.
-const runsAgent = (workspace: Workspace | undefined, key: TerminalKey): boolean => {
-  const terminal = terminalOf(workspace, key)
-  return terminal?.state === "running" && isAgentProgram(terminal.process)
-}
-
-// Ends the agent's turn a moment later, unless its terminal no longer runs it, as after
-// a restart back to the shell.
-const endLater = (
-  key: TerminalKey,
-  outcome: AgentTurnEnd["outcome"],
-  {
-    dispatch,
-    workspace,
-  }: Pick<DemoActionContext, "workspace"> & {
-    readonly dispatch: NonNullable<DemoActionContext["dispatch"]>
-  },
-): void =>
-  later(turnMs, () => {
-    if (!runsAgent(workspace(), key)) return
-    dispatch(agentSays(key, turnEnded(outcome, Date.now())))
-  })
-
-// The agent works, then its turn ends the way asked.
-const endingAction = (outcome: AgentTurnEnd["outcome"], label: string, hint: string): DemoAction =>
-  onSelected(label, hint, (key, context) => {
-    context.dispatch(agentIn(key, terminalOf(context.workspace(), key), working))
-    endLater(key, outcome, context)
-  })
-
 // The first live terminal of another project's open session: where an agent can wait or
 // finish while the person looks at the project on screen, for the switcher to mark.
 const elsewhere = (workspace: Workspace | undefined): TerminalKey | undefined => {
@@ -139,44 +93,60 @@ const elsewhere = (workspace: Workspace | undefined): TerminalKey | undefined =>
       (each) => each.state !== "exited" && each.state !== "failed",
     )
     if (session && terminal)
-      return { projectId: project.id, workspaceSessionId: session.id, terminalId: terminal.id }
+      return {
+        projectId: project.id,
+        workspaceSessionId: session.id,
+        terminalId: terminal.id,
+      }
   }
   return undefined
 }
 
-// An action on a terminal in another project, or the note that asks for one.
-const inAnotherProject = (
-  label: string,
-  hint: string,
-  run: (
-    key: TerminalKey,
-    context: DemoActionContext & { readonly dispatch: NonNullable<DemoActionContext["dispatch"]> },
-  ) => void,
-): DemoAction => ({
+// The terminal the group's target names, or the note that asks for what it needs. The
+// other terminal of the session is added in the background when it has none, which the
+// workspace doesn't hold yet, so the verb makes it an agent from nothing.
+const targetOf = (context: DemoActionContext): TerminalKey | undefined => {
+  if (context.target === "project") {
+    const key = elsewhere(context.workspace())
+    if (!key) context.note("Add another project with a terminal first.")
+    return key
+  }
+  const current = context.selected()
+  if (!current) return void context.note("Select a terminal first.")
+  if (context.target === "selected") return current
+  const other = othersOf(context.workspace(), current)[0]
+  return other ? { ...current, terminalId: other.id } : context.addInBackground(current)
+}
+
+// What an agent verb is called with: the terminal it acts on and the verbs.
+type Verbed = (
+  verbs: DemoAgentVerbs,
+  key: TerminalKey,
+  terminal: TerminalMetadata | undefined,
+) => void
+
+// Sets the selected terminal's usage, which an agent Novadeck hears nothing from can't show.
+const usageOf = (
+  verbs: DemoAgentVerbs,
+  key: TerminalKey,
+  { workspace, note }: DemoActionContext,
+  usage: Parameters<DemoAgentVerbs["usage"]>[2],
+): void => {
+  const terminal = terminalOf(workspace(), key)
+  if (terminal?.state === "running" && !terminal.agent && isAgentProgram(terminal.process))
+    return note("Novadeck hears nothing from this agent, so it has no usage to show.")
+  verbs.usage(key, terminal, usage)
+}
+
+// An action of the agent group: a verb on whichever terminal the group's target names.
+const verb = (label: string, hint: string, run: Verbed, verbs: DemoAgentVerbs): DemoAction => ({
   label,
   hint,
   run: (context) => {
-    const key = elsewhere(context.workspace())
-    if (!key) return context.note("Add another project with a terminal first.")
-    if (!context.dispatch) return
-    run(key, { ...context, dispatch: context.dispatch })
+    const key = targetOf(context)
+    if (key) run(verbs, key, terminalOf(context.workspace(), key))
   },
 })
-
-const elsewhereAgent = (label: string, hint: string, status: AgentStatus): DemoAction =>
-  inAnotherProject(label, hint, (key, { dispatch, workspace }) =>
-    dispatch(agentIn(key, terminalOf(workspace(), key), status)),
-  )
-
-const elsewhereEnding = (outcome: "completed" | "failed", label: string): DemoAction =>
-  inAnotherProject(
-    label,
-    `Works, then ${outcome === "completed" ? "done" : "failed"}: the switcher marks it until you look`,
-    (key, context) => {
-      context.dispatch(agentIn(key, terminalOf(context.workspace(), key), working))
-      endLater(key, outcome, context)
-    },
-  )
 
 // A terminal that is added and then fails to start.
 const failingTerminal = (label: string, hint: string, message: string, wait = 0): DemoAction => ({
@@ -191,81 +161,86 @@ const failingTerminal = (label: string, hint: string, message: string, wait = 0)
 
 // One terminal per state, named after it, so every tab and window shows one at a time.
 // The last stays selected; a done mark needs the person to be looking elsewhere, so the
-// finished ones come first.
+// finished ones come first, ending their turns a moment later. An agent's state is its
+// verb's, the rest the terminal's metadata.
 const gallery: readonly {
   readonly name: string
-  readonly actions: (key: TerminalKey, now: number) => BackendAction[]
+  readonly state?: (key: TerminalKey) => BackendAction[]
+  readonly agent?: (verbs: DemoAgentVerbs, key: TerminalKey) => void
 }[] = [
   {
     name: "Finished turn",
-    actions: (key, now) => agentIn(key, undefined, turnEnded("completed", now)),
+    agent: (verbs, key) => verbs.finish(key, undefined, "completed", { after: turnMs }),
   },
   {
     name: "Failed turn",
-    actions: (key, now) => agentIn(key, undefined, turnEnded("failed", now)),
+    agent: (verbs, key) => verbs.finish(key, undefined, "failed", { after: turnMs }),
   },
-  { name: "Working", actions: (key) => agentIn(key, undefined, working) },
-  { name: "Planning", actions: (key) => agentIn(key, undefined, planning) },
-  { name: "Subagents", actions: (key) => agentIn(key, undefined, withSubagents) },
-  { name: "Asks a question", actions: (key) => agentIn(key, undefined, asking("question", 1)) },
-  { name: "Plan ready", actions: (key) => agentIn(key, undefined, asking("plan", 1)) },
-  { name: "3 permissions", actions: (key) => agentIn(key, undefined, asking("permission", 3)) },
-  { name: "Unheard agent", actions: (key) => unheardAgent(key, "claude") },
-  { name: "Running a program", actions: (key) => runProgram(key, "sleep") },
-  { name: "Starting", actions: (key) => starting(key) },
-  { name: "Idle", actions: () => [] },
-  { name: "Exited · code 3", actions: (key) => exitedWithCode(key, 3) },
-  { name: "Killed", actions: (key) => killedBy(key, "SIGKILL") },
-  { name: "Failed to start", actions: (key) => failedToStart(key, "Folder not found") },
-  { name: "Needs permission", actions: (key) => agentIn(key, undefined, asking("permission", 1)) },
+  { name: "Working", agent: (verbs, key) => verbs.work(key, undefined) },
+  {
+    name: "Planning",
+    agent: (verbs, key) => verbs.work(key, undefined, { planning: true }),
+  },
+  {
+    name: "Subagents",
+    agent: (verbs, key) => verbs.work(key, undefined, { subagents: true }),
+  },
+  {
+    name: "Asks a question",
+    agent: (verbs, key) => verbs.ask(key, undefined, "question", 1),
+  },
+  {
+    name: "Plan ready",
+    agent: (verbs, key) => verbs.ask(key, undefined, "plan", 1),
+  },
+  {
+    name: "3 permissions",
+    agent: (verbs, key) => verbs.ask(key, undefined, "permission", 3),
+  },
+  { name: "Unheard agent", state: (key) => unheardAgent(key, "claude") },
+  { name: "Running a program", state: (key) => runProgram(key, "sleep") },
+  { name: "Starting", state: (key) => starting(key) },
+  { name: "Idle" },
+  { name: "Exit code 3", state: (key) => exitedWithCode(key, 3) },
+  { name: "Killed", state: (key) => killedBy(key, "SIGKILL") },
+  {
+    name: "Failed to start",
+    state: (key) => failedToStart(key, "Folder not found"),
+  },
+  {
+    name: "Needs permission",
+    agent: (verbs, key) => verbs.ask(key, undefined, "permission", 1),
+  },
 ]
 
-const everyState: DemoAction = {
+const everyState = (verbs: DemoAgentVerbs): DemoAction => ({
   label: "Every state at once",
-  hint: `Adds ${gallery.length} terminals, each tab and window in its own state: attention, done, error, ended and more`,
+  hint: `${gallery.length} terminals, one per state`,
   run: ({ addTerminal, dispatch }) => {
     if (!dispatch) return
     // Added first, so each finish lands while the person looks at the last one.
     const keys = gallery.map(() => addTerminal())
-    const now = Date.now()
+    gallery.forEach(({ state }, index) => state && verbs.release(keys[index]!))
     dispatch(
-      gallery.flatMap(({ name, actions }, index) => {
+      gallery.flatMap(({ name, state }, index) => {
         const key = keys[index]!
-        return [rename(key, name), ...actions(key, now)]
+        return [rename(key, name), ...(state?.(key) ?? [])]
       }),
     )
-  },
-}
-
-// An agent finishes in a terminal other than the one on screen: the app marks it unread
-// and, with the Preferences switch on, notifies.
-const finishElsewhere = (outcome: "completed" | "failed"): DemoAction => ({
-  label: outcome === "completed" ? "Agent finishes elsewhere" : "Agent fails elsewhere",
-  hint: "Another terminal's agent works, then ends its turn: unread mark and notice, if Preferences notifies",
-  run: ({ selected, workspace, dispatch, note }) => {
-    const current = selected()
-    if (!current) return note("Select a terminal first.")
-    const other = othersOf(workspace(), current)[0]
-    if (!other) return note("Add a second terminal first.")
-    if (!dispatch) return
-    const key = { ...current, terminalId: other.id }
-    dispatch(agentIn(key, other, working))
-    endLater(key, outcome, { dispatch, workspace })
+    gallery.forEach(({ agent }, index) => agent?.(verbs, keys[index]!))
   },
 })
 
-// The notification center's Fill and Clear. Each set of them counts its own Fills, so
-// demo panels side by side don't call off one another's pending finishes.
-const createNotificationActions = (): readonly [DemoAction, DemoAction] => {
-  // Which Fill the pending finishes belong to: Clear moves on to the next, and they lapse.
-  let fills = 0
-
+// The notification center's Fill and Clear, over the verbs.
+const createNotificationActions = (verbs: DemoAgentVerbs): readonly [DemoAction, DemoAction] => {
   // Every kind of notification across the workspace's projects and sessions, in terminals
-  // the person doesn't view. Takes up to `crowd` terminals, adding some to the session on screen when the workspace has fewer,
-  // without selecting them or leaving the panel the person is on.
+  // the person doesn't view. Takes up to `crowd` terminals, adding some to the session on
+  // screen when the workspace has fewer, without selecting them or leaving the panel the
+  // person is on. A request waits at once; each finish lands as the agent ends its turn,
+  // while the person looks elsewhere.
   const fillNotifications: DemoAction = {
-    label: "Fill the notification center",
-    hint: `${crowd} terminals across every project ask: questions, permissions, plans, and done and failed finishes (after 3 s); the rail badge reads 9+. The second round of kinds has murmur's headlines and gists`,
+    label: "Fill notifications",
+    hint: `${crowd} terminals ask or finish; badge reads 9+`,
     run: ({ selected, workspace, addInBackground, dispatch, note }) => {
       const viewed = selected()
       if (!viewed) return note("Select a terminal first.")
@@ -276,64 +251,63 @@ const createNotificationActions = (): readonly [DemoAction, DemoAction] => {
       )
       const slots = [...existing, ...added]
       const kinds = dealKinds(slots.length)
-      const fill = ++fills
-      dispatch(
-        slots.flatMap((key, index) =>
-          beginNotification(kinds[index]!, key, terminalOf(workspace(), key), murmured(index)),
-        ),
-      )
-      // Each finish lands as the agent ends its turn, while the person looks elsewhere. A
-      // terminal that ended meanwhile has no agent to end it;
-      // Clear before then calls them off.
-      later(turnMs, () => {
-        if (fill !== fills) return
-        const now = Date.now()
-        dispatch(
-          slots.flatMap((key, index) =>
-            runsAgent(workspace(), key)
-              ? endNotification(kinds[index]!, key, now, murmured(index))
-              : [],
-          ),
-        )
+      slots.forEach((key, index) => {
+        const kind = kinds[index]!
+        const terminal = terminalOf(workspace(), key)
+        const murmur = murmured(index)
+        if (kind === "done" || kind === "failed")
+          verbs.finish(key, terminal, kind === "done" ? "completed" : "failed", {
+            after: turnMs,
+            ...(murmur ? { gist: murmurGists[kind] } : {}),
+          })
+        else
+          verbs.ask(
+            key,
+            terminal,
+            kind,
+            1,
+            murmur && kind !== "permission" ? murmurHeadlines[kind] : undefined,
+          )
       })
     },
   }
 
-  // Answers every request and reads every finish, as the agents' next turn would: first they
-  // work, which clears the unread marks, then they rest. A terminal back at its shell's prompt
-  // may hold a finish unread too, so an agent works there for a moment and leaves again.
+  // Answers every request and reads every finish: each agent works for a moment, which
+  // clears its unread mark, as its next turn would, then rests, which also calls off a finish
+  // still to come. A terminal back at its shell's prompt may hold a finish unread too, so an
+  // agent works there and leaves again.
   const clearNotifications: DemoAction = {
     label: "Clear notifications",
-    hint: "Every request is answered and every finish read: the center is empty",
+    hint: "Answers and reads everything; center empties",
     run: ({ workspace, dispatch }) => {
       if (!dispatch) return
-      fills++
-      const agents = noisyTerminals(workspace())
+      const agents = noisyAgents(workspace())
       const prompts = promptTerminals(workspace()).map((key) => ({
         key,
         shell: terminalOf(workspace(), key)?.process ?? "zsh",
       }))
-      dispatch([
-        ...agents.flatMap((key) => agentSays(key, working)),
-        ...prompts.flatMap(({ key }) => agentIn(key, terminalOf(workspace(), key), working)),
-      ])
-      later(calmMs, () =>
-        dispatch([
-          ...agents
-            .filter((key) => runsAgent(workspace(), key))
-            .flatMap((key) => agentSays(key, resting)),
-          ...prompts
-            .filter(({ key }) => runsAgent(workspace(), key))
-            .flatMap(({ key, shell }) => backToPrompt(key, shell)),
-        ]),
-      )
+      for (const key of [...agents, ...prompts.map((each) => each.key)])
+        verbs.work(key, terminalOf(workspace(), key))
+      later(calmMs, () => {
+        for (const key of agents) {
+          const terminal = terminalOf(workspace(), key)
+          if (terminal?.state === "running" && isAgentProgram(terminal.process))
+            verbs.rest(key, terminal)
+        }
+        for (const { key, shell } of prompts) {
+          const terminal = terminalOf(workspace(), key)
+          if (terminal?.state !== "running" || !isAgentProgram(terminal.process)) continue
+          verbs.rest(key, terminal)
+          dispatch(backToPrompt(key, shell))
+        }
+      })
     },
   }
 
   return [fillNotifications, clearNotifications]
 }
 
-export const createDemoStates = (): DemoStates => {
+export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
   const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
   const { updates, offer, finish, failInstall } = createDemoUpdates()
@@ -342,7 +316,7 @@ export const createDemoStates = (): DemoStates => {
   const nextVersion = (): string => `0.0.${(patch += 1)}`
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createDebugChat()
-  const notificationActions = createNotificationActions()
+  const notificationActions = createNotificationActions(verbs)
   const screens = createStore<ReadonlyMap<string, DemoScreen>>(new Map())
   // Sets what a terminal's screen is doing for a while, then shows its output again.
   const showScreen = (key: TerminalKey, screen: DemoScreen, ms: number): void => {
@@ -357,149 +331,68 @@ export const createDemoStates = (): DemoStates => {
       }),
     )
   }
+  // An action on the selected terminal that sets its state some other way than through an
+  // agent verb, so what its agent had pending is called off first.
+  const setting: typeof onSelected = (label, hint, run) =>
+    onSelected(label, hint, (key, context) => {
+      verbs.release(key)
+      run(key, context)
+    })
   const groups: readonly DemoActionGroup[] = [
-    { title: "All at once", actions: [everyState] },
     {
-      title: "Notification center",
-      actions: notificationActions,
-    },
-    {
+      section: "Terminals",
       title: "Selected terminal",
       actions: [
-        onSelected("Clean exit", "The tile closes", (key, { dispatch }) =>
-          dispatch(cleanExit(key)),
+        setting("Starting shell", "Tab and screen show it starting", (key, { dispatch }) =>
+          dispatch(starting(key)),
         ),
-        onSelected("Exited · code 3", "Ending bar with Restart", (key, { dispatch }) =>
-          dispatch(exitedWithCode(key, 3)),
+        onSelected("Loading output", "Briefly, as after a reconnect", (key) =>
+          showScreen(key, { attaching: true }, attachMs),
         ),
-        onSelected("Exited, no code", "Ending bar without a reason", (key, { dispatch }) =>
-          dispatch(exitedWithCode(key, null)),
+        setting("At the prompt", "Idle shell", (key, { dispatch }) => dispatch(backToPrompt(key))),
+        setting("Long program", "Counts as running; closing asks first", (key, { dispatch }) =>
+          dispatch(runProgram(key, "sleep")),
         ),
-        onSelected("Killed · SIGKILL", "Ending bar in the danger tone", (key, { dispatch }) =>
-          dispatch(killedBy(key, "SIGKILL")),
-        ),
-        onSelected(
-          "Failed to start · Folder not found",
-          "Ending bar, tab marked failed",
-          (key, { dispatch }) => dispatch(failedToStart(key, "Folder not found")),
-        ),
-        onSelected(
-          "Starting shell",
-          "Tab shows it starting; Starting shell… over the output",
-          (key, { dispatch }) => dispatch(starting(key)),
-        ),
-        onSelected(
-          "Loading output",
-          "Loading output… over the output for a moment, as after a reconnection",
-          (key) => showScreen(key, { attaching: true }, attachMs),
-        ),
-        onSelected("Paste fails", "A notice at the top for a moment", (key) =>
-          showScreen(key, { notice: "Novadeck can't read the clipboard" }, noticeMs),
-        ),
-        onSelected("Back at the prompt", "A shell, idle", (key, { dispatch }) =>
-          dispatch(backToPrompt(key)),
-        ),
-        onSelected(
-          "Run a long program",
-          "Footer counts 1 running; closing asks first",
-          (key, { dispatch }) => dispatch(runProgram(key, "sleep")),
-        ),
-        onSelected("Run Claude Code", "The window takes Claude's body", (key, { dispatch }) =>
+        setting("Claude Code", "Window switches to Claude", (key, { dispatch }) =>
           dispatch(runAgent(key, "claude")),
         ),
-        onSelected("Run Codex", "The window takes Codex's body", (key, { dispatch }) =>
+        setting("Codex", "Window switches to Codex", (key, { dispatch }) =>
           dispatch(runAgent(key, "codex")),
         ),
-      ],
-    },
-    {
-      title: "Agent",
-      actions: [
-        agentAction("Working", "Tab shows it running", () => working),
-        agentAction("Planning", "Working in plan mode", () => planning),
-        agentAction("Needs permission", "One request waits", () => asking("permission", 1)),
-        agentAction("Asks a question", "One question waits", () => asking("question", 1)),
-        agentAction("Plan ready for review", "One plan waits", () => asking("plan", 1)),
-        agentAction("3 permissions waiting", "Count in the tab and tooltip", () =>
-          asking("permission", 3),
+        onSelected("Paste fails", "Brief notice at the top", (key) =>
+          showScreen(key, { notice: "Novadeck can't read the clipboard" }, noticeMs),
         ),
-        agentAction("3 questions waiting", "Count in the tab and tooltip", () =>
-          asking("question", 3),
+        setting("Clean exit", "Tile closes", (key, { dispatch }) => dispatch(cleanExit(key))),
+        setting("Exit code 3", "Ending bar with Restart", (key, { dispatch }) =>
+          dispatch(exitedWithCode(key, 3)),
         ),
-        agentAction("3 plans waiting", "Count in the tab and tooltip", () => asking("plan", 3)),
-        agentAction("Subagents", "Three subagents while it works", () => withSubagents),
-        agentAction(
-          "Finishing subagents",
-          "Two subagents run, mid-turn or after it; it works until they finish",
-          () => finishingSubagents,
+        setting("Exit, no code", "Ending bar, no reason", (key, { dispatch }) =>
+          dispatch(exitedWithCode(key, null)),
         ),
-        agentAction(
-          "Background work",
-          "Turn over, 1 agent · 2 tasks run on without it",
-          () => backgroundWork,
+        setting("Killed (SIGKILL)", "Ending bar, danger tone", (key, { dispatch }) =>
+          dispatch(killedBy(key, "SIGKILL")),
         ),
-        agentAction(
-          "Background work, uncounted",
-          "Turn over, its harness only says work runs on",
-          () => uncountedWork,
-        ),
-        agentAction("Context and limits", "Usage in its tooltip and status", withUsage),
-        agentAction("Context, size unknown", "ctx in tokens, no limits", () => contextOnly),
-        endingAction("completed", "Turn completed", "Works, then done when you look elsewhere"),
-        endingAction("failed", "Turn failed", "Works, then failed when you look elsewhere"),
-        endingAction("interrupted", "Turn interrupted", "Works, then rests; no unread mark"),
-        endingAction("unknown", "Turn ended, unknown", "Works, then goes idle with no reply"),
-        onSelected(
-          "Unheard agent",
-          "Claude Code with no word from its hooks",
-          (key, { dispatch }) => dispatch(unheardAgent(key, "claude")),
+        setting("Failed to start", "Folder not found; tab marked failed", (key, { dispatch }) =>
+          dispatch(failedToStart(key, "Folder not found")),
         ),
       ],
     },
     {
-      title: "Another project",
-      actions: [
-        elsewhereAgent(
-          "Needs permission",
-          "The switcher's dot and row show !",
-          asking("permission", 1),
-        ),
-        elsewhereAgent(
-          "Asks a question",
-          "The switcher's dot and row show ?",
-          asking("question", 1),
-        ),
-        elsewhereAgent(
-          "Plan ready for review",
-          "The switcher's dot and row show !",
-          asking("plan", 1),
-        ),
-        elsewhereEnding("completed", "Turn completed"),
-        elsewhereEnding("failed", "Turn failed"),
-        elsewhereAgent("Working", "A spinner on its row; no dot", working),
-        inAnotherProject("Back at the prompt", "Its mark clears", (key, { dispatch }) =>
-          dispatch(backToPrompt(key)),
-        ),
-      ],
-    },
-    {
+      section: "Terminals",
       title: "New terminals",
       actions: [
+        everyState(verbs),
         failingTerminal(
           "Quick failure",
-          "A new terminal fails right after starting",
+          "Fails right after starting",
           "Exited right after starting",
           quickFailMs,
         ),
-        failingTerminal("Spawn failure", "A new terminal's folder is missing", "Folder not found"),
-        failingTerminal(
-          "Terminal limit reached",
-          "A new terminal is refused",
-          "Terminal limit reached",
-        ),
+        failingTerminal("Spawn failure", "Its folder is missing", "Folder not found"),
+        failingTerminal("Terminal limit", "New terminal refused", "Terminal limit reached"),
         {
           label: `Burst of ${burst}`,
-          hint: "Thirty terminals at once",
+          hint: `${burst} terminals at once`,
           run: ({ addTerminal }) => {
             for (let count = 0; count < burst; count += 1) addTerminal()
           },
@@ -507,124 +400,225 @@ export const createDemoStates = (): DemoStates => {
       ],
     },
     {
-      title: "Notices",
+      section: "Terminals",
+      title: "Projects and sessions",
       actions: [
         {
-          label: "Show a notice",
-          hint: "A notification for the selected terminal; click it to reveal the terminal",
-          run: ({ selected, note }) => {
+          label: "Fresh session, process running",
+          hint: "Sessions panel counts 1 running",
+          run: async ({ selected, dispatch, note, startFresh }) => {
             const key = selected()
-            if (!key) return note("Select a terminal first.")
-            notices.show({
-              id: key.terminalId,
-              title: "Terminal needs you",
-              body: "Click to reveal it.",
-            })
+            if (!key || !dispatch) return note("Select a terminal first.")
+            const target = { projectId: key.projectId, workspaceSessionId: key.workspaceSessionId }
+            verbs.release(key)
+            dispatch([
+              {
+                type: "terminal/status",
+                target,
+                terminalId: key.terminalId,
+                status: { state: "running" },
+              },
+              { type: "terminal/process", target, terminalId: key.terminalId, process: "sleep" },
+            ])
+            await pause(1_000)
+            startFresh()
           },
         },
-        finishElsewhere("completed"),
-        finishElsewhere("failed"),
-      ],
-    },
-    {
-      title: "Update",
-      actions: [
         {
-          label: "Update ready",
-          hint: "A notice above the footer's Update ready chip: Novadeck is ready, four notes, Release notes, Restart now and Later; each press is a newer version, so it comes up again",
-          run: () =>
-            offer({
-              kind: "ready",
-              version: nextVersion(),
-              notes: sampleNotes,
-            }),
-        },
-        {
-          label: "Update ready, no notes",
-          hint: "The same notice without notes: the title, Release notes, Restart now and Later",
-          run: () => offer({ kind: "ready", version: nextVersion(), notes: [] }),
-        },
-        {
-          label: "Update available",
-          hint: "A notice above the footer's Update available chip: Novadeck is available, four notes, Download and Later; Download opens no page in the demo",
-          run: () =>
-            offer({
-              kind: "available",
-              version: nextVersion(),
-              notes: sampleNotes,
-            }),
-        },
-        {
-          label: "Update with long notes",
-          hint: "A notice with twelve 200-character notes: two lines each, the list scrolling, “and 7 more”, and the buttons always in view",
-          run: () =>
-            offer({
-              kind: "ready",
-              version: nextVersion(),
-              notes: longestNotes,
-            }),
-        },
-        {
-          label: "Newer update replaces it",
-          hint: "A newer ready update replaces an open or dismissed one: the notice names the new version and comes up again after Later; the chip stays",
-          run: () =>
-            offer({
-              kind: "ready",
-              version: nextVersion(),
-              notes: sampleNotes.slice(0, 2),
-            }),
-        },
-        {
-          label: "Install failed",
-          hint: "The update waiting turns from ready to available: the chip reads Update available and its notice comes up again, with Download",
-          run: failInstall,
-        },
-        {
-          label: "Early builds on",
-          hint: "Preferences > General > Updates: Early builds is on, after reopening Preferences",
-          run: () => updates.channel?.set("early"),
-        },
-        {
-          label: "Early builds off",
-          hint: "Preferences > General > Updates: Early builds is off, after reopening Preferences",
-          run: () => updates.channel?.set("stable"),
-        },
-        {
-          label: "Finish restart",
-          hint: "Reloads the demo, as the app comes back on the new version, without the update",
-          run: finish,
+          label: "Folder pick fails",
+          hint: "Next Open folder rejects without asking",
+          run: failPick,
         },
       ],
     },
     {
-      title: "Agents",
+      section: "Agents",
+      title: "Agent",
+      targets: true,
+      actions: [
+        verb("Work", "Working; tab shows it running", (v, k, t) => v.work(k, t), verbs),
+        verb(
+          "Plan mode",
+          "Working in plan mode",
+          (v, k, t) => v.work(k, t, { planning: true }),
+          verbs,
+        ),
+        verb(
+          "Subagents",
+          "3 subagents while working",
+          (v, k, t) => v.work(k, t, { subagents: true }),
+          verbs,
+        ),
+        verb(
+          "Needs permission",
+          "1 request waiting; answering it clears it",
+          (v, k, t) => v.ask(k, t, "permission", 1),
+          verbs,
+        ),
+        verb(
+          "Asks a question",
+          "1 question waiting",
+          (v, k, t) => v.ask(k, t, "question", 1),
+          verbs,
+        ),
+        verb("Plan ready", "1 plan waiting", (v, k, t) => v.ask(k, t, "plan", 1), verbs),
+        verb(
+          "3 permissions",
+          "Count in tab and tooltip",
+          (v, k, t) => v.ask(k, t, "permission", 3),
+          verbs,
+        ),
+        verb(
+          "Completes",
+          "Works, then done; unread once you look away",
+          (v, k, t) => v.finish(k, t, "completed", { after: turnMs }),
+          verbs,
+        ),
+        verb(
+          "Fails",
+          "Works, then failed; unread once you look away",
+          (v, k, t) => v.finish(k, t, "failed", { after: turnMs }),
+          verbs,
+        ),
+        verb(
+          "Interrupted",
+          "Works, then stops with a short reply; no unread mark",
+          (v, k, t) => v.finish(k, t, "interrupted", { after: turnMs }),
+          verbs,
+        ),
+        verb(
+          "Ends without reply",
+          "Works, then idles with no reply",
+          (v, k, t) => v.finish(k, t, "unknown", { after: turnMs }),
+          verbs,
+        ),
+        verb(
+          "Background work",
+          "Turn over; 2 tasks run on, counted",
+          (v, k, t) =>
+            v.finish(k, t, "completed", { after: turnMs, background: { agents: 0, tasks: 2 } }),
+          verbs,
+        ),
+        verb(
+          "Background, uncounted",
+          "Turn over; work runs on, uncounted",
+          (v, k, t) =>
+            v.finish(k, t, "completed", { after: turnMs, background: { agents: 0, tasks: 0 } }),
+          verbs,
+        ),
+        verb(
+          "Finishing subagents",
+          "Works on until its 2 subagents finish",
+          (v, k, t) =>
+            v.finish(k, t, "completed", { after: turnMs, background: { agents: 2, tasks: 0 } }),
+          verbs,
+        ),
+        verb(
+          "Rest",
+          "Back at its prompt; answered, read, nothing running",
+          (v, k, t) => v.rest(k, t),
+          verbs,
+        ),
+      ],
+    },
+    {
+      section: "Agents",
+      title: "Agent fixtures",
+      actions: [
+        setting("Unheard agent", "Claude Code, its hooks silent", (key, { dispatch }) =>
+          dispatch(unheardAgent(key, "claude")),
+        ),
+        onSelected(
+          "Context and limits",
+          "Usage in tooltip and status; all else stays",
+          (key, context) => usageOf(verbs, key, context, withUsage(Date.now())),
+        ),
+        onSelected("Context, no size", "Tokens only, no limits; all else stays", (key, context) =>
+          usageOf(verbs, key, context, contextOnly),
+        ),
+      ],
+    },
+    {
+      section: "Agents",
+      title: "Notifications",
+      actions: [...notificationActions],
+    },
+    {
+      section: "Agents",
+      title: "Chat: next send or Stop fails",
+      actions: chat.actions,
+    },
+    {
+      section: "Agents",
+      title: "Agent connections",
       actions: [
         {
-          label: "Next connect fails",
-          hint: "The next switch in Preferences ends in an error",
+          label: "Connect fails",
+          hint: "Next switch in Preferences errors",
           run: failAgents,
         },
         {
           label: "Refresh",
-          hint: "Looks at the agents again; errors clear",
+          hint: "Rechecks agents; errors clear",
           run: () => agents.refresh(),
         },
         {
           label: "Antigravity limited",
-          hint: "Antigravity shows connected, with a warning under its name in Preferences: its own status line keeps messages from waking it until it has been sent a prompt",
+          hint: "Connected, with a warning in Preferences",
           run: limitAntigravity,
         },
-        { label: "Welcome", hint: "Opens the first-run dialog", run: openWelcome },
       ],
     },
-    { title: "Chat", actions: chat.actions },
     {
-      title: "Folders",
+      section: "App",
+      title: "Updates",
       actions: [
         {
-          label: "Next folder pick fails",
-          hint: "Open folder rejects instead of asking",
-          run: failPick,
+          label: "Ready",
+          hint: "4 notes, Restart now, Later",
+          run: () => offer({ kind: "ready", version: nextVersion(), notes: sampleNotes }),
+        },
+        {
+          label: "Ready, no notes",
+          hint: "Same notice, no notes",
+          run: () => offer({ kind: "ready", version: nextVersion(), notes: [] }),
+        },
+        {
+          label: "Available",
+          hint: "4 notes, Download, Later",
+          run: () => offer({ kind: "available", version: nextVersion(), notes: sampleNotes }),
+        },
+        {
+          label: "Long notes",
+          hint: "12 long notes; list scrolls, “and 7 more”",
+          run: () => offer({ kind: "ready", version: nextVersion(), notes: longestNotes }),
+        },
+        {
+          label: "Newer update",
+          hint: "Replaces the open or dismissed one",
+          run: () =>
+            offer({ kind: "ready", version: nextVersion(), notes: sampleNotes.slice(0, 2) }),
+        },
+        {
+          label: "Install failed",
+          hint: "Ready turns to Available, with Download",
+          run: failInstall,
+        },
+        {
+          label: "Early builds on",
+          hint: "Shows in Preferences once reopened",
+          run: () => updates.channel?.set("early"),
+        },
+        {
+          label: "Early builds off",
+          hint: "Shows in Preferences once reopened",
+          run: () => updates.channel?.set("stable"),
+        },
+        {
+          label: "Finish restart",
+          reboots: true,
+          hint: "Reloads on the new version; update gone",
+          run: finish,
         },
       ],
     },
@@ -639,7 +633,10 @@ export const createDemoStates = (): DemoStates => {
     pickDirectory,
     chat: chat.wrap,
     screens,
-    restart: (key, dispatch) => dispatch(backToPrompt(key)),
+    restart: (key, dispatch) => {
+      verbs.release(key)
+      dispatch(backToPrompt(key))
+    },
     Notices,
   }
 }

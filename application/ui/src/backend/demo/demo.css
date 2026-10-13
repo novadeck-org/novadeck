@@ -5,14 +5,17 @@
 
    Parts, inside `.demo-output`: `.muted` text; `.demo-link`; `.terminal-badge`; the
    shell's `.terminal-meta`, `.git-log` and `.request-log`; `.test-summary`; an agent's
-   `.agent-banner` (boxed for Codex, `.agent-codex`), `.agent-request`, `.agent-plan`,
-   `.agent-diff` and `.agent-divider`; the `.command-form` with its `.command-location`
+   `.agent-banner` (boxed for Codex, `.agent-codex`), `.agent-request`,
+   `.agent-diff` and `.agent-divider`; the live tail's `.agent-ask` (`-permission`,
+   `-question`, `-plan`) with its `.agent-ask-tag`; the `.command-form` with its `.command-location`
    and `.command-line`.
 
    Tokens, each optional (its fallback in brackets):
    --demo-font (mono): the output. --demo-muted-fg (muted): secondary text.
    --demo-rule-color (line): the rules and boxes beside requests, plans and summaries.
    --demo-request-bg (soft): a request to an agent.
+   --demo-ask-permission-fg (warning-fg), --demo-ask-question-fg (note-fg),
+   --demo-ask-plan-fg (strong): the rule and tag of the dialog an agent waits on.
    --demo-badge-bg (strong), --demo-badge-fg (on-strong): a PASS badge.
    --demo-form-bg (shell), --demo-form-border-color (line), --demo-form-shadow (none),
    --demo-form-focus-border-color (line-strong): the command form, and while typing. */
@@ -63,12 +66,28 @@
   .agent-request {
     background-color: var(--demo-request-bg, var(--color-soft));
   }
-  .agent-plan,
   .agent-codex .agent-banner {
     border: var(--border-width) solid var(--_rule);
   }
-  .agent-plan ol {
-    list-style: decimal;
+  .agent-ask {
+    --_ask: var(--_rule);
+    border: var(--border-width) solid var(--_rule);
+    border-left: calc(var(--border-width) * 3) solid var(--_ask);
+    background-color: var(--demo-request-bg, var(--color-soft));
+  }
+  .agent-ask-permission {
+    --_ask: var(--demo-ask-permission-fg, var(--color-warning-fg));
+  }
+  .agent-ask-question {
+    --_ask: var(--demo-ask-question-fg, var(--color-note-fg));
+  }
+  .agent-ask-plan {
+    --_ask: var(--demo-ask-plan-fg, var(--color-strong));
+  }
+  .agent-ask-tag {
+    color: var(--_ask);
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
   }
   .agent-diff {
     border-left: var(--border-width) solid var(--_rule);

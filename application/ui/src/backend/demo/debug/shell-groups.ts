@@ -1,22 +1,23 @@
-import { demoVariants } from "../variants"
+import type { ConnectFailure } from "../../port"
 import { bootFailures } from "./boot-failures"
 import { sampleFix } from "./sandbox"
-import type { DemoAction, DemoActionGroup, DemoStates } from "./types"
+import type { DemoActionGroup, DemoStates } from "./types"
 import type { DemoLaunch, DemoShell } from "./with-debug"
 
-const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+// How each boot failure reads in the panel: a label, and what happens after it.
+const failureCopy: Record<ConnectFailure["kind"], { label: string; hint: string }> = {
+  transient: { label: "Transient", hint: "splash retries and connects" },
+  unauthorized: { label: "Unauthorized", hint: "Retry connects" },
+  unknown: { label: "Unknown error", hint: "Retry connects" },
+  incompatible: { label: "Incompatible runner", hint: "Quit only" },
+  outdated: {
+    label: "Newer workspace",
+    hint: "Quit only; names the newer Novadeck",
+  },
+}
 
-const failureHints = {
-  transient: "Boots again and fails the first attempt; the splash retries on its own and connects.",
-  incompatible: "Boots again and fails with only Quit offered.",
-  outdated:
-    "Boots again and fails with only Quit offered, telling a newer Novadeck has used the workspace.",
-  unauthorized: "Boots again and fails the first attempt; Retry connects.",
-  unknown: "Boots again and fails the first attempt; Retry connects.",
-} as const
-
-// The panel's groups for the shell around the demo: which demo runs, how it starts, its
-// connection, its crash loop and its sessions.
+// The panel's groups for the shell around the demo: how it starts, how it fails to,
+// its runner and its sandbox.
 export const shellGroups = ({
   launch,
   shell,
@@ -27,102 +28,85 @@ export const shellGroups = ({
   readonly states: DemoStates
 }): readonly DemoActionGroup[] => {
   const { rehearsals } = launch
-  const variants: readonly DemoAction[] = demoVariants
-    .filter((variant) => variant !== "welcome")
-    .map((variant) => ({
-      label: `${variant}${variant === launch.variant ? " (current)" : ""}`,
-      hint: "Boots again into this demo; a reload in this tab keeps it.",
-      run: () => launch.switchVariant(variant),
-    }))
   return [
-    { title: "Demo", actions: variants },
     {
+      section: "App",
       title: "Startup",
       actions: [
         {
-          label: "Splash hold",
-          hint: "Boots again and holds the splash; press Esc to go on.",
+          label: "Hold the splash",
+          hint: "Until you press Esc",
+          reboots: true,
           run: () => rehearsals.rehearse({ hold: true }),
         },
         {
           label: "Slow attach",
-          hint: "Boots again; the splash counts terminals attaching over about 3\u00a0s.",
+          hint: "Terminals attach over ~3\u00a0s",
+          reboots: true,
           run: launch.armSlowAttach,
-        },
-        ...bootFailures.map((failure) => ({
-          label: `Boot failure: ${failure.kind} (${failure.code})`,
-          hint: failureHints[failure.kind],
-          run: () => rehearsals.rehearse({ fail: failure.code }),
-        })),
-        {
-          label: "No sandbox",
-          hint: "Boots again as a host running without its security sandbox: a No sandbox chip beside the footer's status opens a notice with the fix command and Copy",
-          run: () => launch.setSandbox({ sandboxed: false, fix: sampleFix }),
-        },
-        {
-          label: "No sandbox, no command",
-          hint: "Boots again as a host without a fix to offer: the No sandbox notice explains, with no command",
-          run: () => launch.setSandbox({ sandboxed: false, fix: "" }),
-        },
-        {
-          label: "Sandboxed",
-          hint: "Boots again as a host running in its sandbox: no chip",
-          run: () => launch.setSandbox({ sandboxed: true }),
         },
         {
           label: "Welcome dialog",
-          hint: "Opens the first-run dialog for connecting agents again.",
+          hint: "First-run agent setup",
           run: states.openWelcome,
         },
       ],
     },
     {
-      title: "Connection",
+      section: "App",
+      title: "Boot failures",
+      actions: bootFailures.map((failure) => {
+        const { label, hint } = failureCopy[failure.kind]
+        return {
+          label,
+          hint: `${failure.code} \u00b7 ${hint}`,
+          reboots: true,
+          run: () => rehearsals.rehearse({ fail: failure.code }),
+        }
+      }),
+    },
+    {
+      section: "App",
+      title: "Runner",
       actions: [
         {
-          label: "Reconnecting 5 s",
-          hint: "Footer Reconnecting…, terminals locked, then Reconnected.",
+          label: "Reconnect (5 s)",
+          hint: "Terminals locked, then Reconnected",
           run: () => shell.reconnect(5_000),
         },
         {
-          label: "Offline (toggle)",
-          hint: "Footer Unavailable until you toggle it back.",
+          label: "Toggle offline",
+          hint: "Footer reads Unavailable until toggled back",
           run: shell.toggleOffline,
         },
-      ],
-    },
-    {
-      title: "Crash loop",
-      actions: [
         {
-          label: "Trip the crash loop",
-          hint: "Crashes 4: footer and dialog; the session's terminals fail. Retry restarts them.",
+          label: "Crash loop",
+          hint: "4 crashes: footer and dialog; Retry restarts",
           run: shell.tripCrashLoop,
         },
       ],
     },
     {
-      title: "Sessions",
+      section: "App",
+      title: "Sandbox",
       actions: [
         {
-          label: "Running process + fresh session",
-          hint: "Starts a process here, then a new session; the sessions panel counts 1 running.",
-          run: async ({ selected, dispatch, note, startFresh }) => {
-            const key = selected()
-            if (!key || !dispatch) return note("Select a terminal first.")
-            const target = { projectId: key.projectId, workspaceSessionId: key.workspaceSessionId }
-            dispatch([
-              {
-                type: "terminal/status",
-                target,
-                terminalId: key.terminalId,
-                status: { state: "running" },
-              },
-              { type: "terminal/process", target, terminalId: key.terminalId, process: "sleep" },
-            ])
-            await pause(1_000)
-            startFresh()
-          },
+          label: "No sandbox",
+          hint: "Footer chip; notice with the fix command",
+          reboots: true,
+          run: () => launch.setSandbox({ sandboxed: false, fix: sampleFix }),
+        },
+        {
+          label: "No sandbox, no fix",
+          hint: "Notice explains, no command",
+          reboots: true,
+          run: () => launch.setSandbox({ sandboxed: false, fix: "" }),
+        },
+        {
+          label: "Sandboxed",
+          hint: "No chip",
+          reboots: true,
+          run: () => launch.setSandbox({ sandboxed: true }),
         },
       ],
     },

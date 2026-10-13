@@ -1,34 +1,30 @@
-import { subagentsBadge } from "../../../model/agent-subagents"
+import { isAgentProgram } from "../../../model/process"
 import { workspaceFromSeed } from "../../../model/seed"
 import { workspaceReducer } from "../../../model/state"
 import { terminalEnding } from "../../../model/terminal-ending"
 import { terminalPhase } from "../../../model/terminal-ending"
-import type { TerminalMetadata, Workspace } from "../../../model/types"
+import type { AgentStatus, TerminalMetadata, Workspace } from "../../../model/types"
 import { describe, expect, it } from "../../../test"
 import type { BackendAction, TerminalKey } from "../../port"
 import { demoSeed, demoTerminalId } from "../samples"
 import {
-  agentIn,
-  asking,
   backToPrompt,
   cleanExit,
   exitedWithCode,
   failedToStart,
   killedBy,
   dealKinds,
-  noisyTerminals,
+  noisyAgents,
   othersOf,
   otherTerminals,
+  promptTerminals,
   resting,
   runAgent,
   runProgram,
   terminalOf,
-  turnEnded,
   unheardAgent,
-  backgroundWork,
-  withSubagents,
+  contextOnly,
   withUsage,
-  working,
 } from "./terminals"
 
 const initial = workspaceFromSeed(demoSeed(0), { view: "focus", windowedView: "grid", now: 0 })
@@ -46,6 +42,25 @@ const key = (slot: string): TerminalKey => ({
 const apply = (actions: readonly BackendAction[], from: Workspace = initial): Workspace =>
   actions.reduce(workspaceReducer, from)
 const shell = (workspace: Workspace): TerminalMetadata => terminalOf(workspace, key("04"))!
+// An agent in the terminal with this status; a terminal not running one becomes Claude Code.
+const agentIn = (
+  at: TerminalKey,
+  terminal: TerminalMetadata | undefined,
+  agent: AgentStatus,
+): BackendAction[] => [
+  ...(terminal && isAgentProgram(terminal.process) ? [] : runProgram(at, "claude").slice(0, 1)),
+  {
+    type: "terminal/status",
+    target: { projectId: at.projectId, workspaceSessionId: at.workspaceSessionId },
+    terminalId: at.terminalId,
+    status: { state: "running", agent },
+  },
+]
+const working: AgentStatus = { working: true }
+const asking = (kind: "plan" | "question", count: number): AgentStatus => ({
+  working: true,
+  attention: { kind, count },
+})
 
 describe("terminal states", () => {
   it("finds a terminal in the workspace", () => {
@@ -120,46 +135,14 @@ describe("terminal states", () => {
       expect(terminalPhase(terminal)).toBe("idle")
     })
 
-    it("counts what waits on the person", () => {
-      const terminal = shell(apply(agentIn(key("04"), undefined, asking("permission", 3))))
-      expect(terminal).toMatchObject({ agent: { attention: { kind: "permission", count: 3 } } })
-    })
-
-    it("reports the subagents it runs", () => {
-      const terminal = shell(apply(agentIn(key("04"), undefined, withSubagents)))
-      expect(subagentsBadge(terminal)).toBe("3 subagents")
-    })
-
-    it("reports what its turn left running in the background", () => {
-      const terminal = shell(apply(agentIn(key("04"), undefined, backgroundWork)))
-      expect(subagentsBadge(terminal)).toBe("1 agent · 2 tasks")
-    })
-
     it("reports its context and limits", () => {
-      const { usage } = withUsage(1000)
-      expect(usage?.context).toEqual({ occupied: 84_000, capacity: 200_000 })
-      expect(usage?.limits.every((limit) => limit.resetsAt! > 1000)).toBe(true)
+      const usage = withUsage(1000)
+      expect(usage.context).toEqual({ occupied: 84_000, capacity: 200_000 })
+      expect(usage.limits.every((limit) => limit.resetsAt! > 1000)).toBe(true)
     })
 
-    it("ends a turn with a reply, except where its harness gives none", () => {
-      expect(turnEnded("completed", 5).lastTurn).toMatchObject({ outcome: "completed", at: 5 })
-      expect(turnEnded("completed", 5).lastTurn?.reply).toBeTruthy()
-      expect(turnEnded("unknown", 5).lastTurn).toEqual({ outcome: "unknown", at: 5 })
-    })
-
-    it("carries murmur's words where given, and asks only when they say so", () => {
-      expect(asking("question", 1, "Asks which database").attention).toEqual({
-        kind: "question",
-        count: 1,
-        headline: "Asks which database",
-      })
-      expect(asking("question", 1).attention).toEqual({ kind: "question", count: 1 })
-      expect(turnEnded("completed", 5, { text: "Rounded", asks: true }).lastTurn).toMatchObject({
-        gist: "Rounded",
-        asks: true,
-      })
-      expect(turnEnded("failed", 5, { text: "Broken" }).lastTurn).not.toHaveProperty("asks")
-      expect(turnEnded("failed", 5).lastTurn).not.toHaveProperty("gist")
+    it("reports its tokens alone where its harness gives no size", () => {
+      expect(contextOnly).toMatchObject({ context: { capacity: null }, limits: [] })
     })
 
     it("is unheard when it runs without reporting", () => {
@@ -190,11 +173,34 @@ describe("notification states", () => {
     ])
   })
 
-  it("finds the terminals that ask or finished", () => {
-    expect(noisyTerminals(initial)).toEqual([])
+  it("finds the agents that work, ask or finished", () => {
     const asked = apply(agentIn(key("02"), undefined, asking("plan", 1)))
-    expect(noisyTerminals(asked)).toEqual([key("02")])
-    const ended = apply(agentIn(key("03"), undefined, turnEnded("failed", 1)), asked)
-    expect(noisyTerminals(ended)).toEqual([key("02"), key("03")])
+    expect(noisyAgents(asked)).toContainEqual(key("02"))
+    const finished = apply(
+      agentIn(key("03"), undefined, { working: false, lastTurn: { outcome: "failed", at: 1 } }),
+      asked,
+    )
+    expect(noisyAgents(finished)).toEqual(expect.arrayContaining([key("02"), key("03")]))
+    const rested = apply(agentIn(key("02"), undefined, resting), finished)
+    expect(noisyAgents(rested)).not.toContainEqual(key("02"))
+    // Work left running behind a turn, or by subagents, is as much to rest.
+    const background = apply(
+      agentIn(key("02"), undefined, { working: false, background: { agents: 0, tasks: 1 } }),
+    )
+    expect(noisyAgents(background)).toContainEqual(key("02"))
+    const subagents = apply(
+      agentIn(key("02"), undefined, { working: false, subagents: [{ id: "s", type: null }] }),
+    )
+    expect(noisyAgents(subagents)).toContainEqual(key("02"))
+  })
+
+  it("finds the terminals back at their prompt, however they got there", () => {
+    expect(promptTerminals(initial)).not.toContainEqual(key("04"))
+    const prompt = apply(backToPrompt(key("04")))
+    expect(promptTerminals(prompt)).toContainEqual(key("04"))
+    const running = apply(runProgram(key("04"), "sleep"), prompt)
+    expect(promptTerminals(running)).not.toContainEqual(key("04"))
+    const ended = apply(exitedWithCode(key("04"), 1), prompt)
+    expect(promptTerminals(ended)).not.toContainEqual(key("04"))
   })
 })

@@ -9,6 +9,7 @@ import type {
   BootProgress,
   TerminalKey,
 } from "../../port"
+import { demoTurns } from "../turns"
 import { createDemo, type DemoVariant } from "../variants"
 import { createDebugPanel } from "./DebugPanel"
 import { createDemoPortable, type DemoPortable } from "./portable"
@@ -66,7 +67,8 @@ const terminalCount = (workspace: Workspace | undefined): number =>
 export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const connection = createStore<BackendConnectionState>("connected")
   const crashes = createStore(0)
-  const states = createDemoStates()
+  const turns = demoTurns()
+  const states = createDemoStates(turns)
   if (launch.portable?.offer) states.offer(launch.portable.offer)
   let sink: BackendSink | undefined
   let latest: Workspace | undefined
@@ -75,7 +77,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
   const restart = (key: TerminalKey): void => {
     if (sink) states.restart(key, sink.dispatch)
   }
-  const inner = createDemo(launch.variant, { connection, screens: states.screens, restart })
+  const inner = createDemo(launch.variant, { connection, screens: states.screens, restart }, turns)
   const total = Math.max(
     1,
     inner.seed.projects.reduce(
@@ -106,6 +108,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
       if (!key || !session || !dispatch) return note("Select a terminal first.")
       const target = { projectId: key.projectId, workspaceSessionId: key.workspaceSessionId }
       const terminals = session.state.roster.terminals
+      for (const terminal of terminals) turns.release({ ...key, terminalId: terminal.id })
       dispatch(
         terminals.map((terminal) => ({
           type: "terminal/status",

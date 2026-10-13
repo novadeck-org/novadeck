@@ -1,6 +1,7 @@
-import type { ReactNode } from "react"
+import { createElement, type ReactNode } from "react"
 
 import { emptyCompanions } from "../../model/companion"
+import type { Conversations } from "../../model/conversation"
 import type { WorkspaceSeed } from "../../model/seed"
 import { createStore } from "../../model/store"
 import type { TerminalMetadata, TitleSource, Workspace } from "../../model/types"
@@ -12,8 +13,8 @@ import type {
   CreateBackend,
   TerminalKey,
 } from "../port"
+import { DemoAgentContext, type DemoAgentLink } from "./agent-link"
 import { createDemoChat } from "./chat"
-import { agentSays, turnEnded } from "./debug/terminals"
 import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
@@ -100,7 +101,10 @@ export const demoBackend = (
       engine.setDraft(key, engine.getSnapshot(key).draft + text.replaceAll(/\s*\r?\n\s*/g, " "))
       return true
     },
-    transcripts: { enabled: transcripts, set: (enabled) => transcripts.update(() => enabled) },
+    transcripts: {
+      enabled: transcripts,
+      set: (enabled) => transcripts.update(() => enabled),
+    },
     agents: {
       state: agents,
       set: (agent, connected) =>
@@ -218,15 +222,29 @@ export const withMessages = (backend: Backend, now: number): Backend => {
 
 // A backend with the conversations of its agents, as `transcripts` open them and `turns`
 // run what the person sends: the status of each turn goes through the sink it starts with.
+// Its terminals' screens read the conversations as the chat does (see `DemoAgentLink`);
+// `wrap` gives both the same conversations, for a demo whose agents act on what they are
+// told, so a prompt or an answer from the screen reaches them as one from the chat.
 export const withConversations = (
   backend: Backend,
   transcripts: Readonly<Record<string, DemoTranscript>>,
   turns: DemoTurns,
+  wrap: (conversations: Conversations) => Conversations = (conversations) => conversations,
 ): Backend => {
   const chat = createDemoChat(backend.seed, transcripts, turns)
+  const conversations = wrap(chat.conversations)
+  const link: DemoAgentLink = {
+    conversations,
+    opening: chat.opening,
+  }
+  // One component per backend, so its identity stays stable.
+  const Surface = backend.TerminalSurface
+  const TerminalSurface: Backend["TerminalSurface"] = (props) =>
+    createElement(DemoAgentContext, { value: link }, createElement(Surface, props))
   return {
     ...backend,
-    conversations: chat.conversations,
+    TerminalSurface,
+    conversations,
     commit: (workspace, actions) => {
       backend.commit(workspace, actions)
       chat.observe(workspace)
@@ -286,26 +304,21 @@ const finishAfterMs = 2500
 
 // The agents demo, whose agents in design-system and infra end their turn a moment after
 // it opens (see `demoFinishes`), so the switcher marks their projects done and failed.
-const withFinishes = (backend: Backend): Backend => ({
+const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
   ...backend,
   start: (sink) => {
     const stop = backend.start?.(sink)
-    const timer = setTimeout(
-      () =>
-        sink.dispatch(
-          demoFinishes.flatMap(({ projectId, terminalId, outcome }) =>
-            agentSays(
-              { projectId, workspaceSessionId: "initial", terminalId },
-              turnEnded(outcome, Date.now()),
-            ),
-          ),
-        ),
-      finishAfterMs,
-    )
-    return () => {
-      clearTimeout(timer)
-      stop?.()
-    }
+    for (const { projectId, terminalId, outcome } of demoFinishes)
+      turns.finish(
+        { projectId, workspaceSessionId: "initial", terminalId },
+        backend.seed.projects
+          .find((project) => project.id === projectId)
+          ?.sessions.find((session) => session.id === "initial")
+          ?.terminals.find((terminal) => terminal.id === terminalId),
+        outcome,
+        { after: finishAfterMs },
+      )
+    return () => stop?.()
   },
 })
 
@@ -317,13 +330,12 @@ export const plainDemo = (
   variant: PlainVariant,
   runtime?: DemoSurfaceRuntime,
   turnMs?: number,
+  turns: DemoTurns = demoTurns(turnMs),
 ): Backend => {
-  // The agents demo's idle agents take a prompt, work a moment, and finish; its chats'
-  // prompts drive the same turns.
-  const turns = demoTurns(turnMs)
-  const engine = createDemoEngine(variant === "agents" ? turns.reply : undefined)
+  // Every agent takes a prompt, works a moment, and finishes, however it is sent; the
+  // seeds and the debug panel drive the same turns.
   const backend = demoBackend(
-    engine,
+    createDemoEngine(),
     variant === "welcome" ||
       (import.meta.env.DEV && import.meta.env.VITE_WELCOME_PREVIEW === "true"),
     undefined,
@@ -333,13 +345,13 @@ export const plainDemo = (
   const transcripts = agentTranscripts(now)
   if (variant === "messages")
     return withConversations(
-      withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now)),
+      withFinishes(withMessages({ ...backend, seed: demoSeed(now, true) }, now), turns),
       transcripts,
       turns,
     )
   return withConversations(
     variant === "agents"
-      ? withFinishes(withStorefrontArtifacts({ ...backend, seed: demoSeed(now, true) }))
+      ? withFinishes(withStorefrontArtifacts({ ...backend, seed: demoSeed(now, true) }), turns)
       : backend,
     transcripts,
     turns,

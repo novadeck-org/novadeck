@@ -18,48 +18,48 @@ const failures: readonly {
 }[] = [
   {
     reason: "draft",
-    label: "Next send: box holds a draft",
-    hint: "The send fails, its words back in the box, with Open terminal",
+    label: "Draft in the box",
+    hint: "Words back in the box · Open terminal",
   },
   {
     reason: "shell",
-    label: "Next send: box in shell mode",
-    hint: "The send fails with Open terminal",
+    label: "Box in shell mode",
+    hint: "Offers Open terminal",
   },
   {
     reason: "too-tall",
-    label: "Next send: too tall for the box",
-    hint: "The send fails with Open terminal",
+    label: "Too tall for the box",
+    hint: "Offers Open terminal",
   },
   {
     reason: "no-box",
-    label: "Next send: no box on screen",
-    hint: "The send fails with Open terminal",
+    label: "No box on screen",
+    hint: "Offers Open terminal",
   },
   {
     reason: "no-agent",
-    label: "Next send: no agent running",
-    hint: "The send fails, saying no agent is running, with Open terminal",
+    label: "No agent running",
+    hint: "Says no agent runs · Open terminal",
   },
   {
     reason: "pending",
-    label: "Next send: request waiting",
-    hint: "The send fails, saying to answer the request first, without Open terminal",
+    label: "Request waiting",
+    hint: "Says to answer it first",
   },
   {
     reason: "no-paste",
-    label: "Next send: screen not ready",
-    hint: "The send fails, saying to send again in a moment, without Open terminal",
+    label: "Screen not ready",
+    hint: "Says to retry in a moment",
   },
   {
     reason: "ringing",
-    label: "Next send: doorbell ringing",
-    hint: "The send fails, saying to send again in a moment, without Open terminal",
+    label: "Doorbell ringing",
+    hint: "Says to retry in a moment",
   },
   {
     reason: null,
-    label: "Next send: no reason given",
-    hint: "The send fails, saying to check the terminal, with Open terminal",
+    label: "No reason given",
+    hint: "Says to check the terminal · Open terminal",
   },
 ]
 
@@ -97,15 +97,15 @@ export const createDebugChat = (): {
         },
       })),
       {
-        label: "Next Stop: queued words stay in the box",
-        hint: "The Stop fails, saying the queued message is still in the agent's box, with Open terminal",
+        label: "Stop: queued words stay",
+        hint: "Queued words stay in the box · Open terminal",
         run: () => {
           stopping = "not-cleared"
         },
       },
       {
-        label: "Next Stop: request waiting",
-        hint: "The Stop fails, saying to answer the request first, without Open terminal",
+        label: "Stop: request waiting",
+        hint: "Says to answer it first",
         run: () => {
           stopping = "pending"
         },

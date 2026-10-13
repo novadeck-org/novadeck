@@ -5,6 +5,7 @@ import { itemFixture } from "../../test/fixtures"
 import type { BackendAction } from "../port"
 import { createDemoEngine } from "./engine"
 import { demoBackend, withMessages } from "./index"
+import { demoTurns } from "./turns"
 import { createDemo, demoVariants } from "./variants"
 
 describe("demo backend", () => {
@@ -103,6 +104,31 @@ describe("demo backend", () => {
         for (const id of ids) expect(id).toMatch(/^[A-Za-z0-9_-]+$/)
       },
     )
+  })
+
+  context("with the turns of the debug panel", () => {
+    it.each(demoVariants)("reports every agent status of %s through them", (variant) => {
+      const turns = demoTurns()
+      const backend = createDemo(variant, undefined, turns)
+      const reported: BackendAction[] = []
+      const stop = backend.start!({
+        dispatch: (actions) => reported.push(...actions),
+        open: () => {},
+      })
+      const terminal = backend.seed.projects[0]!.sessions[0]!.terminals[0]!
+      const key = {
+        projectId: backend.seed.projects[0]!.id,
+        workspaceSessionId: backend.seed.projects[0]!.sessions[0]!.id,
+        terminalId: terminal.id,
+      }
+      turns.rest(key, terminal)
+      expect(reported.at(-1)).toMatchObject({
+        type: "terminal/status",
+        terminalId: terminal.id,
+        status: { state: "running", agent: { working: false } },
+      })
+      stop()
+    })
   })
 
   context("when a window's name is handed back", () => {

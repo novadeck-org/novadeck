@@ -30,8 +30,9 @@ export type Showcase = Companions & {
     report: (actions: readonly BackendAction[]) => void,
     current: () => readonly CompanionItem[],
   ) => () => void
-  // What the person typed in an agent's terminal.
-  readonly told: (key: CompanionKey, input: string) => void
+  // What the person typed in an agent's terminal. Where it has the agent revise its plan,
+  // `revised` is called once the revision is written.
+  readonly told: (key: CompanionKey, input: string, revised?: () => void) => void
   // The terminal closed: its agent is gone.
   readonly closed: (key: CompanionKey) => void
 }
@@ -285,7 +286,7 @@ export const createShowcase = (
       write(agent, text)
       return Promise.resolve({ saved: true, stamp: String(agent.writes) })
     },
-    told: (key, input) => {
+    told: (key, input, revised) => {
       const agent = agentAt(key)
       if (!agent) return
       const said = input.trim()
@@ -303,6 +304,8 @@ export const createShowcase = (
       // Without the skill the agent re-reads the plan only when asked to.
       if (!agent.sample.plan.skill && notesIn(agent.file) && /re-?read/i.test(said)) {
         later(1200, () => revise(agent, true))
+        // A decline that asked it comes back to its plan once the turn its words began ends.
+        if (revised) later(1800, revised)
         return
       }
       if (agent.phase !== "planning") return
@@ -314,7 +317,10 @@ export const createShowcase = (
         return
       }
       agent.phase = "revising"
-      later(1800, () => revise(agent, agent.sample.plan.skill))
+      later(1800, () => {
+        revise(agent, agent.sample.plan.skill)
+        revised?.()
+      })
     },
     closed: (key) => {
       running.delete(companionKeyId(key))

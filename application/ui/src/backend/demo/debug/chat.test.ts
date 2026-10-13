@@ -18,12 +18,12 @@ describe("the debug panel's chat failures", () => {
     const sent: string[] = []
     const chat = createDebugChat()
     const conversations = chat.wrap(inner(sent))
-    const draft = chat.actions.find((action) => action.label.includes("draft"))!
+    const draft = chat.actions.find((action) => action.label.includes("Draft"))!
     await draft.run({} as never)
     await expect(conversations.send(key, "one")).rejects.toBeInstanceOf(SettleInTerminal)
     await conversations.send(key, "two")
     expect(sent).toEqual(["two"])
-    const ringing = chat.actions.find((action) => action.label.includes("doorbell"))!
+    const ringing = chat.actions.find((action) => action.label.includes("Doorbell"))!
     await ringing.run({} as never)
     await expect(conversations.send(key, "three")).rejects.toThrow("in a moment")
   })
@@ -32,21 +32,21 @@ describe("the debug panel's chat failures", () => {
     const chat = createDebugChat()
     const conversations = chat.wrap(inner())
     const armed = async (label: string) => {
-      await chat.actions.find((action) => action.label === `Next send: ${label}`)!.run({} as never)
+      await chat.actions.find((action) => action.label === label)!.run({} as never)
       return conversations.send(key, "hi").catch((error: unknown) => error)
     }
-    const agent = await armed("no agent running")
+    const agent = await armed("No agent running")
     expect(agent).toBeInstanceOf(SettleInTerminal)
     expect(agent).toHaveProperty("message", expect.stringContaining("No agent is running"))
-    const pending = await armed("request waiting")
+    const pending = await armed("Request waiting")
     expect(pending).not.toBeInstanceOf(SettleInTerminal)
     expect(pending).toHaveProperty("message", expect.stringContaining("waiting for your answer"))
-    const paste = await armed("screen not ready")
+    const paste = await armed("Screen not ready")
     expect(paste).not.toBeInstanceOf(SettleInTerminal)
     expect(paste).toHaveProperty("message", expect.stringContaining("in a moment"))
 
     // As an older runner says nothing of why: the terminal is where to look.
-    const none = await armed("no reason given")
+    const none = await armed("No reason given")
     expect(none).toBeInstanceOf(SettleInTerminal)
     expect(none).toHaveProperty("message", expect.stringContaining("Check its terminal"))
   })
@@ -64,9 +64,7 @@ describe("the debug panel's chat failures", () => {
   it("arm the next Stop to meet a request waiting, saying to answer it first", async () => {
     const chat = createDebugChat()
     const conversations = chat.wrap(inner())
-    await chat.actions
-      .find((action) => action.label === "Next Stop: request waiting")!
-      .run({} as never)
+    await chat.actions.find((action) => action.label === "Stop: request waiting")!.run({} as never)
     const failure = await conversations.interrupt(key).catch((error: unknown) => error)
     expect(failure).not.toBeInstanceOf(SettleInTerminal)
     expect(failure).toHaveProperty("message", expect.stringContaining("then stop it"))

@@ -1,15 +1,28 @@
 import "./demo.css"
 import { GitBranch } from "lucide-react"
-import { useCallback, useEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react"
 
+import { noConversation, type ChatDialog, type Conversation } from "../../model/conversation"
 import { endingText, terminalEnding } from "../../model/terminal-ending"
 import type { TerminalMetadata } from "../../model/types"
 import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolkit/TerminalStatus"
 import type { BackendConnectionState, TerminalKey, TerminalSurfaceProps } from "../port"
 import { terminalKeyId } from "../registry"
+import { readLine, shownRequest, withWords } from "./agent-input"
+import { DemoAgentContext, type DemoAgentLink } from "./agent-link"
+import { AgentScreen, tailOf } from "./AgentScreen"
 import type { DemoScreen, DemoSurfaceRuntime } from "./debug/types"
 import type { DemoEngine, DemoTerminalSnapshot } from "./engine"
-import { demoAgent, demoAgents } from "./samples"
+import { chatAgent, chatAgents, demoAgent } from "./samples"
 import { TerminalOutput } from "./TerminalOutput"
 
 type DemoTerminalSurfaceProps = Omit<TerminalSurfaceProps, "terminalKey" | "renderWindow"> &
@@ -17,6 +30,9 @@ type DemoTerminalSurfaceProps = Omit<TerminalSurfaceProps, "terminalKey" | "rend
     onCommand: (command: string) => void
     onDraftChange: (draft: string) => void
     onScrollChange: (offset: number) => void
+    // Where the terminal's agent is read and answered, where the demo links its screen
+    // to it: its conversation then follows the intro, and the command line talks to it.
+    link?: { readonly agent: DemoAgentLink; readonly key: TerminalKey }
     // What the terminal opens with, instead of the sample output for its program.
     intro: ReactNode
     // The far side being there to type into and starting a fresh shell, where the demo
@@ -30,11 +46,17 @@ type DemoTerminalSurfaceProps = Omit<TerminalSurfaceProps, "terminalKey" | "rend
     }
   }
 
+type QuestionAnswers = Parameters<typeof readLine>[2]
+
+// A dialog by what an answer names it with; a raw one has no id and is never answered.
+const dialogId = (dialog: ChatDialog | null): string => (dialog && "id" in dialog ? dialog.id : "")
+
 const DemoTerminalSurface = ({
   terminal,
   projectName,
   entries,
   cleared,
+  opening,
   onCommand,
   draft,
   onDraftChange,
@@ -44,12 +66,49 @@ const DemoTerminalSurface = ({
   onInputFocused,
   intro,
   session,
+  link,
 }: DemoTerminalSurfaceProps): React.JSX.Element => {
-  const agent = demoAgent(terminal)
+  const live = link && chatAgent(terminal)
+  const status = terminal.state === "running" ? terminal.agent : undefined
+  const agent = live ?? demoAgent(terminal)
+  const store = useMemo(
+    () => (link && live ? link.agent.conversations.conversation(link.key) : undefined),
+    [link, live],
+  )
+  const conversation = useSyncExternalStore(store?.subscribe ?? ignore, store?.getSnapshot ?? idle)
+  const request = live ? shownRequest(conversation.requests) : undefined
+  const tail =
+    link && live
+      ? tailOf(live, conversation, link.agent.opening(link.key), status, request)
+      : undefined
+  // The questions of a dialog taken so far, and a line the screen couldn't take.
+  const [taken, setTaken] = useState<{
+    dialog: string
+    answers: QuestionAnswers
+  }>()
+  // A note belongs to the request that was shown when it came up, and goes with it.
+  // Each note counts up, so one that repeats re-renders its text and is announced again.
+  const [noted, setNoted] = useState<{ text: string; request: string | undefined; n: number }>()
+  const notes = useRef(0)
+  const note = noted && noted.request === request?.id ? noted.text : undefined
+  const setNote = (text: string | undefined): void =>
+    setNoted(text === undefined ? undefined : { text, request: request?.id, n: ++notes.current })
+  // Where the shown request stands among those the agent waits on, when there are several.
+  const place = request
+    ? { at: conversation.requests.indexOf(request) + 1, of: conversation.requests.length }
+    : undefined
+  const dialog = request?.dialog ?? undefined
+  const answers = dialog && taken?.dialog === dialogId(dialog) ? taken.answers : []
   const input = draft
+  // The draft as it is when a turn's interrupt comes back, not as it was when asked.
+  const latestDraft = useRef(draft)
+  useEffect(() => {
+    latestDraft.current = draft
+  }, [draft])
   const setInput = onDraftChange
   const savedScroll = useRef(scrollOffset)
-  const previousOutput = useRef({ length: entries.length, cleared })
+  const mark = tail?.mark ?? ""
+  const previousOutput = useRef({ length: entries.length, cleared, mark })
   const output = useRef<HTMLDivElement>(null)
   const frame = useRef<HTMLDivElement>(null)
   const ending = session ? terminalEnding(terminal) : null
@@ -62,12 +121,15 @@ const DemoTerminalSurface = ({
   useEffect(() => {
     if (!output.current) return
     const changed =
-      previousOutput.current.length !== entries.length || previousOutput.current.cleared !== cleared
+      previousOutput.current.length !== entries.length ||
+      previousOutput.current.cleared !== cleared ||
+      previousOutput.current.mark !== mark
     output.current.scrollTop = changed
       ? output.current.scrollHeight
-      : (savedScroll.current ?? (entries.length || cleared ? output.current.scrollHeight : 0))
-    previousOutput.current = { length: entries.length, cleared }
-  }, [entries.length, cleared])
+      : (savedScroll.current ??
+        (entries.length || cleared || mark ? output.current.scrollHeight : 0))
+    previousOutput.current = { length: entries.length, cleared, mark }
+  }, [entries.length, cleared, mark])
   useEffect(() => {
     const element = frame.current ?? output.current
     if (!element) return
@@ -83,6 +145,30 @@ const DemoTerminalSurface = ({
   const root = {
     "data-terminal-content": "",
   }
+  // Sends the line to the agent, or answers the request that waits. A line it can't take
+  // stays in the draft.
+  const submit = (line: string): void => {
+    if (!link || !live) return
+    const fail = (error: unknown): void =>
+      setNote(error instanceof Error ? error.message : "That didn't go through.")
+    setNote(undefined)
+    const { conversations } = link.agent
+    // What the screen can't answer stands aside for a prompt, which moves the agent on.
+    if (!request || dialog?.type === "form" || dialog?.type === "raw") {
+      setInput("")
+      conversations.send(link.key, line.trim()).catch(fail)
+      return
+    }
+    if (!dialog) return setNote("This request isn't ready to answer yet.")
+    if (request.answered) return setNote("Already answered; the agent is catching up.")
+    const result = readLine(line, dialog, answers)
+    if (result.type === "note") return setNote(result.text)
+    setInput("")
+    if (result.type === "next")
+      return setTaken({ dialog: dialogId(dialog), answers: result.answers })
+    setTaken(undefined)
+    conversations.answer(link.key, request.id, result.answer).catch(fail)
+  }
   const scroller = (
     <div
       ref={output}
@@ -93,7 +179,10 @@ const DemoTerminalSurface = ({
         onScrollChange(event.currentTarget.scrollTop)
       }}
     >
-      {!cleared && (intro ?? <TerminalOutput terminal={terminal} projectName={projectName} />)}
+      {!cleared &&
+        (intro ?? (
+          <TerminalOutput terminal={terminal} projectName={projectName} planned={opening.planned} />
+        ))}
       {entries.map((entry) => (
         <div className="output-gap" key={entry.id}>
           <p>
@@ -102,12 +191,23 @@ const DemoTerminalSurface = ({
           <p className="whitespace-pre-wrap muted">{entry.reply}</p>
         </div>
       ))}
+      {live && tail && (
+        <AgentScreen
+          agent={live}
+          tail={tail}
+          progress={answers.length}
+          place={place}
+          note={note}
+          noteKey={noted?.n ?? 0}
+        />
+      )}
       <form
         className={`command-form p-3${agent ? " agent-command-form max-w-180" : ""}`}
         onSubmit={(event) => {
           event.preventDefault()
           if (session?.locked) return
           if (ending) return session?.restart()
+          if (live && input.trim()) return submit(input)
           if (input.trim()) {
             onCommand(input)
             setInput("")
@@ -134,7 +234,17 @@ const DemoTerminalSurface = ({
             onChange={(event) => {
               if (!session?.locked) setInput(event.target.value)
             }}
-            placeholder={agent ? `Message ${demoAgents[agent]}…` : ""}
+            onKeyDown={(event) => {
+              // Escape stops a turn, as in the agent's TUI; the words it gives back return.
+              if (event.key !== "Escape" || !link || !status?.working) return
+              link.agent.conversations
+                .interrupt(link.key)
+                .then((words) => words && setInput(withWords(latestDraft.current, words)))
+                .catch((error: unknown) =>
+                  setNote(error instanceof Error ? error.message : "That didn't go through."),
+                )
+            }}
+            placeholder={agent ? `Message ${chatAgents[agent]}…` : ""}
           />
         </label>
       </form>
@@ -182,6 +292,7 @@ const DemoTerminalSurface = ({
 }
 
 const ignore = (): (() => void) => () => {}
+const idle = (): Conversation => noConversation
 const connected = (): BackendConnectionState => "connected"
 const showing: DemoScreen = {}
 const noScreens: ReadonlyMap<string, DemoScreen> = new Map()
@@ -232,6 +343,11 @@ export const createDemoTerminal = (
       runtime?.screens.getSnapshot ?? none,
     )
     const key = { projectId, workspaceSessionId, terminalId }
+    const agent = useContext(DemoAgentContext)
+    const link = useMemo(
+      () => agent && { agent, key: { projectId, workspaceSessionId, terminalId } },
+      [agent, projectId, workspaceSessionId, terminalId],
+    )
     const screen = screens.get(terminalKeyId(key)) ?? showing
     const locked = lockNotice(connection, props.terminal, screen)
     const content = (
@@ -242,6 +358,7 @@ export const createDemoTerminal = (
         onScrollChange={(offset) => engine.setScrollOffset(key, offset)}
         onCommand={(command) => engine.run(key, command)}
         intro={introOf?.(props.terminal, key)}
+        {...(link && { link })}
         {...(runtime && {
           session: {
             locked: locked !== undefined,

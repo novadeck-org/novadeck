@@ -649,55 +649,112 @@ Normal development and packaged builds keep their runner behavior.
 
 The content-preview demo has a panel for reaching every state of the app on demand,
 including the ones that need a runner to go wrong. Run `pnpm dev:previews`, open
-http://127.0.0.1:5181 and click the bug button floating at the bottom right to open or close
-it; Escape closes it too. The runner has no panel. The top line shows the demo variant, the
-connection state, the crash-loop count, and the terminal count.
+http://127.0.0.1:5181 and click the Debug handle in the middle of the footer to slide
+it up or back down; Escape closes it too. The runner has no panel. Its header shows the
+connection state, the crash-loop count and the terminal count, over the demo switcher.
 
 `?demo=` in the address's hash picks the variant: `showcase` (the default, with the
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages` or `welcome`. The
-Demo group switches between them without reloading, and the browser tab remembers the
-last one chosen. `&turnMs=` sets how long a demo agent's turn works (1500 ms unless
-given), as a spec does that must act on the screen before the turn ends.
+switcher in the panel's header changes between them without reloading (pressing the
+current one boots it again), and the browser
+tab remembers the last one chosen. `&turnMs=` sets how long a demo agent's turn works
+(1500 ms unless given), as a spec does that must act on the screen before the turn ends.
 
-- **All at once:** add one terminal per state, named after it, so the tabs and the
-  windows in Grid and Canvas show attention, done, error, ended and the rest side by
-  side. You stay on one that needs permission; the done marks land on the others.
-- **Notification center:** "Fill the notification center" has up to 12 terminals across
+The search field at the top filters actions by label, hint and group. Groups start folded,
+under three sections (Terminals, Agents, App), and the panel remembers which you opened in
+this tab. A ↺ beside an action marks one that boots the demo again.
+
+Terminals:
+
+- **Selected terminal:** put the selected terminal in each of its states: starting, loading
+  output, back at the prompt, running a long program, Claude Code or Codex, a failed
+  paste, and each way to end (clean exit, exit code, killed, failed to start). Each one
+  that changes the state calls off what the terminal's agent had pending, so a finish
+  due later doesn't bring the agent back.
+- **New terminals:** "Every state at once" adds one terminal per state, named after it, so
+  the tabs and the windows in Grid and Canvas show attention, done, error, ended and the
+  rest side by side; you stay on one that needs permission, and the done marks land on
+  the others. Also a burst of 30, a quick failure, a spawn failure and the terminal limit.
+- **Projects and sessions:** mark the selected terminal running, then start a fresh
+  session, to see the sessions panel count it; or make the next folder pick fail.
+
+Agents:
+
+- **Agent:** verbs on the demo's agents, which have one owner that keeps their status, the
+  requests their chats hold and what their screens show in step, as the runner's do. A
+  switch at the top of the group, remembered in this tab and shown with each search hit,
+  picks the terminal they act on: the selected one; another terminal of its session (added
+  in the background when there is none, so you look elsewhere and get the unread mark and
+  the notice); or the first terminal of another project, for the switcher's marks. A terminal
+  that runs no agent becomes Claude Code first. Work, Plan mode and Subagents start a turn
+  that works on. Needs permission, Asks a question, Plan ready and 3 permissions stop it on
+  requests you can answer in the chat or on the screen, which clears the tab and the
+  notification. Completes, Fails, Interrupted and Ends without reply work for 3 s, then end
+  the turn the way asked: with its reply, a short one for Interrupted (no unread mark), none
+  for Ends without reply. Background work (2 tasks counted) and Background, uncounted end the
+  turn and leave work running; Finishing subagents keeps the agent working until its 2
+  subagents finish. Rest leaves it at its prompt with everything answered and read.
+- **Agent fixtures:** what no turn produces: an unheard agent (Claude Code whose hooks say
+  nothing), and context and limits or tokens alone, in the tooltip and status; those two set
+  only the usage of the selected terminal's agent, so a turn, request or queued prompt stays.
+- **Notifications:** "Fill notifications" has up to 12 terminals across
   the projects ask for you (questions, permissions, plans), and after 3 s finish done or
   failed, so the Notifications panel lists every kind and the rail badge reads 9+. It
   adds terminals to the current session if the workspace has too few, without selecting
   them or leaving the Notifications panel, and leaves the selected terminal alone, since
-  a finish only counts while you look elsewhere. "Clear notifications" answers every
-  request and reads every finish, a terminal back at its prompt included, for the empty
-  panel. Its second round of kinds carries what Murmur would write (a headline on the
-  question and the plan, a gist on the done and the failed finish, the done one asking), so
-  the rows can be seen without Murmur installed.
-- **Demo:** boot into another variant.
-- **Startup:** boot again from the splash. "Splash hold" keeps it until you press
-  Escape; "Slow attach" counts terminals attaching over about 3 s; each "Boot
-  failure" fails the first attempt as the runner would, so a transient one retries
-  on its own and the others wait for Retry (an incompatible runner, or a workspace a
-  newer Novadeck has used, only for Quit). The `outdated` failure (`WORKSPACE_TOO_NEW`)
-  is what an older Novadeck shows once a newer one has used the workspace.
-  "Welcome dialog" opens the first-run dialog for connecting agents again. "No sandbox"
-  boots as a host running without Electron's sandbox, for the footer's No sandbox chip
-  and its fix command; "No sandbox, no command" as one with no command to offer; and
-  "Sandboxed" back to normal.
-- **Chat:** arm the next send from a chat to fail as the runner turns it away: a draft
-  in the agent's box, its shell mode, too tall a message, no box on screen, or no agent
-  running (each with Open terminal), a request waiting (answer it first), or a doorbell
-  ringing or a screen not ready (try again in a moment), or no reason given, as from an
-  older runner (check the terminal). Arm the next Stop to fail as the runner's does when the
-  words queued behind the turn stay in the box (with Open terminal), or when a request
-  waits (answer it first).
-- **Connection:** show Reconnecting for 5 s, then Reconnected, or go offline until
-  you toggle it back.
-- **Crash loop:** count four crashes, which shows the footer and the dialog and fails
-  the selected terminal's session's terminals; Try again clears the count and
-  restarts them.
-- **Update:** have an update downloaded, available (the app can't install it itself), with
+  a finish only counts while you look elsewhere. "Clear notifications" rests every agent,
+  which answers every request, reads every finish and calls off those still to come, and
+  has a terminal back at its prompt work for a moment and leave, for the empty panel. Its
+  second round of kinds carries what Murmur would write (a headline on the question and the
+  plan, a gist on the done and the failed finish, the done one asking), so the rows can be
+  seen without Murmur installed. The notices for finishes need the Preferences switch
+  "Notify when an agent finishes" on.
+- **Chat: next send or Stop fails:** arm the next send from a chat to fail as the runner turns it away: a
+  draft in the agent's box, its shell mode, too tall a message, no box on screen, or no
+  agent running (each with Open terminal), a request waiting (answer it first), or a
+  doorbell ringing or a screen not ready (try again in a moment), or no reason given, as
+  from an older runner (check the terminal). Arm the next Stop to fail as the runner's does
+  when the words queued behind the turn stay in the box (with Open terminal), or when a
+  request waits (answer it first).
+- **Agent connections:** make the next connect in Preferences fail, refresh the agents, or
+  connect Antigravity with the note Preferences shows where its own status line keeps
+  Novadeck's out, as on Windows.
+
+App:
+
+- **Startup:** "Hold the splash" keeps it until you press Escape; "Slow attach" counts
+  terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
+  connecting agents again (no reboot).
+- **Boot failures:** each fails the first attempt as the runner would, so a transient one
+  retries on its own and the others wait for Retry (an incompatible runner, or a workspace
+  a newer Novadeck has used, only for Quit). Each hint carries the error code, so the search
+  finds it; `WORKSPACE_TOO_NEW` is what an older Novadeck shows once a newer one has used
+  the workspace.
+- **Runner:** show Reconnecting for 5 s, then Reconnected; go offline until you toggle it
+  back; or count four crashes, which shows the footer and the dialog and fails the selected
+  terminal's session's terminals (Try again clears the count and restarts them).
+- **Sandbox:** boot as a host running without Electron's sandbox, for the footer's No
+  sandbox chip and its fix command; "No sandbox, no fix" as one with no command to offer;
+  and "Sandboxed" back to normal.
+- **Portable:** boot again as a portable copy, which never updates itself and is the way to
+  install the app that does. "No release known" shows the quiet Install Novadeck chip (Install when
+  narrow), which never opens by itself; its panel offers Later and Install Novadeck, and
+  pressing it here never ends: the chip reads Installing…. "Update available"
+  adds a release this copy learned of two days ago: the chip reads Update available and its
+  notice, raised once per version, installs rather than downloads. "Stale
+  update" has known of a newer release for 20 days, so the notice comes up at every boot.
+  "Newer install exists" and "Install fails" arm the other ends of pressing
+  Install Novadeck: a panel saying a newer Novadeck is already installed with Open
+  Novadeck, or a panel giving the reason with Install Novadeck kept to retry. "Slow
+  host" makes the host take four seconds to say it is portable, to check the No
+  sandbox chip does not flash meanwhile. "Installed copy" boots as one. With
+  "No sandbox" set under Sandbox, the No sandbox chip stays away on a portable and the
+  install panel adds a line about it. `?portable=on` (with `&install=newer` or
+  `&install=failed`, `&update=available&outdated=recent` or `old`, and `&answer=late` for
+  a delayed portable answer) opens variants for specs.
+- **Updates:** have an update downloaded, available (the app can't install it itself), with
   no notes, or with notes at the caps, for the notice above the footer's "Update ready" or
   "Update available" chip. Each press offers a newer version, so the notice comes up
   again; Later leaves the chip, which opens it again. Install failed turns the update
@@ -707,33 +764,6 @@ given), as a spec does that must act on the screen before the turn ends.
   off set the channel Preferences' Updates switch shows once Preferences is reopened.
   `?demo=update` and `?demo=update-available` open variants that already have one
   waiting, for specs.
-- **Portable:** boot again as a portable copy, which never updates itself and is the way to
-  install the app that does. "Portable" shows the quiet Install Novadeck chip (Install when
-  narrow), which never opens by itself; its panel offers Later and Install Novadeck, and
-  pressing it here never ends: the chip reads Installing…. "Portable, update available"
-  adds a release this copy learned of two days ago: the chip reads Update available and its
-  notice, raised once per version, installs rather than downloads. "Portable, stale
-  update" has known of a newer release for 20 days, so the notice comes up at every boot.
-  "Portable, newer installed" and "Portable, install fails" arm the other ends of pressing
-  Install Novadeck: a panel saying a newer Novadeck is already installed with Open
-  Novadeck, or a panel giving the reason with Install Novadeck kept to retry. "Portable,
-  slow answer" makes the host take four seconds to say it is portable, to check the No
-  sandbox chip does not flash meanwhile. "Not portable" boots as an installed copy. With
-  "No sandbox" set under Startup, the No sandbox chip stays away on a portable and the
-  install panel adds a line about it. `?portable=on` (with `&install=newer` or
-  `&install=failed`, `&update=available&outdated=recent` or `old`, and `&answer=late` for
-  a delayed portable answer) opens variants for specs.
-- **Sessions:** mark the selected terminal running, then start a fresh session, to see
-  the sessions panel count it.
-- **Another project:** make the agent in the first terminal of another project wait
-  for a permission, ask a question, wait on a plan, finish or fail its turn (after
-  3 s), work, or go back to its prompt, for the project switcher's marks and dot.
-- **Selected terminal, Agent, New terminals, Notices, Agents, Folders:** put a
-  terminal, an agent, the notifications and the pickers in each of their states.
-  The "Turn" actions end after 3 s, and "Agent finishes elsewhere" needs the
-  Preferences switch "Notify when an agent finishes" on. Agents' "Antigravity limited"
-  connects Antigravity with the note Preferences shows where its own status line keeps
-  Novadeck's out, as on Windows.
 
 ## Repository map
 

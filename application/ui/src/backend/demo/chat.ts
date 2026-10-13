@@ -12,12 +12,15 @@ import type { AgentStatus, TerminalMetadata, Workspace } from "../../model/types
 import type { TerminalKey } from "../port"
 import { terminalKeyId } from "../registry"
 import { promptRefused } from "./prompt-refusal"
+import { madeRequest, type DemoRequestOutcome } from "./requests"
 import { chatAgent, chatAgents, terminalSlot } from "./samples"
 import type { DemoDraft, DemoTranscript } from "./transcripts"
 import type { DemoTurns, TurnEvent } from "./turns"
 
 export type DemoChat = {
   readonly conversations: Conversations
+  // How many items a terminal's conversation opened with: its transcript's, else none.
+  readonly opening: (key: TerminalKey) => number
   // Takes the workspace as it stands, which tells what each terminal runs.
   readonly observe: (workspace: Workspace) => void
 }
@@ -29,10 +32,22 @@ export const answerMs = 400
 // settled, in milliseconds.
 export const answeredMs = 500
 
+const movedOn = "The agent moved on before your answer reached it."
+
 type Found = { readonly key: TerminalKey; readonly terminal: TerminalMetadata }
 
 const agentOf = (terminal: TerminalMetadata): AgentStatus =>
   terminal.state === "running" ? (terminal.agent ?? { working: false }) : { working: false }
+
+type Attention = NonNullable<AgentStatus["attention"]>
+
+const sameAttention = (a: Attention | undefined, b: Attention | undefined): boolean =>
+  a?.kind === b?.kind && a?.count === b?.count
+
+// Whether Novadeck hears from the agent: it has reported a status. One that hasn't, such
+// as Antigravity, has what it waits on read from its screen instead.
+const heard = (found: Found | undefined): boolean =>
+  found?.terminal.state === "running" && found.terminal.agent !== undefined
 
 const runs = (found: Found | undefined): found is Found =>
   found !== undefined &&
@@ -95,7 +110,10 @@ const toolRun = (agent: string, terminal: TerminalMetadata, call: string) =>
 // `transcripts` entry, and a prompt sent to it drives the same simulated turn as one typed
 // in its screen, which `turns` runs. What is sent while its agent works waits in the agent's
 // queue, as the real agents keep it: the next goes once the turn ends, and Escape gives
-// them all back.
+// them all back. The requests it holds follow its agent's status, as the runner's do: an
+// agent that reports `count` requests holds that many, the transcript's first and the
+// rest made up, and holds none once it reports none. Answering the last one takes the
+// agent on, through `turns`.
 export const createDemoChat = (
   seed: WorkspaceSeed,
   transcripts: Readonly<Record<string, DemoTranscript>>,
@@ -104,13 +122,28 @@ export const createDemoChat = (
   let latest: Workspace | undefined
   const stores = new Map<
     string,
-    { key: TerminalKey; store: MutableStore<Conversation>; attended: boolean }
+    {
+      key: TerminalKey
+      store: MutableStore<Conversation>
+      // The requests made up for the agent, by id, and what answering each does.
+      made: Map<string, DemoRequestOutcome>
+      // What its agent last said it waits on, and whether it said anything.
+      seen: Attention | undefined
+      listening: boolean
+      // The requests being answered now.
+      answering: Set<string>
+    }
   >()
+  let requested = 0
   // What each terminal's agent was sent while it worked, oldest first, and which agent it
   // was for: a later agent in the terminal never gets it.
   const queues = new Map<
     string,
-    { readonly key: TerminalKey; readonly agent: string; readonly prompts: readonly string[] }
+    {
+      readonly key: TerminalKey
+      readonly agent: string
+      readonly prompts: readonly string[]
+    }
   >()
   // The terminal at the full address, in the workspace as it stands, or in the seed.
   const locate = (key: TerminalKey): Found | undefined => {
@@ -128,33 +161,101 @@ export const createDemoChat = (
     found.key.projectId === seed.projects[0]?.id
       ? transcripts[terminalSlot(found.terminal.id)]
       : undefined
-  const opened = (found: Found | undefined): Conversation => {
+  // What answering a request does, where the demo can answer it.
+  const outcomeOf = (
+    found: Found,
+    made: ReadonlyMap<string, DemoRequestOutcome>,
+    id: string,
+  ): DemoRequestOutcome | undefined => transcriptOf(found)?.outcomes?.[id] ?? made.get(id)
+  // The requests an agent that waits on `attention` holds: those it already had of its
+  // kind that can be answered or read, up to its count, and the rest made up.
+  const settle = (
+    found: Found,
+    made: Map<string, DemoRequestOutcome>,
+    had: readonly ChatRequest[],
+    attention: Attention,
+  ): ChatRequest[] => {
+    const requests = had
+      .filter(
+        (request) =>
+          request.kind === attention.kind &&
+          !request.answered &&
+          (request.dialog?.type === "raw" || outcomeOf(found, made, request.id) !== undefined),
+      )
+      .slice(0, attention.count)
+    const name = chatAgents[chatAgent(found.terminal)!]
+    while (requests.length < attention.count) {
+      requested += 1
+      const id = `${terminalKeyId(found.key)}:ask-${requested}`
+      // A plan is the agent's own: as its transcript's plan asks, with its options.
+      const transcript = transcriptOf(found)
+      const seeded =
+        attention.kind === "plan"
+          ? transcript?.requests?.find(
+              (request) =>
+                request.kind === "plan" &&
+                request.dialog?.type === "choices" &&
+                transcript.outcomes?.[request.id],
+            )
+          : undefined
+      if (seeded?.dialog?.type === "choices") {
+        made.set(id, transcript!.outcomes![seeded.id]!)
+        requests.push({
+          ...seeded,
+          id,
+          answered: false,
+          dialog: { ...seeded.dialog, id: `${id}:d` },
+        })
+        continue
+      }
+      const request = madeRequest(attention.kind, id, name, requests.length)
+      made.set(id, request.outcome)
+      requests.push(request.request)
+    }
+    return requests
+  }
+  const opened = (
+    found: Found | undefined,
+    made: Map<string, DemoRequestOutcome>,
+  ): Conversation => {
     if (!runs(found)) return noConversation
     // The sample transcripts belong to the first project's terminals, as the engine's
     // sample terminals do; another project's agents start empty.
     const transcript = transcriptOf(found)
+    const attention = agentOf(found.terminal).attention
+    made.clear()
     return {
       agent: found.terminal.process,
       session: `demo-${terminalKeyId(found.key)}`,
       loaded: true,
       items: transcript?.items ?? [],
-      requests: transcript?.requests ?? [],
+      // An agent that reports nothing holds what its screen shows; one that does, what it
+      // says it waits on.
+      requests: !heard(found)
+        ? (transcript?.requests ?? [])
+        : attention
+          ? settle(found, made, transcript?.requests ?? [], attention)
+          : [],
     }
   }
-  const storeOf = (key: TerminalKey): MutableStore<Conversation> => {
+  const entryOf = (key: TerminalKey) => {
     const id = terminalKeyId(key)
     const existing = stores.get(id)
-    if (existing) return existing.store
-    const store = createStore(opened(locate(key)))
+    if (existing) return existing
     const found = locate(key)
-    // An agent that reported something to wait on has its requests go once it stops.
-    stores.set(id, {
+    const made = new Map<string, DemoRequestOutcome>()
+    const entry = {
       key,
-      store,
-      attended: found !== undefined && agentOf(found.terminal).attention !== undefined,
-    })
-    return store
+      store: createStore(opened(found, made)),
+      made,
+      seen: runs(found) ? agentOf(found.terminal).attention : undefined,
+      listening: heard(found),
+      answering: new Set<string>(),
+    }
+    stores.set(id, entry)
+    return entry
   }
+  const storeOf = (key: TerminalKey): MutableStore<Conversation> => entryOf(key).store
   const append = (key: TerminalKey, ...drafts: Omit<ChatItem, "id" | "at" | "truncated">[]) =>
     storeOf(key).update((conversation) => ({
       ...conversation,
@@ -222,10 +323,18 @@ export const createDemoChat = (
       if (shellCommand(prompt!) === undefined) return
     }
   }
+  // Nothing waits on the person once a turn begins or the agent rests or is stopped.
+  const clear = (key: TerminalKey): void => {
+    entryOf(key).store.update((conversation) =>
+      conversation.requests.length ? { ...conversation, requests: [] } : conversation,
+    )
+  }
   turns.watch((event: TurnEvent) => {
     const { key } = event
-    if (event.type === "begin") append(key, text("user", event.prompt))
-    else if (event.type === "tool") {
+    if (event.type === "begin") {
+      clear(key)
+      if (event.prompt !== undefined) append(key, text("user", event.prompt))
+    } else if (event.type === "tool") {
       const found = locate(key)
       if (!found) return
       const items = storeOf(key).getSnapshot().items
@@ -253,14 +362,12 @@ export const createDemoChat = (
           author: null,
         },
       )
-    } else if (event.outcome === "completed" && event.reply) {
-      append(key, text("assistant", event.reply))
-    } else {
-      // A refused request is answered.
-      storeOf(key).update((conversation) =>
-        conversation.requests.length ? { ...conversation, requests: [] } : conversation,
-      )
-    }
+    } else if (event.type === "rest") {
+      // What was sent while it worked goes with the turn.
+      queues.delete(terminalKeyId(key))
+      clear(key)
+    } else if (event.outcome === "interrupted") clear(key)
+    else if (event.reply) append(key, text("assistant", event.reply))
   })
   const agentFor = (key: TerminalKey): Found => {
     const found = locate(key)
@@ -310,12 +417,12 @@ export const createDemoChat = (
       },
       answer: async (key, id, answer) => {
         const found = agentFor(key)
-        const store = storeOf(found.key)
+        const { store, made, answering } = entryOf(found.key)
         const waiting = (): ChatRequest | undefined =>
-          store.getSnapshot().requests.find((request) => request.id === id)
+          store.getSnapshot().requests.find((request) => request.id === id && !request.answered)
         const dialog = waiting()?.dialog
-        if (!waiting()) throw new Error("That request is already answered.")
-        const outcome = transcriptOf(found)?.outcomes?.[id]
+        if (!waiting() || answering.has(id)) throw new Error("That request is already answered.")
+        const outcome = outcomeOf(found, made, id)
         if (
           !dialog ||
           dialog.type === "raw" ||
@@ -341,23 +448,60 @@ export const createDemoChat = (
           promptRefused(answer.text ?? "")
         )
           throw new Error(promptRefusal)
-        await new Promise((resolve) => setTimeout(resolve, answerMs))
-        // Stopped meanwhile: the request went with the turn.
-        if (!waiting()) throw new Error("That request is already answered.")
-        const result = outcome(answer, dialog)
-        store.update((conversation) => ({
-          ...conversation,
-          requests: conversation.requests.map((request) =>
-            request.id === id ? { ...request, answered: true } : request,
-          ),
-        }))
-        await new Promise((resolve) => setTimeout(resolve, answeredMs))
-        store.update((conversation) => ({
-          ...conversation,
-          requests: conversation.requests.filter((request) => request.id !== id),
-        }))
-        append(found.key, ...result.items.map(draftOf))
-        turns.resume(found.key, found.terminal, result)
+        // Anything that takes the agent some other way meanwhile (Stop, a verb of the panel)
+        // calls the answer off: it was to an agent that has moved on.
+        const epoch = turns.epoch(found.key)
+        const moved = (): boolean => turns.epoch(found.key) !== epoch
+        answering.add(id)
+        try {
+          await new Promise((resolve) => setTimeout(resolve, answerMs))
+          // Stopped meanwhile: the request went with the turn.
+          if (moved()) throw new Error(movedOn)
+          if (!waiting()) throw new Error("That request is already answered.")
+          const result = outcome(answer, dialog)
+          store.update((conversation) => ({
+            ...conversation,
+            requests: conversation.requests.map((request) =>
+              request.id === id ? { ...request, answered: true } : request,
+            ),
+          }))
+          await new Promise((resolve) => setTimeout(resolve, answeredMs))
+          // The agent was stopped or taken elsewhere while the request showed as answered:
+          // what that left is final, and the answer goes no further, which the caller is
+          // told.
+          if (moved()) {
+            store.update((conversation) => ({
+              ...conversation,
+              requests: conversation.requests.map((request) =>
+                request.id === id ? { ...request, answered: false } : request,
+              ),
+            }))
+            throw new Error(movedOn)
+          }
+          // Of several requests, answering one lowers what the agent waits on and goes no
+          // further; the last takes it on.
+          const remaining = store.getSnapshot().requests.filter((request) => request.id !== id)
+          const current = locate(found.key) ?? found
+          const entry = entryOf(found.key)
+          const attention = agentOf(current.terminal).attention
+          entry.seen =
+            attention && remaining.length ? { ...attention, count: remaining.length } : undefined
+          store.update((conversation) => ({
+            ...conversation,
+            requests: remaining,
+          }))
+          append(found.key, ...result.items.map(draftOf))
+          // An agent that reports nothing is never told: its screen is all that changed,
+          // and what it says is in the conversation, with no turn behind it.
+          if (!heard(current)) {
+            if ("reply" in result) append(found.key, text("assistant", result.reply))
+            return
+          }
+          if (!remaining.length) turns.resume(found.key, current.terminal, result)
+          else turns.lower(found.key, current.terminal, remaining.length)
+        } finally {
+          answering.delete(id)
+        }
       },
     },
     observe: (workspace) => {
@@ -369,21 +513,28 @@ export const createDemoChat = (
       for (const entry of stores.values()) {
         const { key, store } = entry
         const found = locate(key)
-        const attention = runs(found) && agentOf(found.terminal).attention !== undefined
-        const gone = entry.attended && !attention
-        entry.attended = attention
+        const listening = heard(found)
+        const attention = runs(found) ? agentOf(found.terminal).attention : undefined
+        const changed = listening !== entry.listening || !sameAttention(attention, entry.seen)
+        entry.seen = attention
+        entry.listening = listening
         store.update((conversation) => {
           if (!runs(found)) return conversation.agent === null ? conversation : noConversation
-          if (conversation.agent === null) {
-            entry.attended = agentOf(found.terminal).attention !== undefined
-            return opened(found)
+          if (conversation.agent === null) return opened(found, entry.made)
+          if (!changed || !listening) return conversation
+          // Nothing waits once the agent has nothing to ask; what it asks now is held.
+          if (!attention)
+            return conversation.requests.length ? { ...conversation, requests: [] } : conversation
+          return {
+            ...conversation,
+            requests: settle(found, entry.made, conversation.requests, attention),
           }
-          // Nothing waits once the agent has nothing to ask.
-          return gone && conversation.requests.length
-            ? { ...conversation, requests: [] }
-            : conversation
         })
       }
+    },
+    opening: (key) => {
+      const found = locate(key)
+      return runs(found) ? (transcriptOf(found)?.items.length ?? 0) : 0
     },
   }
 }
