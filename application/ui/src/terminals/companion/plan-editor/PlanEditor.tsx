@@ -1,14 +1,15 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands"
 import { Language, LanguageSupport, defineLanguageFacet } from "@codemirror/language"
-import { Annotation, EditorState, Transaction } from "@codemirror/state"
+import { Annotation, EditorState, MapMode, Transaction } from "@codemirror/state"
 import { EditorView, keymap } from "@codemirror/view"
 import { GFM, parser } from "@lezer/markdown"
 import { useEffect, useLayoutEffect, useRef } from "react"
 
+import { createKept } from "../kept"
 import type { Mark } from "../plan-doc"
 import { editorTheme } from "./editor-theme"
 import { currentAgentMarks, livePreview, setMarks } from "./live-preview"
-import { scrollLineToTop } from "./scroll"
+import { followScroll, restoreScroll, scrollLineToTop, type PlanScroll } from "./scroll"
 import { lineChanges } from "./sync"
 
 // Markdown with GitHub's tables and task lists, and nothing embedded: plans don't need
@@ -23,9 +24,71 @@ const fromAgent = Annotation.define<boolean>()
 // What the reader can ask of the editor.
 export type PlanEditorHandle = { readonly jumpTo: (at: number) => void }
 
+// What follows an editor: its latest listeners, and where its pane is scrolled in the
+// plan, moved along with every change to it. A saved state outlives the editor that made
+// it, so its extensions reach these through the editor showing it now.
+type Followers = {
+  readonly listeners: {
+    readonly current: { readonly onChange: (text: string, marks: readonly Mark[]) => void }
+  }
+  scroll: PlanScroll | null
+}
+const followersOf = new WeakMap<EditorView, Followers>()
+
+// What a plan's editor held when it closed, so the next one for that plan, as a view
+// switch or a tab Focus no longer keeps builds it again, opens as it was left: the parsed
+// file, its undo history and selection, and where it was scrolled. Kept here, so a hot
+// update of the editor starts over rather than reopening states the new code can't follow.
+type SavedEditor = { readonly state: EditorState; readonly scroll: PlanScroll | null }
+const savedEditors = createKept<SavedEditor>(12)
+
+// The editor's behaviour, fixed for a state's life: the pane remounts the editor, and
+// starts a new state, if the plan becomes writable or stops being so.
+const extensions = (readOnly: boolean) => [
+  history(),
+  keymap.of([...defaultKeymap, ...historyKeymap]),
+  planMarkdown,
+  EditorView.lineWrapping,
+  EditorState.readOnly.of(readOnly),
+  // Read-only holds for every change, not only typing: note keys, checkboxes and the
+  // table's own edits dispatch directly. Only the file's own changes land.
+  EditorState.transactionFilter.of((transaction) =>
+    transaction.docChanged && transaction.startState.readOnly && !transaction.annotation(fromAgent)
+      ? []
+      : transaction,
+  ),
+  EditorView.contentAttributes.of({ "aria-label": "Plan" }),
+  livePreview,
+  editorTheme,
+  EditorView.updateListener.of((update) => {
+    const followers = followersOf.get(update.view)
+    if (!followers || !update.docChanged) return
+    const { scroll } = followers
+    // Inserted right above, the line stays; rewritten, the place is where the rewrite starts.
+    if (scroll)
+      followers.scroll = {
+        ...scroll,
+        at:
+          update.changes.mapPos(scroll.at, 1, MapMode.TrackDel) ??
+          update.changes.mapPos(scroll.at, -1),
+      }
+    if (
+      update.transactions.some(
+        (transaction) => transaction.docChanged && !transaction.annotation(fromAgent),
+      )
+    )
+      followers.listeners.current.onChange(
+        update.state.doc.toString(),
+        currentAgentMarks(update.state),
+      )
+  }),
+]
+
 // The plan file, edited where it's rendered. `text` is the file; the user's edits go out
-// through `onChange`, and the agent's rewrites come in as changes to it.
+// through `onChange`, and the agent's rewrites come in as changes to it. `id` names the
+// plan, whose editor opens again as the last one for it was left.
 export const PlanEditor = ({
+  id,
   text,
   marks,
   onChange,
@@ -33,6 +96,7 @@ export const PlanEditor = ({
   onClose,
   readOnly = false,
 }: {
+  id: string
   text: string
   marks: readonly Mark[]
   // The text, and the latest revision's highlights moved along with the edit.
@@ -45,53 +109,49 @@ export const PlanEditor = ({
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   // The latest props, for the editor's listeners, which outlive a render.
-  const latest = useRef({ text, marks, onChange, onReady, onClose, readOnly })
+  const latest = useRef({ id, text, marks, onChange, onReady, onClose, readOnly })
   useLayoutEffect(() => {
-    latest.current = { text, marks, onChange, onReady, onClose, readOnly }
+    latest.current = { id, text, marks, onChange, onReady, onClose, readOnly }
   })
   useEffect(() => {
+    const { id: plan, text: doc, readOnly: locked } = latest.current
+    const saved = savedEditors.get(plan)
+    const reopened = saved?.state.readOnly === locked ? saved : undefined
     const editor = new EditorView({
       parent: host.current!,
-      state: EditorState.create({
-        doc: latest.current.text,
-        extensions: [
-          history(),
-          keymap.of([...defaultKeymap, ...historyKeymap]),
-          planMarkdown,
-          EditorView.lineWrapping,
-          // Fixed for the editor's life: the pane remounts it if that changes.
-          EditorState.readOnly.of(latest.current.readOnly),
-          // Read-only holds for every change, not only typing: note keys, checkboxes and
-          // the table's own edits dispatch directly. Only the file's own changes land.
-          EditorState.transactionFilter.of((transaction) =>
-            transaction.docChanged &&
-            transaction.startState.readOnly &&
-            !transaction.annotation(fromAgent)
-              ? []
-              : transaction,
-          ),
-          EditorView.contentAttributes.of({ "aria-label": "Plan" }),
-          livePreview,
-          editorTheme,
-          EditorView.updateListener.of((update) => {
-            if (
-              update.transactions.some(
-                (transaction) => transaction.docChanged && !transaction.annotation(fromAgent),
-              )
-            )
-              latest.current.onChange(update.state.doc.toString(), currentAgentMarks(update.state))
-          }),
-        ],
-      }),
+      state: reopened?.state ?? EditorState.create({ doc, extensions: extensions(locked) }),
     })
+    const followers: Followers = { listeners: latest, scroll: reopened?.scroll ?? null }
+    followersOf.set(editor, followers)
     editor.dispatch({ effects: setMarks.of(latest.current.marks) })
+    // Where the pane is scrolled counts once it's back where it was left.
+    let stopScroll = (): void => {}
+    let closing = false
+    const follow = (): void => {
+      // A restore ended by closing leaves the place it was restoring to.
+      if (closing) return
+      stopScroll = followScroll(editor, (at) => {
+        followers.scroll = at
+      })
+    }
+    let stopRestore = (): void => {}
+    if (followers.scroll) stopRestore = restoreScroll(editor, () => followers.scroll, follow)
+    else follow()
     view.current = editor
     latest.current.onReady({
-      jumpTo: (at) => scrollLineToTop(editor, at),
+      // A jump from the outline wins over a restore still under way.
+      jumpTo: (at) => {
+        stopRestore()
+        scrollLineToTop(editor, at)
+      },
     })
     return () => {
       // Closing the pane leaves no empty note behind: none of the editor's updates follow.
       latest.current.onClose()
+      closing = true
+      stopRestore()
+      stopScroll()
+      savedEditors.keep(plan, { state: editor.state, scroll: followers.scroll })
       editor.destroy()
     }
   }, [])

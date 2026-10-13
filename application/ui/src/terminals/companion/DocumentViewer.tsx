@@ -14,9 +14,12 @@ const noMarks: readonly never[] = []
 const ignore = (): void => {}
 
 export const DocumentViewer = ({
+  id,
   content,
   actions,
 }: {
+  // The item showing it, whose editor opens again as it was left.
+  id: string
   content: FileContent
   actions?: ReactNode
 }): React.JSX.Element => {
@@ -52,6 +55,7 @@ export const DocumentViewer = ({
         <div className="plan-document-scroll">
           <Suspense fallback={null}>
             <PlanEditor
+              id={id}
               readOnly
               text={text}
               marks={noMarks}

@@ -26,9 +26,8 @@ export const scrollLineToTop = (view: EditorView, at: number): void => {
       Math.max(
         0,
         scroller.scrollTop +
-          view.documentTop +
-          view.lineBlockAt(at).top -
-          scroller.getBoundingClientRect().top -
+          (view.documentTop + view.lineBlockAt(at).top - scroller.getBoundingClientRect().top) /
+            scaleOf(view) -
           margin,
       ),
       scroller.scrollHeight - scroller.clientHeight,
@@ -61,4 +60,126 @@ export const scrollLineToTop = (view: EditorView, at: number): void => {
   )
   // A scroll that never reports its end leaves nothing behind.
   setTimeout(() => done.abort(), 2000)
+}
+
+// Where the pane is scrolled in the plan: the line at its top, and how far down that line,
+// as a share of its height, which holds across a narrower or zoomed pane.
+export type PlanScroll = { readonly at: number; readonly into: number }
+
+// How far the pane's top is into the document, in the page's pixels, which CodeMirror
+// measures its lines in: scaled where Canvas zooms, or while the pane scales in.
+const heightAtTop = (view: EditorView, scroller: HTMLElement): number =>
+  scroller.getBoundingClientRect().top - view.documentTop
+
+// How many page pixels a pixel of the pane's own scroll is. Over the whole editor, so
+// rounding its height to whole pixels hardly matters.
+const scaleOf = (view: EditorView): number => {
+  const tall = view.dom.offsetHeight
+  return tall ? view.dom.getBoundingClientRect().height / tall : 1
+}
+
+// Follows where the pane is scrolled in the plan, while it's on screen; returns the stop.
+export const followScroll = (view: EditorView, on: (scroll: PlanScroll) => void): (() => void) => {
+  const scroller = scrollerOf(view.dom)
+  if (!scroller) return () => {}
+  const note = (): void => {
+    // Out of sight it has no size, and no place to note.
+    if (!scroller.clientHeight) return
+    // Above the first line, in the editor's padding, it's a negative share of it.
+    const height = heightAtTop(view, scroller)
+    const line = view.lineBlockAtHeight(height)
+    on({ at: line.from, into: line.height ? (height - line.top) / line.height : 0 })
+  }
+  // Where it is now counts too, as a scroll that ended a restore and came before this,
+  // once the editor has measured its padding.
+  view.requestMeasure({ read: note })
+  scroller.addEventListener("scroll", note, { passive: true })
+  return () => scroller.removeEventListener("scroll", note)
+}
+
+// Scrolls the pane back to where `scroll` says, at once, then again each frame while the
+// editor measures the lines that came into view, whose heights it had only estimated, or
+// an edit moves the place; `done` once it holds still, after half a second, or once the
+// person, or anything else, scrolls the pane. Out of sight, it waits until the pane
+// shows. Returns the finish, for an editor that closes or jumps elsewhere meanwhile.
+export const restoreScroll = (
+  view: EditorView,
+  scroll: () => PlanScroll | null,
+  done: () => void,
+): (() => void) => {
+  const scroller = scrollerOf(view.dom)
+  if (!scroller) {
+    done()
+    return () => {}
+  }
+  const target = (): number | null => {
+    const now = scroll()
+    if (!now) return null
+    const line = view.lineBlockAt(Math.min(now.at, view.state.doc.length))
+    const off = line.top + now.into * line.height - heightAtTop(view, scroller)
+    return Math.min(
+      Math.max(0, scroller.scrollTop + off / scaleOf(view)),
+      scroller.scrollHeight - scroller.clientHeight,
+    )
+  }
+  // Where it last put the pane: a scroll anywhere else is someone else's.
+  let placed = scroller.scrollTop
+  // Whether it moved.
+  const go = (): boolean => {
+    const top = target()
+    if (top === null || Math.abs(top - scroller.scrollTop) < 1) return false
+    scroller.scrollTo({ top, behavior: "instant" })
+    placed = scroller.scrollTop
+    return true
+  }
+  const stop = new AbortController()
+  const { signal } = stop
+  let frame = 0
+  const finish = (): void => {
+    if (signal.aborted) return
+    stop.abort()
+    cancelAnimationFrame(frame)
+    done()
+  }
+  for (const type of ["wheel", "touchstart", "pointerdown", "keydown"])
+    scroller.addEventListener(type, finish, { signal, passive: true })
+  // Scrolled by anyone else, as the app jumping somewhere or the page keeping what shows
+  // in place, the pane stays where they put it.
+  scroller.addEventListener(
+    "scroll",
+    () => {
+      const top = scroller.scrollTop
+      // The pane cut short as what it holds shrank for a moment isn't anyone's scroll.
+      const clamped = top < placed && top >= scroller.scrollHeight - scroller.clientHeight - 1
+      if (!clamped && Math.abs(top - placed) >= 1) finish()
+    },
+    { signal, passive: true },
+  )
+  // The editor may still correct heights it estimated a while on, as it measures again
+  // after a resize settles: it holds still once nothing moved it for 150ms, or after
+  // half a second.
+  let began = 0
+  let moved = 0
+  const settle = (now: number): void => {
+    if (go()) moved = now
+    if (now - moved < 150 && now - began < 500) frame = requestAnimationFrame(settle)
+    else finish()
+  }
+  const start = (): void => {
+    placed = scroller.scrollTop
+    go()
+    began = moved = performance.now()
+    frame = requestAnimationFrame(settle)
+  }
+  if (scroller.clientHeight) start()
+  else {
+    const shows = new ResizeObserver(() => {
+      if (!scroller.clientHeight) return
+      shows.disconnect()
+      start()
+    })
+    shows.observe(scroller)
+    signal.addEventListener("abort", () => shows.disconnect())
+  }
+  return finish
 }

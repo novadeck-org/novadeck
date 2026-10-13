@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import {
   pathOf,
@@ -14,6 +14,7 @@ import { useShown } from "../../ui-toolkit/shown"
 import { isMarkdown } from "./artifact-icons"
 import { DocumentViewer } from "./DocumentViewer"
 import type { HighlightedLine } from "./highlight"
+import { createKept } from "./kept"
 import { headingsOf, titleOf } from "./plan-text"
 import { createWebview, type WebviewElement } from "./webview"
 
@@ -75,19 +76,56 @@ const ImageViewer = ({
 const pointedLines = (file: FileContent): readonly string[] =>
   file.lines.slice(file.from - file.firstLine, file.to - file.firstLine + 1)
 
+// Files lately highlighted, so one shown again, as a view switch or a tab Focus no
+// longer keeps builds its viewer again, shows highlighted at once. By path and a hash of
+// the text, so a key never holds the file, and only files in a language Novadeck
+// highlights, under a size past which keeping them costs more than parsing again.
+const highlightedFiles = createKept<readonly HighlightedLine[]>(24)
+const keptSize = 200_000
+
+// A 53-bit hash of the text (cyrb53): a key that changes with it.
+const hashOf = (text: string): string => {
+  let first = 0xdeadbeef
+  let second = 0x41c6ce57
+  for (let at = 0; at < text.length; at++) {
+    const code = text.charCodeAt(at)
+    first = Math.imul(first ^ code, 2654435761)
+    second = Math.imul(second ^ code, 1597334677)
+  }
+  first =
+    Math.imul(first ^ (first >>> 16), 2246822507) ^ Math.imul(second ^ (second >>> 13), 3266489909)
+  second =
+    Math.imul(second ^ (second >>> 16), 2246822507) ^ Math.imul(first ^ (first >>> 13), 3266489909)
+  return (4294967296 * (2097151 & second) + (first >>> 0)).toString(36)
+}
+
+const highlightKey = (file: FileContent): string | null => {
+  const text = file.lines.join("\n")
+  return text.length > keptSize ? null : `${file.path}\n${text.length}:${hashOf(text)}`
+}
+
 // The file's lines highlighted, once its parser has loaded; null until then, or for a
 // language Novadeck doesn't highlight.
 const useHighlighted = (file: FileContent): readonly HighlightedLine[] | null => {
+  const key = useMemo(() => highlightKey(file), [file])
   const [highlighted, setHighlighted] = useState<{
     readonly of: FileContent
     readonly lines: readonly HighlightedLine[] | null
   } | null>(null)
+  // Highlighted lately: it shows so at once, and stays so however long it shows.
+  if (highlighted?.of !== file && key !== null) {
+    const known = highlightedFiles.get(key)
+    if (known) setHighlighted({ of: file, lines: known })
+  }
+  const shown = highlighted?.of === file
   useEffect(() => {
+    if (shown) return
     let current = true
     import("./highlight")
       .then(({ highlightLines }) => highlightLines(file.path, file.lines))
       .then(
         (lines) => {
+          if (lines && key !== null) highlightedFiles.keep(key, lines)
           if (current) setHighlighted({ of: file, lines })
         },
         // Plain text is the fallback when a parser can't load.
@@ -96,8 +134,8 @@ const useHighlighted = (file: FileContent): readonly HighlightedLine[] | null =>
     return () => {
       current = false
     }
-  }, [file])
-  return highlighted?.of === file ? highlighted.lines : null
+  }, [file, key, shown])
+  return shown ? highlighted.lines : null
 }
 
 const FileViewer = ({
@@ -410,7 +448,7 @@ export const ArtifactViewer = ({
       ) : ready?.kind === "image" ? (
         <ImageViewer artifact={artifact} content={ready} actions={actions} />
       ) : ready?.kind === "file" && isMarkdown(ready.path) ? (
-        <DocumentViewer content={ready} actions={actions} />
+        <DocumentViewer id={artifact.id} content={ready} actions={actions} />
       ) : ready?.kind === "file" ? (
         <FileViewer content={ready} actions={actions} />
       ) : ready?.kind === "page" ? (

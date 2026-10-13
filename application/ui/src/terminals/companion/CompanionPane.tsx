@@ -178,6 +178,7 @@ const PlanBody = ({
         <div className="plan-document-scroll" data-changes={plan.showChanges}>
           <Suspense fallback={null}>
             <PlanEditor
+              id={item.id}
               readOnly={!plan.writable}
               text={plan.text}
               marks={marks}

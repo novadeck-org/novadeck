@@ -19,7 +19,7 @@ import {
   windowMenu,
 } from "./support/companions"
 import { gridView } from "./support/layouts"
-import { expectStaysAbsent, terminal, terminalTab } from "./support/workspace"
+import { chooseView, expectStaysAbsent, isMac, terminal, terminalTab } from "./support/workspace"
 
 describe("A terminal's taskbar", () => {
   it("shows its agent's plan, what it showed, and its messages, stacked by kind", async () => {
@@ -203,6 +203,81 @@ describe("Switching terminals in Focus", () => {
     expect(scroll.isConnected).toBe(true)
     expect(scroll.querySelector(".cm-editor")).toBe(editor)
     expect(scroll.scrollTop).toBe(100)
+  })
+})
+
+describe("Switching views", () => {
+  it("opens a plan that wasn't scrolled at its very top again", async () => {
+    await openShowcase("grid")
+    await taskbarIcon("Refactor auth", "Plan: refactor-auth.md").click()
+    const plan = (): HTMLElement | null | undefined =>
+      companionPane("Refactor auth").element().querySelector<HTMLElement>(".plan-document-scroll")
+    await expect.poll(() => plan()?.querySelector(".cm-content")).toBeTruthy()
+
+    await chooseView("Focus")
+    await chooseView("Grid")
+
+    await expect.poll(() => plan()?.querySelector(".cm-content")).toBeTruthy()
+    // Past the half second a restore may take.
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    expect(plan()!.scrollTop).toBe(0)
+  })
+
+  it("opens a plan's editor as it was left: scrolled, and with what can be undone", async () => {
+    await openShowcase("grid")
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    const plan = (): HTMLElement =>
+      companionPane("Build Studio").element().querySelector<HTMLElement>(".plan-document-scroll")!
+    const content = (): HTMLElement => plan().querySelector<HTMLElement>(".cm-content")!
+    await expect.poll(() => plan()?.querySelector(".cm-content")).not.toBeNull()
+    content().focus()
+    await userEvent.keyboard("Draft ")
+    await expect.poll(() => content().textContent).toContain("Draft ")
+    await expect.poll(() => plan().scrollHeight).toBeGreaterThan(plan().clientHeight + 200)
+    plan().scrollTop = 200
+    await expect.poll(() => plan().scrollTop).toBe(200)
+
+    // The first line with words showing at the pane's top, and how far down it the top
+    // is, as a share of the line, which holds however wide or zoomed the pane is.
+    const place = (): { readonly line: string; readonly into: number } | undefined => {
+      const { top } = plan().getBoundingClientRect()
+      const line = [...plan().querySelectorAll(".cm-line")].find(
+        (each) => each.getBoundingClientRect().bottom > top + 1 && each.textContent?.trim(),
+      )
+      if (!line) return undefined
+      const box = line.getBoundingClientRect()
+      return { line: line.textContent ?? "", into: (top - box.top) / box.height }
+    }
+    const reading = place()!
+    expect(reading.line).toBeTruthy()
+    const backAt = async (): Promise<void> => {
+      await expect.poll(() => place()?.line).toBe(reading.line)
+      await expect.poll(() => Math.abs(place()!.into - reading.into)).toBeLessThan(0.1)
+    }
+
+    await chooseView("Focus")
+    await terminalTab("Build Studio").click()
+    await backAt()
+    // Canvas shows the pane zoomed, as it fits the board.
+    await chooseView("Canvas")
+    await backAt()
+    await chooseView("Grid")
+
+    await expect
+      .poll(() => companionPane("Build Studio").element().querySelector(".cm-content"))
+      .not.toBeNull()
+    await expect.poll(() => Math.abs(plan().scrollTop - 200)).toBeLessThan(24)
+    content().focus()
+    await userEvent.keyboard(isMac() ? "{Meta>}z{/Meta}" : "{Control>}z{/Control}")
+    await expect.poll(() => content().textContent).not.toContain("Draft ")
+
+    // The undo reached the plan, not only the editor.
+    await chooseView("Focus")
+    await chooseView("Grid")
+    await expect
+      .poll(() => companionPane("Build Studio").element().querySelector(".cm-content"))
+      .not.toBeNull()
+    expect(content().textContent).not.toContain("Draft ")
   })
 })
 
