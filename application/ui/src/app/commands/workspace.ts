@@ -511,7 +511,7 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
           : { ...state, sandboxOpen, updateOpen: sandboxOpen ? false : state.updateOpen },
       ),
     updateShown: (updateSeen) => {
-      noteUpdateShown(updateSeen)
+      noteUpdateShown(ui.getSnapshot().portable, updateSeen)
       ui.update((state) => (state.updateSeen === updateSeen ? state : { ...state, updateSeen }))
     },
   }

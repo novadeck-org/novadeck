@@ -85,8 +85,8 @@ export type DesktopBridge = {
    * Whether this copy of the app is a portable one: it runs from wherever it was put,
    * never installs updates itself, and can install the app that does. Absent from hosts
    * that came before it; the page then takes the app for an installed one. Hosts that have
-   * it answer `{ portable: false }` where there is no portable build, as on macOS and
-   * Windows. See `PortableState`.
+   * it answer `{ portable: false }` where there is no portable build, as on Windows. See
+   * `PortableState`.
    */
   portable?(): Promise<PortableState>
   /**
@@ -108,11 +108,16 @@ export type DesktopBridge = {
 
 /**
  * Whether the host runs as a portable copy. `version` is this build's, reported for
- * display and diagnostics.
+ * display and diagnostics. `run` names this run of the app and is new at each launch of it;
+ * a page tells with it a window opened again within one run from a new launch, as on
+ * macOS, where closing the window leaves the app running.
  */
 export type PortableState =
   | { readonly portable: false }
-  | { readonly portable: true; readonly version: string }
+  | { readonly portable: true; readonly version: string; readonly run: string }
+
+/** What a run's name may be, as the host reports it: a UUID. */
+export const portableRunPattern = /^[0-9A-Fa-f-]{1,64}$/
 
 /**
  * How `installApp` went. `installing`: the install is written and the app is about to

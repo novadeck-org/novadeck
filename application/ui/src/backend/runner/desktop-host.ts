@@ -3,6 +3,7 @@ import {
   noticeBodyLength,
   noticeIdPattern,
   noticeTitleLength,
+  portableRunPattern,
   updateChannels,
   updateNoteLength,
   updateNotesLength,
@@ -158,15 +159,21 @@ export const desktopSandbox = (host: DesktopHost | undefined): Backend["sandbox"
 }
 
 // The host's account of whether it is a portable copy, as the page takes it: a boolean,
-// and for a portable one the build's version, as a release's.
+// and for a portable one the build's version, as a release's and the name of the run.
 export const hostPortable = (state: unknown): PortableState => {
   if (typeof state !== "object" || state === null) throw new Error("Unknown portable state")
-  const { portable, version } = state as Record<string, unknown>
+  const { portable, version, run } = state as Record<string, unknown>
   if (portable === false) return { portable: false }
-  if (portable !== true || typeof version !== "string" || !updateVersionPattern.test(version)) {
+  if (
+    portable !== true ||
+    typeof version !== "string" ||
+    !updateVersionPattern.test(version) ||
+    typeof run !== "string" ||
+    !portableRunPattern.test(run)
+  ) {
     throw new Error("Unknown portable state")
   }
-  return { portable: true, version }
+  return { portable: true, version, run }
 }
 
 // How an install went, as the page takes it. An answer that is none of the three is a

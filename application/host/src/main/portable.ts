@@ -4,26 +4,39 @@ import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import { installAppChannel, openInstalledChannel, portableChannel } from "../bridge.js"
 import { newerCopy, type InstalledCopy, type InstallOutcome } from "./install-linux.js"
 
+/**
+ * How an install went, as the platform reports it: the copy now installed, a newer
+ * installed copy found and left alone (`image`, of `version`), why nothing was installed,
+ * or `leaving`, when the platform itself is already ending this app to start the installed
+ * copy, as macOS does after moving the app to Applications.
+ */
+export type PortableInstall =
+  | InstallOutcome
+  | { readonly kind: "newer"; readonly image: string; readonly version: string }
+  | { readonly kind: "leaving" }
+
 /** What installing from a portable copy, and leaving for the installed one, ask of the app. */
 export type PortableHost = {
   /** Whether this copy is portable; see `portableOf`. */
   readonly portable: boolean
   /** This build's version. */
   readonly version: string
-  /** The running AppImage's file, which is what an install copies. */
-  readonly source: string
-  /** The AppImages already installed, with their versions. */
+  /** Names this run of the app, which a page that opens again within it can tell. */
+  readonly run: string
+  /** What to do about an installed copy that could not be checked, as a sentence. */
+  readonly uncheckedAdvice: string
+  /** The copies of the app already installed, with their versions. */
   readonly find: () => Promise<readonly InstalledCopy[]>
   /**
-   * Installs the AppImage `source` over `target`, an installed copy, or at the installer's
-   * own path when `target` is undefined.
+   * Installs this copy over `target`, an installed copy, or where the platform installs
+   * when `target` is undefined.
    */
-  readonly install: (source: string, target: string | undefined) => Promise<InstallOutcome>
+  readonly install: (target: string | undefined) => Promise<PortableInstall>
   /** The shutdown quitting runs: pages save, the runner ends its shells. */
   readonly shutdown: () => Promise<void>
   /**
-   * Starts the AppImage `image` in place of this one and ends this process; false if it
-   * could not start.
+   * Starts the installed copy `image` in place of this one and ends this process; false if
+   * it could not start.
    */
   readonly start: (image: string) => Promise<boolean>
   /** Tells the person that the installed copy at `image` would not start. */
@@ -53,9 +66,12 @@ const quitting: InstallResult = {
  * installed copies: one newer than this copy is left alone, since this copy would
  * replace it with an older app that could not open the data the newer one may have
  * upgraded, and the answer is `newer`, which `openInstalled` then acts on. Otherwise the
- * AppImage is installed from this very file, over the installed copy there is, else at
- * the installer's path, and the answer is `installing`: this copy
- * then shuts down as quitting does and starts the installed one. Should that not start,
+ * app is installed from this very copy, over the installed copy there is, else where the
+ * platform installs, and the answer is `installing`: this copy
+ * then shuts down as quitting does and starts the installed one. On macOS the install is
+ * Electron's move to Applications, which quits this app and starts the moved one itself,
+ * through the quit that shuts down; the answer is then `installing` at once, and a quit
+ * follows after `fallbackMs` should the app somehow still run. Should the installed copy not start,
  * the person is told, and the app quits, as the shells are gone by then; it also quits
  * should it somehow still be running `fallbackMs` after the installed copy started. An
  * installed copy that could not be looked at is not replaced, nor is anything installed
@@ -92,8 +108,9 @@ export const portableInstaller = (host: PortableHost): PortableInstaller => {
       return { kind: "newer", version: copy.version }
     }
     newer = undefined
-    // An installed copy is replaced where it is, the installer's own before Homebrew's, so
-    // no second copy appears; `find` lists them in that order. One that could not be
+    // On Linux an installed copy is replaced where it is, the installer's own before
+    // Homebrew's, so no second copy appears; `find` lists them in that order. (On macOS
+    // Electron decides where the copy goes; see `renamedMoveReason`.) One that could not be
     // looked at may be a newer app, so it is left as it is.
     const [replaced] = copies
     if (replaced?.unchecked) {
@@ -102,12 +119,21 @@ export const portableInstaller = (host: PortableHost): PortableInstaller => {
         kind: "failed",
         reason:
           "The installed copy could not be checked, so it was left as it is. " +
-          "Try again, or reinstall Novadeck with install.sh.",
+          host.uncheckedAdvice,
       }
     }
     if (host.stopping()) return quitting
-    const outcome = await host.install(host.source, replaced?.image)
+    const outcome = await host.install(replaced?.image)
     if (outcome.kind === "failed") return outcome
+    if (outcome.kind === "newer") {
+      newer = outcome.image
+      return { kind: "newer", version: outcome.version }
+    }
+    if (outcome.kind === "leaving") {
+      leaving = true
+      setTimeout(host.quit, host.fallbackMs)
+      return { kind: "installing" }
+    }
     // The copy took a while: should the person have quit meanwhile, stay quit.
     if (host.stopping()) return quitting
     leave(outcome.image)
@@ -115,7 +141,10 @@ export const portableInstaller = (host: PortableHost): PortableInstaller => {
   }
 
   return {
-    state: () => (host.portable ? { portable: true, version: host.version } : { portable: false }),
+    state: () =>
+      host.portable
+        ? { portable: true, version: host.version, run: host.run }
+        : { portable: false },
     install: () => {
       if (!host.portable)
         return Promise.resolve({
@@ -148,8 +177,8 @@ export type NewerInstalledCheck = {
   /** Tells the person of the newer `version`; true if they want it opened, false to quit. */
   readonly ask: (version: string) => Promise<boolean>
   /**
-   * Starts the AppImage `image` in place of this one and ends this process; false if it
-   * could not start.
+   * Starts the installed copy `image` in place of this one and ends this process; false if
+   * it could not start.
    */
   readonly start: (image: string) => Promise<boolean>
   /** Tells the person that the installed copy at `image` would not start. */

@@ -283,7 +283,7 @@ describe("a host's sandbox", () => {
 
 describe("a host's portable copy", () => {
   it("fits the protocol's, which the page's own copy must keep to", () => {
-    const state: PortableState = { portable: true, version: "0.0.70" }
+    const state: PortableState = { portable: true, version: "0.0.70", run: "0a1b-2c3d" }
     const theirs: BridgePortable = state
     const back: PortableState = theirs
     const results: InstallResult[] = [
@@ -298,17 +298,20 @@ describe("a host's portable copy", () => {
 
   it("is portable with its version, or not", () => {
     expect(hostPortable({ portable: false })).toEqual({ portable: false })
-    expect(hostPortable({ portable: true, version: "0.0.70" })).toEqual({
+    expect(hostPortable({ portable: true, version: "0.0.70", run: "0a1b-2c3d" })).toEqual({
       portable: true,
       version: "0.0.70",
+      run: "0a1b-2c3d",
     })
   })
 
   it("is not taken from an answer that is neither", () => {
     expect(() => hostPortable(null)).toThrow()
     expect(() => hostPortable({ portable: true })).toThrow()
-    expect(() => hostPortable({ portable: true, version: "latest" })).toThrow()
-    expect(() => hostPortable({ portable: "yes", version: "0.0.70" })).toThrow()
+    expect(() => hostPortable({ portable: true, version: "0.0.70" })).toThrow()
+    expect(() => hostPortable({ portable: true, version: "0.0.70", run: "a b" })).toThrow()
+    expect(() => hostPortable({ portable: true, version: "latest", run: "0a1b" })).toThrow()
+    expect(() => hostPortable({ portable: "yes", version: "0.0.70", run: "0a1b" })).toThrow()
   })
 
   it("takes an install's answer when it is one of the three", () => {
@@ -338,7 +341,7 @@ describe("a host's portable copy", () => {
   it("installs and opens the installed copy through the host", async () => {
     let opened = 0
     const bridge = {
-      portable: () => Promise.resolve({ portable: true, version: "0.0.70" }),
+      portable: () => Promise.resolve({ portable: true, version: "0.0.70", run: "0a1b-2c3d" }),
       installApp: () => Promise.resolve({ kind: "newer", version: "0.0.80" }),
       openInstalled: () => void (opened += 1),
     } as unknown as DesktopHost
@@ -346,6 +349,7 @@ describe("a host's portable copy", () => {
     expect(await portable.state()).toEqual({
       portable: true,
       version: "0.0.70",
+      run: "0a1b-2c3d",
     })
     expect(await portable.install()).toEqual({
       kind: "newer",
@@ -357,7 +361,7 @@ describe("a host's portable copy", () => {
 
   it("fails an install the host throws on", async () => {
     const bridge = {
-      portable: () => Promise.resolve({ portable: true, version: "0.0.70" }),
+      portable: () => Promise.resolve({ portable: true, version: "0.0.70", run: "0a1b-2c3d" }),
       installApp: () => Promise.reject(new Error("gone")),
       openInstalled: () => {},
     } as unknown as DesktopHost

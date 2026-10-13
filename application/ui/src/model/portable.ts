@@ -1,11 +1,13 @@
 // Whether the desktop app is a portable copy: one that runs from wherever it was put,
 // never installs updates itself, and can install the app that does. `version` is this
-// build's, for display and diagnostics; nothing compares it with an offer. The model
+// build's, for display and diagnostics; nothing compares it with an offer. `run` names this
+// run of the app, new at each launch, so a window opened again within one run is not taken
+// for a launch (see backend/update-raised.ts). The model
 // layer can't import the protocol, so this mirrors its `PortableState`, which
 // backend/runner/desktop-host.test.ts checks it fits.
 export type PortableState =
   | { readonly portable: false }
-  | { readonly portable: true; readonly version: string }
+  | { readonly portable: true; readonly version: string; readonly run: string }
 
 // How installing from a portable copy went; mirrors the protocol's `InstallResult`.
 // `installing`: the app is about to restart into the installed copy. `newer`: an installed

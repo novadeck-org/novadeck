@@ -1,5 +1,6 @@
 import {
   isUpdatePercent,
+  portableRunPattern,
   runnerPortMessage,
   updateChannels,
   updateNoteLength,
@@ -115,10 +116,16 @@ const sandboxOf = (value: unknown): SandboxState => {
 // installed copy, so a broken answer never offers an install the host would not do.
 const portableStateOf = (value: unknown): PortableState => {
   if (typeof value !== "object" || value === null) return { portable: false }
-  const { portable, version } = value as Record<string, unknown>
-  if (portable !== true || typeof version !== "string" || !updateVersionPattern.test(version))
+  const { portable, version, run } = value as Record<string, unknown>
+  if (
+    portable !== true ||
+    typeof version !== "string" ||
+    !updateVersionPattern.test(version) ||
+    typeof run !== "string" ||
+    !portableRunPattern.test(run)
+  )
     return { portable: false }
-  return { portable: true, version }
+  return { portable: true, version, run }
 }
 
 // The longest reason an install may give the page for failing: a sentence.

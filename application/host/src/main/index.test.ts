@@ -157,15 +157,16 @@ describe("compiled desktop host", () => {
       expect(main.indexOf("await leaveForNewerInstalled(")).toBeLessThan(
         main.indexOf("runner = startRunner("),
       )
-      // Only Linux has portable copies, so macOS never waits for codesign to open its window.
-      expect(main).toContain('process.platform === "linux" && portableOf(await updateBuild())')
+      // The signature is left out, so macOS never waits for codesign to open its window.
+      expect(main).toMatch(/portableOf\(\{ \.\.\.\(?await baseBuild\(\)\)?/u)
+      expect(main).not.toMatch(/portableOf\(await updateBuild\(\)\)/u)
       expect(main).toContain("registerPortableIpc(")
       expect(preload).toContain("novadeck:portable")
       expect(preload).toContain("novadeck:install-app")
       expect(preload).toContain("novadeck:open-installed")
     })
 
-    it("offers a move to Applications before the windows and the runner start, and opens release pages only from app-update.yml", async () => {
+    it("moves to Applications only when the page asks to install, and opens release pages only from app-update.yml", async () => {
       const main = await read("main/index.js")
 
       // Linux's Ctrl+Q and Quit item mark the quit as the person's before quitting.
@@ -173,10 +174,10 @@ describe("compiled desktop host", () => {
       expect(main).toContain("Menu.setApplicationMenu")
       expect(main).toContain("moveToApplicationsFolder")
       expect(main).toContain("isInApplicationsFolder")
-      expect(main.indexOf("await moveToApplications()")).toBeGreaterThan(-1)
-      expect(main.indexOf("await moveToApplications()")).toBeLessThan(
-        main.indexOf("runner = startRunner("),
-      )
+      // No launch-time modal asks; the move is the install of a portable copy.
+      expect(main).not.toContain("Move Novadeck to your Applications folder?")
+      expect(main).not.toContain("await moveToApplications()")
+      expect(main).toMatch(/process\.platform === "darwin" \? Promise\.resolve\(moveApp\(\)\)/u)
       expect(main).toContain('"app-update.yml"')
       expect(main).not.toContain("novadeck-org/novadeck/releases/tag")
     })

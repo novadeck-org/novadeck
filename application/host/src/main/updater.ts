@@ -39,6 +39,8 @@ export type UpdateBuild = {
   readonly env: Readonly<Record<string, string | undefined>>
   /** Whether the macOS app bundle is Developer ID signed; see `developerIdSigned`. */
   readonly signed: boolean
+  /** Whether the macOS app runs from an Applications folder; Electron's `isInApplicationsFolder`. */
+  readonly inApplications: boolean
   /** Whether the folder holding the AppImage file can be written to. */
   readonly appImageWritable: boolean
   /** Whether the AppImage file is at an installed place; see `isInstalledImage`. */
@@ -95,12 +97,23 @@ const looksForUpdates = ({ packaged, version, env }: UpdateBuild): boolean =>
 /**
  * Whether a build is portable: one that runs from wherever it was put, and is meant to
  * lead the person to the installed app instead of updating itself. On Linux that is an
- * AppImage anywhere but the places the installer puts it. The Windows ZIP and macOS
- * outside Applications are not yet told apart, so they are not portable; neither is a
- * build that looks for no updates, as a portable offers to install the current release.
+ * AppImage anywhere but the places the installer puts it. On macOS it is the app anywhere
+ * but an Applications folder, such as Downloads, a translocated copy or the mounted disk
+ * image, whether signed or not. The Windows ZIP is not yet told apart, so it is not
+ * portable; neither is a build that looks for no updates, as a portable offers to install
+ * the current release.
  */
-export const portableOf = (build: UpdateBuild): boolean =>
-  looksForUpdates(build) && updaterKind(build) === "appimage" && !build.appImageInstalled
+export const portableOf = (build: UpdateBuild): boolean => {
+  if (!looksForUpdates(build)) return false
+  switch (updaterKind(build)) {
+    case "appimage":
+      return !build.appImageInstalled
+    case "mac":
+      return !build.inApplications
+    default:
+      return false
+  }
+}
 
 /**
  * How a build updates, or undefined when it does not look for updates at all. Local and
@@ -111,7 +124,8 @@ export const portableOf = (build: UpdateBuild): boolean =>
  *
  * - The Windows installer installs.
  * - macOS installs when the app bundle is Developer ID signed, as Squirrel.Mac refuses
- *   to install into any other, and tells otherwise.
+ *   to install into any other, and tells otherwise. A portable one, outside Applications,
+ *   only tells.
  * - An installed AppImage, one at a place the installer puts it, installs by replacing
  *   its own file, which takes write access to the folder it sits in, and tells otherwise.
  * - A portable AppImage, one anywhere else, only tells; see `portableOf`.

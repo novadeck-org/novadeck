@@ -47,6 +47,7 @@ const build = (overrides: Partial<UpdateBuild> = {}): UpdateBuild => ({
   execPath: "/opt/novadeck/novadeck",
   env: {},
   signed: false,
+  inApplications: false,
   appImageWritable: true,
   appImageInstalled: true,
   ...overrides,
@@ -150,19 +151,30 @@ describe("how a build updates", () => {
 
   context("on macOS", () => {
     it("installs when the app is Developer ID signed", () => {
-      expect(updatePlan(build({ platform: "darwin", signed: true }))).toEqual({
-        kind: "mac",
-        mode: "install",
-        portable: false,
-      })
+      expect(updatePlan(build({ platform: "darwin", signed: true, inApplications: true }))).toEqual(
+        {
+          kind: "mac",
+          mode: "install",
+          portable: false,
+        },
+      )
     })
 
     it("only tells of updates when it is not", () => {
-      expect(updatePlan(build({ platform: "darwin" }))).toEqual({
+      expect(updatePlan(build({ platform: "darwin", inApplications: true }))).toEqual({
         kind: "mac",
         mode: "tell",
         portable: false,
       })
+    })
+
+    it("only tells, signed or not, when it runs outside Applications, and is portable", () => {
+      for (const signed of [true, false])
+        expect(updatePlan(build({ platform: "darwin", signed, inApplications: false }))).toEqual({
+          kind: "mac",
+          mode: "tell",
+          portable: true,
+        })
     })
   })
 })
@@ -185,9 +197,26 @@ describe("whether a build is portable", () => {
     )
   })
 
-  it("is not yet a Windows or macOS build", () => {
-    for (const platform of ["win32", "darwin"] as const)
-      expect(portableOf(build({ platform, appImageInstalled: false }))).toBe(false)
+  it("is not yet a Windows build", () => {
+    expect(portableOf(build({ platform: "win32", appImageInstalled: false }))).toBe(false)
+  })
+
+  context("on macOS", () => {
+    const outside = { platform: "darwin", inApplications: false } as const
+
+    it("is a packaged app anywhere but an Applications folder, signed or not", () => {
+      expect(portableOf(build(outside))).toBe(true)
+      expect(portableOf(build({ ...outside, signed: true }))).toBe(true)
+      expect(portableOf(build({ platform: "darwin", signed: true, inApplications: true }))).toBe(
+        false,
+      )
+    })
+
+    it("is not a build that looks for no updates", () => {
+      expect(portableOf(build({ ...outside, version: "0.0.0" }))).toBe(false)
+      expect(portableOf(build({ ...outside, env: { NOVADECK_UPDATES: "off" } }))).toBe(false)
+      expect(portableOf(build({ ...outside, packaged: false }))).toBe(false)
+    })
   })
 })
 

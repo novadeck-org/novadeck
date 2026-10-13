@@ -346,10 +346,11 @@ describe("the sandbox", () => {
 
 describe("whether this copy is portable", () => {
   it("is what the host answers when it is a portable copy of a release version", async () => {
-    electron.answer = { portable: true, version: "1.2.3", extra: "dropped" }
+    electron.answer = { portable: true, version: "1.2.3", run: "0a1b-2c3d", extra: "dropped" }
     expect(await electron.exposed.portable!()).toEqual({
       portable: true,
       version: "1.2.3",
+      run: "0a1b-2c3d",
     })
     expect(electron.sent).toEqual([portableChannel])
   })
@@ -358,10 +359,12 @@ describe("whether this copy is portable", () => {
     const answers = [
       undefined,
       "portable",
-      { portable: false, version: "1.2.3" },
+      { portable: false, version: "1.2.3", run: "0a1b-2c3d" },
       { portable: true },
-      { portable: true, version: "v1" },
-      { portable: "true", version: "1.2.3" },
+      { portable: true, version: "1.2.3" },
+      { portable: true, version: "1.2.3", run: "not a run!" },
+      { portable: true, version: "v1", run: "0a1b-2c3d" },
+      { portable: "true", version: "1.2.3", run: "0a1b-2c3d" },
     ]
     const states = answers.map((answer) => {
       electron.answer = answer

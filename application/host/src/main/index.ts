@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process"
+import { randomUUID } from "node:crypto"
 import { accessSync, existsSync, readFileSync, realpathSync } from "node:fs"
 import { access, constants, readFile, realpath } from "node:fs/promises"
 import { homedir } from "node:os"
@@ -35,9 +36,10 @@ import {
 import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
 import {
   bundleVersionOf,
-  offerMove,
+  findInstalledApps,
+  moveToApplications,
   relaunchIntoCopy,
-  resolveMoveConflict,
+  renamedMoveReason,
 } from "./applications-folder.js"
 import { dataFolderName } from "./data-folder.js"
 import {
@@ -56,6 +58,7 @@ import {
   leaveForNewerInstalled,
   portableInstaller,
   registerPortableIpc,
+  type PortableInstall,
   startAppImage,
 } from "./portable.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
@@ -108,12 +111,14 @@ const currentDirectory = dirname(fileURLToPath(import.meta.url))
 // white.
 const appearance = keepAppearance(join(app.getPath("userData"), "appearance.json"))
 
-// What the host remembers about updating: the channel, a failed install, the move prompt.
+// What the host remembers about updating: the channel, a failed install, how long this copy is behind.
 const updateState = keepUpdateState(join(app.getPath("userData"), "update.json"))
 
 let server: HttpServer | undefined
 let runner: RunnerHost | undefined
 let stopping = false
+// Names this run of the app; see `PortableHost.run`.
+const run = randomUUID()
 // Whether the quit under way began the orderly way: closing the last window, or
 // restarting into the update. On Linux Electron turns SIGTERM, SIGINT and SIGHUP into an
 // ordinary quit, which must not install an update; see ./updater.ts.
@@ -253,7 +258,7 @@ const shutDown = async (): Promise<void> => {
 const offers = trackOffer(() => appPages(BrowserWindow.getAllWindows()))
 
 // Whether `codesign` finds a Developer ID signature on the running macOS app bundle; run
-// once, as both the offer to move to Applications and the update plan ask.
+// once, as the update plan asks.
 let signature: Promise<boolean> | undefined
 const bundleSigned = (): Promise<boolean> =>
   (signature ??= new Promise((resolve) => {
@@ -309,10 +314,11 @@ const loadUpdater = async (kind: UpdaterKind): Promise<NonNullable<typeof update
   }
 }
 
-// What decides how this build updates, read once: the signature takes a moment to ask.
-let build: Promise<UpdateBuild> | undefined
-const updateBuild = (): Promise<UpdateBuild> =>
-  (build ??= (async () => {
+// What decides how this build updates, but for the signature, read once. The signature
+// takes a moment to ask, which a launch need not wait for to tell whether it is portable.
+let base: Promise<Omit<UpdateBuild, "signed">> | undefined
+const baseBuild = (): Promise<Omit<UpdateBuild, "signed">> =>
+  (base ??= (async () => {
     const appDir = process.env.APPDIR
     const linux = process.platform === "linux"
     const appImage = process.env.APPIMAGE
@@ -324,8 +330,7 @@ const updateBuild = (): Promise<UpdateBuild> =>
       // The AppImage mounts under TMPDIR, which may reach it through a symlink; the
       // executable's path is the real one.
       env: { ...process.env, APPDIR: appDir && (await realpath(appDir).catch(() => appDir)) },
-      // Asked only where it matters: codesign takes a moment.
-      signed: checksSignature() && (await bundleSigned()),
+      inApplications: process.platform === "darwin" && app.isInApplicationsFolder(),
       appImageWritable: linux && (await appImageWritable()),
       appImageInstalled:
         linux &&
@@ -336,6 +341,16 @@ const updateBuild = (): Promise<UpdateBuild> =>
           realpath: realpathOrUndefined,
         }),
     }
+  })())
+
+// What decides how this build updates, read once.
+let build: Promise<UpdateBuild> | undefined
+const updateBuild = (): Promise<UpdateBuild> =>
+  (build ??= (async () => {
+    const rest = await baseBuild()
+    // Asked only where it matters: codesign takes a moment, and a portable copy only
+    // tells of updates whether it is signed or not.
+    return { ...rest, signed: checksSignature() && rest.inApplications && (await bundleSigned()) }
   })())
 
 // When this copy first learned that a newer release exists, kept for the running version;
@@ -460,8 +475,19 @@ const createWindow = (origin: string): BrowserWindow => {
   return window
 }
 
-// The version of the copy of this app already in Applications, if its Info.plist can be read.
+// The copy of this app in /Applications that Electron's move writes: named as the running
+// bundle is, which Finder may have renamed.
 const applicationsCopy = (): string => join("/Applications", basename(bundleOf(app.getPath("exe"))))
+
+// The bundle names an installed copy may have: the running one's, and the packaged name,
+// which is the executable's (`executableName` in electron-builder.yml) and survives a
+// rename of the bundle.
+const installedNames = (): string[] => [
+  basename(bundleOf(app.getPath("exe"))),
+  `${basename(app.getPath("exe"))}.app`,
+]
+
+// The version of the copy of this app already in Applications, if its Info.plist can be read.
 const installedVersion = (): string | undefined => {
   try {
     return bundleVersionOf(readFileSync(join(applicationsCopy(), "Contents", "Info.plist"), "utf8"))
@@ -470,70 +496,45 @@ const installedVersion = (): string | undefined => {
   }
 }
 
-// On macOS, offers once per launch to move the app to Applications, the only place it can
-// update itself from. Returns whether the app is restarting from there.
-const moveToApplications = async (): Promise<boolean> => {
-  const state = updateState.read()
-  return offerMove({
-    build: {
-      packaged: app.isPackaged,
-      version: app.getVersion(),
-      platform: process.platform,
-      env: process.env,
-      inApplications: process.platform === "darwin" && app.isInApplicationsFolder(),
-      declined: state.moveDeclined,
-    },
-    signed: () => (checksSignature() ? bundleSigned() : Promise.resolve(false)),
-    ask: async () => {
-      const { response, checkboxChecked } = await dialog.showMessageBox({
-        type: "question",
-        message: "Move Novadeck to your Applications folder?",
-        detail:
-          "Novadeck can only update itself when it runs from Applications. It moves there and starts again.",
-        buttons: ["Move to Applications", "Not Now"],
-        defaultId: 0,
-        cancelId: 1,
-        checkboxLabel: "Don't ask again",
-      })
-      return { move: response === 0, dontAskAgain: checkboxChecked }
-    },
-    decline: () => updateState.declineMove(),
-    move: () => {
-      const outcome = { conflict: "replace" as ReturnType<typeof resolveMoveConflict> }
-      const moved = app.moveToApplicationsFolder({
-        conflictHandler: (kind) => {
-          outcome.conflict = resolveMoveConflict(kind, {
-            existingVersion: installedVersion(),
-            runningVersion: app.getVersion(),
-          })
-          return outcome.conflict === "replace"
-        },
-      })
-      return moved ? "moved" : outcome.conflict === "newer" ? "newer" : "declined"
-    },
-    // The copy in Applications is newer: the person may open it instead of this one.
-    tellNewer: async () => {
-      const { response } = await dialog.showMessageBox({
-        type: "info",
-        message: "A newer Novadeck is already in your Applications folder.",
-        detail: "This copy was not moved. Open the newer one instead?",
-        buttons: ["Open Newer Novadeck", "Keep Using This One"],
-        defaultId: 0,
-        cancelId: 1,
-      })
-      if (response !== 0) return false
-      // Nothing has started yet, so there is nothing to shut down.
-      return relaunchIntoCopy({
-        executable: join(applicationsCopy(), "Contents", "MacOS", basename(app.getPath("exe"))),
-        exists: existsSync,
-        relaunch: (execPath) => app.relaunch({ execPath }),
-        exit: () => app.exit(0),
-        log: (message, error) => console.warn(message, error),
-      })
-    },
+// The macOS install: Electron moves the app to Applications, which quits it and starts the
+// moved copy; see `moveToApplications`.
+const moveApp = (): PortableInstall => {
+  const running = basename(bundleOf(app.getPath("exe")))
+  const [, packaged] = installedNames()
+  const refused = renamedMoveReason({
+    running,
+    packaged: packaged ?? running,
+    installed: packaged !== undefined && existsSync(join("/Applications", packaged)),
+  })
+  if (refused !== undefined) return { kind: "failed", reason: refused }
+  const outcome = moveToApplications({
+    move: (conflictHandler) => app.moveToApplicationsFolder({ conflictHandler }),
+    existingVersion: installedVersion,
+    runningVersion: app.getVersion(),
     log: (message, error) => console.warn(message, error),
   })
+  switch (outcome.kind) {
+    case "moved":
+      return { kind: "leaving" }
+    case "newer":
+      return { kind: "newer", image: applicationsCopy(), version: outcome.version }
+    case "failed":
+      return outcome
+  }
 }
+
+// Starts the macOS app bundle `image` in place of this one; see `relaunchIntoCopy`. Nothing
+// has to be let go first: the relaunch happens as this process ends.
+const startBundle = (image: string): Promise<boolean> =>
+  Promise.resolve(
+    relaunchIntoCopy({
+      executable: join(image, "Contents", "MacOS", basename(app.getPath("exe"))),
+      exists: existsSync,
+      relaunch: (execPath) => app.relaunch({ execPath }),
+      exit: () => app.exit(0),
+      log: (message, error) => console.warn(message, error),
+    }),
+  )
 
 // The folder this copy's AppImage is mounted at, as the runtime names it and as it resolves.
 const appImageMounts = (): string[] => {
@@ -567,7 +568,10 @@ const alertNotStarted = async (image: string): Promise<void> => {
   await dialog.showMessageBox({
     type: "error",
     message: "The installed Novadeck did not start.",
-    detail: `Start it from your applications menu or with the novadeck command. It is at ${image}.`,
+    detail:
+      process.platform === "darwin"
+        ? `Open it from your Applications folder. It is at ${image}.`
+        : `Start it from your applications menu or with the novadeck command. It is at ${image}.`,
   })
 }
 
@@ -575,16 +579,35 @@ const alertNotStarted = async (image: string): Promise<void> => {
 const installedExtract = () =>
   extractWithProcess(installedEnvironment(process.env, appImageMounts()))
 
-// The AppImages installed on this machine, with their versions.
+// The copies of the app installed on this machine, with their versions.
 const installedCopies = () =>
-  findInstalled({ env: process.env, home: homedir() }, installedExtract())
+  process.platform === "darwin"
+    ? findInstalledApps({
+        folders: ["/Applications", join(homedir(), "Applications")],
+        names: installedNames(),
+        exists: (path) =>
+          access(path).then(
+            () => true,
+            () => false,
+          ),
+        readFile: (path) => readFile(path, "utf8"),
+      })
+    : findInstalled({ env: process.env, home: homedir() }, installedExtract())
+
+// Installs the AppImage that is running, over the installed copy `target` or at the
+// installer's path.
+const installAppImageOver = (target: string | undefined): Promise<PortableInstall> =>
+  installAppImage(
+    process.env.APPIMAGE ?? "",
+    installLayout({ env: process.env, home: homedir() }),
+    installedExtract(),
+    target,
+  )
 
 const launch = async (): Promise<void> => {
-  // A moved app starts again from Applications, and has nothing more to do here.
-  if (await moveToApplications()) return
-  // Linux alone has portable copies yet; the build is not asked elsewhere, as on macOS
-  // that would wait for codesign before the window.
-  const portable = process.platform === "linux" && portableOf(await updateBuild())
+  // The signature is not asked here: it takes a moment, and a portable copy is told
+  // without it.
+  const portable = portableOf({ ...(await baseBuild()), signed: false })
   // A portable copy older than the installed one must not open the data the installed
   // one may have upgraded; nothing has started yet, so there is nothing to shut down.
   if (
@@ -603,7 +626,7 @@ const launch = async (): Promise<void> => {
         })
         return response === 0
       },
-      start: startInstalled,
+      start: process.platform === "darwin" ? startBundle : startInstalled,
       alert: alertNotStarted,
       quit: () => app.exit(0),
       log: (message, error) => console.warn(message, error),
@@ -710,22 +733,21 @@ const launch = async (): Promise<void> => {
     installer: portableInstaller({
       portable,
       version: app.getVersion(),
-      source: process.env.APPIMAGE ?? "",
+      run,
+      uncheckedAdvice:
+        process.platform === "darwin"
+          ? "Check the copy in your Applications folder, or reinstall Novadeck from the disk image."
+          : "Try again, or reinstall Novadeck with install.sh.",
       find: installedCopies,
-      install: (source, target) =>
-        installAppImage(
-          source,
-          installLayout({ env: process.env, home: homedir() }),
-          installedExtract(),
-          target,
-        ),
+      install: (target) =>
+        process.platform === "darwin" ? Promise.resolve(moveApp()) : installAppImageOver(target),
       shutdown: () => {
         stopping = true
         orderlyQuit = true
         updates?.stop()
         return shutDown()
       },
-      start: startInstalled,
+      start: process.platform === "darwin" ? startBundle : startInstalled,
       alert: alertNotStarted,
       stopping: () => stopping,
       fallbackMs: installFallbackMs(process.platform),

@@ -44,17 +44,18 @@ releases feed. `stable` sets it false and `early` true.
 
 ## Which builds update
 
-| Build                          | Mode                                                                              |
-| ------------------------------ | --------------------------------------------------------------------------------- |
-| macOS, Developer ID signed     | Installs (Squirrel.Mac)                                                           |
-| macOS, unsigned                | Tells; every build is unsigned until the certificates are in place                |
-| Windows installer (`-setup`)   | Installs. A portable Windows build is not told apart yet                          |
-| Linux AppImage, installed      | Installs by replacing its file if the AppImage's folder is writable; tells if not |
-| Linux AppImage, portable       | Tells; never installs itself. See "Portable builds"                               |
-| Any other Linux build          | No checks: Linux ships only the AppImage                                          |
-| A release whose install failed | Tells of that release only; newer ones install                                    |
-| Local and pull request builds  | No checks: they carry version 0.0.0                                               |
-| Development runs               | No checks                                                                         |
+| Build                            | Mode                                                                              |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| macOS, in Applications, signed   | Installs (Squirrel.Mac)                                                           |
+| macOS, in Applications, unsigned | Tells; every build is unsigned until the certificates are in place                |
+| macOS, outside Applications      | Tells, signed or not; never installs itself. See "Portable builds"                |
+| Windows installer (`-setup`)     | Installs. A portable Windows build is not told apart yet                          |
+| Linux AppImage, installed        | Installs by replacing its file if the AppImage's folder is writable; tells if not |
+| Linux AppImage, portable         | Tells; never installs itself. See "Portable builds"                               |
+| Any other Linux build            | No checks: Linux ships only the AppImage                                          |
+| A release whose install failed   | Tells of that release only; newer ones install                                    |
+| Local and pull request builds    | No checks: they carry version 0.0.0                                               |
+| Development runs                 | No checks                                                                         |
 
 `NOVADECK_UPDATES=off` turns checks off for a launch. The smoke tests and the release
 workflow's package checks set it, so they never reach the network.
@@ -175,8 +176,11 @@ places the installer puts it, `${XDG_DATA_HOME:-~/.local/share}/novadeck/novadec
 (a relative `XDG_DATA_HOME` counts as unset) and Homebrew's `~/Applications/novadeck.AppImage`;
 paths are compared by their canonical form, so a link to an install counts as installed
 (`install-location.ts`, shared with the sandbox fix). An AppImage run from Downloads therefore
-no longer replaces its own file, as it once did in any writable folder. macOS and Windows
-builds are not told apart yet and keep their rules above.
+no longer replaces its own file, as it once did in any writable folder. On macOS it is the
+packaged app anywhere but an Applications folder (Electron's `app.isInApplicationsFolder()`
+is false: Downloads, a translocated copy, the mounted disk image), signed or not. Windows
+builds are not told apart yet and keep their rules above. A build that looks for no updates
+(version 0.0.0, a development run, `NOVADECK_UPDATES=off`) is never portable, on any system.
 
 A portable build still looks for releases, in `tell` mode, so it learns that a newer one
 exists. Its offer carries `outdatedSince`, when this copy first learned that a newer release
@@ -186,8 +190,12 @@ version changes, so a newer release does not reset it. A check that finds no new
 `stable` starts a fresh clock when `stable` later moves. electron-updater's `releaseDate` is
 the build time, which `promote.yml` does not rewrite, so it is not used. The page raises the
 update notice at every launch once that is 14 days ago. `DesktopBridge.portable` tells the
-page whether the copy is portable, and `installApp` installs from it (`portable.ts`,
-`install-linux.ts`):
+page whether the copy is portable, with `run`, a name that is new at each launch of the app.
+The page keeps the offer whose notice it showed together with that run in local storage, so a
+window closed and opened again within one run (macOS keeps the app running with no window) is
+not taken for a launch and the reminder does not come back. `installApp` installs from the
+copy (`portable.ts`; `install-linux.ts` on Linux, `applications-folder.ts` on macOS). On
+Linux:
 
 - It installs from the running file, with no download: the AppImage is copied beside the
   install path as `.new` and renamed over it, so a failed copy leaves nothing half-written
@@ -205,7 +213,7 @@ page whether the copy is portable, and `installApp` installs from it (`portable.
   (`child_process.spawn`, then `unref`) with no arguments of its own, since the portable's may
   carry `--no-sandbox`. Electron's `app.relaunch` is not used on Linux: the process it starts
   inherits no-new-privileges, so the AppImage runtime's setuid `fusermount` cannot mount the
-  image and the child dies at once. macOS's move to Applications still relaunches.
+  image and the child dies at once.
   - The child starts through `/bin/bash -c`, which closes every descriptor above 2 and then
     `exec`s the image. Chromium leaves about seventy open to a child, files inside the
     portable's FUSE mount among them, which would keep that mount and its `/tmp/.mount_*`
@@ -251,6 +259,43 @@ page whether the copy is portable, and `installApp` installs from it (`portable.
 - A failure, such as a full disk or a folder that cannot be written, is returned with a short
   reason, as is a request while the app is already quitting ("Novadeck is quitting.").
 
+On macOS the install is Electron's `app.moveToApplicationsFolder()`, which the host calls
+without a shutdown first (`moveToApplications` in `applications-folder.ts`). In Electron's
+source (`shell/browser/ui/cocoa/electron_bundle_mover.mm`) a successful call has copied
+the bundle to `/Applications` (asking for authorization when the folder is not writable),
+deleted the original (`DeleteOrTrash` removes it outright and trashes it only where removal
+fails, so a read-only translocated copy stays; a copy on a disk image is never deleted, and
+the image is unmounted after five seconds), started a shell script that waits for this process to end, clears the
+quarantine attribute of the copy and opens it, and called `Browser::Quit()` itself, all
+before it returns true. That quit is the app's ordinary one: `before-quit` runs the shutdown
+(pages save, the runner ends its shells) before the process ends, so nothing is lost, and the
+page's answer is `installing`. A quit follows after `installFallbackMs` should the app still
+run. The move is made first, not after a shutdown, because it can fail, and then the app and
+its shells go on. A failure says why: Electron throws for a failed copy or a refused
+authorization, and the message becomes the `failed` reason. A copy already in Applications is
+replaced when it is not running, unless its `Info.plist` version is newer than this app's:
+then nothing is written and the answer is `newer`, as on Linux. A copy that is running is
+left alone and the answer is `failed`; the single-instance lock makes that unlikely, as both
+copies share the data folder. The installed copies, `/Applications` first and then
+`~/Applications`, are found by their `Info.plist` versions at the launch and before an
+install; one whose plist cannot be read is not replaced. Opening a newer installed copy
+shuts down the same way and then relaunches into its executable. Electron's move installs
+only into `/Applications`, so an older copy kept in `~/Applications` stays beside it.
+Electron's move writes only to `/Applications/<the running bundle's name>`. A portable copy
+Finder or Archive Utility renamed (`novadeck 2.app`) is still checked against the installed
+copy: the guard and the launch check look for the running name and for the packaged one,
+`novadeck.app` (the executable's name plus `.app`), in both Applications folders. The move
+itself is refused, as `failed` with a reason that says to rename this copy or remove the old
+one, when the names differ and `/Applications/novadeck.app` exists, since it would otherwise
+install a second copy beside the old one, which stays launchable and never runs the launch
+check (`renamedMoveReason`). Nothing is renamed for the person.
+Authorization limits: an account that cannot write `/Applications` gets an administrator
+prompt, and the install fails (with Electron's message as the reason) if it is cancelled; once
+authorized, Electron replaces a copy in `/Applications` that another account owns; a copy in
+`~/Applications` is never upgraded by the move.
+Unsigned builds are portable too: Gatekeeper on macOS 15 and later makes them rough to
+open, and the installed copy only tells of updates until the app is signed.
+
 Known limits. AppImageLauncher keeps the AppImage's own file name when it integrates a file
 into `~/Applications`, so such a copy is not at an installed place and counts as portable. An
 `XDG_DATA_HOME` set only in a shell's rc file is not seen by a copy started from the menu, which
@@ -277,24 +322,6 @@ through `xvfb-run`, then wait up to 15 seconds for the process named by the fold
 `SingletonLock` to be gone, and fail if it is not, as the next launch would otherwise hand
 off to it and exit. The macOS ones kill their process and wait for it, and the Windows ones
 kill the process tree and wait.
-
-## Moving to Applications
-
-On a packaged macOS launch from outside the Applications folder, before any window or the
-runner starts, the app asks once per launch whether to move there, because it can only
-update itself from Applications; only a Developer ID signed build is asked, as an unsigned
-one only tells of updates. The signature (`codesign`) is checked only once nothing else rules
-the offer out (already in Applications, declined), so most launches do not wait for it, and
-the check is shared with the update plan. "Move to Applications" calls
-`app.moveToApplicationsFolder()` and the app starts again from there; "Not Now" carries on
-and asks again next launch. Ticking "Don't ask again" is kept in `update.json` whichever
-button is pressed. A copy already in Applications is replaced unless it is running or its `Info.plist`
-version is newer than this app's, in which case the move is cancelled and the person is told a newer
-Novadeck is already in Applications, with the choice of starting that one (the app relaunches into the
-copy's executable and this launch ends; if the executable is missing it carries on here) or
-carrying on here. Builds
-with version 0.0.0, development runs and `NOVADECK_UPDATES=off` never ask. The decision is
-a pure function in `applications-folder.ts`.
 
 ## The page's view
 

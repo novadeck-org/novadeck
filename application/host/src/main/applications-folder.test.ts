@@ -1,55 +1,13 @@
-import { context, describe, expect, it } from "../test"
+import { describe, expect, it } from "../test"
 import {
   bundleVersionOf,
+  findInstalledApps,
   isNewerVersion,
-  offerMove,
+  moveToApplications,
+  renamedMoveReason,
   relaunchIntoCopy,
   resolveMoveConflict,
-  shouldOfferMove,
-  type MoveAnswer,
-  type MoveBuild,
-  type MoveResult,
 } from "./applications-folder"
-
-const build = (overrides: Partial<MoveBuild> = {}): MoveBuild => ({
-  packaged: true,
-  version: "0.4.2",
-  platform: "darwin",
-  env: {},
-  inApplications: false,
-  declined: false,
-  signed: true,
-  ...overrides,
-})
-
-describe("when to offer a move to Applications", () => {
-  it("does on a packaged macOS launch from any other folder", () => {
-    expect(shouldOfferMove(build())).toBe(true)
-  })
-
-  it("does not once the app is in Applications", () => {
-    expect(shouldOfferMove(build({ inApplications: true }))).toBe(false)
-  })
-
-  it("does not once the person asked not to be asked again", () => {
-    expect(shouldOfferMove(build({ declined: true }))).toBe(false)
-  })
-
-  it("does not for a build that is not Developer ID signed, which only tells of updates", () => {
-    expect(shouldOfferMove(build({ signed: false }))).toBe(false)
-  })
-
-  it("does not on other platforms", () => {
-    for (const platform of ["linux", "win32"] as const)
-      expect(shouldOfferMove(build({ platform }))).toBe(false)
-  })
-
-  it("does not in a development run, in a build that carries version 0.0.0, or when updates are off", () => {
-    expect(shouldOfferMove(build({ packaged: false }))).toBe(false)
-    expect(shouldOfferMove(build({ version: "0.0.0" }))).toBe(false)
-    expect(shouldOfferMove(build({ env: { NOVADECK_UPDATES: "off" } }))).toBe(false)
-  })
-})
 
 describe("a name taken in Applications", () => {
   const running = "0.5.0"
@@ -126,121 +84,163 @@ describe("the version of an app in Applications", () => {
   })
 })
 
-describe("offering the move", () => {
-  const offering = (
-    answer: MoveAnswer | Error,
+describe("moving the app to Applications", () => {
+  type Conflict = "exists" | "existsAndRunning"
+  // A move that finds `conflict` in Applications, if any, and then does as Electron does:
+  // stops at a handler that says no, throws as told, else moves.
+  const moving = (
     {
-      result = "moved",
-      overrides = {},
-      signed = true,
-      open = false,
-    }: {
-      result?: MoveResult
-      overrides?: Partial<MoveBuild>
-      signed?: boolean
-      open?: boolean
-    } = {},
+      conflict,
+      throws,
+      moved = true,
+      existing = "0.4.0",
+    }: { conflict?: Conflict; throws?: Error; moved?: boolean; existing?: string } = {},
+    running = "0.5.0",
   ) => {
     const steps: string[] = []
-    const run = () =>
-      offerMove({
-        build: build(overrides),
-        signed: async () => {
-          steps.push("signed")
-          return signed
-        },
-        ask: async () => {
-          steps.push("ask")
-          if (answer instanceof Error) throw answer
-          return answer
-        },
-        decline: () => void steps.push("decline"),
-        move: () => {
-          steps.push("move")
-          return result
-        },
-        tellNewer: async () => {
-          steps.push("tell newer")
-          return open
-        },
-        log: (message) => void steps.push(`log ${message}`),
-      })
-    return { run, steps }
+    const outcome = moveToApplications({
+      move: (handler) => {
+        steps.push("move")
+        if (throws) throw throws
+        if (conflict && !handler(conflict)) return false
+        return moved
+      },
+      existingVersion: () => existing,
+      runningVersion: running,
+      log: (message) => void steps.push(`log ${message}`),
+    })
+    return { outcome, steps }
   }
 
-  it("moves when accepted, and tells the launch to stop", async () => {
-    const { run, steps } = offering({ move: true, dontAskAgain: false })
-    expect(await run()).toBe(true)
-    expect(steps).toEqual(["signed", "ask", "move"])
+  it("moves, and leaves the quit to Electron", () => {
+    expect(moving()).toEqual({ outcome: { kind: "moved" }, steps: ["move"] })
   })
 
-  it("goes on where it is when turned down, and asks again at the next launch", async () => {
-    const { run, steps } = offering({ move: false, dontAskAgain: false })
-    expect(await run()).toBe(false)
-    expect(steps).toEqual(["signed", "ask"])
+  it("replaces an older copy that is not running", () => {
+    expect(moving({ conflict: "exists", existing: "0.4.0" }).outcome).toEqual({ kind: "moved" })
+    expect(moving({ conflict: "exists", existing: "0.5.0" }).outcome).toEqual({ kind: "moved" })
   })
 
-  it("keeps the choice not to be asked again, whatever the button", async () => {
-    const declined = offering({ move: false, dontAskAgain: true })
-    expect(await declined.run()).toBe(false)
-    expect(declined.steps).toEqual(["signed", "ask", "decline"])
-    const accepted = offering({ move: true, dontAskAgain: true })
-    expect(await accepted.run()).toBe(true)
-    expect(accepted.steps).toEqual(["signed", "ask", "decline", "move"])
+  it("leaves a newer copy alone and says which version it is", () => {
+    const { outcome, steps } = moving({ conflict: "exists", existing: "0.6.0" })
+    expect(outcome).toEqual({ kind: "newer", version: "0.6.0" })
+    expect(steps).toEqual(["move"])
   })
 
-  context("when the move does not happen", () => {
-    it("goes on where it is when Electron could not move the app", async () => {
-      const { run } = offering({ move: true, dontAskAgain: false }, { result: "declined" })
-      expect(await run()).toBe(false)
+  it("leaves a running copy alone, whatever its version, with the reason", () => {
+    for (const existing of ["0.4.0", "0.6.0"])
+      expect(moving({ conflict: "existsAndRunning", existing }).outcome).toEqual({
+        kind: "failed",
+        reason: "Novadeck is already running from Applications.",
+      })
+  })
+
+  it("fails with the reason Electron gave, one line, and logs", () => {
+    const { outcome, steps } = moving({
+      throws: new Error("Failed to copy current bundle\nto the applications folder"),
     })
+    expect(outcome).toEqual({
+      kind: "failed",
+      reason: "Failed to copy current bundle to the applications folder",
+    })
+    expect(steps).toEqual(["move", "log Moving to Applications failed."])
+  })
 
-    it("goes on, and logs, when asking or moving throws", async () => {
-      const { run, steps } = offering(new Error("no dialog"))
-      expect(await run()).toBe(false)
-      expect(steps).toEqual(["signed", "ask", "log Moving to Applications failed."])
+  it("fails when the person refused the authorization", () => {
+    expect(
+      moving({ throws: new Error("User rejected the authorization request") }).outcome,
+    ).toEqual({ kind: "failed", reason: "User rejected the authorization request" })
+  })
+
+  it("fails when Electron would not move the app, without throwing", () => {
+    expect(moving({ moved: false }).outcome).toEqual({
+      kind: "failed",
+      reason: "Moving to Applications was cancelled.",
     })
   })
 
-  context("when a newer copy is in Applications", () => {
-    it("tells the person, and goes on where it is if they would rather not open it", async () => {
-      const { run, steps } = offering({ move: true, dontAskAgain: false }, { result: "newer" })
-      expect(await run()).toBe(false)
-      expect(steps).toEqual(["signed", "ask", "move", "tell newer"])
-    })
-
-    it("ends the launch when they open the newer copy", async () => {
-      const { run } = offering({ move: true, dontAskAgain: false }, { result: "newer", open: true })
-      expect(await run()).toBe(true)
+  it("says something for a failure that has no message", () => {
+    expect(moving({ throws: new Error("") }).outcome).toEqual({
+      kind: "failed",
+      reason: "Moving to Applications failed.",
     })
   })
+})
 
-  it("does not run the signature check unless the offer could happen", async () => {
-    const runs = [{ inApplications: true }, { declined: true }, { packaged: false }].map(
-      (overrides) => {
-        const { run, steps } = offering({ move: true, dontAskAgain: false }, { overrides })
-        return run().then((result) => ({ result, steps }))
+describe("a renamed copy moving beside an installed one", () => {
+  const reason = (running: string, installed: boolean) =>
+    renamedMoveReason({ running, packaged: "novadeck.app", installed })
+
+  it("is refused, with how to go on, when the packaged name is installed", () => {
+    expect(reason("novadeck 2.app", true)).toBe(
+      "This copy is named novadeck 2.app, and novadeck.app is already in Applications. " +
+        "Rename this copy to novadeck.app, or remove the old one, and try again.",
+    )
+  })
+
+  it("is allowed where the copy has the packaged name, or none is installed", () => {
+    expect(reason("novadeck.app", true)).toBeUndefined()
+    expect(reason("novadeck 2.app", false)).toBeUndefined()
+  })
+})
+
+describe("the copies installed in Applications", () => {
+  const plist = (version: string): string =>
+    `<key>CFBundleShortVersionString</key><string>${version}</string>`
+  const finding = (
+    files: Record<string, string | Error>,
+    { folders = ["/A", "/H"], names = ["n.app"] } = {},
+  ) =>
+    findInstalledApps({
+      folders,
+      names,
+      exists: async (path) => Object.keys(files).some((file) => file.startsWith(`${path}/`)),
+      readFile: async (path) => {
+        const file = files[path]
+        if (file === undefined || file instanceof Error) throw file ?? new Error("missing")
+        return file
       },
-    )
-    for (const { result, steps } of await Promise.all(runs)) {
-      expect(result).toBe(false)
-      expect(steps).toEqual([])
+    })
+
+  it("lists the bundles that exist with the versions they report, in order", async () => {
+    expect(
+      await finding({
+        "/H/n.app/Contents/Info.plist": plist("0.4.0"),
+        "/A/n.app/Contents/Info.plist": plist("0.5.1"),
+      }),
+    ).toEqual([
+      { image: "/A/n.app", version: "0.5.1", unchecked: false },
+      { image: "/H/n.app", version: "0.4.0", unchecked: false },
+    ])
+  })
+
+  it("finds the packaged name beside a renamed running copy, the running name first, once", async () => {
+    const files = {
+      "/A/n.app/Contents/Info.plist": plist("0.6.0"),
+      "/A/n 2.app/Contents/Info.plist": plist("0.4.0"),
     }
+    expect(await finding(files, { folders: ["/A"], names: ["n 2.app", "n.app"] })).toEqual([
+      { image: "/A/n 2.app", version: "0.4.0", unchecked: false },
+      { image: "/A/n.app", version: "0.6.0", unchecked: false },
+    ])
+    // The running copy has the packaged name: it is looked for once.
+    expect(await finding(files, { folders: ["/A"], names: ["n.app", "n.app"] })).toHaveLength(1)
   })
 
-  it("asks nothing for a build that is not signed", async () => {
-    const { run, steps } = offering({ move: true, dontAskAgain: false }, { signed: false })
-    expect(await run()).toBe(false)
-    expect(steps).toEqual(["signed"])
+  it("lists none where there is no bundle", async () => {
+    expect(await finding({})).toEqual([])
   })
 
-  it("asks nothing when it should not", async () => {
-    const { run, steps } = offering(
-      { move: true, dontAskAgain: false },
-      { overrides: { inApplications: true } },
-    )
-    expect(await run()).toBe(false)
-    expect(steps).toEqual([])
+  it("has no version for a plist that names none a release has, and is not unchecked", async () => {
+    expect(
+      await finding({ "/A/n.app/Contents/Info.plist": plist("latest") }, { folders: ["/A"] }),
+    ).toEqual([{ image: "/A/n.app", version: undefined, unchecked: false }])
+  })
+
+  it("marks a bundle whose plist cannot be read as unchecked", async () => {
+    expect(await finding({ "/A/n.app/Contents/MacOS/n": "" }, { folders: ["/A"] })).toEqual([
+      { image: "/A/n.app", version: undefined, unchecked: true },
+    ])
   })
 })
 

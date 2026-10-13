@@ -1,5 +1,5 @@
 import { describe, expect, it } from "../../../test"
-import { createDemoPortable, portableVersion, releaseOffer } from "./portable"
+import { createDemoPortable, portableRun, portableVersion, releaseOffer } from "./portable"
 
 describe("demo portable copy", () => {
   it("says it is portable, and ends every install as armed", async () => {
@@ -9,6 +9,7 @@ describe("demo portable copy", () => {
     expect(await portable.state()).toEqual({
       portable: true,
       version: portableVersion,
+      run: portableRun,
     })
     expect(await portable.install()).toEqual({
       kind: "newer",

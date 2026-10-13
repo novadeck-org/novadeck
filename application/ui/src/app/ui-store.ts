@@ -263,10 +263,11 @@ export const watchCrashLoop = (crashes: Store<number> | undefined, ui: UiStore):
 // The update the backend offers, kept for the footer; a later offer replaces the last.
 // One for a version not yet shown opens its notice, which waits while the footer is
 // hidden; so does a stale one for a portable copy (`noticeRaised`).
-// What counts as already raised is what the person was shown in this run of the app, kept
-// beyond the page's life (`readUpdateRaised`, written as the notice shows), so a reload or
-// a new attempt at the backend does not raise it again, while a notice held back does. (The
-// demo's boots stand for launches and clear it; the desktop app's retries do not.)
+// What counts as already raised is what the person was shown in this run of the app, which
+// the host names, kept beyond the page's life (`readUpdateRaised`, written as the notice
+// shows), so a reload, a window opened again or a new attempt at the backend does not
+// raise it again, while a notice held back does. (The demo's boots stand for launches and
+// clear it; the desktop app's retries do not.)
 export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => void) =>
   updates?.onOffer((update) => {
     const state = ui.getSnapshot()
@@ -274,16 +275,26 @@ export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => v
       previous: state.update,
       seen: state.updateSeen,
       portable: state.portable?.portable === true,
-      shownThisRun: raisedThisRun(update),
+      shownThisRun: raisedThisRun(update, state.portable),
       now: Date.now(),
     })
     ui.update((current) => ({ ...current, update, updateOpen: current.updateOpen || raise }))
   }) ?? (() => {})
 
-// Notes that the notice of the offer with this `updateKey` showed, for the rest of the run.
-export const noteUpdateShown = writeUpdateRaised
+// The run the host names for a portable copy; only such a copy is reminded of a stale release.
+const runOf = (portable: PortableState | null): string | undefined =>
+  portable?.portable ? portable.run : undefined
 
-const raisedThisRun = (offer: UpdateOffer): boolean => readUpdateRaised() === updateKey(offer)
+// Notes that the notice of the offer with this `updateKey` showed, for the rest of the run.
+export const noteUpdateShown = (portable: PortableState | null, key: string): void => {
+  const run = runOf(portable)
+  if (run !== undefined) writeUpdateRaised(run, key)
+}
+
+const raisedThisRun = (offer: UpdateOffer, portable: PortableState | null): boolean => {
+  const run = runOf(portable)
+  return run !== undefined && readUpdateRaised(run) === updateKey(offer)
+}
 
 // Asks the backend once whether the app is a portable copy, and keeps the answer for the
 // footer. An offer heard before the answer, for a copy found stale, raises its notice now.
@@ -293,12 +304,20 @@ export const watchPortable = (portable: Backend["portable"], ui: UiStore): (() =
   void portable?.state().then(
     (portableState) => {
       if (!live) return
-      const { update } = ui.getSnapshot()
+      const { update, updateOpen, updateSeen } = ui.getSnapshot()
+      // A notice already open when the answer comes was shown before the run was known.
+      if (
+        portableState.portable &&
+        update !== null &&
+        updateOpen &&
+        updateSeen === updateKey(update)
+      )
+        noteUpdateShown(portableState, updateSeen)
       const raise =
         portableState.portable &&
         update !== null &&
         portableNagged(update, Date.now()) &&
-        !raisedThisRun(update)
+        !raisedThisRun(update, portableState)
       ui.update((state) => ({
         ...state,
         portable: portableState,

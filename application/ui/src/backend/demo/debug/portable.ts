@@ -17,6 +17,9 @@ export type DemoPortable = {
 // The version of the portable copy the demo plays.
 export const portableVersion = "0.0.70"
 
+// The run the demo plays: new at each load of the page, so a reload is a new launch.
+export const portableRun = crypto.randomUUID()
+
 // The browser's stand-in for the desktop host's portable copy: it says it is one, and
 // every install ends as `install` says, so Installing… stays for as long as anyone wants
 // to look at it. `opened` counts the presses of Open Novadeck, since a browser has no
@@ -28,7 +31,7 @@ export const createDemoPortable = ({
   readonly portable: NonNullable<Backend["portable"]>
   readonly opened: () => number
 } => {
-  const state: PortableState = { portable: true, version: portableVersion }
+  const state: PortableState = { portable: true, version: portableVersion, run: portableRun }
   let opens = 0
   return {
     portable: {

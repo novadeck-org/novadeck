@@ -12,8 +12,6 @@ export type UpdateState = {
    * that release only tells of it; a newer release installs as usual.
    */
   readonly installFailedOn: string | undefined
-  /** Whether the person asked not to be offered a move to the Applications folder again. */
-  readonly moveDeclined: boolean
   /**
    * For a portable copy, the running `version` and when it first learned that a newer
    * release exists, `since`, an ISO 8601 date-time. Another running version starts over.
@@ -24,7 +22,6 @@ export type UpdateState = {
 const defaults: UpdateState = {
   channel: "stable",
   installFailedOn: undefined,
-  moveDeclined: false,
   outdated: undefined,
 }
 
@@ -50,11 +47,10 @@ export const updateStateOf = (text: string): UpdateState => {
     return defaults
   }
   if (typeof kept !== "object" || kept === null) return defaults
-  const { channel, installFailedOn, moveDeclined, outdated } = kept as Record<string, unknown>
+  const { channel, installFailedOn, outdated } = kept as Record<string, unknown>
   return {
     channel: updateChannels.find((known) => known === channel) ?? defaults.channel,
     installFailedOn: typeof installFailedOn === "string" ? installFailedOn : undefined,
-    moveDeclined: moveDeclined === true,
     outdated: outdatedOf(outdated),
   }
 }
@@ -88,7 +84,6 @@ export const keepUpdateState = (file: string) => {
   return {
     read,
     setChannel: (channel: UpdateChannel): void => change({ channel }),
-    declineMove: (): void => change({ moveDeclined: true }),
     /** Marks that installing failed on `version`. */
     recordInstallFailure: (version: string): void => change({ installFailedOn: version }),
     /** Forgets the mark, as a check found no newer release: the next one starts afresh. */

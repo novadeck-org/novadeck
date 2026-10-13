@@ -18,11 +18,10 @@ beforeEach(async () => {
 afterEach(() => rm(folder, { recursive: true, force: true }))
 
 describe("what the host remembers about updating", () => {
-  it("starts on the stable channel with nothing failed or declined", () => {
+  it("starts on the stable channel with nothing failed", () => {
     expect(keepUpdateState(file).read()).toEqual({
       channel: "stable",
       installFailedOn: undefined,
-      moveDeclined: false,
     })
   })
 
@@ -45,7 +44,6 @@ describe("what the host remembers about updating", () => {
       expect(updateStateOf('{"channel":"early","installFailedOn":7}')).toEqual({
         channel: "early",
         installFailedOn: undefined,
-        moveDeclined: false,
       })
     })
   })
@@ -69,13 +67,9 @@ describe("what the host remembers about updating", () => {
       const state = keepUpdateState(file)
       state.setChannel("early")
       // Something else changed the file between two changes.
-      writeFileSync(file, JSON.stringify({ channel: "early", moveDeclined: true }))
+      writeFileSync(file, JSON.stringify({ channel: "stable" }))
       state.recordInstallFailure("0.4.2")
-      expect(state.read()).toEqual({
-        channel: "early",
-        installFailedOn: "0.4.2",
-        moveDeclined: true,
-      })
+      expect(state.read()).toEqual({ channel: "stable", installFailedOn: "0.4.2" })
     })
 
     it("leaves the file whole and no temporary file when a write fails", async () => {
@@ -95,16 +89,14 @@ describe("what the host remembers about updating", () => {
       expect(kept === "0.5.0").toBe(false)
     })
 
-    it("is replaced by a later failure and keeps the channel and the move choice", () => {
+    it("is replaced by a later failure and keeps the channel", () => {
       const state = keepUpdateState(file)
       state.setChannel("early")
-      state.declineMove()
       state.recordInstallFailure("0.4.2")
       state.recordInstallFailure("0.5.0")
       expect(state.read()).toEqual({
         channel: "early",
         installFailedOn: "0.5.0",
-        moveDeclined: true,
       })
     })
 
@@ -170,10 +162,5 @@ describe("what the host remembers about updating", () => {
       const state = keepUpdateState(join(folder, "missing", "update.json"))
       expect(() => state.outdatedSince("0.4.2", first)).toThrow()
     })
-  })
-
-  it("remembers that the person declined the move to Applications", () => {
-    keepUpdateState(file).declineMove()
-    expect(keepUpdateState(file).read().moveDeclined).toBe(true)
   })
 })
