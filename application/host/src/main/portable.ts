@@ -8,12 +8,20 @@ import { newerCopy, type InstalledCopy, type InstallOutcome } from "./install-li
  * How an install went, as the platform reports it: the copy now installed, a newer
  * installed copy found and left alone (`image`, of `version`), why nothing was installed,
  * or `leaving`, when the platform itself is already ending this app to start the installed
- * copy, as macOS does after moving the app to Applications.
+ * copy, as macOS does after moving the app to Applications, or `staged`, when the install
+ * must run after this app has shut down, as the Windows setup does: it is downloaded and
+ * checked, `start` runs it in place of this copy and ends this process (false if it could
+ * not), and `alert` tells the person it did not run.
  */
 export type PortableInstall =
   | InstallOutcome
   | { readonly kind: "newer"; readonly image: string; readonly version: string }
   | { readonly kind: "leaving" }
+  | {
+      readonly kind: "staged"
+      readonly start: () => Promise<boolean>
+      readonly alert: () => Promise<void>
+    }
 
 /** What installing from a portable copy, and leaving for the installed one, ask of the app. */
 export type PortableHost = {
@@ -79,26 +87,33 @@ const quitting: InstallResult = {
  * changes nothing. A second request while one is under way gets that one's answer, which may
  * be `newer` or `failed`, and does nothing more; once the copy began leaving, it answers
  * `installing`. A copy that is not portable installs
- * nothing.
+ * nothing. On Windows the install is a setup downloaded and checked while the app runs,
+ * a failure of which changes nothing; the setup is then run after the same shutdown,
+ * and the answer is `installing`.
  */
 export const portableInstaller = (host: PortableHost): PortableInstaller => {
   let under: Promise<InstallResult> | undefined
   let leaving = false
   let newer: string | undefined
 
-  const leave = (image: string): void => {
+  const leave = (start: () => Promise<boolean>, alert: () => Promise<void>): void => {
     if (leaving) return
     leaving = true
     void host
       .shutdown()
       .catch((error: unknown) => host.log("Shutting down failed.", error))
-      .then(() => host.start(image))
+      .then(start)
       .then((started) => {
         if (started) return void setTimeout(host.quit, host.fallbackMs)
-        return host.alert(image).then(host.quit)
+        return alert().then(host.quit)
       })
       .catch(host.quit)
   }
+  const leaveFor = (image: string): void =>
+    leave(
+      () => host.start(image),
+      () => host.alert(image),
+    )
 
   const run = async (): Promise<InstallResult> => {
     const copies = await host.find()
@@ -136,7 +151,8 @@ export const portableInstaller = (host: PortableHost): PortableInstaller => {
     }
     // The copy took a while: should the person have quit meanwhile, stay quit.
     if (host.stopping()) return quitting
-    leave(outcome.image)
+    if (outcome.kind === "staged") leave(outcome.start, outcome.alert)
+    else leaveFor(outcome.image)
     return { kind: "installing" }
   }
 
@@ -164,7 +180,7 @@ export const portableInstaller = (host: PortableHost): PortableInstaller => {
       return under
     },
     openInstalled: () => {
-      if (newer !== undefined && !host.stopping()) leave(newer)
+      if (newer !== undefined && !host.stopping()) leaveFor(newer)
     },
   }
 }

@@ -85,7 +85,7 @@ export type DesktopBridge = {
    * Whether this copy of the app is a portable one: it runs from wherever it was put,
    * never installs updates itself, and can install the app that does. Absent from hosts
    * that came before it; the page then takes the app for an installed one. Hosts that have
-   * it answer `{ portable: false }` where there is no portable build, as on Windows. See
+   * it answer `{ portable: false }` for a copy that was installed. See
    * `PortableState`.
    */
   portable?(): Promise<PortableState>

@@ -1,9 +1,9 @@
 import { execFile, spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { accessSync, existsSync, readFileSync, realpathSync } from "node:fs"
-import { access, constants, readFile, realpath } from "node:fs/promises"
+import { access, constants, mkdir, open, readFile, realpath, rm } from "node:fs/promises"
 import { homedir } from "node:os"
-import { basename, dirname, join } from "node:path"
+import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import type { UpdateChannel } from "@novadeck/protocol/bridge"
@@ -16,6 +16,7 @@ import {
   ipcMain,
   Menu,
   nativeTheme,
+  net,
   Notification,
   powerMonitor,
   session,
@@ -49,6 +50,17 @@ import {
   installLayout,
 } from "./install-linux.js"
 import { isInstalledImage } from "./install-location.js"
+import {
+  findInstalledWindows,
+  hashBody,
+  installedByInstaller,
+  prepareSetup,
+  readInstallRecord,
+  setupArguments,
+  setupName,
+  startDetached,
+  type InstallRecord,
+} from "./install-windows.js"
 import { linuxMenu } from "./menu.js"
 import { notificationText, registerNoticeIpc, showNotices } from "./notices.js"
 import { attachPage, guardPage, lockPagesSession, pagesPartition, webAddress } from "./pages.js"
@@ -64,7 +76,12 @@ import {
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { startRunner, type RunnerHost } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
-import { releaseDownloadsUrl, releasePageUrl, releaseRepositoryOf } from "./update-release.js"
+import {
+  releaseDownloadsUrl,
+  releaseLatestUrl,
+  releasePageUrl,
+  releaseRepositoryOf,
+} from "./update-release.js"
 import { keepUpdateState } from "./update-state.js"
 import {
   bundleOf,
@@ -314,6 +331,48 @@ const loadUpdater = async (kind: UpdaterKind): Promise<NonNullable<typeof update
   }
 }
 
+// What `reg query` says of the value `name` under `key`; "" where the key is not there, an
+// error where the registry could not be asked.
+const queryRegistry = (key: string, name: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    execFile(
+      join(process.env.SystemRoot ?? "C:\\Windows", "System32", "reg.exe"),
+      ["query", key, "/v", name],
+      { timeout: 5_000, windowsHide: true },
+      (error, stdout) => {
+        if (!error) return resolve(stdout)
+        // reg exits 1 for a key or value that does not exist.
+        const code: unknown = (error as { code?: unknown }).code
+        return code === 1 ? resolve("") : reject(error)
+      },
+    )
+  })
+
+// What the Windows installer recorded of an installed copy; see `readInstallRecord`.
+const installRecord = (): Promise<InstallRecord> => readInstallRecord(appId, queryRegistry)
+
+// The folder the Windows installer puts the app in unless told otherwise.
+const defaultInstallFolder = (): string | undefined =>
+  process.env.LOCALAPPDATA
+    ? win32.join(process.env.LOCALAPPDATA, "Programs", "novadeck")
+    : undefined
+
+// Whether the NSIS installer made this Windows copy; see `installedByInstaller`. The
+// registry is asked only when the uninstaller beside the executable does not settle it.
+const windowsInstalled = async (): Promise<boolean> => {
+  const defaultFolder = defaultInstallFolder()
+  const by = (recorded: string | undefined): boolean =>
+    installedByInstaller({
+      execPath: process.execPath,
+      recorded,
+      defaultFolder,
+      exists: existsSync,
+    })
+  if (by(undefined)) return true
+  const record = await installRecord().catch(() => undefined)
+  return by(record?.location)
+}
+
 // What decides how this build updates, but for the signature, read once. The signature
 // takes a moment to ask, which a launch need not wait for to tell whether it is portable.
 let base: Promise<Omit<UpdateBuild, "signed">> | undefined
@@ -332,6 +391,7 @@ const baseBuild = (): Promise<Omit<UpdateBuild, "signed">> =>
       env: { ...process.env, APPDIR: appDir && (await realpath(appDir).catch(() => appDir)) },
       inApplications: process.platform === "darwin" && app.isInApplicationsFolder(),
       appImageWritable: linux && (await appImageWritable()),
+      windowsInstalled: process.platform === "win32" && (await windowsInstalled()),
       appImageInstalled:
         linux &&
         appImage !== undefined &&
@@ -562,6 +622,26 @@ const startInstalled = (image: string): Promise<boolean> =>
     log: (message, error) => console.warn(message, error),
   })
 
+// Starts the installed Windows copy `image` in place of this process; see `startDetached`.
+const startWindowsCopy = (image: string): Promise<boolean> =>
+  startDetached({
+    file: image,
+    cwd: dirname(image),
+    spawn,
+    exists: existsSync,
+    releaseLock: () => app.releaseSingleInstanceLock(),
+    exit: () => app.exit(0),
+    log: (message, error) => console.warn(message, error),
+  })
+
+// Starts the installed copy `image` in place of this one, the way this system does.
+const startInstalledCopy = (image: string): Promise<boolean> =>
+  process.platform === "darwin"
+    ? startBundle(image)
+    : process.platform === "win32"
+      ? startWindowsCopy(image)
+      : startInstalled(image)
+
 // Tells the person that the installed copy at `image` would not start, which leaves the
 // app with nothing to do but quit.
 const alertNotStarted = async (image: string): Promise<void> => {
@@ -571,8 +651,111 @@ const alertNotStarted = async (image: string): Promise<void> => {
     detail:
       process.platform === "darwin"
         ? `Open it from your Applications folder. It is at ${image}.`
-        : `Start it from your applications menu or with the novadeck command. It is at ${image}.`,
+        : process.platform === "win32"
+          ? `Open it from the Start menu. It is at ${image}.`
+          : `Start it from your applications menu or with the novadeck command. It is at ${image}.`,
   })
+}
+
+// The text of `url`, fetched with a time limit; undefined for a 404, and a throw for
+// anything else but 200.
+const fetchText = async (url: string): Promise<string | undefined> => {
+  const response = await net.fetch(url, { signal: AbortSignal.timeout(20_000) })
+  if (response.status === 404) return undefined
+  if (!response.ok) throw new Error(`${url} answered ${response.status}.`)
+  return response.text()
+}
+
+// Where the setup is downloaded to: one folder in the user's temporary folder, emptied
+// before each download, so no more than one setup is ever kept.
+const setupFolder = (): string => join(app.getPath("temp"), "novadeck-setup")
+
+// How long a download may go without data before it is given up.
+const downloadStallMs = 60_000
+
+// Downloads `url` into the setup folder, hashing as it goes. The file is written by this
+// app, so it carries no Mark of the Web; the hash is what vouches for it.
+const downloadSetup = async (
+  url: string,
+  maxBytes: number,
+): Promise<{ file: string; sha512: string }> => {
+  const folder = setupFolder()
+  await rm(folder, { recursive: true, force: true })
+  await mkdir(folder, { recursive: true })
+  const file = join(folder, setupName)
+  // Through Electron's network stack, which honours the system and PAC proxies as the
+  // update check does. The download is given up only when no data comes for a while, so a
+  // slow link is not cut off.
+  const controller = new AbortController()
+  let stall: ReturnType<typeof setTimeout> | undefined
+  const alive = (): void => {
+    clearTimeout(stall)
+    stall = setTimeout(() => controller.abort(), downloadStallMs)
+  }
+  alive()
+  const handle = await open(file, "w")
+  try {
+    const response = await net.fetch(url, { signal: controller.signal })
+    const sha512 = await hashBody(
+      response as unknown as Parameters<typeof hashBody>[0],
+      (chunk) => {
+        alive()
+        return handle.write(chunk).then(() => undefined)
+      },
+      maxBytes,
+    )
+    await handle.close()
+    return { file, sha512 }
+  } catch (error) {
+    await handle.close().catch(() => {})
+    await rm(file, { force: true })
+    throw error
+  } finally {
+    clearTimeout(stall)
+  }
+}
+
+// The Windows install: the latest release's setup is downloaded and checked while the app
+// runs, and run once the app has shut down; see `prepareSetup` and the ordering notes in
+// docs/auto-update.md.
+const stageWindowsSetup = async (): Promise<PortableInstall> => {
+  const repository = await releaseRepository()
+  const outcome = await prepareSetup({
+    downloads: {
+      latest: repository && releaseLatestUrl(repository),
+      own: repository && releaseDownloadsUrl(repository, app.getVersion()),
+    },
+    version: app.getVersion(),
+    text: fetchText,
+    download: downloadSetup,
+    remove: (file) => rm(file, { force: true }),
+    log: (message, error) => console.warn(message, error),
+  })
+  if (outcome.kind === "failed") return outcome
+  return {
+    kind: "staged",
+    // The setup runs silently and starts the installed app when it is done. It is not
+    // given `--updated`, which marks an update made from the running app; this is a fresh
+    // install made after the app has gone. The setup's check for a running app only looks
+    // for novadeck.exe, and this process exits as the setup starts.
+    start: () =>
+      startDetached({
+        file: outcome.setup,
+        args: setupArguments,
+        spawn,
+        exists: existsSync,
+        releaseLock: () => app.releaseSingleInstanceLock(),
+        exit: () => app.exit(0),
+        log: (message, error) => console.warn(message, error),
+      }),
+    alert: async () => {
+      await dialog.showMessageBox({
+        type: "error",
+        message: "Novadeck could not be installed.",
+        detail: `Windows did not run the installer. Your workspace is saved. Run ${outcome.setup} yourself, or download Novadeck again from its Releases page.`,
+      })
+    },
+  }
 }
 
 // Reads the versions of installed AppImages with the environment they are started with.
@@ -581,18 +764,29 @@ const installedExtract = () =>
 
 // The copies of the app installed on this machine, with their versions.
 const installedCopies = () =>
-  process.platform === "darwin"
-    ? findInstalledApps({
-        folders: ["/Applications", join(homedir(), "Applications")],
-        names: installedNames(),
+  process.platform === "win32"
+    ? findInstalledWindows({
+        defaultFolder: defaultInstallFolder(),
+        executable: basename(process.execPath),
+        record: installRecord,
         exists: (path) =>
           access(path).then(
             () => true,
             () => false,
           ),
-        readFile: (path) => readFile(path, "utf8"),
       })
-    : findInstalled({ env: process.env, home: homedir() }, installedExtract())
+    : process.platform === "darwin"
+      ? findInstalledApps({
+          folders: ["/Applications", join(homedir(), "Applications")],
+          names: installedNames(),
+          exists: (path) =>
+            access(path).then(
+              () => true,
+              () => false,
+            ),
+          readFile: (path) => readFile(path, "utf8"),
+        })
+      : findInstalled({ env: process.env, home: homedir() }, installedExtract())
 
 // Installs the AppImage that is running, over the installed copy `target` or at the
 // installer's path.
@@ -626,13 +820,20 @@ const launch = async (): Promise<void> => {
         })
         return response === 0
       },
-      start: process.platform === "darwin" ? startBundle : startInstalled,
+      start: startInstalledCopy,
       alert: alertNotStarted,
       quit: () => app.exit(0),
       log: (message, error) => console.warn(message, error),
     })
   )
     return
+  // The installed copy has no use for a setup the portable copy left; the installer that
+  // started this copy may still hold it for a moment, so this waits, and gives up quietly.
+  if (process.platform === "win32" && app.isPackaged && !portable)
+    setTimeout(
+      () => void rm(setupFolder(), { recursive: true, force: true }).catch(() => {}),
+      60_000,
+    ).unref()
   channel = updateState.read().channel
   await appearance.restore(nativeTheme)
   runner = startRunner({
@@ -737,17 +938,23 @@ const launch = async (): Promise<void> => {
       uncheckedAdvice:
         process.platform === "darwin"
           ? "Check the copy in your Applications folder, or reinstall Novadeck from the disk image."
-          : "Try again, or reinstall Novadeck with install.sh.",
+          : process.platform === "win32"
+            ? "Open the installed Novadeck from the Start menu, or uninstall it in Windows Settings and try again."
+            : "Try again, or reinstall Novadeck with install.sh.",
       find: installedCopies,
       install: (target) =>
-        process.platform === "darwin" ? Promise.resolve(moveApp()) : installAppImageOver(target),
+        process.platform === "darwin"
+          ? Promise.resolve(moveApp())
+          : process.platform === "win32"
+            ? stageWindowsSetup()
+            : installAppImageOver(target),
       shutdown: () => {
         stopping = true
         orderlyQuit = true
         updates?.stop()
         return shutDown()
       },
-      start: process.platform === "darwin" ? startBundle : startInstalled,
+      start: startInstalledCopy,
       alert: alertNotStarted,
       stopping: () => stopping,
       fallbackMs: installFallbackMs(process.platform),

@@ -128,9 +128,10 @@ jobs:
           - name: Windows
             os: windows-latest
             target: win
-            expected: novadeck-win-x64-setup.exe latest.yml
+            expected: novadeck-win-x64-setup.exe novadeck-win-x64.zip latest.yml
             files: |
               application/host/release/*.exe
+              application/host/release/*.zip
               application/host/release/latest.yml
               application/host/release/*.blockmap
               application/host/release/novadeck-whisper-win32-x64.tar.gz
@@ -577,8 +578,16 @@ jobs:
           & "$env:SystemRoot\System32\tar.exe" -xzf $archive.FullName -C $engine
           $archive = Get-ChildItem engines/murmur/dist -Filter "novadeck-murmur-*.tar.gz" | Select-Object -First 1
           & "$env:SystemRoot\System32\tar.exe" -xzf $archive.FullName -C $murmur
+          # The ZIP is made from win-unpacked, but its own contents are what people run.
+          $portable = Join-Path $env:RUNNER_TEMP "novadeck-verify-portable"
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          & "$env:SystemRoot\System32\tar.exe" -xf application/host/release/novadeck-win-x64.zip -C $portable
+          if ($LASTEXITCODE -ne 0) {
+            throw "The portable ZIP did not extract."
+          }
           $files = @(Get-ChildItem application/host/release -Filter *.exe) +
             @(Get-ChildItem application/host/release/win-unpacked -Recurse -Include *.exe, *.dll, *.node) +
+            @(Get-ChildItem $portable -Recurse -Include *.exe, *.dll, *.node) +
             @(Get-ChildItem $engine -Include *.exe, *.dll -Recurse) +
             @(Get-ChildItem $murmur -Include *.exe, *.dll -Recurse)
           $unsigned = $files | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne "Valid" }
@@ -590,8 +599,8 @@ jobs:
 
       # Each package runs for ten seconds as people get it: the AppImage as it is and as
       # install.sh installs it from a local copy of the release, then the app from the macOS
-      # ZIP, disk image and install.sh, and from the Windows installer. The AppImage mounts itself through
-      # FUSE 3, with no extraction flag.
+      # ZIP, disk image and install.sh, and from the Windows installer and ZIP. The AppImage mounts
+      # itself through FUSE 3, with no extraction flag.
       - name: Smoke Test Linux Packages
         if: matrix.target == 'linux'
         shell: bash
@@ -887,6 +896,26 @@ jobs:
             throw "Uninstalling left $folder behind."
           }
 
+          # The portable ZIP, extracted to a fresh folder; the installed copy has exited and
+          # its folder is gone, so nothing holds the single-instance lock.
+          $portable = Join-Path $env:RUNNER_TEMP "novadeck-smoke-portable"
+          New-Item -ItemType Directory -Force -Path $portable | Out-Null
+          & "$env:SystemRoot\System32\tar.exe" -xf application/host/release/novadeck-win-x64.zip -C $portable
+          if ($LASTEXITCODE -ne 0) {
+            throw "The portable ZIP did not extract."
+          }
+          $app = Join-Path $portable "novadeck.exe"
+          if (-not (Test-Path $app)) {
+            throw "The portable ZIP holds no novadeck.exe at its top."
+          }
+          if (Test-Path (Join-Path $portable "Uninstall *.exe")) {
+            throw "The portable ZIP holds an uninstaller, which only the installer writes."
+          }
+          if (-not (Test-Path (Join-Path $portable "resources\app-update.yml"))) {
+            throw "The portable ZIP holds no resources\app-update.yml."
+          }
+          Test-Launch $app "portable application"
+
       - name: Smoke Test Packaged Runner
         timeout-minutes: 5
         shell: bash
@@ -965,7 +994,7 @@ jobs:
         run: |
           for name in \
             novadeck-mac-universal.dmg novadeck-mac-universal.zip \
-            novadeck-win-x64-setup.exe \
+            novadeck-win-x64-setup.exe novadeck-win-x64.zip \
             novadeck-linux-x86_64.AppImage \
             latest.yml latest-mac.yml latest-linux.yml install.sh; do
             if [[ ! -f "$name" ]]; then

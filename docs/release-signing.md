@@ -16,7 +16,9 @@ set, Windows when any of its `AZURE_SIGNING_*` variables is, and the checksums' 
 when `GPG_PRIVATE_KEY` is. From then on the release
 fails and names whatever that platform still lacks, rather than shipping it unsigned. After packaging, it checks the signatures: `codesign`,
 `spctl` and `stapler` on macOS, for the app in the ZIP and in the disk image, and
-`Get-AuthenticodeSignature` on Windows.
+`Get-AuthenticodeSignature` on Windows, which also covers the executables, DLLs and native modules
+inside the extracted `novadeck-win-x64.zip`. That ZIP is zipped from the same signed `win-unpacked`
+folder as the installer's payload, so it carries the same signed binaries.
 
 The macOS disk image itself isn't signed: Gatekeeper checks the app people drag out of
 it, which carries its notarization ticket.

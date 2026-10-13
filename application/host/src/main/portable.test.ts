@@ -371,6 +371,86 @@ describe("installing from a portable copy", () => {
   })
 })
 
+describe("installing a setup that runs after the shutdown", () => {
+  const staging = (started: boolean, calls: string[]) => ({
+    install: async (): Promise<PortableInstall> => {
+      calls.push("install")
+      return {
+        kind: "staged",
+        start: async () => {
+          calls.push("run setup")
+          return started
+        },
+        alert: async () => void calls.push("alert setup"),
+      }
+    },
+  })
+
+  it("shuts down, then runs the setup, then quits after the fallback", async () => {
+    vi.useFakeTimers()
+    try {
+      const calls: string[] = []
+      const { host } = hosting({
+        ...staging(true, calls),
+        shutdown: async () => void calls.push("shutdown"),
+        quit: () => void calls.push("quit"),
+      })
+      expect(await portableInstaller(host).install()).toEqual({ kind: "installing" })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(calls).toEqual(["install", "shutdown", "run setup"])
+      await vi.advanceTimersByTimeAsync(host.fallbackMs)
+      expect(calls).toEqual(["install", "shutdown", "run setup", "quit"])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("tells the person and quits when the setup did not run", async () => {
+    const calls: string[] = []
+    const { host } = hosting({
+      ...staging(false, calls),
+      shutdown: async () => void calls.push("shutdown"),
+      quit: () => void calls.push("quit"),
+    })
+    await portableInstaller(host).install()
+    await settle()
+    expect(calls).toEqual(["install", "shutdown", "run setup", "alert setup", "quit"])
+  })
+
+  it("keeps the app running when the setup could not be made ready", async () => {
+    const { host, calls } = hosting({
+      install: async () => ({ kind: "failed", reason: "The latest release could not be fetched." }),
+    })
+    expect(await portableInstaller(host).install()).toEqual({
+      kind: "failed",
+      reason: "The latest release could not be fetched.",
+    })
+    await settle()
+    expect(calls).toEqual([])
+  })
+
+  it("leaves a newer installed copy alone and never makes the setup", async () => {
+    const calls: string[] = []
+    const { host } = hosting({ ...staging(true, calls), find: async () => [copy("1.1.0")] })
+    expect(await portableInstaller(host).install()).toMatchObject({ kind: "newer" })
+    await settle()
+    expect(calls).toEqual([])
+  })
+
+  it("does not install over an installed copy that could not be checked", async () => {
+    const calls: string[] = []
+    const { host } = hosting({
+      ...staging(true, calls),
+      find: async () => [copy(undefined, true)],
+      uncheckedAdvice: "Open the installed Novadeck from the Start menu.",
+    })
+    const result = await portableInstaller(host).install()
+    expect(result).toMatchObject({ kind: "failed" })
+    expect(result.kind === "failed" && result.reason).toContain("Start menu")
+    expect(calls).toEqual([])
+  })
+})
+
 describe("opening the installed copy found newer", () => {
   it("shuts down and starts it", async () => {
     const { host, calls } = hosting({ find: async () => [copy("1.1.0")] })

@@ -50,6 +50,7 @@ const build = (overrides: Partial<UpdateBuild> = {}): UpdateBuild => ({
   inApplications: false,
   appImageWritable: true,
   appImageInstalled: true,
+  windowsInstalled: true,
   ...overrides,
 })
 
@@ -139,13 +140,25 @@ describe("how a build updates", () => {
       })
     })
 
-    it("does not tell a portable copy from an installed one yet", () => {
-      const env = { PORTABLE_EXECUTABLE_DIR: "C:\\Tools" }
-      expect(updatePlan(build({ platform: "win32", env, appImageInstalled: false }))).toEqual({
+    it("only tells for a copy the installer did not make, and never installs", () => {
+      const zip = build({ platform: "win32", windowsInstalled: false })
+      expect(updatePlan(zip)).toEqual({ kind: "nsis", mode: "tell", portable: true })
+      expect(updatePlan({ ...zip, signed: true })?.mode).toBe("tell")
+    })
+
+    it("is not portable when the installer made the copy, and still installs", () => {
+      expect(updatePlan(build({ platform: "win32", windowsInstalled: true }))).toEqual({
         kind: "nsis",
         mode: "install",
         portable: false,
       })
+    })
+
+    it("does not look for updates from a ZIP copy that looks for none", () => {
+      const zip = { platform: "win32", windowsInstalled: false } as const
+      expect(updatePlan(build({ ...zip, version: "0.0.0" }))).toBeUndefined()
+      expect(updatePlan(build({ ...zip, env: { NOVADECK_UPDATES: "off" } }))).toBeUndefined()
+      expect(updatePlan(build({ ...zip, packaged: false }))).toBeUndefined()
     })
   })
 
@@ -197,8 +210,18 @@ describe("whether a build is portable", () => {
     )
   })
 
-  it("is not yet a Windows build", () => {
-    expect(portableOf(build({ platform: "win32", appImageInstalled: false }))).toBe(false)
+  context("on Windows", () => {
+    it("is a packaged copy the installer did not make", () => {
+      expect(portableOf(build({ platform: "win32", windowsInstalled: false }))).toBe(true)
+      expect(portableOf(build({ platform: "win32", windowsInstalled: true }))).toBe(false)
+    })
+
+    it("is not a build that looks for no updates", () => {
+      const zip = { platform: "win32", windowsInstalled: false } as const
+      expect(portableOf(build({ ...zip, version: "0.0.0" }))).toBe(false)
+      expect(portableOf(build({ ...zip, env: { NOVADECK_UPDATES: "off" } }))).toBe(false)
+      expect(portableOf(build({ ...zip, packaged: false }))).toBe(false)
+    })
   })
 
   context("on macOS", () => {

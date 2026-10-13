@@ -52,3 +52,10 @@ export const releaseDownloadsUrl = (
   updateVersionPattern.test(version)
     ? `https://github.com/${owner}/${repo}/releases/download/v${version}/`
     : undefined
+
+/**
+ * The address, ending in "/", that the latest stable release's assets download from.
+ * Release assets carry no version in their names, so a name here is always the latest's.
+ */
+export const releaseLatestUrl = ({ owner, repo }: ReleaseRepository): string =>
+  `https://github.com/${owner}/${repo}/releases/latest/download/`

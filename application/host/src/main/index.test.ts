@@ -182,6 +182,22 @@ describe("compiled desktop host", () => {
       expect(main).not.toContain("novadeck-org/novadeck/releases/tag")
     })
 
+    it("installs on Windows from a setup staged while the app runs, started detached and never through the shell", async () => {
+      const main = await read("main/index.js")
+
+      expect(main).toContain("stageWindowsSetup()")
+      expect(main).toContain("releaseLatestUrl(")
+      expect(main).toContain("setupArguments")
+      // Only a copy the installer did not make is portable, which the launch checks.
+      expect(main).toContain("windowsInstalled")
+      // The setup is never opened through the shell, which would apply SmartScreen.
+      expect(main).not.toContain("shell.openPath")
+      // The Windows copy, unlike Linux's, lets go of the lock inside startDetached.
+      expect(main).toContain("startWindowsCopy")
+      // Downloads go through Electron's network stack, which honours the system proxy.
+      expect(main).toContain("net.fetch(")
+    })
+
     it("opens windows on the page's last ground and follows its appearance", async () => {
       const main = await read("main/index.js")
       const preload = await read("preload/index.cjs")

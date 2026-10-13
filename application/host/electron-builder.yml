@@ -117,8 +117,15 @@ win:
     - "!node_modules/node-pty/prebuilds/{darwin,linux}-*{,/**}"
     - "!node_modules/node-pty/prebuilds/win32-arm64{,/**}"
     - "!node_modules/node-pty/third_party{,/**}"
+  # The installer, and the ZIP of the unpacked app that runs from any folder: builder zips
+  # win-unpacked after signing it, so both hold the same signed executables. The ZIP is no
+  # update source: builder writes latest.yml for the installer alone, and a ZIP-run app
+  # does not update itself.
   target:
     - target: nsis
+      arch:
+        - x64
+    - target: zip
       arch:
         - x64
 nsis:

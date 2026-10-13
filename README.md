@@ -51,9 +51,9 @@ canvas. Keep related work together and switch between sessions from the sidebar.
 An installed build keeps itself up to date; an unsigned macOS build only tells you when a
 newer release is out until signing lands. An AppImage run from anywhere other than the
 install path (`~/.local/share/novadeck/novadeck.AppImage`, or Homebrew's
-`~/Applications/novadeck.AppImage`), and a macOS app run from outside an Applications
-folder, is portable: it only looks for new releases and offers to install the app from
-itself (see [docs/auto-update.md](docs/auto-update.md)). Those links point to the latest stable release; until
+`~/Applications/novadeck.AppImage`), a macOS app run from outside an Applications
+folder, and the Windows ZIP (`novadeck-win-x64.zip`, unpacked anywhere), is portable: it only looks for new releases and offers to install Novadeck (from itself on Linux and macOS,
+the latest setup on Windows; see [docs/auto-update.md](docs/auto-update.md)). Those links point to the latest stable release; until
 the first one is promoted, Novadeck's builds are prereleases on the
 [Releases page](https://github.com/novadeck-org/novadeck/releases). See
 [docs/auto-update.md](docs/auto-update.md) for how updates work.

@@ -45,6 +45,8 @@ export type UpdateBuild = {
   readonly appImageWritable: boolean
   /** Whether the AppImage file is at an installed place; see `isInstalledImage`. */
   readonly appImageInstalled: boolean
+  /** Whether the Windows build was installed by the NSIS installer; see `installedByInstaller`. */
+  readonly windowsInstalled: boolean
 }
 
 /** The kind of build, which decides the electron-updater class that serves it. */
@@ -99,9 +101,9 @@ const looksForUpdates = ({ packaged, version, env }: UpdateBuild): boolean =>
  * lead the person to the installed app instead of updating itself. On Linux that is an
  * AppImage anywhere but the places the installer puts it. On macOS it is the app anywhere
  * but an Applications folder, such as Downloads, a translocated copy or the mounted disk
- * image, whether signed or not. The Windows ZIP is not yet told apart, so it is not
- * portable; neither is a build that looks for no updates, as a portable offers to install
- * the current release.
+ * image, whether signed or not. On Windows it is the unpacked ZIP, which nothing marks
+ * but the installer's absence (see `installedByInstaller`). A build that looks for no
+ * updates is never portable, as a portable offers to install the current release.
  */
 export const portableOf = (build: UpdateBuild): boolean => {
   if (!looksForUpdates(build)) return false
@@ -110,6 +112,8 @@ export const portableOf = (build: UpdateBuild): boolean => {
       return !build.appImageInstalled
     case "mac":
       return !build.inApplications
+    case "nsis":
+      return !build.windowsInstalled
     default:
       return false
   }
@@ -122,7 +126,8 @@ export const portableOf = (build: UpdateBuild): boolean => {
  * reaches the network. Nor does a Linux build that is not an AppImage, as none is released.
  * Every other build either installs updates itself or tells of them:
  *
- * - The Windows installer installs.
+ * - The Windows installer installs. A portable one, the unpacked ZIP, only tells: an NSIS
+ *   updater would install a separate copy on quit.
  * - macOS installs when the app bundle is Developer ID signed, as Squirrel.Mac refuses
  *   to install into any other, and tells otherwise. A portable one, outside Applications,
  *   only tells.

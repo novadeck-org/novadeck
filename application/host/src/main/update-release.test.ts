@@ -1,5 +1,10 @@
 import { describe, expect, it } from "../test"
-import { releaseDownloadsUrl, releasePageUrl, releaseRepositoryOf } from "./update-release"
+import {
+  releaseDownloadsUrl,
+  releaseLatestUrl,
+  releasePageUrl,
+  releaseRepositoryOf,
+} from "./update-release"
 
 const yaml = (owner: string, repo: string, provider = "github"): string =>
   `provider: ${provider}\nowner: ${owner}\nrepo: ${repo}\nreleaseType: prerelease\nupdaterCacheDirName: novadeck-updater\n`
@@ -71,5 +76,13 @@ describe("the address a release's assets are downloaded from", () => {
 
   it("is nothing for a version that is not a release's", () => {
     expect(releaseDownloadsUrl(repository, "1.2.3/../x")).toBeUndefined()
+  })
+})
+
+describe("the address of the latest release's assets", () => {
+  it("names the versionless download of the repository", () => {
+    expect(releaseLatestUrl({ owner: "novadeck-org", repo: "novadeck" })).toBe(
+      "https://github.com/novadeck-org/novadeck/releases/latest/download/",
+    )
   })
 })
