@@ -91,6 +91,29 @@ describe("the update notice", () => {
     })
   })
 
+  context("for an update being downloaded", () => {
+    const downloading = () => popover("Novadeck 0.0.80 is downloading")
+
+    it("counts on the chip without raising the notice, then raises the ready one", async () => {
+      await openWorkspace("/?demo=update-downloading")
+      await expect.element(chip(/^Downloading update: Novadeck 0.0.80$/)).toBeVisible()
+      await expect.element(downloading()).not.toBeInTheDocument()
+      await expect.element(ready(), { timeout: 10_000 }).toBeVisible()
+      await expect.element(restart()).toBeVisible()
+    })
+
+    it("opens from the chip with Later alone to press", async () => {
+      await openWorkspace("/?demo=update-downloading")
+      await chip(/^Downloading update/).click()
+      await expect.element(downloading()).toBeVisible()
+      await expect.element(downloading().getByRole("progressbar")).toBeVisible()
+      await expect.element(later(downloading())).toBeVisible()
+      await expect
+        .element(downloading().getByRole("button", { name: "Restart now" }))
+        .not.toBeInTheDocument()
+    })
+  })
+
   context("for an update the host can't install itself", () => {
     it("offers Download rather than Restart, and the chip says available", async () => {
       await openWorkspace("/?demo=update-available")

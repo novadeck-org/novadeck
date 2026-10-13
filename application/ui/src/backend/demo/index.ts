@@ -96,6 +96,8 @@ export const demoBackend = (
     TerminalSurface: createDemoTerminal(engine, introOf, runtime),
     voice,
     murmur,
+    // Older than every update the demo offers (see debug/states.ts).
+    version: () => Promise.resolve("0.0.79"),
     // The demo's command line takes dictation as typed text, which it never submits.
     typeInto: (key, text) => {
       engine.setDraft(key, engine.getSnapshot(key).draft + text.replaceAll(/\s*\r?\n\s*/g, " "))

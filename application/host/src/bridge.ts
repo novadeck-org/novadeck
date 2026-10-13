@@ -54,6 +54,9 @@ export const openUpdatePageChannel = "novadeck:open-update-page"
 /** Renderer-to-main request for the update channel the build follows; answers it. */
 export const updateChannelChannel = "novadeck:update-channel"
 
+/** Renderer-to-main request for the version of the app; answers it. */
+export const versionChannel = "novadeck:version"
+
 /** Renderer-to-main request to follow another update channel. */
 export const setUpdateChannelChannel = "novadeck:set-update-channel"
 

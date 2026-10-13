@@ -30,6 +30,7 @@ import {
   directoryPickerChannel,
   noticeClickChannel,
   runnerPortChannel,
+  versionChannel,
 } from "../bridge.js"
 import { keepAppearance, registerAppearanceIpc } from "./appearance.js"
 import {
@@ -369,8 +370,11 @@ const startUpdates = async (): Promise<void> => {
     failedVersion: state.installFailedOn,
     // Squirrel.Mac stages macOS updates; the others install from electron-updater's file.
     native: process.platform === "darwin" ? nativeUpdater : undefined,
-    offer: (kind, version, notes) =>
-      offers.offer(kind, version, notes, plan.portable ? outdatedSince : undefined),
+    offer: (kind, version, notes, percent) =>
+      offers.offer(kind, version, notes, {
+        percent,
+        outdatedSince: plan.portable ? outdatedSince : undefined,
+      }),
     // A portable that is current again starts a fresh clock when a release comes after.
     upToDate: plan.portable ? clearOutdated : undefined,
     // Synchronous: a failed install on quit is reported as the app exits.
@@ -656,10 +660,12 @@ const launch = async (): Promise<void> => {
     install: () =>
       installUpdate({
         downloaded: () => offers.current()?.kind === "ready" && updater !== undefined,
+        settled: () => updates?.settled() ?? Promise.resolve(false),
         stopping: () => stopping,
         stop: () => {
           stopping = true
           orderlyQuit = true
+          updates?.stop()
         },
         shutdown: shutDown,
         install: () => {
@@ -746,6 +752,8 @@ const launch = async (): Promise<void> => {
         realpath: realpathOrUndefined,
       }),
   })
+  // Only the app's own pages learn the version it runs.
+  ipcMain.handle(versionChannel, (event) => (appWindow(event) ? app.getVersion() : ""))
   ipcMain.handle(directoryPickerChannel, async (event) => {
     const window = appWindow(event)
     if (!window) return null
@@ -831,6 +839,8 @@ const declineUnorderlyInstall = installOnlyOnOrderlyQuit(
 )
 
 app.on("before-quit", (event) => {
+  // No new download starts on the way out.
+  updates?.stop()
   if (process.platform === "linux") declineUnorderlyInstall()
   if ((!server && !runner) || stopping) return
 

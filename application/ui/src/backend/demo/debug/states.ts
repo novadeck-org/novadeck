@@ -310,7 +310,7 @@ const createNotificationActions = (verbs: DemoAgentVerbs): readonly [DemoAction,
 export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
   const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
-  const { updates, offer, finish, failInstall } = createDemoUpdates()
+  const { updates, offer, download, finish, failInstall } = createDemoUpdates()
   // Each press offers a newer version than the last, so its notice comes up again.
   let patch = 79
   const nextVersion = (): string => `0.0.${(patch += 1)}`
@@ -594,6 +594,11 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
           run: () => offer({ kind: "ready", version: nextVersion(), notes: longestNotes }),
         },
         {
+          label: "Downloading",
+          hint: "Chip counts up, its card has Later only; then the Ready notice comes up",
+          run: () => download(nextVersion(), sampleNotes),
+        },
+        {
           label: "Newer update",
           hint: "Replaces the open or dismissed one",
           run: () =>
@@ -601,7 +606,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
         },
         {
           label: "Install failed",
-          hint: "Ready turns to Available, with Download",
+          hint: "Ready turns to Available, with Download; a download, quietly",
           run: failInstall,
         },
         {

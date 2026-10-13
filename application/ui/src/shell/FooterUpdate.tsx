@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { blockingOverlayOpen } from "../interaction/dom"
 import type { InstallResult } from "../model/portable"
 import { updateKey, type UpdateOffer } from "../model/update"
+import { Progress } from "../ui-toolkit/Progress"
 import { KeepFocus, useRecoverFocus } from "./notice-focus"
 
 // The release-note lines the notice shows; the release page has the rest.
@@ -10,7 +11,7 @@ export const shownNotes = 5
 
 // What the notice says of an offer.
 const headline = ({ kind, version }: UpdateOffer): string =>
-  `Novadeck ${version} is ${kind === "ready" ? "ready" : "available"}`
+  `Novadeck ${version} is ${kind === "downloading" ? "downloading" : kind}`
 
 // A portable copy, which never updates itself and is the way to install the app that does.
 export type FooterPortable = {
@@ -106,12 +107,13 @@ const UpdateCard = ({
   readonly onRestart: () => void
   readonly onOpenPage: () => void
 }): React.JSX.Element => {
-  const { kind, notes } = offer
+  const { kind, notes, percent } = offer
   return (
     <>
       <p id={titleId} className="update-title">
         {headline(offer)}
       </p>
+      {kind === "downloading" && <Progress label="Download" value={percent ?? 0} max={100} />}
       <UpdateNotes notes={notes} />
       {kind === "ready" && (
         <button type="button" className="button link update-link" onClick={onOpenPage}>
@@ -122,17 +124,19 @@ const UpdateCard = ({
         <button type="button" className="button min-h-8 px-3" onClick={() => onClose("origin")}>
           Later
         </button>
-        <button
-          type="button"
-          className="button primary min-h-8 px-3"
-          onClick={() => {
-            onClose("terminal")
-            if (kind === "ready") onRestart()
-            else onOpenPage()
-          }}
-        >
-          {kind === "ready" ? "Restart now" : "Download"}
-        </button>
+        {kind !== "downloading" && (
+          <button
+            type="button"
+            className="button primary min-h-8 px-3"
+            onClick={() => {
+              onClose("terminal")
+              if (kind === "ready") onRestart()
+              else onOpenPage()
+            }}
+          >
+            {kind === "ready" ? "Restart now" : "Download"}
+          </button>
+        )}
       </div>
     </>
   )
@@ -230,8 +234,8 @@ const PortableCard = ({
   )
 }
 
-// An update waiting beside the footer's status: a chip, "Update ready" or "Update
-// available", and the notice above it. The notice is a plain panel, not a dialog or a
+// An update beside the footer's status: a chip, "Downloading update… 42%", "Update ready"
+// or "Update available", and the notice above it. The notice is a plain panel, not a dialog or a
 // layer: nothing about it intercepts keys, focus or clicks elsewhere, so typing in a
 // terminal goes on. Raised once per offer, it waits while the footer is hidden or any
 // dialog, menu or popover is open, and never takes focus by itself. The chip opens it as
@@ -244,8 +248,8 @@ export const FooterUpdate = ({
   readonly update: FooterUpdateProps | undefined
   readonly hidden: boolean
 }): React.JSX.Element => {
-  // The offer the person pressed Restart for: any other offer, a newer version or the
-  // same one turned to a download, is a new one, not pending.
+  // The offer the person pressed Restart for: any other offer, a newer version or the same
+  // one turned to a download, is a new one, not pending.
   const [pressed, setPressed] = useState<string>()
   // Where installing from a portable copy stands.
   const [install, setInstall] = useState<Install>({ phase: "idle" })
@@ -282,12 +286,15 @@ export const FooterUpdate = ({
     return () => cancelAnimationFrame(frame)
   }, [visible])
   const lost = useRecoverFocus(blocked || hidden, chip)
+  const percent = offer?.kind === "downloading" ? (offer.percent ?? 0) : undefined
   const word = !offer
     ? "Install Novadeck"
-    : offer.kind === "available"
-      ? "Update available"
-      : "Update ready"
-  const narrow = offer ? "Update" : "Install"
+    : offer.kind === "downloading"
+      ? `Downloading update… ${percent}%`
+      : offer.kind === "available"
+        ? "Update available"
+        : "Update ready"
+  const narrow = !offer ? "Install" : percent === undefined ? "Update" : `Update ${percent}%`
   const startInstall = (): void => {
     if (!portable || !update || waiting) return
     setInstall({ phase: "running" })
@@ -324,7 +331,9 @@ export const FooterUpdate = ({
             : offer
               ? installing
                 ? "Restarting to update"
-                : word
+                : offer.kind === "downloading"
+                  ? "Downloading Novadeck update"
+                  : word
               : ""}
       </span>
       {update && (offer || portable) && (
@@ -338,9 +347,12 @@ export const FooterUpdate = ({
                 ? "Installing…"
                 : installing
                   ? "Restarting…"
-                  : offer
-                    ? `${word}: Novadeck ${offer.version}`
-                    : word
+                  : offer?.kind === "downloading"
+                    ? // No percent: a focused chip whose name changed would be read again at each.
+                      `Downloading update: Novadeck ${offer.version}`
+                    : offer
+                      ? `${word}: Novadeck ${offer.version}`
+                      : word
             }
             aria-expanded={visible}
             aria-controls={visible ? panelId : undefined}

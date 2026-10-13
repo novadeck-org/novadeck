@@ -271,6 +271,7 @@ export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => v
   updates?.onOffer((update) => {
     const state = ui.getSnapshot()
     const raise = noticeRaised(update, {
+      previous: state.update,
       seen: state.updateSeen,
       portable: state.portable?.portable === true,
       shownThisRun: raisedThisRun(update),

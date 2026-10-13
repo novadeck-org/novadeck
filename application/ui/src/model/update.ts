@@ -1,10 +1,14 @@
-// An update the desktop app tells of. `ready`: downloaded, and installed on a restart.
+// An update the desktop app tells of. `downloading`: one the app is downloading, `percent`
+// (a whole number from 0 to 100) along, which turns `ready` once downloaded, or
+// `available` should the download fail. `ready`: downloaded, and installed on a restart.
 // `available`: a newer release the app can't install itself, which the person gets from
 // its release page. `notes` are the release's notes as plain-text lines.
 export type UpdateOffer = {
-  readonly kind: "ready" | "available"
+  readonly kind: "downloading" | "ready" | "available"
   readonly version: string
   readonly notes: readonly string[]
+  // Set only for `downloading`.
+  readonly percent?: number
   // When this copy first learned a newer release exists, as an ISO 8601 date-time, which
   // the host remembers across launches; only for a portable copy, and absent otherwise.
   readonly outdatedSince?: string
@@ -32,7 +36,11 @@ export const offerStale = ({ outdatedSince }: UpdateOffer, now: number): boolean
 export const portableNagged = (offer: UpdateOffer, now: number): boolean =>
   offer.kind === "available" && offerStale(offer, now)
 
-// Whether an offer's notice comes up as the offer is heard. It does once per version and
+// Whether an offer's notice comes up as the offer is heard. A download never raises it:
+// the notice comes when it turns `ready`. Nor does a download that failed, which turns
+// `available` after `previous`, the offer heard before, was its `downloading`: the host
+// tries it again, soon the first time and then with its checks, or, should Squirrel.Mac
+// have failed to stage it, tells of it at the next launch; the chip shows it meanwhile. Otherwise it does once per version and
 // kind (`seen` is what was shown last). A portable copy, which can't update itself, is
 // asked again at every launch once its release is stale: `shownThisRun` is whether this
 // run has shown the offer's notice already, so a repeated offer does not bring it back
@@ -40,14 +48,23 @@ export const portableNagged = (offer: UpdateOffer, now: number): boolean =>
 export const noticeRaised = (
   offer: UpdateOffer,
   {
+    previous,
     seen,
     portable,
     shownThisRun,
     now,
   }: {
+    readonly previous: UpdateOffer | null
     readonly seen: string | null
     readonly portable: boolean
     readonly shownThisRun: boolean
     readonly now: number
   },
-): boolean => updateKey(offer) !== seen || (portable && !shownThisRun && portableNagged(offer, now))
+): boolean =>
+  offer.kind !== "downloading" &&
+  !(
+    offer.kind === "available" &&
+    previous?.kind === "downloading" &&
+    previous.version === offer.version
+  ) &&
+  (updateKey(offer) !== seen || (portable && !shownThisRun && portableNagged(offer, now)))

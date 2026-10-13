@@ -19,6 +19,7 @@ import {
   updateChannelChannel,
   updateOfferChannel,
   updateRequestChannel,
+  versionChannel,
 } from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 
@@ -191,6 +192,23 @@ describe("an update offer", () => {
     expect(offers).toEqual([ready, { ...ready, kind: "available" }])
   })
 
+  it("carries a download's percent, and only a download's", () => {
+    const offers: unknown[] = []
+    electron.exposed.onUpdate!((offer) => offers.push(offer))
+    const downloading = { ...ready, kind: "downloading" }
+    electron.renderer.emit(updateOfferChannel, {}, { ...downloading, percent: 42 })
+    electron.renderer.emit(updateOfferChannel, {}, { ...ready, percent: 42 })
+    expect(offers).toEqual([{ ...downloading, percent: 42 }, ready])
+  })
+
+  it("drops a download whose percent is not a whole number from 0 to 100", () => {
+    const offers: unknown[] = []
+    electron.exposed.onUpdate!((offer) => offers.push(offer))
+    for (const percent of [undefined, -1, 101, 4.5, NaN, "42", null])
+      electron.renderer.emit(updateOfferChannel, {}, { ...ready, kind: "downloading", percent })
+    expect(offers).toEqual([])
+  })
+
   it("is dropped unless its kind and version are valid", () => {
     const offers: unknown[] = []
     electron.exposed.onUpdate!((offer) => offers.push(offer))
@@ -277,6 +295,23 @@ describe("the update channel", () => {
     for (const value of ["nightly", undefined, {}, 3, "Early"])
       electron.exposed.setUpdateChannel!(value as never)
     expect(electron.sent).toEqual([])
+  })
+})
+
+describe("the version", () => {
+  it("is what the host answers, when it looks like a release's", async () => {
+    electron.answer = "0.4.2"
+    expect(await electron.exposed.version!()).toBe("0.4.2")
+    expect(electron.sent).toEqual([versionChannel])
+  })
+
+  it("is refused when the host answers anything else", async () => {
+    const answers = [undefined, "", "latest", "0.4.2\n<b>", { version: "0.4.2" }, 3]
+    const asked = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.version!()
+    })
+    await Promise.all(asked.map((each) => expect(each).rejects.toThrow("Unknown version")))
   })
 })
 

@@ -5,15 +5,19 @@ import type { DemoStates } from "./types"
 // listeners hear at once if they come later and again for each newer one. `install` does
 // nothing more, so the footer's Restarting… stays for as long as anyone wants to look at
 // it; `finish` ends the restart as the app comes back, a reload that forgets the offer,
-// while one waits. `openPage` only counts, since a browser has no release page to open.
+// while one waits. `download` offers a version as downloading, its percent climbing until
+// it is offered ready; any later offer, or a failed install, calls a running one off.
+// `openPage` only counts, since a browser has no release page to open.
 // The channel is remembered until the page reloads.
 export const createDemoUpdates = (
   restart: () => void = () => window.location.reload(),
 ): {
   readonly updates: DemoStates["updates"]
   readonly offer: (offer: UpdateOffer) => void
+  readonly download: (version: string, notes: readonly string[]) => void
   readonly finish: () => void
-  // The install failed: the update waiting is offered again, to fetch by hand.
+  // The install, or the download in progress, failed: the update waiting is offered again,
+  // to fetch by hand.
   readonly failInstall: () => void
   readonly channel: () => UpdateChannel
   readonly pagesOpened: () => number
@@ -22,6 +26,15 @@ export const createDemoUpdates = (
   let channel: UpdateChannel = "stable"
   let pages = 0
   const listeners = new Set<(offer: UpdateOffer) => void>()
+  let downloading: ReturnType<typeof setInterval> | undefined
+  const stop = (): void => {
+    clearInterval(downloading)
+    downloading = undefined
+  }
+  const tell = (offer: UpdateOffer): void => {
+    waiting = offer
+    listeners.forEach((listener) => listener(offer))
+  }
   return {
     updates: {
       onOffer: (listener) => {
@@ -37,21 +50,37 @@ export const createDemoUpdates = (
       },
     },
     offer: (offer) => {
-      waiting = offer
-      listeners.forEach((listener) => listener(offer))
+      stop()
+      tell(offer)
+    },
+    download: (version, notes) => {
+      stop()
+      let percent = 0
+      tell({ kind: "downloading", version, notes, percent })
+      downloading = setInterval(() => {
+        percent = Math.min(percent + downloadStep, 100)
+        if (percent < 100) return tell({ kind: "downloading", version, notes, percent })
+        stop()
+        tell({ kind: "ready", version, notes })
+      }, downloadMs)
     },
     finish: () => {
       if (waiting !== undefined) restart()
     },
     failInstall: () => {
       if (waiting === undefined) return
-      waiting = { ...waiting, kind: "available" }
-      listeners.forEach((listener) => listener(waiting!))
+      stop()
+      const { percent: _, ...offer } = waiting
+      tell({ ...offer, kind: "available" })
     },
     channel: () => channel,
     pagesOpened: () => pages,
   }
 }
+
+// How often a demo download advances, and by how many percent.
+export const downloadMs = 300
+export const downloadStep = 10
 
 // Release notes as a release's might read: a handful of lines.
 export const sampleNotes: readonly string[] = [

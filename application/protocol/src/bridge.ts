@@ -73,6 +73,10 @@ export type DesktopBridge = {
    */
   setUpdateChannel?(channel: UpdateChannel): void
   /**
+   * The version of the app, as a release is named. Absent from hosts that came before it.
+   */
+  version?(): Promise<string>
+  /**
    * Whether Electron's sandbox is on for this window. Absent from hosts that came
    * before it. See `SandboxState`.
    */
@@ -142,7 +146,9 @@ export type UpdateChannel = "stable" | "early"
 export const updateChannels: readonly UpdateChannel[] = ["stable", "early"]
 
 /**
- * An update the host tells the page of. `ready`: downloaded, and installed by
+ * An update the host tells the page of. `downloading`: a release the host is downloading,
+ * `percent` (a whole number from 0 to 100) along; it turns `ready` once downloaded, or
+ * `available` should the download fail. `ready`: downloaded, and installed by
  * `installUpdate` or when the app next quits. `available`: a newer release this build
  * cannot install itself, which the person installs from its release page, as for an
  * unsigned macOS app, an AppImage in a folder it cannot write, a portable copy, or after
@@ -154,11 +160,19 @@ export const updateChannels: readonly UpdateChannel[] = ["stable", "early"]
  * version stays the same, so it does not restart with each newer release.
  */
 export type UpdateOffer = {
-  readonly kind: "ready" | "available"
+  readonly kind: UpdateOfferKind
   readonly version: string
   readonly notes: readonly string[]
+  /** Set only for `downloading`. */
+  readonly percent?: number
   readonly outdatedSince?: string
 }
+
+export type UpdateOfferKind = "downloading" | "ready" | "available"
+
+/** Whether `value` is how far along a download is: a whole percent from 0 to 100. */
+export const isUpdatePercent = (value: unknown): value is number =>
+  Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 100
 
 /** What an update's version may be, as the host reports it: a release's semantic version. */
 export const updateVersionPattern = /^\d{1,9}\.\d{1,9}\.\d{1,9}(?:-[0-9A-Za-z.-]{1,64})?$/

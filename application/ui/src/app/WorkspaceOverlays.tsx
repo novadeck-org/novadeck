@@ -114,6 +114,26 @@ const useEarlyBuilds = (
   )
 }
 
+// The desktop app's version, for Preferences, asked of it each time Preferences opens;
+// undefined until it has said, and where it never does.
+const useVersion = (version: Backend["version"], open: boolean): string | undefined => {
+  const [value, setValue] = useState<string>()
+  useEffect(() => {
+    if (!open || !version) return undefined
+    let current = true
+    version().then(
+      (known) => {
+        if (current) setValue(known)
+      },
+      () => {},
+    )
+    return () => {
+      current = false
+    }
+  }, [open, version])
+  return value
+}
+
 // Dialogs and the terminal switcher, above the workspace.
 export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const { backend, commands, navigation } = useWorkspaceServices()
@@ -153,6 +173,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
   const searchLabel = view === "canvas" ? "Canvas" : view === "grid" ? "Grid" : "Focus"
   const { searching, settings, onExitComplete, onLoaded } = useRouteDialog(dialog, context)
   const updates = useEarlyBuilds(backend.updates?.channel, settings)
+  const version = useVersion(backend.version, settings)
   // Preferences shows what is installed and connected now.
   const refreshAgents = backend.agents?.refresh
   useEffect(() => {
@@ -226,6 +247,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(voice ? { voice } : {})}
           {...(murmur ? { murmur } : {})}
           {...(updates ? { updates } : {})}
+          {...(version ? { version } : {})}
           {...(backend.agents
             ? { agents: { list: agents.list, onChange: backend.agents.set } }
             : {})}

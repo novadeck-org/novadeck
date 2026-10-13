@@ -1,4 +1,5 @@
 import {
+  isUpdatePercent,
   noticeBodyLength,
   noticeIdPattern,
   noticeTitleLength,
@@ -69,13 +70,15 @@ const dated = (text: string): boolean => Number.isFinite(Date.parse(text))
 // shows, without control characters.
 export const hostOffer = (offer: unknown): UpdateOffer | undefined => {
   if (typeof offer !== "object" || offer === null) return undefined
-  const { kind, version, notes, outdatedSince } = offer as Record<string, unknown>
-  if (kind !== "ready" && kind !== "available") return undefined
+  const { kind, version, notes, percent, outdatedSince } = offer as Record<string, unknown>
+  if (kind !== "downloading" && kind !== "ready" && kind !== "available") return undefined
+  if (kind === "downloading" && !isUpdatePercent(percent)) return undefined
   if (typeof version !== "string" || !updateVersionPattern.test(version)) return undefined
   const lines = Array.isArray(notes) ? (notes as unknown[]) : []
   return {
     kind,
     version,
+    ...(kind === "downloading" ? { percent: percent as number } : {}),
     notes: lines
       .filter((line): line is string => typeof line === "string")
       .map((line) => noticeText(line, updateNoteLength))
@@ -118,6 +121,20 @@ export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"
           },
         }
       : {}),
+  }
+}
+
+// The host's version, where it gives one: what crosses the bridge must look like a
+// release's, so the page shows nothing else.
+export const desktopVersion = (host: DesktopHost | undefined): Backend["version"] => {
+  const ask = host?.version
+  if (!ask) return undefined
+  return async () => {
+    const version = await ask()
+    if (typeof version !== "string" || !updateVersionPattern.test(version)) {
+      throw new Error("Unknown version")
+    }
+    return version
   }
 }
 

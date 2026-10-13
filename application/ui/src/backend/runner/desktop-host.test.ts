@@ -14,6 +14,7 @@ import {
   desktopPortable,
   desktopSandbox,
   desktopUpdates,
+  desktopVersion,
   hostInstall,
   hostNotice,
   hostPortable,
@@ -115,6 +116,30 @@ const updater = (channel: unknown = "stable") => {
   }
 }
 
+const asking = (answer: unknown) =>
+  ({ version: () => Promise.resolve(answer) }) as unknown as DesktopHost
+
+describe("desktop version", () => {
+  it("is absent in a host that does not say", () => {
+    expect(desktopVersion(undefined)).toBeUndefined()
+    expect(desktopVersion({} as DesktopHost)).toBeUndefined()
+  })
+
+  it("is what the host answers, when it looks like a release's", async () => {
+    expect(await desktopVersion(asking("0.4.2"))!()).toBe("0.4.2")
+    expect(await desktopVersion(asking("1.2.3-beta.1"))!()).toBe("1.2.3-beta.1")
+  })
+
+  it("refuses anything else", async () => {
+    const answers = ["latest", "0.4.2\n<b>", "", null, 3]
+    await Promise.all(
+      answers.map((answer) =>
+        expect(desktopVersion(asking(answer))!()).rejects.toThrow("Unknown version"),
+      ),
+    )
+  })
+})
+
 describe("desktop updates", () => {
   context("in a host that has them", () => {
     it("hears offers that look like a release's and no others", () => {
@@ -133,6 +158,24 @@ describe("desktop updates", () => {
       expect(heard).toEqual([
         { kind: "ready", version: "0.0.80", notes: ["One."] },
         { kind: "available", version: "1.2.3-beta.1", notes: [] },
+      ])
+    })
+
+    it("hears a download only with a whole percent from 0 to 100, which no other offer carries", () => {
+      const { bridge, report } = updater()
+      const heard: unknown[] = []
+      desktopUpdates(bridge)!.onOffer((offer) => heard.push(offer))
+      report({ kind: "downloading", version: "0.0.80", notes: [], percent: 0 })
+      report({ kind: "downloading", version: "0.0.80", notes: [], percent: 100 })
+      report({ kind: "downloading", version: "0.0.80", notes: [] })
+      report({ kind: "downloading", version: "0.0.80", notes: [], percent: 42.5 })
+      report({ kind: "downloading", version: "0.0.80", notes: [], percent: 101 })
+      report({ kind: "downloading", version: "0.0.80", notes: [], percent: "40" })
+      report({ kind: "ready", version: "0.0.80", notes: [], percent: 40 })
+      expect(heard).toEqual([
+        { kind: "downloading", version: "0.0.80", notes: [], percent: 0 },
+        { kind: "downloading", version: "0.0.80", notes: [], percent: 100 },
+        { kind: "ready", version: "0.0.80", notes: [] },
       ])
     })
 

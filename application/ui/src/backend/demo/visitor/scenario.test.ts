@@ -169,13 +169,14 @@ describe("the visitor scenario", () => {
 })
 
 describe("the visitor demo", () => {
-  it("offers no chat, voice or agent connections", () => {
+  it("offers no chat, voice, agent connections or version", () => {
     const backend = visitorDemo()
 
     expect(backend.visitor).toBeDefined()
     expect(backend.conversations).toBeUndefined()
     expect(backend.voice).toBeUndefined()
     expect(backend.agents).toBeUndefined()
+    expect(backend.version).toBeUndefined()
   })
 
   it("answers only Checkout review's permission request as the one the hints ask for", () => {

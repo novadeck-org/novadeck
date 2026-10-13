@@ -1,6 +1,8 @@
 import { EventEmitter } from "node:events"
-import { readFile } from "node:fs/promises"
+import { existsSync } from "node:fs"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
 import type { UpdateChannel } from "@novadeck/protocol/bridge"
@@ -22,6 +24,7 @@ import {
   checkIntervalMs,
   developerIdSigned,
   firstCheckMs,
+  retryCheckMs,
   installFallbackMs,
   installOnlyOnOrderlyQuit,
   installUpdate,
@@ -247,8 +250,8 @@ describe("telling pages of an update", () => {
       asked.push("asked")
       return "2026-10-01T09:30:00.000Z"
     }
-    offers.offer("available", "1.2.3", [], since)
-    offers.offer("available", "1.2.3", [], since)
+    offers.offer("available", "1.2.3", [], { outdatedSince: since })
+    offers.offer("available", "1.2.3", [], { outdatedSince: since })
     offers.offer("available", "1.2.4", [])
     expect(asked).toHaveLength(1)
     expect(open.sent.map(([, offer]) => offer)).toEqual([
@@ -264,7 +267,7 @@ describe("telling pages of an update", () => {
 
   it("goes without the date when the copy cannot say", () => {
     const open = page()
-    trackOffer(() => [open]).offer("available", "1.2.3", [], () => undefined)
+    trackOffer(() => [open]).offer("available", "1.2.3", [], { outdatedSince: () => undefined })
     expect(open.sent).toEqual([
       [updateOfferChannel, { kind: "available", version: "1.2.3", notes: [] }],
     ])
@@ -291,6 +294,21 @@ describe("telling pages of an update", () => {
     expect(open.sent.map(([, offer]) => (offer as { version: string }).version)).toEqual([
       "1.2.3",
       "1.3.0",
+    ])
+  })
+
+  it("tells pages each percent a download reaches once, and carries it only for a download", () => {
+    const open = page()
+    const offers = trackOffer(() => [open])
+    offers.offer("downloading", "1.2.3", [], { percent: 0 })
+    offers.offer("downloading", "1.2.3", [], { percent: 0 })
+    offers.offer("downloading", "1.2.3", [], { percent: 7 })
+    offers.offer("downloading", "1.2.3", [], { percent: 7 })
+    offers.offer("ready", "1.2.3", [], { percent: 100 })
+    expect(open.sent.map(([, offer]) => offer)).toEqual([
+      { kind: "downloading", version: "1.2.3", notes: [], percent: 0 },
+      { kind: "downloading", version: "1.2.3", notes: [], percent: 7 },
+      { kind: "ready", version: "1.2.3", notes: [] },
     ])
   })
 
@@ -374,11 +392,23 @@ describe("taking the page's requests about updates", () => {
   })
 })
 
+// A promise and what settles it, as the host's lib has no Promise.withResolvers.
+const deferred = <T>() => {
+  const settle: { resolve?: (value: T) => void; reject?: (error: unknown) => void } = {}
+  const promise = new Promise<T>((resolve, reject) => Object.assign(settle, { resolve, reject }))
+  return {
+    promise,
+    resolve: (value: T) => settle.resolve?.(value),
+    reject: (error: unknown) => settle.reject?.(error),
+  }
+}
+
 // An updater whose quitAndInstall behaves as electron-updater's does when installing
 // fails: it logs and returns, without quitting or throwing. `ends` is how it behaves
 // when installing works: the app quits (as BaseUpdater does after a setImmediate).
 const installing = ({
   downloaded = true,
+  settled = () => Promise.resolve(true),
   ends = true,
   throws = false,
   shutdownMs = 0,
@@ -394,6 +424,7 @@ const installing = ({
   const run = (): void =>
     installUpdate({
       downloaded: () => downloaded,
+      settled,
       stopping: () => stopping,
       stop: () => {
         stopping = true
@@ -433,6 +464,25 @@ describe("restarting into the update", () => {
 
   it("does nothing while no update is downloaded", async () => {
     const { run, steps } = installing({ downloaded: false })
+    run()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(steps).toEqual([])
+  })
+
+  it("waits for a newer release downloading in place of the update, then restarts into it", async () => {
+    const { promise, resolve } = deferred<boolean>()
+    const { run, steps } = installing({ settled: () => promise })
+    run()
+    run()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(steps).toEqual([])
+    resolve(true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(steps).toEqual(["stop", "shutdown", "shut down", "install", "quit by updater"])
+  })
+
+  it("does not restart when that download fails, as nothing is left to install", async () => {
+    const { run, steps } = installing({ settled: () => Promise.resolve(false) })
     run()
     await vi.advanceTimersByTimeAsync(60_000)
     expect(steps).toEqual([])
@@ -533,7 +583,7 @@ describe("checking for updates", () => {
     } = {},
   ) => {
     const updater = new FakeUpdater()
-    const offered: [string, string, readonly string[]][] = []
+    const offered: [string, string, readonly string[], number?][] = []
     const failed: string[] = []
     const logged: string[] = []
     const checks = checkForUpdates(updater as unknown as Updater, {
@@ -542,7 +592,10 @@ describe("checking for updates", () => {
       failedVersion: options.failedVersion,
       native: options.native,
       upToDate: options.upToDate,
-      offer: (kind, version, notes) => void offered.push([kind, version, notes]),
+      offer: (kind, version, notes, percent) =>
+        void offered.push(
+          percent === undefined ? [kind, version, notes] : [kind, version, notes, percent],
+        ),
       installFailed: (version) => void failed.push(version),
       log: (message) => void logged.push(message),
     })
@@ -603,42 +656,298 @@ describe("checking for updates", () => {
   context("in install mode", () => {
     it("offers the update as ready once downloaded, with its notes as lines", () => {
       const { updater, offered } = checking()
-      updater.emit("update-available", { version: "1.2.3" })
-      expect(offered).toEqual([])
-      updater.emit("update-downloaded", {
+      const info = {
         version: "1.2.3",
         releaseName: "Novadeck v1.2.3",
         releaseNotes: "<ul><li>Faster &amp; smaller.</li><li>Fixes.</li></ul>",
-      })
-      expect(offered).toEqual([["ready", "1.2.3", ["Faster & smaller.", "Fixes."]]])
+      }
+      updater.emit("update-available", info)
+      const notes = ["Faster & smaller.", "Fixes."]
+      updater.emit("download-progress", { percent: 0 })
+      expect(offered).toEqual([["downloading", "1.2.3", notes, 0]])
+      updater.emit("update-downloaded", info)
+      expect(offered).toEqual([
+        ["downloading", "1.2.3", notes, 0],
+        ["ready", "1.2.3", notes],
+      ])
     })
 
-    it("on macOS offers the update only once Squirrel has staged it", () => {
+    it("offers a download already on disk from an earlier launch as ready, without progress", () => {
+      const { updater, offered } = checking()
+      updater.emit("update-available", { version: "1.2.3" })
+      expect(offered).toEqual([])
+      updater.emit("update-downloaded", { version: "1.2.3" })
+      expect(offered).toEqual([["ready", "1.2.3", []]])
+    })
+
+    it("on macOS offers the update as ready only once Squirrel has staged it, downloading until then", () => {
       const native = new EventEmitter()
       const { updater, offered } = checking({ native })
+      updater.emit("update-available", { version: "1.2.3" })
+      updater.emit("download-progress", { percent: 0 })
+      updater.emit("download-progress", { percent: 99.6 })
       updater.emit("update-downloaded", { version: "1.2.3" })
-      expect(offered).toEqual([])
+      expect(offered).toEqual([
+        ["downloading", "1.2.3", [], 0],
+        ["downloading", "1.2.3", [], 99],
+      ])
+      updater.emit("download-progress", { percent: 100 })
+      expect(offered).toHaveLength(2)
       native.emit("update-downloaded")
-      expect(offered).toEqual([["ready", "1.2.3", []]])
+      expect(offered.at(-1)).toEqual(["ready", "1.2.3", []])
       native.emit("update-downloaded")
-      expect(offered).toHaveLength(1)
+      expect(offered).toHaveLength(3)
     })
 
-    it("stops checking once an update has downloaded, so a newer one cannot replace it", async () => {
+    context("while it downloads", () => {
+      it("offers each whole percent of progress once, as it changes", () => {
+        const { updater, offered } = checking()
+        updater.emit("update-available", {
+          version: "1.2.3",
+          releaseName: "Novadeck v1.2.3",
+          releaseNotes: "<p>Faster.</p>",
+        })
+        for (const percent of [0.4, 0.9, 1, 1.5, 1.99, 2, 57.3, 100])
+          updater.emit("download-progress", { percent })
+        expect(offered.map(([, , , percent]) => percent)).toEqual([0, 1, 2, 57, 100])
+        expect(
+          offered.every(([kind, , notes]) => kind === "downloading" && notes.length === 1),
+        ).toBe(true)
+      })
+
+      it("ignores progress when no download of ours is under way", async () => {
+        const { updater, offered } = checking()
+        updater.emit("download-progress", { percent: 30 })
+        expect(offered).toEqual([])
+        updater.emit("update-available", { version: "1.2.3" })
+        updater.emit("download-progress", { percent: 10 })
+        updater.emit("update-downloaded", { version: "1.2.3" })
+        await vi.advanceTimersByTimeAsync(0)
+        updater.emit("download-progress", { percent: 50 })
+        expect(offered).toEqual([
+          ["downloading", "1.2.3", [], 10],
+          ["ready", "1.2.3", []],
+        ])
+      })
+
+      it("offers it as available when the first download fails partway, which the error event logs", async () => {
+        const { updater, offered, failed, logged, settled } = checking()
+        const download = deferred<unknown>()
+        updater.downloadResult = () => download.promise
+        updater.emit("update-available", { version: "1.2.3" })
+        updater.emit("download-progress", { percent: 30 })
+        updater.emit("error", new Error("download failed"))
+        download.reject(new Error("download failed"))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(offered).toEqual([
+          ["downloading", "1.2.3", [], 30],
+          ["available", "1.2.3", []],
+        ])
+        expect(logged).toEqual(["The update check failed."])
+        expect(failed).toEqual([])
+        await expect(settled()).resolves.toBe(false)
+        updater.emit("download-progress", { percent: 80 })
+        expect(offered).toHaveLength(2)
+      })
+
+      it("tells nothing of a download that fails before any progress, as of a failed check", async () => {
+        const { updater, offered } = checking()
+        updater.downloadResult = () => Promise.reject(new Error("download failed"))
+        updater.emit("update-available", { version: "1.2.3" })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(offered).toEqual([])
+      })
+
+      it("tries a failed download again a few minutes later, and then as usual", async () => {
+        const { updater } = checking()
+        await vi.advanceTimersByTimeAsync(firstCheckMs)
+        updater.downloadResult = () => Promise.reject(new Error("download failed"))
+        updater.emit("update-available", { version: "1.2.3" })
+        await vi.advanceTimersByTimeAsync(retryCheckMs - 1)
+        expect(updater.checks).toBe(1)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(updater.checks).toBe(2)
+        await vi.advanceTimersByTimeAsync(checkIntervalMs - retryCheckMs - firstCheckMs)
+        expect(updater.checks).toBe(3)
+      })
+
+      it("tries a release again early only once in a run", async () => {
+        const { updater } = checking()
+        updater.downloadResult = () => Promise.reject(new Error("download failed"))
+        updater.emit("update-available", { version: "1.2.3" })
+        // The first check after launch, then the retry.
+        await vi.advanceTimersByTimeAsync(retryCheckMs)
+        expect(updater.checks).toBe(2)
+        updater.emit("update-available", { version: "1.2.3" })
+        await vi.advanceTimersByTimeAsync(retryCheckMs * 3)
+        expect(updater.checks).toBe(2)
+        expect(updater.downloads).toHaveLength(2)
+      })
+
+      it("keeps a channel switch's check soon while a retry waits", async () => {
+        const checks = checking()
+        checks.updater.downloadResult = () => Promise.reject(new Error("download failed"))
+        checks.setChannel("early")
+        checks.updater.emit("update-available", { version: "1.2.3" })
+        await vi.advanceTimersByTimeAsync(switchCheckMs)
+        expect(checks.updater.checks).toBe(1)
+      })
+
+      it("does not try again once stopped", async () => {
+        const { updater, stop } = checking()
+        updater.downloadResult = () => Promise.reject(new Error("download failed"))
+        updater.emit("update-available", { version: "1.2.3" })
+        stop()
+        await vi.advanceTimersByTimeAsync(retryCheckMs * 2)
+        expect(updater.checks).toBe(0)
+      })
+
+      it("keeps a download ready that fails only after it was reported in", async () => {
+        const { updater, offered, settled } = checking()
+        const download = deferred<unknown>()
+        updater.downloadResult = () => download.promise
+        updater.emit("update-available", { version: "1.2.3" })
+        updater.emit("update-downloaded", { version: "1.2.3" })
+        download.reject(new Error("the blockmap could not be copied"))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(offered.at(-1)).toEqual(["ready", "1.2.3", []])
+        await expect(settled()).resolves.toBe(true)
+      })
+
+      it("leaves a release found meanwhile to a later check", () => {
+        const { updater } = checking()
+        updater.downloadResult = () => new Promise(() => {})
+        updater.emit("update-available", { version: "1.2.3" })
+        updater.emit("update-available", { version: "1.3.0" })
+        expect(updater.downloads).toHaveLength(1)
+      })
+    })
+
+    it("keeps checking once an update has downloaded, so a newer release is found", async () => {
       const { updater } = checking()
       await vi.advanceTimersByTimeAsync(firstCheckMs)
       updater.emit("update-downloaded", { version: "1.2.3" })
       await vi.advanceTimersByTimeAsync(checkIntervalMs * 3)
-      expect(updater.checks).toBe(1)
+      expect(updater.checks).toBe(4)
     })
 
-    it("downloads an update it finds, and nothing more once one has downloaded", () => {
+    it("on macOS stops checking once an update has downloaded, as Squirrel keeps the one it staged", async () => {
+      const native = new EventEmitter()
+      const { updater } = checking({ native })
+      await vi.advanceTimersByTimeAsync(firstCheckMs)
+      updater.emit("update-downloaded", { version: "1.2.3" })
+      updater.emit("update-available", { version: "1.3.0" })
+      await vi.advanceTimersByTimeAsync(checkIntervalMs * 3)
+      expect(updater.checks).toBe(1)
+      expect(updater.downloads).toHaveLength(0)
+    })
+
+    it("does not download the update it has again", () => {
       const { updater } = checking()
       updater.emit("update-available", { version: "1.2.3" })
       expect(updater.downloads).toHaveLength(1)
       updater.emit("update-downloaded", { version: "1.2.3" })
-      updater.emit("update-available", { version: "1.3.0" })
+      updater.emit("update-available", { version: "1.2.3" })
       expect(updater.downloads).toHaveLength(1)
+    })
+
+    context("when a newer release comes out while an update waits", () => {
+      const waiting = () => {
+        const checks = checking()
+        checks.updater.emit("update-downloaded", { version: "1.2.3" })
+        const download = deferred<unknown>()
+        checks.updater.downloadResult = () => download.promise
+        checks.updater.emit("update-available", { version: "1.3.0" })
+        return { ...checks, download }
+      }
+
+      it("downloads it in place of the waiting one, showing its progress until it is in, and offers it as ready", async () => {
+        const { updater, offered, download } = waiting()
+        expect(updater.downloads).toHaveLength(1)
+        expect(offered).toEqual([["ready", "1.2.3", []]])
+        updater.emit("download-progress", { percent: 0 })
+        updater.emit("download-progress", { percent: 40.2 })
+        updater.emit("update-downloaded", { version: "1.3.0" })
+        download.resolve(undefined)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(offered).toEqual([
+          ["ready", "1.2.3", []],
+          ["downloading", "1.3.0", [], 0],
+          ["downloading", "1.3.0", [], 40],
+          ["ready", "1.3.0", []],
+        ])
+      })
+
+      it("still installs the waiting one on quit until it is in", () => {
+        const { updater } = waiting()
+        expect(updater.autoInstallOnAppQuit).toBe(true)
+      })
+
+      it("shows it in place of a restart asked for before its progress came in", async () => {
+        const { updater, offered, settled } = waiting()
+        await expect(settled()).resolves.toBe(false)
+        expect(offered.at(-1)).toEqual(["downloading", "1.3.0", [], 0])
+        updater.emit("download-progress", { percent: 0.5 })
+        expect(offered).toHaveLength(2)
+        updater.emit("download-progress", { percent: 30 })
+        await expect(settled()).resolves.toBe(false)
+        expect(offered.at(-1)).toEqual(["downloading", "1.3.0", [], 30])
+      })
+
+      it("lets a restart wait for it once it was reported in, and tells whether it came through", async () => {
+        const { updater, settled, download } = waiting()
+        updater.emit("update-downloaded", { version: "1.3.0" })
+        let ready: boolean | undefined
+        void settled().then((value) => void (ready = value))
+        await vi.advanceTimersByTimeAsync(0)
+        expect(ready).toBeUndefined()
+        download.resolve(undefined)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(ready).toBe(true)
+        await expect(settled()).resolves.toBe(true)
+      })
+
+      it("leaves a release found meanwhile to a later check", () => {
+        const { updater } = waiting()
+        updater.emit("update-available", { version: "1.4.0" })
+        updater.emit("update-available", { version: "1.3.0" })
+        expect(updater.downloads).toHaveLength(1)
+      })
+
+      it("offers it as available when its download fails, and downloads it at a later check", async () => {
+        const { updater, offered, failed, logged, settled, download } = waiting()
+        // electron-updater reports the failure through the error event before it rejects.
+        updater.emit("error", new Error("download failed"))
+        download.reject(new Error("download failed"))
+        await vi.advanceTimersByTimeAsync(0)
+        await expect(settled()).resolves.toBe(false)
+        // The ready update is likely gone, so the page hears even without any progress.
+        expect(offered).toEqual([
+          ["ready", "1.2.3", []],
+          ["available", "1.3.0", []],
+        ])
+        expect(logged).toEqual(["The update check failed."])
+        expect(failed).toEqual([])
+        updater.downloadResult = undefined
+        updater.emit("update-available", { version: "1.3.0" })
+        expect(updater.downloads).toHaveLength(2)
+        updater.emit("update-downloaded", { version: "1.3.0" })
+        expect(offered.at(-1)).toEqual(["ready", "1.3.0", []])
+      })
+    })
+
+    it("downloads nothing once stopped", () => {
+      const { updater, stop } = checking()
+      stop()
+      updater.emit("update-available", { version: "1.2.3" })
+      expect(updater.downloads).toHaveLength(0)
+    })
+
+    it("has no update to install before one has downloaded", async () => {
+      const { updater, settled } = checking()
+      await expect(settled()).resolves.toBe(false)
+      updater.emit("update-downloaded", { version: "1.2.3" })
+      await expect(settled()).resolves.toBe(true)
     })
 
     context("after an install failed on a version", () => {
@@ -658,7 +967,7 @@ describe("checking for updates", () => {
         updater.emit("update-available", { version: "1.3.0" })
         expect(updater.downloads).toHaveLength(1)
         updater.emit("update-downloaded", { version: "1.3.0" })
-        expect(offered).toEqual([["ready", "1.3.0", []]])
+        expect(offered.at(-1)).toEqual(["ready", "1.3.0", []])
         expect(updater.autoInstallOnAppQuit).toBe(true)
       })
 
@@ -813,8 +1122,16 @@ describe("checking for updates", () => {
       expect(checks.updater.checks).toBe(1)
     })
 
-    it("applies from the next launch once an update has downloaded, which ended the schedule", async () => {
+    it("checks soon after an update has downloaded too, as a newer release replaces it", async () => {
       const checks = checking()
+      checks.updater.emit("update-downloaded", { version: "1.2.3" })
+      checks.setChannel("early")
+      await vi.advanceTimersByTimeAsync(switchCheckMs)
+      expect(checks.updater.checks).toBe(1)
+    })
+
+    it("applies from the next launch once the schedule has ended", async () => {
+      const checks = checking({ native: new EventEmitter() })
       checks.updater.emit("update-downloaded", { version: "1.2.3" })
       checks.setChannel("early")
       expect(checks.updater.allowPrerelease).toBe(true)
@@ -856,6 +1173,124 @@ describe("quitting by a signal", () => {
         () => false,
       )(),
     ).not.toThrow()
+  })
+})
+
+// What the download folder test uses of electron-updater's internals.
+type DownloadHelper = { readonly file: string | null; clear(): Promise<void> }
+type Download = {
+  readonly fileInfo: { readonly url: URL; readonly info: { url: string; sha512: string } }
+  readonly fileExtension: string
+  readonly downloadUpdateOptions: unknown
+  readonly task: (temp: string) => Promise<void>
+  readonly done: () => Promise<void>
+}
+
+describe("electron-updater's download folder", () => {
+  // checkForUpdates leaves installing on quit on while a newer release replaces the waiting
+  // update. That holds while electron-updater keeps the waiting file, and goes on naming
+  // it, until the newer one is renamed over it, which it does when both have one name, as
+  // no release file carries a version (electron-builder.yml); and while a failed download
+  // stops naming the file before it deletes it. Otherwise quitting would delete the running
+  // AppImage and install nothing.
+  const downloading = async (fails: boolean) => {
+    const require = createRequire(import.meta.url)
+    const out = dirname(require.resolve("electron-updater"))
+    const { AppUpdater } = require(join(out, "AppUpdater.js")) as {
+      AppUpdater: {
+        prototype: { executeDownload(this: unknown, download: Download): Promise<unknown> }
+      }
+    }
+    const { DownloadedUpdateHelper } = require(join(out, "DownloadedUpdateHelper.js")) as {
+      DownloadedUpdateHelper: new (folder: string) => DownloadHelper
+    }
+    const folder = await mkdtemp(join(tmpdir(), "novadeck-updater-"))
+    const helper = new DownloadedUpdateHelper(folder)
+    // What clearing finds as it begins: whether the file is still named, and still there.
+    const clearing: { file: string | null; there: boolean }[] = []
+    let waiting: string | null = null
+    const clear = helper.clear.bind(helper)
+    helper.clear = () => {
+      const cleared = clear()
+      clearing.push({ file: helper.file, there: waiting !== null && existsSync(waiting) })
+      return cleared
+    }
+    const updater = {
+      listenerCount: () => 0,
+      emit: () => false,
+      _logger: { info: () => {}, warn: () => {}, error: () => {} },
+      getOrCreateDownloadHelper: () => Promise.resolve(helper),
+    }
+    const name = "novadeck-linux-x86_64.AppImage"
+    const download = (version: string, task: (temp: string) => Promise<void>): Download => ({
+      fileInfo: {
+        url: new URL(
+          `https://github.com/novadeck-org/novadeck/releases/download/v${version}/${name}`,
+        ),
+        info: { url: name, sha512: version },
+      },
+      fileExtension: "AppImage",
+      downloadUpdateOptions: {
+        requestHeaders: {},
+        updateInfoAndProvider: { info: { version, files: [] } },
+      },
+      task,
+      done: () => Promise.resolve(),
+    })
+    const run = (version: string, task: (temp: string) => Promise<void>) =>
+      AppUpdater.prototype.executeDownload.call(updater, download(version, task))
+    try {
+      await run("1.2.3", (temp) => writeFile(temp, "1.2.3"))
+      waiting = helper.file
+      const during: { file: string | null; content: string }[] = []
+      const newer = run("1.3.0", async (temp) => {
+        during.push({ file: helper.file, content: await readFile(waiting!, "utf8") })
+        await writeFile(temp, "1.3.0")
+        if (fails) throw new Error("download failed")
+      })
+      const failure = await newer.then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+      return {
+        waiting,
+        during,
+        clearing,
+        failure,
+        after: helper.file,
+        content: await readFile(waiting!, "utf8").catch(() => undefined),
+      }
+    } finally {
+      await rm(folder, { recursive: true, force: true })
+    }
+  }
+
+  it("keeps naming the waiting file, unchanged, while a newer release downloads in its place; re-check replacing in checkForUpdates if this fails", async () => {
+    const { waiting, during, failure, after, content } = await downloading(false)
+    expect(waiting).toMatch(/novadeck-linux-x86_64\.AppImage$/u)
+    expect(during).toEqual([{ file: waiting, content: "1.2.3" }])
+    expect(failure).toBeUndefined()
+    expect(after).toBe(waiting)
+    expect(content).toBe("1.3.0")
+  })
+
+  it("stops naming the waiting file before deleting it when that download fails; re-check replacing in checkForUpdates if this fails", async () => {
+    const { failure, clearing, after, content } = await downloading(true)
+    expect(failure).toBeInstanceOf(Error)
+    expect(clearing).toEqual([{ file: null, there: true }])
+    expect(after).toBeNull()
+    expect(content).toBeUndefined()
+  })
+
+  it("is fed release files that carry no version in their names", async () => {
+    const config = await readFile(join(import.meta.dirname, "../../electron-builder.yml"), "utf8")
+    // Without a name of its own a build takes electron-builder's default, which has one.
+    expect(config).toMatch(/^artifactName: \S/mu)
+    const names = [...config.matchAll(/artifactName:(.*)$/gmu)].map(([, name]) => name!.trim())
+    for (const name of names) {
+      expect(name, "a name on one line").toMatch(/^[^>|]/u)
+      expect(name).not.toMatch(/version/iu)
+    }
   })
 })
 

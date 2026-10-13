@@ -34,9 +34,15 @@ describe("a stale release", () => {
 describe("a notice's raising", () => {
   const raised = (
     offer: UpdateOffer,
-    options: { seen?: string | null; portable?: boolean; shownThisRun?: boolean },
+    options: {
+      previous?: UpdateOffer | null
+      seen?: string | null
+      portable?: boolean
+      shownThisRun?: boolean
+    },
   ): boolean =>
     noticeRaised(offer, {
+      previous: null,
       seen: null,
       portable: false,
       shownThisRun: false,
@@ -48,6 +54,28 @@ describe("a notice's raising", () => {
     it("is raised", () => {
       expect(raised(dated(2 * day), { portable: true })).toBe(true)
       expect(raised(dated(2 * day), { seen: "available:0.0.79" })).toBe(true)
+    })
+  })
+
+  context("for a download", () => {
+    const downloading: UpdateOffer = {
+      kind: "downloading",
+      version: "0.0.80",
+      notes: [],
+      percent: 40,
+    }
+
+    it("is never raised, but the offer it turns into is", () => {
+      expect(raised(downloading, {})).toBe(false)
+      expect(raised(downloading, { portable: true })).toBe(false)
+      expect(raised({ ...downloading, kind: "ready" }, { seen: "downloading:0.0.80" })).toBe(true)
+    })
+
+    it("is not raised when it fails and turns available, as the host tries it again soon", () => {
+      const failed: UpdateOffer = { kind: "available", version: "0.0.80", notes: [] }
+      expect(raised(failed, { previous: downloading })).toBe(false)
+      expect(raised(failed, { previous: { ...downloading, version: "0.0.79" } })).toBe(true)
+      expect(raised(failed, { previous: { ...downloading, kind: "ready" } })).toBe(true)
     })
   })
 

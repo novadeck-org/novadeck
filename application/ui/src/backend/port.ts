@@ -221,6 +221,9 @@ export type Backend = {
       readonly set: (channel: UpdateChannel) => void
     }
   }
+  // Optional. The version of the desktop app, asked once when Preferences needs it. Absent
+  // in a browser and in a host that does not say.
+  readonly version?: () => Promise<string>
   // Optional. Whether the desktop app runs in Electron's security sandbox, asked once at
   // startup since the answer holds for the whole run. Absent in a browser and in a host
   // that does not say.

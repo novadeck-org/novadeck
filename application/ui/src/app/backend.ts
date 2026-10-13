@@ -48,8 +48,9 @@ const showcaseRequested = (): boolean =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo") === "showcase"
 
 // Specs open the demo on a host that has an update waiting with `?demo=update`, one the
-// host can't install itself with `?demo=update-available`, or beside another variant
-// with `&update=ready` or `&update=available`.
+// host can't install itself with `?demo=update-available`, one downloading, then ready,
+// with `?demo=update-downloading`, or beside another variant with `&update=ready` or
+// `&update=available`.
 const requestedUpdate = (): UpdateOffer | undefined => {
   const query = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
   const demo = query.get("demo")
@@ -58,7 +59,9 @@ const requestedUpdate = (): UpdateOffer | undefined => {
       ? "ready"
       : demo === "update-available" || query.get("update") === "available"
         ? "available"
-        : undefined
+        : demo === "update-downloading"
+          ? "downloading"
+          : undefined
   // `&outdated=recent` or `&outdated=old` dates when this copy learned of the release,
   // two or twenty days back.
   const outdated = query.get("outdated")
@@ -76,8 +79,9 @@ const requestedUpdate = (): UpdateOffer | undefined => {
 }
 
 const demoWithUpdate = (update: UpdateOffer): ReturnType<typeof createDemoBackend> => {
-  const { updates, offer } = createDemoUpdates()
-  offer(update)
+  const { updates, offer, download } = createDemoUpdates()
+  if (update.kind === "downloading") download(update.version, update.notes)
+  else offer(update)
   return { ...createDemoBackend(), updates }
 }
 
@@ -106,6 +110,18 @@ const requestedInstall = (): InstallResult | undefined => {
 const answerDelay = (): number =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("answer") === "late" ? 4000 : 0
 
+// `&version=dev` makes the host a development build, which carries 0.0.0, and
+// `&version=none` one that gives no version.
+const requestedVersion = (
+  backend: ReturnType<typeof createDemoBackend>,
+): ReturnType<typeof createDemoBackend> => {
+  const version = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("version")
+  if (version === "dev") return { ...backend, version: () => Promise.resolve("0.0.0") }
+  if (version !== "none") return backend
+  const { version: _given, ...rest } = backend
+  return rest
+}
+
 // Specs open the demo as a visitor's, with `?visitor=on`: the strip, the hints and the
 // narrow window's panel the app shows for one. Its scenario is the visitor backend's own.
 const visitorRequested = (): boolean =>
@@ -118,7 +134,7 @@ const testBackend = (): ReturnType<typeof createDemoBackend> => {
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
   const install = requestedInstall()
-  const demo = update ? demoWithUpdate(update) : createDemoBackend()
+  const demo = requestedVersion(update ? demoWithUpdate(update) : createDemoBackend())
   const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
   return install
     ? {

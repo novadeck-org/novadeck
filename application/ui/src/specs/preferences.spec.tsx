@@ -73,6 +73,34 @@ const outputStyle = (property: "fontVariantLigatures" | "fontFamily"): string =>
       .element(),
   )[property]
 
+describe("Preferences' version", () => {
+  it("shows the version the backend gives, to copy", async () => {
+    await openWorkspace()
+    await openPreferences()
+    const about = preferencesDialog().getByRole("region", { name: "About" })
+    await expect.element(about.getByText("Version")).toBeVisible()
+    await expect.element(about.getByText("0.0.79")).toBeVisible()
+    expect(getComputedStyle(about.getByText("0.0.79").element()).userSelect).toBe("text")
+  })
+
+  it("names a build that carries 0.0.0 a development build", async () => {
+    await openWorkspace("/?version=dev")
+    await openPreferences()
+    const about = preferencesDialog().getByRole("region", { name: "About" })
+    await expect.element(about.getByText("Development build")).toBeVisible()
+    await expect.element(about.getByText("0.0.0")).not.toBeInTheDocument()
+  })
+
+  it("leaves About out where the backend gives no version", async () => {
+    await openWorkspace("/?version=none")
+    await openPreferences()
+    await expect.element(preferencesDialog().getByText("Appearance")).toBeVisible()
+    await expect
+      .element(preferencesDialog().getByRole("region", { name: "About" }))
+      .not.toBeInTheDocument()
+  })
+})
+
 describe("Preferences", () => {
   context("when choosing whether terminals keep transcripts", () => {
     it("keeps them by default, says they may hold secrets, and turns them off", async () => {

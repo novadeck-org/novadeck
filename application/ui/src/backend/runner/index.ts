@@ -18,6 +18,7 @@ import {
   desktopPortable,
   desktopSandbox,
   desktopUpdates,
+  desktopVersion,
 } from "./desktop-host"
 import { pause } from "./pause"
 import type { RunnerListing } from "./seed"
@@ -149,6 +150,7 @@ export const connectRunnerBackend = async (
     const showAppearance = desktopHost()?.showAppearance
     const notices = desktopNotices(desktopHost())
     const updates = desktopUpdates(desktopHost())
+    const version = desktopVersion(desktopHost())
     const sandbox = desktopSandbox(desktopHost())
     const portable = desktopPortable(desktopHost())
     // StrictMode creates a backend twice and keeps the first, so the last one created is
@@ -163,6 +165,7 @@ export const connectRunnerBackend = async (
           ...(showAppearance ? { showAppearance: (look) => showAppearance(look) } : {}),
           ...(notices ? { notices } : {}),
           ...(updates ? { updates } : {}),
+          ...(version ? { version } : {}),
           ...(sandbox ? { sandbox } : {}),
           ...(portable ? { portable } : {}),
           livePages: desktopHost()?.livePages === true,

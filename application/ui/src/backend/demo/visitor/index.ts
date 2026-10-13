@@ -37,7 +37,7 @@ export const tickingAnswers =
 // The demo for a website's visitors: the agents demo's storefront and its other projects,
 // with their agents played by a scenario that goes on beside the person (see
 // `playScenario`), and without what a browser page can't offer: the debug panel, the chat
-// view, connecting agents, voice, murmur, notices and updates. The terminals' screens still
+// view, connecting agents, voice, murmur, notices, updates and a version. The terminals' screens still
 // read the agents' conversations, which is how a request is answered there.
 export const visitorDemo = (): Backend => {
   const turns = demoTurns()
@@ -54,6 +54,7 @@ export const visitorDemo = (): Backend => {
     typeInto: _typeInto,
     transcripts: _transcripts,
     agents: _agents,
+    version: _version,
     ...backend
   } = withConversations(base, agentTranscripts(now), turns, tickingAnswers(answered))
   let latest: Workspace | undefined

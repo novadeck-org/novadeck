@@ -173,6 +173,18 @@ describe("workspace footer", () => {
       expect(chip(page).getAttribute("aria-label")).toBe("Update available: Novadeck 0.0.80")
     })
 
+    it("shows a download's progress on the chip, announcing and naming only that it started", () => {
+      const downloading: UpdateOffer = { ...ready, kind: "downloading", percent: 42 }
+      const page = withUpdate("ok", downloading)
+      expect(chip(page).getAttribute("aria-label")).toBe("Downloading update: Novadeck 0.0.80")
+      expect(chip(page).textContent).toBe("Downloading update… 42%Update 42%")
+      expect(announcer(page).textContent).toBe("Downloading Novadeck update")
+      page.rerender(createElement(WorkspaceFooter, props("ok", { ...downloading, percent: 43 })))
+      expect(chip(page).textContent).toBe("Downloading update… 43%Update 43%")
+      expect(chip(page).getAttribute("aria-label")).toBe("Downloading update: Novadeck 0.0.80")
+      expect(announcer(page).textContent).toBe("Downloading Novadeck update")
+    })
+
     it("leaves the bar's tone and the link's status to the connection", () => {
       const page = withUpdate("unavailable")
       const bar = page.container.querySelector("footer")!
@@ -284,6 +296,21 @@ describe("workspace footer", () => {
         expect(chip(page).textContent).toBe("Update availableUpdate")
         page.rerender(raised())
         expect(chip(page).textContent).toBe("Update readyUpdate")
+      })
+
+      it("shows a download with its progress and notes, and Later alone to do", () => {
+        const offer: UpdateOffer = { ...ready, kind: "downloading", percent: 42, notes: ["One."] }
+        const page = render(raised({}, undefined, offer))
+        mounted.push(page)
+        const region = notice(page)!
+        expect(region.querySelector(".update-title")?.textContent).toBe(
+          "Novadeck 0.0.80 is downloading",
+        )
+        expect(region.querySelector("[role=progressbar]")?.getAttribute("aria-valuenow")).toBe("42")
+        expect(region.querySelector(".update-notes")?.textContent).toBe("One.")
+        expect([...region.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+          "Later",
+        ])
       })
 
       it("shows five notes and says how many more there are, outside the list", () => {
