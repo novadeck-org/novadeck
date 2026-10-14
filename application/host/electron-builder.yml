@@ -15,8 +15,8 @@ directories:
   # The app icon's sources; `build/` is ignored by git, so they live here.
   buildResources: resources
 # The Nova mark on a Graphite tile, rendered from resources/icon.svg by
-# scripts/render-icons.mjs; builder converts the 1024 px PNG for macOS. Windows has its own
-# icon.ico, which keeps the hand-placed small sizes.
+# scripts/render-icons.mjs. macOS and Windows have their own icon.icns and icon.ico, which
+# keep the hand-placed small sizes; this 1024 px PNG covers anything that names no icon.
 icon: resources/icon.png
 files:
   - out/**
@@ -59,6 +59,8 @@ artifactName: novadeck-${os}-${arch}.${ext}
 extraMetadata:
   name: novadeck
 mac:
+  # The app and disk image icon; builder uses an .icns as it is.
+  icon: resources/icon.icns
   # node-pty ships prebuilds for both architectures, and the relay is built universal; the
   # universal merge sees them unchanged in the x64 and arm64 copies, and each runs the
   # architecture of the host.
