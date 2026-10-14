@@ -1,0 +1,825 @@
+/* The Inbox: what the agents across the workspace ask of the person, as a sidebar panel of
+   rows, and the sheet that opens beside the one the person picks.
+
+   The panel (`.inbox-panel`, data-sheet="open" | "closed") holds a `.inbox-list` of
+   `.inbox-row`s, each an item (the item recipe) with a `.inbox-row-select` button and its
+   parts: `.inbox-row-icon`, `.inbox-row-subject`, `.inbox-row-wait` and `.inbox-row-meta`,
+   which holds the `.inbox-row-project` and its `.inbox-row-extra`s (one is
+   data-extra="draft"). A row says its type in data-type="approve" | "ask" | "trouble" |
+   "update", how it asks in data-urgency="urgent" | "waiting" | "quiet" | "answered", data-seen,
+   data-arrived while it has just joined the list, and, being an item, data-selected for the
+   one whose sheet is open. While a sheet is open the other rows step back. The header's
+   `.inbox-held` pill says items wait to join; an empty panel shows `.inbox-empty`.
+
+   The sheet is the sheet recipe's card holding an `.inbox-sheet` (data-type, data-state=
+   "waiting" | "asking" | "answered"): its `.inbox-sheet-head` (`.inbox-sheet-icon`,
+   `.inbox-sheet-title`, `.inbox-sheet-meta`), a scrolling `.inbox-sheet-scroll` with the
+   `.inbox-sheet-page`, and a fixed `.inbox-sheet-footer` for the box a pick is sent from. On a
+   phone it is an `.inbox-fullscreen` of its own. The page is made of: `.inbox-byline` with
+   its `.inbox-status` (data-urgency="urgent" | "waiting" | "calm" | "done"), `.inbox-title`,
+   `.inbox-lead`, `.inbox-aside`, `.inbox-caption`, `.inbox-prose` (Markdown), `.inbox-hard`,
+   `.inbox-disclose`; `.inbox-command` (data-urgency, data-small) with its folder, line and
+   `.inbox-copy`; `.inbox-screen`, `.inbox-route` and `.inbox-quote`; `.inbox-options` of
+   `.inbox-option`s (data-picked) with an `.inbox-tag`; `.inbox-card` with its secret field;
+   `.inbox-evidence` and `.inbox-files`; `.inbox-switch-row`; `.inbox-actions`,
+   `.inbox-quiet-links`; the `.inbox-sent` confirmation, `.inbox-failure`, `.inbox-error`,
+   and the `.inbox-reply` box.
+
+   Tokens, each optional (its fallback in brackets):
+   --inbox-urgent-fg (danger-fg), --inbox-waiting-fg (warning-fg), --inbox-quiet-fg (muted),
+   --inbox-answered-fg (success-fg): a row's icon and wait, and the sheet's icon and status.
+   --inbox-row-radius (radius-panel), --inbox-row-lifted-shadow (shadow-panel): the rows,
+   and the one whose sheet is open, lifted. --inbox-dim-opacity (0.4): the other rows while
+   a sheet is open; under the pointer they come back to --inbox-dim-hover-opacity (0.8).
+   --inbox-arrived-bg (the strong colour at 14%): a row that has just joined the list.
+   --inbox-draft-fg (danger-fg): the word "Draft".
+   --inbox-held-fg (strong), --inbox-held-bg (the strong colour at 10%),
+   --inbox-held-border-color (the strong colour at 30%): the pill of waiting items.
+   --inbox-card-bg (the ink at 3.5% on paper), --inbox-card-border-color (line): the cards
+   that hold commands, evidence, files and the prompt as the terminal shows it.
+   --inbox-picked-border-color (strong): the option the person picked.
+   --inbox-workspace-opacity (0.55): the workspace behind an open sheet.
+   --inbox-mark-fg (ink): Novadeck's mark on the sheets it writes.
+   --inbox-focus-border-color (strong): the reply box while it has focus.
+   Cards take the button, badge, field, toggle and tone recipes' tokens. */
+
+/* ---- The panel and its rows ---- */
+.inbox-row {
+  --_radius: var(--inbox-row-radius, var(--radius-panel));
+  --_fg: var(--inbox-quiet-fg, var(--color-muted));
+  border-radius: var(--_radius);
+  transition:
+    background-color var(--motion-feedback) var(--ease-interface),
+    border-color var(--motion-feedback) var(--ease-interface),
+    box-shadow var(--motion-feedback) var(--ease-interface),
+    opacity var(--motion-state) var(--ease-interface);
+}
+.inbox-row[data-urgency="urgent"] {
+  --_fg: var(--inbox-urgent-fg, var(--color-danger-fg));
+}
+.inbox-row[data-urgency="waiting"] {
+  --_fg: var(--inbox-waiting-fg, var(--color-warning-fg));
+}
+.inbox-row[data-urgency="answered"] {
+  --_fg: var(--inbox-answered-fg, var(--color-success-fg));
+}
+/* The open row is lifted out of the list its sheet comes from. */
+.item.inbox-row[data-selected="true"] {
+  --_shadow: var(--inbox-row-lifted-shadow, var(--shadow-panel));
+}
+.inbox-panel[data-sheet="open"] .inbox-row:not([data-selected="true"]) {
+  opacity: var(--inbox-dim-opacity, 0.4);
+}
+@media (hover: hover) {
+  .inbox-panel[data-sheet="open"] .inbox-row:not([data-selected="true"]):hover,
+  .inbox-panel[data-sheet="open"] .inbox-row:not([data-selected="true"]):focus-within {
+    opacity: var(--inbox-dim-hover-opacity, 0.8);
+  }
+}
+.inbox-row[data-arrived="true"] {
+  /* About as long as the provider keeps a row marked (arrivedMs). */
+  animation: inbox-arrived calc(var(--motion-layout) * 8) var(--ease-interface);
+}
+@keyframes inbox-arrived {
+  from {
+    background-color: var(
+      --inbox-arrived-bg,
+      color-mix(in srgb, var(--color-strong) 14%, transparent)
+    );
+  }
+}
+.inbox-row-select {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  row-gap: 0;
+  width: 100%;
+  padding: 13px 12px 14px 10px;
+  border-radius: inherit;
+  color: inherit;
+  text-align: left;
+}
+.inbox-row-select:focus-visible {
+  outline-offset: -2px;
+}
+.inbox-row-icon {
+  display: grid;
+  width: 14px;
+  height: 20px;
+  place-items: center;
+  color: var(--_fg);
+}
+.inbox-row-subject {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  color: var(--color-muted);
+}
+/* Unread and asking is bright; opened but not answered steps back. */
+.inbox-row:is([data-urgency="urgent"], [data-urgency="waiting"])[data-seen="false"]
+  .inbox-row-subject {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.inbox-row[data-selected="true"] .inbox-row-subject {
+  color: var(--color-ink);
+}
+.inbox-row-subject code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+.inbox-row-wait {
+  color: var(--_fg);
+  line-height: 20px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* Line two: the project, then anything extra. The project gives way first, and only when
+   it is very long. */
+.inbox-row-meta {
+  display: flex;
+  grid-column: 2 / 4;
+  min-width: 0;
+  gap: 4px;
+  margin-top: 5px;
+  color: var(--inbox-quiet-fg, var(--color-muted));
+  line-height: 16px;
+}
+.inbox-row-project {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-row-extra {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.inbox-row-extra[data-extra="draft"] {
+  color: var(--inbox-draft-fg, var(--color-danger-fg));
+}
+
+.inbox-held {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border: var(--border-width) solid
+    var(--inbox-held-border-color, color-mix(in srgb, var(--color-strong) 30%, transparent));
+  border-radius: 999px;
+  background-color: var(--inbox-held-bg, color-mix(in srgb, var(--color-strong) 10%, transparent));
+  color: var(--inbox-held-fg, var(--color-strong));
+  font-family: var(--font-sans);
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  animation: inbox-held-in var(--motion-state) var(--ease-interface);
+}
+.inbox-held:hover {
+  background-color: color-mix(in srgb, var(--color-strong) 16%, transparent);
+}
+@keyframes inbox-held-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.inbox-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: auto;
+  padding: 40px 16px;
+  color: var(--inbox-quiet-fg, var(--color-muted));
+  text-align: center;
+}
+.inbox-empty h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.inbox-empty p {
+  max-width: 30ch;
+  margin: 0;
+}
+.inbox-empty .nova-mark {
+  margin-bottom: 6px;
+  opacity: 0.8;
+}
+
+/* ---- The sheet ---- */
+/* The workspace steps back while a sheet is read over it, and stays live. */
+.workspace-main-pane[data-inbox-reading] {
+  transition: opacity var(--motion-state) var(--ease-interface);
+}
+.workspace-main-pane[data-inbox-reading="true"] {
+  opacity: var(--inbox-workspace-opacity, 0.55);
+}
+
+.inbox-sheet {
+  --_status-fg: var(--inbox-quiet-fg, var(--color-muted));
+  --_card-bg: var(--inbox-card-bg, color-mix(in srgb, var(--color-ink) 3.5%, var(--color-paper)));
+  --_card-border-color: var(--inbox-card-border-color, var(--color-line));
+  --_muted: var(--color-muted);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 700px;
+  max-width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  user-select: text;
+}
+.inbox-sheet[data-state="waiting"] {
+  --_status-fg: var(--inbox-waiting-fg, var(--color-warning-fg));
+}
+.inbox-sheet[data-urgency="urgent"][data-state="waiting"] {
+  --_status-fg: var(--inbox-urgent-fg, var(--color-danger-fg));
+}
+.inbox-sheet[data-state="answered"] {
+  --_status-fg: var(--inbox-answered-fg, var(--color-success-fg));
+}
+.inbox-sheet-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 10px 0 18px;
+  border-bottom: var(--border-width) solid var(--color-line);
+}
+.inbox-sheet[data-state="waiting"] .inbox-sheet-head {
+  border-bottom-color: var(--_status-fg);
+}
+.inbox-sheet-icon {
+  display: grid;
+  place-items: center;
+  color: var(--_status-fg);
+}
+.inbox-sheet-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-sheet-meta {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-sheet-scroll {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.inbox-sheet-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 30px 28px 28px;
+}
+.inbox-sheet-footer {
+  flex-shrink: 0;
+  padding: 12px 28px 14px;
+  border-top: var(--border-width) solid var(--color-line);
+  background-color: var(--color-paper);
+}
+.inbox-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  background-color: var(--color-paper);
+}
+.inbox-fullscreen .inbox-sheet {
+  width: auto;
+  flex: 1;
+}
+
+.inbox-byline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -6px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  line-height: 18px;
+}
+.inbox-byline-mark {
+  color: var(--inbox-mark-fg, var(--color-ink));
+}
+.inbox-byline-sep {
+  opacity: 0.6;
+}
+.inbox-status[data-urgency="urgent"] {
+  color: var(--inbox-urgent-fg, var(--color-danger-fg));
+}
+.inbox-status[data-urgency="waiting"] {
+  color: var(--inbox-waiting-fg, var(--color-warning-fg));
+}
+.inbox-status[data-urgency="done"] {
+  color: var(--inbox-answered-fg, var(--color-success-fg));
+}
+.inbox-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 27px;
+  text-wrap: balance;
+}
+.inbox-lead,
+.inbox-aside {
+  max-width: 64ch;
+  margin: 0;
+}
+.inbox-lead {
+  font-size: var(--text-lead);
+  line-height: 23px;
+}
+.inbox-aside {
+  color: var(--color-muted);
+  font-size: var(--text-body);
+  line-height: 21px;
+}
+.inbox-caption {
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+}
+:is(.inbox-title, .inbox-lead, .inbox-aside, .inbox-option-title, .inbox-sends) code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+.inbox-link code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+:is(.inbox-lead, .inbox-aside) code {
+  padding: 1px 4px;
+  border-radius: var(--radius-control);
+  background-color: var(--color-soft);
+}
+.inbox-prose {
+  max-width: 64ch;
+  font-size: var(--text-lead);
+  line-height: 23px;
+}
+.inbox-detail {
+  font-size: var(--text-body);
+  line-height: 21px;
+  color: var(--color-muted);
+}
+.inbox-hard {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--radius-control);
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+  font-size: var(--text-caption);
+}
+.inbox-disclose {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  color: var(--color-muted);
+}
+.inbox-disclose:hover {
+  color: var(--color-ink);
+}
+.inbox-disclose svg {
+  transition: transform var(--motion-feedback) var(--ease-interface);
+}
+.inbox-disclose[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.inbox-disclosure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* The command is the page: large, mono, in a card ruled on the side of its tone. */
+.inbox-command,
+.inbox-screen,
+.inbox-evidence,
+.inbox-files,
+.inbox-error {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 14px 12px;
+  border: var(--border-width) solid var(--_card-border-color);
+  border-radius: var(--radius-panel);
+  background-color: var(--_card-bg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 20px;
+  font-variant-ligatures: none;
+}
+.inbox-command {
+  --_rule: var(--inbox-waiting-fg, var(--color-warning-fg));
+  gap: 6px;
+  max-height: 320px;
+  padding: 16px 18px;
+  overflow: auto;
+  border-left: 2px solid var(--_rule);
+}
+.inbox-command[data-urgency="urgent"] {
+  --_rule: var(--inbox-urgent-fg, var(--color-danger-fg));
+}
+.inbox-command[data-urgency="calm"] {
+  --_rule: var(--color-line-strong);
+}
+.inbox-command[data-small] {
+  padding: 12px 14px;
+}
+.inbox-command-folder {
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+.inbox-command-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+.inbox-command[data-small] .inbox-command-line {
+  font-size: 14px;
+}
+.inbox-command-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.inbox-command-dollar {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+.inbox-copy {
+  margin-left: auto;
+}
+.inbox-screen {
+  display: block;
+  overflow-x: auto;
+  border-left: 2px solid var(--inbox-waiting-fg, var(--color-warning-fg));
+  font-size: 11.5px;
+  line-height: 18px;
+  white-space: pre;
+}
+.inbox-route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+}
+.inbox-quote {
+  max-width: 60ch;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-popover);
+  border-top-left-radius: 0;
+  background-color: var(--color-soft);
+  font-size: var(--text-lead);
+  line-height: 23px;
+}
+
+/* Ask: the options as cards, a card for the answer that isn't one. */
+.inbox-options,
+.inbox-question {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.inbox-question-text {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 20px;
+}
+.inbox-option,
+.inbox-card,
+.inbox-switch-row {
+  border: var(--border-width) solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background-color: var(--color-paper);
+}
+.inbox-option:hover {
+  border-color: var(--color-line-strong);
+}
+.inbox-option[data-picked="true"] {
+  border-color: var(--inbox-picked-border-color, var(--color-strong));
+  box-shadow: inset 0 0 0 1px var(--inbox-picked-border-color, var(--color-strong));
+}
+.inbox-option-head {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px 12px;
+  border-radius: inherit;
+  text-align: left;
+}
+.inbox-option-head:focus-visible {
+  outline-offset: -2px;
+}
+.inbox-option-key {
+  padding-top: 2px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+.inbox-option[data-picked="true"] .inbox-option-key {
+  color: var(--inbox-picked-border-color, var(--color-strong));
+}
+.inbox-option-title {
+  font-weight: 600;
+}
+.inbox-option-summary {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-muted);
+}
+.inbox-tag {
+  margin-left: 8px;
+  padding: 1px 5px;
+  font-family: var(--font-sans);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+.inbox-option-more {
+  padding: 0 14px 12px 44px;
+}
+.inbox-option-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  line-height: 18px;
+}
+.inbox-option-details .chat-prose {
+  --_muted: var(--color-muted);
+}
+.inbox-snippet-path {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+.inbox-snippet {
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border: var(--border-width) solid var(--_card-border-color);
+  border-radius: var(--radius-control);
+  background-color: var(--_card-bg);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 18px;
+  font-variant-ligatures: none;
+}
+.inbox-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+.inbox-card-label {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+.inbox-secret {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.inbox-secret-input {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+}
+.inbox-secret-input:focus-visible {
+  --_border-color: var(--inbox-focus-border-color, var(--color-strong));
+  outline: none;
+}
+.inbox-fine {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  line-height: 16px;
+}
+.inbox-fine svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.inbox-fine code {
+  font-family: var(--font-mono);
+}
+
+/* Trouble: the evidence, the fix and what it sends. */
+.inbox-evidence-label {
+  margin-bottom: 4px;
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: 16px;
+}
+.inbox-evidence-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.inbox-evidence-result {
+  color: var(--color-muted);
+}
+.inbox-times {
+  flex-shrink: 0;
+  align-self: center;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 17px;
+}
+.inbox-file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-error {
+  --_rule: var(--inbox-urgent-fg, var(--color-danger-fg));
+  border-left: 2px solid var(--_rule);
+  white-space: pre-wrap;
+}
+.inbox-fix {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.inbox-sends {
+  max-width: 64ch;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  line-height: 18px;
+}
+.inbox-sends q {
+  color: var(--color-ink);
+  font-style: italic;
+}
+.inbox-sends .inbox-link {
+  display: inline;
+  margin-left: 4px;
+}
+.inbox-switch-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.inbox-switch-copy {
+  display: flex;
+  flex-direction: column;
+}
+.inbox-switch-title {
+  font-weight: 500;
+}
+.inbox-switch-hint {
+  color: var(--color-muted);
+}
+
+/* The actions: buttons at the weight of the sheet, and links that are only underlined. */
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.inbox-sheet .button:not(.inbox-link) {
+  height: 32px;
+  padding-inline: 14px;
+  font-weight: 500;
+}
+.inbox-quiet-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: -4px;
+}
+.inbox-link {
+  text-decoration: underline;
+  text-decoration-color: var(--color-line-strong);
+  text-underline-offset: 3px;
+  padding: 0;
+  text-align: left;
+}
+.inbox-link:hover:not(:disabled) {
+  text-decoration-color: currentColor;
+}
+.inbox-sent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-style: solid;
+  border-width: var(--border-width);
+  border-radius: var(--radius-control);
+  font-size: var(--text-control);
+}
+.inbox-sent-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.inbox-sheet .button.inbox-next {
+  --_fg: var(--color-success-fg);
+  height: auto;
+  padding: 4px 6px;
+}
+.inbox-sheet .button.inbox-next:hover:not(:disabled) {
+  --_bg: color-mix(in srgb, var(--color-success-fg) 12%, transparent);
+  --_fg: var(--color-success-fg);
+}
+.inbox-failure {
+  margin: 0;
+  color: var(--color-danger-fg);
+  font-size: var(--text-control);
+}
+
+.inbox-reply-field {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border-radius: var(--radius-panel);
+}
+.inbox-reply-field:focus-within {
+  --_border-color: var(--inbox-focus-border-color, var(--color-strong));
+}
+.inbox-reply-input {
+  flex: 1;
+  min-width: 0;
+  max-height: 140px;
+  padding: 5px 0;
+  border: 0;
+  resize: none;
+  line-height: 20px;
+}
+.inbox-reply-input::placeholder {
+  color: var(--color-muted);
+}
+.inbox-reply form,
+.inbox-reply {
+  display: block;
+}
+.inbox-sheet .inbox-reply .button {
+  gap: 6px;
+}
+.inbox-send-answer {
+  align-self: flex-start;
+}
+
+@media (max-width: 700px) {
+  .inbox-sheet-meta {
+    display: none;
+  }
+  .inbox-sheet-page {
+    padding-inline: 16px;
+  }
+  .inbox-sheet-footer {
+    padding-inline: 16px;
+  }
+}

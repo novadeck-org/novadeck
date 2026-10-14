@@ -1,0 +1,461 @@
+import { afterEach, describe as context, describe, expect, it } from "vitest"
+import { page, userEvent } from "vitest/browser"
+
+import { expectStaysAbsent, openWorkspace, sidebarPanel, terminal } from "./support/workspace"
+
+// The Inbox demo: the agents demo with an Inbox of hardcoded items across its projects, one
+// of each kind, waiting on the person.
+const inbox = "/?demo=inbox"
+
+const openInbox = async (): Promise<void> => {
+  await openWorkspace(inbox)
+  const skip = page.getByRole("button", { name: "Skip for now" })
+  if (await skip.query()) await skip.click()
+  await sidebarPanel("Inbox").click()
+}
+
+const rows = () =>
+  page.getByRole("list", { name: "Messages from your agents" }).getByRole("listitem")
+const row = (subject: RegExp | string) =>
+  page
+    .getByRole("list", { name: "Messages from your agents" })
+    .getByRole("button", { name: typeof subject === "string" ? new RegExp(subject) : subject })
+const sheet = (title: string) => page.getByRole("dialog", { name: title })
+const confirmation = () => page.getByRole("status").filter({ hasText: /\w/ })
+afterEach(() => {
+  history.replaceState(null, "", "/")
+})
+
+describe("The Inbox on the rail", () => {
+  context("when the backend has an Inbox", () => {
+    it("takes the Notifications toggle's place, counting what isn't an update", async () => {
+      await openWorkspace(inbox)
+
+      await expect.element(sidebarPanel("Inbox")).toHaveAccessibleName("Inbox, 9 waiting")
+      await expect.element(sidebarPanel("Notifications")).not.toBeInTheDocument()
+    })
+  })
+
+  context("when the backend has none", () => {
+    it("keeps the Notifications toggle as it is", async () => {
+      await openWorkspace()
+
+      await expect.element(sidebarPanel("Notifications")).toBeVisible()
+      await expect.element(sidebarPanel("Inbox")).not.toBeInTheDocument()
+    })
+  })
+
+  context("when opening a link to the Inbox on a backend with none", () => {
+    it("shows the Notifications panel, as the app always has", async () => {
+      await openWorkspace("/?panel=inbox")
+
+      await expect.element(sidebarPanel("Notifications")).toBeChecked()
+      await expect.element(sidebarPanel("Inbox")).not.toBeInTheDocument()
+    })
+  })
+
+  context("when opening a link to the Notifications panel", () => {
+    it("shows the Inbox", async () => {
+      await openWorkspace(`${inbox}&panel=notifications`)
+
+      await expect.element(sidebarPanel("Inbox")).toBeChecked()
+    })
+  })
+})
+
+describe("The Inbox's list", () => {
+  it("lists one row for each item, trouble that stopped an agent first", async () => {
+    await openInbox()
+
+    await expect.element(rows()).toHaveLength(11)
+    await expect
+      .element(rows().first())
+      .toMatchTextContent(/Seems stuck: the same failure 3 times[\s\S]*7m[\s\S]*api-service/)
+  })
+
+  it("says how long an agent has waited only for one that stopped", async () => {
+    await openInbox()
+
+    await expect.element(rows().filter({ hasText: "Run pnpm add" })).toMatchTextContent("6m")
+    await expect
+      .element(rows().filter({ hasText: "vercel login" }))
+      .not.toMatchTextContent(/\d+m\b/)
+  })
+
+  it("marks a long item with its reading time and a limit with when it resumes", async () => {
+    await openInbox()
+
+    await expect.element(rows().filter({ hasText: "webhooks" })).toMatchTextContent("1 min read")
+    await expect
+      .element(rows().filter({ hasText: "limit" }))
+      .toMatchTextContent(/Resumes at \d\d:\d\d/)
+  })
+})
+
+describe("An item's sheet", () => {
+  context("when opening a command permission", () => {
+    it("shows the command large, beside its row, with the row lifted", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      await expect.element(sheet("Checkout review")).toMatchTextContent("Wants to run a command")
+      await expect
+        .element(sheet("Checkout review"))
+        .toMatchTextContent("pnpm add -D @stripe/stripe-js")
+      await expect
+        .element(sheet("Checkout review").getByText("~/projects/storefront"))
+        .toBeVisible()
+      await expect.element(row("Run pnpm add")).toHaveAttribute("aria-current", "true")
+    })
+
+    it("closes on Esc", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      await userEvent.keyboard("{Escape}")
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+    })
+
+    it("closes on its close button", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await sheet("Checkout review").getByRole("button", { name: "Close" }).click()
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+    })
+
+    it("closes on a click in the workspace", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+      await page.getByRole("region", { name: "focus view" }).click({ position: { x: 600, y: 700 } })
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+    })
+
+    it("moves to another item when another row is pressed, and with j and k", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+
+      await row("Which date library").click()
+      await expect.element(sheet("Tests")).toBeVisible()
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+
+      // One row up the list, past the permission for the edit.
+      await userEvent.keyboard("k")
+      await expect.element(sheet("Runtime")).toBeVisible()
+    })
+
+    it("is reached from its row with the keyboard, and a key pressed twice answers nothing", async () => {
+      await openInbox()
+      row("Run pnpm add").element().focus()
+      await userEvent.keyboard("{Enter}")
+      const open = sheet("Checkout review")
+
+      // Opening from the keyboard lands on the sheet's title, not on a button.
+      await expect.element(open.getByRole("heading", { name: "Checkout review" })).toHaveFocus()
+      await userEvent.keyboard("{Enter}")
+      await expectStaysAbsent(confirmation())
+
+      // Past the title bar's two buttons, Tab reaches Allow.
+      await userEvent.tab()
+      await userEvent.tab()
+      await userEvent.tab()
+      await expect.element(open.getByRole("button", { name: "Allow" })).toHaveFocus()
+      await userEvent.keyboard("{Enter}")
+      await expect.element(confirmation()).toMatchTextContent("Allowed. Codex is working again.")
+    })
+
+    it("returns from its title to the row on Shift+Tab, as from its first control", async () => {
+      await openInbox()
+      row("Run pnpm add").element().focus()
+      await userEvent.keyboard("{Enter}")
+      await expect
+        .element(sheet("Checkout review").getByRole("heading", { name: "Checkout review" }))
+        .toHaveFocus()
+
+      await userEvent.tab({ shift: true })
+      await expect.element(row("Run pnpm add")).toHaveFocus()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+    })
+
+    it("lets Tab go on past the last row, closing the sheet, rather than looping", async () => {
+      await openInbox()
+      await row("Heads-up").click()
+      row("Heads-up").element().focus()
+      await userEvent.tab()
+      await userEvent.tab()
+      await userEvent.tab()
+
+      await expect.element(page.getByRole("dialog")).not.toBeInTheDocument()
+      await expect.element(row("Heads-up")).not.toHaveFocus()
+    })
+
+    it("follows its row in the tab order, and gives focus back to it", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      row("Run pnpm add").element().focus()
+      await userEvent.tab()
+      await expect
+        .element(sheet("Checkout review").getByRole("button", { name: "Allow" }))
+        .toHaveFocus()
+
+      await userEvent.tab({ shift: true })
+      await expect
+        .element(sheet("Checkout review").getByRole("button", { name: "Close" }))
+        .toHaveFocus()
+      await userEvent.tab({ shift: true })
+      await userEvent.tab({ shift: true })
+      await expect.element(row("Run pnpm add")).toHaveFocus()
+      await expect.element(sheet("Checkout review")).toBeVisible()
+    })
+
+    it("shows the terminal it is about", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await sheet("Checkout review").getByRole("button", { name: "Show terminal" }).click()
+
+      await expect.element(sheet("Checkout review")).not.toBeInTheDocument()
+      await expect.element(terminal("Checkout review")).toBeVisible()
+    })
+  })
+
+  context("when allowing a command", () => {
+    it("says so, keeps its row answered until the sheet moves on, and goes on to the next on Next", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await sheet("Checkout review").getByRole("button", { name: "Allow" }).click()
+
+      await expect.element(confirmation()).toMatchTextContent("Allowed. Codex is working again.")
+      // The backend has dropped it; the row stays where it was, so the sheet stays by it.
+      await expect.poll(() => row("Run pnpm add").query()).not.toBeNull()
+
+      await sheet("Checkout review").getByRole("button", { name: /^Next/ }).click()
+      // The most urgent that remains: trouble that stopped an agent.
+      await expect.element(sheet("Runtime")).toBeVisible()
+      await expect.element(row("Run pnpm add")).not.toBeInTheDocument()
+    })
+  })
+
+  context("when denying a command", () => {
+    it("takes an optional note and sends it with Codex's own option for words", async () => {
+      await openInbox()
+      await row("Run pnpm add").click()
+      await sheet("Checkout review").getByRole("button", { name: "Deny" }).click()
+      await userEvent.type(
+        sheet("Checkout review").getByRole("textbox", { name: /what Codex should do instead/i }),
+        "Use npm.",
+      )
+      await sheet("Checkout review").getByRole("button", { name: "Deny" }).click()
+
+      await expect.element(confirmation()).toMatchTextContent("Denied. Codex has your note.")
+    })
+  })
+
+  context("when a prompt can't be answered from here", () => {
+    it("shows it verbatim and offers only the way to the terminal", async () => {
+      await openInbox()
+      await row("Edit src/cart/CartSummary.tsx").click()
+      const open = sheet("Runtime")
+
+      await expect
+        .element(open)
+        .toMatchTextContent("Do you want to make this edit to CartSummary.tsx?")
+      await expect
+        .element(open)
+        .toMatchTextContent(
+          "Novadeck can't answer this prompt from here. Answer it in the terminal.",
+        )
+      await expect.element(open.getByRole("button", { name: "Allow" })).not.toBeInTheDocument()
+      await expect.element(open.getByRole("button", { name: "Go to terminal" })).toBeVisible()
+    })
+  })
+
+  context("when an agent asks with options", () => {
+    it("shows them as lettered cards with its pick, and sends the pick with a note", async () => {
+      await openInbox()
+      await row("How should failed payment webhooks retry").click()
+      const open = sheet("Dev server")
+
+      await expect.element(open).toMatchTextContent("Hard to undo: This sets the database schema")
+      await expect.element(open.getByText("Its pick")).toBeVisible()
+      await expect.element(open.getByRole("button", { name: /Our own retries/ })).toBeVisible()
+      await expect.element(open.getByRole("button", { name: "Send" })).toBeDisabled()
+
+      await open.getByRole("button", { name: /Our own retries/ }).click()
+      await userEvent.type(
+        open.getByRole("textbox", { name: /Reply to Codex/ }),
+        "Within the hour.",
+      )
+      await open.getByRole("button", { name: "Send B" }).click()
+
+      await expect.element(confirmation()).toMatchTextContent("Sent to Codex in @fox")
+    })
+
+    it("keeps a reply it has not sent as a draft on the row", async () => {
+      await openInbox()
+      await row("How should failed payment webhooks retry").click()
+      await userEvent.type(
+        sheet("Dev server").getByRole("textbox", { name: /Reply to Codex/ }),
+        "Let me think",
+      )
+      await userEvent.keyboard("{Escape}")
+      await userEvent.keyboard("{Escape}")
+
+      await expect.element(rows().filter({ hasText: "webhooks" })).toMatchTextContent("Draft")
+    })
+  })
+
+  context("when an agent's own question is on screen", () => {
+    it("strips the recommended mark and tags it as the agent's pick", async () => {
+      await openInbox()
+      await row("Which date library").click()
+      const open = sheet("Tests")
+
+      await expect.element(open.getByRole("button", { name: /^date-fns/ })).toBeVisible()
+      await expect.element(open.getByText("(Recommended)")).not.toBeInTheDocument()
+      await expect.element(open.getByText("Its pick")).toBeVisible()
+    })
+  })
+
+  context("when Novadeck holds a message", () => {
+    it("shows who wrote to whom, and releases it", async () => {
+      await openInbox()
+      await row("Release a held message").click()
+      const open = sheet("Tests")
+
+      await expect.element(open).toMatchTextContent("This is message 6 on the thread.")
+      await open.getByRole("button", { name: "Release" }).click()
+
+      await expect.element(confirmation()).toMatchTextContent("Released.")
+    })
+  })
+
+  context("when an agent is stuck", () => {
+    it("shows exactly what Nudge sends, and lets the person write their own", async () => {
+      await openInbox()
+      await row("Seems stuck").click()
+      const open = sheet("Runtime")
+
+      await expect.element(open).toMatchTextContent("×3")
+      await expect.element(open).toMatchTextContent("You've hit the same failure 3 times.")
+      await open.getByRole("button", { name: "Write your own" }).click()
+      await userEvent.type(
+        open.getByRole("textbox", { name: /should try/ }),
+        "Read the test first.",
+      )
+      await open.getByRole("button", { name: "Send" }).click()
+
+      await expect.element(confirmation()).toMatchTextContent("Interrupted and nudged.")
+    })
+  })
+
+  context("when an agent hits a limit", () => {
+    it("offers only the auto-resume switch, which stays on the item", async () => {
+      await openInbox()
+      await row("Hit Claude's 5-hour limit").click()
+      const open = sheet("Build")
+      const resume = open.getByRole("switch", { name: /Resume automatically at/ })
+
+      await expect.element(resume).toBeChecked()
+      await resume.click()
+      await expect.element(resume).not.toBeChecked()
+      await expect.element(row("Hit Claude's 5-hour limit")).toBeVisible()
+    })
+  })
+
+  context("when an agent needs a secret", () => {
+    it("takes it in a password field and says where it goes", async () => {
+      await openInbox()
+      await row("Could you add a Stripe test key").click()
+      const open = sheet("Checkout implementation")
+      const field = open.getByLabelText("STRIPE_SECRET_KEY")
+
+      await expect.element(field).toHaveAttribute("type", "password")
+      await expect.element(open).toMatchTextContent("storefront/.env.local")
+      await userEvent.type(field, "sk_test_123")
+      await open.getByRole("button", { name: "Save" }).click()
+
+      await expect.element(confirmation()).toMatchTextContent("Saved STRIPE_SECRET_KEY")
+    })
+  })
+
+  context("when an agent asks for a command to be run", () => {
+    it("shows it to copy, and a button for when it is done", async () => {
+      await openInbox()
+      await row("Could you run vercel login").click()
+      const open = page.getByRole("dialog")
+
+      await expect.element(open.getByRole("button", { name: "Copy command" })).toBeVisible()
+      await open.getByRole("button", { name: "I've logged in" }).click()
+
+      await expect.element(confirmation()).toMatchTextContent("Told Claude it's done.")
+    })
+  })
+
+  context("when an agent finished", () => {
+    it("lists what it edited, and marks it read", async () => {
+      await openInbox()
+      await row("Search index rebuilt").click()
+      const open = page.getByRole("dialog")
+
+      await expect.element(open).toMatchTextContent("Files it edited")
+      await expect.element(open).toMatchTextContent("scripts/build-index.mjs")
+      await open.getByRole("button", { name: "Mark read" }).click()
+
+      await expect.element(confirmation()).toMatchTextContent("Marked read.")
+    })
+  })
+})
+
+describe("Marking updates read", () => {
+  it("reads every update and leaves what waits on the person", async () => {
+    await openInbox()
+    await page.getByRole("button", { name: "Mark all read" }).click()
+
+    await expect.element(rows()).toHaveLength(9)
+    await expect
+      .element(page.getByRole("button", { name: "Mark all read" }))
+      .not.toBeInTheDocument()
+  })
+})
+
+describe("The Inbox on a phone", () => {
+  afterEach(async () => {
+    await page.viewport(1440, 900)
+  })
+
+  it("gives the screen to a sheet, with focus in it, and back to the list", async () => {
+    await page.viewport(400, 800)
+    await openInbox()
+    await row("Run pnpm add").click()
+    const screen = page.getByRole("dialog", { name: "Checkout review" })
+
+    await expect.element(screen).toBeVisible()
+    await expect
+      .poll(() => document.activeElement?.closest(".inbox-fullscreen") !== null)
+      .toBe(true)
+    await screen.getByRole("button", { name: "Back to the Inbox" }).click()
+    await expect.element(screen).not.toBeInTheDocument()
+    await expect.element(row("Run pnpm add")).toBeVisible()
+  })
+
+  it("closes both the sheet and the list on Show terminal", async () => {
+    await page.viewport(400, 800)
+    await openInbox()
+    await row("Run pnpm add").click()
+    await page
+      .getByRole("dialog", { name: "Checkout review" })
+      .getByRole("button", { name: "Show terminal" })
+      .click()
+
+    await expect
+      .element(page.getByRole("dialog", { name: "Checkout review" }))
+      .not.toBeInTheDocument()
+    await expect.element(row("Run pnpm add")).not.toBeInTheDocument()
+    await expect.element(terminal("Checkout review")).toBeVisible()
+  })
+})

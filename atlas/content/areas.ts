@@ -282,6 +282,11 @@ export const notes: Record<string, Note> = {
     purpose: "The notifications panel.",
     entries: [{ file: `${ui}/notifications/notifications.ts` }],
   },
+  "ui/inbox": {
+    purpose:
+      "The Inbox: what agents ask of the person, as sidebar rows and the sheet that answers.",
+    entries: [{ file: `${ui}/inbox/inbox-state.ts` }],
+  },
   "ui/voice": {
     purpose: "Dictation: audio capture, resampling and the dictation overlay.",
     entries: [{ file: `${ui}/voice/dictation.ts` }],

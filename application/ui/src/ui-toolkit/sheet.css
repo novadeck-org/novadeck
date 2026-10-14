@@ -1,0 +1,57 @@
+/* The sheet recipe: a card that opens beside the element it is anchored to, such as the
+   Inbox's row, and points at it with an arrow (`.sheet-arrow`). It is the card surface
+   lifted higher than a popover, as the page's own window is. It keys its motion on
+   data-state="open" | "closed", which Ark sets and keeps through the closing animation,
+   and on data-placement, which says the side its anchor is on.
+
+   Tokens, each optional (its fallback in brackets):
+   --sheet-bg (paper), --sheet-fg (ink), --sheet-border-color (line-strong),
+   --sheet-shadow (shadow-modal), --sheet-radius (radius-panel): the card.
+   --sheet-arrow-border-color (the card's border): the arrow's two ruled sides, for a theme
+   whose card edge is more than its border, as a glow ring is. */
+.sheet {
+  --_bg: var(--sheet-bg, var(--color-paper));
+  --_border-color: var(--sheet-border-color, var(--color-line-strong));
+  --arrow-size: 12px;
+  --arrow-background: var(--_bg);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: var(--border-width) solid var(--_border-color);
+  border-radius: var(--sheet-radius, var(--radius-panel));
+  background-color: var(--_bg);
+  color: var(--sheet-fg, var(--color-ink));
+  box-shadow: var(--sheet-shadow, var(--shadow-modal));
+  max-height: var(--available-height);
+  max-width: var(--available-width);
+  transform-origin: var(--transform-origin);
+}
+.sheet:focus-visible {
+  outline: none;
+}
+.sheet[data-state="open"] {
+  animation: sheet-in var(--motion-state) var(--ease-interface);
+}
+.sheet[data-state="closed"] {
+  animation: sheet-out var(--motion-feedback) var(--ease-interface) forwards;
+  pointer-events: none;
+}
+/* The arrow's tip is a square on the card's ground that Ark rotates to face the anchor,
+   so its top and left sides are the outer two on every side the card opens: ruled like
+   the card's edge, they meet it as one shape. */
+.sheet-arrow > div {
+  border-top: var(--border-width) solid var(--sheet-arrow-border-color, var(--_border-color));
+  border-left: var(--border-width) solid var(--sheet-arrow-border-color, var(--_border-color));
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+@keyframes sheet-out {
+  to {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+}

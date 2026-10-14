@@ -26,6 +26,15 @@ const rules: Record<string, readonly string[]> = {
   "layouts/": [...base, "layouts/", "sidebar/", "terminals/"],
   // What asks for the person across the workspace: terminals' requests and unread finishes.
   "notifications/": [...base, "notifications/", "sidebar/", "terminals/unread-state.ts"],
+  // The Inbox: what asks for the person, answered in place, beside the sidebar's rows, with
+  // the chat's markdown reader and its answers' rules.
+  "inbox/": [
+    ...base,
+    "inbox/",
+    "sidebar/",
+    "terminals/chat/Markdown.tsx",
+    "terminals/chat/answers.ts",
+  ],
   "shell/": [
     ...base,
     "shell/",
@@ -34,6 +43,7 @@ const rules: Record<string, readonly string[]> = {
     "layouts/",
     "projects/",
     "notifications/",
+    "inbox/",
   ],
   "app/": [
     "app/",
@@ -45,6 +55,7 @@ const rules: Record<string, readonly string[]> = {
     "shell/",
     "voice/",
     "notifications/",
+    "inbox/",
   ],
   // Commands are plain functions over the stores: no React, no DOM libraries.
   "app/commands/": [
@@ -57,6 +68,8 @@ const rules: Record<string, readonly string[]> = {
     // The keymap's types only: commands never touch the DOM contracts in interaction/dom.ts.
     "interaction/keymap.ts",
     "shell/shell-state.ts",
+    // Which panel a link to the sidebar shows.
+    "shell/panels.ts",
     "terminals/rename-state.ts",
     // Unread finishes, which the notification center's dismissals clear.
     "terminals/unread-state.ts",

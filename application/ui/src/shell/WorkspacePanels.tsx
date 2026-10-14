@@ -27,6 +27,7 @@ export const WorkspacePanels = ({
   onMobileOpenChange,
   mobileRail,
   mobileLabel,
+  mobileWide = false,
   mobileFinalFocusEl,
   children,
 }: {
@@ -36,6 +37,8 @@ export const WorkspacePanels = ({
   onMobileOpenChange: (open: boolean) => void
   mobileRail: ReactNode
   mobileLabel: string
+  // The drawer takes the whole width, as the Inbox's list does on a phone.
+  mobileWide?: boolean
   mobileFinalFocusEl: () => HTMLElement | null
   children: ReactNode
 }): React.JSX.Element => {
@@ -85,7 +88,7 @@ export const WorkspacePanels = ({
             open={mobileOpen}
             onOpenChange={onMobileOpenChange}
             label={mobileLabel}
-            className="sidebar-drawer fixed top-15 bottom-7 left-0 flex w-[272px] max-w-full"
+            className={`sidebar-drawer fixed top-15 bottom-7 left-0 flex max-w-full ${mobileWide ? "w-full" : "w-[272px]"}`}
             backdropClassName="overlay sidebar-scrim"
             positionerClassName="sidebar-positioner"
             initialFocusEl={() =>

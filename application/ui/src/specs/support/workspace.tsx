@@ -127,11 +127,13 @@ export const chooseView = async (name: "Focus" | "Grid" | "Canvas"): Promise<voi
 
 export const sidebar = (): Locator => page.getByRole("complementary")
 
-export const sidebarPanel = (name: "Terminals" | "Sessions" | "Notifications"): Locator =>
+export const sidebarPanel = (name: "Terminals" | "Sessions" | "Notifications" | "Inbox"): Locator =>
   page
     .getByRole("radiogroup", { name: "Sidebar actions" })
-    // The bell adds how many wait to its name, e.g. "Notifications, 3 waiting".
-    .getByRole("radio", { name: name === "Notifications" ? /^Notifications(,|$)/ : name })
+    // The bell and the Inbox add how many wait to their names, e.g. "Inbox, 3 waiting".
+    .getByRole("radio", {
+      name: name === "Notifications" || name === "Inbox" ? new RegExp(`^${name}(,|$)`) : name,
+    })
 
 /** The Notifications sidebar's rows, one for each terminal that asks for the person. */
 export const notifications = (): Locator =>

@@ -17,6 +17,7 @@
 @import "./ui-toolkit/badge.css" layer(components);
 @import "./ui-toolkit/label.css" layer(components);
 @import "./ui-toolkit/surface.css" layer(components);
+@import "./ui-toolkit/sheet.css" layer(components);
 @import "./ui-toolkit/overlay.css" layer(components);
 @import "./ui-toolkit/item.css" layer(components);
 @import "./ui-toolkit/segmented.css" layer(components);
@@ -39,6 +40,7 @@
 @import "./shell/panels.css" layer(components);
 @import "./shell/empty-state.css" layer(components);
 @import "./sidebar/sidebar.css" layer(components);
+@import "./inbox/inbox.css" layer(components);
 @import "./projects/project-status.css" layer(components);
 @import "./projects/workspace-switcher.css" layer(components);
 @import "./projects/pins-bar.css" layer(components);

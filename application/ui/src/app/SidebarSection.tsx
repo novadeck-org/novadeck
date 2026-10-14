@@ -4,6 +4,7 @@ import { orderedTiles } from "../model/roster"
 import { activeProject } from "../model/state"
 import type { WorkspaceSession } from "../model/types"
 import { useDesktop } from "../shell/desktop"
+import { shownPanel } from "../shell/panels"
 import { sidebarVisible } from "../shell/shell-state"
 import { WorkspaceSidebar } from "../shell/WorkspaceSidebar"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
@@ -33,7 +34,7 @@ const sameSessions = (a: readonly WorkspaceSession[], b: readonly WorkspaceSessi
 
 // The sidebar wired to the workspace: terminal tabs and workspace sessions.
 export const SidebarSection = memo((): React.JSX.Element => {
-  const { commands } = useWorkspaceServices()
+  const { commands, backend } = useWorkspaceServices()
   const {
     switchSession,
     startFresh,
@@ -64,7 +65,9 @@ export const SidebarSection = memo((): React.JSX.Element => {
     }),
     shallowEqual,
   )
-  const sidebarPanel = useUiState((state) => state.location.route.panel)
+  const sidebarPanel = useUiState((state) =>
+    shownPanel(state.location.route.panel, backend.inbox !== undefined),
+  )
   const visible = useUiState((state) => sidebarVisible(state.shell, desktop))
   return (
     <WorkspaceSidebar
@@ -77,6 +80,7 @@ export const SidebarSection = memo((): React.JSX.Element => {
       notifications={notifications}
       viewing={selected}
       sidebarVisible={visible}
+      inbox={backend.inbox !== undefined}
       onSessionSelect={switchSession}
       onReveal={(notification) => reveal(notification.terminalId)}
       onDismissNotification={dismissNotification}

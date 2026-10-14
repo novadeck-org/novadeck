@@ -12,6 +12,7 @@ export const demoVariants: readonly DemoVariant[] = [
   "plain",
   "agents",
   "messages",
+  "inbox",
   "welcome",
 ]
 

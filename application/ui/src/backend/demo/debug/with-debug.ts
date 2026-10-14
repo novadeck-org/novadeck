@@ -9,9 +9,11 @@ import type {
   BootProgress,
   TerminalKey,
 } from "../../port"
+import { isDemoInbox } from "../inbox"
 import { demoTurns } from "../turns"
 import { createDemo, type DemoVariant } from "../variants"
 import { createDebugPanel } from "./DebugPanel"
+import { inboxGroups } from "./inbox"
 import { createDemoPortable, type DemoPortable } from "./portable"
 import { createDemoSandbox } from "./sandbox"
 import { createDemoStates } from "./states"
@@ -173,7 +175,13 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     DebugPanel: createDebugPanel({
       launch,
       shell,
-      states,
+      states: {
+        ...states,
+        groups: [
+          ...states.groups,
+          ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined),
+        ],
+      },
       dispatch: () => sink?.dispatch,
       workspace: () => latest,
       addInBackground: (to) => {

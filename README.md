@@ -683,7 +683,8 @@ connection state, the crash-loop count and the terminal count, over the demo swi
 `?demo=` in the address's hash picks the variant: `showcase` (the default, with the
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
-failed a moment after it opens, for the project switcher), `messages` or `welcome`. The
+failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
+demo with the Inbox, which no other variant has) or `welcome`. The
 switcher in the panel's header changes between them without reloading (pressing the
 current one boots it again), and the browser
 tab remembers the last one chosen. `&turnMs=` sets how long a demo agent's turn works
@@ -751,6 +752,15 @@ Agents:
 
 App:
 
+- **Inbox:** only in the `inbox` variant. Each action adds one item of its kind to the Inbox,
+  waiting from now and in place of the one of its kind already there: a stuck agent, Codex's
+  command permission, an unreadable dialog, a held message, a decision with options, a
+  detected question, a secret request, a login request, the 5-hour limit, a plan approval
+  (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
+  whose Deny is a plain no, a heads-up and a finished turn. "Fail the next answer" makes
+  the next answer to any item fail, so its sheet shows why and keeps the item. "Usage limit, reset passed" adds the limit with auto-resume off and its
+  window reset, offering Continue now. "A new item arrives" adds the next kind not there
+  yet, and "Clear the Inbox" empties it.
 - **Startup:** "Hold the splash" keeps it until you press Escape; "Slow attach" counts
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
   connecting agents again (no reboot).
@@ -894,6 +904,7 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `model/companion-bar.ts`                           | A bar as the person arranged it: order, hidden plans and Messages, the open tab.        |
 | `model/messages.ts`                                | The contract for agents' messages: threads, states, the pause, and a tab's count.       |
 | `model/conversation.ts`                            | The contract for an agent's conversation: transcript items, requests, the port.         |
+| `model/inbox.ts`                                   | The contract for the Inbox: items by source, their type and urgency, answers, the port. |
 | `model/conversation-turns.ts`                      | A conversation grouped into blocks, tool calls summed up in a line, the turn's status.  |
 | `model/roster.ts`                                  | A session's terminals and undocked windows, laid out as tiles, their order and status.  |
 | `model/layout/workspace-layout.ts`                 | Where each terminal sits and how big it is in each view.                                |
@@ -904,6 +915,7 @@ Source lives in `application/ui/src/`, grouped in layers:
 | `layouts/canvas/`, `grid/`, `focus/`               | View adapters and colocated library styles.                                             |
 | `layouts/` (top level)                             | Helpers shared by views: view transitions, background gestures, visibility.             |
 | `notifications/`                                   | The notification center: what asks for the person across the workspace, and its panel.  |
+| `inbox/`                                           | The Inbox: what agents ask of the person, its sidebar rows and the sheet that answers.  |
 | `shell/`                                           | Header, rail, panels, zen dock, sidebar, and shell state transitions.                   |
 | `sidebar/`, `projects/`, `preferences/`, `search/` | Feature components.                                                                     |
 | `interaction/`                                     | Shortcut records, the keymap, and shared DOM focus/overlay contracts.                   |
@@ -922,8 +934,9 @@ all; every layer that composes the page may use it, adapters included, and
 may add `ui-toolkit/`. `interaction/` builds on `model/` and imports no packages;
 features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
 `terminals/`; `notifications/` builds on the base layers, `sidebar/` and
-`terminals/unread-state.ts`; `shell/` may use `layouts/`, `projects/` and
-`notifications/`. `app/` composes every feature layer, `notifications/` and `backend/`, and within it only `app/backend.ts` imports a
+`terminals/unread-state.ts`; `inbox/` builds on the base layers, `sidebar/` and the
+chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
+`notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/`, `inbox/` and `backend/`, and within it only `app/backend.ts` imports a
 backend adapter. `app/commands/` has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on `model/`,
 `interaction/keymap.ts`, `backend/port.ts`, the UI store, routing, selectors,

@@ -1,3 +1,6 @@
+import { needing } from "../inbox/inbox-state"
+import { toneOf } from "../inbox/inbox-text"
+import { inboxType, urgency, type InboxItem } from "../model/inbox"
 import { terminalAsks } from "../model/terminal-ending"
 import type { Notification } from "../notifications/notifications"
 import { askStatus, type ProjectStatus } from "../projects/project-status"
@@ -22,5 +25,24 @@ export const notificationBadge = (list: readonly Notification[]): BellBadge | un
     text: list.length > 9 ? "9+" : String(list.length),
     label: `Notifications, ${list.length} waiting`,
     status: askStatus[kind],
+  }
+}
+
+// The Inbox's badge: what isn't an update, toned by the most pressing of it: trouble that
+// stopped an agent as a failure, an ask as a question, anything else as needing attention.
+export const inboxBadge = (items: readonly InboxItem[]): BellBadge | undefined => {
+  const waiting = needing(items)
+  if (waiting.length === 0) return undefined
+  const first = waiting.reduce((a, b) => (urgency(b) < urgency(a) ? b : a))
+  const type = inboxType(first)
+  return {
+    text: waiting.length > 9 ? "9+" : String(waiting.length),
+    label: `Inbox, ${waiting.length} waiting`,
+    status:
+      type === "trouble" && toneOf(first) === "urgent"
+        ? "failed"
+        : type === "ask"
+          ? "question"
+          : "attention",
   }
 }

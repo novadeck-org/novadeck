@@ -52,6 +52,8 @@ export type CommandContext = {
   readonly ui: UiStore
   readonly navigation: WorkspaceNavigator
   readonly newTerminal: Backend["newTerminal"]
+  // Whether the backend has an Inbox, which the sidebar shows where it would show Notifications.
+  readonly inbox?: Backend["inbox"] | undefined
   readonly pickDirectory?: Backend["pickDirectory"] | undefined
   readonly crashLoop?: Backend["crashLoop"] | undefined
   readonly resetTitle?: Backend["resetTitle"] | undefined

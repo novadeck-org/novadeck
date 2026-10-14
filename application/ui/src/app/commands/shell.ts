@@ -1,4 +1,5 @@
 import type { SidebarPanel } from "../../model/types"
+import { shownPanel } from "../../shell/panels"
 import {
   bumpNavigation,
   enterZen,
@@ -50,7 +51,8 @@ export const shellEdits = ({ ui }: Pick<CommandContext, "ui">): ShellEdits => {
 export const createShellCommands = (ctx: CommandContext): ShellCommands => {
   const { ui, workspace, navigation, effects } = ctx
   const { change, set } = shellEdits(ctx)
-  const panel = (): SidebarPanel => ui.getSnapshot().location.route.panel
+  const panel = (): SidebarPanel =>
+    shownPanel(ui.getSnapshot().location.route.panel, ctx.inbox !== undefined)
   let canvasFocusRequest = 0
   const hide = (): void => {
     change(hideSidebar)

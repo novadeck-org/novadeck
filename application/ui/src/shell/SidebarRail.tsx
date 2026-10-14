@@ -1,4 +1,4 @@
-import { Bell, History, Terminal as TerminalIcon } from "lucide-react"
+import { Bell, History, Inbox, Terminal as TerminalIcon } from "lucide-react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
 import { sidebarPanels, type SidebarPanel } from "../model/types"
@@ -12,6 +12,7 @@ export const SidebarRail = ({
   sidebarPanel,
   zen,
   badge,
+  inbox = false,
   toggleSidebar,
   hideSidebar,
 }: {
@@ -20,6 +21,8 @@ export const SidebarRail = ({
   sidebarPanel: SidebarPanel
   zen: boolean
   badge: BellBadge | undefined
+  // Whether the backend has an Inbox, which takes the Notifications toggle's place.
+  inbox?: boolean
   toggleSidebar: (panel: SidebarPanel) => void
   hideSidebar: () => void
 }): React.JSX.Element => {
@@ -40,11 +43,13 @@ export const SidebarRail = ({
         [
           { id: "terminals", label: "Terminals", icon: TerminalIcon },
           { id: "sessions", label: "Sessions", icon: History },
-          { id: "notifications", label: "Notifications", icon: Bell },
+          inbox
+            ? { id: "inbox", label: "Inbox", icon: Inbox }
+            : { id: "notifications", label: "Notifications", icon: Bell },
         ] as const
       ).map(({ id, label, icon: Icon }) => {
         const activePanel = sidebarPanel === id && sidebarVisible
-        const status = id === "notifications" ? badge : undefined
+        const status = id === "notifications" || id === "inbox" ? badge : undefined
         return (
           <ToggleGroupItem
             key={id}

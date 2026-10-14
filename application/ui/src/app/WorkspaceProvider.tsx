@@ -76,6 +76,7 @@ const createServices = (
     ui,
     navigation,
     newTerminal: backend.newTerminal,
+    inbox: backend.inbox,
     pickDirectory: backend.pickDirectory,
     crashLoop: backend.crashLoop,
     resetTitle: backend.resetTitle,

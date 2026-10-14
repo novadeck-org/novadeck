@@ -5,7 +5,7 @@ import type { CreateBackend } from "../backend/port"
 import { sidebarToggle } from "../interaction/dom"
 import { cancelTerminalTransition } from "../layouts/transition"
 import { useDesktop } from "../shell/desktop"
-import { panelLabels } from "../shell/panels"
+import { panelLabels, shownPanel } from "../shell/panels"
 import { sidebarVisible } from "../shell/shell-state"
 import { SidebarRail } from "../shell/SidebarRail"
 import { WorkspacePanels } from "../shell/WorkspacePanels"
@@ -19,6 +19,7 @@ import { DictationContext, useDictationController } from "./controller/dictation
 import { useKeyboard } from "./controller/useKeyboard"
 import { useWorkspaceEffects } from "./controller/useWorkspaceEffects"
 import { HeaderSection } from "./HeaderSection"
+import { InboxHost } from "./InboxHost"
 import { currentState, currentTarget, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { useNotificationBadge } from "./useNotifications"
@@ -98,7 +99,7 @@ export const WorkspaceApp = (): React.JSX.Element => {
       sidebar,
       sidebarCollapsed,
       sidebarVisible: sidebarVisible(state.shell, desktop),
-      sidebarPanel: state.location.route.panel,
+      sidebarPanel: shownPanel(state.location.route.panel, services.backend.inbox !== undefined),
       fontSize: state.preferences.fontSize,
       enabledViews: state.preferences.enabledViews,
     }
@@ -115,58 +116,64 @@ export const WorkspaceApp = (): React.JSX.Element => {
       zen={zen}
       toggleSidebar={toggleSidebar}
       hideSidebar={hideSidebar}
+      inbox={services.backend.inbox !== undefined}
     />
   )
   return (
     <DictationContext.Provider value={voice}>
-      <main
-        className="workspace flex h-dvh min-h-100 flex-col overflow-hidden"
-        data-zen={zen}
-        onPointerDownCapture={cancelTerminalTransition}
-        onKeyDownCapture={cancelTerminalTransition}
-        style={
-          {
-            "--terminal-font-size": `${fontSize}px`,
-          } as React.CSSProperties
-        }
-      >
-        <WorkspaceEffects />
-        <VisitorBar />
-        <HeaderSection />
-        <div className="workspace-body relative flex min-h-0 flex-1">
-          {sidebarRail()}
-          <WorkspacePanels
-            collapsed={zen || sidebarCollapsed}
-            mobileOpen={!zen && sidebar}
-            onMobileOpenChange={(open) => {
-              if (!open) hideSidebar()
-            }}
-            mobileRail={sidebarRail(true)}
-            mobileLabel={panelLabels[sidebarPanel]}
-            mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
-            sidebar={<SidebarSection />}
-          >
-            <WorkspaceStage canvas={canvas} />
-          </WorkspacePanels>
-          {zen && (
-            <ZenDockWithBadge
-              view={view}
-              enabledViews={enabledViews}
-              onCreate={() => add()}
-              onViewChange={(next) => {
-                if (next !== view) changeView(next)
+      <InboxHost active={sidebarPanel === "inbox" && shell.sidebarVisible}>
+        <main
+          className="workspace flex h-dvh min-h-100 flex-col overflow-hidden"
+          data-zen={zen}
+          onPointerDownCapture={cancelTerminalTransition}
+          onKeyDownCapture={cancelTerminalTransition}
+          style={
+            {
+              "--terminal-font-size": `${fontSize}px`,
+            } as React.CSSProperties
+          }
+        >
+          <WorkspaceEffects />
+          <VisitorBar />
+          <HeaderSection />
+          <div className="workspace-body relative flex min-h-0 flex-1">
+            {sidebarRail()}
+            <WorkspacePanels
+              collapsed={zen || sidebarCollapsed}
+              mobileOpen={!zen && sidebar}
+              onMobileOpenChange={(open) => {
+                if (!open) hideSidebar()
               }}
-              onNotifications={() => toggleSidebar("notifications")}
-              onExit={exitZen}
-            />
-          )}
-        </div>
-        <WorkspaceFooter />
-        <WorkspaceOverlays />
-        {voice && <DictationOverlay view={voice.view} level={voice.level} docks={voice.docks} />}
-        <DebugSection />
-        <VisitorHints />
-      </main>
+              mobileRail={sidebarRail(true)}
+              mobileLabel={panelLabels[sidebarPanel]}
+              mobileWide={sidebarPanel === "inbox"}
+              mobileFinalFocusEl={() => sidebarToggle(sidebarPanel)}
+              sidebar={<SidebarSection />}
+            >
+              <WorkspaceStage canvas={canvas} />
+            </WorkspacePanels>
+            {zen && (
+              <ZenDockWithBadge
+                view={view}
+                enabledViews={enabledViews}
+                onCreate={() => add()}
+                onViewChange={(next) => {
+                  if (next !== view) changeView(next)
+                }}
+                onNotifications={() =>
+                  toggleSidebar(services.backend.inbox ? "inbox" : "notifications")
+                }
+                onExit={exitZen}
+              />
+            )}
+          </div>
+          <WorkspaceFooter />
+          <WorkspaceOverlays />
+          {voice && <DictationOverlay view={voice.view} level={voice.level} docks={voice.docks} />}
+          <DebugSection />
+          <VisitorHints />
+        </main>
+      </InboxHost>
     </DictationContext.Provider>
   )
 }

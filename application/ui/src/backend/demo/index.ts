@@ -19,6 +19,7 @@ import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
+import { createDemoInbox } from "./inbox"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
 import { createDemoMurmur } from "./murmur"
 import { createMockTerminal, demoFinishes, demoSeed, demoTerminalId, terminalSlot } from "./samples"
@@ -326,8 +327,10 @@ const withFinishes = (backend: Backend, turns: DemoTurns): Backend => ({
 })
 
 // The demos with no content showcase: the plain one, the agents', the agents' with
-// messages between them, and the plain one with its first-run welcome dialog open.
-export type PlainVariant = "plain" | "agents" | "messages" | "welcome"
+// messages between them, the agents' with the Inbox, and the plain one with its first-run
+// welcome dialog open. Only the Inbox demo has an Inbox: it is not built yet, so the demos
+// that tests, try mode and the website run on must not show it.
+export type PlainVariant = "plain" | "agents" | "messages" | "inbox" | "welcome"
 
 export const plainDemo = (
   variant: PlainVariant,
@@ -352,13 +355,14 @@ export const plainDemo = (
       transcripts,
       turns,
     )
-  return withConversations(
-    variant === "agents"
+  const conversing = withConversations(
+    variant === "agents" || variant === "inbox"
       ? withFinishes(withStorefrontArtifacts({ ...backend, seed: demoSeed(now, true) }), turns)
       : backend,
     transcripts,
     turns,
   )
+  return variant === "inbox" ? { ...conversing, inbox: createDemoInbox(now) } : conversing
 }
 
 // The variant the address's hash asks for, as specs do with `?demo=`, and how long an
@@ -369,7 +373,9 @@ export const createDemoBackend: CreateBackend = () => {
   const demo = params.get("demo")
   const turnMs = Number(params.get("turnMs"))
   return plainDemo(
-    demo === "agents" || demo === "messages" || demo === "welcome" ? demo : "plain",
+    demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
+      ? demo
+      : "plain",
     undefined,
     turnMs > 0 ? turnMs : undefined,
   )

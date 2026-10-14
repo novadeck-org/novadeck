@@ -3,6 +3,7 @@ import type { ComponentType, ReactNode } from "react"
 import type { Companions } from "../model/companion"
 import type { Conversations } from "../model/conversation"
 import type { AgentName } from "../model/harnesses"
+import type { Inbox } from "../model/inbox"
 import type { Messages } from "../model/messages"
 import type { Murmur } from "../model/murmur"
 import type { InstallResult, PortableState } from "../model/portable"
@@ -183,6 +184,10 @@ export type Backend = {
   // Optional. Murmur: a model on the backend's machine writes titles for its terminals.
   // Absent where the backend cannot run one.
   readonly murmur?: Murmur
+  // Optional. The Inbox: what the agents in every project wait on the person for, one
+  // item per agent terminal, answered in place. Absent where the backend has none; the
+  // runner's has none yet, and only the demo's `inbox` variant does.
+  readonly inbox?: Inbox
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
   // without pressing Enter, as dictation does. Says whether it typed: false when the
   // terminal has gone or has no screen to take the text. Absent where terminals take no input.

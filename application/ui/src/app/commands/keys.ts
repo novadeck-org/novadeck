@@ -13,6 +13,7 @@ import { hasTile, isWindow, orderedTiles, tilesOf } from "../../model/roster"
 import { viewModes } from "../../model/state"
 import type { SidebarPanel, Tile } from "../../model/types"
 import { arrangeProjects } from "../../projects/project-arrangement"
+import { shownPanel } from "../../shell/panels"
 import { sidebarVisible } from "../../shell/shell-state"
 import { cycleRecent, moveRecent } from "../../terminals/recent"
 import {
@@ -43,10 +44,10 @@ const handled = (run: () => void) => (): "handled" => {
 // What each key binding does, over the same commands the pointer UI uses.
 export const createKeyCommands = (
   commands: WorkspaceCommands,
-  { workspace, ui, navigation, canvas, effects, dictation }: CommandContext,
+  { workspace, ui, navigation, canvas, effects, dictation, inbox }: CommandContext,
 ): Record<CommandId, KeyCommand> => {
   const state = () => currentState(workspace.getSnapshot())
-  const panel = () => ui.getSnapshot().location.route.panel
+  const panel = () => shownPanel(ui.getSnapshot().location.route.panel, inbox !== undefined)
   const pinnedProject = (index: number) =>
     arrangeProjects(workspace.getSnapshot().projects, ui.getSnapshot().projectArrangement).pinned[
       index

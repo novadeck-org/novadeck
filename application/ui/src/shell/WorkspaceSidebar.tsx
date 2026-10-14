@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react"
 import type { ComponentProps } from "react"
 
+import { HeldPill, InboxList, InboxMarkAll } from "../inbox/InboxList"
 import { shortcutBindings } from "../interaction/shortcuts"
 import type { SidebarPanel as PanelId, Tile, WorkspaceSession } from "../model/types"
 import type { Notification } from "../notifications/notifications"
@@ -22,6 +23,8 @@ type Props = Omit<ComponentProps<typeof TerminalTabs>, "terminals"> & {
   notifications: readonly Notification[]
   viewing: Viewing
   sidebarVisible: boolean
+  // Whether the backend has an Inbox, which the Notifications panel gives way to.
+  inbox: boolean
   onSessionSelect: (id: string) => void
   onReveal: (notification: Notification) => void
   onDismissNotification: (notification: Notification) => void
@@ -40,6 +43,7 @@ export const WorkspaceSidebar = ({
   notifications,
   viewing,
   sidebarVisible,
+  inbox,
   onSessionSelect,
   onReveal,
   onDismissNotification,
@@ -103,20 +107,35 @@ export const WorkspaceSidebar = ({
         onReorder={onReorder}
       />
     </SidebarPanel>
-    <SidebarPanel
-      id="notifications-panel"
-      title="Notifications"
-      count={notifications.length}
-      active={sidebarPanel === "notifications"}
-      onClose={onHide}
-      actions={<MarkAllReadButton items={notifications} onDismissAll={onDismissAllNotifications} />}
-    >
-      <NotificationsPanel
-        items={notifications}
-        viewing={viewing}
-        onReveal={onReveal}
-        onDismiss={onDismissNotification}
-      />
-    </SidebarPanel>
+    {inbox ? (
+      <SidebarPanel
+        id="inbox-panel"
+        title="Inbox"
+        titleExtra={<HeldPill />}
+        active={sidebarPanel === "inbox"}
+        onClose={onHide}
+        actions={<InboxMarkAll />}
+      >
+        <InboxList />
+      </SidebarPanel>
+    ) : (
+      <SidebarPanel
+        id="notifications-panel"
+        title="Notifications"
+        count={notifications.length}
+        active={sidebarPanel === "notifications"}
+        onClose={onHide}
+        actions={
+          <MarkAllReadButton items={notifications} onDismissAll={onDismissAllNotifications} />
+        }
+      >
+        <NotificationsPanel
+          items={notifications}
+          viewing={viewing}
+          onReveal={onReveal}
+          onDismiss={onDismissNotification}
+        />
+      </SidebarPanel>
+    )}
   </aside>
 )

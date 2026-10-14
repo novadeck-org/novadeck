@@ -11,6 +11,7 @@ export const SidebarPanel = ({
   id,
   title,
   titleHint,
+  titleExtra,
   count,
   active,
   onClose,
@@ -20,46 +21,60 @@ export const SidebarPanel = ({
   id: string
   title: string
   titleHint?: string
+  // Beside the title, such as a pill that says something waits.
+  titleExtra?: ReactNode
   count?: number
   active: boolean
   onClose: () => void
   // Quiet buttons beside the close button.
   actions?: ReactNode
   children: ReactNode
-}): React.JSX.Element => (
-  <section
-    id={id}
-    className="sidebar-panel absolute inset-x-3 top-3 bottom-0 flex min-h-0 min-w-0 flex-col opacity-100 visible [transform:translateX(0)] data-[active=false]:pointer-events-none data-[active=false]:invisible data-[active=false]:[transform:translateX(-6px)] data-[active=false]:opacity-0"
-    data-active={active}
-    aria-labelledby={`${id}-title`}
-    aria-hidden={!active}
-    inert={!active}
-  >
-    <header className="sidebar-panel-header flex h-[38px] shrink-0 items-center justify-between gap-3 px-0.5">
-      <Tooltip content={titleHint} disabled={!titleHint}>
-        <h2
-          id={`${id}-title`}
-          tabIndex={titleHint ? 0 : undefined}
-          className="section-label m-0 flex min-w-0 items-center gap-1.5 text-label font-medium"
-        >
-          {title}
-          {count !== undefined && <span className="sidebar-panel-count">{count}</span>}
-        </h2>
-      </Tooltip>
-      <div className="flex shrink-0 items-center gap-0.5">
-        {actions}
-        <Tooltip content="Hide">
-          <button
-            className="icon-button dim sidebar-close size-7"
-            type="button"
-            aria-label={`Hide ${title.toLowerCase()}`}
-            onClick={onClose}
-          >
-            <X size={14} strokeWidth={1.6} />
-          </button>
-        </Tooltip>
-      </div>
-    </header>
-    <div className="sidebar-panel-content flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
-  </section>
-)
+}): React.JSX.Element => {
+  const heading = (
+    <Tooltip content={titleHint} disabled={!titleHint}>
+      <h2
+        id={`${id}-title`}
+        tabIndex={titleHint ? 0 : undefined}
+        className="section-label m-0 flex min-w-0 items-center gap-1.5 text-label font-medium"
+      >
+        {title}
+        {count !== undefined && <span className="sidebar-panel-count">{count}</span>}
+      </h2>
+    </Tooltip>
+  )
+  return (
+    <section
+      id={id}
+      className="sidebar-panel absolute inset-x-3 top-3 bottom-0 flex min-h-0 min-w-0 flex-col opacity-100 visible [transform:translateX(0)] data-[active=false]:pointer-events-none data-[active=false]:invisible data-[active=false]:[transform:translateX(-6px)] data-[active=false]:opacity-0"
+      data-active={active}
+      aria-labelledby={`${id}-title`}
+      aria-hidden={!active}
+      inert={!active}
+    >
+      <header className="sidebar-panel-header flex h-[38px] shrink-0 items-center justify-between gap-3 px-0.5">
+        {titleExtra ? (
+          <div className="flex min-w-0 items-center gap-2">
+            {heading}
+            {titleExtra}
+          </div>
+        ) : (
+          heading
+        )}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {actions}
+          <Tooltip content="Hide">
+            <button
+              className="icon-button dim sidebar-close size-7"
+              type="button"
+              aria-label={`Hide ${title.toLowerCase()}`}
+              onClick={onClose}
+            >
+              <X size={14} strokeWidth={1.6} />
+            </button>
+          </Tooltip>
+        </div>
+      </header>
+      <div className="sidebar-panel-content flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+    </section>
+  )
+}

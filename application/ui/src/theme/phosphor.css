@@ -32,6 +32,8 @@
   --shadow-modal:
     0 0 0 1px color-mix(in srgb, var(--color-strong) 22%, transparent),
     0 0 48px color-mix(in srgb, var(--color-strong) 18%, transparent);
+  /* A sheet's edge is its border and the ring around it; its arrow, one line, takes both. */
+  --sheet-arrow-border-color: color-mix(in srgb, var(--color-strong) 45%, var(--color-line-strong));
 
   /* Shape and type: square corners, and one face for the whole tube. */
   --radius-control: 0;

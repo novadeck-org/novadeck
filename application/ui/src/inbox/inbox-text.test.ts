@@ -1,0 +1,359 @@
+import type { ChatDialogOption } from "../model/conversation"
+import type { InboxItem } from "../model/inbox"
+import { context, describe, expect, it } from "../test"
+import {
+  choicesOf,
+  clock,
+  codeParts,
+  labelOf,
+  readLabel,
+  recommended,
+  resumesLabel,
+  splitDetail,
+  standingOf,
+  subjectOf,
+  waitLabel,
+} from "./inbox-text"
+
+const source: InboxItem["source"] = {
+  projectId: "p",
+  workspaceSessionId: "s",
+  terminalId: "t",
+  handle: "moth",
+  agent: "claude",
+  title: "Title",
+  projectName: "Project",
+}
+const base = { id: "i", source, at: 0, stopped: true, seen: false }
+
+const permission = (tool: string, subject: string | null): InboxItem => ({
+  ...base,
+  kind: "request",
+  request: {
+    id: "r",
+    kind: "permission",
+    tool,
+    subject,
+    choices: [],
+    subagent: false,
+    dialog: null,
+    answered: false,
+  },
+})
+
+const option = (
+  id: string,
+  label: string,
+  text: "field" | "prompt" | null = null,
+): ChatDialogOption => ({
+  id,
+  label,
+  text,
+})
+
+describe("How long ago", () => {
+  it.each([
+    [10_000, "now"],
+    [7 * 60_000, "7m"],
+    [72 * 60_000, "1h 12m"],
+    [2 * 60 * 60_000, "2h"],
+    [3 * 24 * 60 * 60_000, "3d"],
+  ])("reads %i ms as %s", (elapsed, words) => {
+    expect(waitLabel(0, elapsed)).toBe(words)
+  })
+})
+
+describe("A time of day", () => {
+  it("is two digits each of hours and minutes", () => {
+    expect(clock(new Date(2026, 9, 14, 9, 5).getTime())).toBe("09:05")
+  })
+})
+
+describe("Text with code in it", () => {
+  it("sets what is between backticks as code", () => {
+    expect(codeParts("Run `pnpm add` now")).toEqual([
+      { code: false, text: "Run " },
+      { code: true, text: "pnpm add" },
+      { code: false, text: " now" },
+    ])
+  })
+
+  it("leaves an unpaired backtick as text", () => {
+    expect(codeParts("a ` b")).toEqual([{ code: false, text: "a ` b" }])
+  })
+})
+
+describe("A recommended option", () => {
+  it("loses the mark and is the agent's pick", () => {
+    expect(recommended("date-fns (Recommended)")).toEqual({ label: "date-fns", pick: true })
+    expect(recommended("Native")).toEqual({ label: "Native", pick: false })
+  })
+})
+
+describe("An item's subject", () => {
+  it("says what a command or an edit would do", () => {
+    expect(subjectOf(permission("Bash", "pnpm test"))).toBe("Run `pnpm test`?")
+    expect(subjectOf(permission("Edit", "src/a.ts"))).toBe("Edit `src/a.ts`?")
+    expect(subjectOf(permission("WebFetch", "example.com"))).toBe("Use WebFetch on `example.com`?")
+  })
+
+  it("names where a held message goes", () => {
+    const item: InboxItem = {
+      ...base,
+      kind: "held",
+      held: {
+        threadId: "t",
+        from: { handle: "moth", title: "A" },
+        to: { handle: "fox", title: "B" },
+        text: "",
+        hop: 3,
+        allowed: 3,
+      },
+    }
+    expect(subjectOf(item)).toBe("Release a held message to B?")
+  })
+
+  it("names a limit's window and whose it is", () => {
+    const item: InboxItem = {
+      ...base,
+      kind: "trouble",
+      trouble: { type: "limit", minutes: 300, resetsAt: 0, autoResume: true, evidence: [] },
+    }
+    expect(subjectOf(item)).toBe("Hit Claude's 5-hour limit")
+  })
+})
+
+describe("A sheet's label", () => {
+  it("says who wants what", () => {
+    expect(labelOf(permission("Bash", "x"))).toBe("Wants to run a command")
+    expect(labelOf(permission("Edit", "x"))).toBe("Wants to edit a file")
+  })
+})
+
+describe("An item's reading time", () => {
+  const ask = (body: string): InboxItem => ({
+    ...base,
+    kind: "ask",
+    ask: { subject: "s", body, details: null, hardToUndo: null, shape: { type: "text" } },
+  })
+
+  it("is said only past about 120 words", () => {
+    expect(readLabel(ask("a few words"))).toBeNull()
+    expect(readLabel(ask("word ".repeat(130)))).toBe("1 min read")
+    expect(readLabel(ask("word ".repeat(250)))).toBe("2 min read")
+  })
+})
+
+describe("A limit that resumes", () => {
+  const limit = (autoResume: boolean): InboxItem => ({
+    ...base,
+    stopped: !autoResume,
+    kind: "trouble",
+    trouble: {
+      type: "limit",
+      minutes: 300,
+      resetsAt: new Date(2026, 9, 14, 15, 40).getTime(),
+      autoResume,
+      evidence: [],
+    },
+  })
+
+  it("says when, while Novadeck resumes it", () => {
+    expect(resumesLabel(limit(true))).toBe("Resumes at 15:40")
+    expect(resumesLabel(limit(false))).toBeNull()
+  })
+})
+
+describe("How an item stands", () => {
+  it("is waiting for a stopped agent, and working for the rest", () => {
+    expect(standingOf(permission("Bash", "x"), 6 * 60_000, false)).toEqual({
+      status: "waiting 6m",
+      tone: "waiting",
+    })
+    expect(standingOf({ ...permission("Bash", "x"), stopped: false }, 0, false).status).toBe(
+      "still working",
+    )
+  })
+
+  it("says a limit whose reset has passed is resuming, not resuming in now", () => {
+    const limit: InboxItem = {
+      ...base,
+      stopped: false,
+      kind: "trouble",
+      trouble: { type: "limit", minutes: 300, resetsAt: 1000, autoResume: true, evidence: [] },
+    }
+
+    expect(standingOf(limit, 5000, false).status).toBe("resuming")
+    expect(standingOf(limit, 0, false).status).toMatch(/^resumes in/)
+  })
+
+  it("says answered once the person answered", () => {
+    expect(standingOf(permission("Bash", "x"), 0, true).status).toBe("answered")
+  })
+})
+
+describe("A permission's options", () => {
+  context("with Codex's four", () => {
+    const choices = choicesOf([
+      option("yes", "Yes, proceed"),
+      option("always", "Yes, and don't ask again for commands that start with `pnpm add`"),
+      option("no", "No, continue without running it"),
+      option("differently", "No, and tell Codex what to do differently", "prompt"),
+    ])
+
+    it("allows with the plain yes and keeps the standing one as a link", () => {
+      expect(choices?.allow?.id).toBe("yes")
+      expect(choices?.standing.map(({ id }) => id)).toEqual(["always"])
+    })
+
+    it("denies with the plain no, or the one that takes words", () => {
+      expect(choices?.plain?.id).toBe("no")
+      expect(choices?.note?.id).toBe("differently")
+    })
+  })
+
+  context("with Claude's plan", () => {
+    it("approves with the yes that sets nothing standing", () => {
+      const choices = choicesOf([
+        option("1", "Yes, and auto-accept edits"),
+        option("2", "Yes, and manually approve edits"),
+        option("3", "No, keep planning"),
+      ])
+
+      expect(choices?.allow?.id).toBe("2")
+      expect(choices?.standing.map(({ id }) => id)).toEqual(["1"])
+      expect(choices?.plain?.id).toBe("3")
+    })
+  })
+
+  context("with Claude's own words", () => {
+    const choices = choicesOf([
+      option("1", "Yes"),
+      option("2", "Yes, and don't ask again for this command in /repo"),
+      option("3", "No, and tell Claude what to do differently", "prompt"),
+    ])
+
+    it("allows with the plain yes, links the standing one, and denies only with words", () => {
+      expect(choices?.allow?.id).toBe("1")
+      expect(choices?.standing.map(({ id }) => id)).toEqual(["2"])
+      expect(choices?.note?.id).toBe("3")
+      expect(choices?.plain).toBeNull()
+    })
+  })
+
+  context("with Allow and Deny", () => {
+    const choices = choicesOf([
+      option("a", "Allow once"),
+      option("b", "Allow for this session"),
+      option("c", "Deny"),
+    ])
+
+    it("allows once, and denies with Deny", () => {
+      expect(choices?.allow?.id).toBe("a")
+      expect(choices?.standing.map(({ id }) => id)).toEqual(["b"])
+      expect(choices?.plain?.id).toBe("c")
+    })
+  })
+
+  context("with Claude's plan, bypass first", () => {
+    const choices = choicesOf([
+      option("1", "Yes, and bypass permissions"),
+      option("2", "Yes, clear context and auto-accept edits"),
+      option("3", "Yes, and manually approve edits"),
+      option("4", "No, keep planning", "prompt"),
+    ])
+
+    it("leads with the manual yes alone, leaving the rest as quiet links", () => {
+      expect(choices?.allow?.id).toBe("3")
+      // With a yes leading, bypass is no button beside it: a quiet link, as auto-accept is.
+      expect(choices?.standing.map(({ id }) => id)).toEqual(["1", "2"])
+      expect(choices?.unsure).toEqual([])
+    })
+  })
+
+  it("leads with no yes where none is bare or known, offering each as it words itself", () => {
+    const choices = choicesOf([
+      option("1", "Yes, and bypass permissions"),
+      option("2", "Yes, and don't ask again"),
+    ])
+
+    expect(choices?.allow).toBeNull()
+    expect(choices?.standing.map(({ id }) => id)).toEqual(["2"])
+    expect(choices?.unsure.map(({ id }) => id)).toEqual(["1"])
+  })
+
+  it.each([
+    "Yes, auto mode",
+    "Yes, permanently",
+    "Yes, for the whole project",
+    "Yes, allow this tool from now on",
+    "Yes, but skip the sandbox",
+    "Yes, bypass permissions",
+    "Yes, clear context and manually approve edits",
+  ])("never leads with %s", (label) => {
+    const choices = choicesOf([option("a", label), option("n", "No")])
+
+    expect(choices?.allow).toBeNull()
+    expect([...(choices?.standing ?? []), ...(choices?.unsure ?? [])].map(({ id }) => id)).toEqual([
+      "a",
+    ])
+  })
+
+  it.each([
+    "Yes",
+    "Allow",
+    "Approve",
+    "Allow once",
+    "Yes.",
+    "Yes, proceed",
+    "Yes, manually approve edits",
+  ])("leads with %s", (label) => {
+    expect(choicesOf([option("a", label)])?.allow?.id).toBe("a")
+  })
+
+  it("prefers a bare yes over a known one", () => {
+    const choices = choicesOf([option("1", "Yes, proceed"), option("2", "Yes")])
+
+    expect(choices?.allow?.id).toBe("2")
+    expect(choices?.standing.map(({ id }) => id)).toEqual(["1"])
+  })
+
+  it("keeps a bracket that may qualify the yes, so it doesn't lead", () => {
+    expect(choicesOf([option("1", "Yes (all)"), option("2", "No")])?.allow).toBeNull()
+    const both = choicesOf([option("1", "Yes (a)"), option("2", "Yes (y)"), option("3", "No")])
+    expect(both?.allow?.id).toBe("2")
+    expect(both?.standing.map(({ id }) => id)).toEqual(["1"])
+  })
+
+  it("reads a yes past the key hint its harness prints after it", () => {
+    const choices = choicesOf([option("1", "Yes, proceed (y)"), option("2", "No (esc)")])
+
+    expect(choices?.allow?.id).toBe("1")
+    expect(choices?.plain?.id).toBe("2")
+  })
+
+  it("offers no Deny where nothing says no, and never a yes in its place", () => {
+    const choices = choicesOf([option("a", "Yes"), option("b", "Yes, always")])
+
+    expect(choices?.note).toBeNull()
+    expect(choices?.plain).toBeNull()
+  })
+
+  it("has none where nothing says yes, or there are no options", () => {
+    expect(choicesOf([option("a", "Continue"), option("b", "Stop")])).toBeNull()
+    expect(choicesOf([])).toBeNull()
+  })
+})
+
+describe("What a dialog shows of what it asks", () => {
+  it("puts the folder over the command", () => {
+    expect(splitDetail("~/projects/app\n$ pnpm add x")).toEqual({
+      folder: "~/projects/app",
+      command: "pnpm add x",
+    })
+  })
+
+  it("keeps a detail with no folder as it is", () => {
+    expect(splitDetail("The plan")).toEqual({ folder: null, command: "The plan" })
+  })
+})
