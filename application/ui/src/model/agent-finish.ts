@@ -1,3 +1,4 @@
+import { handleText } from "./handle"
 import type { AgentTurnEnd, TerminalMetadata } from "./types"
 
 // An agent that finished: its turn over on its own, completed or `failed` on an error,
@@ -65,7 +66,7 @@ export const finishNotice = (
   const what = failed ? "stopped with an error" : "is done"
   return {
     title: terminal.handle
-      ? `${terminal.handle} ${what}: ${terminal.name}`
+      ? `${handleText(terminal.handle)} ${what}: ${terminal.name}`
       : `${terminal.name} ${what}`,
     body: reply ?? (failed ? "Its turn failed." : "Finished its turn."),
   }

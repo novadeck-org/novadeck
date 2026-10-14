@@ -46,17 +46,17 @@ for (const setup of setups) {
         run.model.use(
           replies("Remember the word heron", "Remembered."),
           replies("Say ready", "Ready here."),
-          sends("Tell t3 hello", "t3", "Hello, fork."),
-          sends("Tell t1 hello", "t1", "Hello, parent."),
-          own((call) => (sent(call, "t3") ? { text: "Told t3." } : undefined)),
-          own((call) => (sent(call, "t1") ? { text: "Told t1." } : undefined)),
+          sends("Tell owl hello", "owl", "Hello, fork."),
+          sends("Tell moth hello", "moth", "Hello, parent."),
+          own((call) => (sent(call, "owl") ? { text: "Told owl." } : undefined)),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
           own((call) =>
             deliveries(call).some((one) => one.text === "Hello, parent.")
               ? { text: "The parent says hello back." }
               : undefined,
           ),
           own((call) =>
-            delivered(call, "t2") ? { text: "The fork says hello back." } : undefined,
+            delivered(call, "fox") ? { text: "The fork says hello back." } : undefined,
           ),
         )
         const t1 = await start(run, setup)
@@ -67,17 +67,17 @@ for (const setup of setups) {
         await turn(t2, "Say ready", "Ready here.")
         // The picker lists the latest session first, selected.
         const t3 = await run.deck.open(command)
-        expect(t3.handle).toBe("t3")
+        expect(t3.handle).toBe("owl")
         await t3.until(picked("Say ready"), 60_000)
         const calls = run.model.mark()
         const mark = t3.mark()
 
-        await t2.submit("Tell t3 hello")
+        await t2.submit("Tell owl hello")
 
         // The message waits for the first session to bind in t3, and nothing rings the
         // picker.
-        await t2.until("Told t3.")
-        await t3.reached(holds("t2", "t3", "queued"), { after: mark })
+        await t2.until("Told owl.")
+        await t3.reached(holds("fox", "owl", "queued"), { after: mark })
         await sleep(unrung)
         expect(t3.history().map((one) => one.delivery)).toEqual(t3.history().map(() => "unbound"))
         expect(messages(t3).map((one) => one.state)).toEqual(["queued"])
@@ -85,13 +85,13 @@ for (const setup of setups) {
         // The person picks t1's session. Its fork shows its prompt, Ready; it is rung, and
         // its hook delivers the message.
         await t3.confirm(picked("Remember the word heron"), async () => t3.press("\x1b[B"))
-        await through(t3, ["ready", "ringing", "working", holds("t2", "t3", "delivered")], {
+        await through(t3, ["ready", "ringing", "working", holds("fox", "owl", "delivered")], {
           after: mark,
           timeoutMs: 60_000,
         })
-        const rung = await run.model.waitFor((call) => delivered(call, "t2"), { after: calls })
+        const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
         expect(latest(rung)).toMatch(ring)
-        expect(deliveries(rung)).toEqual([{ from: "t2", text: "Hello, fork." }])
+        expect(deliveries(rung)).toEqual([{ from: "fox", text: "Hello, fork." }])
         // It is the fork: the parent's conversation, in a session of its own, while the
         // parent stays bound in t1.
         expect(holding(rung, "Remember the word heron")).toBe(true)
@@ -107,14 +107,14 @@ for (const setup of setups) {
         // fork gets nothing more.
         const later = run.model.mark()
         const from1 = t1.mark()
-        await t2.submit("Tell t1 hello")
+        await t2.submit("Tell moth hello")
         await through(
           t1,
           [
-            holds("t2", "t1", "queued"),
+            holds("fox", "moth", "queued"),
             "ringing",
             "working",
-            holds("t2", "t1", "delivered"),
+            holds("fox", "moth", "delivered"),
             "settled",
           ],
           {
@@ -126,7 +126,7 @@ for (const setup of setups) {
           { after: later },
         )
         expect(latest(told)).toMatch(ring)
-        expect(deliveries(told)).toEqual([{ from: "t2", text: "Hello, parent." }])
+        expect(deliveries(told)).toEqual([{ from: "fox", text: "Hello, parent." }])
         expect(holding(told, "Remember the word heron")).toBe(true)
         expect(told.turns.some((one) => one.text.includes("Hello, fork."))).toBe(false)
         await t1.until("The parent says hello back.")
@@ -146,10 +146,10 @@ for (const setup of setups) {
         const command = fork!.inPlace!
         run.model.use(
           replies("Remember the word heron", "Remembered."),
-          sends("Tell t1 hello", "t1", "Hello, parent."),
-          sends("Tell t1 again", "t1", "Hello, fork."),
-          own((call) => (sent(call, "t1") ? { text: "Told t1." } : undefined)),
-          own((call) => (delivered(call, "t2") ? { text: "The fork heard t2." } : undefined)),
+          sends("Tell moth hello", "moth", "Hello, parent."),
+          sends("Tell moth again", "moth", "Hello, fork."),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "The fork heard fox." } : undefined)),
         )
         const t1 = await start(run, setup)
         await turn(t1, "Remember the word heron", "Remembered.")
@@ -162,9 +162,9 @@ for (const setup of setups) {
         // The person has a draft in the box as t2's message comes: Drafting, so it waits
         // for the parent session. They erase it and fork.
         t1.press("draft")
-        await t2.submit("Tell t1 hello")
-        await t2.until("Told t1.")
-        await t1.reached(holds("t2", "t1", "queued"), { after: mark })
+        await t2.submit("Tell moth hello")
+        await t2.until("Told moth.")
+        await t1.reached(holds("fox", "moth", "queued"), { after: mark })
         t1.press("\x7f".repeat("draft".length))
         await t1.poll(
           async () => ((await t1.screen()).includes("draft") ? undefined : true),
@@ -174,20 +174,20 @@ for (const setup of setups) {
 
         // The harness announces the fork: the parent's message is gone, never delivered,
         // and the fork is Ready.
-        const forked = await through(t1, [holds("t2", "t1", "gone"), "ready"], { after: mark })
-        expect(run.model.calls.slice(calls).filter((call) => delivered(call, "t2"))).toEqual([])
+        const forked = await through(t1, [holds("fox", "moth", "gone"), "ready"], { after: mark })
+        expect(run.model.calls.slice(calls).filter((call) => delivered(call, "fox"))).toEqual([])
 
         // A message now is the fork's: it is rung, and its hook delivers it alone, in the
         // parent's conversation carried over.
-        await t2.submit("Tell t1 again")
-        await through(t1, ["ringing", "working", holds("t2", "t1", "delivered")], {
+        await t2.submit("Tell moth again")
+        await through(t1, ["ringing", "working", holds("fox", "moth", "delivered")], {
           after: forked!.index,
         })
-        const rung = await run.model.waitFor((call) => delivered(call, "t2"), { after: calls })
+        const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
         expect(latest(rung)).toMatch(ring)
-        expect(deliveries(rung)).toEqual([{ from: "t2", text: "Hello, fork." }])
+        expect(deliveries(rung)).toEqual([{ from: "fox", text: "Hello, fork." }])
         expect(holding(rung, "Remember the word heron")).toBe(true)
-        await t1.until("The fork heard t2.")
+        await t1.until("The fork heard fox.")
         await t1.reached("settled", { after: forked!.index })
         const session = (await t1.detail()).sessionId
         expect(session).not.toBeNull()

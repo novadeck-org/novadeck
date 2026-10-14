@@ -7,6 +7,7 @@ import type {
   TerminalMetadata,
   WorkspaceTarget,
 } from "../../model/types"
+import { demoHandle } from "./handles"
 
 // A demo terminal's ID, unique across the whole workspace as the runner's are: the
 // session it belongs to, then its number there. The name and handle come from the number.
@@ -201,6 +202,7 @@ export const projectTerminals = (project: Project, withAgents = false): Terminal
       { projectId: project.id, workspaceSessionId: initialSession },
       Number(terminal.id),
     ),
+    handle: demoHandle(Number(terminal.id)),
     directory: terminal.directory.replace(/^~\/projects\/[^/]+/, project.directory),
     ...(single && terminal.id === "01"
       ? { command: "claude", process: "claude", state: "running" as const, agent: single }
@@ -312,6 +314,7 @@ export const createMockTerminal = (
   return {
     id,
     name: `Terminal ${String(number).padStart(2, "0")}`,
+    handle: demoHandle(number),
     directory,
     command: "zsh",
     process: "zsh",

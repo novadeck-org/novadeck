@@ -12,7 +12,7 @@ const exited = (terminalId: string): TerminalSummary => ({
   sessionId: id(8),
   title: "Terminal 01",
   titleSource: { kind: "default" },
-  handle: "t1",
+  handle: "moth",
   ledBy: null,
   started: true,
   command: null,

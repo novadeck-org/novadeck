@@ -21,6 +21,7 @@ import { harnessIds, harnesses } from "@novadeck/protocol"
 
 import { maxMessageBytes } from "../messaging/mailbox.js"
 import { unboundNote } from "../messaging/peers.js"
+import { mention } from "../terminals/handles.js"
 import type { CallType } from "./reports.js"
 
 /** The MCP versions Novadeck's server speaks, newest first; it answers others with the newest. */
@@ -57,6 +58,7 @@ type Listing = { readonly text: string }
 type Dismissed = { readonly name: string }
 type Opened = {
   readonly handle?: string
+  readonly title?: string
   readonly command?: string
   readonly cwd: string
   readonly task?:
@@ -67,6 +69,7 @@ type Opened = {
 type Gone = { readonly id: string; readonly to: string }
 type Closed = {
   readonly handle: string
+  readonly title: string
   readonly ran?: string
   readonly gone?: readonly Gone[]
   readonly others?: number
@@ -80,6 +83,9 @@ type Sent = {
   readonly gone?: readonly Gone[]
   readonly unbound?: boolean
 }
+
+// A terminal named for the person, who finds it by its title: " · api-server".
+const titled = (title: string | undefined): string => (title ? " · " + title : "")
 
 // Only what a tool takes goes on; the runner checks it all again.
 const picked = (args: Arguments, names: readonly string[]): Arguments =>
@@ -297,7 +303,7 @@ const openTerminal: Tool<Opened> = {
   request: (args) => picked(args, ["command", "agent", "message", "cwd", "title", "focus"]),
   said: (answer) =>
     "Opened a new terminal" +
-    (answer.handle ? ", " + answer.handle + "," : "") +
+    (answer.handle ? ", " + mention(answer.handle) + titled(answer.title) + "," : "") +
     (answer.command ? " running " + answer.command : "") +
     " in " +
     answer.cwd +
@@ -323,7 +329,7 @@ const closeTerminal: Tool<Closed> = {
   name: "close_terminal",
   description:
     "Close another Novadeck terminal of this project and session, by the terminal's exact " +
-    "handle as agents lists it (such as t2); anything else is refused, with the terminals " +
+    "handle as agents lists it (such as @fox); anything else is refused, with the terminals " +
     "described. Closing ends whatever runs there, an agent or a command such as a dev " +
     "server, as the user closing it would, and messages waiting for it never arrive. Close " +
     "only a terminal you are done with, such as one you opened for work now finished, or " +
@@ -336,7 +342,7 @@ const closeTerminal: Tool<Closed> = {
     properties: {
       to: {
         type: "string",
-        description: "The terminal's exact handle, such as t2, as agents lists it.",
+        description: "The terminal's exact handle, such as @fox, as agents lists it.",
       },
     },
     required: ["to"],
@@ -346,7 +352,11 @@ const closeTerminal: Tool<Closed> = {
   request: (args) => picked(args, ["to"]),
   said: (answer) => {
     const lines = [
-      "Closed " + answer.handle + (answer.ran ? ", which ran " + answer.ran : "") + ".",
+      "Closed " +
+        mention(answer.handle) +
+        titled(answer.title) +
+        (answer.ran ? ", which ran " + answer.ran : "") +
+        ".",
     ]
     for (const gone of answer.gone ?? [])
       lines.push(
@@ -354,13 +364,13 @@ const closeTerminal: Tool<Closed> = {
           ? "Your message " +
               gone.id +
               " to " +
-              gone.to +
+              mention(gone.to) +
               " won't arrive, as that terminal " +
               "is closed."
           : "Your earlier message " +
               gone.id +
               " to " +
-              gone.to +
+              mention(gone.to) +
               " won't arrive: the agent " +
               "session it was for ended there.",
       )
@@ -406,7 +416,7 @@ const send: Tool<Sent> = {
   name: "send",
   description:
     "Send a message to the agent in another Novadeck terminal of this project and session, by the " +
-    "terminal's exact handle as agents lists it (such as t2); anything else is refused, with " +
+    "terminal's exact handle as agents lists it (such as @fox); anything else is refused, with " +
     "the terminals described. It reaches that agent by itself, wrapped as from you, and " +
     "marked as from its lead when you opened that terminal with agent and message; up to 4 KB, so put longer " +
     "content in a file and send its path. " +
@@ -416,7 +426,7 @@ const send: Tool<Sent> = {
     properties: {
       to: {
         type: "string",
-        description: "The terminal's exact handle, such as t2, as agents lists it.",
+        description: "The terminal's exact handle, such as @fox, as agents lists it.",
       },
       text: { type: "string", description: "The message, up to 4 KB." },
     },
@@ -439,7 +449,7 @@ const send: Tool<Sent> = {
       : undefined
   },
   said: (answer) => {
-    const message = "Message " + answer.id + " to " + answer.to
+    const message = "Message " + answer.id + " to " + mention(answer.to)
     const lines = [
       answer.state === "queued"
         ? message + " is queued: it reaches them " + answer.route + "."
@@ -456,7 +466,7 @@ const send: Tool<Sent> = {
         "Your earlier message " +
           gone.id +
           " to " +
-          gone.to +
+          mention(gone.to) +
           " won't arrive: the agent " +
           "session it was for ended there.",
       )
@@ -480,6 +490,8 @@ const agents: Tool<Listing> = {
     "telling it to proceed; and your own " +
     "messages not yet delivered. This is Novadeck's " +
     "knowledge, always current, so call it again rather than rely on what you remember. " +
+    "When you mention a terminal to the user, write its handle with @ and its title, as " +
+    "`@fox · api-server`. " +
     rules,
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   call: "agents",

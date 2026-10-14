@@ -74,7 +74,7 @@ describe.skipIf(!engine || !model)("murmur with the real engine", () => {
           screen: [" ✓ src/a.test.ts (12 tests)", " ❯ src/b.test.ts (14 tests | 1 failed)"],
           previous: null,
         },
-        { terminal: "t1" },
+        { terminal: "moth" },
       )
       console.info("described", JSON.stringify(description))
       expect(description).toBeDefined()
@@ -85,7 +85,7 @@ describe.skipIf(!engine || !model)("murmur with the real engine", () => {
           question: "Should the session cache live in Redis or in memory?",
           choices: ["Redis", "In memory"],
         },
-        { terminal: "t1" },
+        { terminal: "moth" },
       )
       console.info("headline", JSON.stringify(headline))
       expect(headline).toMatchObject({ kind: "headline" })
@@ -96,7 +96,7 @@ describe.skipIf(!engine || !model)("murmur with the real engine", () => {
           reply: "I rounded the checkout totals per line and the tests pass. Want me to add more?",
           failed: false,
         },
-        { terminal: "t1" },
+        { terminal: "moth" },
       )
       console.info("gist", JSON.stringify(gist))
       expect(gist).toMatchObject({ kind: "gist", asks: false })

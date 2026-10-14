@@ -1,4 +1,5 @@
 import type { CompanionItem } from "../../model/companion"
+import { handleText } from "../../model/handle"
 import type { WorkspaceTarget } from "../../model/types"
 import { ArtifactThumb } from "./ArtifactViewer"
 import type { MailHandle } from "./mail"
@@ -44,7 +45,7 @@ export const MailThumb = ({
       <b>{threads.length ? "Threads" : "No messages yet"}</b>
       {threads.slice(0, 4).map((thread) => (
         <span key={thread.id}>
-          {peerName(thread.peer) ?? thread.peer} · {thread.peer}
+          {peerName(thread.peer) ?? handleText(thread.peer)} · {handleText(thread.peer)}
         </span>
       ))}
     </span>

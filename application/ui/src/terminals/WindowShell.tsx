@@ -11,10 +11,12 @@ import {
 import { useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
+import { handleText } from "../model/handle"
 import { isWindow } from "../model/roster"
 import { attentionText, doneText, terminalPhase, unheardText } from "../model/terminal-ending"
 import type { Tile, WindowedView } from "../model/types"
 import { ContextMenu, type ContextMenuItem } from "../ui-toolkit/ContextMenu"
+import { HandleChip } from "../ui-toolkit/HandleChip"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
 
@@ -235,6 +237,7 @@ export const WindowShell = ({
           icon
         )}
         <>
+          {!renaming && !isWindow(terminal) && <HandleChip handle={terminal.handle} />}
           <Heading hidden={renaming} data-terminal-name="">
             {terminal.name}
           </Heading>
@@ -252,9 +255,9 @@ export const WindowShell = ({
             />
           )}
           {lead && !renaming && (
-            <Tooltip content={`Directed by the agent in ${lead.handle}`}>
+            <Tooltip content={`Directed by the agent in ${handleText(lead.handle)}`}>
               <span className="terminal-lead nodrag nopan" data-terminal-lead={lead.handle}>
-                led by {lead.handle} · {lead.name}
+                led by {handleText(lead.handle)} · {lead.name}
               </span>
             </Tooltip>
           )}

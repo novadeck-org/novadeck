@@ -833,7 +833,7 @@ describe("an agent waiting on what its turn left running", () => {
     const running = apply(
       started(0, false),
       codex,
-      event({ type: "turn-started", startedAt: 1, turn: "t1" }),
+      event({ type: "turn-started", startedAt: 1, turn: "moth" }),
     )!
     const stopped = apply(
       running,
@@ -847,8 +847,8 @@ describe("an agent waiting on what its turn left running", () => {
         codex,
         event({ type: "turn-ended", outcome: "completed", startedAt: 9, recorded: true, turn: id }),
       )
-    expect(recorded("t0")).toBeUndefined()
-    expect(summary(recorded("t1")!).state).toBe("idle")
+    expect(recorded("ghost")).toBeUndefined()
+    expect(summary(recorded("moth")!).state).toBe("idle")
   })
 
   it("ends a continuation at its Stop when Novadeck's continuing lapsed", () => {
@@ -1012,7 +1012,7 @@ describe("an agent waiting on what its turn left running", () => {
     const running = apply(
       started(0, false),
       codex,
-      fact({ agent: "codex", type: "turn-started", startedAt: 1, turn: "t2" }),
+      fact({ agent: "codex", type: "turn-started", startedAt: 1, turn: "fox" }),
     )!
     const ended = (id: string) =>
       apply(
@@ -1028,8 +1028,8 @@ describe("an agent waiting on what its turn left running", () => {
         }),
       )
     // Codex wrote an earlier failed turn's record late.
-    expect(ended("t1")).toBeUndefined()
-    expect(summary(ended("t2")!)).toMatchObject({ state: "idle", background: null })
+    expect(ended("moth")).toBeUndefined()
+    expect(summary(ended("fox")!)).toMatchObject({ state: "idle", background: null })
   })
 })
 
@@ -1274,7 +1274,7 @@ describe("a turn the person's Escape ended", () => {
       apply(
         started(0, false),
         codex,
-        fact({ agent: "codex", type: "turn-started", startedAt: 10, turn: "t2" }),
+        fact({ agent: "codex", type: "turn-started", startedAt: 10, turn: "fox" }),
       )!,
       codex,
       fact({ agent: "codex", type: "turn-escaped", startedAt: 20 }),
@@ -1288,7 +1288,7 @@ describe("a turn the person's Escape ended", () => {
           type: "turn-ended",
           outcome: "completed",
           startedAt: 25,
-          turn: "t1",
+          turn: "moth",
         }),
       ),
     ).toBeUndefined()

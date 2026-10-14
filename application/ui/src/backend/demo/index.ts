@@ -18,6 +18,7 @@ import { createDemoChat } from "./chat"
 import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
+import { demoHandle } from "./handles"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
 import { createDemoMurmur } from "./murmur"
 import { createMockTerminal, demoFinishes, demoSeed, demoTerminalId, terminalSlot } from "./samples"
@@ -148,7 +149,7 @@ const namings: Readonly<
   "01": { source: { kind: "person" }, automatic: "Checkout flow" },
   "02": { source: { kind: "person" }, automatic: "Terminal 02" },
   "03": { source: { kind: "murmur" }, automatic: "Tests" },
-  "04": { source: { kind: "agent", by: "t1" }, automatic: "Checkout review" },
+  "04": { source: { kind: "agent", by: "moth" }, automatic: "Checkout review" },
   "05": { source: { kind: "person" }, automatic: "Terminal 05" },
   "06": { source: { kind: "person" }, automatic: "Terminal 06" },
 }
@@ -156,7 +157,7 @@ const namings: Readonly<
 // What a reset names a sample terminal: the agent's name for the first, else the
 // session's default.
 const automaticSource = (slot: string): TitleSource =>
-  slot === "01" ? { kind: "agent", by: "t1" } : { kind: "default" }
+  slot === "01" ? { kind: "agent", by: "moth" } : { kind: "default" }
 
 // The agents demo with messages between its agents: handles, who named each terminal,
 // threads in every state, one held for release, and the pause switch.
@@ -169,9 +170,9 @@ export const withMessages = (backend: Backend, now: number): Backend => {
         ...session,
         terminals: session.terminals.map((terminal) => ({
           ...terminal,
-          handle: `t${Number(terminalSlot(terminal.id))}`,
+          handle: demoHandle(Number(terminalSlot(terminal.id))),
           // The agent that named the checkout review opened it.
-          ...(terminalSlot(terminal.id) === "04" ? { ledBy: "t1" } : {}),
+          ...(terminalSlot(terminal.id) === "04" ? { ledBy: "moth" } : {}),
           ...(namings[terminalSlot(terminal.id)]
             ? { titleSource: namings[terminalSlot(terminal.id)]!.source }
             : {}),
@@ -270,7 +271,7 @@ export const withStorefrontArtifacts = (backend: Backend): Backend => {
     agents: [],
     shown: Object.entries(storefrontArtifacts).map(([slot, artifacts]) => ({
       key: { ...session, terminalId: demoTerminalId(session, Number(slot)) },
-      handle: `t${Number(slot)}`,
+      handle: demoHandle(Number(slot)),
       artifacts,
     })),
   })

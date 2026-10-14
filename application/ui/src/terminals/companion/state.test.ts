@@ -400,20 +400,20 @@ describe("a terminal's messages on its taskbar", () => {
     ...noMail,
     terminals: {
       [companionKeyId({ ...target, terminalId: "01" })]: {
-        handle: "t1",
+        handle: "moth",
         agent: true,
         threads: [
           {
             id: "th",
-            peer: "t2",
+            peer: "fox",
             hops: count,
             allowed: 4,
             held: false,
             messages: Array.from({ length: count }, (_, index) => ({
               id: `m${index}`,
               hop: index + 1,
-              from: "t2",
-              to: "t1",
+              from: "fox",
+              to: "moth",
               text: "Ready",
               sentAt: 0,
               state: "delivered" as const,
@@ -449,7 +449,7 @@ describe("a terminal's messages on its taskbar", () => {
       ...noMail,
       terminals: {
         [companionKeyId({ ...target, terminalId: "01" })]: {
-          handle: "t1",
+          handle: "moth",
           agent: false,
           threads: [],
         },

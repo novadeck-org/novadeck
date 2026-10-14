@@ -126,6 +126,7 @@ import {
   terminalForeground,
   type Foreground,
 } from "./foreground.js"
+import { mention, nextHandle, wordOf } from "./handles.js"
 import { InputQueue, type HoldBudget, type InputHold } from "./input-queue.js"
 import { Interrupts, type InterruptHost, type InterruptOptions } from "./interrupts.js"
 import { keysOf, splitReports } from "./keys.js"
@@ -731,8 +732,8 @@ export class Terminals {
   /** Windows' process trees, which a closed terminal's programs are ended by. */
   private readonly trees: Trees
   private transcripts: boolean
-  /** Each session's last default terminal number, without records to keep it. */
-  private readonly numbers = new Map<string, number>()
+  /** The handles each session has given, without records to keep them. */
+  private readonly handles = new Map<string, ReadonlySet<string>>()
   /** Each terminal's agent reports and asks waiting their turn, in the order they came. */
   private readonly reports = new Map<string, Promise<void>>()
   /** Agents' messages to each other, and how each terminal's agent takes them. */
@@ -924,9 +925,9 @@ export class Terminals {
         ? undefined
         : this.opens.opener(input.requestId, ownerId, input.sessionId)
     try {
-      // A new terminal's number is drawn as it is asked for, before anything waits, so
-      // terminals asked for together are numbered, and listed, in the order they were.
-      const drawn = input.restore ? undefined : this.nextNumber(input.sessionId)
+      // A new terminal's handle is drawn as it is asked for, before anything waits, so
+      // terminals asked for together are named, and listed, in the order they were.
+      const drawn = input.restore ? undefined : this.nextHandle(input.sessionId)
       const saved = input.restore ? this.saved(input.id, input.sessionId) : undefined
       // Read beside the waits below, which it outlasts on Windows; see `shellEnvironment`.
       const environment = this.shellEnvironment()
@@ -946,14 +947,12 @@ export class Terminals {
       this.available(input.id)
       // Read again after every wait above: a rename meanwhile, as from another window,
       // stands. Nothing waits between this and saving it, and a terminal that can't be
-      // numbered fails before its shell starts. Only one saved for this session counts:
+      // given a handle fails before its shell starts. Only one saved for this session counts:
       // another's handle and opener mean nothing here, and must never give a terminal
       // there a lead.
       const kept = saved ? this.identity(input.id) : undefined
-      // Every new terminal draws its session's next number, for its handle, `t3`, and its
-      // default title, "Terminal 03", even one given its own title.
-      const number = kept ? undefined : (drawn ?? this.nextNumber(input.sessionId))
-      const handle = kept?.handle ?? `t${number}`
+      // Every new terminal draws its session's next handle, even one given its own title.
+      const handle = kept?.handle ?? drawn ?? this.nextHandle(input.sessionId)
       // A title it is created with is the person's, as the client's; the one an agent
       // asked for, as it requested the terminal, is that agent's.
       let naming: Naming = kept?.naming ?? unnamed
@@ -962,7 +961,8 @@ export class Terminals {
       const openedBy = kept?.openedBy ?? opener?.by ?? null
       const ledBy = kept ? kept.ledBy : opener?.withBrief ? opener.by : null
       const work = saved?.work ?? null
-      const titled = this.titled(naming, { handle })
+      const command = input.command ?? saved?.command ?? null
+      const titled = this.titled(naming, { command })
       const resume =
         input.command === undefined &&
         input.resume &&
@@ -984,7 +984,7 @@ export class Terminals {
           handle,
           ledBy,
           started: true,
-          command: input.command ?? saved?.command ?? null,
+          command,
           lastProgram: saved?.lastProgram ?? null,
           cwd,
           cols: input.cols,
@@ -1096,10 +1096,12 @@ export class Terminals {
       return this.draining.has(terminal.id) ? [] : [this.savedSummary(terminal)]
     })
     const recorded = new Set(kept.map(({ id }) => id))
-    // Those the records don't keep, in the order they were asked for too.
+    // Those the records don't keep, in the order their handles were given.
+    const given = (summary: TerminalSummary) =>
+      [...(this.handles.get(summary.sessionId) ?? [])].indexOf(summary.handle)
     const unrecorded = [...live.values()]
       .filter(({ id }) => !recorded.has(id))
-      .toSorted((a, b) => Number(a.handle.slice(1)) - Number(b.handle.slice(1)))
+      .toSorted((a, b) => given(a) - given(b))
     return [...listed, ...unrecorded]
   }
 
@@ -1137,27 +1139,43 @@ export class Terminals {
   }
 
   /**
-   * The next number of a session's terminals, never given twice: from its records when
-   * the runner keeps them, else counted in memory. When the records can't give one, no
-   * terminal is created, since a number counted afresh could repeat a handle.
+   * The handle a session gives its next terminal, never one it gave before: from its
+   * records when the runner keeps them, else counted in memory. When the records can't
+   * give one, no terminal is created, since a handle chosen afresh could repeat one.
    */
-  private nextNumber(sessionId: string): number {
+  private nextHandle(sessionId: string): string {
     const { records } = this.options
     if (!records) {
-      const number = (this.numbers.get(sessionId) ?? 0) + 1
-      this.numbers.set(sessionId, number)
-      return number
+      const given = this.handles.get(sessionId) ?? new Set<string>()
+      const live = [...this.records.values()]
+        .filter((record) => !record.closed)
+        .map((record) => record.summary)
+      const handle = nextHandle(
+        {
+          given,
+          open: live
+            .filter((summary) => summary.sessionId === sessionId)
+            .map((summary) => summary.handle),
+        },
+        new Set(
+          live
+            .filter((summary) => summary.sessionId !== sessionId)
+            .map((summary) => wordOf(summary.handle)),
+        ),
+      )
+      this.handles.set(sessionId, new Set(given).add(handle))
+      return handle
     }
-    let number: number | undefined
+    let handle: string | undefined
     this.persisting(() => {
-      number = records.nextTerminalNumber(sessionId)
+      handle = records.giveHandle(sessionId)
     })
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
-    if (number === undefined)
+    if (handle === undefined)
       throw new Error(
-        "Novadeck couldn't number a new terminal in its workspace database, so it didn't create it.",
+        "Novadeck couldn't give a new terminal a handle in its workspace database, so it didn't create it.",
       )
-    return number
+    return handle
   }
 
   /**
@@ -2077,7 +2095,7 @@ export class Terminals {
         this.forget(terminal.id)
         for (const watcher of this.watchers.keys()) watcher.removed(terminal)
       }
-      this.numbers.delete(sessionId)
+      this.handles.delete(sessionId)
     }
   }
 
@@ -2122,7 +2140,13 @@ export class Terminals {
   async hintFacts(terminalId: string): Promise<Omit<HintFacts, "project"> | undefined> {
     const record = this.records.get(terminalId)
     if (!record) return undefined
-    return this.peers.hint(record, this.options.items?.bar(terminalId) ?? [])
+    const facts = await this.peers.hint(record, this.options.items?.bar(terminalId) ?? [])
+    // The session's open terminals' handles, in the order they were given, so dictation
+    // spells them.
+    const handles = [...this.records.values()]
+      .filter(({ closed, summary }) => !closed && summary.sessionId === record.summary.sessionId)
+      .map(({ summary }) => summary.handle)
+    return { ...facts, handles }
   }
 
   /**
@@ -2559,6 +2583,7 @@ export class Terminals {
       ok: true,
       terminalId: answer.terminalId,
       handle: opened.summary.handle,
+      title: opened.summary.title,
       cwd,
       ...(command !== undefined && { command }),
     }
@@ -2582,7 +2607,8 @@ export class Terminals {
     const { to } = read.request
     if (to === record.summary.handle) return refused(selfRefusal(to))
     // Already on its way out, and forgotten, as another close ended its shell.
-    if (this.closingHere(record.summary.sessionId, to)) return refused(`${to} is already closing.`)
+    if (this.closingHere(record.summary.sessionId, to))
+      return refused(`${mention(to)} is already closing.`)
     const target = await this.peers.target(record, to)
     if (!target.ok) return target
     // Closed, or the runner stopped, while the terminals were described.
@@ -2590,7 +2616,8 @@ export class Terminals {
     if (this.stopping || this.records.get(call.terminalId) !== record || !closing)
       return unansweredCalls.close
     // Already on its way out, as another close ended its shell: nothing more to charge.
-    if (closing.closing || closing.closed) return refused(`${target.handle} is already closing.`)
+    if (closing.closing || closing.closed)
+      return refused(`${mention(target.handle)} is already closing.`)
     const now = Date.now()
     const charged = this.openers.get(call.terminalId) ?? call.terminalId
     prune(this.closed, now, closeLimit.windowMs)
@@ -2612,6 +2639,7 @@ export class Terminals {
     return {
       ok: true,
       handle: target.handle,
+      title: closing.summary.title,
       ...(agent !== null && { ran: agentLabel(agent) }),
       ...(gone.length > 0 && { gone }),
       ...(others > 0 && { others }),
@@ -3683,9 +3711,7 @@ export class Terminals {
    * differs, as the answer says; the caller saves it.
    */
   private retitle(record: Record): boolean {
-    const titled = this.titled(record.naming, {
-      handle: record.summary.handle,
-    })
+    const titled = this.titled(record.naming, record.summary)
     const { title, titleSource } = record.summary
     if (
       titled.title === title &&
@@ -3700,7 +3726,7 @@ export class Terminals {
   /** A terminal's title, and who it is from, as its summary shows them (see `titleOf`). */
   private titled(
     naming: Naming,
-    terminal: Pick<ListedTerminal, "handle">,
+    terminal: Pick<ListedTerminal, "command">,
   ): Pick<TerminalSummary, "title" | "titleSource"> {
     const { title, source } = titleOf(naming, terminal)
     return { title, titleSource: source }

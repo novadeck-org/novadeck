@@ -46,7 +46,7 @@ const host = () => {
 
 describe("a notice's text", () => {
   it("is one line without control characters", () => {
-    expect(noticeText("t1 is done:\n\u202eCheckout\u0007", 256)).toBe("t1 is done: Checkout")
+    expect(noticeText("@moth is done:\n\u202eCheckout\u0007", 256)).toBe("@moth is done: Checkout")
     expect(noticeText("a\u061cb", 256)).toBe("a b")
   })
 
@@ -58,12 +58,12 @@ describe("a notice's text", () => {
 
 describe("a notice for the host", () => {
   it("passes for a terminal id, bounded", () => {
-    const notice = hostNotice({ id: "3f2a-01", title: "t1 is done", body: "x".repeat(500) })
+    const notice = hostNotice({ id: "3f2a-01", title: "@moth is done", body: "x".repeat(500) })
     expect(notice?.body).toHaveLength(120)
   })
 
   it("is dropped for an id that is no terminal's, or with nothing to say", () => {
-    expect(hostNotice({ id: "../evil", title: "t1 is done", body: "" })).toBeUndefined()
+    expect(hostNotice({ id: "../evil", title: "@moth is done", body: "" })).toBeUndefined()
     expect(hostNotice({ id: "01", title: "\n", body: "Done." })).toBeUndefined()
   })
 })
@@ -73,9 +73,9 @@ describe("desktop notices", () => {
     it("shows what passes and hears clicks that name a terminal", () => {
       const { bridge, shown, click } = host()
       const notices = desktopNotices(bridge)!
-      notices.show({ id: "01", title: "t1 is done: Tests", body: "All green." })
-      notices.show({ id: "bad id", title: "t1 is done", body: "" })
-      expect(shown).toEqual([{ id: "01", title: "t1 is done: Tests", body: "All green." }])
+      notices.show({ id: "01", title: "@moth is done: Tests", body: "All green." })
+      notices.show({ id: "bad id", title: "@moth is done", body: "" })
+      expect(shown).toEqual([{ id: "01", title: "@moth is done: Tests", body: "All green." }])
       const clicks: string[] = []
       const stop = notices.onClick((id) => clicks.push(id))
       click("01")

@@ -144,7 +144,7 @@ describe("The notification center", () => {
       expect(reply).toBeTruthy()
       await expect
         .element(done.getByRole("button", { name: /^Go to / }))
-        .toHaveAttribute("aria-description", expect.stringContaining(`. ${reply}`))
+        .toHaveAccessibleDescription(expect.stringContaining(`. ${reply}`))
     })
   })
 

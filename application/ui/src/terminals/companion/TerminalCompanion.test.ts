@@ -97,8 +97,8 @@ const renderTerminal = (
 const message = (id: string): AgentMessage => ({
   id,
   hop: 1,
-  from: "t2",
-  to: "t1",
+  from: "fox",
+  to: "moth",
   text: "Ready for review",
   sentAt: 0,
   state: "delivered",
@@ -109,9 +109,9 @@ const mailOf = (messages: readonly AgentMessage[]): MailState => ({
   ...noMail,
   terminals: {
     "project/initial/01": {
-      handle: "t1",
+      handle: "moth",
       agent: true,
-      threads: [{ id: "th", peer: "t2", hops: 1, allowed: 4, held: false, messages }],
+      threads: [{ id: "th", peer: "fox", hops: 1, allowed: 4, held: false, messages }],
     },
   },
 })

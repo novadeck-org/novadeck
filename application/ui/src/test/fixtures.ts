@@ -12,6 +12,9 @@ export const refusing =
 // The appearance a fresh install starts with.
 export const appearance: PreferencesValue["appearance"] = { theme: "graphite", scheme: "system" }
 
+// The words a fresh session gives its terminals, in order.
+const handles = ["moth", "fox", "owl", "crow", "kite", "raven"]
+
 // A plain shell terminal numbered like the ones a person creates.
 export const terminalFixture = (number: number, directory: string): TerminalMetadata => {
   const id = String(number).padStart(2, "0")
@@ -42,7 +45,7 @@ export const itemFixture = (
   lines: null,
   held: false,
   by: "agent",
-  from: { terminalId, handle: `t${Number(terminalId)}` },
+  from: { terminalId, handle: handles[Number(terminalId) - 1] ?? `moth${Number(terminalId)}` },
   version: 1,
   asked: false,
   shownAt: 0,

@@ -164,16 +164,16 @@ describe("whose a root session's first prompt is", () => {
     expect(firstFrom(first({ firstByPerson: false }), null)).toBe("user")
     expect(firstFrom(first(), null)).toBe("user")
     expect(firstFrom(freshWork("claude:s1"), null)).toBeNull()
-    expect(firstFrom(null, "t1")).toBeNull()
+    expect(firstFrom(null, "moth")).toBeNull()
   })
 
   it("is the opener's in an agent-opened terminal's first session, unless the person submitted it", () => {
-    expect(firstFrom(first({ opened: true, firstByPerson: false }), "t1")).toBe("opener")
+    expect(firstFrom(first({ opened: true, firstByPerson: false }), "moth")).toBe("opener")
     // Not told yet: the opener's, until told otherwise.
-    expect(firstFrom(first({ opened: true }), "t1")).toBe("opener")
-    expect(firstFrom(first({ opened: true, firstByPerson: true }), "t1")).toBe("user")
+    expect(firstFrom(first({ opened: true }), "moth")).toBe("opener")
+    expect(firstFrom(first({ opened: true, firstByPerson: true }), "moth")).toBe("user")
     // A later session there is the person's.
-    expect(firstFrom(first({ firstByPerson: false }), "t1")).toBe("user")
+    expect(firstFrom(first({ firstByPerson: false }), "moth")).toBe("user")
   })
 
   it("is told once, and only of a first prompt", () => {

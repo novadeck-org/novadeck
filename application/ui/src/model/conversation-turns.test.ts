@@ -192,8 +192,8 @@ describe("a tool call's summary", () => {
   })
 
   context("for Novadeck's own tools", () => {
-    const send = { to: "t2", text: "Tests are green.\nShip it." }
-    const labelled = { kind: "agent", title: "Messaged t2", detail: "Tests are green." }
+    const send = { to: "fox", text: "Tests are green.\nShip it." }
+    const labelled = { kind: "agent", title: "Messaged fox", detail: "Tests are green." }
 
     it("reads Claude Code's plugin tools", () => {
       expect(toolSummary("mcp__plugin_novadeck_novadeck__send", JSON.stringify(send))).toEqual(
@@ -235,7 +235,7 @@ describe("a tool call's summary", () => {
         "codex: Fix the lint",
       ],
       ["open_terminal", { command: "pnpm dev" }, "agent", "Opened a terminal", "pnpm dev"],
-      ["close_terminal", { to: "t3" }, "agent", "Closed t3", ""],
+      ["close_terminal", { to: "owl" }, "agent", "Closed owl", ""],
       ["show", { url: "http://localhost:5173/" }, "web", "Showed", "http://localhost:5173/"],
       ["show", { file: { path: "/a/b/c/d/mock.png" } }, "read", "Showed", "…/c/d/mock.png"],
       ["show", { file: '{"path":"/a/b/c/d/mock.png"}' }, "read", "Showed", "…/c/d/mock.png"],
@@ -288,7 +288,7 @@ describe("a tool call's summary", () => {
     })
 
     it("leaves another server's tool, and a Novadeck tool it doesn't know, as they are", () => {
-      expect(toolSummary("mcp__db__send", JSON.stringify({ to: "t2" }))).toMatchObject({
+      expect(toolSummary("mcp__db__send", JSON.stringify({ to: "fox" }))).toMatchObject({
         title: "mcp__db__send",
       })
       expect(toolSummary("mcp__plugin_novadeck_novadeck__new", "{}")).toMatchObject({

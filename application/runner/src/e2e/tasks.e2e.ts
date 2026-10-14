@@ -29,8 +29,8 @@ for (const setup of setups) {
       const requests = run.deck.answerRequests()
       run.model.use(
         opens("Start a helper", setup.agent, "Count the files in src."),
-        own((call) => (opened(call, "t2") ? { text: "Started t2." } : undefined)),
-        own((call) => (delivered(call, "t1") ? { text: "Counting now." } : undefined)),
+        own((call) => (opened(call, "fox") ? { text: "Started fox." } : undefined)),
+        own((call) => (delivered(call, "moth") ? { text: "Counting now." } : undefined)),
       )
       const t1 = await start(run, setup)
       const calls = run.model.mark()
@@ -39,19 +39,19 @@ for (const setup of setups) {
       await t1.submit("Start a helper")
 
       const t2 = await requests.next()
-      expect(t2.handle).toBe("t2")
+      expect(t2.handle).toBe("fox")
       // Its first prompt is the doorbell's line, given on its command line, and its hook
       // adds the task beside it: the first thing its model is asked.
-      const task = await run.model.waitFor((call) => delivered(call, "t1"), { after: calls })
+      const task = await run.model.waitFor((call) => delivered(call, "moth"), { after: calls })
       expect(latest(task)).toMatch(ring)
-      expect(deliveries(task)).toEqual([{ from: "t1", text: "Count the files in src." }])
+      expect(deliveries(task)).toEqual([{ from: "moth", text: "Count the files in src." }])
       expect(task.turns.filter((one) => one.role !== "user")).toEqual([])
       await t2.until("Counting now.")
-      await through(t2, [holds("t1", "t2", "delivered"), "settled"])
+      await through(t2, [holds("moth", "fox", "delivered"), "settled"])
       // It came with the start, never with a ring.
       expect(t2.history().map((one) => one.delivery)).not.toContain("ringing")
       expect(t2.summary().agent).toBe(setup.agent)
-      await t1.until("Started t2.")
+      await t1.until("Started fox.")
       await t1.reached("settled", { after: mark })
     })
 
@@ -59,19 +59,19 @@ for (const setup of setups) {
       e2e: run,
     }) => {
       run.model.use(
-        closes("Close t2", "t2"),
-        own((call) => (closed(call, "t2") ? { text: "Closed it." } : undefined)),
+        closes("Close fox", "fox"),
+        own((call) => (closed(call, "fox") ? { text: "Closed it." } : undefined)),
       )
       const t1 = await start(run, setup)
       const t2 = await start(run, setup)
-      expect(t2.handle).toBe("t2")
+      expect(t2.handle).toBe("fox")
       const calls = run.model.mark()
       const mark = t1.mark()
 
-      await t1.submit("Close t2")
+      await t1.submit("Close fox")
 
-      const after = await run.model.waitFor((call) => closed(call, "t2"), { after: calls })
-      expect(result(after)).toMatch(/Closed t2, which ran \S/)
+      const after = await run.model.waitFor((call) => closed(call, "fox"), { after: calls })
+      expect(result(after)).toMatch(/Closed @fox(?: · [^,]+)?, which ran \S/)
       await t1.until("Closed it.")
       await t1.reached("settled", { after: mark })
       // Gone from the runner, as the person's close leaves it: its shell ended and forgotten.

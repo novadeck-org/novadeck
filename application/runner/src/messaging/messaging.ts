@@ -8,6 +8,7 @@ import type { Binding } from "../harnesses/bindings.js"
 import { agents as allAgents, harnesses } from "../harnesses/registry.js"
 import { rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
 import type { HookAnswer } from "../shell/reports.js"
+import { bareHandle, mention } from "../terminals/handles.js"
 import {
   continues,
   phaseOf,
@@ -204,7 +205,7 @@ const runsOn = (background: Background | undefined): boolean =>
   background !== undefined && (background.agents > 0 || background.more === true)
 
 const sendRequest = z.strictObject({
-  to: z.string().min(1).max(64),
+  to: z.string().min(1).max(65).transform(bareHandle),
   text: z.string().max(64 * 1024),
 })
 
@@ -874,12 +875,14 @@ export class Messaging {
     const root = recipient.root
     if (!root && !recipient.shown && recipient.untrusted)
       return refused(
-        `${recipient.handle} has no agent Novadeck can deliver to: ` +
+        `${mention(recipient.handle)} has no agent Novadeck can deliver to: ` +
           `${untrustedNote(recipient.untrusted)}.`,
       )
     const agent = root?.agent ?? recipient.shown?.agent ?? recipient.expecting
     if (!agent)
-      return refused(`${recipient.handle} has no agent running there that Novadeck can deliver to.`)
+      return refused(
+        `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
+      )
     const now = this.now()
     const same = duplicateOf(this.messages.values(), terminalId, recipient.terminalId, text, now)
     if (same) return { ...this.answer(same, recipient), ...this.extras(live) }
@@ -942,7 +945,11 @@ export class Messaging {
     if (textRefusal) return textRefusal
     // The longest handle a terminal may have, so the size is never underestimated.
     const vetted = this.vet(
-      this.draft(live, clean, { terminalId: "", handle: "t999999999", agent }),
+      this.draft(live, clean, {
+        terminalId: "",
+        handle: "z".repeat(12) + "999999999",
+        agent,
+      }),
     )
     return vetted.ok ? undefined : vetted.reason
   }
@@ -1004,7 +1011,7 @@ export class Messaging {
     ).length
     if (waitingThere >= maxUndelivered)
       return refused(
-        `${to.handle} already has ${maxUndelivered} messages waiting; ` +
+        `${mention(to.handle)} already has ${maxUndelivered} messages waiting; ` +
           "wait for it to take them before sending more.",
       )
     const now = message.sentAt

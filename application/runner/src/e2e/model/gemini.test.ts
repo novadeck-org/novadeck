@@ -32,8 +32,8 @@ send
 // `call_mcp_tool`, and the tool's result, which it sends in a content of the model's.
 const conversation = {
   contents: [
-    { role: "user", parts: [{ text: "<USER_REQUEST>\nAsk t2\n</USER_REQUEST>" }] },
-    { role: "user", parts: [{ text: '<novadeck-messages><message from="t2">hi</message>' }] },
+    { role: "user", parts: [{ text: "<USER_REQUEST>\nAsk fox\n</USER_REQUEST>" }] },
+    { role: "user", parts: [{ text: '<novadeck-messages><message from="fox">hi</message>' }] },
     {
       role: "model",
       parts: [
@@ -45,7 +45,7 @@ const conversation = {
             args: {
               ServerName: "novadeck_novadeck",
               ToolName: "send",
-              Arguments: { to: "t2", text: "hello" },
+              Arguments: { to: "fox", text: "hello" },
               toolSummary: "Message",
               toolAction: "Sending",
             },
@@ -60,7 +60,7 @@ const conversation = {
           functionResponse: {
             id: "call_1",
             name: "call_mcp_tool",
-            response: { output: "Message m-1 to t2 is queued." },
+            response: { output: "Message m-1 to @fox is queued." },
           },
         },
       ],
@@ -100,7 +100,7 @@ describe("gemini", () => {
       turns: [
         {
           role: "user",
-          text: '<USER_REQUEST>\nAsk t2\n</USER_REQUEST>\n<novadeck-messages><message from="t2">hi</message>',
+          text: '<USER_REQUEST>\nAsk fox\n</USER_REQUEST>\n<novadeck-messages><message from="fox">hi</message>',
         },
         {
           role: "assistant",
@@ -109,11 +109,11 @@ describe("gemini", () => {
             {
               id: "call_1",
               name: "mcp_novadeck_novadeck_send",
-              input: { to: "t2", text: "hello" },
+              input: { to: "fox", text: "hello" },
             },
           ],
         },
-        { role: "tool", id: "call_1", text: "Message m-1 to t2 is queued." },
+        { role: "tool", id: "call_1", text: "Message m-1 to @fox is queued." },
       ],
       tools: [
         "run_command",
@@ -134,18 +134,18 @@ describe("gemini", () => {
 
   it("takes a call that offers no tools for the harness's own, as its title is", () => {
     const title = parse("gemini-3.1-flash-lite-preview", {
-      contents: [{ role: "user", parts: [{ text: "Ask t2" }] }],
+      contents: [{ role: "user", parts: [{ text: "Ask fox" }] }],
       systemInstruction: { parts: [{ text: "You are a conversation title generator." }] },
     })
     expect(title.side).toBe(true)
-    expect(title.turns).toEqual([{ role: "user", text: "Ask t2" }])
+    expect(title.turns).toEqual([{ role: "user", text: "Ask fox" }])
   })
 
   it("streams a reply's text and calls, a lazy tool's through call_mcp_tool", async () => {
     const { response, calls } = await handle(post(stream, conversation), {
       text: "Sending.",
       calls: [
-        { name: "mcp_novadeck_novadeck_send", input: { to: "t1", text: "teal" } },
+        { name: "mcp_novadeck_novadeck_send", input: { to: "moth", text: "teal" } },
         { name: "run_command", input: { CommandLine: "sleep 1" } },
       ],
     })
@@ -163,7 +163,7 @@ describe("gemini", () => {
       args: {
         ServerName: "novadeck_novadeck",
         ToolName: "send",
-        Arguments: { to: "t1", text: "teal" },
+        Arguments: { to: "moth", text: "teal" },
       },
     })
     expect(parts?.[2]?.functionCall).toMatchObject({
@@ -179,7 +179,7 @@ describe("gemini", () => {
     const eager = {
       ...conversation,
       contents: [
-        { role: "user", parts: [{ text: "Ask t2" }] },
+        { role: "user", parts: [{ text: "Ask fox" }] },
         {
           role: "model",
           parts: [
@@ -187,7 +187,7 @@ describe("gemini", () => {
               functionCall: {
                 id: "call_1",
                 name: "mcp_novadeck_novadeck_send",
-                args: { to: "t2", text: "hello", toolSummary: "send call" },
+                args: { to: "fox", text: "hello", toolSummary: "send call" },
               },
             },
           ],
@@ -215,12 +215,12 @@ describe("gemini", () => {
     ])
     expect(tool(call, "send")).toBe("mcp_novadeck_novadeck_send")
     expect(call.turns[1]).toMatchObject({
-      calls: [{ name: "mcp_novadeck_novadeck_send", input: { to: "t2", text: "hello" } }],
+      calls: [{ name: "mcp_novadeck_novadeck_send", input: { to: "fox", text: "hello" } }],
     })
 
     const { response } = await handle(post(stream, eager), {
       calls: [
-        { name: "mcp_novadeck_novadeck_send", input: { to: "t1", text: "teal" } },
+        { name: "mcp_novadeck_novadeck_send", input: { to: "moth", text: "teal" } },
         { name: "run_command", input: { CommandLine: "sleep 1" } },
       ],
     })
@@ -230,7 +230,7 @@ describe("gemini", () => {
     const parts = event?.candidates[0]?.content.parts
     expect(parts?.[0]?.functionCall).toMatchObject({
       name: "mcp_novadeck_novadeck_send",
-      args: { to: "t1", text: "teal", toolSummary: "send call" },
+      args: { to: "moth", text: "teal", toolSummary: "send call" },
     })
     expect(parts?.[0]?.functionCall).not.toHaveProperty("args.toolAction")
     expect(parts?.[1]?.functionCall).toMatchObject({
@@ -268,7 +268,7 @@ describe("gemini", () => {
       `${stamp}Encountered error in tool validation: invalid arguments: - missing property 'toolSummary'`,
     ]
     const tools = [
-      `${stamp}Encountered error in tool execution: t2 has no agent Novadeck can deliver to.`,
+      `${stamp}Encountered error in tool execution: @fox has no agent Novadeck can deliver to.`,
     ]
 
     expect(refused.map((text) => gemini.rejection?.test(text))).toEqual([true, true])

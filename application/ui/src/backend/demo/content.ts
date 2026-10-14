@@ -40,7 +40,7 @@ export const contentDemo = (
     {
       id: demoTerminalId(session, 1),
       name: "Build Studio",
-      handle: "t1",
+      handle: "moth",
       titleSource: { kind: "person" },
       command: "codex",
       process: "codex",
@@ -51,9 +51,9 @@ export const contentDemo = (
     {
       id: demoTerminalId(session, 3),
       name: "Refactor auth",
-      handle: "t3",
-      ledBy: "t1",
-      titleSource: { kind: "agent", by: "t1" },
+      handle: "owl",
+      ledBy: "moth",
+      titleSource: { kind: "agent", by: "moth" },
       command: "claude",
       process: "claude",
       state: "running",
@@ -63,7 +63,7 @@ export const contentDemo = (
     {
       id: demoTerminalId(session, 2),
       name: "Dev server",
-      handle: "t2",
+      handle: "fox",
       titleSource: { kind: "murmur" },
       command: "pnpm dev",
       process: "vite",
@@ -74,7 +74,7 @@ export const contentDemo = (
   const website: TerminalMetadata = {
     id: demoTerminalId({ projectId: "website", workspaceSessionId: "website-initial" }, 1),
     name: "Tests",
-    handle: "t1",
+    handle: "moth",
     titleSource: { kind: "murmur" },
     command: "pnpm test --watch",
     process: "node",
@@ -118,12 +118,12 @@ export const contentDemo = (
   const agents = [
     {
       key: { ...session, terminalId: demoTerminalId(session, 1) },
-      handle: "t1",
+      handle: "moth",
       sample: studioAgent,
     },
     {
       key: { ...session, terminalId: demoTerminalId(session, 3) },
-      handle: "t3",
+      handle: "owl",
       sample: authAgent,
     },
   ]
@@ -132,7 +132,7 @@ export const contentDemo = (
     shown: [
       {
         key: { ...session, terminalId: demoTerminalId(session, 2) },
-        handle: "t2",
+        handle: "fox",
         artifacts: devServerArtifacts,
       },
     ],

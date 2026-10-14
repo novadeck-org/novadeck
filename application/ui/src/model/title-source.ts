@@ -1,3 +1,4 @@
+import { handleText } from "./handle"
 import { MURMUR_NAME } from "./murmur"
 import type { TitleSource } from "./types"
 
@@ -11,7 +12,7 @@ export const titleSourceText = (source: TitleSource): string => {
     case "person":
       return "Named by you"
     case "agent":
-      return `Named by the agent in ${source.by}`
+      return `Named by the agent in ${handleText(source.by)}`
     case "murmur":
       return `Named by ${MURMUR_NAME}`
     case "default":

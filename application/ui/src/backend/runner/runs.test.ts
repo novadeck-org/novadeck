@@ -45,7 +45,7 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   sessionId: "s",
   title: "Terminal 01",
   titleSource: { kind: "default" },
-  handle: "t1",
+  handle: "moth",
   ledBy: null,
   started: true,
   command: null,

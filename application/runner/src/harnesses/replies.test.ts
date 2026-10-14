@@ -65,9 +65,9 @@ describe("an agent's last reply in its transcript", () => {
         line("user", "Look around"),
         line("assistant", [
           { type: "text", text: "Looking first." },
-          { type: "tool_use", id: "t1", name: "Bash", input: { command: "ls" } },
+          { type: "tool_use", id: "moth", name: "Bash", input: { command: "ls" } },
         ]),
-        line("user", [{ type: "tool_result", tool_use_id: "t1", content: "README.md" }]),
+        line("user", [{ type: "tool_result", tool_use_id: "moth", content: "README.md" }]),
       ].join("\n") + "\n",
     )
     await expect(lastReply(path, claude)).resolves.toBeUndefined()

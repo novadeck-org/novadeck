@@ -1,6 +1,7 @@
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import { useEffect, useId, useRef, type ReactNode } from "react"
 
+import { handleText } from "../../model/handle"
 import type { AgentMessage, MessageThread } from "../../model/messages"
 import { Switch } from "../../ui-toolkit/Switch"
 import { Tooltip } from "../../ui-toolkit/Tooltip"
@@ -57,7 +58,9 @@ const MessageItem = ({
       <div className="mail-message-meta">
         <span className="mail-message-direction">
           <Direction size={12} strokeWidth={1.75} aria-hidden />
-          <span className="sr-only">{sent ? `Sent to ${message.to}` : `From ${message.from}`}</span>
+          <span className="sr-only">
+            {sent ? `Sent to ${handleText(message.to)}` : `From ${handleText(message.from)}`}
+          </span>
         </span>
         <time dateTime={new Date(message.sentAt).toISOString()}>{clock(message.sentAt)}</time>
         <Tooltip content={stateHint[message.state]}>
@@ -92,8 +95,9 @@ const ThreadItem = ({
   failure: string | undefined
   onRelease: () => void
 }): React.JSX.Element => {
-  const peer = peerName ?? thread.peer
-  const label = peerName === undefined ? thread.peer : `${peerName} (${thread.peer})`
+  const peer = peerName ?? handleText(thread.peer)
+  const label =
+    peerName === undefined ? handleText(thread.peer) : `${peerName} (${handleText(thread.peer)})`
   const count = thread.messages.length
   const heading = useRef<HTMLHeadingElement>(null)
   const held = useRef(thread.held)
@@ -109,7 +113,7 @@ const ThreadItem = ({
         <h3 ref={heading} tabIndex={-1} className="mail-thread-peer">
           {peer}
         </h3>
-        {peerName !== undefined && <code>{thread.peer}</code>}
+        {peerName !== undefined && <code>{handleText(thread.peer)}</code>}
         <span className="mail-thread-count">
           {count} message{count === 1 ? "" : "s"}
         </span>
@@ -167,7 +171,7 @@ export const MessagesView = ({
     <div className="mail-view">
       <div className="artifact-meta mail-meta">
         <code>Messages</code>
-        {mail.mail && <span>{mail.mail.handle}</span>}
+        {mail.mail && <span>{handleText(mail.mail.handle)}</span>}
         <span className="artifact-meta-push" />
         <span className="mail-pause">
           <span id={label} className="mail-pause-label">

@@ -8,16 +8,16 @@ import { createRunnerMessages, type MailStreams } from "./messages"
 const key = { projectId: "p", workspaceSessionId: "s", terminalId: "a" }
 const id = companionKeyId(key)
 
-// A terminal's listing as the runner streams it: Codex in t2 sent t1 a message.
+// A terminal's listing as the runner streams it: Codex in fox sent moth a message.
 const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
   terminalId: "a",
-  handle: "t1",
+  handle: "moth",
   delivery: "working",
   paused: false,
   threads: [
     {
       id: "t-1",
-      peer: "t2",
+      peer: "fox",
       hops: 1,
       allowed: 12,
       held: false,
@@ -26,9 +26,9 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
           id: "m-1",
           thread: "t-1",
           hop: 1,
-          from: "t2",
+          from: "fox",
           fromAgent: "codex",
-          to: "t1",
+          to: "moth",
           toAgent: "claude",
           text: "Review a.ts.",
           sentAt: 1,
@@ -84,12 +84,12 @@ describe("the runner's messages", () => {
     push(listing())
     await vi.waitFor(() =>
       expect(messages.state.getSnapshot().terminals[id]).toEqual({
-        handle: "t1",
+        handle: "moth",
         agent: true,
         threads: [
           {
             id: "t-1",
-            peer: "t2",
+            peer: "fox",
             hops: 1,
             allowed: 12,
             held: false,
@@ -97,8 +97,8 @@ describe("the runner's messages", () => {
               {
                 id: "m-1",
                 hop: 1,
-                from: "t2",
-                to: "t1",
+                from: "fox",
+                to: "moth",
                 text: "Review a.ts.",
                 sentAt: 1,
                 state: "queued",

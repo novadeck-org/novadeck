@@ -1,6 +1,14 @@
-import { chmodSync, closeSync, mkdirSync, openSync, statSync } from "node:fs"
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  statSync,
+} from "node:fs"
 import { realpath, stat } from "node:fs/promises"
-import { basename, dirname, isAbsolute } from "node:path"
+import { dirname, isAbsolute } from "node:path"
 import { DatabaseSync, type SQLTagStore } from "node:sqlite"
 
 import {
@@ -22,6 +30,7 @@ import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companion
 import { DomainError } from "../errors.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
 import type { MailboxRecords } from "../messaging/records.js"
+import { nextHandle, wordOf } from "../terminals/handles.js"
 import type { Naming } from "../terminals/naming.js"
 import type {
   ListedTerminal,
@@ -53,7 +62,8 @@ export type SettingsChange = {
 // earlier build's. A build that only adds columns may leave it, as a runner reads columns
 // it doesn't know, on a database of its own version, as a newer build's; an added table,
 // index or constraint goes unseen.
-const schemaVersion = 1
+// 2: word handles, given once per session (session_handles), each unique in its session.
+const schemaVersion = 2
 const schema = `
   CREATE TABLE projects (
     position INTEGER PRIMARY KEY,
@@ -79,7 +89,7 @@ const extras = `
   CREATE TABLE IF NOT EXISTS terminals (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
-    -- Its handle in its session, t3, from the same count as its default title.
+    -- Its handle in its session, a word such as moth, given once (see session_handles).
     handle TEXT NOT NULL,
     -- The shell's last reported directory.
     cwd TEXT NOT NULL,
@@ -109,12 +119,14 @@ const extras = `
     -- The program in its foreground when its shell was last seen.
     last_program TEXT,
     -- What its root agent session worked on, for agents messaging each other, as JSON.
-    work TEXT
+    work TEXT,
+    UNIQUE (session_id, handle)
   ) STRICT;
-  -- The last number given to a session's terminals, for their handles and default titles.
-  CREATE TABLE IF NOT EXISTS terminal_numbers (
-    session_id TEXT PRIMARY KEY,
-    last INTEGER NOT NULL
+  -- Every handle a session ever gave its terminals, closed ones' too, so none is given twice.
+  CREATE TABLE IF NOT EXISTS session_handles (
+    session_id TEXT NOT NULL,
+    handle TEXT NOT NULL,
+    PRIMARY KEY (session_id, handle)
   ) STRICT;
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -291,10 +303,36 @@ export class WorkspaceTooNewError extends Error {
 }
 
 /**
+ * The database was written by an earlier build, whose tables or schema version differ.
+ * Novadeck has no migrations before its first release, so it is never changed here: the
+ * runner sets it aside and starts a new one (`setAsideWorkspace`).
+ */
+export class EarlierWorkspaceError extends Error {
+  constructor(path: string, reason: string) {
+    super(
+      `Novadeck's workspace database at ${path} was written by an earlier build: ${reason}. ` +
+        "Novadeck has no migrations before its first release.",
+    )
+    this.name = "EarlierWorkspaceError"
+  }
+}
+
+/**
+ * Moves an earlier build's workspace database aside, with the write-ahead log and index
+ * beside it, so a new one can start at `path`; the old one stays, renamed with the time,
+ * for whoever wants what it held. Returns where it went.
+ */
+export const setAsideWorkspace = (path: string, now = new Date()): string => {
+  const aside = `${path}.earlier-${now.toISOString().replace(/[:.]/g, "-")}`
+  for (const suffix of ["", "-wal", "-shm"])
+    if (existsSync(`${path}${suffix}`)) renameSync(`${path}${suffix}`, `${aside}${suffix}`)
+  return aside
+}
+
+/**
  * Creates the schema in a new database, and refuses one written by a newer runner, by its
  * version or by columns this one doesn't know, or by an earlier build whose tables
- * differ: Novadeck has no migrations before its first release, so an earlier build's
- * database is to be deleted, never changed here.
+ * differ or whose schema version is lower (`EarlierWorkspaceError`), changing neither.
  */
 const prepareSchema = (database: DatabaseSync, path: string): void => {
   database.exec("BEGIN IMMEDIATE")
@@ -309,13 +347,12 @@ const prepareSchema = (database: DatabaseSync, path: string): void => {
     // Only a database of this version can be a newer build's by its columns; one of a
     // lower version is an earlier build's whatever it holds.
     if (difference?.newer && version === schemaVersion) throw new WorkspaceTooNewError()
-    if (difference)
-      throw new Error(
-        `Novadeck's workspace database at ${path} was written by an earlier build: ` +
-          `${difference.text}. Novadeck has no migrations before its first release, so delete ` +
-          `it and the files beside it named ${basename(path)}-wal and -shm (they hold your ` +
-          "projects, sessions and kept terminals) and start again.",
-      )
+    const earlier =
+      difference?.text ??
+      (version !== 0 && version < schemaVersion
+        ? `its schema is version ${version}, before ${schemaVersion}`
+        : undefined)
+    if (earlier) throw new EarlierWorkspaceError(path, earlier)
     database.exec("COMMIT")
   } catch (error) {
     database.exec("ROLLBACK")
@@ -541,6 +578,9 @@ const windowOf = (row: WindowRow): WindowRecord => ({
   personTitle: row.person_title,
 })
 
+// The handles in rows selected for them.
+const column = (rows: unknown): string[] => (rows as { handle: string }[]).map((row) => row.handle)
+
 export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemRecords {
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
@@ -608,7 +648,7 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
 
   /**
    * Deletes the project, its sessions, what they kept of their terminals and their
-   * numbering, and its agents' messages and threads, all at once; an unknown project is
+   * handles, and its agents' messages and threads, all at once; an unknown project is
    * `NOT_FOUND`. Its terminals' shells are the caller's to end first.
    */
   removeProject(projectId: string): void {
@@ -621,7 +661,7 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
           "DELETE FROM messages WHERE project_id = ?",
           "DELETE FROM message_threads WHERE project_id = ?",
           `DELETE FROM terminals WHERE session_id IN (${sessions})`,
-          `DELETE FROM terminal_numbers WHERE session_id IN (${sessions})`,
+          `DELETE FROM session_handles WHERE session_id IN (${sessions})`,
           "DELETE FROM sessions WHERE project_id = ?",
           "DELETE FROM projects WHERE id = ?",
         ])
@@ -688,31 +728,47 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
     return row && { ...listed(row), transcript: row.transcript }
   }
 
+  // In the order their handles were given, which is the order they were asked for: a
+  // terminal whose create waited longer is saved later, though it was named first.
   terminals(sessionId?: string): ListedTerminal[] {
     const rows = (
       sessionId === undefined
         ? this.queries.all`
-          SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle,
-            person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by, led_by,
-            command, last_program, work
-          FROM terminals ORDER BY CAST(substr(handle, 2) AS INTEGER), rowid`
+          SELECT t.id, t.session_id, t.cwd, t.agents, t.prompted_at, t.updated_at, t.handle,
+            t.person_title, t.agent_title, t.agent_titled_by, t.murmur_title, t.summary,
+            t.opened_by, t.led_by, t.command, t.last_program, t.work
+          FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
+          ORDER BY h.rowid IS NULL, h.rowid, t.rowid`
         : this.queries.all`
-          SELECT id, session_id, cwd, agents, prompted_at, updated_at, handle,
-            person_title, agent_title, agent_titled_by, murmur_title, summary, opened_by, led_by,
-            command, last_program, work
-          FROM terminals WHERE session_id = ${sessionId}
-          ORDER BY CAST(substr(handle, 2) AS INTEGER), rowid`
+          SELECT t.id, t.session_id, t.cwd, t.agents, t.prompted_at, t.updated_at, t.handle,
+            t.person_title, t.agent_title, t.agent_titled_by, t.murmur_title, t.summary,
+            t.opened_by, t.led_by, t.command, t.last_program, t.work
+          FROM terminals t LEFT JOIN session_handles h USING (session_id, handle)
+          WHERE t.session_id = ${sessionId}
+          ORDER BY h.rowid IS NULL, h.rowid, t.rowid`
     ) as Omit<TerminalRow, "transcript">[]
     return rows.map(listed)
   }
 
-  nextTerminalNumber(sessionId: string): number {
-    const row = this.queries.get`
-      INSERT INTO terminal_numbers (session_id, last) VALUES (${sessionId}, 1)
-      ON CONFLICT (session_id) DO UPDATE SET last = last + 1
-      RETURNING last
-    ` as { last: number }
-    return row.last
+  giveHandle(sessionId: string): string {
+    return this.transaction(() => {
+      const given = column(
+        this.queries.all`SELECT handle FROM session_handles WHERE session_id = ${sessionId}`,
+      )
+      const open = column(
+        this.queries.all`SELECT handle FROM terminals WHERE session_id = ${sessionId}`,
+      )
+      const elsewhere = column(
+        this.queries.all`SELECT handle FROM terminals WHERE session_id != ${sessionId}`,
+      )
+      const handle = nextHandle(
+        { given: new Set([...given, ...open]), open },
+        new Set(elsewhere.map(wordOf)),
+      )
+      void this.queries
+        .run`INSERT INTO session_handles (session_id, handle) VALUES (${sessionId}, ${handle})`
+      return handle
+    })
   }
 
   renameTerminal(terminalId: string, title: string | null): boolean {

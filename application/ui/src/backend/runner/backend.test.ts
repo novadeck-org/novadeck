@@ -299,7 +299,7 @@ describe("runner backend", () => {
       // The runner kept the name the person gave one, and named the other itself.
       expect(restored.roster.terminals.map(({ id, name }) => ({ id, name }))).toEqual([
         { id: first.id, name: "api" },
-        { id: second.id, name: expect.stringMatching(/^Terminal \d\d$/) },
+        { id: second.id, name: expect.stringMatching(/^Terminal$/) },
       ])
       expect(
         reloaded.projects.find((project) => project.id === other.id)!.history.map(({ id }) => id),
@@ -434,7 +434,7 @@ describe("runner backend", () => {
           (action) => action.type === "terminal/update" && action.terminalId === terminal.id,
         )
       await vi.waitFor(() =>
-        expect(named()).toMatchObject({ name: expect.stringMatching(/^Terminal \d\d$/) }),
+        expect(named()).toMatchObject({ name: expect.stringMatching(/^Terminal$/) }),
       )
       app.commit([...app.received])
       app.commit([
@@ -462,7 +462,7 @@ describe("runner backend", () => {
       await vi.waitFor(() =>
         expect(updates()).toContainEqual(
           expect.objectContaining({
-            handle: expect.stringMatching(/^t\d+$/),
+            handle: expect.stringMatching(/^[a-z]{2,12}[0-9]*$/),
             titleSource: { kind: "default" },
           }),
         ),
@@ -554,9 +554,9 @@ describe("runner backend", () => {
       })
       expect(listed.find((item) => item.id === terminal.id)).toMatchObject({
         title: "Docs",
-        handle: expect.stringMatching(/^t\d+$/),
+        handle: expect.stringMatching(/^[a-z]{2,12}[0-9]*$/),
       })
-      expect(listed.find((item) => item.id === plain.id)?.title).toMatch(/^Terminal \d\d$/)
+      expect(listed.find((item) => item.id === plain.id)?.title).toBe("Terminal")
       app.stop()
     })
 
@@ -612,7 +612,7 @@ describe("runner backend", () => {
       const id = companionKeyId({ ...app.target(), terminalId: terminal.id })
       await vi.waitFor(() =>
         expect(messages.state.getSnapshot().terminals[id]).toEqual({
-          handle: expect.stringMatching(/^t\d+$/),
+          handle: expect.stringMatching(/^[a-z]{2,12}[0-9]*$/),
           // A plain shell: no agent takes messages there.
           agent: false,
           threads: [],
@@ -1167,7 +1167,7 @@ describe("runner backend", () => {
                   sessionId: session.id,
                   title: "Terminal 01",
                   titleSource: { kind: "default" },
-                  handle: "t1",
+                  handle: "moth",
                   ledBy: null,
                   started: true,
                   command: null,

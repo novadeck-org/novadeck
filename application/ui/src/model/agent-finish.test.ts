@@ -88,9 +88,9 @@ describe("an agent finishing", () => {
 
 describe("a finish's notice", () => {
   it("names the terminal by its handle and title, and says the start of the reply", () => {
-    const terminal = { ...working, handle: "t1", name: "Checkout review" }
+    const terminal = { ...working, handle: "moth", name: "Checkout review" }
     expect(finishNotice(terminal, { failed: false, reply: "All green." })).toEqual({
-      title: "t1 is done: Checkout review",
+      title: "@moth is done: Checkout review",
       body: "All green.",
     })
   })
@@ -103,9 +103,9 @@ describe("a finish's notice", () => {
   })
 
   it("says a failed turn stopped with an error", () => {
-    const terminal = { ...working, handle: "t1", name: "Tests" }
+    const terminal = { ...working, handle: "moth", name: "Tests" }
     expect(finishNotice(terminal, { failed: true })).toEqual({
-      title: "t1 stopped with an error: Tests",
+      title: "@moth stopped with an error: Tests",
       body: "Its turn failed.",
     })
     expect(finishNotice(terminal, { failed: true, reply: "API error 529." }).body).toBe(

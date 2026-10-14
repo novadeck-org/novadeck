@@ -28,6 +28,7 @@ const noFacts: HintFacts = {
   branch: null,
   folders: [],
   files: [],
+  handles: [],
 }
 
 const setup = async (
@@ -465,9 +466,9 @@ describe("transcribing a recording", () => {
     await voice.record("owner", "clip", 0, pcm(32_000))
     await voice.record("owner", "clip", 32_000, pcm(32_000))
 
-    const transcript = await voice.transcribe("owner", "clip", "t1")
+    const transcript = await voice.transcribe("owner", "clip", "moth")
 
-    expect(asked).toEqual(["t1"])
+    expect(asked).toEqual(["moth"])
     expect(JSON.parse(transcript.text)).toMatchObject({
       prompt: "Working on Novadeck, with README.md.",
       bytes: 44 + 64_000,
@@ -493,7 +494,7 @@ describe("transcribing a recording", () => {
       await voice.record("owner", "clip", 0, pcm(3200))
       const started = performance.now()
       // eslint-disable-next-line no-await-in-loop -- As above.
-      const { text } = await voice.transcribe("owner", "clip", "t1")
+      const { text } = await voice.transcribe("owner", "clip", "moth")
       expect(JSON.parse(text)).toMatchObject({ prompt: null })
       // Facts that never come are waited for half a second, no longer.
       if (hint === 2) expect(performance.now() - started).toBeGreaterThanOrEqual(450)

@@ -216,7 +216,7 @@ describe("finish watch", () => {
       target,
       terminalId: "02",
       name: "Checkout",
-      handle: "t2",
+      handle: "fox",
     })
     select("01")
     status("02", { working: true })
@@ -236,7 +236,7 @@ describe("finish watch", () => {
       const { notices, unread, finish, stop } = setup()
       finish()
       expect(unread()).toEqual({ "project/initial": { "02": "done" } })
-      expect(notices).toEqual([{ id: "02", title: "t2 is done: Checkout", body: "All green." }])
+      expect(notices).toEqual([{ id: "02", title: "@fox is done: Checkout", body: "All green." }])
       stop()
     })
 
@@ -337,7 +337,7 @@ describe("finish watch", () => {
       finish(10, "failed")
       expect(unread()).toEqual({ "project/initial": { "02": "failed" } })
       expect(notices).toEqual([
-        { id: "02", title: "t2 stopped with an error: Checkout", body: "All green." },
+        { id: "02", title: "@fox stopped with an error: Checkout", body: "All green." },
       ])
       stop()
     })

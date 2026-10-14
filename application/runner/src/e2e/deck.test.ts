@@ -28,7 +28,7 @@ describe("occurrences", () => {
 const fake = (shown: string) => {
   const state = { shown, entered: 0 }
   const keys = {
-    handle: "t1",
+    handle: "moth",
     screen: async () => state.shown,
     enter: () => {
       state.entered += 1
@@ -63,7 +63,7 @@ describe("enterAfter", () => {
     )
 
     await expect(failed).rejects.toThrow(
-      /Gave up waiting for t1 to show Allow this tool\? once more: the harness refused a tool call\. Its screen:\nWorking…\nLast 1 of 1 model calls:/,
+      /Gave up waiting for moth to show Allow this tool\? once more: the harness refused a tool call\. Its screen:\nWorking…\nLast 1 of 1 model calls:/,
     )
     expect(state.entered).toBe(0)
   })
@@ -81,12 +81,12 @@ describe("enterAfter", () => {
 describe("withScreen", () => {
   it("follows a failed wait's message with the screen's non-blank rows", async () => {
     const error = await withScreen(
-      new Error("t1 can't reach ready"),
+      new Error("moth can't reach ready"),
       async () => "\n  Trust this folder?\n\n❯ 1. No, exit   \n\n",
     )
 
     expect(error.message).toBe(
-      "t1 can't reach ready. Its screen:\n  Trust this folder?\n❯ 1. No, exit   ",
+      "moth can't reach ready. Its screen:\n  Trust this folder?\n❯ 1. No, exit   ",
     )
   })
 
@@ -107,11 +107,11 @@ describe("withScreen", () => {
       new Error("Timed out"),
       async () => "❯ Try again",
       undefined,
-      () => 'Last 1 of 1 model calls:\n  1. user "Tell t2"',
+      () => 'Last 1 of 1 model calls:\n  1. user "Tell fox"',
     )
 
     expect(error.message).toBe(
-      'Timed out. Its screen:\n❯ Try again\nLast 1 of 1 model calls:\n  1. user "Tell t2"',
+      'Timed out. Its screen:\n❯ Try again\nLast 1 of 1 model calls:\n  1. user "Tell fox"',
     )
   })
 
@@ -144,11 +144,11 @@ describe("poll", () => {
     await expect(
       poll(
         () => undefined,
-        "t2 to show it",
+        "fox to show it",
         20_000,
         () => "the harness refused a tool call",
       ),
-    ).rejects.toThrow("Gave up waiting for t2 to show it: the harness refused a tool call")
+    ).rejects.toThrow("Gave up waiting for fox to show it: the harness refused a tool call")
     expect(Date.now() - started).toBeLessThan(2000)
   })
 
@@ -201,32 +201,32 @@ describe("excerpt", () => {
 describe("arrivals", () => {
   it("gives each value once, in the order they came, whether taken before or after", async () => {
     const opened = arrivals<string>("a terminal")
-    opened.push("t2")
+    opened.push("fox")
     const later = opened.next()
     const latest = opened.next()
-    opened.push("t3")
-    opened.push("t4")
+    opened.push("owl")
+    opened.push("crow")
 
-    await expect(later).resolves.toBe("t2")
-    await expect(latest).resolves.toBe("t3")
-    await expect(opened.next()).resolves.toBe("t4")
+    await expect(later).resolves.toBe("fox")
+    await expect(latest).resolves.toBe("owl")
+    await expect(opened.next()).resolves.toBe("crow")
   })
 
   it("fails the taker of a failure, and the next taker still gets the value after it", async () => {
     const opened = arrivals<string>("a terminal")
     opened.fail(new Error("It couldn't open"))
-    opened.push("t3")
+    opened.push("owl")
 
     await expect(opened.next()).rejects.toThrow("It couldn't open")
-    await expect(opened.next()).resolves.toBe("t3")
+    await expect(opened.next()).resolves.toBe("owl")
   })
 
   it("times out saying what it waited for, and leaves the value that comes later for the next", async () => {
     const opened = arrivals<string>("a terminal")
 
     await expect(opened.next(50)).rejects.toThrow("waiting for a terminal")
-    opened.push("t2")
-    await expect(opened.next(50)).resolves.toBe("t2")
+    opened.push("fox")
+    await expect(opened.next(50)).resolves.toBe("fox")
   })
 })
 
@@ -281,11 +281,11 @@ describe("terminalsReport", () => {
   it("gives each terminal its agent and screen", () => {
     expect(
       terminalsReport([
-        { handle: "t1", doing: "idle, no request waiting", screen: "❯" },
-        { handle: "t2", doing: "working, no request waiting", screen: "Allow?" },
+        { handle: "moth", doing: "idle, no request waiting", screen: "❯" },
+        { handle: "fox", doing: "working, no request waiting", screen: "Allow?" },
       ]),
     ).toBe(
-      "t1, its agent: idle, no request waiting. Its screen:\n❯\nt2, its agent: working, no request waiting. Its screen:\nAllow?",
+      "moth, its agent: idle, no request waiting. Its screen:\n❯\nfox, its agent: working, no request waiting. Its screen:\nAllow?",
     )
   })
 
@@ -293,13 +293,13 @@ describe("terminalsReport", () => {
     const rows = Array.from({ length: 100 }, (_, index) => `row ${index}`).join("\n")
     const report = terminalsReport(
       [
-        { handle: "t1", doing: "idle", screen: rows },
-        { handle: "t2", doing: "idle", screen: "short" },
+        { handle: "moth", doing: "idle", screen: rows },
+        { handle: "fox", doing: "idle", screen: "short" },
       ],
       400,
     )
 
-    expect(report).toContain("t2, its agent: idle. Its screen:\nshort")
+    expect(report).toContain("fox, its agent: idle. Its screen:\nshort")
     expect(report).toContain("… (cut)\n")
     expect(report).toContain("row 99")
     expect(report).not.toContain("row 0\n")

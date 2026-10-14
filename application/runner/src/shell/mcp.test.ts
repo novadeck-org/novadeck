@@ -167,7 +167,8 @@ describe("Novadeck's MCP server", () => {
       answer = {
         ok: true,
         terminalId: "t",
-        handle: "t2",
+        handle: "fox",
+        title: "claude",
         cwd: "/work/app",
         command: "claude",
       }
@@ -192,7 +193,10 @@ describe("Novadeck's MCP server", () => {
       ])
       expect(opened?.result).toEqual({
         content: [
-          { type: "text", text: "Opened a new terminal, t2, running claude in /work/app." },
+          {
+            type: "text",
+            text: "Opened a new terminal, @fox · claude, running claude in /work/app.",
+          },
         ],
         isError: false,
       })
@@ -221,12 +225,13 @@ describe("Novadeck's MCP server", () => {
       answer = {
         ok: true,
         terminalId: "t",
-        handle: "t3",
+        handle: "owl",
+        title: "codex",
         cwd: "/work",
         command: 'codex "[Novadeck: automatic notice, agent messages waiting, k3f9q2]"',
         task: {
           ok: true,
-          to: "t3",
+          to: "owl",
           id: "m-1",
           state: "queued",
           route: "when its agent first prompts",
@@ -244,7 +249,7 @@ describe("Novadeck's MCP server", () => {
         { type: "open", request: { agent: "codex", message: "Review a.ts" } },
       ])
       expect((opened!.result as { content: { text: string }[] }).content[0]?.text).toMatch(
-        /, t3, running codex .* Its task, message m-1, waits for the agent's first session there/,
+        /, @owl · codex, running codex .* Its task, message m-1, waits for the agent's first session there/,
       )
       answer = { ...(answer as object), task: { ok: false, reason: "Too many messages." } }
       const [, unsent] = await session(terminal(), [
@@ -281,13 +286,16 @@ describe("Novadeck's MCP server", () => {
           {
             id: 3,
             method: "tools/call",
-            params: { name: "close_terminal", arguments: { to: "t2", force: true } },
+            params: {
+              name: "close_terminal",
+              arguments: { to: "fox", force: true },
+            },
           },
         ])
         return closed?.result as { content: { text: string }[]; isError: boolean }
       }
-      await expect(said({ ok: true, handle: "t2" })).resolves.toEqual({
-        content: [{ type: "text", text: "Closed t2." }],
+      await expect(said({ ok: true, handle: "fox", title: "api-server" })).resolves.toEqual({
+        content: [{ type: "text", text: "Closed @fox · api-server." }],
         isError: false,
       })
       expect(calls).toEqual([
@@ -295,35 +303,55 @@ describe("Novadeck's MCP server", () => {
           type: "close",
           terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
           token,
-          request: { to: "t2" },
+          request: { to: "fox" },
         },
       ])
       const lost = await said({
         ok: true,
-        handle: "t2",
+        handle: "fox",
+        title: "api-server",
         ran: "Codex",
         gone: [
-          { id: "m-1", to: "t2" },
-          { id: "m-0", to: "t3" },
+          { id: "m-1", to: "fox" },
+          { id: "m-0", to: "owl" },
         ],
         others: 2,
       })
       expect(lost.content[0]?.text).toBe(
         [
-          "Closed t2, which ran Codex.",
-          "Your message m-1 to t2 won't arrive, as that terminal is closed.",
-          "Your earlier message m-0 to t3 won't arrive: the agent session it was for ended there.",
+          "Closed @fox · api-server, which ran Codex.",
+          "Your message m-1 to @fox won't arrive, as that terminal is closed.",
+          "Your earlier message m-0 to @owl won't arrive: the agent session it was for ended there.",
           "2 messages other agents sent it won't arrive; Novadeck tells their senders.",
         ].join("\n"),
       )
-      const one = await said({ ok: true, handle: "t2", others: 1 })
+      const one = await said({
+        ok: true,
+        handle: "fox",
+        title: "api-server",
+        others: 1,
+      })
       expect(one.content[0]?.text).toContain(
         "1 message another agent sent it won't arrive; Novadeck tells their senders.",
       )
-      await expect(said({ ok: false, reason: "t1 is your own terminal." })).resolves.toEqual({
-        content: [{ type: "text", text: "t1 is your own terminal." }],
+      await expect(said({ ok: false, reason: "moth is your own terminal." })).resolves.toEqual({
+        content: [{ type: "text", text: "moth is your own terminal." }],
         isError: true,
       })
+    })
+
+    it("tells agents to write a terminal's handle with @ and its title to the user, and takes it either way", async () => {
+      const [, tools] = await session(terminal(), [initialize, list])
+      const described = tools?.result?.tools as {
+        name: string
+        description: string
+      }[]
+      const agents = described.find((tool) => tool.name === "agents")!
+      expect(agents.description).toContain(
+        "write its handle with @ and its title, as `@fox · api-server`",
+      )
+      for (const name of ["send", "close_terminal"])
+        expect(described.find((tool) => tool.name === name)!.description).toContain("such as @fox")
     })
 
     it("tells agents to show deliverables when done, never each file they touch", async () => {
@@ -369,7 +397,11 @@ describe("Novadeck's MCP server", () => {
           params: {
             name: "summarize",
             // No target and no title are arguments it takes.
-            arguments: { summary: "Builds the users API.", to: "t2", title: "Evil" },
+            arguments: {
+              summary: "Builds the users API.",
+              to: "fox",
+              title: "Evil",
+            },
           },
         },
       ])
@@ -547,14 +579,14 @@ describe("Novadeck's MCP server", () => {
           name: ".env",
           opened: false,
           again: true,
-          moved: "to t2",
+          moved: "to fox",
           held: true,
         }),
       ).resolves.toMatchObject({
         content: [
           {
             type: "text",
-            text: ".env was moved by the user to t2, so it's updated there. It may hold secrets, so it doesn't open by itself.",
+            text: ".env was moved by the user to fox, so it's updated there. It may hold secrets, so it doesn't open by itself.",
           },
         ],
       })
@@ -631,7 +663,7 @@ describe("Novadeck's MCP server", () => {
         {
           id: 7,
           method: "tools/call",
-          params: { name: "close_terminal", arguments: { to: "t2" } },
+          params: { name: "close_terminal", arguments: { to: "fox" } },
         },
       ])
       expect(tools?.result?.tools).toEqual([])
@@ -642,7 +674,7 @@ describe("Novadeck's MCP server", () => {
 
     it("sends a message through the terminal's runner, and says where it is", async () => {
       calls.length = 0
-      const said = async (runner: unknown, args: object = { to: "t2", text: "Review a.ts" }) => {
+      const said = async (runner: unknown, args: object = { to: "fox", text: "Review a.ts" }) => {
         answer = runner
         const [, sent] = await session(terminal(), [
           initialize,
@@ -653,37 +685,37 @@ describe("Novadeck's MCP server", () => {
       const queued = await said(
         {
           ok: true,
-          to: "t2",
+          to: "fox",
           id: "m-1",
           state: "queued",
           route: "when its current turn ends",
         },
-        { to: "t2", text: "Review a.ts", from: "the person" },
+        { to: "fox", text: "Review a.ts", from: "the person" },
       )
       expect(calls).toEqual([
         {
           type: "send",
           terminalId: "3f1c2b1e-0000-4000-8000-000000000001",
           token,
-          request: { to: "t2", text: "Review a.ts" },
+          request: { to: "fox", text: "Review a.ts" },
         },
       ])
       expect(queued.isError).toBe(false)
       expect(queued.content[0]?.text).toContain(
-        "Message m-1 to t2 is queued: it reaches them when its current turn ends.",
+        "Message m-1 to @fox is queued: it reaches them when its current turn ends.",
       )
       expect(queued.content[0]?.text).toContain("End your turn rather than wait")
       const held = await said({
         ok: true,
-        to: "t2",
+        to: "fox",
         id: "m-2",
         state: "held",
         held: "release",
-        gone: [{ id: "m-0", to: "t3" }],
+        gone: [{ id: "m-0", to: "owl" }],
         unbound: true,
       })
       expect(held.content[0]?.text).toContain("waits for the user to release it")
-      expect(held.content[0]?.text).toContain("m-0 to t3 won't arrive")
+      expect(held.content[0]?.text).toContain("m-0 to @owl won't arrive")
       expect(held.content[0]?.text).toContain("/hooks")
       const refused = await said({ ok: false, reason: '"codex" is no terminal\'s handle here.' })
       expect(refused).toEqual({
@@ -691,9 +723,13 @@ describe("Novadeck's MCP server", () => {
         isError: true,
       })
       // Refused, from a terminal whose own session never bound: told both.
-      const unbound = await said({ ok: false, reason: "t2 has no agent.", unbound: true })
+      const unbound = await said({
+        ok: false,
+        reason: "fox has no agent.",
+        unbound: true,
+      })
       expect(unbound).toEqual({
-        content: [{ type: "text", text: `t2 has no agent.\n${unboundNote}` }],
+        content: [{ type: "text", text: `fox has no agent.\n${unboundNote}` }],
         isError: true,
       })
     })
@@ -725,7 +761,7 @@ describe("Novadeck's MCP server", () => {
     it("lists the project's other terminals as the runner renders them", async () => {
       calls.length = 0
       const text =
-        "You are t1 in Novadeck.\nThere are no other terminals in this project and session."
+        "You are @moth in Novadeck.\nThere are no other terminals in this project and session."
       answer = { ok: true, text }
       const [, listed] = await session(terminal(), [
         initialize,

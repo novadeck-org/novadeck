@@ -13,8 +13,8 @@ import {
   type Naming,
 } from "./naming.js"
 
-const terminal = { handle: "t3" }
-const agent = { title: "Login fix", by: "t1" }
+const terminal = { command: null }
+const agent = { title: "Login fix", by: "moth" }
 const murmur = { title: "Fixing login" }
 
 describe("a terminal's title", () => {
@@ -27,10 +27,10 @@ describe("a terminal's title", () => {
     })
     expect(titleOf({ ...named, person: null, murmur: null }, terminal)).toEqual({
       title: "Login fix",
-      source: { kind: "agent", by: "t1" },
+      source: { kind: "agent", by: "moth" },
     })
     expect(titleOf(unnamed, terminal)).toEqual({
-      title: "Terminal 03",
+      title: "Terminal",
       source: { kind: "default" },
     })
   })
@@ -41,10 +41,23 @@ describe("a terminal's title", () => {
     })
   })
 
-  it("is the session's default by its handle's number", () => {
-    expect(defaultTitle("t3")).toBe("Terminal 03")
-    expect(defaultTitle("t104")).toBe("Terminal 104")
-    expect(titleOf(unnamed, { handle: "t12" }).title).toBe("Terminal 12")
+  it("is by default the program the terminal was opened to run, else Terminal", () => {
+    expect(defaultTitle("claude")).toBe("claude")
+    expect(defaultTitle("claude --resume abc")).toBe("claude")
+    expect(defaultTitle("/usr/local/bin/codex 'fix it'")).toBe("codex")
+    expect(defaultTitle("pnpm dev")).toBe("pnpm")
+    expect(defaultTitle("")).toBe("Terminal")
+    expect(defaultTitle("   ")).toBe("Terminal")
+    expect(defaultTitle("' ' ls")).toBe("Terminal")
+    expect(defaultTitle(`'${"x".repeat(201)}' --flag`)).toBe("Terminal")
+    expect(defaultTitle("cd app && pnpm dev")).toBe("pnpm")
+    expect(defaultTitle("cd a; cd b && claude")).toBe("claude")
+    expect(defaultTitle("cd app")).toBe("cd")
+    expect(defaultTitle("API_KEY=sk-123 npm run dev")).toBe("npm")
+    expect(defaultTitle("env A=1 B=2 /usr/bin/codex")).toBe("codex")
+    expect(defaultTitle("A=1")).toBe("Terminal")
+    expect(defaultTitle(null)).toBe("Terminal")
+    expect(titleOf(unnamed, { command: "claude" }).title).toBe("claude")
   })
 })
 
@@ -58,18 +71,18 @@ describe("naming a terminal", () => {
   })
 
   it("takes the title an opener asked for as that agent's, beneath murmur's and the person's", () => {
-    expect(openedWith(unnamed, "Server", "t1")).toEqual({
+    expect(openedWith(unnamed, "Server", "moth")).toEqual({
       ...unnamed,
-      agent: { title: "Server", by: "t1" },
+      agent: { title: "Server", by: "moth" },
     })
-    const opened = openedWith(murmured(unnamed, "Fixing login"), "Server", "t1")
+    const opened = openedWith(murmured(unnamed, "Fixing login"), "Server", "moth")
     expect(titleOf(opened, terminal).title).toBe("Fixing login")
-    expect(openedWith(renamed(unnamed, "Mine"), "Server", "t1").person).toBe("Mine")
+    expect(openedWith(renamed(unnamed, "Mine"), "Server", "moth").person).toBe("Mine")
   })
 
   it("keeps the opening agent's title as it is while murmur titles, and replaces murmur's each time", () => {
-    const first = murmured(openedWith(unnamed, "Server", "t1"), "Fixing login")
-    expect(first.agent).toEqual({ title: "Server", by: "t1" })
+    const first = murmured(openedWith(unnamed, "Server", "moth"), "Fixing login")
+    expect(first.agent).toEqual({ title: "Server", by: "moth" })
     const next = murmured(first, "Fixing signup")
     expect(next.murmur).toEqual({ title: "Fixing signup" })
     expect(next.agent).toEqual(first.agent)

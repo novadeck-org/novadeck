@@ -48,7 +48,7 @@ describe("responses", () => {
     expect(first?.role).toBe("user")
     expect(first?.role === "user" && first.text).toContain("call send now")
     expect(first?.role === "user" && first.text).toContain(
-      '<novadeck-messages from="t1">prompt-delivery</novadeck-messages>',
+      '<novadeck-messages from="moth">prompt-delivery</novadeck-messages>',
     )
   })
 
@@ -64,13 +64,13 @@ describe("responses", () => {
     const [, asked, result, said] = call.turns
     expect(asked).toMatchObject({
       role: "assistant",
-      calls: [{ name: "mcp__novadeck.send", input: { to: "t2", text: "ping" } }],
+      calls: [{ name: "mcp__novadeck.send", input: { to: "fox", text: "ping" } }],
     })
     expect(result).toMatchObject({
       role: "tool",
       id: asked?.role === "assistant" ? asked.calls[0]?.id : "",
     })
-    expect(result?.role === "tool" && result.text).toContain('sent {"to":"t2","text":"ping"}')
+    expect(result?.role === "tool" && result.text).toContain('sent {"to":"fox","text":"ping"}')
     expect(said).toMatchObject({ role: "assistant", text: "Hello from fake", calls: [] })
     expect(latest(call)).toMatch(/^<hook_prompt /)
   })
@@ -138,21 +138,23 @@ describe("responses", () => {
 
   it("sends a call to a namespaced tool back in its namespace", async () => {
     const { events: streamed } = await answer(turn, (call) => ({
-      calls: [{ name: tool(call, "send") ?? "", input: { to: "t1", text: "pong" } }],
+      calls: [{ name: tool(call, "send") ?? "", input: { to: "moth", text: "pong" } }],
     }))
     const done = streamed.find((one) => one.type === "response.output_item.done")?.data.item
     expect(done).toMatchObject({
       type: "function_call",
       namespace: "mcp__novadeck",
       name: "send",
-      arguments: JSON.stringify({ to: "t1", text: "pong" }),
+      arguments: JSON.stringify({ to: "moth", text: "pong" }),
     })
     // Replayed in the next request, as Codex does, it reads as the same call.
     const body = JSON.parse(turn.body)
     const next = parse({ ...body, input: [...body.input, done] })
     expect(next.turns.at(-1)).toMatchObject({
       role: "assistant",
-      calls: [{ id: done.call_id, name: "mcp__novadeck.send", input: { to: "t1", text: "pong" } }],
+      calls: [
+        { id: done.call_id, name: "mcp__novadeck.send", input: { to: "moth", text: "pong" } },
+      ],
     })
   })
 

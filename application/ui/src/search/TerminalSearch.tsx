@@ -4,11 +4,15 @@ import { useEffect, useRef, useState } from "react"
 import { isWindow } from "../model/roster"
 import type { Tile } from "../model/types"
 import { Dialog } from "../ui-toolkit/Dialog"
+import { HandleChip } from "../ui-toolkit/HandleChip"
 import { SearchCombobox } from "../ui-toolkit/SearchCombobox"
 
 // What a result says of where it runs. A window runs nothing, so only its name finds it.
 const detail = (tile: Tile): { readonly command: string; readonly directory: string } =>
   isWindow(tile) ? { command: "window", directory: "" } : tile
+
+// The handle a result is found by, typed with or without its `@`.
+const handleOf = (tile: Tile): string => (isWindow(tile) ? "" : (tile.handle ?? ""))
 
 export const TerminalSearch = ({
   open,
@@ -31,7 +35,9 @@ export const TerminalSearch = ({
     if (open) chosen.current = null
   }, [open])
   const matches = terminals.filter((terminal) =>
-    `${terminal.name} ${detail(terminal).directory}`.toLowerCase().includes(query.toLowerCase()),
+    `${terminal.name} ${handleOf(terminal)} ${detail(terminal).directory}`
+      .toLowerCase()
+      .includes(query.trim().replace(/^@/, "").toLowerCase()),
   )
   const select = (id: string): void => {
     chosen.current = id
@@ -91,9 +97,12 @@ export const TerminalSearch = ({
             <>
               <TerminalIcon size={14} strokeWidth={1.5} />
               <span className="search-result-copy flex min-w-0 flex-1 flex-col gap-1.5">
-                <strong className="truncate text-body leading-4 font-medium">
-                  {terminal.name}
-                </strong>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {!isWindow(terminal) && <HandleChip handle={terminal.handle} />}
+                  <strong className="truncate text-body leading-4 font-medium">
+                    {terminal.name}
+                  </strong>
+                </span>
                 <small className="item-detail search-result-meta flex min-w-0 items-center gap-2 text-caption">
                   <span className="shrink-0">{detail(terminal).command}</span>
                   <span className="search-result-path truncate pl-2">

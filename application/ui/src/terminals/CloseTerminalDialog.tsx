@@ -1,9 +1,10 @@
+import { handleText } from "../model/handle"
 import type { TerminalMetadata } from "../model/types"
 import { ConfirmDialog } from "../ui-toolkit/ConfirmDialog"
 
 export type CloseTerminalDialogProps = {
   // The terminal waiting to close, or null when nothing asks.
-  readonly terminal: Pick<TerminalMetadata, "id" | "name" | "process"> | null
+  readonly terminal: Pick<TerminalMetadata, "id" | "name" | "process" | "handle"> | null
   readonly onConfirm: () => void
   readonly onCancel: () => void
   // Where focus goes back when the person keeps the terminal.
@@ -20,7 +21,9 @@ export const CloseTerminalDialog = ({
 }: CloseTerminalDialogProps): React.JSX.Element => (
   <ConfirmDialog
     subject={terminal}
-    title={(shown) => `Close “${shown.name}”?`}
+    title={(shown) =>
+      `Close ${shown.handle ? `${handleText(shown.handle)} · ` : ""}“${shown.name}”?`
+    }
     description={(shown) => `${shown.process || "A program"} is still running in it.`}
     confirmLabel="Close terminal"
     cancelLabel="Cancel"

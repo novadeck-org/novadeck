@@ -16,7 +16,7 @@ export type AgentMessage = {
   readonly id: string
   // Its place in its thread, counted from 1.
   readonly hop: number
-  // The sender's and recipient's handles, such as `t3`.
+  // The sender's and recipient's handles, such as `moth`.
   readonly from: string
   readonly to: string
   readonly text: string

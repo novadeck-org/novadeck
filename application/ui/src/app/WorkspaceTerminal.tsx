@@ -31,7 +31,7 @@ import {
   runningLeads,
   sameTarget,
   shallowEqual,
-  terminalNames,
+  terminalOrigins,
   windowedDestination,
 } from "./selectors"
 import { useTerminalBar } from "./terminal-bar"
@@ -162,7 +162,7 @@ export const WorkspaceTerminal = ({
   }, shallowEqual)
   const { projectId, workspaceSessionId } = useWorkspaceState(currentTarget, sameTarget)
   const chatContext = `${projectId}/${workspaceSessionId}`
-  const terminalName = useWorkspaceState(terminalNames, shallowEqual)
+  const terminalName = useWorkspaceState(terminalOrigins, shallowEqual)
   const names = useWorkspaceState(handleNames, shallowEqual)
   const lead = useWorkspaceState((workspace) => runningLeads(workspace)[terminalId], shallowEqual)
   const { keyboardFocus, fontSize } = useUiState(

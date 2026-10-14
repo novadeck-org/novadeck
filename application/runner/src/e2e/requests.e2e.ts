@@ -41,9 +41,9 @@ const doubleEscapeMs = 300
 // The model's replies for t2 telling t1 the news, and for t1 noting it once a delivery
 // brings it.
 const news: Rule[] = [
-  sends("Tell t1 the news", "t1", "The build is green."),
-  own((call) => (sent(call, "t1") ? { text: "Told t1." } : undefined)),
-  own((call) => (delivered(call, "t2") ? { text: "Noted the news." } : undefined)),
+  sends("Tell moth the news", "moth", "The build is green."),
+  own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+  own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
 ]
 
 /**
@@ -54,7 +54,7 @@ const news: Rule[] = [
  */
 const carried = async (model: FakeModel, t1: DeckTerminal, calls: number) => {
   if (process.platform !== "win32") await t1.submit("Carry on")
-  return await model.waitFor((call) => delivered(call, "t2"), { after: calls })
+  return await model.waitFor((call) => delivered(call, "fox"), { after: calls })
 }
 
 // With the news, t1 makes the file through a tool its harness asks the person about
@@ -102,11 +102,11 @@ const continued = async (
       call.turns.some((one) => one.role === "user" && one.text.includes("Make the file")),
     { after: calls },
   )
-  const carrying = await model.waitFor((call) => delivered(call, "t2"), { after: calls })
+  const carrying = await model.waitFor((call) => delivered(call, "fox"), { after: calls })
   // The one message, which Claude Code's continuation quotes twice: as the Stop hook's
   // feedback and again as its blocking error (2.1.287).
   expect(new Set(deliveries(carrying).map((one) => JSON.stringify(one)))).toEqual(
-    new Set([JSON.stringify({ from: "t2", text: "The build is green." })]),
+    new Set([JSON.stringify({ from: "fox", text: "The build is green." })]),
   )
   expect(model.calls.indexOf(carrying)).toBeGreaterThan(model.calls.indexOf(looked))
   // The turn the tool ran in, its answer to the result last before the delivery: a Stop
@@ -120,7 +120,7 @@ const continued = async (
   expect(latest(carrying)).not.toContain("Make the file")
 
   await t1.until("Noted the news.")
-  const settled = await through(t1, [holds("t2", "t1", "delivered"), "settled"], {
+  const settled = await through(t1, [holds("fox", "moth", "delivered"), "settled"], {
     after: mark,
   })
   const states = t1
@@ -131,7 +131,7 @@ const continued = async (
   expect(turned.length > 0 && turned.every((one) => one === "working")).toBe(true)
   expect(states).not.toContain("ringing")
   expect(messages(t1).map((one) => [one.from, one.to, one.state])).toEqual([
-    ["t2", "t1", "delivered"],
+    ["fox", "moth", "delivered"],
   ])
   expect((await t1.detail()).requests).toEqual([])
 }
@@ -147,7 +147,7 @@ for (const setup of setups) {
         run.model.use(...rules(answers("Make the file", (call) => approval!.request(call))))
         const t1 = await start(run, setup)
         const t2 = await start(run, setup)
-        expect([t1.handle, t2.handle]).toEqual(["t1", "t2"])
+        expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
         const calls = run.model.mark()
         const mark = t1.mark()
 
@@ -158,9 +158,9 @@ for (const setup of setups) {
           async () => {
             await t1.submit("Make the file")
             await requested(t1)
-            await t2.submit("Tell t1 the news")
-            await t2.until("Told t1.")
-            const queued = await t1.reached(holds("t2", "t1", "queued"), { after: mark })
+            await t2.submit("Tell moth the news")
+            await t2.until("Told moth.")
+            const queued = await t1.reached(holds("fox", "moth", "queued"), { after: mark })
             await sleep(unrung)
             const since = t1
               .history()
@@ -195,7 +195,7 @@ for (const setup of setups) {
         )
         const t1 = await start(run, setup)
         const t2 = await start(run, setup)
-        expect([t1.handle, t2.handle]).toEqual(["t1", "t2"])
+        expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
         const calls = run.model.mark()
         const mark = t1.mark()
 
@@ -204,8 +204,8 @@ for (const setup of setups) {
           after: calls,
         })
         await t1.reached("working", { after: mark })
-        await t2.submit("Tell t1 the news")
-        await t1.reached(holds("t2", "t1", "queued"), { after: mark })
+        await t2.submit("Tell moth the news")
+        await t1.reached(holds("fox", "moth", "queued"), { after: mark })
 
         // The person answers the question with Enter while the message waits: an answer to
         // the request, not a prompt they submitted or queued.
@@ -234,7 +234,7 @@ for (const setup of setups) {
         run.model.use(replies("Say hi", "Hi there."), replies("Carry on", "Carried on."), ...news)
         const t1 = await start(run, setup)
         const t2 = await start(run, setup)
-        expect([t1.handle, t2.handle]).toEqual(["t1", "t2"])
+        expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
         await turn(t1, "Say hi", "Hi there.")
         // A TUI still draws its turn's end after its Stop (Codex's "Worked for" rule), and
         // an Escape before that interrupts the turn instead.
@@ -248,13 +248,13 @@ for (const setup of setups) {
         t1.press("\x1b")
         await t1.until(shows)
         const calls = run.model.mark()
-        await t2.submit("Tell t1 the news")
+        await t2.submit("Tell moth the news")
 
         if (swallows) {
           if (process.platform === "win32") {
             // On Windows the doorbell's gate rings only where the agent's box shows, which
             // what Esc-Esc opened hides: no ring starts, and nothing is pasted at all.
-            await through(t1, [holds("t2", "t1", "queued")], { after: mark })
+            await through(t1, [holds("fox", "moth", "queued")], { after: mark })
             await sleep(quiet)
             expect(
               t1
@@ -264,7 +264,7 @@ for (const setup of setups) {
             ).not.toContain("ringing")
           } else {
             // It swallows the paste: the ring fails, nothing is pressed, Unknown.
-            await through(t1, [holds("t2", "t1", "queued"), "ringing", "unknown"], {
+            await through(t1, [holds("fox", "moth", "queued"), "ringing", "unknown"], {
               after: mark,
             })
             await sleep(quiet)
@@ -286,7 +286,7 @@ for (const setup of setups) {
           const next = t1.mark()
           const carrying = await carried(run.model, t1, calls)
           expect(latest(carrying)).toMatch(process.platform === "win32" ? ring : /Carry on/)
-          await through(t1, ["working", holds("t2", "t1", "delivered"), "settled"], {
+          await through(t1, ["working", holds("fox", "moth", "delivered"), "settled"], {
             after: next,
           })
           return
@@ -297,7 +297,7 @@ for (const setup of setups) {
           // On Windows a paste there would reach it as keys, its rewind among them: the
           // doorbell's gate, which needs the agent's box taking a prompt, rings only once the
           // person has left it.
-          await through(t1, [holds("t2", "t1", "queued")], { after: mark })
+          await through(t1, [holds("fox", "moth", "queued")], { after: mark })
           await sleep(quiet)
           expect(
             t1
@@ -310,8 +310,10 @@ for (const setup of setups) {
         }
         // The paste leaves it and lands in the prompt: the ring goes on as at an empty
         // prompt, its own line the prompt, and nothing was rewound.
-        await through(t1, ["ringing", "working", holds("t2", "t1", "delivered")], { after: rings })
-        const rung = await run.model.waitFor((call) => delivered(call, "t2"), { after: calls })
+        await through(t1, ["ringing", "working", holds("fox", "moth", "delivered")], {
+          after: rings,
+        })
+        const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
         expect(latest(rung)).toMatch(ring)
         expect(rung.turns.some((one) => one.role === "user" && one.text.includes("Say hi"))).toBe(
           true,
@@ -340,7 +342,7 @@ for (const setup of setups) {
         )
         const t1 = await start(run, setup)
         const t2 = await start(run, setup)
-        expect([t1.handle, t2.handle]).toEqual(["t1", "t2"])
+        expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
         const first = run.model.mark()
         await turn(t1, "Say hi", "Hi there.")
         const said = await run.model.waitFor((call) => !call.side && asked(call, "Say hi"), {
@@ -351,12 +353,12 @@ for (const setup of setups) {
         await t1.until(shows)
         const mark = t1.mark()
         const calls = run.model.mark()
-        await t2.submit("Tell t1 the news")
+        await t2.submit("Tell moth the news")
 
         if (process.platform === "win32") {
           // On Windows a paste may reach the harness as keys, so the doorbell's gate rings
           // only where the agent's box shows: none starts, and nothing is pasted at all.
-          await through(t1, [holds("t2", "t1", "queued")], { after: mark })
+          await through(t1, [holds("fox", "moth", "queued")], { after: mark })
           await sleep(quiet)
           expect(
             t1
@@ -366,7 +368,7 @@ for (const setup of setups) {
           ).not.toContain("ringing")
         } else {
           // The ring's test paste meets the popup and fails: nothing is pressed, Unknown.
-          await through(t1, [holds("t2", "t1", "queued"), "ringing", "unknown"], { after: mark })
+          await through(t1, [holds("fox", "moth", "queued"), "ringing", "unknown"], { after: mark })
           await sleep(quiet)
           expect(t1.history().at(-1)?.delivery).toBe("unknown")
         }
@@ -387,7 +389,7 @@ for (const setup of setups) {
         expect(latest(carrying)).toMatch(process.platform === "win32" ? ring : /Carry on/)
         expect(carrying.model).toBe(said.model)
         await t1.until("Noted the news.")
-        await through(t1, ["working", holds("t2", "t1", "delivered"), "settled"], {
+        await through(t1, ["working", holds("fox", "moth", "delivered"), "settled"], {
           after: next,
         })
       },

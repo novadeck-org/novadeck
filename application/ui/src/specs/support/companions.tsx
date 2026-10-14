@@ -22,7 +22,7 @@ const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\
 
 /**
  * An icon on a terminal's taskbar by how it reads, without what follows its first comma
- * unless given: `Plan: refactor-auth.md`, `2 images`, `hero.png, from Build Studio`.
+ * unless given: `Plan: refactor-auth.md`, `2 images`, `hero.png, from @moth · Build Studio`.
  */
 export const taskbarIcon = (name: string, label: string): Locator =>
   taskbar(name).getByRole("button", { name: new RegExp(`^${escaped(label)}(,|$)`) })

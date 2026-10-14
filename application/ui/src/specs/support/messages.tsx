@@ -39,7 +39,7 @@ export const openMessages = async (name: string): Promise<Locator> => {
 
 /** A thread in a messages pane, by the peer's name and handle. */
 export const thread = (pane: Locator, peer: string, handle: string): Locator =>
-  pane.getByRole("region", { name: `Thread with ${peer} (${handle})` })
+  pane.getByRole("region", { name: `Thread with ${peer} (@${handle})` })
 
 /** The messages of a thread, oldest first, as their items read. */
 export const messageItems = (within: Locator): Locator => within.getByRole("listitem")

@@ -1,12 +1,15 @@
 import { z } from "zod"
 
+import { bareHandle, mention } from "./handles.js"
 import { allowOpen } from "./opens.js"
 
 /**
  * What an agent asks to close, through Novadeck's MCP server: another terminal of its
  * project and session, by its exact handle, as `send` names its recipient.
  */
-export const closeRequest = z.strictObject({ to: z.string().min(1).max(64) })
+export const closeRequest = z.strictObject({
+  to: z.string().min(1).max(65).transform(bareHandle),
+})
 
 export type CloseRequest = z.infer<typeof closeRequest>
 
@@ -22,6 +25,8 @@ export type CloseAnswer =
   | {
       readonly ok: true
       readonly handle: string
+      /** Its title, as the person sees it. */
+      readonly title: string
       /** The agent that ran there, as agents read its name, such as Codex. */
       readonly ran?: string
       readonly gone?: readonly { readonly id: string; readonly to: string }[]
@@ -43,7 +48,7 @@ export const readCloseRequest = (
 
 /** What a terminal's agent hears when it asks to close its own terminal. */
 export const selfRefusal = (handle: string): string =>
-  `${handle} is your own terminal, which close_terminal never closes; to end your own ` +
+  `${mention(handle)} is your own terminal, which close_terminal never closes; to end your own ` +
   "session, use your harness's own way to exit."
 
 /** What an agent hears once agents have closed as many terminals as they may for now. */

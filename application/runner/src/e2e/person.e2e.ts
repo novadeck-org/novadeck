@@ -74,8 +74,8 @@ for (const setup of setups) {
     }) => {
       run.model.use(
         replies("Warm up", "Warmed up."),
-        sends("Tell t1 the news", "t1", "The build is green."),
-        own((call) => (sent(call, "t1") ? { text: "Told t1." } : undefined)),
+        sends("Tell moth the news", "moth", "The build is green."),
+        own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
         own((call) => (asked(call, "about the weather") ? { text: "Sunny all day." } : undefined)),
       )
       const t1 = await start(run, setup)
@@ -90,8 +90,8 @@ for (const setup of setups) {
       const drafting = await t1.reached("drafting", { after: mark })
 
       // A message comes for t1: it waits, and t1 is never rung.
-      await message(t2, t1, "Tell t1 the news")
-      await unrungFor(t1, "t2", drafting.index)
+      await message(t2, t1, "Tell moth the news")
+      await unrungFor(t1, "fox", drafting.index)
 
       // They finish the sentence and submit it: their prompt's hook delivers the message
       // beside it, and the turn is theirs.
@@ -100,9 +100,9 @@ for (const setup of setups) {
         after: calls,
       })
       expect(latest(prompt)).toContain("Tell me about the weather")
-      expect(deliveries(prompt)).toEqual([{ from: "t2", text: "The build is green." }])
+      expect(deliveries(prompt)).toEqual([{ from: "fox", text: "The build is green." }])
       await t1.until("Sunny all day.")
-      await through(t1, ["working", holds("t2", "t1", "delivered"), "settled"], {
+      await through(t1, ["working", holds("fox", "moth", "delivered"), "settled"], {
         after: drafting.index,
       })
       expect(carried(run, calls)).toEqual([prompt])
@@ -121,8 +121,8 @@ for (const setup of setups) {
           await held.opened
           return { text: "Long job done." }
         }),
-        sends("Tell t1 the plan", "t1", "The plan is ready."),
-        own((call) => (sent(call, "t1") ? { text: "Told t1." } : undefined)),
+        sends("Tell moth the plan", "moth", "The plan is ready."),
+        own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
         replies("Then sum it up", "Summed up."),
       )
       const t1 = await start(run, setup)
@@ -133,7 +133,7 @@ for (const setup of setups) {
       await t1.submit("Start the long job")
       await run.model.waitFor((call) => holding(call, "Start the long job"), { after: calls })
       await t1.reached("working", { after: mark })
-      await message(t2, t1, "Tell t1 the plan")
+      await message(t2, t1, "Tell moth the plan")
 
       // The person queues their next prompt while the turn runs.
       await t1.submit("Then sum it up")
@@ -143,9 +143,9 @@ for (const setup of setups) {
       const prompt = await run.model.waitFor((call) => holding(call, "Then sum it up"), {
         after: calls,
       })
-      expect(deliveries(prompt)).toEqual([{ from: "t2", text: "The plan is ready." }])
+      expect(deliveries(prompt)).toEqual([{ from: "fox", text: "The plan is ready." }])
       await t1.until("Summed up.")
-      await through(t1, [holds("t2", "t1", "delivered"), "settled"], { after: mark })
+      await through(t1, [holds("fox", "moth", "delivered"), "settled"], { after: mark })
       expect(carried(run, calls).every((call) => holding(call, "Then sum it up"))).toBe(true)
       expect(states(t1, mark)).not.toContain("ringing")
     })
@@ -161,9 +161,9 @@ for (const setup of setups) {
           await held.opened
           return { text: "Long job done." }
         }),
-        sends("Tell t1 the plan", "t1", "The plan is ready."),
-        sends("Tell t1 the date", "t1", "It ships on Friday."),
-        own((call) => (sent(call, "t1") ? { text: "Told t1." } : undefined)),
+        sends("Tell moth the plan", "moth", "The plan is ready."),
+        sends("Tell moth the date", "moth", "It ships on Friday."),
+        own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
         own((call) =>
           deliveries(call).some((one) => one.text === "The plan is ready.") &&
           !holding(call, "then sum it up")
@@ -187,7 +187,7 @@ for (const setup of setups) {
 
       // A message comes during the turn. The person submitted nothing, so the Stop
       // continues the turn with it ("States", Working), and the turn then ends Drafting.
-      await message(t2, t1, "Tell t1 the plan")
+      await message(t2, t1, "Tell moth the plan")
       held.open()
       const stopped = await run.model.waitFor(
         (call) => deliveries(call).some((one) => one.text === "The plan is ready."),
@@ -200,14 +200,14 @@ for (const setup of setups) {
 
       // A message coming now waits, never rung; their prompt, once submitted, carries it.
       const later = run.model.mark()
-      await message(t2, t1, "Tell t1 the date")
-      await unrungFor(t1, "t2", drafting.index)
+      await message(t2, t1, "Tell moth the date")
+      await unrungFor(t1, "fox", drafting.index)
       await t1.submit(", then sum it up")
       const prompt = await run.model.waitFor((call) => holding(call, "then sum it up"), {
         after: later,
       })
       expect(latest(prompt)).toContain("Read it, then sum it up")
-      expect(deliveries(prompt)).toEqual([{ from: "t2", text: "It ships on Friday." }])
+      expect(deliveries(prompt)).toEqual([{ from: "fox", text: "It ships on Friday." }])
       await t1.until("Summed up.")
       await through(t1, ["working", "settled"], { after: drafting.index })
       expect(carried(run, later)).toEqual([prompt])
@@ -218,8 +218,8 @@ for (const setup of setups) {
       e2e: run,
     }) => {
       run.model.use(
-        sends("Tell t1 the news", "t1", "The build is green."),
-        own((call) => (sent(call, "t1") ? { text: "Told t1." } : undefined)),
+        sends("Tell moth the news", "moth", "The build is green."),
+        own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
         replies("about the weather", "Sunny all day."),
       )
       const t1 = await start(run, setup)
@@ -232,17 +232,17 @@ for (const setup of setups) {
       await t1.until("Tell me")
       const drafting = await t1.reached("drafting", { after: mark })
 
-      await message(t2, t1, "Tell t1 the news")
-      await unrungFor(t1, "t2", mark)
+      await message(t2, t1, "Tell moth the news")
+      await unrungFor(t1, "fox", mark)
 
       await t1.submit(" about the weather")
       const prompt = await run.model.waitFor((call) => holding(call, "about the weather"), {
         after: calls,
       })
       expect(latest(prompt)).toContain("Tell me about the weather")
-      expect(deliveries(prompt)).toEqual([{ from: "t2", text: "The build is green." }])
+      expect(deliveries(prompt)).toEqual([{ from: "fox", text: "The build is green." }])
       await t1.until("Sunny all day.")
-      await through(t1, ["working", holds("t2", "t1", "delivered"), "settled"], {
+      await through(t1, ["working", holds("fox", "moth", "delivered"), "settled"], {
         after: drafting.index,
       })
       expect(carried(run, calls)).toEqual([prompt])
@@ -257,8 +257,8 @@ for (const setup of setups) {
       // outlives the deck, so the person presses Home here: the same rule.
       run.model.use(
         replies("Warm up", "Warmed up."),
-        sends("Tell t1 the news", "t1", "The build is green."),
-        own((call) => (sent(call, "t1") ? { text: "Told t1." } : undefined)),
+        sends("Tell moth the news", "moth", "The build is green."),
+        own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
         replies("What's new?", "The build is green, I hear."),
       )
       const t1 = await start(run, setup)
@@ -272,17 +272,17 @@ for (const setup of setups) {
       const drafting = await t1.reached("drafting", { after: mark })
 
       // A message comes for t1: it waits, and t1 is never rung.
-      await message(t2, t1, "Tell t1 the news")
-      await unrungFor(t1, "t2", drafting.index)
+      await message(t2, t1, "Tell moth the news")
+      await unrungFor(t1, "fox", drafting.index)
 
       // Their next prompt, which Home put nothing in front of, carries it.
       await t1.submit("What's new?")
       const prompt = await run.model.waitFor((call) => holding(call, "What's new?"), {
         after: calls,
       })
-      expect(deliveries(prompt)).toEqual([{ from: "t2", text: "The build is green." }])
+      expect(deliveries(prompt)).toEqual([{ from: "fox", text: "The build is green." }])
       await t1.until("The build is green, I hear.")
-      await through(t1, ["working", holds("t2", "t1", "delivered"), "settled"], {
+      await through(t1, ["working", holds("fox", "moth", "delivered"), "settled"], {
         after: drafting.index,
       })
       expect(carried(run, calls)).toEqual([prompt])
@@ -293,8 +293,8 @@ for (const setup of setups) {
       e2e: run,
     }) => {
       run.model.use(
-        sends("Tell t2 the news", "t2", "The build is green."),
-        own((call) => (sent(call, "t2") ? { text: "Told t2." } : undefined)),
+        sends("Tell fox the news", "fox", "The build is green."),
+        own((call) => (sent(call, "fox") ? { text: "Told fox." } : undefined)),
         replies("about the weather", "Sunny all day."),
       )
       const t1 = await start(run, setup)
@@ -318,8 +318,8 @@ for (const setup of setups) {
       const drafting = await t2.reached("drafting", { timeoutMs: 60_000 })
       expect(states(t2).find((state) => state !== "unbound")).toBe("drafting")
       await prompted(t2, setup)
-      await message(t1, t2, "Tell t2 the news")
-      await unrungFor(t2, "t1", 0)
+      await message(t1, t2, "Tell fox the news")
+      await unrungFor(t2, "moth", 0)
       expect(states(t2)).not.toContain("ready")
 
       // Whatever of the keys reached its box, the person's next prompt carries the message.
@@ -327,9 +327,9 @@ for (const setup of setups) {
       const prompt = await run.model.waitFor((call) => holding(call, "about the weather"), {
         after: calls,
       })
-      expect(deliveries(prompt)).toEqual([{ from: "t1", text: "The build is green." }])
+      expect(deliveries(prompt)).toEqual([{ from: "moth", text: "The build is green." }])
       await t2.until("Sunny all day.")
-      await through(t2, ["working", holds("t1", "t2", "delivered"), "settled"], {
+      await through(t2, ["working", holds("moth", "fox", "delivered"), "settled"], {
         after: drafting.index,
       })
       expect(carried(run, calls)).toEqual([prompt])
@@ -339,8 +339,8 @@ for (const setup of setups) {
       e2e: run,
     }) => {
       run.model.use(
-        sends("Tell t2 the news", "t2", "The build is green."),
-        own((call) => (sent(call, "t2") ? { text: "Told t2." } : undefined)),
+        sends("Tell fox the news", "fox", "The build is green."),
+        own((call) => (sent(call, "fox") ? { text: "Told fox." } : undefined)),
         own((call) => (deliveries(call).length > 0 ? { text: "Noted." } : undefined)),
       )
       const t1 = await start(run, setup)
@@ -350,16 +350,16 @@ for (const setup of setups) {
 
       // A pane changing size mid-ring, as a layout change or the companion bar makes it:
       // the resize redraws the screen the line is checked on, so it waits for the ring.
-      await t1.submit("Tell t2 the news")
+      await t1.submit("Tell fox the news")
       await t2.reached("ringing", { after: from2 })
       await sleep(40)
       t2.resize(120, 34)
 
       const rung = await run.model.waitFor((call) => deliveries(call).length > 0, { after: calls })
       expect(latest(rung)).toMatch(ring)
-      expect(deliveries(rung)).toEqual([{ from: "t1", text: "The build is green." }])
+      expect(deliveries(rung)).toEqual([{ from: "moth", text: "The build is green." }])
       await t2.until("Noted.")
-      await through(t2, ["ringing", "working", holds("t1", "t2", "delivered"), "settled"], {
+      await through(t2, ["ringing", "working", holds("moth", "fox", "delivered"), "settled"], {
         after: from2,
       })
       expect(t2.summary()).toMatchObject({ cols: 120, rows: 34 })

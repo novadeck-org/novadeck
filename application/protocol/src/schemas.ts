@@ -387,10 +387,11 @@ export const terminalTitle = z
     "A title must be one line, without control characters.",
   )
 
-// A terminal's handle: `t` and a number its Novadeck session gives it as it is created,
-// never twice, from the same count as its default title ("Terminal 03" is `t3`). It
-// stays as the terminal is renamed, and agents address each other by it.
-export const handle = z.string().regex(/^t[1-9][0-9]{0,8}$/)
+// A terminal's handle: a word its Novadeck session gives it as it is created, such as
+// `moth`, never twice; once a session has given every word, they come again with a
+// number, as `moth2`. It stays as the terminal is renamed, agents address each other by
+// it, and people read it as `@moth`.
+export const handle = z.string().regex(/^[a-z]{2,12}(?:[2-9]|[1-9][0-9]{1,8})?$/)
 
 // Who a terminal's title is from: the person; murmur, the local model that describes
 // terminals; an agent, by its terminal's handle (the one that opened it with a title); or
@@ -408,8 +409,8 @@ export const terminalSummary = z.strictObject({
   id,
   sessionId: id,
   // The title the person gave the terminal; else murmur's latest, if it is on; else the
-  // one the agent that opened it gave; else the runner's default for its session
-  // ("Terminal 01", "Terminal 02", … in the order they were created).
+  // one the agent that opened it gave; else the runner's default: the program the terminal
+  // was opened to run, as "claude", or "Terminal".
   title: terminalTitle,
   // Who the title is from.
   titleSource,

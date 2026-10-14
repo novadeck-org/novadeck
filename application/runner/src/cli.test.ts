@@ -129,7 +129,7 @@ describe("built runner CLI", () => {
     await expect(again.sessions.list({ projectId: project.id })).resolves.toEqual([session])
     // The terminal is kept until it is closed, with no shell in the new runner.
     await expect(again.terminals.list({ sessionId: session.id })).resolves.toEqual([
-      expect.objectContaining({ id: created.id, title: "Terminal 01", started: false, run: 0 }),
+      expect.objectContaining({ id: created.id, title: "Terminal", started: false, run: 0 }),
     ])
   }, 30_000)
 

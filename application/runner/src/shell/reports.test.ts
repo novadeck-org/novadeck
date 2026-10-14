@@ -178,7 +178,7 @@ describe("relay sessions", () => {
       hello(),
       tool(1, "open_terminal", { command: "claude" }),
       tool(2, "open_terminal", { command: "slow" }),
-      tool(3, "close_terminal", { to: "t2" }),
+      tool(3, "close_terminal", { to: "fox" }),
       tool(4, "show", { file: { path: "a.md" } }),
       end,
     ])
@@ -196,7 +196,7 @@ describe("relay sessions", () => {
       expect.arrayContaining([
         { type: "open", ...from, request: { command: "claude" } },
         { type: "open", ...from, request: { command: "slow" } },
-        { type: "close", ...from, request: { to: "t2" } },
+        { type: "close", ...from, request: { to: "fox" } },
         call,
       ]),
     )
@@ -283,12 +283,12 @@ describe("relay sessions", () => {
     const huge = rpc({
       id: 9,
       method: "tools/call",
-      params: { name: "send", arguments: { to: "t2", text: "x".repeat(1_100_000) } },
+      params: { name: "send", arguments: { to: "fox", text: "x".repeat(1_100_000) } },
     })
     // As the MCP SDK writes a request: its id last, after params that may hold an "id".
     const last = JSON.stringify({
       method: "tools/call",
-      params: { name: "send", arguments: { id: 3, to: "t2", text: "x".repeat(1_100_000) } },
+      params: { name: "send", arguments: { id: 3, to: "fox", text: "x".repeat(1_100_000) } },
       jsonrpc: "2.0",
       id: 11,
     })

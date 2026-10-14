@@ -419,7 +419,7 @@ with every safety check again at that time:
   shutdown keeps every terminal.
 - **Messages** between agents come from the same server's `send` and `agents` tools,
   listed only inside Novadeck's terminals like the others: an agent messages another
-  terminal of its project and session by its handle, such as `t3`, which `open_terminal` also
+  terminal of its project and session by its handle, such as `@moth`, which `open_terminal` also
   answers with, and the message reaches that agent through its own hooks. The runner
   keeps the mailbox with the workspace and lists, pauses and releases it through
   `messages.list`, `messages.pause` and `messages.release`. Its `agents` listing carries

@@ -12,7 +12,7 @@ import { own, start } from "./scenarios.js"
 // the key just after (docs/harness-coverage.md, "Escape against a reply on its way"). The
 // runner reads the turn as the harness ended it: completed, with that reply as `lastTurn`,
 // where the reply won, interrupted where the key did, and never completed for a moment
-// before it says interrupted (that moment is a "t1 is done" notification). Which wins is the
+// before it says interrupted (that moment is a "moth is done" notification). Which wins is the
 // harness's, so each attempt presses a raw Escape as a held reply is let go, `lead` ms
 // before it, until one is lost; every attempt's turn must read as the screen shows it ended.
 // A lead that lands the key in the reply's window loses it the most often (probed 2026-10-07,

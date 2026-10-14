@@ -1,3 +1,4 @@
+import { handleWords } from "../terminals/handles.js"
 import { agy } from "./agents/agy.js"
 import { claude } from "./agents/claude.js"
 import { codex } from "./agents/codex.js"
@@ -20,9 +21,9 @@ import {
 // As in messaging.e2e.ts, where a harness differs it is a known gap (known-gaps.ts), never
 // a check of which harness this is.
 
-/** The ring's order: t1 sends to t2, each to the next, and the last back to t1. */
+/** The ring's order: the first terminal sends to the second, each to the next, and the last back to t1. */
 const order = [claude, codex, agy]
-const handle = (index: number) => `t${index + 1}`
+const handle = (index: number) => handleWords[index]!
 const after = (index: number) => (index + 1) % order.length
 const passed = (index: number) => `Ring from ${handle(index)}.`
 
@@ -90,11 +91,11 @@ describe.skipIf(!supported)(order.map((setup) => setup.name).join(" → "), () =
     const back = await run.model.waitFor((one) => delivered(one, handle(last)), { after: calls })
     expect(deliveries(back)).toEqual([{ from: handle(last), text: passed(last) }])
     await t1.until("The ring is closed.")
-    await t1.reached(holds(handle(last), "t1", "delivered"), { after: marks[0]! })
+    await t1.reached(holds(handle(last), "moth", "delivered"), { after: marks[0]! })
 
     const states = messages(t1).map((one) => `${one.from} → ${one.to} ${one.state}`)
     expect(states.toSorted()).toEqual(
-      [`t1 → t2 delivered`, `${handle(last)} → t1 delivered`].toSorted(),
+      [`moth → fox delivered`, `${handle(last)} → moth delivered`].toSorted(),
     )
   })
 })

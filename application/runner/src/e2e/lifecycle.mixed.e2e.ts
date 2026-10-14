@@ -28,7 +28,7 @@ const order = [claude, codex, agy]
 
 /** Whether the call is of t2's turn asking t1 once more. */
 const again = (call: Call): boolean =>
-  call.turns.some((one) => one.role === "user" && one.text.includes("Ask t1 once more"))
+  call.turns.some((one) => one.role === "user" && one.text.includes("Ask moth once more"))
 
 describe.skipIf(!supported)(order.map((setup) => setup.name).join(", "), () => {
   const it = e2e(...order)
@@ -41,10 +41,10 @@ describe.skipIf(!supported)(order.map((setup) => setup.name).join(", "), () => {
     }) => {
       run.model.use(
         replies("Remember the word heron", "Remembered."),
-        sends("Ask t1 for the word", "t1", "Which word did you remember?"),
-        sends("Ask t1 once more", "t1", "Any word at all?"),
-        own((call) => (sent(call, "t1") ? { text: "Asked." } : undefined)),
-        own((call) => (delivered(call, "t2") ? { text: "No word, another agent." } : undefined)),
+        sends("Ask moth for the word", "moth", "Which word did you remember?"),
+        sends("Ask moth once more", "moth", "Any word at all?"),
+        own((call) => (sent(call, "moth") ? { text: "Asked." } : undefined)),
+        own((call) => (delivered(call, "fox") ? { text: "No word, another agent." } : undefined)),
       )
       const t1 = await handing(run, setup, other)
       await turn(t1, "Remember the word heron", "Remembered.")
@@ -57,34 +57,34 @@ describe.skipIf(!supported)(order.map((setup) => setup.name).join(", "), () => {
       await t1.confirm("/exit", async () => {
         t1.press("/exit")
         await t1.reached("drafting", { after: mark })
-        await t2.submit("Ask t1 for the word")
-        await t1.reached(holds("t2", "t1", "queued"), { after: mark })
+        await t2.submit("Ask moth for the word")
+        await t1.reached(holds("fox", "moth", "queued"), { after: mark })
       })
       // The agent left, and the message for its session won't arrive; then the different
       // agent the terminal's command starts there is Ready (with no Unbound needed between,
       // as in lifecycle.e2e.ts).
-      await through(t1, [holds("t2", "t1", "gone"), "ready"], {
+      await through(t1, [holds("fox", "moth", "gone"), "ready"], {
         after: mark,
         timeoutMs: 60_000,
       })
       await prompted(t1, other)
       const [first] = messages(t1)
-      expect(first).toMatchObject({ from: "t2", to: "t1", state: "gone" })
+      expect(first).toMatchObject({ from: "fox", to: "moth", state: "gone" })
       const calls = run.model.mark()
       const from1 = t1.mark()
 
-      await t2.submit("Ask t1 once more")
+      await t2.submit("Ask moth once more")
 
-      const told = await run.model.waitFor((call) => sent(call, "t1") && again(call), {
+      const told = await run.model.waitFor((call) => sent(call, "moth") && again(call), {
         after: calls,
       })
       expect(result(told)).toContain(
-        `Your earlier message ${first!.id} to t1 won't arrive: the agent session it was for ended there.`,
+        `Your earlier message ${first!.id} to @moth won't arrive: the agent session it was for ended there.`,
       )
-      const rung = await run.model.waitFor((call) => delivered(call, "t2"), { after: calls })
+      const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
       expect(rung.api).toBe(other.dialect.api)
-      expect(deliveries(rung)).toEqual([{ from: "t2", text: "Any word at all?" }])
-      await through(t1, ["ringing", "working", holds("t2", "t1", "delivered"), "settled"], {
+      expect(deliveries(rung)).toEqual([{ from: "fox", text: "Any word at all?" }])
+      await through(t1, ["ringing", "working", holds("fox", "moth", "delivered"), "settled"], {
         after: from1,
       })
       expect(t1.summary().agent).toBe(other.agent)

@@ -397,7 +397,7 @@ describe.skipIf(windows)("resuming an agent's saved session", () => {
         cwd: fixture.home,
         agents: { claude: { sessionId, seq: 1 } },
         promptedAt: null,
-        handle: "t1",
+        handle: id === before ? "moth" : "fox",
         naming: { person: null, agent: null, murmur: null, summary: null },
         openedBy: null,
         ledBy: null,

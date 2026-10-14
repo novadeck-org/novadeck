@@ -379,7 +379,7 @@ describe("a terminal's name from murmur", () => {
       type: "terminal/update",
       target,
       terminalId: "01",
-      titleSource: { kind: "agent", by: "t2" },
+      titleSource: { kind: "agent", by: "fox" },
     })
     const state = run(named, {
       type: "terminal/update",

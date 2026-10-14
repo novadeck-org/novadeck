@@ -44,6 +44,7 @@ const noFacts: HintFacts = {
   branch: null,
   folders: [],
   files: [],
+  handles: [],
 }
 
 /** Records a WAV file's speech as a clip, in parts as the client sends them. */

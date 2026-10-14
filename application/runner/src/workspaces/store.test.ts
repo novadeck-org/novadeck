@@ -20,8 +20,14 @@ import { vi } from "vitest"
 import type { ItemRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
+import { handleWords } from "../terminals/handles.js"
 import { describe, expect, it as base } from "../test.js"
-import { WorkspaceStore, WorkspaceTooNewError } from "./store.js"
+import {
+  EarlierWorkspaceError,
+  setAsideWorkspace,
+  WorkspaceStore,
+  WorkspaceTooNewError,
+} from "./store.js"
 
 const it = base.extend<{
   directory: () => string
@@ -77,7 +83,7 @@ describe("workspace metadata", () => {
     expect(first.id).toMatch(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(1)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(2)
       expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([])
       expect(() =>
         database
@@ -158,7 +164,7 @@ describe("workspace metadata", () => {
     expect(workspace.projects()).toEqual([])
   })
 
-  it("removes a project with its sessions, kept terminals, numbering and messages", async ({
+  it("removes a project with its sessions, kept terminals, given handles and messages", async ({
     directory,
     store,
   }) => {
@@ -166,12 +172,20 @@ describe("workspace metadata", () => {
     const workspace = store(join(cwd, "workspace.sqlite"))
     const removed = await workspace.createProject({ id: "p", name: "Removed", cwd })
     const kept = await workspace.createProject({ id: "q", name: "Kept", cwd })
-    workspace.createSession({ id: "s", projectId: removed.id, name: "Session" })
-    const other = workspace.createSession({ id: "o", projectId: kept.id, name: "Other" })
-    workspace.saveTerminal(numbered("a", "t1"))
-    workspace.saveTerminal({ ...numbered("b", "t1"), sessionId: other.id })
-    workspace.nextTerminalNumber("s")
-    workspace.nextTerminalNumber(other.id)
+    workspace.createSession({
+      id: "s",
+      projectId: removed.id,
+      name: "Session",
+    })
+    const other = workspace.createSession({
+      id: "o",
+      projectId: kept.id,
+      name: "Other",
+    })
+    workspace.saveTerminal(numbered("a", "moth"))
+    workspace.saveTerminal({ ...numbered("b", "moth"), sessionId: other.id })
+    const given = workspace.giveHandle("s")
+    workspace.giveHandle(other.id)
     workspace.saveMessage(message("m-1", "queued"))
     workspace.saveMessage({ ...message("m-2", "queued"), projectId: kept.id, thread: "t-2" })
     const thread: Thread = {
@@ -191,9 +205,9 @@ describe("workspace metadata", () => {
     expect(workspace.terminals().map(({ id }) => id)).toEqual(["b"])
     expect(workspace.messages().map(({ id }) => id)).toEqual(["m-2"])
     expect(workspace.threads().map(({ id }) => id)).toEqual(["t-2"])
-    // A session of the same id numbers its terminals afresh; the other goes on.
-    expect(workspace.nextTerminalNumber("s")).toBe(1)
-    expect(workspace.nextTerminalNumber(other.id)).toBe(2)
+    // A session of the same id gives its words afresh; the other goes on.
+    expect(workspace.giveHandle("s")).toBe(given)
+    expect(workspace.giveHandle(other.id)).not.toBe(handleWords[0])
     expect(() => workspace.removeProject(removed.id)).toThrow(
       expect.objectContaining({ code: "NOT_FOUND" }),
     )
@@ -259,13 +273,13 @@ describe("workspace metadata", () => {
     const path = join(directory(), "workspace.sqlite")
     const future = new DatabaseSync(path)
     future.exec(
-      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 2",
+      "CREATE TABLE future_data (value TEXT); INSERT INTO future_data VALUES ('saved'); PRAGMA user_version = 3",
     )
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(/newer/)
     const database = new DatabaseSync(path)
     try {
-      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(2)
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(3)
       expect(database.prepare("SELECT value FROM future_data").get()?.value).toBe("saved")
     } finally {
       database.close()
@@ -279,7 +293,7 @@ describe("workspace metadata", () => {
     new WorkspaceStore(path).close()
     const future = new DatabaseSync(path)
     // A newer build that also does without a table this runner would create.
-    future.exec("ALTER TABLE terminals ADD COLUMN future_note TEXT; DROP TABLE terminal_numbers")
+    future.exec("ALTER TABLE terminals ADD COLUMN future_note TEXT; DROP TABLE session_handles")
     future.close()
     expect(() => new WorkspaceStore(path)).toThrow(WorkspaceTooNewError)
     const database = new DatabaseSync(path)
@@ -288,7 +302,7 @@ describe("workspace metadata", () => {
       expect(columns).toContainEqual({ name: "future_note" })
       // Nothing was kept: the table this runner would have created is still absent.
       expect(
-        database.prepare("SELECT name FROM sqlite_schema WHERE name = 'terminal_numbers'").get(),
+        database.prepare("SELECT name FROM sqlite_schema WHERE name = 'session_handles'").get(),
       ).toBeUndefined()
     } finally {
       database.close()
@@ -308,6 +322,31 @@ describe("workspace metadata", () => {
     expect(() => new WorkspaceStore(path)).toThrow(/earlier build: .*expects murmur_title TEXT/)
   })
 
+  it("refuses a database from before word handles by its schema version, keeping its terminals", ({
+    directory,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    new WorkspaceStore(path).close()
+    const old = new DatabaseSync(path)
+    // Numbered handles' tables had the same columns; only the version tells them apart.
+    old.exec(`
+      PRAGMA user_version = 1;
+      INSERT INTO terminals (id, session_id, cwd, agents, updated_at, handle)
+        VALUES ('a', 's', '/', '{}', 1, 't3');
+    `)
+    old.close()
+    expect(() => new WorkspaceStore(path)).toThrow(
+      /earlier build: its schema is version 1, before 2\./,
+    )
+    const database = new DatabaseSync(path)
+    try {
+      expect(database.prepare("SELECT handle FROM terminals").all()).toEqual([{ handle: "t3" }])
+      expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(1)
+    } finally {
+      database.close()
+    }
+  })
+
   it("refuses a database from before murmur titles, which has no murmur_title", ({ directory }) => {
     const path = join(directory(), "workspace.sqlite")
     new WorkspaceStore(path).close()
@@ -317,9 +356,20 @@ describe("workspace metadata", () => {
     expect(() => new WorkspaceStore(path)).toThrow(/expects murmur_title TEXT/)
   })
 
-  it("refuses a database an earlier build wrote, naming it and saying to delete it", ({
+  it("sets an earlier build's database aside with its log, so a new one starts in its place", ({
     directory,
   }) => {
+    const path = join(directory(), "workspace.sqlite")
+    for (const suffix of ["", "-wal", "-shm"]) writeFileSync(`${path}${suffix}`, suffix || "db")
+    const aside = setAsideWorkspace(path, new Date("2026-10-14T12:00:00.000Z"))
+    expect(aside).toBe(`${path}.earlier-2026-10-14T12-00-00-000Z`)
+    for (const suffix of ["", "-wal", "-shm"]) {
+      expect(existsSync(`${path}${suffix}`)).toBe(false)
+      expect(readFileSync(`${aside}${suffix}`, "utf8")).toBe(suffix || "db")
+    }
+  })
+
+  it("refuses a database an earlier build wrote, naming it and why", ({ directory }) => {
     const path = join(directory(), "workspace.sqlite")
     // The terminals table as main's runner writes it, before handles and titles.
     const old = new DatabaseSync(path)
@@ -339,7 +389,7 @@ describe("workspace metadata", () => {
     const { message } = refusal as Error
     expect(message).toContain(path)
     expect(message).toContain("expects handle TEXT NOT NULL")
-    expect(message).toContain("workspace.sqlite-wal and -shm")
+    expect(refusal).toBeInstanceOf(EarlierWorkspaceError)
     // Nothing was changed: the old terminal is there, and nothing was added.
     const database = new DatabaseSync(path)
     try {
@@ -414,15 +464,15 @@ describe("saved terminals", () => {
       cwd: "/work",
       agents: { claude: { sessionId: "abc", seq: 2 } },
       promptedAt: 1_000,
-      handle: "t3",
+      handle: "owl",
       naming: {
         person: null,
-        agent: { title: "API author", by: "t1" },
+        agent: { title: "API author", by: "moth" },
         murmur: { title: "Building the API" },
         summary: "Builds the API.\nThen its tests.",
       },
-      openedBy: "t2",
-      ledBy: "t2",
+      openedBy: "fox",
+      ledBy: "fox",
       command: "claude",
       lastProgram: "claude",
       work: {
@@ -446,11 +496,11 @@ describe("saved terminals", () => {
       savedAt: expect.any(Number),
     })
     expect(reopened.terminalIdentity(terminal.id)).toEqual({
-      handle: "t3",
+      handle: "owl",
       // What names it, each layer and who gave it, survives a reload, as who opened it does.
       naming: terminal.naming,
-      openedBy: "t2",
-      ledBy: "t2",
+      openedBy: "fox",
+      ledBy: "fox",
     })
     if (process.platform !== "win32") expect(statSync(path).mode & 0o777).toBe(0o600)
     reopened.clearTranscripts()
@@ -465,11 +515,11 @@ describe("saved terminals", () => {
   }) => {
     const path = join(directory(), "workspace.sqlite")
     const workspace = store(path)
-    const agent = { title: "Server", by: "t1" }
+    const agent = { title: "Server", by: "moth" }
     const murmur = { title: "Fixing login" }
     const summary = "Fixes the login bug."
     workspace.saveTerminal({
-      ...numbered("a", "t2"),
+      ...numbered("a", "fox"),
       naming: { person: "Mine", agent, murmur, summary },
     })
     expect(workspace.terminal("a")?.naming).toEqual({ person: "Mine", agent, murmur, summary })
@@ -484,14 +534,14 @@ describe("saved terminals", () => {
     // The summary and murmur's title change apart.
     const next = { title: "Fixing signup" }
     workspace.saveTerminal({
-      ...numbered("a", "t2"),
+      ...numbered("a", "fox"),
       naming: { person: null, agent, murmur: next, summary },
     })
     expect(workspace.terminals().map(({ naming }) => naming)).toEqual([
       { person: null, agent, murmur: next, summary },
     ])
     workspace.saveTerminal({
-      ...numbered("a", "t2"),
+      ...numbered("a", "fox"),
       naming: { person: null, agent, murmur: null, summary: null },
     })
     expect(workspace.terminal("a")?.naming).toEqual({
@@ -521,7 +571,7 @@ describe("saved terminals", () => {
       const terminal = (transcript: string, agentSession = "s1") => {
         const id = randomUUID()
         workspace.saveTerminal({
-          ...numbered(id, "t1"),
+          ...numbered(id, id),
           sessionId: session.id,
           agents: { codex: { sessionId: agentSession, at: 1 } } as never,
           transcript,
@@ -569,7 +619,7 @@ describe("saved terminals", () => {
           "an item",
           "SECRET_ITEM_DETAIL",
           () => {
-            const kept = item(session.id, keptTerminal(workspace, session.id, "t9"), "/work/x")
+            const kept = item(session.id, keptTerminal(workspace, session.id, "haze"), "/work/x")
             workspace.saveItem({ ...kept, detail: "SECRET_ITEM_DETAIL" })
             workspace.removeItem(kept.id)
           },
@@ -578,10 +628,12 @@ describe("saved terminals", () => {
           "an item docked over",
           "SECRET_REPLACED_DETAIL",
           () => {
-            const there = keptTerminal(workspace, session.id, "t8")
-            const shown = item(session.id, there, "/work/y", { detail: "SECRET_REPLACED_DETAIL" })
+            const there = keptTerminal(workspace, session.id, "volt")
+            const shown = item(session.id, there, "/work/y", {
+              detail: "SECRET_REPLACED_DETAIL",
+            })
             workspace.saveItem(shown)
-            const moving = item(session.id, keptTerminal(workspace, session.id, "t7"), "/work/y")
+            const moving = item(session.id, keptTerminal(workspace, session.id, "dusk"), "/work/y")
             workspace.saveItem(moving)
             workspace.dockItem(moving.id, there)
           },
@@ -592,7 +644,7 @@ describe("saved terminals", () => {
           () => {
             const naming = { person: null, agent: null, summary: null }
             workspace.saveTerminal({
-              ...numbered(randomUUID(), "t6"),
+              ...numbered(randomUUID(), "raven"),
               sessionId: session.id,
               naming: { ...naming, murmur: { title: "SECRET_MURMUR_TITLE" } },
             })
@@ -632,7 +684,7 @@ describe("saved terminals", () => {
       cwd: "/",
       agents: {},
       promptedAt: null,
-      handle: "t1",
+      handle: "moth",
       naming: { person: null, agent: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
@@ -663,7 +715,7 @@ describe("saved terminals", () => {
         cwd: "/",
         agents: {},
         promptedAt: null,
-        handle: `t${index + 1}`,
+        handle: `moth${index + 1}`,
         naming: { person: null, agent: null, murmur: null, summary: null },
         openedBy: null,
         ledBy: null,
@@ -677,37 +729,50 @@ describe("saved terminals", () => {
     expect(workspace.terminals("odd")[0]).not.toHaveProperty("transcript")
   })
 
-  it("list a session's terminals by number, the order they were asked for, whenever saved", ({
+  it("list a session's terminals in the order they were created, whatever their handles", ({
     store,
   }) => {
     const workspace = store()
-    // Asked for in order, their shells started the other way round.
     for (const [id, handle] of [
-      ["b", "t2"],
-      ["j", "t10"],
-      ["a", "t1"],
+      ["b", "owl"],
+      ["j", "moth"],
+      ["a", "crow2"],
     ] as const)
       workspace.saveTerminal(numbered(id, handle))
-    expect(workspace.terminals("s").map(({ id }) => id)).toEqual(["a", "b", "j"])
-    expect(workspace.terminals().map(({ id }) => id)).toEqual(["a", "b", "j"])
+    // Saved again, a terminal keeps its place.
+    workspace.saveTerminal(numbered("b", "owl"))
+    expect(workspace.terminals("s").map(({ id }) => id)).toEqual(["b", "j", "a"])
+    expect(workspace.terminals().map(({ id }) => id)).toEqual(["b", "j", "a"])
   })
 
-  it("rename a kept terminal, and number each session's terminals without reuse", ({
+  it("list terminals in the order their handles were given, though saved in another", ({
+    store,
+  }) => {
+    const workspace = store()
+    const moth = workspace.giveHandle("s")
+    const fox = workspace.giveHandle("s")
+    // fox's create finished first, so its row was saved before moth's.
+    workspace.saveTerminal(numbered("second", fox))
+    workspace.saveTerminal(numbered("first", moth))
+    expect(workspace.terminals("s").map(({ id }) => id)).toEqual(["first", "second"])
+    expect(workspace.terminals().map(({ id }) => id)).toEqual(["first", "second"])
+  })
+
+  it("rename a kept terminal, and keep each session's given handles across restarts", ({
     directory,
     store,
   }) => {
     const path = join(directory(), "workspace.sqlite")
     const first = store(path)
-    expect(first.nextTerminalNumber("s")).toBe(1)
-    expect(first.nextTerminalNumber("s")).toBe(2)
-    expect(first.nextTerminalNumber("t")).toBe(1)
+    expect(first.giveHandle("s")).toBe(handleWords[0])
+    expect(first.giveHandle("s")).toBe(handleWords[1])
     first.saveTerminal({
       id: "a",
       sessionId: "s",
       cwd: "/",
       agents: {},
       promptedAt: null,
-      handle: "t1",
+      handle: "moth",
       naming: { person: null, agent: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
@@ -725,10 +790,64 @@ describe("saved terminals", () => {
       murmur: null,
       summary: null,
     })
-    expect(reopened.nextTerminalNumber("s")).toBe(3)
+    expect(reopened.giveHandle("s")).toBe(handleWords[2])
     // Taking the person's title away leaves it automatic.
     expect(reopened.renameTerminal("a", null)).toBe(true)
     expect(reopened.terminalIdentity("a")?.naming.person).toBeNull()
+  })
+
+  it("never give a session a handle twice, even after its terminal is closed or the runner restarts", ({
+    directory,
+    store,
+  }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const first = store(path)
+    const moth = first.giveHandle("s")
+    first.saveTerminal(numbered("a", moth))
+    const fox = first.giveHandle("s")
+    first.saveTerminal(numbered("b", fox))
+    first.removeTerminal("a")
+    first.close()
+    const reopened = store(path)
+    const next = reopened.giveHandle("s")
+    expect([moth, fox]).toEqual(handleWords.slice(0, 2))
+    expect(next).toBe(handleWords[2])
+    expect([moth, fox, next]).not.toContain(handleWords[3])
+  })
+
+  it("prefer a word whose letter no open terminal of the session starts with, then one open nowhere else", ({
+    store,
+  }) => {
+    const workspace = store()
+    // "fox" and "mink" are open in another session.
+    workspace.saveTerminal({ ...numbered("b", "fox"), sessionId: "elsewhere" })
+    workspace.saveTerminal({
+      ...numbered("c", "mink"),
+      sessionId: "elsewhere",
+    })
+    expect(workspace.giveHandle("s")).toBe("moth")
+    workspace.saveTerminal(numbered("a", "moth"))
+    // "fox" is open elsewhere, so "owl" comes first; "mink" would share "moth"'s letter.
+    expect(workspace.giveHandle("s")).toBe("owl")
+    workspace.saveTerminal(numbered("d", "owl"))
+    // Closing "moth" frees its letter, but the word is never given again.
+    workspace.removeTerminal("a")
+    expect(workspace.giveHandle("s")).toBe("crow")
+  })
+
+  it("number the words again once a session has given them all", ({ store }) => {
+    const workspace = store()
+    const all = handleWords.map(() => workspace.giveHandle("s"))
+    expect(new Set(all)).toEqual(new Set(handleWords))
+    expect(workspace.giveHandle("s")).toMatch(/^[a-z]+2$/)
+  })
+
+  it("refuse two terminals with one handle in a session", ({ store }) => {
+    const workspace = store()
+    workspace.saveTerminal(numbered("a", "moth"))
+    expect(() => workspace.saveTerminal(numbered("b", "moth"))).toThrow(/UNIQUE/)
+    workspace.saveTerminal({ ...numbered("b", "moth"), sessionId: "other" })
+    expect(workspace.terminals().map(({ id }) => id)).toEqual(["a", "b"])
   })
 
   it("keep transcripts until they are turned off", ({ store }) => {
@@ -745,8 +864,8 @@ const message = (id: string, state: Message["state"]): Message => ({
   projectId: "p",
   thread: "t-1",
   hop: 1,
-  from: { terminalId: "a", handle: "t1", agent: null, sessionId: null },
-  to: { terminalId: "b", handle: "t2", agent: "codex", sessionId: "s" },
+  from: { terminalId: "a", handle: "moth", agent: null, sessionId: null },
+  to: { terminalId: "b", handle: "fox", agent: "codex", sessionId: "s" },
   text: "Review a.ts\n\twith care",
   sentAt: 1.5,
   state,
@@ -792,7 +911,7 @@ describe("the mailbox", () => {
       cwd: "/",
       agents: {},
       promptedAt: null,
-      handle: "t1",
+      handle: "moth",
       naming: { person: null, agent: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
@@ -816,7 +935,7 @@ describe("the mailbox", () => {
     expect(reopened.messagingPaused()).toBe(true)
     // The pause is the runner's own, not one of the client's settings.
     expect(reopened.settings()).toEqual({ transcripts: true, welcomed: false })
-    expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "t1" })
+    expect(reopened.terminalIdentity("a")).toMatchObject({ handle: "moth" })
     expect(reopened.terminalIdentity("b")).toBeUndefined()
     reopened.removeMessages(["m-1"])
     reopened.removeThreads(["t-1"])
@@ -867,7 +986,7 @@ const item = (
   detail: pointerKey,
   held: false,
   by: "agent",
-  from: { terminalId, handle: "t1" },
+  from: { terminalId, handle: "moth" },
   version: 1,
   asked: false,
   shownAt: 1,
@@ -883,11 +1002,21 @@ describe("companion items", () => {
     const cwd = directory()
     const path = join(cwd, "workspace.sqlite")
     const workspace = store(path)
-    const project = await workspace.createProject({ id: randomUUID(), name: "P", cwd })
-    const session = workspace.createSession({ id: randomUUID(), projectId: project.id, name: "S" })
-    const first = keptTerminal(workspace, session.id, "t1")
-    const second = keptTerminal(workspace, session.id, "t2")
-    const shown = item(session.id, first, "/work/a.ts", { lines: { from: 2, to: 4 } })
+    const project = await workspace.createProject({
+      id: randomUUID(),
+      name: "P",
+      cwd,
+    })
+    const session = workspace.createSession({
+      id: randomUUID(),
+      projectId: project.id,
+      name: "S",
+    })
+    const first = keptTerminal(workspace, session.id, "moth")
+    const second = keptTerminal(workspace, session.id, "fox")
+    const shown = item(session.id, first, "/work/a.ts", {
+      lines: { from: 2, to: 4 },
+    })
     const plan = item(session.id, first, "plan:s1:", {
       kind: "plan",
       plan: { agent: "codex", session: "s1", actor: null, format: "text" },

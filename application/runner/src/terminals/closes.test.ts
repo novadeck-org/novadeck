@@ -10,7 +10,11 @@ import { openLimit, runnerOpenLimit } from "./opens.js"
 
 describe("reading a request to close a terminal", () => {
   it("takes the handle of the terminal to close", () => {
-    expect(readCloseRequest({ to: "t2" })).toEqual({ ok: true, request: { to: "t2" } })
+    expect(readCloseRequest({ to: "fox" })).toEqual({
+      ok: true,
+      request: { to: "fox" },
+    })
+    expect(readCloseRequest({ to: "@fox" })).toEqual({ ok: true, request: { to: "fox" } })
   })
 
   it("refuses a request without a handle, or with anything more", () => {
@@ -21,13 +25,13 @@ describe("reading a request to close a terminal", () => {
     expect(readCloseRequest({})).toEqual(refused)
     expect(readCloseRequest({ to: "" })).toEqual(refused)
     expect(readCloseRequest({ to: 2 })).toEqual(refused)
-    expect(readCloseRequest({ to: "t".repeat(65) })).toEqual(refused)
-    expect(readCloseRequest({ to: "t2", force: true })).toEqual(refused)
+    expect(readCloseRequest({ to: "t".repeat(66) })).toEqual(refused)
+    expect(readCloseRequest({ to: "fox", force: true })).toEqual(refused)
   })
 
   it("tells an agent asking to close its own terminal how to end its session instead", () => {
-    expect(selfRefusal("t1")).toBe(
-      "t1 is your own terminal, which close_terminal never closes; to end your own session, " +
+    expect(selfRefusal("moth")).toBe(
+      "@moth is your own terminal, which close_terminal never closes; to end your own session, " +
         "use your harness's own way to exit.",
     )
   })

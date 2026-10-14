@@ -261,13 +261,13 @@ for (const setup of setups) {
           await held.opened
           return { text: "Held on." }
         }),
-        sends("Ask t1 for news", "t1", "Any news?"),
-        own((call) => (sent(call, "t1") ? { text: "Asked." } : undefined)),
-        own((call) => (delivered(call, "t2") ? { text: "No news." } : undefined)),
+        sends("Ask moth for news", "moth", "Any news?"),
+        own((call) => (sent(call, "moth") ? { text: "Asked." } : undefined)),
+        own((call) => (delivered(call, "fox") ? { text: "No news." } : undefined)),
       )
       const t1 = await start(run, setup)
       const t2 = await start(run, setup)
-      expect([t1.handle, t2.handle]).toEqual(["t1", "t2"])
+      expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
       const calls = run.model.mark()
       const mark = t1.mark()
 
@@ -292,8 +292,8 @@ for (const setup of setups) {
       ).toEqual([])
 
       // A message for it now rings it, as for any Settled terminal.
-      await t2.submit("Ask t1 for news")
-      await through(t1, ["ringing", "working", holds("t2", "t1", "delivered")], {
+      await t2.submit("Ask moth for news")
+      await through(t1, ["ringing", "working", holds("fox", "moth", "delivered")], {
         after: settled.index,
       })
       await t1.until("No news.")
@@ -554,11 +554,11 @@ for (const setup of setups) {
             const agents = tool(call, "agents")
             const send = tool(call, "send")
             if (!agents || !send) return undefined
-            if (asked(call, "Tell t2 hello")) return { calls: [{ name: agents, input: {} }] }
+            if (asked(call, "Tell fox hello")) return { calls: [{ name: agents, input: {} }] }
             const listing = result(call)
             if (calledLast(call) !== agents || listing === undefined) return undefined
-            if (/- t2: no agent Novadeck can deliver to: .*\/hooks/.test(listing))
-              return { calls: [{ name: send, input: { to: "t2", text: "Hello." } }] }
+            if (/- @?fox: no agent Novadeck can deliver to: .*\/hooks/.test(listing))
+              return { calls: [{ name: send, input: { to: "fox", text: "Hello." } }] }
             looks += 1
             if (looks > 60) return { text: "Gave up." }
             await sleep(500)
@@ -579,7 +579,7 @@ for (const setup of setups) {
         await prompted(t1, setup)
         const calls = run.model.mark()
 
-        await t1.submit("Tell t2 hello")
+        await t1.submit("Tell fox hello")
 
         // One send, both ways: t2 has no agent Novadeck can deliver to, and t1 is told that
         // replies can't reach it.
@@ -615,9 +615,9 @@ for (const setup of setups) {
       async ({ e2e: run }) => {
         const { shows, trusts } = question!
         run.model.use(
-          sends("Tell t2 hello", "t2", "Hello."),
-          own((call) => (result(call) !== undefined ? { text: "Told t2." } : undefined)),
-          own((call) => (delivered(call, "t1") ? { text: "Hello to you." } : undefined)),
+          sends("Tell fox hello", "fox", "Hello."),
+          own((call) => (result(call) !== undefined ? { text: "Told fox." } : undefined)),
+          own((call) => (delivered(call, "moth") ? { text: "Hello to you." } : undefined)),
         )
         // Both ask before either is trusted, as trusting the folder in one covers the other.
         // Each `confirm` starts before its question can show, so the question it waits
@@ -634,7 +634,7 @@ for (const setup of setups) {
         // first asks, as two starting together may race on the harness's own settings.
         if (racesOwnSettings(setup)) await t1.until(shows, 60_000)
         const t2 = await run.deck.open(setup.agent)
-        expect([t1.handle, t2.handle]).toEqual(["t1", "t2"])
+        expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
         const calls = run.model.mark()
 
         // The person trusts the folder in t1, and t1 sends t2 a message. While t2's
@@ -649,7 +649,7 @@ for (const setup of setups) {
             await t1.reached("ready", { timeoutMs: 60_000 })
             await prompted(t1, setup)
             const from1 = t1.mark()
-            await t1.submit("Tell t2 hello")
+            await t1.submit("Tell fox hello")
             // The send was taken, so t2 holds the message: one its harness refused (as
             // Antigravity does a call missing what it asks of it) fails here, saying why.
             const sending = await run.model.waitFor(
@@ -657,10 +657,10 @@ for (const setup of setups) {
                 !call.side && result(call) !== undefined && calledLast(call) === tool(call, "send"),
               { after: calls },
             )
-            expect(result(sending)).toMatch(/to t2 is queued/)
-            await t1.until("Told t2.")
+            expect(result(sending)).toMatch(/to @?fox is queued/)
+            await t1.until("Told fox.")
             await t1.reached("settled", { after: from1 })
-            await t2.reached(holds("t1", "t2", "queued"))
+            await t2.reached(holds("moth", "fox", "queued"))
             await new Promise((resolve) => setTimeout(resolve, unrung))
             const states = t2.history().map((one) => one.delivery)
             expect(states).not.toContain("ready")
@@ -673,10 +673,10 @@ for (const setup of setups) {
         )
 
         // Trusted, its prompt shows: Ready, rung, and its hook delivers the message.
-        await through(t2, ["ready", "ringing", "working", holds("t1", "t2", "delivered")], {
+        await through(t2, ["ready", "ringing", "working", holds("moth", "fox", "delivered")], {
           timeoutMs: 60_000,
         })
-        const rung = await run.model.waitFor((call) => delivered(call, "t1"), {
+        const rung = await run.model.waitFor((call) => delivered(call, "moth"), {
           after: calls,
         })
         expect(latest(rung)).toMatch(ring)

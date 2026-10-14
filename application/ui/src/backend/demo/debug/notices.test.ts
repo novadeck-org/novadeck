@@ -19,8 +19,8 @@ const mount = () => {
 describe("demo notices", () => {
   it("shows a notice in a labelled region", () => {
     const { notices, view, shown } = mount()
-    act(() => notices.show({ id: "01", title: "t1 is done", body: "All green." }))
-    expect(shown()).toEqual(["t1 is doneAll green."])
+    act(() => notices.show({ id: "01", title: "@moth is done", body: "All green." }))
+    expect(shown()).toEqual(["@moth is doneAll green."])
     expect(view.container.querySelector("section")?.getAttribute("aria-label")).toBe(
       "Notifications",
     )

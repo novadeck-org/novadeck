@@ -53,6 +53,8 @@ export type OpenAnswer =
       readonly ok: true
       readonly terminalId: string
       readonly handle?: string
+      /** Its title, as the person sees it, such as `claude` before anything names it. */
+      readonly title?: string
       readonly cwd: string
       readonly command?: string
       /** Where the task sent to an agent it started is, as `send` would answer. */

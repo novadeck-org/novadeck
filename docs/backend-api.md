@@ -227,18 +227,21 @@ program where `process` cannot; it is `null` otherwise. `cwd` is the directory t
 shell last reported at a prompt, or where it started. `title` is, in this order: the
 name the person gave the terminal with `create` or `terminals.rename({ terminalId,
 title })`; the latest title murmur, the opt-in local model, wrote for it; the one the
-agent that opened it gave through `open_terminal`'s `title`; or the runner's default for
-its session ("Terminal 01", "Terminal 02", …, never given twice). `titleSource` says
-which: `{ kind: "person" }`, `{ kind: "murmur" }`, `{ kind: "agent", by: "t2" }` or
+agent that opened it gave through `open_terminal`'s `title`; or the runner's default:
+the program it was opened to run (`claude`), else "Terminal", never derived from its
+handle. `titleSource` says
+which: `{ kind: "person" }`, `{ kind: "murmur" }`, `{ kind: "agent", by: "fox" }` or
 `{ kind: "default" }`. The summary its agent gave through `summarize` is not on the wire: only
 `agents()` lists it. A terminal the client creates for an
 agent's request (`terminals.requests`) passes that request's `requestId` to
 `terminals.create`, and takes the title the agent asked for as the agent's.
 `terminals.resetTitle({ terminalId })` takes the person's name away, so it is automatic
 again (see [Agent messaging](agent-messaging.md#naming)). `handle` is its
-handle for agents' messages, `t3`, numbered from the same counter, so "Terminal 03" is
-`t3`; every terminal takes a number, even one created with its own title, and keeps
-its handle across renames. `command` is what it was opened to run, and
+handle for agents' messages, a word such as `moth` that its session gives it (people read
+it as `@moth`); every terminal takes one, even one created with its own title, and keeps
+it across renames. A session never gives a word twice, even once its terminal closes;
+once all are given, they come again numbered (`moth2`). Terminals list in the order they
+were created. `command` is what it was opened to run, and
 `lastProgram` the program it last had in its foreground, which a fresh shell resumes
 where that is an agent.
 

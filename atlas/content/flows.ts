@@ -30,7 +30,7 @@ export const flows: (Omit<Flow, "steps"> & { steps: CuratedStep[] })[] = [
         text: "The runner opens the SQLite workspace and writes the shell integration and agent plugins.",
         anchor: {
           file: `${runnerSrc}/runner.ts`,
-          text: "const store = new WorkspaceStore(options.database)",
+          text: "const store = openStore(options.database)",
         },
       },
       {

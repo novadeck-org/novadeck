@@ -20,7 +20,7 @@ const conversation = {
       role: "user",
       content: [
         { type: "text", text: "<system-reminder>r</system-reminder>" },
-        { type: "text", text: "Ask t2" },
+        { type: "text", text: "Ask fox" },
       ],
     },
     { role: "system", content: [{ type: "text", text: "hook context" }] },
@@ -29,7 +29,7 @@ const conversation = {
       content: [
         { type: "thinking", thinking: "hm" },
         { type: "text", text: "Sending." },
-        { type: "tool_use", id: "toolu_1", name: "send", input: { to: "t2" } },
+        { type: "tool_use", id: "toolu_1", name: "send", input: { to: "fox" } },
       ],
     },
     {
@@ -71,11 +71,11 @@ describe("anthropic", () => {
       model: "claude-test",
       system: "You are Claude Code.",
       turns: [
-        { role: "user", text: "<system-reminder>r</system-reminder>\nAsk t2\nhook context" },
+        { role: "user", text: "<system-reminder>r</system-reminder>\nAsk fox\nhook context" },
         {
           role: "assistant",
           text: "Sending.",
-          calls: [{ id: "toolu_1", name: "send", input: { to: "t2" } }],
+          calls: [{ id: "toolu_1", name: "send", input: { to: "fox" } }],
         },
         { role: "tool", id: "toolu_1", text: "queued" },
       ],
@@ -94,7 +94,7 @@ describe("anthropic", () => {
   it("streams a reply's text and tool calls as the Messages API does", async () => {
     const { response, calls } = await handle(
       post("/v1/messages?beta=true", { ...conversation, stream: true }),
-      { text: "On it.", calls: [{ name: "send", input: { to: "t1", text: "hi" } }] },
+      { text: "On it.", calls: [{ name: "send", input: { to: "moth", text: "hi" } }] },
     )
 
     expect(response.headers["content-type"]).toBe("text/event-stream")
@@ -113,7 +113,7 @@ describe("anthropic", () => {
     expect(events(response.body)).toContainEqual({
       type: "content_block_delta",
       index: 1,
-      delta: { type: "input_json_delta", partial_json: '{"to":"t1","text":"hi"}' },
+      delta: { type: "input_json_delta", partial_json: '{"to":"moth","text":"hi"}' },
     })
     expect(events(response.body)).toContainEqual(
       expect.objectContaining({
@@ -175,7 +175,7 @@ describe("anthropic", () => {
     const tools = [
       "<tool_use_error>File does not exist.</tool_use_error>",
       "A message needs `to`, a terminal's handle, and its `text`.",
-      "t2 has no agent Novadeck can deliver to.",
+      "@fox has no agent Novadeck can deliver to.",
     ]
 
     expect(refused.map((text) => anthropic.rejection?.test(text))).toEqual([true, true])

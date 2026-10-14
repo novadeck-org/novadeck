@@ -50,7 +50,7 @@ const render = async (snapshot: string, cols: number, rows: number): Promise<str
 /** One terminal of the deck, driven as the person would and read as a client would. */
 export type DeckTerminal = {
   readonly id: string
-  /** Its handle, as agents name it to each other: `t1`, `t2`… */
+  /** Its handle, as agents name it to each other: `moth`, `fox`… */
   readonly handle: string
   /** Its screen's text now. */
   readonly screen: () => Promise<string>

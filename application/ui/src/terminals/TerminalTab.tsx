@@ -18,6 +18,7 @@ import { nextTurnAge, turnAge } from "../model/turn-age"
 import type { Tile } from "../model/types"
 import { SidebarItem } from "../sidebar/SidebarItem"
 import { ContextMenu } from "../ui-toolkit/ContextMenu"
+import { HandleChip } from "../ui-toolkit/HandleChip"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import { SubagentBranches, SubagentLine } from "./TabSubagents"
 import { TerminalRenameInput, type TerminalRename } from "./TerminalRenameInput"
@@ -80,6 +81,7 @@ export const TerminalTab = ({
   const terminal = tile
   const shell = isWindow(tile) ? undefined : tile
   const icon = <Icon size={14} strokeWidth={1.5} />
+  const handleId = `terminal-handle-${terminal.id}`
   // The detail line shows the phase: a glyph (a spinner while a program runs) beside
   // the program, or a note while the shell starts. A tab that has ended is hatched (styles.css);
   // assistive technology says how it ended.
@@ -140,6 +142,14 @@ export const TerminalTab = ({
               aria-hidden
               className="terminal-glyph inline-block w-[1ch] shrink-0 text-center"
             />
+            {shell?.handle && (
+              <>
+                <HandleChip id={handleId} handle={shell.handle} className="handle-plain" />
+                <span aria-hidden className="shrink-0">
+                  ·
+                </span>
+              </>
+            )}
             {phase === "starting" ? (
               <span className="terminal-tab-starting truncate italic">starting…</span>
             ) : phase === "done" ? (
@@ -165,6 +175,7 @@ export const TerminalTab = ({
         {...(description ? { description } : {})}
         {...(companion ? { badge: companion } : {})}
         describedBy={tabInstructionsId}
+        {...(shell?.handle ? { handleId } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
         data-terminal-phase={phase}

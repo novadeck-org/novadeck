@@ -6,7 +6,7 @@ import { createHistory, named, transitions } from "./history.js"
 // A listing of t2's messages: its delivery state and, when given, one message from t1.
 const listing = (delivery: DeliveryState, state?: MessageState): TerminalMessages => ({
   terminalId: "terminal-2",
-  handle: "t2",
+  handle: "fox",
   delivery,
   paused: false,
   threads:
@@ -15,7 +15,7 @@ const listing = (delivery: DeliveryState, state?: MessageState): TerminalMessage
       : [
           {
             id: "thread-1",
-            peer: "t1",
+            peer: "moth",
             hops: 1,
             allowed: 8,
             held: false,
@@ -24,9 +24,9 @@ const listing = (delivery: DeliveryState, state?: MessageState): TerminalMessage
                 id: "m-1",
                 thread: "thread-1",
                 hop: 1,
-                from: "t1",
+                from: "moth",
                 fromAgent: "claude",
-                to: "t2",
+                to: "fox",
                 toAgent: "codex",
                 text: "What is your colour?",
                 sentAt: 0,
@@ -41,7 +41,7 @@ const listing = (delivery: DeliveryState, state?: MessageState): TerminalMessage
 
 describe("createHistory", () => {
   it("numbers each listing it records and keeps each message's state", () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     history.push(listing("ready"))
     history.push(listing("ringing", "leased"))
 
@@ -51,20 +51,20 @@ describe("createHistory", () => {
       expect.objectContaining({
         index: 1,
         delivery: "ringing",
-        messages: [{ id: "m-1", from: "t1", to: "t2", state: "leased" }],
+        messages: [{ id: "m-1", from: "moth", to: "fox", state: "leased" }],
       }),
     ])
   })
 
   it("finds a state already passed through, however briefly", async () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     for (const state of ["ready", "working", "settled"] as const) history.push(listing(state))
 
     expect((await history.reached("working")).index).toBe(1)
   })
 
   it("waits for a state reached later, as soon as it is recorded", async () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     history.push(listing("ready"))
     const working = history.reached("working")
 
@@ -74,7 +74,7 @@ describe("createHistory", () => {
   })
 
   it("counts only snapshots from a mark on, and takes a test of the snapshot", async () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     history.push(listing("settled"))
     const mark = history.mark()
     const delivered = history.reached(
@@ -91,7 +91,7 @@ describe("createHistory", () => {
   })
 
   it("fails on timeout with the states gone through since the mark", async () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     history.push(listing("fresh"))
     history.push(listing("ready"))
     const mark = history.mark()
@@ -99,24 +99,24 @@ describe("createHistory", () => {
     history.push(listing("unknown", "delivered"))
 
     await expect(history.reached("working", { after: mark, timeoutMs: 20 })).rejects.toThrow(
-      "t2 can't reach working: timed out after 20 ms. t2: ready → ringing → unknown; messages m-1 delivered",
+      "fox can't reach working: timed out after 20 ms. fox: ready → ringing → unknown; messages m-1 delivered",
     )
   })
 
   it("fails a wait still pending when it ends, and any asked for after", async () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     history.push(listing("ready"))
     const pending = history.reached("working")
 
     history.end("its terminal is gone")
     history.push(listing("working"))
 
-    await expect(pending).rejects.toThrow("t2 can't reach working: its terminal is gone")
+    await expect(pending).rejects.toThrow("fox can't reach working: its terminal is gone")
     await expect(history.reached("working")).rejects.toThrow(/its terminal is gone/)
     expect(history.mark()).toBe(1)
   })
   it("fails a wait at once when the fault says it is pointless, a state met first still counts", async () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     history.push(listing("ready"))
     let fault: string | undefined
     const pending = history.reached("working", { timeoutMs: 20_000, fault: () => fault })
@@ -124,7 +124,7 @@ describe("createHistory", () => {
     fault = "the harness refused a tool call"
 
     await expect(pending).rejects.toThrow(
-      "t2 can't reach working: the harness refused a tool call. t2: ready",
+      "fox can't reach working: the harness refused a tool call. fox: ready",
     )
     await expect(history.reached("working", { fault: () => fault })).rejects.toThrow(
       /the harness refused a tool call/,
@@ -135,7 +135,7 @@ describe("createHistory", () => {
   })
 
   it("fails only the wait whose test throws, with the test's own error", async () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     history.push(listing("ready"))
     const broken = history.reached(
       () => {
@@ -154,25 +154,25 @@ describe("createHistory", () => {
   })
 
   it("names a named test in what a failed wait says", async () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     history.push(listing("ready"))
 
     await expect(
       history.reached(
-        named("t1 → t2 delivered", () => false),
+        named("moth → fox delivered", () => false),
         { timeoutMs: 20 },
       ),
-    ).rejects.toThrow("t2 can't reach t1 → t2 delivered: timed out after 20 ms")
+    ).rejects.toThrow("fox can't reach moth → fox delivered: timed out after 20 ms")
   })
 })
 
 describe("transitions", () => {
   it("shows a delivery state that held while only a message changed once", () => {
-    const history = createHistory("t2")
+    const history = createHistory("fox")
     history.push(listing("working", "queued"))
     history.push(listing("working", "delivered"))
 
-    expect(transitions("t2", history.snapshots())).toBe("t2: working; messages m-1 delivered")
-    expect(transitions("t2", [])).toBe("t2: (no change)")
+    expect(transitions("fox", history.snapshots())).toBe("fox: working; messages m-1 delivered")
+    expect(transitions("fox", [])).toBe("fox: (no change)")
   })
 })

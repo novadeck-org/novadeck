@@ -15,6 +15,7 @@ import type {
 
 import { DomainError } from "../errors.js"
 import { agentLabel } from "../messaging/mailbox.js"
+import { mention } from "../terminals/handles.js"
 import { Watcher } from "../terminals/watcher.js"
 import {
   hashOf,
@@ -245,7 +246,7 @@ export class CompanionItems {
         JSON.stringify(item.name) +
           (item.by === "person"
             ? " was attached by the user"
-            : ` was placed beside you from ${item.from.handle}`) +
+            : ` was placed beside you from ${mention(item.from.handle)}`) +
           ", so it isn't yours to close; tell the user if it should go.",
       )
     try {
@@ -308,7 +309,7 @@ export class CompanionItems {
           ? `moved by the user ${this.whereMoved(item)}`
           : own
             ? undefined
-            : `placed here from ${item.from.handle}`
+            : `placed here from ${mention(item.from.handle)}`
       const whose =
         item.kind === "plan"
           ? own
@@ -752,7 +753,8 @@ export class CompanionItems {
   /** Where the person moved an item away from its bar, as its agent reads it. */
   private whereMoved(item: ItemRecord): string {
     if (item.terminalId === null) return "into a window of its own"
-    return `to ${this.options.terminal(item.terminalId)?.handle ?? "another terminal"}`
+    const handle = this.options.terminal(item.terminalId)?.handle
+    return `to ${handle === undefined ? "another terminal" : mention(handle)}`
   }
 
   private save(item: ItemRecord): void {

@@ -26,7 +26,7 @@ const runnerItem = (itemId: string, change: Partial<CompanionItem> = {}): Compan
   lines: null,
   held: false,
   by: "agent",
-  from: { terminalId: first, handle: "t1" },
+  from: { terminalId: first, handle: "moth" },
   version: 1,
   asked: false,
   shownAt: 1,

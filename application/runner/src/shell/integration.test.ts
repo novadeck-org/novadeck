@@ -28,6 +28,7 @@ import type {
 import { vi } from "vitest"
 
 import { CompanionItems } from "../companions/items.js"
+import { handleWords } from "../terminals/handles.js"
 import { Terminals, type TerminalOptions } from "../terminals/index.js"
 import { Latest } from "../terminals/latest.js"
 import { readyReturnMs } from "../terminals/manager.js"
@@ -149,7 +150,7 @@ const it = base.extend<{ shell: Fixture }>({
         id,
         sessionId: session.id,
         cwd: store.terminal(id)?.cwd ?? home,
-        handle: store.terminal(id)?.handle ?? "t1",
+        handle: store.terminal(id)?.handle ?? store.giveHandle(session.id),
         naming: store.terminal(id)?.naming ?? {
           person: null,
           agent: null,
@@ -184,6 +185,7 @@ const create = (
   fixture: Fixture,
   input: {
     id?: string
+    sessionId?: string
     cwd?: string
     restore?: boolean
     resume?: AgentName
@@ -193,7 +195,7 @@ const create = (
   manager.create(
     {
       id: input.id ?? randomUUID(),
-      sessionId: fixture.sessionId,
+      sessionId: input.sessionId ?? fixture.sessionId,
       cwd: input.cwd ?? fixture.home,
       cols: 100,
       rows: 20,
@@ -372,12 +374,12 @@ const fakeClaude = (home: string, plugins: string, session: string): string => {
   return bin
 }
 
-// A lead's terminal t1 and a worker t2 it leads, kept as an earlier runner left them; the
+// A lead's terminal moth and a worker fox it leads, kept as an earlier runner left them; the
 // worker's saved agent session when one is given.
 const keepLed = (shell: Fixture, ids: { lead: string; worker: string }, session?: string) => {
   for (const [id, handle, ledBy] of [
-    [ids.lead, "t1", null],
-    [ids.worker, "t2", "t1"],
+    [ids.lead, "moth", null],
+    [ids.worker, "fox", "moth"],
   ] as const)
     shell.store.saveTerminal({
       id,
@@ -1607,7 +1609,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const records: TerminalRecords = {
       terminal: (terminalId) => shell.store.terminal(terminalId),
       terminals: (sessionId) => shell.store.terminals(sessionId),
-      nextTerminalNumber: (sessionId) => shell.store.nextTerminalNumber(sessionId),
+      giveHandle: (sessionId) => shell.store.giveHandle(sessionId),
       renameTerminal: (terminalId, title) => shell.store.renameTerminal(terminalId, title),
       terminalIdentity: (terminalId) => shell.store.terminalIdentity(terminalId),
       saveTerminal: (terminal) => {
@@ -1639,14 +1641,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
   it("creates no terminal it can't number, so no handle repeats", async ({ shell }) => {
     const manager = shell.manager()
     const first = await create(manager, shell)
-    // Numbering fails once, as a busy or full disk would.
+    // Giving a handle fails once, as a busy or full disk would.
     let refuse = true
     const records: TerminalRecords = {
       terminal: (terminalId) => shell.store.terminal(terminalId),
       terminals: (sessionId) => shell.store.terminals(sessionId),
-      nextTerminalNumber: (sessionId) => {
+      giveHandle: (sessionId) => {
         if (refuse) throw new Error("disk full")
-        return shell.store.nextTerminalNumber(sessionId)
+        return shell.store.giveHandle(sessionId)
       },
       renameTerminal: (terminalId, title) => shell.store.renameTerminal(terminalId, title),
       terminalIdentity: (terminalId) => shell.store.terminalIdentity(terminalId),
@@ -1659,12 +1661,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     const later = shell.manager({ records })
     const id = randomUUID()
     const error = vi.spyOn(console, "error").mockImplementation(() => {})
-    await expect(create(later, shell, { id })).rejects.toThrow(/couldn't number a new terminal/)
+    await expect(create(later, shell, { id })).rejects.toThrow(
+      /couldn't give a new terminal a handle/,
+    )
     error.mockRestore()
     expect(later.list(shell.sessionId).map((terminal) => terminal.id)).not.toContain(id)
     refuse = false
-    expect(first.handle).toBe("t1")
-    expect(await create(later, shell, { id })).toMatchObject({ handle: "t2" })
+    expect(first.handle).toBe("moth")
+    expect(await create(later, shell, { id })).toMatchObject({
+      handle: "fox",
+    })
   })
 
   it("forgets every transcript once transcripts are turned off", async ({ shell }) => {
@@ -1700,7 +1706,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     // Its title handed back to Novadeck while kept: automatic again, the default here.
     second.resetTitle({ terminalId: id })
     expect(second.list(shell.sessionId)).toMatchObject([
-      { id, title: "Terminal 01", titleSource: { kind: "default" } },
+      { id, title: "Terminal", titleSource: { kind: "default" } },
     ])
     expect(shell.store.terminal(id)?.naming.person).toBeNull()
     // Renamed again while it restores, as from another window: the rename stands.
@@ -1744,14 +1750,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         agents: {},
         promptedAt: null,
       })
-    keep(lead, "t1", null, null)
-    // Opened by t1 with a brief for an agent, and opened by t1 for a command that starts
+    keep(lead, "moth", null, null)
+    // Opened by moth with a brief for an agent, and opened by moth for a command that starts
     // one: only the first is led.
-    keep(worker, "t2", "t1", "t1")
-    keep(plain, "t3", "t1", null, "claude")
+    keep(worker, "fox", "moth", "moth")
+    keep(plain, "owl", "moth", null, "claude")
     const manager = shell.manager()
     // What summaries carry is the stored lead, whether or not its terminal runs.
-    expect(manager.list(shell.sessionId).map(({ ledBy }) => ledBy)).toEqual([null, "t1", null])
+    expect(manager.list(shell.sessionId).map(({ ledBy }) => ledBy)).toEqual([null, "moth", null])
     // Restored as a shell that resumes nothing, the worker has no agent left to lead.
     await create(manager, shell, { id: worker, restore: true })
     await create(manager, shell, { id: plain, restore: true })
@@ -1788,15 +1794,15 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
         agents: id === worker ? { claude: { sessionId: session, seq: 1 } } : {},
         promptedAt: null,
       })
-    keep(lead, "t1", null)
-    keep(worker, "t2", "t1")
+    keep(lead, "moth", null)
+    keep(worker, "fox", "moth")
     const manager = shell.manager()
     const next = shell.watch(manager)
     await create(manager, shell, { id: lead, restore: true })
     // Restored by a new runner, its agent resumed there: the lead stays, kept as saved.
     await create(manager, shell, { id: worker, restore: true, resume: "claude" })
     await next((summary) => summary.id === worker && summary.agent === "claude")
-    expect(manager.get(worker).ledBy).toBe("t1")
+    expect(manager.get(worker).ledBy).toBe("moth")
     // Enter ends the stand-in agent, and the lead ends with it.
     manager.write({ terminalId: worker, data: "\r" }, "owner")
     await expect.poll(() => manager.get(worker).ledBy).toBeNull()
@@ -1822,8 +1828,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, ids.worker, "Stopped")
     manager.write({ terminalId: ids.worker, data: "echo back\r" }, "owner")
     await shell.until(manager, ids.worker, /\nback\r?\n/)
-    expect(manager.get(ids.worker).ledBy).toBe("t1")
-    expect(shell.store.terminalIdentity(ids.worker)?.ledBy).toBe("t1")
+    expect(manager.get(ids.worker).ledBy).toBe("moth")
+    expect(shell.store.terminalIdentity(ids.worker)?.ledBy).toBe("moth")
     // Killed while suspended, it never comes back: the next prompt finds it gone.
     manager.write(
       { terminalId: ids.worker, data: "kill -9 $(jobs -p); sleep 0.3; echo killed\r" },
@@ -1851,7 +1857,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await shell.until(manager, ids.worker, "Stopped")
     manager.write({ terminalId: ids.worker, data: "echo back\r" }, "owner")
     await shell.until(manager, ids.worker, /\nback\r?\n/)
-    expect(manager.get(ids.worker).ledBy).toBe("t1")
+    expect(manager.get(ids.worker).ledBy).toBe("moth")
     // Another agent, not the suspended one back from `fg`, binds there: the lead never
     // directed it.
     manager.write({ terminalId: ids.worker, data: "claude\r" }, "owner")
@@ -1874,9 +1880,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       manager as unknown as {
         messaging: { send: (from: string, request: object) => { ok: boolean } }
       }
-    ).messaging.send(ids.lead, { to: "t2", text: "Do the work." })
+    ).messaging.send(ids.lead, { to: "fox", text: "Do the work." })
     expect(brief.ok).toBe(true)
-    expect(manager.get(ids.worker).ledBy).toBe("t1")
+    expect(manager.get(ids.worker).ledBy).toBe("moth")
     // Enter ends the stand-in agent, which never bound a session.
     manager.write({ terminalId: ids.worker, data: "\r" }, "owner")
     await expect.poll(() => manager.get(ids.worker).ledBy).toBeNull()
@@ -1900,12 +1906,12 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     // Its startup command ends the shell, as a killed agent's terminal ends.
     await create(manager, shell, { id: ids.worker, restore: true, command: "exec true" })
     await next((summary) => summary.id === ids.worker && summary.exit !== null)
-    expect(manager.get(ids.worker).ledBy).toBe("t1")
+    expect(manager.get(ids.worker).ledBy).toBe("moth")
     await manager.restart(
       { terminalId: ids.worker, cols: 100, rows: 20, resume: "claude" },
       "owner",
     )
-    expect(manager.get(ids.worker).ledBy).toBe("t1")
+    expect(manager.get(ids.worker).ledBy).toBe("moth")
     await shell.until(manager, ids.worker, "claude is running")
     manager.write({ terminalId: ids.worker, data: "\r" }, "owner")
     await expect.poll(() => manager.get(ids.worker).ledBy).toBeNull()
@@ -1919,7 +1925,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await create(manager, shell, { id: ids.lead, restore: true })
     await create(manager, shell, { id: ids.worker, restore: true, command: "exec true" })
     await next((summary) => summary.id === ids.worker && summary.exit !== null)
-    expect(manager.get(ids.worker).ledBy).toBe("t1")
+    expect(manager.get(ids.worker).ledBy).toBe("moth")
     await manager.restart({ terminalId: ids.worker, cols: 100, rows: 20 }, "owner")
     expect(manager.get(ids.worker).ledBy).toBeNull()
     expect(shell.store.terminalIdentity(ids.worker)?.ledBy).toBeNull()
@@ -1935,13 +1941,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     keepLed(shell, ids, session)
     const manager = shell.manager()
     await create(manager, shell, { id: ids.lead, restore: true })
-    await create(manager, shell, { id: ids.worker, restore: true, resume: "claude" })
-    expect(manager.get(ids.worker).ledBy).toBe("t1")
+    await create(manager, shell, {
+      id: ids.worker,
+      restore: true,
+      resume: "claude",
+    })
+    expect(manager.get(ids.worker).ledBy).toBe("moth")
     const brief = (
       manager as unknown as {
         messaging: { send: (from: string, request: object) => { ok: boolean } }
       }
-    ).messaging.send(ids.lead, { to: "t2", text: "Do the work." })
+    ).messaging.send(ids.lead, { to: "fox", text: "Do the work." })
     expect(brief.ok).toBe(true)
     manager.write({ terminalId: ids.worker, data: "echo mine\r" }, "owner")
     await expect.poll(() => manager.get(ids.worker).ledBy).toBeNull()
@@ -1955,8 +1965,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     ])
     const [lead, worker] = [randomUUID(), randomUUID()]
     for (const [id, handle, ledBy] of [
-      [lead, "t1", null],
-      [worker, "t2", "t1"],
+      [lead, "moth", null],
+      [worker, "fox", "moth"],
     ] as const)
       shell.store.saveTerminal({
         id,
@@ -1980,8 +1990,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     await create(manager, shell, { id: worker, restore: true, command: "report" })
     await shell.until(manager, worker, "reports sent")
     await expect.poll(() => manager.reportedSession(worker, "claude")).toBe("cleared")
-    expect(manager.get(worker).ledBy).toBe("t1")
-    expect(shell.store.terminalIdentity(worker)?.ledBy).toBe("t1")
+    expect(manager.get(worker).ledBy).toBe("moth")
+    expect(shell.store.terminalIdentity(worker)?.ledBy).toBe("moth")
   })
 
   it("takes no lead from a terminal kept in another session, though its id is restored here", async ({
@@ -1997,10 +2007,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       id,
       sessionId: other.id,
       cwd: shell.home,
-      handle: "t1",
+      handle: "moth",
       naming: { person: null, agent: null, murmur: null, summary: null },
-      openedBy: "t1",
-      ledBy: "t1",
+      openedBy: "moth",
+      ledBy: "moth",
       command: "claude",
       lastProgram: null,
       work: null,
@@ -2014,12 +2024,39 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(shell.store.terminalIdentity(id)?.openedBy).toBeNull()
   })
 
+  it("gives each session its own handles, preferring words open nowhere else and never reusing one", async ({
+    shell,
+  }) => {
+    const manager = shell.manager()
+    const other = shell.store.createSession({
+      id: randomUUID(),
+      projectId: shell.store.session(shell.sessionId).projectId,
+      name: "Other",
+    })
+    const handles = async (sessionId: string, count: number) => {
+      const given: string[] = []
+      for (let index = 0; index < count; index += 1)
+        // eslint-disable-next-line no-await-in-loop -- Created in turn, so handles follow the list.
+        given.push((await create(manager, shell, { sessionId })).handle)
+      return given
+    }
+    expect(await handles(shell.sessionId, 2)).toEqual(["moth", "fox"])
+    // "moth" and "fox" are open in the first session, so the second takes others first.
+    expect(await handles(other.id, 2)).toEqual(["owl", "crow"])
+    // A word closed in one session is free for the other, and never for its own again.
+    const closing = manager.list(shell.sessionId)[0]!
+    await manager.close({ terminalId: closing.id })
+    expect(closing.handle).toBe("moth")
+    expect(await handles(shell.sessionId, 1)).toEqual(["kite"])
+    expect(await handles(other.id, 1)).toEqual(["moth"])
+  })
+
   it("names terminals by session, renames them, and tells watchers", async ({ shell }) => {
     const manager = shell.manager()
     const next = shell.watch(manager)
     const first = await create(manager, shell)
     const second = await create(manager, shell)
-    expect([first.title, second.title]).toEqual(["Terminal 01", "Terminal 02"])
+    expect([first.title, second.title]).toEqual(["Terminal", "Terminal"])
     const titled = await manager.create(
       {
         id: randomUUID(),
@@ -2031,18 +2068,26 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
       },
       "owner",
     )
-    expect([first.handle, second.handle]).toEqual(["t1", "t2"])
-    // A terminal given its own title still draws its number, for its handle.
-    expect(titled).toMatchObject({ title: "Docs", handle: "t3", started: true, command: null })
+    expect([first.handle, second.handle]).toEqual(["moth", "fox"])
+    // A terminal given its own title still draws its handle.
+    expect(titled).toMatchObject({
+      title: "Docs",
+      handle: "owl",
+      started: true,
+      command: null,
+    })
     manager.rename({ terminalId: first.id, title: "API author" })
     await next((summary) => summary.id === first.id && summary.title === "API author")
     expect(shell.store.terminal(first.id)).toMatchObject({
       naming: { person: "API author" },
-      handle: "t1",
+      handle: "moth",
     })
-    // Numbers aren't given twice, even once a terminal closes.
+    // A handle isn't given twice, even once its terminal closes.
     await manager.close({ terminalId: second.id })
-    expect(await create(manager, shell)).toMatchObject({ title: "Terminal 04", handle: "t4" })
+    expect(await create(manager, shell)).toMatchObject({
+      title: "Terminal",
+      handle: "crow",
+    })
   })
 })
 
@@ -2314,7 +2359,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ])
         expect(answers).toEqual([
           // Its handle, which agents message it by.
-          { ok: true, text: `Opened a new terminal, t2, running claude --fresh in ${project}.` },
+          {
+            ok: true,
+            text: `Opened a new terminal, @fox · Agent, running claude --fresh in ${project}.`,
+          },
           { ok: false, reason: "Not now." },
           { ok: false, reason: "nowhere isn't a folder a terminal can open in." },
           { ok: false, reason: "The command must be one line, without control characters." },
@@ -2335,17 +2383,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         expect(manager.get(opened!)).toMatchObject({
           cwd: project,
           title: "Agent",
-          titleSource: { kind: "agent", by: "t1" },
+          titleSource: { kind: "agent", by: "moth" },
         })
         expect(shell.store.terminalIdentity(opened!)).toEqual({
-          handle: "t2",
+          handle: "fox",
           naming: {
             person: null,
-            agent: { title: "Agent", by: "t1" },
+            agent: { title: "Agent", by: "moth" },
             murmur: null,
             summary: null,
           },
-          openedBy: "t1",
+          openedBy: "moth",
           ledBy: null,
         })
         // Opened for a command, even one that starts an agent, it has no lead.
@@ -2490,18 +2538,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           { type: "agents" as "open", request: {} },
         ])) as { ok: true; text: string }[]
         expect(listed!.text).toContain(
-          "- t2: expecting Claude Code, not started yet\n  title: Terminal 02\n  folder: .\n  led by you",
+          "- @fox: expecting Claude Code, not started yet\n  title: claude\n  folder: .\n  led by you",
         )
-        expect(manager.get(created[0]!).ledBy).toBe("t1")
+        expect(manager.get(created[0]!).ledBy).toBe("moth")
         // Who opened it is kept with the terminal, for a runner that restores it.
         expect(shell.store.terminalIdentity(created[0]!)).toMatchObject({
-          openedBy: "t1",
-          ledBy: "t1",
+          openedBy: "moth",
+          ledBy: "moth",
         })
         // The task waits for the first session of that agent there.
         expect(manager.messages(created[0]!).threads[0]?.messages[0]).toMatchObject({
-          from: "t1",
-          to: "t2",
+          from: "moth",
+          to: "fox",
           toAgent: "claude",
           text: "Review a.ts, please.",
           state: "queued",
@@ -2641,11 +2689,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         JSON.parse(await step(from, { call: "send", request: { to, text } })) as Told
 
       // Claude sends Codex a message while Codex has had no prompt yet.
-      const sent = await send(claude.id, "t2", "Review a.ts, please.")
+      const sent = await send(claude.id, "fox", "Review a.ts, please.")
       expect(sent).toEqual({
         ok: true,
         text: expect.stringMatching(
-          /^Message m-\S+ to t2 is queued: it reaches them when its agent's first turn starts\.\n/,
+          /^Message m-\S+ to @fox is queued: it reaches them when its agent's first turn starts\.\n/,
         ),
       })
       // Codex's next prompt carries it, wrapped and attributed, never as the person.
@@ -2655,7 +2703,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(prompted.hookSpecificOutput.hookEventName).toBe("UserPromptSubmit")
       expect(prompted.hookSpecificOutput.additionalContext).toMatch(
         new RegExp(
-          `<message id="${messageId(sent)}" from="t1" agent="Claude Code" thread="t-[a-z0-9]+" ` +
+          `<message id="${messageId(sent)}" from="moth" agent="Claude Code" thread="t-[a-z0-9]+" ` +
             `sent="\\d\\d:\\d\\d">Review a.ts, please.</message>`,
         ),
       )
@@ -2684,14 +2732,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(paragraphs[1]).toMatch(
         /^Novadeck: automatic notice, not from the user: this terminal has no/,
       )
-      const reply = await send(codex.id, "t1", "Looks good & ships.")
-      expect(reply).toMatchObject({ ok: true, text: reaches("when its current turn ends") })
+      const reply = await send(codex.id, "moth", "Looks good & ships.")
+      expect(reply).toMatchObject({
+        ok: true,
+        text: reaches("when its current turn ends"),
+      })
       const stopped = JSON.parse(await step(claude.id, { hook: "Stop", payload: {} })) as {
         decision: string
         reason: string
       }
       expect(stopped.decision).toBe("block")
-      expect(stopped.reason).toContain('from="t2" agent="Codex"')
+      expect(stopped.reason).toContain('from="fox" agent="Codex"')
       expect(stopped.reason).toContain(">Looks good &amp; ships.</message>")
       await expect
         .poll(() => manager.messages(claude.id).threads[0]?.messages.map(({ state }) => state))
@@ -2709,9 +2760,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         .toEqual({
           ok: true,
           text: [
-            "You are t2 in Novadeck.",
+            "You are @fox in Novadeck.",
             "Other terminals in this project and session:",
-            "- t1: Claude Code, busy, last active just now",
+            "- @moth: Claude Code, busy, last active just now",
             "  title: API author",
             "  folder: ., branch main",
             "  started with: ask codex",
@@ -2726,7 +2777,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // leaves the message to that prompt's hook.
       await step(claude.id, { hook: "UserPromptSubmit", payload: { prompt: "next" } })
       manager.write({ terminalId: claude.id, data: "and then this\r" }, "owner")
-      await send(codex.id, "t1", "One more thing.")
+      await send(codex.id, "moth", "One more thing.")
       await expect(step(claude.id, { hook: "Stop", payload: {} })).resolves.toBe("")
       expect(manager.messages(claude.id).delivery).toBe("drafting")
       const queued = JSON.parse(
@@ -2750,7 +2801,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const watch = manager.watchMessages(third.id)
       await watch.next()
       const pushes = vi.spyOn(Latest.prototype, "push")
-      await step(claude.id, { call: "send", request: { to: "t2", text: "Review a.ts." } })
+      await step(claude.id, {
+        call: "send",
+        request: { to: "fox", text: "Review a.ts." },
+      })
       await new Promise((resolve) => setImmediate(resolve))
       expect(pushes).not.toHaveBeenCalled()
       pushes.mockRestore()
@@ -2777,16 +2831,22 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const first = manager.watchMessages(codex.id)
       const second = manager.watchMessages(codex.id)
       await expect(first.next()).resolves.toMatchObject({
-        value: { handle: "t2", delivery: "fresh", paused: false, threads: [] },
+        value: { handle: "fox", delivery: "fresh", paused: false, threads: [] },
       })
       await expect(second.next()).resolves.toMatchObject({ value: { threads: [] } })
 
       // A message to it arrives, and both watchers hear; the doorbell still does its part.
-      await step(claude.id, { call: "send", request: { to: "t2", text: "Review a.ts." } })
+      await step(claude.id, {
+        call: "send",
+        request: { to: "fox", text: "Review a.ts." },
+      })
       const waiting = {
         value: {
           threads: [
-            { peer: "t1", messages: [{ from: "t1", text: "Review a.ts.", state: "queued" }] },
+            {
+              peer: "moth",
+              messages: [{ from: "moth", text: "Review a.ts.", state: "queued" }],
+            },
           ],
         },
       }
@@ -2862,8 +2922,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
 // A call to close a terminal, as Novadeck's MCP server sends it.
 const close = (to: string) => ({ type: "close" as const, request: { to } })
 
-// What a close of the terminal `t<number>` tells the agent.
-const closed = (number: number) => ({ ok: true, text: `Closed t${number}.` })
+// What a close of the terminal in this place of a fresh session's list tells the agent.
+const closed = (number: number) => ({
+  ok: true,
+  text: `Closed @${handleWords[number - 1]} · Terminal.`,
+})
 
 describe.skipIf(process.platform === "win32" || !existsSync(bash))(
   "agents closing other bash terminals",
@@ -2915,8 +2978,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect.poll(() => manager.messages(codex.id).delivery).toBe("fresh")
       const call = async (from: string, type: string, request: object) =>
         JSON.parse(await step(from, { call: type, request })) as Told
-      const mine = await call(claude.id, "send", { to: "t2", text: "Review a.ts." })
-      const theirs = await call(third.id, "send", { to: "t2", text: "And b.ts." })
+      const mine = await call(claude.id, "send", {
+        to: "fox",
+        text: "Review a.ts.",
+      })
+      const theirs = await call(third.id, "send", {
+        to: "fox",
+        text: "And b.ts.",
+      })
       expect([mine.ok, theirs.ok]).toEqual([true, true])
       // Its agent shows a file beside it, on its bar.
       const notes = join(shell.home, "notes")
@@ -2947,17 +3016,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })()
 
       // Never its own terminal, nor a handle not there.
-      await expect(call(claude.id, "close", { to: "t1" })).resolves.toEqual({
+      await expect(call(claude.id, "close", { to: "moth" })).resolves.toEqual({
         ok: false,
         reason:
-          "t1 is your own terminal, which close_terminal never closes; to end your own " +
+          "@moth is your own terminal, which close_terminal never closes; to end your own " +
           "session, use your harness's own way to exit.",
       })
       const unknown = await call(claude.id, "close", { to: "codex" })
       expect(unknown.ok).toBe(false)
       expect(unknown.reason).toMatch(/^"codex" is no terminal's handle here\./)
-      expect(unknown.reason).toContain("- t2: Codex")
-      expect(unknown.reason).toContain("- t3: Claude Code")
+      expect(unknown.reason).toContain("- @fox: Codex")
+      expect(unknown.reason).toContain("- @owl: Claude Code")
       // Nor with anything more than the tool takes, which the runner refuses all the same,
       // though the tool passes on only what it takes.
       await expect(
@@ -2965,17 +3034,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           type: "close",
           terminalId: claude.id,
           token: claudeToken,
-          request: { to: "t2", force: true },
+          request: { to: "fox", force: true },
         }),
       ).resolves.toMatchObject({ ok: false })
       expect(manager.get(codex.id).exit).toBeNull()
 
       // Closed: its shell ended, the terminal gone and forgotten, and what waited for it gone.
-      await expect(call(claude.id, "close", { to: "t2" })).resolves.toEqual({
+      await expect(call(claude.id, "close", { to: "fox" })).resolves.toEqual({
         ok: true,
         text: [
-          "Closed t2, which ran Codex.",
-          `Your message ${messageId(mine)} to t2 won't arrive, as that terminal is closed.`,
+          "Closed @fox · Terminal, which ran Codex.",
+          `Your message ${messageId(mine)} to @fox won't arrive, as that terminal is closed.`,
           "1 message another agent sent it won't arrive; Novadeck tells their senders.",
         ].join("\n"),
       })
@@ -2995,17 +3064,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         )
         .toBe(true)
       // The other sender learns so with its next answer, as for any message gone.
-      await expect(call(third.id, "send", { to: "t1", text: "Done?" })).resolves.toMatchObject({
+      await expect(call(third.id, "send", { to: "moth", text: "Done?" })).resolves.toMatchObject({
         ok: true,
         text: expect.stringContaining(
-          `Your earlier message ${messageId(theirs)} to t2 won't arrive: the agent session it was for ended there.`,
+          `Your earlier message ${messageId(theirs)} to @fox won't arrive: the agent session it was for ended there.`,
         ),
       })
 
-      // The other session's t2 is no one's here.
-      const outside = await call(claude.id, "close", { to: "t2" })
+      // The other session's fox is no one's here.
+      const outside = await call(claude.id, "close", { to: "fox" })
       expect(outside).toMatchObject({ ok: false })
-      expect(outside.reason).toMatch(/^"t2" is no terminal's handle here\./)
+      expect(outside.reason).toMatch(/^"fox" is no terminal's handle here\./)
       expect(away.map(({ id }) => manager.get(id).exit)).toEqual([null, null])
       // Nor does a call without the terminal's own token close anything.
       await expect(
@@ -3013,7 +3082,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           type: "close",
           terminalId: claude.id,
           token: "0".repeat(48),
-          request: { to: "t3" },
+          request: { to: "owl" },
         }),
       ).resolves.toEqual(unansweredCalls.close)
       expect(manager.get(third.id).exit).toBeNull()
@@ -3048,15 +3117,23 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         // eslint-disable-next-line no-await-in-loop -- Each is readied in turn.
         await shell.until(manager, id, /^trapped$/m)
       }
-      const closing = manager.closePeer({ ...calls.first, request: { to: "t3" } })
-      await new Promise((resolve) => setImmediate(resolve))
-      await expect(manager.closePeer({ ...calls.second, request: { to: "t3" } })).resolves.toEqual({
-        ok: false,
-        reason: "t3 is already closing.",
+      const closing = manager.closePeer({
+        ...calls.first,
+        request: { to: "owl" },
       })
-      await expect(closing).resolves.toEqual({ ok: true, handle: "t3" })
+      await new Promise((resolve) => setImmediate(resolve))
+      await expect(manager.closePeer({ ...calls.second, request: { to: "owl" } })).resolves.toEqual(
+        {
+          ok: false,
+          reason: "@owl is already closing.",
+        },
+      )
+      await expect(closing).resolves.toMatchObject({ ok: true, handle: "owl" })
       // The runner stops while a close ends the shell: the terminal is closed all the same.
-      const stopped = manager.closePeer({ ...calls.first, request: { to: "t4" } })
+      const stopped = manager.closePeer({
+        ...calls.first,
+        request: { to: "crow" },
+      })
       await new Promise((resolve) => setImmediate(resolve))
       const stopping = manager.shutdown()
       await expect(stopped).resolves.toEqual(unansweredCalls.close)
@@ -3072,7 +3149,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const manager = shell.manager({
         env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
       })
-      // t1 to t26, in order, so each handle is the terminal's place in the list.
+      // moth to cinder, in order, so each handle is the terminal's place in the list.
       const terminals: TerminalSummary[] = []
       for (let index = 0; index < 26; index += 1)
         // eslint-disable-next-line no-await-in-loop -- Created in turn, so handles follow the list.
@@ -3082,7 +3159,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           shell,
           manager,
           terminals[from - 1]!.id,
-          to.map((each) => close(`t${each}`)),
+          to.map((each) => close(handleWords[each - 1]!)),
         )
       const spent = {
         ok: false,
@@ -3121,7 +3198,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         ])
         const chained = (calls: { request: object; type: "open" | "close" }[]) =>
           present(shell, manager, opened!, calls, "client")
-        await expect(chained([close("t1"), close("t6")])).resolves.toEqual([closed(1), spent])
+        await expect(chained([close("moth"), close("raven")])).resolves.toEqual([closed(1), spent])
         await expect(chained(Array.from({ length: 5 }, () => open({})))).resolves.toEqual([
           ...Array.from({ length: 4 }, () => ({ ok: false, reason: "Not now." })),
           {
@@ -3210,12 +3287,15 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         summary: null,
         previous: null,
       })
-      expect(manager.get(claude.id).title).toBe("Terminal 01")
+      expect(manager.get(claude.id).title).toBe("Terminal")
 
       // The agent summarizes its own terminal: titles stay Novadeck's, and murmur looks again
       // with the summary in its digest.
       await expect(
-        summarize("Fixes the login bug.\nThen its tests.", { title: "Evil", to: "t1" }),
+        summarize("Fixes the login bug.\nThen its tests.", {
+          title: "Evil",
+          to: "moth",
+        }),
       ).resolves.toEqual({ ok: true, text: "Summarized this terminal." })
       await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBe(2)
       expect(describer.digests[1]).toMatchObject({
@@ -3225,9 +3305,9 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect
         .poll(() => manager.get(codex.id).title, { timeout: 30_000 })
         .toBe("Login fix and tests")
-      expect(manager.get(claude.id).title).toBe("Terminal 01")
+      expect(manager.get(claude.id).title).toBe("Terminal")
       expect(await listed()).toContain(
-        "- t2: Codex, busy, last active just now\n" +
+        "- @fox: Codex, busy, last active just now\n" +
           "  title: Login fix and tests (written by Novadeck's local model, not the user)\n" +
           "  described by its agent: Fixes the login bug. / Then its tests.",
       )
@@ -3413,7 +3493,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       describer.jobs[0]!.answer({ title: "Stale shell" })
       await new Promise((resolve) => setTimeout(resolve, 200))
       expect(manager.get(terminal.id)).toMatchObject({
-        title: "Terminal 01",
+        title: "Terminal",
         titleSource: { kind: "default" },
       })
       expect(shell.store.terminalIdentity(terminal.id)?.naming.murmur).toBeNull()
@@ -3566,7 +3646,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       describer.clear()
       await seen((terminal) => terminal.id === kept && terminal.titleSource.kind === "default")
       expect(manager.get(live)).toMatchObject({
-        title: expect.stringMatching(/^Terminal \d+$/),
+        title: "Terminal",
         titleSource: { kind: "default" },
       })
       expect(manager.get(theirs)).toMatchObject({ title: "My title" })
@@ -3685,7 +3765,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: "Fix the build" } })
       await step(terminal.id, { hook: "Stop", payload: {} })
       expect(manager.get(terminal.id)).toMatchObject({
-        title: "Terminal 01",
+        title: "Terminal",
         titleSource: { kind: "default" },
       })
       expect(shell.store.terminalIdentity(terminal.id)?.naming.murmur).toBeNull()
@@ -3698,7 +3778,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await agyStarted(tui)
       await tui.first()
       expect(tui.manager.get(tui.idle.id)).toMatchObject({
-        title: expect.stringMatching(/^Terminal \d+$/),
+        title: "Terminal",
         titleSource: { kind: "default" },
       })
       expect(shell.store.terminal(tui.idle.id)?.work).toMatchObject({ first: "hello" })
@@ -3771,10 +3851,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           opened: true,
         })
         expect(manager.get(opened)).toMatchObject({
-          title: "Terminal 02",
+          title: "claude",
           titleSource: { kind: "default" },
         })
-        expect(await listed()).toContain("  started with (t1's command): fix-the-build")
+        expect(await listed()).toContain("  started with (@moth's command): fix-the-build")
         // A later root session there is the person's.
         await step(opened, {
           hook: "SessionStart",
@@ -3785,7 +3865,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           payload: { session_id: "s-later", prompt: "write the docs" },
         })
         expect(manager.get(opened)).toMatchObject({
-          title: "Terminal 02",
+          title: "claude",
           titleSource: { kind: "default" },
         })
         expect(await listed()).toContain("  started with: write the docs")
@@ -3842,7 +3922,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           hook: "SessionStart",
           payload: { session_id: session, source: "clear", cwd: shell.home },
         })
-      expect(manager.get(terminal.id).title).toBe("Terminal 01")
+      expect(manager.get(terminal.id).title).toBe("Terminal")
       // A doorbell's line is never the person's prompt, so never kept as one.
       await prompt("s-1", "[Novadeck: automatic notice, agent messages waiting, abc123]")
       expect(shell.store.terminal(terminal.id)?.work?.first ?? null).toBeNull()
@@ -3851,7 +3931,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await expect(prompt("s-1", "Fix the login bug")).resolves.toMatch(bar)
       await prompt("s-1", "Now its tests")
       expect(manager.get(terminal.id)).toMatchObject({
-        title: "Terminal 01",
+        title: "Terminal",
         titleSource: { kind: "default" },
       })
       // Nobody pressed Enter for it, so not told as the person's submission.
@@ -3874,7 +3954,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         firstByPerson: true,
         recent: ["Write the docs"],
       })
-      expect(manager.get(terminal.id).title).toBe("Terminal 01")
+      expect(manager.get(terminal.id).title).toBe("Terminal")
     })
   },
 )

@@ -393,19 +393,19 @@ describe("Placing an item on another terminal's taskbar", () => {
       await openShowcase()
       await dragCardToBar("Build Studio", "2 images", "hero.png", "Refactor auth")
       await expect
-        .element(taskbarIcon("Refactor auth", "hero.png, from Build Studio"))
+        .element(taskbarIcon("Refactor auth", "hero.png, from @moth · Build Studio"))
         .toBeVisible()
       await expect.element(taskbarIcon("Build Studio", "about.png")).toBeVisible()
       await expectStaysAbsent(taskbarIcon("Build Studio", "2 images"))
 
       await chooseFromIconMenu(
         "Refactor auth",
-        "hero.png, from Build Studio",
-        "Send back to Build Studio",
+        "hero.png, from @moth · Build Studio",
+        "Send back to @moth · Build Studio",
       )
       await expect.element(taskbarIcon("Build Studio", "2 images")).toBeVisible()
       await expect
-        .element(taskbarIcon("Refactor auth", "hero.png, from Build Studio"))
+        .element(taskbarIcon("Refactor auth", "hero.png, from @moth · Build Studio"))
         .not.toBeInTheDocument()
     })
   })
@@ -415,7 +415,7 @@ describe("Placing an item on another terminal's taskbar", () => {
       await openShowcase()
       cancelPointerOver(taskbar("Refactor auth"))
       await dragCardToBar("Build Studio", "2 images", "hero.png", "Refactor auth")
-      await expectStaysAbsent(taskbarIcon("Refactor auth", "hero.png, from Build Studio"))
+      await expectStaysAbsent(taskbarIcon("Refactor auth", "hero.png, from @moth · Build Studio"))
       await expect.element(taskbarIcon("Build Studio", "2 images")).toBeVisible()
     })
   })
@@ -431,7 +431,7 @@ describe("Placing an item on another terminal's taskbar", () => {
       })
       await dragCardToBar("Build Studio", "2 images", "about.png", "Refactor auth")
       await expect
-        .element(taskbarIcon("Refactor auth", "about.png, from Build Studio"))
+        .element(taskbarIcon("Refactor auth", "about.png, from @moth · Build Studio"))
         .toBeVisible()
       await expect.element(taskbarIcon("Build Studio", "hero.png")).toBeVisible()
     })
@@ -442,7 +442,7 @@ describe("Placing an item on another terminal's taskbar", () => {
       await openShowcase()
       await dragIconToBar("Build Studio", "Messages", "Refactor auth")
       await expect.element(taskbarIcon("Build Studio", "Messages")).toBeVisible()
-      await expectStaysAbsent(taskbarIcon("Refactor auth", "Messages, from Build Studio"))
+      await expectStaysAbsent(taskbarIcon("Refactor auth", "Messages, from @moth · Build Studio"))
       expect(taskbarIcons("Refactor auth")).toEqual([
         "Plan: refactor-auth.md, new",
         "Messages, 1 message waiting",

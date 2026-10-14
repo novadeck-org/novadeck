@@ -13,7 +13,7 @@ export type AgentReport = { readonly sessionId: string; readonly seq: number }
 export type SavedTerminal = {
   readonly id: string
   readonly sessionId: string
-  /** Its handle in its session, `t3`, which never changes. */
+  /** Its handle in its session, a word such as `moth`, which never changes. */
   readonly handle: string
   /**
    * What names it: the person's title, an agent's, and its agent's summary of its work;
@@ -54,10 +54,13 @@ export type TerminalIdentity = Pick<SavedTerminal, "handle" | "naming" | "opened
 /** Where the runner saves terminals: its metadata store. */
 export type TerminalRecords = {
   terminal(terminalId: string): SavedTerminal | undefined
-  /** Every terminal kept, of one session or all, in the order they were asked for (by number), without transcripts. */
+  /** Every terminal kept, of one session or all, in the order they were created, without transcripts. */
   terminals(sessionId?: string): readonly ListedTerminal[]
-  /** The next number of a session's terminals, for a handle and a default title, never given twice. */
-  nextTerminalNumber(sessionId: string): number
+  /**
+   * Gives a session's next terminal its handle, never one the session gave before, even
+   * to a terminal since closed (see `nextHandle`), and records it as given.
+   */
+  giveHandle(sessionId: string): string
   /**
    * Gives a kept terminal the person's title, or with null takes theirs away, so its title
    * is automatic again; false when none is kept by that id.

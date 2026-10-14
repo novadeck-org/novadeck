@@ -2,7 +2,7 @@
  * What a terminal knows of the words likely said into it, as `Terminals.hintFacts` reads
  * them: its project's name, its folder, its git branch, the folders its agent writes in
  * most, as paths inside the project, and the names of the files shown beside it and
- * written last.
+ * written last, and the handles of the session's open terminals, which are said aloud.
  */
 export type HintFacts = {
   readonly project: string | null
@@ -10,6 +10,7 @@ export type HintFacts = {
   readonly branch: string | null
   readonly folders: readonly string[]
   readonly files: readonly string[]
+  readonly handles: readonly string[]
 }
 
 /**
@@ -19,6 +20,8 @@ export type HintFacts = {
 export const hintModules = 6
 /** How many file names it lists after them. */
 export const hintFiles = 8
+/** How many terminal handles it names, the first the session gave. */
+export const hintHandles = 6
 /**
  * The longest hint, in characters: a sentence or two, well inside the 224 tokens Whisper
  * reads of a prompt, since a long one gets copied into the transcript, or makes it up.
@@ -124,23 +127,31 @@ export const dictationHint = (facts: HintFacts, language: string): string => {
     return each.some((part) => part.startsWith(".")) ? [] : each
   })
   const listing = [...pick(parts, hintModules), ...pick(facts.files, hintFiles)]
-  const compose = (names: readonly string[]): string => {
+  const compose = (names: readonly string[], terminals: readonly string[]): string => {
     if (!english) {
       const head = [project, branch, folder].filter((part) => part !== null).join(", ")
-      if (!names.length) return head ? `${head}.` : ""
-      return head ? `${head}: ${names.join(", ")}.` : `${names.join(", ")}.`
+      const all = [...names, ...terminals]
+      if (!all.length) return head ? `${head}.` : ""
+      return head ? `${head}: ${all.join(", ")}.` : `${all.join(", ")}.`
     }
     const clauses = [
       project && `Working on ${project}`,
       branch && `on the ${branch} branch`,
       folder && `in the ${folder} folder`,
       names.length ? `with ${listed(names)}` : null,
+      terminals.length
+        ? `${names.length ? "and" : "with"} the terminals ${listed(terminals)}`
+        : null,
     ].filter((clause) => clause !== null)
     // Without a project, the sentence starts at its next clause.
     const text = clauses.join(", ")
     return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}.` : ""
   }
+  // Terminal handles are asked for by name, so they stay when the rest is cut, until last.
   let kept = listing
-  while (kept.length && compose(kept).length > hintChars) kept = kept.slice(0, -1)
-  return compose(kept)
+  let terminals = pick(facts.handles, hintHandles)
+  while (kept.length && compose(kept, terminals).length > hintChars) kept = kept.slice(0, -1)
+  while (terminals.length && compose(kept, terminals).length > hintChars)
+    terminals = terminals.slice(0, -1)
+  return compose(kept, terminals)
 }

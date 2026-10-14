@@ -210,7 +210,7 @@ export class TerminalPeers {
   async hint(
     terminal: PeerTerminal,
     shown: readonly Pick<CompanionItem, "kind" | "path" | "held">[],
-  ): Promise<Omit<HintFacts, "project">> {
+  ): Promise<Omit<HintFacts, "project" | "handles">> {
     const { cwd, sessionId } = terminal.summary
     const base = this.options.projectFolder(sessionId) ?? cwd
     const inside = (path: string): string | undefined => {

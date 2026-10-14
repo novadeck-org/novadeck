@@ -1,3 +1,4 @@
+import { handleText } from "../model/handle"
 import { activeProject, activeSession } from "../model/state"
 import type {
   TerminalMetadata,
@@ -86,9 +87,15 @@ export const crashLoopQuestion = (ui: Pick<UiState, "crashLoop" | "crashLoopDism
 export const alertOpen = (ui: UiState, workspace: Workspace): boolean =>
   closeQuestion(ui, workspace) !== undefined || crashLoopQuestion(ui) > 0
 
-// The current session's terminals' names, by id.
-export const terminalNames = (workspace: Workspace): Readonly<Record<string, string>> =>
-  Object.fromEntries(currentState(workspace).roster.terminals.map((each) => [each.id, each.name]))
+// How the current session's terminals are told apart where one says where another's
+// work came from, by id: "@fox · Terminal", as names alone repeat.
+export const terminalOrigins = (workspace: Workspace): Readonly<Record<string, string>> =>
+  Object.fromEntries(
+    currentState(workspace).roster.terminals.map((each) => [
+      each.id,
+      each.handle ? `${handleText(each.handle)} · ${each.name}` : each.name,
+    ]),
+  )
 
 // The leads of the current session's terminals that run, by terminal id: each lead's
 // handle and name. A terminal whose lead is closed, exited or not yet started has none.

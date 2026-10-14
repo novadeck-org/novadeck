@@ -27,8 +27,8 @@ for (const setup of setups) {
     }) => {
       run.model.use(
         replies("Remember the word heron", "Remembered."),
-        sends("Ask t1 for the word", "t1", "Which word did you remember?"),
-        own((call) => (delivered(call, "t2") ? { text: "Heron, as asked." } : undefined)),
+        sends("Ask moth for the word", "moth", "Which word did you remember?"),
+        own((call) => (delivered(call, "fox") ? { text: "Heron, as asked." } : undefined)),
       )
       const t1 = await start(run, setup)
       await turn(t1, "Remember the word heron", "Remembered.")
@@ -43,19 +43,19 @@ for (const setup of setups) {
         run.deck.terminals.list(run.deck.sessionId).map((one) => [one.id, one.started]),
       ).toEqual([[t1.id, false]])
       const resumed = await run.deck.restore(t1, { resume: setup.agent })
-      expect(resumed.handle).toBe("t1")
+      expect(resumed.handle).toBe("moth")
       await resumed.reached("ready", { timeoutMs: 60_000 })
       await prompted(resumed, setup)
       const t2 = await start(run, setup)
       const calls = run.model.mark()
       const mark = resumed.mark()
 
-      await t2.submit("Ask t1 for the word")
+      await t2.submit("Ask moth for the word")
 
       // The resumed t1, Ready, is rung, in the conversation it had before the restart.
-      const rung = await run.model.waitFor((call) => delivered(call, "t2"), { after: calls })
+      const rung = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
       expect(latest(rung)).toMatch(ring)
-      expect(deliveries(rung)).toEqual([{ from: "t2", text: "Which word did you remember?" }])
+      expect(deliveries(rung)).toEqual([{ from: "fox", text: "Which word did you remember?" }])
       expect(
         rung.turns.some(
           (one) => one.role === "user" && one.text.includes("Remember the word heron"),
@@ -66,10 +66,10 @@ for (const setup of setups) {
       await through(
         resumed,
         [
-          holds("t2", "t1", "queued"),
+          holds("fox", "moth", "queued"),
           "ringing",
           "working",
-          holds("t2", "t1", "delivered"),
+          holds("fox", "moth", "delivered"),
           "settled",
         ],
         { after: mark },
@@ -82,9 +82,9 @@ for (const setup of setups) {
     }) => {
       run.model.use(
         replies("Remember the word heron", "Remembered."),
-        sends("Ask t2 for its colour", "t2", "What is your colour?"),
-        own((call) => (sent(call, "t2") ? { text: "Asked." } : undefined)),
-        own((call) => (delivered(call, "t1") ? { text: "Mine is teal." } : undefined)),
+        sends("Ask fox for its colour", "fox", "What is your colour?"),
+        own((call) => (sent(call, "fox") ? { text: "Asked." } : undefined)),
+        own((call) => (delivered(call, "moth") ? { text: "Mine is teal." } : undefined)),
       )
       const t1 = await start(run, setup)
       const t2 = await start(run, setup)
@@ -98,10 +98,10 @@ for (const setup of setups) {
       // restart ends every lease at once, while the hook still has to read its answer,
       // print it and connect again to acknowledge.
       const restarted = t2
-        .reached(holds("t1", "t2", "leased"), { after: from2 })
+        .reached(holds("moth", "fox", "leased"), { after: from2 })
         .then(() => run.deck.restart())
 
-      await t1.submit("Ask t2 for its colour")
+      await t1.submit("Ask fox for its colour")
       await restarted
 
       // The new runner holds the message queued again, for the session t2's ring bound,
@@ -110,15 +110,15 @@ for (const setup of setups) {
       const resumed = await run.deck.restore(t2, { resume: setup.agent })
       const [first] = resumed.history()
       expect(first?.messages.map((one) => [one.from, one.to, one.state])).toEqual([
-        ["t1", "t2", "queued"],
+        ["moth", "fox", "queued"],
       ])
-      await through(resumed, ["ready", "ringing", "working", holds("t1", "t2", "delivered")], {
+      await through(resumed, ["ready", "ringing", "working", holds("moth", "fox", "delivered")], {
         timeoutMs: 60_000,
       })
       // At least once: the ring's hook may have printed it before the runner stopped, its
       // acknowledgement lost, and the agent then holds it twice, as the same message.
-      const rung = await run.model.waitFor((call) => delivered(call, "t1"), { after: calls })
-      const once = { from: "t1", text: "What is your colour?" }
+      const rung = await run.model.waitFor((call) => delivered(call, "moth"), { after: calls })
+      const once = { from: "moth", text: "What is your colour?" }
       expect([[once], [once, once]]).toContainEqual(deliveries(rung))
       await resumed.until("Mine is teal.")
       expect((await resumed.detail()).sessionId).toBe(sessionId)

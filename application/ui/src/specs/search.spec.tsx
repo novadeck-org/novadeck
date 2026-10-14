@@ -87,6 +87,19 @@ describe("finding a terminal", () => {
       await expect.element(findDialog().getByRole("option")).toHaveLength(1)
     })
 
+    for (const query of ["fox", "@fox"]) {
+      it(`finds a terminal by its handle typed as ${query}`, async () => {
+        await openWorkspace()
+        await pressShortcut("find")
+        await expectSearchReady()
+
+        await searchField().fill(query)
+
+        await expect.element(searchResult("Dev server")).toBeVisible()
+        await expect.element(findDialog().getByRole("option")).toHaveLength(1)
+      })
+    }
+
     it("says so when nothing matches", async () => {
       await openWorkspace()
       await pressShortcut("find")

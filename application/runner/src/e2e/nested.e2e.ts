@@ -54,13 +54,13 @@ for (const setup of setups) {
             ran ??= t1.mark()
             return { text: "The nested run said its word." }
           }),
-          own((call) => (delivered(call, "t2") ? { text: "Got t2's word." } : undefined)),
-          sends("Tell t1 the word", "t1", "The word is heron."),
-          own((call) => (sent(call, "t1") ? { text: "Told t1." } : undefined)),
+          own((call) => (delivered(call, "fox") ? { text: "Got fox's word." } : undefined)),
+          sends("Tell moth the word", "moth", "The word is heron."),
+          own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
         )
         const t1 = await start(run, setup)
         const t2 = await start(run, setup)
-        expect([t1.handle, t2.handle]).toEqual(["t1", "t2"])
+        expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
         const calls = run.model.mark()
         const mark = t1.mark()
 
@@ -72,8 +72,8 @@ for (const setup of setups) {
         const { sessionId } = await t1.detail()
         expect(sessionId).not.toBeNull()
         // t2 sends t1 a message while t1 works: it waits for t1's turn to end.
-        await t2.submit("Tell t1 the word")
-        const queued = await t1.reached(holds("t2", "t1", "queued"), { after: mark })
+        await t2.submit("Tell moth the word")
+        const queued = await t1.reached(holds("fox", "moth", "queued"), { after: mark })
         waiting.open()
 
         // The nested run really ran: its model call came, and its answer reached t1's agent
@@ -88,7 +88,7 @@ for (const setup of setups) {
 
         // t1's own Stop then delivers the message, in t1's own conversation: a Stop
         // continuing the turn, never a ring, and nothing settled before it.
-        const handed = await t1.reached(holds("t2", "t1", "delivered"), { after: queued.index })
+        const handed = await t1.reached(holds("fox", "moth", "delivered"), { after: queued.index })
         const before = t1
           .history()
           .slice(queued.index, handed.index + 1)
@@ -96,7 +96,7 @@ for (const setup of setups) {
         expect(before).not.toContain("ringing")
         expect(before).not.toContain("settled")
         await t1.reached("settled", { after: handed.index })
-        const got = await run.model.waitFor((call) => delivered(call, "t2"), { after: calls })
+        const got = await run.model.waitFor((call) => delivered(call, "fox"), { after: calls })
         expect(latest(got)).not.toMatch(ring)
         expect(nested(got)).toBe(false)
         expect(
@@ -107,9 +107,9 @@ for (const setup of setups) {
         // The one message, which Claude Code's continuation quotes twice: as the Stop hook's
         // feedback and again as its blocking error (2.1.287).
         expect(new Set(deliveries(got).map((one) => JSON.stringify(one)))).toEqual(
-          new Set([JSON.stringify({ from: "t2", text: "The word is heron." })]),
+          new Set([JSON.stringify({ from: "fox", text: "The word is heron." })]),
         )
-        await t1.until("Got t2's word.")
+        await t1.until("Got fox's word.")
 
         // Its hooks got nothing: no call of the nested run carried a message, and the
         // message waited, never leased, while t1 worked through the nested run.

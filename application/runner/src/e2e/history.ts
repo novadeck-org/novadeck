@@ -85,7 +85,7 @@ const test = (what: Reach) =>
 
 /**
  * The delivery states snapshots went through, a state repeated as only a message changed
- * shown once, and the messages' states at the last: `t2: ready → ringing → unknown;
+ * shown once, and the messages' states at the last: `fox: ready → ringing → unknown;
  * messages m-1 delivered`.
  */
 export const transitions = (handle: string, snapshots: readonly Snapshot[]): string => {

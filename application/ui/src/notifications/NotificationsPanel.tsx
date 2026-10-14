@@ -12,6 +12,7 @@ import {
 
 import { SidebarItem, sidebarListClasses } from "../sidebar/SidebarItem"
 import type { Viewing } from "../terminals/unread-state"
+import { HandleChip } from "../ui-toolkit/HandleChip"
 import { Tooltip } from "../ui-toolkit/Tooltip"
 import {
   dismissable,
@@ -165,6 +166,7 @@ export const NotificationsPanel = ({
             onDismiss(item)
             settleFocus(items[index + 1] ?? items[index - 1])
           }
+          const handleId = `notification-handle-${rowKey(item).replaceAll("/", "-")}`
           return (
             <SidebarItem
               key={`${item.context}/${item.terminalId}`}
@@ -179,6 +181,12 @@ export const NotificationsPanel = ({
               data-notification={item.kind}
               data-notification-key={rowKey(item)}
               name={item.terminalName}
+              {...(item.handle
+                ? {
+                    tag: <HandleChip id={handleId} handle={item.handle} />,
+                    handleId,
+                  }
+                : {})}
               icon={<Icon size={14} strokeWidth={1.5} />}
               selected={viewing?.context === item.context && viewing.id === item.terminalId}
               selectLabel={`Go to ${item.terminalName}`}

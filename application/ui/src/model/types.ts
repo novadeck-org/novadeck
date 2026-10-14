@@ -110,7 +110,7 @@ export type TerminalMetadata = {
   // shell was lost or ended, or when the app last closed. Present only while the
   // terminal has no live shell.
   restoredProcess?: string
-  // The handle agents message it by, such as `t3`, where its backend has one.
+  // The handle agents message it by, such as `moth`, where its backend has one.
   handle?: string
   // The handle of the terminal whose agent opened it with a brief, its lead, as its
   // backend last said; null once that ended. Whether the lead runs is the roster's to say.

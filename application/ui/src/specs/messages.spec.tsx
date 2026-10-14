@@ -45,28 +45,28 @@ describe("A terminal's messages", () => {
     await expect
       .poll(() => threads.elements().map((each) => each.getAttribute("aria-label")))
       .toEqual([
-        "Thread with Checkout review (t4)",
-        "Thread with Tests (t3)",
-        "Thread with Dev server (t2)",
+        "Thread with Checkout review (@crow)",
+        "Thread with Tests (@owl)",
+        "Thread with Dev server (@fox)",
       ])
-    const review = messageItems(thread(pane, "Checkout review", "t4"))
+    const review = messageItems(thread(pane, "Checkout review", "crow"))
     await expect.poll(() => review.elements().length).toBe(4)
     // The demo stamps its messages minutes back, so just after midnight they carry a date.
     await expect
       .poll(() => textOf(review.nth(0)))
-      .toMatch(/^Sent to t4(?:[A-Z][a-z]{2} \d{1,2}, )?\d{1,2}:\d\d.*Delivered/)
-    await expect.poll(() => textOf(review.nth(1))).toMatch(/From t4/)
+      .toMatch(/^Sent to @crow(?:[A-Z][a-z]{2} \d{1,2}, )?\d{1,2}:\d\d.*Delivered/)
+    await expect.poll(() => textOf(review.nth(1))).toMatch(/From @crow/)
     await expect.poll(() => textOf(review.nth(2))).toMatch(/Delivering/)
     await expect.poll(() => textOf(review.nth(3))).toMatch(/Waiting/)
     await expect
-      .poll(() => textOf(messageItems(thread(pane, "Dev server", "t2")).first()))
+      .poll(() => textOf(messageItems(thread(pane, "Dev server", "fox")).first()))
       .toMatch(/Not delivered/)
   })
 
   it("shows the agents' text as they wrote it, never formatted", async () => {
     await openMessagesDemo()
     const pane = await openMessages("Checkout implementation")
-    const written = messageItems(thread(pane, "Checkout review", "t4")).nth(3)
+    const written = messageItems(thread(pane, "Checkout review", "crow")).nth(3)
     await expect
       .element(
         written.getByText(
@@ -91,22 +91,22 @@ describe("A terminal's messages", () => {
     await tabAction("Close Dev server").click()
     await confirmClose()
     const pane = await openMessages("Checkout implementation")
-    await expect.element(pane.getByRole("region", { name: "Thread with t2" })).toBeVisible()
+    await expect.element(pane.getByRole("region", { name: "Thread with @fox" })).toBeVisible()
   })
 
   it("dates a message that isn't from today", async () => {
     await openMessagesDemo()
     const pane = await openMessages("Checkout implementation")
     await expect
-      .poll(() => textOf(messageItems(thread(pane, "Dev server", "t2")).first()))
-      .toMatch(/Sent to t2[A-Z][a-z]{2} \d+, \d\d:\d\d/)
+      .poll(() => textOf(messageItems(thread(pane, "Dev server", "fox")).first()))
+      .toMatch(/Sent to @fox[A-Z][a-z]{2} \d+, \d\d:\d\d/)
   })
 
   context("in a thread held after going back and forth", () => {
     it("lets the person release it, and the tab and thread follow", async () => {
       await openMessagesDemo()
       const pane = await openMessages("Checkout implementation")
-      const tests = thread(pane, "Tests", "t3")
+      const tests = thread(pane, "Tests", "owl")
       await expect.poll(() => textOf(messageItems(tests).last())).toMatch(/Held for release/)
       await tests.getByRole("button", { name: "Release the thread with Tests" }).click()
       await expect.poll(() => textOf(messageItems(tests).last())).toMatch(/Waiting/)
@@ -139,7 +139,7 @@ describe("Pausing messaging", () => {
     expect(onItsWay()).toContainEqual({ disabled: "true", focused: true })
     await expect.poll(() => textOf(pane.getByRole("status"))).toMatch(/Messaging is paused/)
     // Codex's queued message is held; the one already being delivered goes on.
-    const items = messageItems(thread(pane, "Checkout implementation", "t1"))
+    const items = messageItems(thread(pane, "Checkout implementation", "moth"))
     await expect.poll(() => textOf(items.nth(3))).toMatch(/Held while paused/)
     await expect.poll(() => textOf(items.nth(2))).toMatch(/Delivering/)
     await expect
@@ -160,7 +160,7 @@ describe("Who named a terminal", () => {
   it("shows in its tab's menu", async () => {
     await openMessagesDemo()
     expect(await namedBy("Checkout implementation")).toBe("Named by you")
-    expect(await namedBy("Checkout review")).toBe("Named by the agent in t1")
+    expect(await namedBy("Checkout review")).toBe("Named by the agent in @moth")
     expect(await namedBy("Tests")).toBe("Named by Murmur")
   })
 
@@ -169,7 +169,7 @@ describe("Who named a terminal", () => {
     const menu = await tabMenu("Checkout implementation")
     await menu.getByRole("menuitem", { name: "Reset to automatic" }).click()
     await expect.element(terminalTab("Checkout flow")).toBeVisible()
-    expect(await namedBy("Checkout flow")).toBe("Named by the agent in t1")
+    expect(await namedBy("Checkout flow")).toBe("Named by the agent in @moth")
     // A name Novadeck gave has nothing to hand back.
     const automatic = await tabMenu("Checkout flow")
     await expect.element(automatic.getByRole("menuitem", { name: "Rename" })).toBeVisible()
@@ -241,8 +241,8 @@ describe("A terminal an agent opened", () => {
   it("says which terminal leads it, by handle and name", async () => {
     await openMessagesDemo()
     await terminalTab("Checkout review").click()
-    await expect.element(page.getByText("led by t1 · Checkout implementation")).toBeVisible()
-    expect(page.getByText(/^led by t3/).elements()).toHaveLength(0)
+    await expect.element(page.getByText("led by @moth · Checkout implementation")).toBeVisible()
+    expect(page.getByText(/^led by @owl/).elements()).toHaveLength(0)
   })
 
   it("stops saying so once its lead's terminal is closed", async () => {
@@ -252,6 +252,6 @@ describe("A terminal an agent opened", () => {
     await confirmClose()
     await terminalTab("Checkout review").click()
     await expect.element(page.getByRole("heading", { name: "Checkout review" })).toBeVisible()
-    await expectStaysAbsent(page.getByText(/^led by t1/))
+    await expectStaysAbsent(page.getByText(/^led by @moth/))
   })
 })

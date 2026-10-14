@@ -104,7 +104,26 @@
 :where(.terminal-actions) {
   @apply gap-1;
 }
-/* Who directs the terminal (WindowShell.tsx): "led by t1 · Planner" beside its name, in the
+/* A terminal's handle before its name (ui-toolkit/HandleChip.tsx), in the quiet metadata voice on a soft
+   chip tinted from its own ink, so it follows every skin and window ground. It never wraps
+   or shrinks: names truncate before it does. */
+.handle-chip {
+  flex-shrink: 0;
+  padding: 0 0.375rem;
+  border-radius: var(--radius-control, 4px);
+  background-color: color-mix(in srgb, currentColor 10%, transparent);
+  color: var(--window-metadata-fg, var(--color-muted));
+  font-family: var(--window-metadata-font, var(--font-mono));
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  white-space: nowrap;
+}
+/* In a sidebar tab's detail line, before its program, the handle is plain muted text. */
+.handle-chip.handle-plain {
+  padding: 0;
+  background: none;
+}
+/* Who directs the terminal (WindowShell.tsx): "led by @moth · Planner" beside its name, in the
    quiet metadata voice, the first to give way when the header is short of room. */
 .terminal-lead {
   min-width: 0;

@@ -72,9 +72,9 @@ export const findDialog = (): Locator => page.getByRole("dialog", { name: "Find 
 export const searchField = (): Locator =>
   findDialog().getByRole("combobox", { name: "Search terminals" })
 
-/** A search result, matched by the terminal name it starts with. */
+/** A search result, matched by the terminal name it starts with, after its @handle. */
 export const searchResult = (name: string): Locator =>
-  findDialog().getByRole("option", { name: new RegExp(`^${name} `) })
+  findDialog().getByRole("option", { name: new RegExp(`^(?:@[a-z0-9]+ )?${name} `) })
 
 /** Waits until search is ready for typing: its field focused and its results listed. */
 export const expectSearchReady = async (): Promise<void> => {

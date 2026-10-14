@@ -404,7 +404,7 @@ const rows = (path: string) => {
       projects: all("SELECT id AS value FROM projects"),
       sessions: all("SELECT id AS value FROM sessions"),
       terminals: all("SELECT id AS value FROM terminals"),
-      numbers: all("SELECT session_id AS value FROM terminal_numbers"),
+      handles: all("SELECT DISTINCT session_id AS value FROM session_handles"),
       messages: all("SELECT project_id AS value FROM messages"),
       threads: all("SELECT project_id AS value FROM message_threads"),
     }
@@ -486,8 +486,8 @@ describe("runner client project removal", () => {
         projectId: ids[project],
         thread: `t-${project}`,
         hop: 1,
-        from: { terminalId: "a", handle: "t1", agent: null, sessionId: null },
-        to: { terminalId: "b", handle: "t2", agent: "codex", sessionId: null },
+        from: { terminalId: "a", handle: "moth", agent: null, sessionId: null },
+        to: { terminalId: "b", handle: "fox", agent: "codex", sessionId: null },
         text: "Hello",
         sentAt: Date.now(),
         state: "delivered",
@@ -504,7 +504,7 @@ describe("runner client project removal", () => {
       cwd: directory,
       agents: {},
       promptedAt: null,
-      handle: `t${earlier.nextTerminalNumber(sessions.removed)}`,
+      handle: earlier.giveHandle(sessions.removed),
       naming: { person: null, agent: null, murmur: null, summary: null },
       openedBy: null,
       ledBy: null,
@@ -550,7 +550,7 @@ describe("runner client project removal", () => {
       projects: [ids.kept],
       sessions: [sessions.kept],
       terminals: [elsewhere.id],
-      numbers: [sessions.kept],
+      handles: [sessions.kept],
       messages: [ids.kept],
       threads: [ids.kept],
     })
@@ -600,7 +600,7 @@ describe("runner client project removal", () => {
       projects: [],
       sessions: [],
       terminals: [],
-      numbers: [],
+      handles: [],
     })
   })
 })
@@ -676,7 +676,7 @@ describe("runner client companion items", () => {
       name: "notes.md",
       path: join(directory, "notes.md"),
       by: "person",
-      from: { terminalId: first.id, handle: "t1" },
+      from: { terminalId: first.id, handle: "moth" },
       version: 1,
     })
     await expect(
@@ -742,7 +742,7 @@ describe("runner client messages", () => {
     const terminal = await client.terminals.create(shell(sessionId))
     await expect(client.messages.list(terminal.id)).resolves.toEqual({
       terminalId: terminal.id,
-      handle: "t1",
+      handle: "moth",
       delivery: "unbound",
       paused: false,
       threads: [],
@@ -761,7 +761,7 @@ describe("runner client messages", () => {
     const again = await later.connect()
     const restored = await again.terminals.create(shell(sessionId))
     await expect(again.messages.list(restored.id)).resolves.toMatchObject({
-      handle: "t2",
+      handle: "fox",
       paused: true,
     })
   })
@@ -780,7 +780,7 @@ describe("runner client message watch", () => {
       done: false,
       value: {
         terminalId: terminal.id,
-        handle: "t1",
+        handle: "moth",
         delivery: "unbound",
         paused: false,
         threads: [],
@@ -1049,7 +1049,7 @@ describe("runner client terminal watch", () => {
       { type: "reset" },
       {
         type: "changed",
-        terminal: expect.objectContaining({ title: "Terminal 01", started: false, run: 0 }),
+        terminal: expect.objectContaining({ title: "Terminal", started: false, run: 0 }),
       },
       { type: "synced" },
     ])

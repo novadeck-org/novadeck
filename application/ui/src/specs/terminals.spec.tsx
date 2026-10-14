@@ -32,6 +32,7 @@ import {
   press,
   sidebar,
   terminal,
+  tabHandleDescription,
   terminalTab,
   terminalTabNames,
   visibleTerminalCounts,
@@ -193,6 +194,40 @@ describe("creating terminals", () => {
       await expect.element(headerName("Zen shell")).toBeVisible()
     })
   })
+})
+
+describe("terminal handles", () => {
+  for (const name of views) {
+    context(`in ${name}`, () => {
+      it("shows @handle on the window and the tab, and keeps it through a rename", async () => {
+        await openWorkspace()
+        await chooseView(name)
+        await terminalTab("Dev server").click()
+
+        // The demo's second terminal is the second word a fresh session gives.
+        await expect
+          .element(terminal("Dev server").getByText("@fox", { exact: true }))
+          .toBeVisible()
+        await expect
+          .element(terminalTab("Dev server").getByText("@fox", { exact: true }))
+          .toBeVisible()
+
+        // The tab's name stays its accessible name; the handle is its description.
+        expect(tabHandleDescription("Dev server")).toBe("@fox")
+
+        await headerName("Dev server").dblClick()
+        await press("Renamed server{Enter}")
+
+        await expect.element(headerName("Renamed server")).toBeVisible()
+        await expect
+          .element(terminal("Renamed server").getByText("@fox", { exact: true }))
+          .toBeVisible()
+        await expect
+          .element(terminalTab("Renamed server").getByText("@fox", { exact: true }))
+          .toBeVisible()
+      })
+    })
+  }
 })
 
 describe("renaming terminals", () => {
@@ -399,7 +434,7 @@ describe("closing terminals", () => {
       const dialog = closeConfirmation()
       await expect.element(dialog).toBeVisible()
       await expect
-        .element(dialog.getByRole("heading", { name: "Close “Checkout implementation”?" }))
+        .element(dialog.getByRole("heading", { name: "Close @moth · “Checkout implementation”?" }))
         .toBeVisible()
       await expect.element(dialog.getByText("zsh is still running in it.")).toBeVisible()
       await expect.element(dialog.getByRole("button", { name: "Cancel" })).toHaveFocus()

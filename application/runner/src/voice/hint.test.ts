@@ -1,7 +1,14 @@
 import { describe, expect, it } from "../test.js"
 import { dictationHint, hintChars, hintFiles, hintModules, type HintFacts } from "./hint.js"
 
-const none: HintFacts = { project: null, cwd: "", branch: null, folders: [], files: [] }
+const none: HintFacts = {
+  project: null,
+  cwd: "",
+  branch: null,
+  folders: [],
+  files: [],
+  handles: [],
+}
 
 const facts = (some: Partial<HintFacts>): HintFacts => ({ ...none, ...some })
 
@@ -15,6 +22,7 @@ describe("the dictation hint", () => {
           branch: "task/whisper-hints",
           folders: ["application/runner/src/voice", "application/protocol/src"],
           files: ["service.ts", "hint.ts"],
+          handles: [],
         },
         "en",
       ),
@@ -130,5 +138,25 @@ describe("the dictation hint", () => {
     expect(dictationHint(some, "auto")).toBe(dictationHint(some, "pl"))
     expect(dictationHint(facts({ project: "Kasa" }), "de")).toBe("Kasa.")
     expect(dictationHint(facts({ files: ["a.ts"] }), "de")).toBe("a.ts.")
+  })
+
+  it("names the session's terminals by their handles, keeping them when the rest is cut", () => {
+    expect(dictationHint(facts({ handles: ["moth", "fox", "owl"] }), "en")).toBe(
+      "With the terminals moth, fox and owl.",
+    )
+    expect(dictationHint(facts({ files: ["service.ts"], handles: ["moth", "fox"] }), "en")).toBe(
+      "With service.ts, and the terminals moth and fox.",
+    )
+    expect(dictationHint(facts({ handles: ["moth", "fox"] }), "pl")).toBe("moth, fox.")
+    const crowded = dictationHint(
+      facts({
+        project: "x".repeat(60),
+        files: Array.from({ length: 20 }, (_, index) => `module${"abcdefghij"[index % 10]}.ts`),
+        handles: ["moth", "fox", "owl", "crow", "kite", "raven", "dusk", "volt"],
+      }),
+      "en",
+    )
+    expect(crowded.length).toBeLessThanOrEqual(hintChars)
+    expect(crowded).toContain("the terminals moth, fox, owl, crow, kite and raven")
   })
 })

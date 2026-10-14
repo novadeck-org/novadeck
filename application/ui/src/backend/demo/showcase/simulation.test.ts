@@ -22,12 +22,12 @@ const authPlan = itemIdOf(authAgent.plan.id)
 // that keeps what they report.
 const running = (
   agents = [
-    { key: studio, handle: "t1", sample: studioAgent },
-    { key: auth, handle: "t3", sample: authAgent },
+    { key: studio, handle: "moth", sample: studioAgent },
+    { key: auth, handle: "owl", sample: authAgent },
   ],
 ) => {
   const showcase = createShowcase(
-    { agents, shown: [{ key: devServer, handle: "t2", artifacts: devServerArtifacts }] },
+    { agents, shown: [{ key: devServer, handle: "fox", artifacts: devServerArtifacts }] },
     (_delay, run) => run(),
     () => 100,
   )
@@ -78,7 +78,7 @@ describe("showcase agents", () => {
     expect(studioItems[0]).toMatchObject({
       kind: "plan",
       name: "A home for Studio",
-      from: { terminalId: "01", handle: "t1" },
+      from: { terminalId: "01", handle: "moth" },
       plan: { agent: "Codex", role: "root", source: "file" },
     })
   })
@@ -158,7 +158,7 @@ describe("showcase agents", () => {
         ...studioAgent,
         artifacts: { shown: [], opened: [projects!], next: [projects!] },
       }
-      const { showcase, reported } = running([{ key: studio, handle: "t1", sample }])
+      const { showcase, reported } = running([{ key: studio, handle: "moth", sample }])
       showcase.told(studio, "show")
       expect(reported).toMatchObject([{ item: { id: "studio-projects", version: 2 } }])
     })
@@ -169,7 +169,7 @@ describe("showcase agents", () => {
         ...studioAgent,
         artifacts: { shown: [], opened: [projects!], next: [projects!] },
       }
-      const { showcase, reported, hold } = running([{ key: studio, handle: "t1", sample }])
+      const { showcase, reported, hold } = running([{ key: studio, handle: "moth", sample }])
       hold("studio-projects", { windowId: "w1" })
       showcase.told(studio, "show")
       expect(reported).toMatchObject([

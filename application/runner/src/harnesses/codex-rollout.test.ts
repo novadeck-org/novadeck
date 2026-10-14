@@ -134,13 +134,13 @@ describe("a Codex turn's end, as its rollout records it", () => {
     expect(
       ended({
         type: "task_complete",
-        turn_id: "t1",
+        turn_id: "moth",
         last_agent_message: null,
         error: { message: "Selected model is at capacity.", codex_error_info: "server_overloaded" },
       }),
-    ).toMatchObject([{ type: "turn-ended", outcome: "failed", recorded: true, turn: "t1" }])
-    expect(ended({ type: "turn_aborted", turn_id: "t2", reason: "interrupted" })).toMatchObject([
-      { type: "turn-ended", outcome: "interrupted", recorded: true, turn: "t2" },
+    ).toMatchObject([{ type: "turn-ended", outcome: "failed", recorded: true, turn: "moth" }])
+    expect(ended({ type: "turn_aborted", turn_id: "fox", reason: "interrupted" })).toMatchObject([
+      { type: "turn-ended", outcome: "interrupted", recorded: true, turn: "fox" },
     ])
     expect(ended({ type: "task_complete", error: null })).toEqual([
       expect.not.objectContaining({ turn: expect.anything() }),

@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react"
 
 import { isWindow } from "../model/roster"
 import type { Tile } from "../model/types"
+import { HandleChip } from "../ui-toolkit/HandleChip"
 import { searchResultClasses } from "../ui-toolkit/SearchCombobox"
 
 export const TerminalSwitcher = ({
@@ -96,7 +97,10 @@ export const TerminalSwitcher = ({
               >
                 <Terminal size={14} strokeWidth={1.5} aria-hidden="true" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <p className="m-0 truncate text-body leading-4 font-medium">{terminal.name}</p>
+                  <p className="m-0 flex min-w-0 items-center gap-1.5 text-body leading-4 font-medium">
+                    {!isWindow(terminal) && <HandleChip handle={terminal.handle} />}
+                    <span className="truncate">{terminal.name}</span>
+                  </p>
                   <p className="switcher-process item-detail m-0 truncate text-caption">
                     {isWindow(terminal) ? "window" : terminal.process || terminal.command}
                   </p>

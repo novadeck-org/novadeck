@@ -57,8 +57,8 @@ for (const setup of setups) {
       const requests = run.deck.answerRequests()
       run.model.use(
         opens("Start a helper", setup.agent, brief),
-        own((call) => (opened(call, "t2") ? { text: "Started t2." } : undefined)),
-        own((call) => (delivered(call, "t1") ? { text: "Surveying now." } : undefined)),
+        own((call) => (opened(call, "fox") ? { text: "Started fox." } : undefined)),
+        own((call) => (delivered(call, "moth") ? { text: "Surveying now." } : undefined)),
       )
       const t1 = await start(run, setup)
       const calls = run.model.mark()
@@ -66,10 +66,10 @@ for (const setup of setups) {
       await t1.submit("Start a helper")
 
       const t2 = await requests.next()
-      const first = await run.model.waitFor((call) => delivered(call, "t1"), {
+      const first = await run.model.waitFor((call) => delivered(call, "moth"), {
         after: calls,
       })
-      const tag = wrapper(first, "t1")
+      const tag = wrapper(first, "moth")
       const mark = / lead="([0-9A-Za-z]{8})"/.exec(tag ?? "")?.[1]
       if (!mark) throw new Error(`no lead mark in ${tag}`)
       expect(text(first)).toContain(leadNote)
@@ -106,14 +106,14 @@ for (const setup of setups) {
       }
       run.model.use(
         opens("Start a worker", setup.agent, brief),
-        own((call) => (opened(call, "t3") ? { text: "Started t3." } : undefined)),
-        sends("Redirect t3", "t3", redirect),
-        sends("Tell t3", "t3", news),
-        own((call) => (sent(call, "t3") ? { text: "Told t3." } : undefined)),
+        own((call) => (opened(call, "owl") ? { text: "Started owl." } : undefined)),
+        sends("Redirect owl", "owl", redirect),
+        sends("Tell owl", "owl", news),
+        own((call) => (sent(call, "owl") ? { text: "Told owl." } : undefined)),
         // The worker: a turn of two tool calls, then its end, which the peer's message
         // continues.
         own((call) =>
-          works(call) && delivered(call, "t2") ? { text: "Noted the news." } : undefined,
+          works(call) && delivered(call, "fox") ? { text: "Noted the news." } : undefined,
         ),
         own(async (call) => {
           if (!works(call)) return undefined
@@ -132,24 +132,24 @@ for (const setup of setups) {
       const requests = run.deck.answerRequests()
       const t1 = await start(run, setup)
       const t2 = await start(run, setup)
-      expect([t1.handle, t2.handle]).toEqual(["t1", "t2"])
+      expect([t1.handle, t2.handle]).toEqual(["moth", "fox"])
       const calls = run.model.mark()
 
       await t1.submit("Start a worker")
       const t3 = await requests.next()
-      expect(t3.handle).toBe("t3")
+      expect(t3.handle).toBe("owl")
       // Its turn is running, its first reply held, when the lead and the peer send.
       await run.model.waitFor((call) => works(call) && asked(call, brief), {
         after: calls,
       })
       await t3.reached("working")
       const from = t3.mark()
-      await t1.until("Started t3.")
-      await t1.submit("Redirect t3")
-      await t1.until("Told t3.")
-      await t3.reached(holds("t1", "t3", "queued"), { after: from })
-      await t2.submit("Tell t3")
-      await t3.reached(holds("t2", "t3", "queued"), { after: from })
+      await t1.until("Started owl.")
+      await t1.submit("Redirect owl")
+      await t1.until("Told owl.")
+      await t3.reached(holds("moth", "owl", "queued"), { after: from })
+      await t2.submit("Tell owl")
+      await t3.reached(holds("fox", "owl", "queued"), { after: from })
 
       working.open()
 
@@ -159,30 +159,30 @@ for (const setup of setups) {
         (call) => works(call) && made(call) === 1 && text(call).includes(redirect),
         { after: calls },
       )
-      expect(wrapper(midway, "t1")).toMatch(/ lead="[0-9A-Za-z]{8}"/)
+      expect(wrapper(midway, "moth")).toMatch(/ lead="[0-9A-Za-z]{8}"/)
       expect(text(midway)).toContain(leadNote)
       expect(text(midway)).not.toContain(news)
-      expect(wrapper(midway, "t2")).toBeUndefined()
-      await t3.reached(holds("t1", "t3", "delivered"), { after: from })
+      expect(wrapper(midway, "fox")).toBeUndefined()
+      await t3.reached(holds("moth", "owl", "delivered"), { after: from })
       // The turn goes on: the peer's message still waits.
       await run.model.waitFor((call) => works(call) && made(call) === 2, {
         after: calls,
       })
       expect(
         messages(t3)
-          .filter((one) => one.from === "t2")
+          .filter((one) => one.from === "fox")
           .map((one) => one.state),
       ).toEqual(["queued"])
       finishing.open()
 
       // The peer's message arrives at the Stop, unmarked.
-      const stop = await run.model.waitFor((call) => works(call) && delivered(call, "t2"), {
+      const stop = await run.model.waitFor((call) => works(call) && delivered(call, "fox"), {
         after: calls,
       })
-      expect(wrapper(stop, "t2")).not.toMatch(/ lead="[0-9A-Za-z]{8}"/)
+      expect(wrapper(stop, "fox")).not.toMatch(/ lead="[0-9A-Za-z]{8}"/)
       expect(text(stop)).toContain(news)
       await t3.until("Noted the news.")
-      await through(t3, [holds("t2", "t3", "delivered"), "settled"], {
+      await through(t3, [holds("fox", "owl", "delivered"), "settled"], {
         after: from,
       })
     })

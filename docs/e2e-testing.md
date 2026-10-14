@@ -521,10 +521,10 @@ for (const setup of setups) {
   the history of its delivery state and its messages' states from the moment it opens.
   `t.mark()` and `t.reached(state or predicate, { after })` wait for a transition after
   a point, and `through(t, steps, { after })` for several in order, such as
-  `["ringing", "working"]` or `holds("t1", "t2", "delivered")`. Each step is met at or
+  `["ringing", "working"]` or `holds("moth", "fox", "delivered")`. Each step is met at or
   after the one before it, in the same snapshot or a later one, as changes the runner
   makes in one go arrive together. On a timeout they fail with every transition since
-  the mark (`t2: ready → ringing → unknown`), and `through` also says which steps were
+  the mark (`fox: ready → ringing → unknown`), and `through` also says which steps were
   met (`met: ringing; waiting for: working`), so a failure says what happened. Their
   failures, and those of `until`, `confirm` and `t.poll(read, what)`, end with what its
   agent is doing (`working, 1 request waiting (permission)`) and the terminal's screen

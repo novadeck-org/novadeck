@@ -253,7 +253,7 @@ Linux:
     schema version is higher than its own, or, at its own version, one where no table lacks a
     column it writes and some table has more, as a newer build can add a column without
     raising the version. A database of a lower version, or one lacking a column anywhere, is
-    an earlier build's, which the runner asks the person to delete; so the version must rise
+    an earlier build's, which the runner sets aside and replaces with a new one; so the version must rise
     for any change but an added column (an added table, index or constraint goes unseen). A
     newer build that adds a column and changes another without raising the version is still
     taken for an earlier build's.

@@ -65,7 +65,7 @@ describe("The notification center", () => {
     it("says where each is and what it asks, in the tab's words", () => {
       const question = {
         ...running(1, { attention: { kind: "question", count: 2 } }),
-        handle: "t1",
+        handle: "moth",
       }
       expect(notifications([project("a", [question])], noUnread)).toEqual([
         {
@@ -77,7 +77,7 @@ describe("The notification center", () => {
           sessionName: expect.any(String),
           terminalId: question.id,
           terminalName: question.name,
-          handle: "t1",
+          handle: "moth",
           status: "Asks a question · 2 waiting",
         },
       ])

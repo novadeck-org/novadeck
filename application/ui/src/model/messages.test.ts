@@ -21,26 +21,26 @@ const message = (
   ...change,
 })
 
-// t1's thread with t2, when it has messages.
+// moth's thread with fox, when it has messages.
 const mail = (messages: readonly AgentMessage[], agent = true): TerminalMail => ({
-  handle: "t1",
+  handle: "moth",
   agent,
   threads: messages.length
-    ? [{ id: "t-1", peer: "t2", hops: messages.length, allowed: 12, held: false, messages }]
+    ? [{ id: "t-1", peer: "fox", hops: messages.length, allowed: 12, held: false, messages }]
     : [],
 })
 
 const inbound = [
-  message("queued", { from: "t2", to: "t1", state: "queued" }),
-  message("leased", { from: "t2", to: "t1", state: "leased" }),
-  message("delivered", { from: "t2", to: "t1", state: "delivered" }),
-  message("gone", { from: "t2", to: "t1", state: "gone" }),
+  message("queued", { from: "fox", to: "moth", state: "queued" }),
+  message("leased", { from: "fox", to: "moth", state: "leased" }),
+  message("delivered", { from: "fox", to: "moth", state: "delivered" }),
+  message("gone", { from: "fox", to: "moth", state: "gone" }),
 ]
-const outbound = [message("sent", { from: "t1", to: "t2", state: "queued" })]
+const outbound = [message("sent", { from: "moth", to: "fox", state: "queued" })]
 
 describe("messages waiting for a terminal's agent", () => {
   it("are those to it still on their way: queued, leased or held", () => {
-    const held = message("held", { from: "t2", to: "t1", state: "held", held: "paused" })
+    const held = message("held", { from: "fox", to: "moth", state: "held", held: "paused" })
     expect(waitingFor(mail([...inbound, held, ...outbound])).map(({ id }) => id)).toEqual([
       "queued",
       "leased",
@@ -78,7 +78,7 @@ describe("a terminal's badge", () => {
 
   context("with a thread held for release", () => {
     it("says the person must release it, even while paused", () => {
-      const held = message("held", { from: "t2", to: "t1", state: "held", held: "release" })
+      const held = message("held", { from: "fox", to: "moth", state: "held", held: "release" })
       const badge = mailBadge(mail([held]), true)
       expect(badge).toEqual({ count: 1, kind: "held" })
       expect(mailBadgeLabel(badge!)).toBe("1 message waiting, held until you release it")

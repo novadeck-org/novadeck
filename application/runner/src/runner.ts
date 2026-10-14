@@ -12,7 +12,12 @@ import { Terminals, type TerminalOptions } from "./terminals/index.js"
 import { Uploads } from "./terminals/uploads.js"
 import { Voice } from "./voice/service.js"
 import { Projects } from "./workspaces/projects.js"
-import { WorkspaceStore, WorkspaceTooNewError } from "./workspaces/store.js"
+import {
+  EarlierWorkspaceError,
+  setAsideWorkspace,
+  WorkspaceStore,
+  WorkspaceTooNewError,
+} from "./workspaces/store.js"
 
 export type RunnerOptions = {
   /** SQLite file for project and session metadata; in memory when omitted. */
@@ -85,13 +90,29 @@ export type Runner = {
 }
 
 /**
+ * The workspace store at `database`. One an earlier build wrote is set aside and a new one
+ * started in its place, so an update never leaves the runner unable to start: before the
+ * first release Novadeck has no migrations, and the old file stays beside it.
+ */
+const openStore = (database: string | undefined): WorkspaceStore => {
+  try {
+    return new WorkspaceStore(database)
+  } catch (error) {
+    if (!(error instanceof EarlierWorkspaceError) || database === undefined) throw error
+    const aside = setAsideWorkspace(database)
+    console.warn(`${error.message} It was set aside as ${aside}, and a new one started.`)
+    return new WorkspaceStore(database)
+  }
+}
+
+/**
  * The runner's parts, wired together: its metadata store, the shell files it writes once,
  * the agents that install Novadeck's plugin, the terminals, which keep their records and
  * mailboxes in the store, and the items shown beside them. `createRunner` serves them; the end-to-end deck drives them
  * in process, so both run the same wiring. Internal: not exported from the package.
  */
 export const wire = (options: RunnerOptions) => {
-  const store = new WorkspaceStore(options.database)
+  const store = openStore(options.database)
   // Written once, for the shells and for the agents that install Novadeck's plugin.
   const shellFiles =
     options.shell === undefined

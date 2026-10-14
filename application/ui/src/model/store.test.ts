@@ -218,7 +218,7 @@ describe("terminal status", () => {
       type: "terminal/update",
       target,
       terminalId: "01",
-      handle: "t1",
+      handle: "moth",
       titleSource: { kind: "person" },
     })
     store.dispatch({
@@ -228,7 +228,7 @@ describe("terminal status", () => {
       status: { state: "running", agent: { working: true } },
     })
     expect(statusOf(store.getSnapshot())).toMatchObject({
-      handle: "t1",
+      handle: "moth",
       titleSource: { kind: "person" },
       state: "running",
     })

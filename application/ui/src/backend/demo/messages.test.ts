@@ -23,8 +23,8 @@ describe("the demo's messages", () => {
       ),
     )
     expect([...states].toSorted()).toEqual(["delivered", "gone", "held", "leased", "queued"])
-    expect(terminals[at("01")]?.threads.find((thread) => thread.peer === "t3")?.held).toBe(true)
-    expect(terminals[at("01", elsewhere)]).toEqual({ handle: "t1", agent: true, threads: [] })
+    expect(terminals[at("01")]?.threads.find((thread) => thread.peer === "owl")?.held).toBe(true)
+    expect(terminals[at("01", elsewhere)]).toEqual({ handle: "moth", agent: true, threads: [] })
   })
 
   it("hold what waits once a pause arrives, and let it wait again once resumed", () => {

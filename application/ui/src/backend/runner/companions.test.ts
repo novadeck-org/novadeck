@@ -203,7 +203,7 @@ describe("the runner's items and windows", () => {
       lines: null,
       held: false,
       by: "agent",
-      from: { terminalId: "t", handle: "t1" },
+      from: { terminalId: "t", handle: "moth" },
       version: 2,
       asked: false,
       shownAt: 1,
