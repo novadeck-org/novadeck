@@ -11,6 +11,7 @@ import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
 import type { Store } from "../model/store"
 import type { TerminalKey, TerminalMetadata, Workspace, WorkspaceTarget } from "../model/types"
+import type { UninstallPlan, UninstallResult } from "../model/uninstall"
 import type { UpdateChannel, UpdateOffer } from "../model/update"
 import type { Voice } from "../model/voice"
 
@@ -237,6 +238,16 @@ export type Backend = {
     readonly state: () => Promise<PortableState>
     readonly install: () => Promise<InstallResult>
     readonly openInstalled: () => void
+  }
+  // Optional. Removing the desktop app from this computer. `plan` says what that would do
+  // here, asked each time Preferences opens; `run` removes the app, after the page has
+  // disconnected the agents, and keeps the person's data folders when `keepData`; `quit`
+  // ends the app once `run` said `removed`. Absent in a browser and in a host that has no
+  // uninstall.
+  readonly uninstall?: {
+    readonly plan: () => Promise<UninstallPlan>
+    readonly run: (options: { readonly keepData: boolean }) => Promise<UninstallResult>
+    readonly quit: () => void
   }
   // Optional. The debug panel, where this launch offers it: it triggers the states
   // the backend can be in. See README "Debug panel".

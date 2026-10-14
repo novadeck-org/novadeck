@@ -23,6 +23,7 @@ import {
   versionText,
   type PreferencesTab,
 } from "./settings"
+import { UninstallApp, type UninstallValue } from "./UninstallApp"
 import { VoiceInput, type VoiceAddon } from "./VoiceInput"
 
 const themeItems = themes.map(({ id, name }) => ({ label: name, value: id }))
@@ -104,6 +105,7 @@ export const Preferences = ({
   murmur,
   updates,
   version,
+  uninstall,
   notices = false,
   chat = false,
   visitor = false,
@@ -145,6 +147,8 @@ export const Preferences = ({
   }
   // The desktop app's version; absent where the backend has none to give.
   version?: string
+  // Removing the desktop app; absent where the backend offers none, as for a portable copy.
+  uninstall?: UninstallValue
 }): React.JSX.Element => {
   const dialog = useRef<HTMLDivElement>(null)
   const panels = useRef<HTMLDivElement>(null)
@@ -402,14 +406,17 @@ export const Preferences = ({
                 </div>
               </Section>
             )}
-            {version && (
+            {(version || uninstall) && (
               <Section title="About">
-                <dl className={`${settingsCardClasses} m-0`}>
-                  <div className={`preference-row ${settingRowClasses}`}>
-                    <dt className="m-0">Version</dt>
-                    <dd className="m-0 select-text">{versionText(version)}</dd>
-                  </div>
-                </dl>
+                {version && (
+                  <dl className={`${settingsCardClasses} m-0`}>
+                    <div className={`preference-row ${settingRowClasses}`}>
+                      <dt className="m-0">Version</dt>
+                      <dd className="m-0 select-text">{versionText(version)}</dd>
+                    </div>
+                  </dl>
+                )}
+                {uninstall && <UninstallApp uninstall={uninstall} />}
               </Section>
             )}
           </TabPanel>

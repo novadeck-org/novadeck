@@ -41,6 +41,7 @@ const tools = [
   "mv",
   "readlink",
   "rm",
+  "rmdir",
   "sed",
   "sha256sum",
 ]
@@ -98,6 +99,8 @@ type Scenario = {
   linked?: boolean
   /** Puts Homebrew's AppImage in place as a symlink to a file in the Caskroom. */
   brew?: "symlink"
+  /** Gives Homebrew a cask folder for novadeck, as `brew install --cask` leaves. */
+  cask?: boolean
   /** The uid that owns the home folder; the user's own when unset. */
   homeOwner?: number
   /** A profile file already installed, which a failed load must leave alone. */
@@ -106,6 +109,8 @@ type Scenario = {
   sudoUid?: string
   /** Leaves HOME unset, or points it at a folder that is not there. */
   home?: "unset" | "missing"
+  /** XDG_CONFIG_HOME, set to this value as is. */
+  configHome?: string
   /** A relative XDG_DATA_HOME, which counts as unset. */
   relativeXdg?: string
   /** Tools present on the PATH, such as fusermount3. */
@@ -304,6 +309,7 @@ cp "${served}/\${url##*/}" "$out"`,
 case "$*" in
 *--skip-kernel-load*) [ "${scenario.parser}" != invalid ] ;;
 *--replace*) [ "${scenario.parser}" = valid ] ;;
+*--remove*) [ "${scenario.parser}" != unloadable ] ;;
 esac`,
     )
   }
@@ -333,8 +339,11 @@ esac`,
       join(home, "Applications/novadeck.AppImage"),
     )
   }
-  const start = () =>
-    spawnSync("/bin/sh", [entry, ...(scenario.args ?? [])], {
+  const caskrooms = join(root, "caskrooms")
+  mkdirSync(caskrooms)
+  if (scenario.cask) mkdirSync(join(caskrooms, "novadeck"))
+  const start = (args = scenario.args ?? []) =>
+    spawnSync("/bin/sh", [entry, ...args], {
       env: {
         PATH: bin,
         ...(scenario.home === "unset" ? {} : { HOME: scenario.home ? join(root, "gone") : home }),
@@ -346,6 +355,8 @@ esac`,
         NOVADECK_INSTALL_FUSE_DEVICE: device,
         NOVADECK_INSTALL_PROFILES: profiles,
         NOVADECK_INSTALL_APPLICATIONS_DIR: applications,
+        NOVADECK_INSTALL_CASKROOMS: caskrooms,
+        ...(scenario.configHome ? { XDG_CONFIG_HOME: scenario.configHome } : {}),
         ...(data ? { XDG_DATA_HOME: data } : {}),
         ...(scenario.relativeXdg ? { XDG_DATA_HOME: scenario.relativeXdg } : {}),
         ...(scenario.rendered ? {} : { NOVADECK_INSTALL_BASE_URL: `http://mirror.test/dl/` }),
@@ -367,7 +378,9 @@ esac`,
     leftovers: () => readdirSync(temporary),
     profiles,
     log: () => readFileSync(log, "utf8").split("\n").filter(Boolean),
+    /** Runs the script again on the same fake computer, with other arguments if given. */
     again: start,
+    trash: join(home, ".Trash"),
   }
 }
 
@@ -736,10 +749,182 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
     })
   })
 
+  context("with --uninstall on Linux", () => {
+    const uninstall = ["--uninstall"]
+    const restricted = { restrict: "1", parser: "valid" } as const
+
+    it("removes everything the install made and downloads nothing", () => {
+      const result = run()
+      const { data, home } = result
+      const before = result.lines.length
+      const again = result.again(uninstall)
+      expect(again.status).toBe(0)
+      expect(result.log()).toHaveLength(before)
+      expect(existsSync(join(data, "novadeck"))).toBe(false)
+      expect(existsSync(join(data, "applications/dev.mzpk.novadeck.desktop"))).toBe(false)
+      expect(existsSync(join(data, "icons/hicolor/512x512/apps/novadeck.png"))).toBe(false)
+      expect(() => lstatSync(join(home, ".local/bin/novadeck"))).toThrow()
+      expect(again.stdout).toContain(`Removed ${join(data, "novadeck", image)}`)
+      expect(again.stdout).toContain("Your data and any agent plugins stay")
+      expect(again.stdout).toContain("claude plugin uninstall novadeck@novadeck")
+      expect(again.stdout).toContain("codex plugin remove novadeck@novadeck")
+      expect(again.stdout).toContain("agy plugin uninstall novadeck")
+    })
+
+    it("leaves a command that points elsewhere alone", () => {
+      const result = run()
+      const link = join(result.home, ".local/bin/novadeck")
+      rmSync(link)
+      symlinkSync("/usr/bin/env", link)
+      expect(result.again(uninstall).status).toBe(0)
+      expect(readlinkSync(link)).toBe("/usr/bin/env")
+    })
+
+    it("keeps the folder, and says where the data is, while the person's data is in it", () => {
+      const result = run()
+      const folder = join(result.data, "novadeck")
+      writeFileSync(join(folder, "workspace.sqlite"), "projects")
+      mkdirSync(join(folder, "shell"))
+      const again = result.again(uninstall)
+      expect(again.status).toBe(0)
+      expect(readFileSync(join(folder, "workspace.sqlite"), "utf8")).toBe("projects")
+      expect(existsSync(join(folder, "shell"))).toBe(true)
+      expect(existsSync(join(folder, image))).toBe(false)
+      expect(again.stdout).toContain(folder)
+      expect(again.stdout).toContain("Your data and any agent plugins stay")
+    })
+
+    it("removes the folder when nothing else is in it", () => {
+      const result = run()
+      expect(existsSync(join(result.data, "novadeck"))).toBe(true)
+      expect(result.again(uninstall).stdout).toContain(`Removed ${join(result.data, "novadeck")}`)
+      expect(existsSync(join(result.data, "novadeck"))).toBe(false)
+    })
+
+    it("honours XDG_DATA_HOME", () => {
+      const result = run({ xdg: "xdg" })
+      expect(existsSync(join(result.data, "novadeck", image))).toBe(true)
+      expect(result.again(uninstall).status).toBe(0)
+      expect(existsSync(join(result.data, "novadeck"))).toBe(false)
+      expect(existsSync(join(result.home, ".local/share/novadeck"))).toBe(false)
+    })
+
+    it("says so, and succeeds, when nothing is installed", () => {
+      const result = run({ args: uninstall })
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain("not installed")
+      expect(result.stdout).not.toContain("plugin")
+      expect(result.lines).toEqual([])
+      expect(existsSync(join(result.home, ".local"))).toBe(false)
+      const first = run()
+      expect(first.again(uninstall).status).toBe(0)
+      const second = first.again(uninstall)
+      expect(second.status).toBe(0)
+      expect(second.stdout).toContain("not installed")
+    })
+
+    it("names the config folder from XDG_CONFIG_HOME when it is absolute", () => {
+      const plain = run()
+      expect(plain.again(uninstall).stdout).toContain(`delete ${plain.home}/.config/novadeck`)
+      const set = run({ configHome: "/xdg/config" })
+      expect(set.again(uninstall).stdout).toContain("delete /xdg/config/novadeck")
+      const relative = run({ configHome: "xdg/config" })
+      expect(relative.again(uninstall).stdout).toContain(`delete ${relative.home}/.config/novadeck`)
+    })
+
+    it("works without curl", () => {
+      const result = run({
+        args: uninstall,
+        script: script.replace('has curl || fail "curl is required."', 'fail "curl asked for"'),
+      })
+      expect(result.status).toBe(0)
+    })
+
+    it("unloads and removes the AppArmor profile through sudo", () => {
+      const result = run(restricted)
+      expect(result.profile).toContain("userns,")
+      const before = result.log().length
+      const again = result.again(uninstall)
+      expect(again.status).toBe(0)
+      expect(existsSync(result.profilePath)).toBe(false)
+      expect(result.log().slice(before)).toEqual([
+        `sudo apparmor_parser --remove ${result.profilePath}`,
+      ])
+    })
+
+    it("does nothing about AppArmor when there is no profile", () => {
+      const result = run({ parser: "valid" })
+      const again = result.again(uninstall)
+      expect(again.status).toBe(0)
+      expect(result.log()).toEqual([
+        `curl http://mirror.test/dl/SHA256SUMS`,
+        `curl http://mirror.test/dl/${download}`,
+      ])
+      expect(again.stdout).not.toContain("AppArmor")
+    })
+
+    it("finishes, and says how to retry, when sudo refuses", () => {
+      // The install leaves no profile when sudo refuses, so one is put where the script looks.
+      const refused = run({ ...restricted, sudo: "denied" })
+      writeFileSync(refused.profilePath, "profile")
+      const again = refused.again(uninstall)
+      expect(again.status).toBe(0)
+      expect(existsSync(refused.profilePath)).toBe(true)
+      expect(existsSync(join(refused.data, "novadeck"))).toBe(false)
+      expect(again.stdout).toContain("could not be removed as root")
+      expect(again.stdout).toContain(
+        "curl -fsSL http://mirror.test/dl/install.sh | sh -s -- --uninstall",
+      )
+    })
+
+    it("still removes the profile file when it will not unload, and says it stays loaded", () => {
+      const result = run({ restrict: "1", parser: "unloadable" })
+      writeFileSync(result.profilePath, "profile")
+      const again = result.again(uninstall)
+      expect(again.status).toBe(0)
+      expect(existsSync(result.profilePath)).toBe(false)
+      expect(again.stdout).toContain("stays loaded until the next restart")
+      expect(again.stdout).not.toContain("--uninstall")
+    })
+
+    it("removes the profile file where there is no apparmor_parser to unload it", () => {
+      const result = run()
+      writeFileSync(result.profilePath, "profile")
+      const again = result.again(uninstall)
+      expect(again.status).toBe(0)
+      expect(existsSync(result.profilePath)).toBe(false)
+      expect(again.stdout).toContain("until the next restart")
+    })
+
+    it("refuses to touch a Homebrew install, and says how to remove it", () => {
+      const result = run({ brew: "symlink", args: uninstall })
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain("brew uninstall --cask novadeck")
+      expect(readlinkSync(join(result.home, "Applications/novadeck.AppImage"))).toBe(
+        join(result.home, "Caskroom/novadeck.AppImage"),
+      )
+    })
+
+    it("refuses when Homebrew's cask folder holds novadeck", () => {
+      const result = run({ cask: true })
+      const again = result.again(uninstall)
+      expect(again.status).toBe(1)
+      expect(again.stderr).toContain("brew uninstall --cask novadeck")
+      expect(existsSync(join(result.data, "novadeck", image))).toBe(true)
+    })
+
+    it("does not combine with --sandbox", () => {
+      const result = run({ args: ["--sandbox", "--uninstall"] })
+      expect(result.status).toBe(2)
+      expect(result.stderr).toContain("usage")
+    })
+  })
+
   context("as root for another user's account", () => {
     const modes = [
       ["no arguments", []],
       ["--sandbox", ["--sandbox"]],
+      ["--uninstall", ["--uninstall"]],
     ] as const
 
     it.each(modes)("installs nothing with %s when the home folder is the user's", (_, args) => {
@@ -781,7 +966,7 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
     it("prints the usage and installs nothing", () => {
       const result = run({ args: ["--nope"] })
       expect(result.status).toBe(2)
-      expect(result.stderr).toContain("usage: install.sh [--sandbox]")
+      expect(result.stderr).toContain("usage: install.sh [--sandbox | --uninstall]")
       expect(result.lines).toEqual([])
     })
   })
@@ -954,6 +1139,70 @@ profile novadeck-appimage-1000-brew "${join(result.home, "Applications/novadeck.
       const result = run({ mac: {}, root: true, sudo: false, sudoUid: "501" })
       expect(result.status).toBe(1)
       expect(result.stderr).toContain("without sudo")
+      expect(result.lines).toEqual([])
+    })
+  })
+
+  context("with --uninstall on macOS", () => {
+    const uninstall = ["--uninstall"]
+
+    it("moves the app to the Trash and downloads nothing", () => {
+      const result = run({ mac: { existing: "system" }, args: uninstall })
+      expect(result.status).toBe(0)
+      expect(result.lines).toEqual([])
+      expect(existsSync(join(result.applications, "novadeck.app"))).toBe(false)
+      expect(readFileSync(join(result.trash, "novadeck.app/Contents/MacOS/novadeck"), "utf8")).toBe(
+        "old",
+      )
+      expect(result.stdout).toContain(`Moved ${result.applications}/novadeck.app to the Trash`)
+      expect(result.stdout).toContain("Your data and any agent plugins stay")
+      expect(result.stdout).toContain("Library/Application Support/novadeck")
+    })
+
+    it("removes the copy in ~/Applications too", () => {
+      const result = run({ mac: { existing: "user" }, args: uninstall })
+      expect(result.status).toBe(0)
+      expect(existsSync(join(result.home, "Applications/novadeck.app"))).toBe(false)
+      expect(existsSync(join(result.trash, "novadeck.app"))).toBe(true)
+    })
+
+    it("keeps a copy already in the Trash", () => {
+      const result = run({ mac: { existing: "system" }, args: uninstall })
+      mkdirSync(join(result.applications, "novadeck.app/Contents/MacOS"), { recursive: true })
+      expect(result.again(uninstall).status).toBe(0)
+      expect(readdirSync(result.trash)).toHaveLength(2)
+      expect(existsSync(join(result.applications, "novadeck.app"))).toBe(false)
+    })
+
+    it("refuses while Novadeck runs, and leaves the app", () => {
+      const result = run({ mac: { existing: "system", running: "installed" }, args: uninstall })
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain("Quit it and run this again")
+      expect(existsSync(executable(result.applications))).toBe(true)
+      expect(existsSync(result.trash)).toBe(false)
+    })
+
+    it("leaves a link named novadeck.app alone", () => {
+      const result = run({ mac: {}, args: uninstall })
+      mkdirSync(join(result.home, "elsewhere"))
+      symlinkSync(join(result.home, "elsewhere"), join(result.applications, "novadeck.app"))
+      const again = result.again(uninstall)
+      expect(again.status).toBe(0)
+      expect(again.stdout).toContain("not installed")
+      expect(existsSync(join(result.home, "elsewhere"))).toBe(true)
+    })
+
+    it("refuses an app Homebrew installed, and says how to remove it", () => {
+      const result = run({ mac: { existing: "system" }, cask: true, args: uninstall })
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain("brew uninstall --cask novadeck")
+      expect(existsSync(executable(result.applications))).toBe(true)
+    })
+
+    it("says so, and succeeds, when nothing is installed", () => {
+      const result = run({ mac: {}, args: uninstall })
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain("not installed")
       expect(result.lines).toEqual([])
     })
   })

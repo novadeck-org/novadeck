@@ -1,7 +1,17 @@
 import { execFile, spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { accessSync, existsSync, readFileSync, realpathSync } from "node:fs"
-import { access, constants, mkdir, open, readFile, realpath, rm } from "node:fs/promises"
+import {
+  access,
+  constants,
+  mkdir,
+  open,
+  readFile,
+  readlink,
+  realpath,
+  rm,
+  rmdir,
+} from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -76,6 +86,7 @@ import {
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
 import { startRunner, type RunnerHost } from "./runner.js"
 import { registerSandboxIpc, sandboxState } from "./sandbox.js"
+import { registerUninstallIpc, startRemovalAfterExit, uninstaller } from "./uninstall.js"
 import {
   releaseDownloadsUrl,
   releaseLatestUrl,
@@ -958,6 +969,61 @@ const launch = async (): Promise<void> => {
       alert: alertNotStarted,
       stopping: () => stopping,
       fallbackMs: installFallbackMs(process.platform),
+      quit: () => app.quit(),
+      log: (message, error) => console.warn(message, error),
+    }),
+  })
+  // The page learns what removing this copy would do, removes it, and quits afterwards.
+  registerUninstallIpc(ipcMain, {
+    window: (event) => appWindow(event)?.webContents,
+    uninstaller: uninstaller({
+      platform: process.platform,
+      packaged: app.isPackaged,
+      portable,
+      env: process.env,
+      home: homedir(),
+      execPath: app.getPath("exe"),
+      userData: app.getPath("userData"),
+      defaultUserData: join(app.getPath("appData"), dataFolderName({ packaged: app.isPackaged })),
+      uid: process.getuid?.(),
+      realpath: realpathOrUndefined,
+      exists: existsSync,
+      linkTarget: (path) => readlink(path).catch(() => undefined),
+      remove: (path, { recursive }) => rm(path, { recursive, force: true }),
+      removeEmptyFolder: (path) => rmdir(path).catch(() => {}),
+      trash: (path) => shell.trashItem(path),
+      // pkexec shows the system's own password prompt and fails without one to show.
+      privileged: (args) =>
+        new Promise((resolve) =>
+          execFile("pkexec", [...args], { timeout: 120_000 }, (error) => resolve(!error)),
+        ),
+      startUninstaller: (file) =>
+        startDetached({
+          file,
+          cwd: dirname(file),
+          spawn,
+          exists: existsSync,
+          releaseLock: () => {},
+          exit: () => {},
+          log: (message, error) => console.warn(message, error),
+        }),
+      removeAfterExit: (folders, uninstallerFile) =>
+        startRemovalAfterExit({
+          pid: process.pid,
+          folders,
+          setup: uninstallerFile,
+          spawn,
+          log: (message, error) => console.warn(message, error),
+        }),
+      // Quitting as usual, less the install of a waiting update, which would put the app
+      // back.
+      shutdown: () => {
+        stopping = true
+        updates?.stop()
+        if (updater) updater.autoInstallOnAppQuit = false
+        return shutDown()
+      },
+      stopping: () => stopping,
       quit: () => app.quit(),
       log: (message, error) => console.warn(message, error),
     }),

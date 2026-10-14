@@ -21,6 +21,7 @@ import {
   type DemoStates,
   type DemoTarget,
 } from "./types"
+import { uninstallGroup } from "./uninstall"
 import type { DemoLaunch, DemoShell } from "./with-debug"
 
 // The connection chip's tone: none while connected.
@@ -146,6 +147,7 @@ export const createDebugPanel = ({
     const groups = [
       ...shellGroups({ launch, shell, states }),
       portableGroup(launch),
+      uninstallGroup(launch),
       ...states.groups,
     ]
     const words = query.toLowerCase().split(/\s+/).filter(Boolean)

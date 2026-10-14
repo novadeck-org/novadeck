@@ -6,6 +6,7 @@ import { keepVariant, rememberVariant, requestedVariant } from "../variants"
 import { bootFailures } from "./boot-failures"
 import { restoreIconGuides } from "./icon-guides"
 import type { DemoPortable } from "./portable"
+import type { DemoUninstall } from "./uninstall"
 import { createDebugDemo, type DemoLaunch } from "./with-debug"
 
 const unavailable = (code: string): Error => {
@@ -24,6 +25,7 @@ export const connectDemo = (rehearsals: BootRehearsals): ConnectBackend => {
   let slowAttach = false
   let sandbox: SandboxState | undefined
   let portable: DemoPortable | undefined
+  let uninstall: DemoUninstall | undefined
   return async (signal, progress): Promise<BackendConnection> => {
     await rehearsals.beforeConnect(signal, unavailable)
     progress("loading")
@@ -55,6 +57,11 @@ export const connectDemo = (rehearsals: BootRehearsals): ConnectBackend => {
       portable,
       setPortable: (next) => {
         portable = next
+        rehearsals.rehearse({ reboot: true })
+      },
+      uninstall,
+      setUninstall: (next) => {
+        uninstall = next
         rehearsals.rehearse({ reboot: true })
       },
     }

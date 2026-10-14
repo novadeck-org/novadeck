@@ -11,6 +11,8 @@ import {
   type InstallResult,
   type PortableState,
   type SandboxState,
+  type UninstallPlan,
+  type UninstallResult,
   type UpdateOffer,
 } from "@novadeck/protocol/bridge"
 import { contextBridge, ipcRenderer, webUtils } from "electron"
@@ -26,10 +28,13 @@ import {
   openInstalledChannel,
   openUpdatePageChannel,
   portableChannel,
+  quitAppChannel,
   runnerPortChannel,
   sandboxChannel,
   saveBeforeQuitChannel,
   setUpdateChannelChannel,
+  uninstallAppChannel,
+  uninstallPlanChannel,
   updateChannelChannel,
   versionChannel,
   updateOfferChannel,
@@ -155,6 +160,45 @@ const installResultOf = (value: unknown): InstallResult => {
   return unknown
 }
 
+// The longest command, folder list and folder path the page is given by an uninstall plan.
+const uninstallCommandLength = 300
+const uninstallFolders = 8
+const uninstallPathLength = 1_000
+
+// A line of text the page may show: not empty, not too long, no control characters.
+const lineOf = (value: unknown, limit: number): value is string =>
+  typeof value === "string" && value !== "" && value.length <= limit && !unwanted.test(value)
+
+// The uninstall plan when it is one the contract allows. Anything else counts as
+// unavailable, so a broken answer never offers a removal the host would not do.
+const uninstallPlanOf = (value: unknown): UninstallPlan => {
+  const unavailable: UninstallPlan = { kind: "unavailable" }
+  if (typeof value !== "object" || value === null) return unavailable
+  const { kind, command, dataFolders, handoff } = value as Record<string, unknown>
+  if (kind === "manual")
+    return lineOf(command, uninstallCommandLength) ? { kind, command } : unavailable
+  if (kind !== "ready" || (handoff !== "app" && handoff !== "uninstaller")) return unavailable
+  if (!Array.isArray(dataFolders) || dataFolders.length > uninstallFolders) return unavailable
+  const folders: unknown[] = dataFolders
+  return folders.every((folder) => lineOf(folder, uninstallPathLength))
+    ? { kind, dataFolders: folders as string[], handoff }
+    : unavailable
+}
+
+// The result of an uninstall when it is one the contract allows. Anything else is a
+// failure, as the page cannot tell what happened. A `leftover` that is not a plain line
+// is dropped rather than shown.
+const uninstallResultOf = (value: unknown): UninstallResult => {
+  const unknown: UninstallResult = { kind: "failed", reason: "Something went wrong." }
+  if (typeof value !== "object" || value === null) return unknown
+  const { kind, leftover, reason } = value as Record<string, unknown>
+  if (kind === "uninstalling") return { kind }
+  if (kind === "removed")
+    return lineOf(leftover, uninstallCommandLength) ? { kind, leftover } : { kind }
+  if (kind === "failed") return lineOf(reason, installReasonLength) ? { kind, reason } : unknown
+  return unknown
+}
+
 const bridge = {
   requestRunner: (id) => {
     if (typeof id === "string") ipcRenderer.send(runnerPortChannel, id)
@@ -233,6 +277,15 @@ const bridge = {
   installApp: async () => installResultOf(await ipcRenderer.invoke(installAppChannel)),
   openInstalled: () => {
     ipcRenderer.send(openInstalledChannel)
+  },
+  uninstallPlan: async () => uninstallPlanOf(await ipcRenderer.invoke(uninstallPlanChannel)),
+  // Only a boolean crosses; the main process keeps data unless it is told exactly `false`.
+  uninstallApp: async (options) =>
+    uninstallResultOf(
+      await ipcRenderer.invoke(uninstallAppChannel, { keepData: options?.keepData !== false }),
+    ),
+  quitApp: () => {
+    ipcRenderer.send(quitAppChannel)
   },
   pathForFile: (file) => {
     try {

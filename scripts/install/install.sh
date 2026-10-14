@@ -20,6 +20,18 @@
 # --sandbox does only that step, for an existing install, such as one Homebrew made. macOS
 # needs no such step.
 #
+# --uninstall removes what the install put on this computer, and downloads nothing:
+#
+#   curl -fsSL https://github.com/@REPOSITORY@/releases/latest/download/install.sh | sh -s -- --uninstall
+#
+# On Linux that is the AppImage, the `novadeck` command if it points at that AppImage, the
+# menu entry, the icon, and the AppArmor profile, which asks for sudo once; if that fails,
+# it still finishes and says how to retry. The novadeck folder goes too, but only when
+# nothing else is in it. On macOS it moves the app to the Trash, and refuses while the app
+# runs. An install Homebrew made is Homebrew's to remove, and the script says how. Nothing
+# you made is removed: not Novadeck's data, nor the plugins connected to your agents. The
+# script says where the data is and how to remove the plugins.
+#
 # The release workflow replaces @REPOSITORY@ with the repository it publishes from. These
 # environment variables change it:
 #
@@ -44,6 +56,10 @@
 #                                     /dev/fuse.
 #   NOVADECK_INSTALL_APPLICATIONS_DIR The system-wide Applications folder on macOS, in
 #                                     place of /Applications.
+#   NOVADECK_INSTALL_CASKROOMS        The folders Homebrew keeps casks in, searched for
+#                                     novadeck by --uninstall, in place of
+#                                     "/opt/homebrew/Caskroom /usr/local/Caskroom
+#                                     /home/linuxbrew/.linuxbrew/Caskroom".
 #
 # Every definition comes before the one call on the last line, so a download that is cut
 # short runs nothing.
@@ -367,6 +383,13 @@ developer_id_signed() {
   codesign --display --verbose=2 "$1" 2>&1 | grep -q '^Authority=Developer ID Application: '
 }
 
+# True when Novadeck runs from that app. The app's command line starts with its
+# executable's path, taken as plain text. The path goes in through the environment, as
+# awk -v would read its backslashes as escapes.
+mac_running() {
+  ps -axo command= 2> /dev/null | NOVADECK_APP="$1/Contents/MacOS/" awk 'index($0, ENVIRON["NOVADECK_APP"]) == 1 { found = 1 } END { exit !found }'
+}
+
 install_mac() {
   base="$1"
   folder="$(mac_folder)" || exit 1
@@ -375,9 +398,8 @@ install_mac() {
   fetch "$base" novadeck-mac-universal.zip
 
   # Replacing the app under a running copy would leave it starting helpers of another
-  # version. The app's command line starts with its executable's path, taken as plain text.
-  # The path goes in through the environment, as awk -v would read its backslashes as escapes.
-  if ps -axo command= 2> /dev/null | NOVADECK_APP="$app/Contents/MacOS/" awk 'index($0, ENVIRON["NOVADECK_APP"]) == 1 { found = 1 } END { exit !found }'; then
+  # version.
+  if mac_running "$app"; then
     fail "Novadeck is running from $app. Quit it and run this again."
   fi
 
@@ -423,20 +445,173 @@ install_mac() {
   fi
 }
 
+# Succeeds when Homebrew manages Novadeck: its cask folder holds novadeck, or the installed
+# copy at the given path, if any, links into a Caskroom. Such a copy is Homebrew's to
+# remove, and removing it behind its back leaves it believing the cask is installed.
+homebrew_managed() {
+  # shellcheck disable=SC2086
+  for dir in ${NOVADECK_INSTALL_CASKROOMS:-/opt/homebrew/Caskroom /usr/local/Caskroom /home/linuxbrew/.linuxbrew/Caskroom}; do
+    [ -e "$dir/novadeck" ] && return 0
+  done
+  for path in "$@"; do
+    if [ -L "$path" ]; then
+      case "$(readlink -f "$path")" in
+        */Caskroom/*) return 0 ;;
+      esac
+    fi
+  done
+  return 1
+}
+
+# What stays after an uninstall, and how to remove it: Novadeck cannot know which agents
+# have its plugin, and the data is the person's.
+# XDG_CONFIG_HOME, where Electron keeps the app's data on Linux; like XDG_DATA_HOME, it
+# counts as unset unless it is an absolute path.
+config_home() {
+  case "${XDG_CONFIG_HOME:-}" in
+    /*) printf '%s\n' "$XDG_CONFIG_HOME" ;;
+    *) printf '%s\n' "$HOME/.config" ;;
+  esac
+}
+
+uninstall_leftovers() {
+  say "Your data and any agent plugins stay. To remove the data, delete $1."
+  say "To remove the plugin from an agent you connected, run its own command:"
+  say "  claude plugin uninstall novadeck@novadeck && claude plugin marketplace remove novadeck"
+  say "  codex plugin remove novadeck@novadeck && codex plugin marketplace remove novadeck"
+  say "  agy plugin uninstall novadeck"
+}
+
+uninstall_sandbox() {
+  base="$1"
+  target="${NOVADECK_INSTALL_APPARMOR_DIR:-/etc/apparmor.d}/novadeck-appimage-$(id -u)"
+  [ -e "$target" ] || return 1
+  say "Removing Novadeck's AppArmor profile."
+  parser="$(find_tool apparmor_parser)"
+  # Unloaded from the file that loaded it, then the file goes, so it never loads again. An
+  # unload that fails, as the profile is not loaded, still leaves the file to remove.
+  unloaded=false
+  if [ -n "$parser" ] && as_root "$parser" --remove "$target" > /dev/null 2>&1; then
+    unloaded=true
+  fi
+  if as_root rm -f "$target"; then
+    if [ "$unloaded" = false ]; then
+      say "Novadeck's profile stays loaded until the next restart, if it is loaded at all."
+    fi
+  else
+    say "Warning: the profile could not be removed as root."
+    say "To finish, run:"
+    say "  curl -fsSL $base/install.sh | sh -s -- --uninstall"
+  fi
+  return 0
+}
+
+uninstall_appimage() {
+  base="$1"
+  data="$(data_home)"
+  folder="$data/novadeck"
+  image="$(image_path)"
+  link="$HOME/.local/bin/novadeck"
+  found=false
+
+  if homebrew_managed "$HOME/Applications/novadeck.AppImage" "$image"; then
+    fail "Homebrew installed Novadeck. Run \`brew uninstall --cask novadeck\` instead."
+  fi
+
+  # Only the command this install made: one that points elsewhere is someone else's.
+  if [ -L "$link" ] && [ "$(readlink "$link")" = "$image" ]; then
+    rm -f "$link"
+    say "Removed $link"
+    found=true
+  fi
+  for file in "$image" "$data/applications/dev.mzpk.novadeck.desktop" "$data/icons/hicolor/512x512/apps/novadeck.png"; do
+    if [ -e "$file" ] || [ -L "$file" ]; then
+      rm -f "$file"
+      say "Removed $file"
+      found=true
+    fi
+  done
+  # The folder also holds the person's data, so it goes only when nothing else is in it.
+  if [ -d "$folder" ]; then
+    rmdir "$folder" 2> /dev/null && say "Removed $folder"
+  fi
+  if uninstall_sandbox "$base"; then
+    found=true
+  fi
+
+  if [ "$found" = false ]; then
+    say "Novadeck is not installed, so there is nothing to remove."
+    return 0
+  fi
+  say "Done."
+  if [ -d "$folder" ]; then
+    uninstall_leftovers "$(config_home)/novadeck and $folder"
+  else
+    uninstall_leftovers "$(config_home)/novadeck"
+  fi
+}
+
+uninstall_mac() {
+  system="${NOVADECK_INSTALL_APPLICATIONS_DIR:-/Applications}"
+  found=false
+
+  if homebrew_managed "$system/novadeck.app" "$HOME/Applications/novadeck.app"; then
+    fail "Homebrew installed Novadeck. Run \`brew uninstall --cask novadeck\` instead."
+  fi
+
+  for folder in "$system" "$HOME/Applications"; do
+    app="$folder/novadeck.app"
+    # A bundle is a folder; a link or a file by this name is not what the install made.
+    if [ -L "$app" ] || [ ! -d "$app" ]; then
+      continue
+    fi
+    if mac_running "$app"; then
+      fail "Novadeck is running from $app. Quit it and run this again."
+    fi
+    # To the Trash, where it can be fetched back, by a move: Finder's AppleScript asks
+    # permission to control Finder, and fails over ssh, while a move asks nothing.
+    trash="$HOME/.Trash"
+    mkdir -p "$trash"
+    destination="$trash/novadeck.app"
+    if [ -e "$destination" ]; then
+      destination="$trash/novadeck.$$.app"
+    fi
+    if ! mv "$app" "$destination"; then
+      say "If macOS said your terminal was prevented from modifying apps, allow it under System"
+      say "Settings > Privacy & Security > App Management, then run this again."
+      fail "could not move $app to the Trash."
+    fi
+    say "Moved $app to the Trash"
+    found=true
+  done
+
+  if [ "$found" = false ]; then
+    say "Novadeck is not installed, so there is nothing to remove."
+    return 0
+  fi
+  say "Done."
+  uninstall_leftovers "$HOME/Library/Application Support/novadeck"
+}
+
 usage() {
-  printf 'usage: install.sh [--sandbox]\n' >&2
+  printf 'usage: install.sh [--sandbox | --uninstall]\n' >&2
   exit 2
 }
 
 main() {
   set -eu
   sandbox_only=false
+  uninstall=false
   for arg in "$@"; do
     case "$arg" in
       --sandbox) sandbox_only=true ;;
+      --uninstall) uninstall=true ;;
       *) usage ;;
     esac
   done
+  if [ "$sandbox_only" = true ] && [ "$uninstall" = true ]; then
+    usage
+  fi
   repository='@REPOSITORY@'
   base="${NOVADECK_INSTALL_BASE_URL:-https://github.com/$repository/releases/latest/download}"
   base="${base%/}"
@@ -460,6 +635,14 @@ main() {
   trap 'exit 130' INT HUP TERM
   cd "$work" || fail "could not enter $work."
 
+  if [ "$uninstall" = true ]; then
+    if [ "$platform" = mac ]; then
+      uninstall_mac
+    else
+      uninstall_appimage "$base"
+    fi
+    return 0
+  fi
   if [ "$sandbox_only" = true ] && [ "$platform" = mac ]; then
     say "Novadeck's sandbox needs no setup on macOS."
     return 0

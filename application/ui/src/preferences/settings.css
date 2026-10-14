@@ -10,6 +10,8 @@
    when marked data-tone="warning" or "danger".
    `.settings-card`: a `.card` holding settings, one `.settings-row` per setting, each
    after the first under a hairline. `.settings-fieldset`: a fieldset that draws no box.
+   `.settings-command`: a command to run or a path to read, in the mono face, selected
+   whole by one click, breaking at spaces only.
    `.choice-card`: a choice drawn as a card that is checked or not, muted at rest, with
    an optional `.choice-card-tile` holding its icon, which takes the brand tile once
    checked. `.choice-card.solid`: a choice at full strength at rest that fills under the
@@ -62,6 +64,21 @@
 }
 .settings-note[data-tone="danger"] {
   color: var(--color-danger-fg);
+}
+
+.settings-command {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: var(--radius-control);
+  background-color: var(--color-soft);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  user-select: all;
 }
 
 .card.settings-card {

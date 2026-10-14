@@ -3,8 +3,9 @@ import { createDemoBackend } from "../backend/demo"
 import { createContentDemo } from "../backend/demo/content"
 import { createDemoPortable } from "../backend/demo/debug/portable"
 import { createDemoSandbox, sampleFix } from "../backend/demo/debug/sandbox"
+import { createDemoUninstall, uninstallScenarios } from "../backend/demo/debug/uninstall"
 import { createDemoUpdates, sampleNotes } from "../backend/demo/debug/updates"
-import type { BackendSelection, ConnectBackend } from "../backend/port"
+import type { Backend, BackendSelection, ConnectBackend } from "../backend/port"
 import type { InstallResult } from "../model/portable"
 import type { SandboxState } from "../model/sandbox"
 import { createStore } from "../model/store"
@@ -106,6 +107,15 @@ const requestedInstall = (): InstallResult | undefined => {
   return { kind: "installing" }
 }
 
+// Specs open the demo on a host that offers uninstalling with `?uninstall=` one of the
+// debug panel's scenarios (see backend/demo/debug/uninstall.ts).
+const requestedUninstall = (): Backend["uninstall"] => {
+  const name = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("uninstall")
+  return name && name in uninstallScenarios
+    ? createDemoUninstall(uninstallScenarios[name as keyof typeof uninstallScenarios]).uninstall
+    : undefined
+}
+
 // `&answer=late` makes the host take 4 seconds to say it is a portable copy.
 const answerDelay = (): number =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("answer") === "late" ? 4000 : 0
@@ -135,13 +145,15 @@ const testBackend = (): ReturnType<typeof createDemoBackend> => {
   const sandbox = requestedSandbox()
   const install = requestedInstall()
   const demo = requestedVersion(update ? demoWithUpdate(update) : createDemoBackend())
+  const uninstall = requestedUninstall()
   const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
+  const withUninstall = uninstall ? { ...withSandbox, uninstall } : withSandbox
   return install
     ? {
-        ...withSandbox,
+        ...withUninstall,
         portable: createDemoPortable({ install, answerAfterMs: answerDelay() }).portable,
       }
-    : withSandbox
+    : withUninstall
 }
 
 // The visitor build, for a website, loads its demo with the connection, so no other build

@@ -17,6 +17,7 @@ import {
   desktopNotices,
   desktopPortable,
   desktopSandbox,
+  desktopUninstall,
   desktopUpdates,
   desktopVersion,
 } from "./desktop-host"
@@ -153,6 +154,7 @@ export const connectRunnerBackend = async (
     const version = desktopVersion(desktopHost())
     const sandbox = desktopSandbox(desktopHost())
     const portable = desktopPortable(desktopHost())
+    const uninstall = desktopUninstall(desktopHost())
     // StrictMode creates a backend twice and keeps the first, so the last one created is
     // not necessarily the one running: close waits on them all (an unstarted one is idle).
     const created: RunnerBackend[] = []
@@ -168,6 +170,7 @@ export const connectRunnerBackend = async (
           ...(version ? { version } : {}),
           ...(sandbox ? { sandbox } : {}),
           ...(portable ? { portable } : {}),
+          ...(uninstall ? { uninstall } : {}),
           livePages: desktopHost()?.livePages === true,
           transcripts,
           agents,

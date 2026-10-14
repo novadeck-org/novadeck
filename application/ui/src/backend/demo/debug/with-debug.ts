@@ -16,6 +16,7 @@ import { createDemoPortable, type DemoPortable } from "./portable"
 import { createDemoSandbox } from "./sandbox"
 import { createDemoStates } from "./states"
 import type { DemoActionContext } from "./types"
+import { createDemoUninstall, type DemoUninstall } from "./uninstall"
 
 // What one connection to the demo knows of the boot that made it, and how the panel
 // asks for another.
@@ -36,6 +37,10 @@ export type DemoLaunch = {
   readonly portable: DemoPortable | undefined
   // Boots again as this portable copy (or an installed one).
   readonly setPortable: (portable: DemoPortable | undefined) => void
+  // The uninstall the host offers; undefined for a host that offers none.
+  readonly uninstall: DemoUninstall | undefined
+  // Boots again with the host offering this uninstall (or none).
+  readonly setUninstall: (uninstall: DemoUninstall | undefined) => void
 }
 
 // What the panel's groups read and change of the shell around the demo.
@@ -162,6 +167,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
     updates: states.updates,
     ...(launch.sandbox ? { sandbox: createDemoSandbox(launch.sandbox) } : {}),
     ...(launch.portable ? { portable: createDemoPortable(launch.portable).portable } : {}),
+    ...(launch.uninstall ? { uninstall: createDemoUninstall(launch.uninstall).uninstall } : {}),
     pickDirectory: states.pickDirectory,
     ...(inner.conversations ? { conversations: states.chat(inner.conversations) } : {}),
     DebugPanel: createDebugPanel({

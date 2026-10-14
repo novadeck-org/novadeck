@@ -4,21 +4,27 @@ import type {
   InstallResult as BridgeInstall,
   PortableState as BridgePortable,
   SandboxState as BridgeState,
+  UninstallPlan as BridgePlan,
+  UninstallResult as BridgeUninstall,
 } from "@novadeck/protocol/bridge"
 
 import type { InstallResult, PortableState } from "../../model/portable"
 import type { SandboxState } from "../../model/sandbox"
+import type { UninstallPlan, UninstallResult } from "../../model/uninstall"
 import { context, describe, expect, it } from "../../test"
 import {
   desktopNotices,
   desktopPortable,
   desktopSandbox,
+  desktopUninstall,
   desktopUpdates,
   desktopVersion,
   hostInstall,
   hostNotice,
   hostPortable,
   hostSandbox,
+  hostUninstallPlan,
+  hostUninstallResult,
   noticeText,
 } from "./desktop-host"
 
@@ -399,5 +405,131 @@ describe("an offer's outdated-since date", () => {
     expect(heardDate("last week")).toBeUndefined()
     expect(heardDate(7)).toBeUndefined()
     expect(heardDate("2026-10-01T10:00:00Z".padEnd(80, " "))).toBeUndefined()
+  })
+})
+
+describe("a host's uninstall", () => {
+  const ready: UninstallPlan = {
+    kind: "ready",
+    dataFolders: ["/home/me/.config/novadeck"],
+    handoff: "uninstaller",
+  }
+
+  it("fits the protocol's, which the page's own copy must keep to", () => {
+    const plans: UninstallPlan[] = [
+      { kind: "unavailable" },
+      { kind: "manual", command: "brew uninstall --cask novadeck" },
+      ready,
+    ]
+    const results: UninstallResult[] = [
+      { kind: "uninstalling" },
+      { kind: "removed", leftover: "sudo rm /etc/apparmor.d/novadeck" },
+      { kind: "failed", reason: "x" },
+    ]
+    const theirPlans: BridgePlan[] = plans
+    const theirResults: BridgeUninstall[] = results
+    const homePlans: UninstallPlan[] = theirPlans
+    const homeResults: UninstallResult[] = theirResults
+    expect([homePlans, homeResults]).toEqual([plans, results])
+  })
+
+  it("takes a plan of the three kinds", () => {
+    expect(hostUninstallPlan({ kind: "unavailable" })).toEqual({ kind: "unavailable" })
+    expect(
+      hostUninstallPlan({ kind: "manual", command: "brew uninstall --cask novadeck" }),
+    ).toEqual({ kind: "manual", command: "brew uninstall --cask novadeck" })
+    expect(hostUninstallPlan(ready)).toEqual(ready)
+  })
+
+  it("takes a data folder path as long as the host's preload does", () => {
+    const path = `/${"a".repeat(999)}`
+    expect(hostUninstallPlan({ ...ready, dataFolders: [path] })).toEqual({
+      ...ready,
+      dataFolders: [path],
+    })
+    expect(() => hostUninstallPlan({ ...ready, dataFolders: [`${path}a`] })).toThrow()
+  })
+
+  it("takes no plan from an answer that is none of them, or whose text is not plain", () => {
+    expect(() => hostUninstallPlan(null)).toThrow()
+    expect(() => hostUninstallPlan({ kind: "later" })).toThrow()
+    expect(() => hostUninstallPlan({ kind: "manual" })).toThrow()
+    expect(() => hostUninstallPlan({ kind: "manual", command: "a\nb" })).toThrow()
+    expect(() => hostUninstallPlan({ kind: "ready", dataFolders: [], handoff: "me" })).toThrow()
+    expect(() => hostUninstallPlan({ ...ready, dataFolders: ["/ok", 7] })).toThrow()
+    expect(() => hostUninstallPlan({ ...ready, dataFolders: ["/a\u202eb"] })).toThrow()
+  })
+
+  it("takes a result of the three kinds, dropping a leftover that is not one plain line", () => {
+    expect(hostUninstallResult({ kind: "uninstalling" })).toEqual({ kind: "uninstalling" })
+    expect(hostUninstallResult({ kind: "removed" })).toEqual({ kind: "removed" })
+    expect(hostUninstallResult({ kind: "removed", leftover: "sudo rm x" })).toEqual({
+      kind: "removed",
+      leftover: "sudo rm x",
+    })
+    expect(hostUninstallResult({ kind: "removed", leftover: "a\nb" })).toEqual({ kind: "removed" })
+    expect(hostUninstallResult({ kind: "failed", reason: " Disk\nbusy " })).toEqual({
+      kind: "failed",
+      reason: "Disk busy",
+    })
+  })
+
+  it("keeps a reason of the length the host's preload takes, with the advice it ends in", () => {
+    const advice = " Novadeck has stopped your terminals; quit it and open it again."
+    const reason = `${"a".repeat(266 - advice.length)}${advice}`
+    expect(reason).toHaveLength(266)
+    expect(hostUninstallResult({ kind: "failed", reason })).toEqual({ kind: "failed", reason })
+    const longest = "b".repeat(300)
+    expect(hostUninstallResult({ kind: "failed", reason: longest })).toEqual({
+      kind: "failed",
+      reason: longest,
+    })
+    expect(hostUninstallResult({ kind: "failed", reason: "b".repeat(301) })).toEqual({
+      kind: "failed",
+      reason: "Something went wrong.",
+    })
+  })
+
+  it("takes any other answer for a failure the person can read", () => {
+    const unknown = { kind: "failed", reason: "Something went wrong." }
+    expect(hostUninstallResult(undefined)).toEqual(unknown)
+    expect(hostUninstallResult({ kind: "done" })).toEqual(unknown)
+    expect(hostUninstallResult({ kind: "failed", reason: "  " })).toEqual(unknown)
+  })
+
+  it("asks, uninstalls and quits through the host", async () => {
+    let quit = 0
+    const asked: boolean[] = []
+    const bridge = {
+      uninstallPlan: () => Promise.resolve(ready),
+      uninstallApp: ({ keepData }: { keepData: boolean }) => {
+        asked.push(keepData)
+        return Promise.resolve({ kind: "removed" })
+      },
+      quitApp: () => void (quit += 1),
+    } as unknown as DesktopHost
+    const uninstall = desktopUninstall(bridge)!
+    expect(await uninstall.plan()).toEqual(ready)
+    expect(await uninstall.run({ keepData: false })).toEqual({ kind: "removed" })
+    expect(asked).toEqual([false])
+    uninstall.quit()
+    expect(quit).toBe(1)
+  })
+
+  it("fails an uninstall the host throws on", async () => {
+    const bridge = {
+      uninstallPlan: () => Promise.resolve(ready),
+      uninstallApp: () => Promise.reject(new Error("gone")),
+      quitApp: () => {},
+    } as unknown as DesktopHost
+    expect((await desktopUninstall(bridge)!.run({ keepData: true })).kind).toBe("failed")
+  })
+
+  it("is absent in a browser, or a host that has only some of it", () => {
+    expect(desktopUninstall(undefined)).toBeUndefined()
+    expect(desktopUninstall({} as DesktopHost)).toBeUndefined()
+    expect(
+      desktopUninstall({ uninstallPlan: () => Promise.resolve(ready) } as unknown as DesktopHost),
+    ).toBeUndefined()
   })
 })

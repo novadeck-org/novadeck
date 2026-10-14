@@ -13,9 +13,12 @@ import {
   openInstalledChannel,
   openUpdatePageChannel,
   portableChannel,
+  quitAppChannel,
   sandboxChannel,
   saveBeforeQuitChannel,
   setUpdateChannelChannel,
+  uninstallAppChannel,
+  uninstallPlanChannel,
   updateChannelChannel,
   updateOfferChannel,
   updateRequestChannel,
@@ -55,8 +58,9 @@ vi.mock("electron", async () => {
         electron.sent.push(channel)
         if (values.length) electron.messages.push([channel, values[0]])
       },
-      invoke: async (channel: string) => {
+      invoke: async (channel: string, ...values: unknown[]) => {
         electron.sent.push(channel)
+        if (values.length) electron.messages.push([channel, values[0]])
         return electron.answer
       },
     }),
@@ -410,6 +414,92 @@ describe("installing the app from a portable copy", () => {
   it("opens the installed copy by asking the host, naming nothing", () => {
     electron.exposed.openInstalled!()
     expect(electron.sent).toEqual([openInstalledChannel])
+    expect(electron.messages).toEqual([])
+  })
+})
+
+describe("uninstalling the app", () => {
+  it("passes on the plan the contract allows", async () => {
+    const answers = [
+      { kind: "unavailable" },
+      { kind: "manual", command: "brew uninstall --cask novadeck" },
+      { kind: "ready", dataFolders: ["/home/me/.config/novadeck"], handoff: "app" },
+      { kind: "ready", dataFolders: [], handoff: "uninstaller" },
+    ]
+    const plans = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.uninstallPlan!()
+    })
+    expect(await Promise.all(plans)).toEqual(answers)
+    expect(electron.sent).toEqual(answers.map(() => uninstallPlanChannel))
+  })
+
+  it("counts any other plan as unavailable", async () => {
+    const answers = [
+      undefined,
+      "ready",
+      { kind: "manual" },
+      { kind: "manual", command: "rm -rf /\u0007" },
+      { kind: "ready", dataFolders: ["/a"], handoff: "root" },
+      { kind: "ready", dataFolders: "/a", handoff: "app" },
+      { kind: "ready", dataFolders: [1], handoff: "app" },
+      { kind: "ready", dataFolders: ["bell\u0007"], handoff: "app" },
+      { kind: "ready", dataFolders: Array.from({ length: 9 }, () => "/a"), handoff: "app" },
+    ]
+    const plans = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.uninstallPlan!()
+    })
+    expect(await Promise.all(plans)).toEqual(answers.map(() => ({ kind: "unavailable" })))
+  })
+
+  it("asks the host to keep the data unless the page says exactly not to", async () => {
+    electron.answer = { kind: "removed" }
+    await electron.exposed.uninstallApp!({ keepData: false })
+    await electron.exposed.uninstallApp!({ keepData: true })
+    await electron.exposed.uninstallApp!({} as { keepData: boolean })
+    expect(electron.messages).toEqual([
+      [uninstallAppChannel, { keepData: false }],
+      [uninstallAppChannel, { keepData: true }],
+      [uninstallAppChannel, { keepData: true }],
+    ])
+  })
+
+  it("passes on the result the contract allows, less a leftover that is not a line", async () => {
+    const answers = [
+      { kind: "uninstalling" },
+      { kind: "removed" },
+      { kind: "removed", leftover: "sudo rm -f /etc/apparmor.d/novadeck-appimage-1000" },
+      { kind: "failed", reason: "The folder is read-only." },
+    ]
+    const results = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.uninstallApp!({ keepData: true })
+    })
+    expect(await Promise.all(results)).toEqual(answers)
+    electron.answer = { kind: "removed", leftover: "a\nb" }
+    expect(await electron.exposed.uninstallApp!({ keepData: true })).toEqual({ kind: "removed" })
+  })
+
+  it("is a failure when the host answers anything else", async () => {
+    const failed = { kind: "failed", reason: "Something went wrong." }
+    const answers = [
+      undefined,
+      "removed",
+      { kind: "gone" },
+      { kind: "failed" },
+      { kind: "failed", reason: "x".repeat(301) },
+    ]
+    const results = answers.map((answer) => {
+      electron.answer = answer
+      return electron.exposed.uninstallApp!({ keepData: true })
+    })
+    expect(await Promise.all(results)).toEqual(answers.map(() => failed))
+  })
+
+  it("quits by asking the host, naming nothing", () => {
+    electron.exposed.quitApp!()
+    expect(electron.sent).toEqual([quitAppChannel])
     expect(electron.messages).toEqual([])
   })
 })

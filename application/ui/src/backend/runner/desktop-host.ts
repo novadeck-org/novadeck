@@ -14,6 +14,13 @@ import {
 
 import { maxReasonLength, type InstallResult, type PortableState } from "../../model/portable"
 import { maxFixLength, type SandboxState } from "../../model/sandbox"
+import {
+  maxUninstallPath,
+  maxUninstallReason,
+  maxUninstallText,
+  type UninstallPlan,
+  type UninstallResult,
+} from "../../model/uninstall"
 import type { Backend, Notice } from "../port"
 
 // What the desktop host's preload script offers the page; absent in a browser.
@@ -208,5 +215,67 @@ export const desktopPortable = (host: DesktopHost | undefined): Backend["portabl
       }
     },
     openInstalled: () => open(),
+  }
+}
+
+// A command or path the person reads or runs: one plain line, within what fits.
+const plainLine = (value: unknown, max = maxUninstallText): value is string =>
+  typeof value === "string" &&
+  value !== "" &&
+  value.length <= max &&
+  value.replace(controls, "") === value &&
+  value.trim() === value
+
+// The host's account of what uninstalling would do, as the page takes it. An answer that
+// is none of the three, or whose command or paths are not plain lines, throws, and the
+// page offers nothing.
+export const hostUninstallPlan = (plan: unknown): UninstallPlan => {
+  if (typeof plan !== "object" || plan === null) throw new Error("Unknown uninstall plan")
+  const { kind, command, dataFolders, handoff } = plan as Record<string, unknown>
+  if (kind === "unavailable") return { kind }
+  if (kind === "manual" && plainLine(command)) return { kind, command }
+  if (
+    kind === "ready" &&
+    Array.isArray(dataFolders) &&
+    dataFolders.every((folder) => plainLine(folder, maxUninstallPath)) &&
+    (handoff === "app" || handoff === "uninstaller")
+  ) {
+    return { kind, dataFolders: dataFolders as string[], handoff }
+  }
+  throw new Error("Unknown uninstall plan")
+}
+
+// How an uninstall went, as the page takes it. An answer that is none of the three is a
+// failure, with a reason the person can read; a leftover command that is not one plain
+// line is dropped.
+export const hostUninstallResult = (result: unknown): UninstallResult => {
+  const unknown: UninstallResult = { kind: "failed", reason: "Something went wrong." }
+  if (typeof result !== "object" || result === null) return unknown
+  const { kind, leftover, reason } = result as Record<string, unknown>
+  if (kind === "uninstalling") return { kind }
+  if (kind === "removed") return plainLine(leftover) ? { kind, leftover } : { kind }
+  if (kind !== "failed") return unknown
+  // One more than fits, so a reason too long for the page is noticed, not cut.
+  const text = typeof reason === "string" ? noticeText(reason, maxUninstallReason + 1) : ""
+  return text && text.length <= maxUninstallReason ? { kind, reason: text } : unknown
+}
+
+// The host's uninstall, where it has one: asked what it would do, told to do it, and told
+// to quit once it has.
+export const desktopUninstall = (host: DesktopHost | undefined): Backend["uninstall"] => {
+  const ask = host?.uninstallPlan
+  const run = host?.uninstallApp
+  const quit = host?.quitApp
+  if (!ask || !run || !quit) return undefined
+  return {
+    plan: async () => hostUninstallPlan(await ask()),
+    run: async (options) => {
+      try {
+        return hostUninstallResult(await run(options))
+      } catch {
+        return hostUninstallResult(undefined)
+      }
+    },
+    quit: () => quit(),
   }
 }

@@ -104,7 +104,56 @@ export type DesktopBridge = {
    * the same shutdown quitting runs. Does nothing before such an answer.
    */
   openInstalled?(): void
+  /**
+   * What uninstalling this copy of the app would do, or why it can't be done from here.
+   * Absent from hosts that came before it. See `UninstallPlan`.
+   */
+  uninstallPlan?(): Promise<UninstallPlan>
+  /**
+   * Removes the app from this computer, after the page has disconnected the agents it
+   * connected. The host saves every page and ends the runner's shells first, as quitting
+   * does, then removes the install and, unless `keepData`, the person's data folders.
+   * From a copy whose plan was not `ready`, or a sender that is not the app's own page,
+   * the answer is `failed` and nothing is touched. See `UninstallResult`.
+   */
+  uninstallApp?(options: { readonly keepData: boolean }): Promise<UninstallResult>
+  /** Quits the app after the host's shutdown; the page offers it once `uninstallApp` answered `removed`. */
+  quitApp?(): void
 }
+
+/**
+ * What uninstalling this copy would do. `unavailable`: nothing from here, as for a
+ * portable copy or a development run, which have no install to remove. `manual`: another
+ * tool installed it, so the person runs `command` (such as `brew uninstall --cask
+ * novadeck`) in a terminal. `ready`: the host can remove it; `dataFolders` are the
+ * absolute paths of the person's projects and sessions that `keepData: false` would also
+ * delete (empty when the app runs with a data folder of the person's own choosing, which
+ * it never deletes), and `handoff` says who removes the app: `app`, the running app itself (Linux,
+ * macOS), or `uninstaller`, the platform's own uninstaller, which the host starts and
+ * then quits for (Windows).
+ */
+export type UninstallPlan =
+  | { readonly kind: "unavailable" }
+  | { readonly kind: "manual"; readonly command: string }
+  | {
+      readonly kind: "ready"
+      readonly dataFolders: readonly string[]
+      readonly handoff: "app" | "uninstaller"
+    }
+
+/**
+ * How `uninstallApp` went. `uninstalling`: the platform's uninstaller was started and the
+ * app is quitting for it, so the page has nothing more to do. `removed`: the app's
+ * files are gone and it still runs only to say so; `leftover`, when present, is a
+ * one-line shell command the host could not run itself, such as removing the AppArmor
+ * profile that needs a password, for the person to run in a terminal. `failed`: it
+ * stopped for the short human-readable `reason`, and what it had not reached is intact
+ * (the agents were disconnected before it was called).
+ */
+export type UninstallResult =
+  | { readonly kind: "uninstalling" }
+  | { readonly kind: "removed"; readonly leftover?: string }
+  | { readonly kind: "failed"; readonly reason: string }
 
 /**
  * Whether the host runs as a portable copy. `version` is this build's, reported for

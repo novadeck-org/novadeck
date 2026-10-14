@@ -48,6 +48,21 @@ canvas. Keep related work together and switch between sessions from the sidebar.
   curl -fsSL https://github.com/novadeck-org/novadeck/releases/latest/download/install.sh | sh -s -- --sandbox
   ```
 
+To remove Novadeck, press **Uninstall…** under About in Preferences. It disconnects the
+agents you connected, ends your terminals, and removes the app: on Linux the AppImage, its
+`novadeck` command, menu entry and icon, and, through a password prompt, the sandbox profile
+(if the prompt is not available it shows the command to run instead); on macOS it moves the
+app to the Trash; on Windows it starts the uninstaller. Your projects and sessions stay unless
+you untick **Keep my projects and sessions** (there is no such box when Novadeck runs with
+its own `--user-data-dir`, whose folder it never deletes). A portable copy has nothing installed and shows
+no such button, and a Homebrew install shows the `brew uninstall --cask novadeck` command to
+run instead. On Linux and macOS the script does the same without the app, and leaves your data
+and agent plugins alone, printing how to remove them:
+
+```sh
+curl -fsSL https://github.com/novadeck-org/novadeck/releases/latest/download/install.sh | sh -s -- --uninstall
+```
+
 An installed build keeps itself up to date; an unsigned macOS build only tells you when a
 newer release is out until signing lands. An AppImage run from anywhere other than the
 install path (`~/.local/share/novadeck/novadeck.AppImage`, or Homebrew's
@@ -360,9 +375,10 @@ through cmd, which can't run your own Antigravity status line after Novadeck's: 
 Novadeck leaves yours as it is, and knows Antigravity's prompt is up only once you have
 sent it something.
 
-Removing Novadeck does not remove plugins you left connected, as packaged builds have
-no uninstaller: switch agents off first, or remove the `novadeck` plugin with the
-agent's own `plugin` command. A plugin left behind does nothing.
+Uninstalling from Preferences disconnects the agents you connected first. Removing
+Novadeck any other way (the script's `--uninstall`, a Homebrew uninstall, deleting the app)
+does not remove plugins you left connected: switch agents off first, or remove the
+`novadeck` plugin with the agent's own `plugin` command. A plugin left behind does nothing.
 
 The runner saves each terminal's directory and agent sessions as they change, and its
 output every few seconds and when the app quits, so a crash or a power cut loses little.
@@ -767,6 +783,18 @@ App:
   install panel adds a line about it. `?portable=on` (with `&install=newer` or
   `&install=failed`, `&update=available&outdated=recent` or `old`, and `&answer=late` for
   a delayed portable answer) opens variants for specs.
+- **Uninstall:** boot as a host that offers the About row's Uninstall…, and end the run as
+  armed. "Not offered" has no row (a portable copy, or no host); "Homebrew copy" shows the
+  brew command with Copy and no button; "Ready, no data folder" has no Keep my projects checkbox, as when the app runs with its own data folder; "Removed" goes through Removing… to Novadeck is
+  uninstalled with Quit, and "Removed, leftover" adds the command to copy (the Linux sandbox
+  profile when no password prompt was available); "Removal fails" keeps the dialog open with
+  the reason; "Fails after terminals ended" ends on a reason telling you to quit and open Novadeck
+  again, which every retry repeats, and "Trash refused" fails once on macOS' App Management and
+  then succeeds; "Windows uninstaller" reads Continue and ends on Novadeck closing for its
+  uninstaller, and "Windows uninstaller fails" ends on the reason. Connect agents in
+  Preferences first to see them named in the dialog; Agents' "Fail next" makes a disconnect
+  fail before the run. `?uninstall=` opens `unavailable`, `manual`, `removed`, `leftover`,
+  `failed`, `stopped`, `trash`, `windows`, `windows-failed` or `no-data` for specs.
 - **Updates:** have an update downloaded, available (the app can't install it itself), with
   no notes, or with notes at the caps, for the notice above the footer's "Update ready" or
   "Update available" chip. Downloading counts the chip up in steps (its notice, opened from the

@@ -80,6 +80,7 @@ export type RunnerBackendOptions = {
   readonly version?: Backend["version"]
   readonly sandbox?: Backend["sandbox"]
   readonly portable?: Backend["portable"]
+  readonly uninstall?: Backend["uninstall"]
   // Where the host lets the page finish its saves before its window closes or the app
   // quits; returns the undo.
   readonly beforeQuit?: (save: () => Promise<void>) => () => void
@@ -1348,6 +1349,7 @@ export const runnerBackend = (
     ...(options.version ? { version: options.version } : {}),
     ...(options.sandbox ? { sandbox: options.sandbox } : {}),
     ...(options.portable ? { portable: options.portable } : {}),
+    ...(options.uninstall ? { uninstall: options.uninstall } : {}),
   }
   const busy = (): boolean => saves.busy() || pending.size > 0
   return {

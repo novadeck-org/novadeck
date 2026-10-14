@@ -78,6 +78,20 @@ export const installAppChannel = "novadeck:install-app"
  */
 export const openInstalledChannel = "novadeck:open-installed"
 
+/**
+ * Renderer-to-main request for what uninstalling this copy would do; answers an
+ * `UninstallPlan`. See main/uninstall.ts.
+ */
+export const uninstallPlanChannel = "novadeck:uninstall-plan"
+
+/**
+ * Renderer-to-main request to remove the app, `{ keepData }`; answers an `UninstallResult`.
+ */
+export const uninstallAppChannel = "novadeck:uninstall-app"
+
+/** Renderer-to-main request to quit the app, once it has been uninstalled. */
+export const quitAppChannel = "novadeck:quit-app"
+
 /** Renderer-to-main request for a folder picker; answers the chosen path or null. */
 export const directoryPickerChannel = "novadeck:pick-directory"
 
