@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { terminalLabel } from "../model/handle"
 import { SidebarItem, sidebarListClasses } from "../sidebar/SidebarItem"
 import type { Viewing } from "../terminals/unread-state"
 import { HandleChip } from "../ui-toolkit/HandleChip"
@@ -166,7 +167,6 @@ export const NotificationsPanel = ({
             onDismiss(item)
             settleFocus(items[index + 1] ?? items[index - 1])
           }
-          const handleId = `notification-handle-${rowKey(item).replaceAll("/", "-")}`
           return (
             <SidebarItem
               key={`${item.context}/${item.terminalId}`}
@@ -183,13 +183,12 @@ export const NotificationsPanel = ({
               name={item.terminalName}
               {...(item.handle
                 ? {
-                    tag: <HandleChip id={handleId} handle={item.handle} />,
-                    handleId,
+                    tag: <HandleChip handle={item.handle} />,
                   }
                 : {})}
               icon={<Icon size={14} strokeWidth={1.5} />}
               selected={viewing?.context === item.context && viewing.id === item.terminalId}
-              selectLabel={`Go to ${item.terminalName}`}
+              selectLabel={`Go to ${terminalLabel(item.terminalName, item.handle)}`}
               // A gist stands in for the reply on the row, not in what it says to a screen reader
               // or on hover.
               description={notificationDescription(item)}
@@ -208,7 +207,7 @@ export const NotificationsPanel = ({
                         <button
                           className="notification-dismiss icon-button small dim quiet"
                           type="button"
-                          aria-label={`Mark ${item.terminalName} read`}
+                          aria-label={`Mark ${terminalLabel(item.terminalName, item.handle)} read`}
                           onClick={dismiss}
                         >
                           <Check size={14} strokeWidth={1.5} />

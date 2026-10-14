@@ -4,7 +4,9 @@ import { context, describe, expect, it } from "../../test"
 import { itemFixture } from "../../test/fixtures"
 import type { BackendAction } from "../port"
 import { createDemoEngine } from "./engine"
+import { demoHandle } from "./handles"
 import { demoBackend, withMessages } from "./index"
+import { createMockTerminal, defaultName } from "./samples"
 import { demoTurns } from "./turns"
 import { createDemo, demoVariants } from "./variants"
 
@@ -31,11 +33,29 @@ describe("demo backend", () => {
       workspace = workspaceReducer(workspace, close)
       backend.commit(workspace, [close])
       const second = backend.newTerminal({ target, directory: "~" })
-      expect([first.name, second.name]).toEqual([
-        `Terminal ${String(seeded + 1).padStart(2, "0")}`,
-        `Terminal ${String(seeded + 2).padStart(2, "0")}`,
+      // Both are plain shells, named as the runner names one; the number each took shows
+      // in its handle, which the sixth and seventh words give.
+      expect([first.name, second.name]).toEqual(["Terminal", "Terminal"])
+      expect([first.handle, second.handle]).toEqual([
+        demoHandle(seeded + 1),
+        demoHandle(seeded + 2),
       ])
+      expect(first.id).not.toBe(second.id)
       expect(backend.newTerminal({ target, directory: "~", title: "Agent" }).name).toBe("Agent")
+      // One opened to run a program is named after it.
+      expect(
+        backend.newTerminal({ target, directory: "~", launch: { command: "claude --resume" } })
+          .name,
+      ).toBe("claude")
+    })
+  })
+
+  context("when a terminal is named again by default", () => {
+    it("takes the program it was opened to run, else Terminal", () => {
+      const target = { projectId: "p", workspaceSessionId: "s" }
+      const named = (command?: string) =>
+        defaultName(createMockTerminal(target, 7, "~", command).command)
+      expect([named(), named("claude --resume")]).toEqual(["Terminal", "claude"])
     })
   })
 

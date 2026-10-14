@@ -183,7 +183,7 @@ describe("Who named a terminal", () => {
     await expect.element(field).toHaveFocus()
     await userEvent.keyboard("Half")
     await field.click({ button: "right" })
-    await expectStaysAbsent(page.getByRole("menu", { name: "Checkout review actions" }))
+    await expectStaysAbsent(page.getByRole("menu", { name: /^Checkout review, @[a-z]+ actions$/ }))
     await expect.element(field).toHaveFocus()
     await expect.element(field).toHaveValue("Half")
     await expect.element(terminalTab("Half")).not.toBeInTheDocument()
@@ -208,7 +208,7 @@ describe("Who named a terminal", () => {
     )
     await new Promise((resolve) => setTimeout(resolve, 1000))
     await expect
-      .element(page.getByRole("menu", { name: "Checkout review actions" }))
+      .element(page.getByRole("menu", { name: /^Checkout review, @[a-z]+ actions$/ }))
       .not.toBeInTheDocument()
     await expect.element(field).toHaveValue("Draft")
   })

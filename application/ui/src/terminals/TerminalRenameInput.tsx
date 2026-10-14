@@ -10,6 +10,7 @@ export type TerminalRename = {
 export const TerminalRenameInput = ({
   id,
   name,
+  label,
   value,
   request,
   autoFocus,
@@ -20,6 +21,8 @@ export const TerminalRenameInput = ({
 }: {
   id: string
   name: string
+  // What a screen reader names the field by: the terminal, with its handle.
+  label: string
   value: string
   request: number
   autoFocus: boolean
@@ -74,7 +77,7 @@ export const TerminalRenameInput = ({
     <input
       ref={input}
       data-rename-terminal={id}
-      aria-label={`Rename ${name}`}
+      aria-label={`Rename ${label}`}
       value={value}
       maxLength={60}
       autoComplete="off"

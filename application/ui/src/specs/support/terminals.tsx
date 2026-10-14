@@ -1,6 +1,6 @@
 import { page, type Locator } from "vitest/browser"
 
-import { sidebar, terminal, terminalTab } from "./workspace"
+import { labelled, sidebar, terminal, terminalTab } from "./workspace"
 
 // Vocabulary for creating, renaming, hiding, and closing terminals.
 
@@ -12,20 +12,20 @@ export const headerName = (name: string): Locator =>
   terminal(name).getByRole("heading", { name, exact: true })
 
 export const headerRenameField = (name: string): Locator =>
-  terminal(name).getByRole("textbox", { name: `Rename ${name}`, exact: true })
+  terminal(name).getByRole("textbox", { name: labelled("Rename ", name) })
 
 export const sidebarRenameField = (name: string): Locator =>
-  sidebar().getByRole("textbox", { name: `Rename ${name}`, exact: true })
+  sidebar().getByRole("textbox", { name: labelled("Rename ", name) })
 
 export const anyRenameField = (): Locator => page.getByRole("textbox", { name: /^Rename / })
 
 /** A sidebar tab action such as `Rename Dev server` or `Close Dev server`. */
 export const tabAction = (label: string): Locator =>
-  sidebar().getByRole("button", { name: label, exact: true })
+  sidebar().getByRole("button", { name: labelled(label, "") })
 
 /** A terminal header action such as `Close Dev server` or `Focus Dev server`. */
 export const headerAction = (name: string, label: string): Locator =>
-  terminal(name).getByRole("button", { name: label, exact: true })
+  terminal(name).getByRole("button", { name: labelled(label, "") })
 
 /** The question asked before closing a terminal a program still runs in. */
 export const closeConfirmation = (): Locator => page.getByRole("alertdialog")
@@ -36,10 +36,10 @@ export const confirmClose = async (): Promise<void> => {
 }
 
 export const hiddenTerminalTab = (name: string): Locator =>
-  page.getByRole("button", { name: `Select ${name} (hidden)`, exact: true })
+  page.getByRole("button", { name: labelled("Select ", name, " (hidden)") })
 
 export const visibilityToggle = (name: string, action: "Hide" | "Show"): Locator =>
-  sidebar().getByRole("button", { name: `${action} ${name} in Grid and Canvas`, exact: true })
+  sidebar().getByRole("button", { name: labelled(`${action} `, name, " in Grid and Canvas") })
 
 /** The name text a person reads on a terminal's sidebar tab, hidden or not. */
 export const tabName = (name: string): Locator =>

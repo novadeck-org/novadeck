@@ -78,7 +78,7 @@ describe("terminal registry", () => {
       registry.reconcile(fixture(), [])
       expect(opened).toHaveLength(4)
       expect(opened.every((item) => !item.created)).toBe(true)
-      expect(registry.get(first)?.terminal.name).toBe("Terminal 01")
+      expect(registry.get(first)?.terminal.name).toBe("Terminal")
     })
   })
 

@@ -42,7 +42,7 @@ describe("saved session state", () => {
 
     it("leaves out the terminals, which the runner keeps, and gestures in progress", () => {
       const text = encodeSession(session(), 2)
-      expect(text).not.toContain("Terminal 01")
+      expect(text).not.toContain("Terminal")
       expect(text).not.toContain("~/one")
       expect(JSON.parse(text).state).not.toHaveProperty("roster")
       expect(saved?.state.layout.canvas.geometry["01"]).toEqual({
@@ -85,7 +85,7 @@ describe("saved session state", () => {
   })
 
   context("with companion bars", () => {
-    // Terminal 01 holds `count` items on its bar, and 02 holds one; 01's bar also
+    // The first terminal holds `count` items on its bar, and 02 holds one; 01's bar also
     // remembers an item that's gone and hides its messages.
     const withBars = (count: number): WorkspaceSession => {
       const base = session()

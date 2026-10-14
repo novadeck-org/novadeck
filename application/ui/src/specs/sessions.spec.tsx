@@ -1,7 +1,7 @@
 import { afterEach, describe as context, describe, expect, it } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { escapeFrom, pressShortcut } from "./support/keyboard"
+import { escapeFrom, pressShortcut, newTerminalName } from "./support/keyboard"
 import {
   currentSessionName,
   emptyWorkspace,
@@ -28,6 +28,7 @@ import {
   terminal,
   terminalTab,
   view,
+  labelled,
 } from "./support/workspace"
 
 const switchMenu = (): Locator => page.getByRole("dialog", { name: "Switch workspace" })
@@ -207,7 +208,9 @@ describe("projects", () => {
       await openWorkspace()
       await terminalTab("Runtime").click()
       await run(commandInput("Runtime"), "echo storefront history")
-      await sidebar().getByRole("button", { name: "Close Build" }).click()
+      await sidebar()
+        .getByRole("button", { name: labelled("Close ", "Build") })
+        .click()
       await expect.element(terminalTab("Build")).not.toBeInTheDocument()
 
       await switchProject("api-service")
@@ -328,19 +331,19 @@ describe("sessions sidebar", () => {
       await expect.element(emptyWorkspace()).toBeVisible()
       const fresh = await newSessionName(original)
       await page.getByRole("button", { name: "New terminal" }).click()
-      await expect.element(commandInput("Terminal 01")).toHaveFocus()
-      await commandInput("Terminal 01").fill("new draft")
+      await expect.element(commandInput(newTerminalName)).toHaveFocus()
+      await commandInput(newTerminalName).fill("new draft")
 
       await sidebarPanel("Sessions").click()
       await savedSession(original).click()
       await expect.element(terminal("Checkout implementation")).toBeVisible()
-      await expectStaysAbsent(terminal("Terminal 01"))
+      await expectStaysAbsent(terminal(newTerminalName))
       await expect
         .element(savedSession(fresh).getByText("1 terminal", { exact: true }))
         .toBeVisible()
 
       await savedSession(fresh).click()
-      await expect.element(commandInput("Terminal 01")).toHaveValue("new draft")
+      await expect.element(commandInput(newTerminalName)).toHaveValue("new draft")
     })
 
     it("restores the terminal and view each session last had selected", async () => {
@@ -459,9 +462,9 @@ describe("narrow screens", () => {
 
       await pressShortcut("newTerminal")
 
-      await expect.element(terminal("Terminal 07")).toBeVisible()
+      await expect.element(terminal(newTerminalName)).toBeVisible()
       await expectStaysAbsent(sidebar())
-      await expect.element(commandInput("Terminal 07")).toHaveFocus()
+      await expect.element(commandInput(newTerminalName)).toHaveFocus()
     })
   })
 
@@ -475,7 +478,7 @@ describe("narrow screens", () => {
       const drawer = page.getByRole("dialog", { name: "Terminal sessions" })
       await expect.element(drawer).toBeVisible()
 
-      await drawer.getByRole("button", { name: "Select Runtime", exact: true }).click()
+      await drawer.getByRole("button", { name: labelled("Select ", "Runtime") }).click()
 
       await expect.element(drawer).not.toBeInTheDocument()
       await expect.element(terminal("Runtime")).toBeVisible()

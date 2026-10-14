@@ -1,7 +1,7 @@
 import { expect } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { terminal } from "./workspace"
+import { nameOf, terminal } from "./workspace"
 
 // Canvas vocabulary: where things appear on screen and the pointer gestures a person
 // makes. Geometry is measured from rendered boxes, relative to the Canvas view.
@@ -56,7 +56,7 @@ export const terminalAt = (point: Point): string | undefined => {
   const view = screenBox(canvasView())
   const hit = document.elementFromPoint(view.left + point.x, view.top + point.y)
   const owner = allTerminals().find((element) => hit && element.contains(hit))
-  return owner?.getAttribute("aria-label")?.replace(/ terminal$/, "")
+  return owner && nameOf(owner.getAttribute("aria-label")!.replace(/ terminal$/, ""))
 }
 
 /** Guards a gesture's starting point: it must be bare Canvas, not a terminal. */

@@ -22,7 +22,7 @@ const root = plan("root")
 const home = itemFixture("home", "01")
 const preview = itemFixture("preview", "01", { kind: "page", path: null, url: "http://x/" })
 
-// Terminal 01's bar holding `items` in the order they came, its messages when it has
+// The first terminal's bar holding `items` in the order they came, its messages when it has
 // them, and which items are new.
 const membersOf = (
   items: readonly CompanionItem[],

@@ -1,7 +1,7 @@
 import { expect } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
-import { openWorkspace, terminal, terminalTab } from "./workspace"
+import { labelled, openWorkspace, terminal, terminalTab } from "./workspace"
 
 // Vocabulary for the companion taskbar along each terminal's bottom: its icons, their
 // menus, and dragging them onto another terminal's bar or into a view's free space.
@@ -71,7 +71,7 @@ export const chooseFromIconSubmenu = async (
 /** Opens the menu of a window's sidebar tab, which a window undocked from a taskbar has too. */
 export const windowMenu = async (name: string): Promise<Locator> => {
   await terminalTab(name).click({ button: "right" })
-  const menu = page.getByRole("menu", { name: `${name} actions` })
+  const menu = page.getByRole("menu", { name: labelled("", name, " actions") })
   await expect.element(menu).toBeVisible()
   return menu
 }

@@ -41,10 +41,8 @@ describe("terminal frame header", () => {
         exitCode: 1,
         signal: null,
       })
-      expect(frame.querySelector(".terminal-title")?.textContent).toBe("Terminal 01")
-      expect(frame.querySelector("section")?.getAttribute("aria-label")).toBe(
-        "Terminal 01 terminal",
-      )
+      expect(frame.querySelector(".terminal-title")?.textContent).toBe("Terminal")
+      expect(frame.querySelector("section")?.getAttribute("aria-label")).toBe("Terminal terminal")
     })
   })
 })
@@ -63,7 +61,7 @@ describe("terminal frame mic button", () => {
       dictation: { recording: false, onToggle: () => void calls.push("toggle") },
     })
     const button = mic(frame)!
-    expect(button.getAttribute("aria-label")).toBe("Dictate into Terminal 01")
+    expect(button.getAttribute("aria-label")).toBe("Dictate into Terminal")
     expect(button.getAttribute("aria-pressed")).toBe("false")
     button.click()
     expect(calls).toEqual(["toggle"])

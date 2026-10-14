@@ -10,6 +10,7 @@ import {
   terminalTab,
   view,
   viewSwitcher,
+  labelled,
 } from "./support/workspace"
 
 // This project uses ordinary motion: the main behavior suite opts out of animations.
@@ -46,7 +47,7 @@ describe("workspace motion", () => {
       await expect.element(commandInput("Dev server")).toHaveValue("retained draft")
 
       await terminal("Dev server")
-        .getByRole("button", { name: "Focus Dev server", exact: true })
+        .getByRole("button", { name: labelled("Focus ", "Dev server") })
         .click()
       await expect.element(view("Focus")).toBeChecked()
       await animationsFinished()

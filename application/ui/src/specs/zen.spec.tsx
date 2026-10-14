@@ -1,7 +1,7 @@
 import { describe as context, describe, expect, it } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { findDialog, pressShortcut, shortcut } from "./support/keyboard"
+import { findDialog, pressShortcut, shortcut, newTerminalName } from "./support/keyboard"
 import { emptyWorkspace, pressNewSession } from "./support/sessions"
 import { anyRenameField } from "./support/terminals"
 import {
@@ -445,8 +445,8 @@ describe("Zen dock", () => {
 
       await dock().getByRole("button", { name: "New terminal" }).click()
 
-      await expect.element(terminal("Terminal 07")).toBeVisible()
-      await expect.element(commandInput("Terminal 07")).toHaveFocus()
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+      await expect.element(commandInput(newTerminalName)).toHaveFocus()
       await expectStaysAbsent(anyRenameField())
       await expectInZen()
     })
@@ -484,8 +484,8 @@ describe("leaving Zen", () => {
       await expect.element(sidebar()).not.toBeInTheDocument()
       await enterZen().click()
       await dock().getByRole("button", { name: "New terminal" }).click()
-      await expect.element(terminal("Terminal 07")).toBeVisible()
-      await expect.element(commandInput("Terminal 07")).toHaveFocus()
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+      await expect.element(commandInput(newTerminalName)).toHaveFocus()
 
       await showControls().click()
       await exitZen().click()

@@ -13,6 +13,7 @@ import {
   terminalTab,
   view,
   viewSwitcher,
+  labelled,
 } from "./support/workspace"
 
 const openPreferences = async (): Promise<void> => {
@@ -67,7 +68,7 @@ describe("Focus view", () => {
 
       await expect.element(view("Grid")).toBeChecked()
       await expect
-        .element(gridView().getByRole("region", { name: "Runtime terminal" }))
+        .element(gridView().getByRole("region", { name: labelled("", "Runtime", " terminal") }))
         .toBeVisible()
       await expect.element(terminal("Build")).toBeInTheDocument()
       await expectSelected("Runtime")
@@ -83,7 +84,9 @@ describe("Focus view", () => {
         position: headerGap("Checkout implementation"),
       })
 
-      await expectStaysAbsent(page.getByRole("textbox", { name: "Rename Checkout implementation" }))
+      await expectStaysAbsent(
+        page.getByRole("textbox", { name: labelled("Rename ", "Checkout implementation") }),
+      )
       await expectStaysAbsent(gridView())
       await expect.element(view("Focus")).toBeChecked()
       await expect
@@ -151,13 +154,15 @@ describe("available view modes", () => {
     it("leaves no Focus action on Grid terminals", async () => {
       await openWorkspace()
       await chooseView("Grid")
-      await expect.element(page.getByRole("button", { name: "Focus Tests" })).toBeInTheDocument()
+      await expect
+        .element(page.getByRole("button", { name: labelled("Focus ", "Tests") }))
+        .toBeInTheDocument()
 
       await disableView("Focus")
 
       await expect.element(view("Focus")).not.toBeInTheDocument()
       await expect
-        .element(page.getByRole("button", { name: "Focus Tests" }))
+        .element(page.getByRole("button", { name: labelled("Focus ", "Tests") }))
         .not.toBeInTheDocument()
     })
   })

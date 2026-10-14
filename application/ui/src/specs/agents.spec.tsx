@@ -13,6 +13,7 @@ import {
   tabDescription,
   terminal,
   terminalTab,
+  labelled,
 } from "./support/workspace"
 
 const agentSwitch = (scope: Locator, name: "Claude Code" | "Codex" | "Antigravity"): Locator =>
@@ -34,13 +35,13 @@ describe("An agent waiting on the person", () => {
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
-    const tab = page.getByRole("button", { name: "Select Checkout review" })
+    const tab = page.getByRole("button", { name: labelled("Select ", "Checkout review") })
     await expect
       .poll(() => tabDescription("Checkout review"))
       .toBe("Needs permission, 2 subagents: 2 explorer")
     await tab.click()
     await expect
-      .element(page.getByRole("region", { name: "Checkout review terminal" }))
+      .element(terminal("Checkout review"))
       .toHaveAttribute("aria-description", "Needs permission")
   })
 
@@ -82,10 +83,10 @@ describe("An agent that plans", () => {
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
-    const tab = page.getByRole("button", { name: "Select Checkout implementation" })
+    const tab = page.getByRole("button", { name: labelled("Select ", "Checkout implementation") })
     await expect.poll(() => tabDescription("Checkout implementation")).toBe("Plan ready for review")
     await tab.click()
-    const window = page.getByRole("region", { name: "Checkout implementation terminal" })
+    const window = terminal("Checkout implementation")
     await expect.element(window).toHaveAttribute("aria-description", "Plan ready for review")
     // Whether it plans is its own terminal's to show, not its window's header.
     await expect.element(window.getByText("planning", { exact: true })).not.toBeInTheDocument()
@@ -120,8 +121,8 @@ describe("An agent's subagents", () => {
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
-    await page.getByRole("button", { name: "Select Checkout review" }).click()
-    const window = page.getByRole("region", { name: "Checkout review terminal" })
+    await page.getByRole("button", { name: labelled("Select ", "Checkout review") }).click()
+    const window = terminal("Checkout review")
     await expect.poll(() => tabDescription("Checkout review")).toContain("2 subagents")
     await expect.element(window.getByText("2 subagents")).not.toBeInTheDocument()
   })
@@ -133,8 +134,8 @@ describe("An agent whose turn left work running", () => {
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
-    await page.getByRole("button", { name: "Select Tests" }).click()
-    const window = page.getByRole("region", { name: "Tests terminal" })
+    await page.getByRole("button", { name: labelled("Select ", "Tests") }).click()
+    const window = terminal("Tests")
     await expect.element(window).toHaveAttribute("data-terminal-phase", "running")
     await expect.poll(() => tabDescription("Tests")).toContain("2 agents · 1 task")
     await expect.element(window.getByText("2 agents · 1 task")).not.toBeInTheDocument()
@@ -145,8 +146,8 @@ describe("An agent whose turn left work running", () => {
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
-    await page.getByRole("button", { name: "Select Build" }).click()
-    const window = page.getByRole("region", { name: "Build terminal" })
+    await page.getByRole("button", { name: labelled("Select ", "Build") }).click()
+    const window = terminal("Build")
     await expect.element(window).toHaveAttribute("data-terminal-phase", "idle")
   })
 })
@@ -159,8 +160,8 @@ describe("An agent Novadeck can't hear from", () => {
     if (await skip.query()) await skip.click()
     const said = "Not reporting · Novadeck can't hear from this agent"
     await expect.poll(() => tabDescription("Runtime")).toBe(said)
-    await page.getByRole("button", { name: "Select Runtime" }).click()
-    const window = page.getByRole("region", { name: "Runtime terminal" })
+    await page.getByRole("button", { name: labelled("Select ", "Runtime") }).click()
+    const window = terminal("Runtime")
     await expect.element(window).toHaveAttribute("aria-description", said)
     await expect.element(window).toHaveAttribute("data-terminal-phase", "unheard")
   })
@@ -249,8 +250,8 @@ describe("An agent's model and context", () => {
     await openWorkspace("/?demo=agents")
     const skip = page.getByRole("button", { name: "Skip for now" })
     if (await skip.query()) await skip.click()
-    await page.getByRole("button", { name: "Select Checkout review" }).click()
-    const window = page.getByRole("region", { name: "Checkout review terminal" })
+    await page.getByRole("button", { name: labelled("Select ", "Checkout review") }).click()
+    const window = terminal("Checkout review")
     const ring = window.getByRole("img", {
       name: "gpt-6-astra · high, Context 15% full · 30k of 200k tokens",
     })

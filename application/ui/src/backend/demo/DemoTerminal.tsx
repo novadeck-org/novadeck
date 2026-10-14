@@ -12,6 +12,7 @@ import {
 } from "react"
 
 import { noConversation, type ChatDialog, type Conversation } from "../../model/conversation"
+import { terminalLabel } from "../../model/handle"
 import { endingText, terminalEnding } from "../../model/terminal-ending"
 import type { TerminalMetadata } from "../../model/types"
 import { TerminalEndingBar, TerminalLock, TerminalNotice } from "../../ui-toolkit/TerminalStatus"
@@ -247,7 +248,7 @@ const DemoTerminalSurface = ({
           <input
             ref={commandInput}
             data-terminal-input
-            aria-label={`Command for ${terminal.name}`}
+            aria-label={`Command for ${terminalLabel(terminal.name, terminal.handle)}`}
             autoComplete="off"
             spellCheck={false}
             value={input}

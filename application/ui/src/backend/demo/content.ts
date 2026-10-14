@@ -16,7 +16,7 @@ import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoEngine } from "./engine"
 import { demoBackend, windowReset, withConversations } from "./index"
 import { createDemoMessages, studioMailbox } from "./messages"
-import { demoTerminalId, terminalSlot } from "./samples"
+import { defaultName, demoTerminalId } from "./samples"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { devServerArtifacts } from "./showcase/artifacts"
 import { createShowcase } from "./showcase/simulation"
@@ -183,7 +183,7 @@ export const contentDemo = (
                 type: "terminal/update",
                 target: { projectId, workspaceSessionId },
                 terminalId,
-                name: `Terminal ${terminalSlot(terminalId)}`,
+                name: defaultName(terminalOf(latest, key)?.command),
                 titleSource: { kind: "default" },
               },
             ],

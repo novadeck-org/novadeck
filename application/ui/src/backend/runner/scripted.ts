@@ -70,7 +70,7 @@ export const keptSummary = (
 ): TerminalSummary => ({
   id: terminalId,
   sessionId,
-  title: "Terminal 01",
+  title: "Terminal",
   titleSource: { kind: "default" },
   handle: "moth",
   ledBy: null,
@@ -100,7 +100,7 @@ const terminalsOf = (
     (terminal, index) =>
       listed.find((summary) => summary.id === terminal.id) ??
       keptSummary(terminal.id, sessionId, {
-        title: `Terminal ${String(index + 1).padStart(2, "0")}`,
+        title: "Terminal",
         handle: ["moth", "fox", "owl", "crow", "kite", "raven"][index] ?? `moth${index + 1}`,
         lastProgram: terminal.lastProcess || null,
       }),

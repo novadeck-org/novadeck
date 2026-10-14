@@ -3,16 +3,13 @@
 // never wraps or shrinks: the name beside it gives way. Nothing for a terminal without one.
 export const HandleChip = ({
   handle,
-  id,
   className = "",
 }: {
   handle: string | undefined
-  // Names it as what describes its row, so a screen reader hears the handle.
-  id?: string
   className?: string
 }): React.JSX.Element | null =>
   handle ? (
-    <span id={id} className={`handle-chip ${className}`} data-terminal-handle={handle}>
+    <span className={`handle-chip ${className}`} data-terminal-handle={handle}>
       @{handle}
     </span>
   ) : null

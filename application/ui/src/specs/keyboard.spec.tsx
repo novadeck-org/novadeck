@@ -39,6 +39,7 @@ import {
   navigateChip,
   expectStaysAbsent,
   isMac,
+  labelled,
   openWorkspace,
   press,
   reloadWorkspace,
@@ -64,6 +65,7 @@ describe("recent terminals", () => {
 
       await press("{Control>}{Tab}")
       await expect.element(recentOption("Dev server")).toHaveAttribute("aria-selected", "true")
+      await expect.element(recentOption("Dev server")).toHaveAccessibleName("Dev server, @fox")
       await expect.element(terminal("Runtime")).toBeVisible()
 
       await press("{/Control}")
@@ -1121,7 +1123,7 @@ describe("dictation", () => {
       await terminalTab("Checkout implementation").click()
       // Until voice input is installed, it says what it does: lead to the setup.
       const mic = terminal("Checkout implementation").getByRole("button", {
-        name: "Set up voice input for Checkout implementation",
+        name: labelled("Set up voice input for ", "Checkout implementation"),
       })
       await mic.click()
       const dialog = preferencesDialog()

@@ -6,7 +6,7 @@ import { openCommands } from "../../test/commands"
 import { itemFixture, workspaceFixture } from "../../test/fixtures"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
-// Terminal 01's agent has a plan and has shown an image.
+// The first terminal's agent has a plan and has shown an image.
 const plan = itemFixture("plan", "01", {
   kind: "plan",
   name: "A home for Studio",

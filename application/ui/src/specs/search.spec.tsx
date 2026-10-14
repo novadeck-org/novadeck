@@ -87,6 +87,17 @@ describe("finding a terminal", () => {
       await expect.element(findDialog().getByRole("option")).toHaveLength(1)
     })
 
+    it("matches a query that runs from the end of a name into its folder", async () => {
+      await openWorkspace()
+      await pressShortcut("find")
+      await expectSearchReady()
+
+      await searchField().fill("runtime ~/projects/storefront/runtime")
+
+      await expect.element(searchResult("Runtime")).toBeVisible()
+      await expect.element(findDialog().getByRole("option")).toHaveLength(1)
+    })
+
     for (const query of ["fox", "@fox"]) {
       it(`finds a terminal by its handle typed as ${query}`, async () => {
         await openWorkspace()

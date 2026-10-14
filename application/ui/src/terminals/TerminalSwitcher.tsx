@@ -1,6 +1,7 @@
 import { ArrowUpRight, Layers, Terminal, X } from "lucide-react"
 import { useEffect, useRef } from "react"
 
+import { terminalLabel } from "../model/handle"
 import { isWindow } from "../model/roster"
 import type { Tile } from "../model/types"
 import { HandleChip } from "../ui-toolkit/HandleChip"
@@ -89,7 +90,10 @@ export const TerminalSwitcher = ({
                 id={`recent-terminal-${terminal.id}`}
                 ref={current ? active : undefined}
                 role="option"
-                aria-label={terminal.name}
+                aria-label={terminalLabel(
+                  terminal.name,
+                  isWindow(terminal) ? undefined : terminal.handle,
+                )}
                 aria-selected={current}
                 data-highlighted={current ? "" : undefined}
                 onClick={() => onSelect(terminal.id)}

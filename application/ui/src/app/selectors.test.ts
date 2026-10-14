@@ -5,7 +5,7 @@ import { runningLeads } from "./selectors"
 
 const target = { projectId: "project", workspaceSessionId: "initial" }
 
-// Terminal 02 is led by terminal 01, whose handle is moth.
+// The second terminal is led by the first, whose handle is moth.
 const led = () => {
   const workspace = workspaceFixture({ terminals: 2 })
   return [
@@ -19,7 +19,7 @@ const led = () => {
 
 describe("the leads that run", () => {
   it("name the lead of a terminal while the lead's terminal is live", () => {
-    expect(runningLeads(led())).toEqual({ "02": { handle: "moth", name: "Terminal 01" } })
+    expect(runningLeads(led())).toEqual({ "02": { handle: "moth", name: "Terminal" } })
   })
 
   it("leave a terminal without one once its lead exits, and bring it back as the lead runs again", () => {
@@ -36,7 +36,7 @@ describe("the leads that run", () => {
       terminalId: "01",
       status: { state: "idle" },
     })
-    expect(runningLeads(back)).toEqual({ "02": { handle: "moth", name: "Terminal 01" } })
+    expect(runningLeads(back)).toEqual({ "02": { handle: "moth", name: "Terminal" } })
   })
 
   it("leave a terminal without one once its lead is closed", () => {

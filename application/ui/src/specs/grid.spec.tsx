@@ -24,10 +24,12 @@ import {
   terminal,
   terminalTab,
   view,
+  nameOf,
+  labelled,
 } from "./support/workspace"
 
 const resizeButton = (label: "Make full width" | "Restore width", name: string) =>
-  page.getByRole("button", { name: `${label}: ${name}` })
+  page.getByRole("button", { name: labelled(`${label}: `, name) })
 
 const openGrid = async (): Promise<void> => {
   await openWorkspace()
@@ -39,7 +41,7 @@ const gridTerminalNames = (): string[] =>
   gridView()
     .getByRole("region", { name: / terminal$/ })
     .elements()
-    .map((element) => element.getAttribute("aria-label")!.replace(/ terminal$/, ""))
+    .map((element) => nameOf(element.getAttribute("aria-label")!.replace(/ terminal$/, "")))
 
 /** Waits for a newly shown Grid terminal and returns its name. */
 const newTerminalName = async (before: string[]): Promise<string> => {
@@ -105,7 +107,7 @@ describe("Grid view", () => {
       await chooseView("Canvas")
 
       await expect
-        .element(page.getByRole("button", { name: "Enlarge terminal: Tests" }))
+        .element(page.getByRole("button", { name: labelled("Enlarge terminal: ", "Tests") }))
         .toHaveAttribute("aria-pressed", "false")
     })
   })
@@ -197,7 +199,7 @@ describe("Grid view", () => {
 
       const name = await newTerminalName(before)
       await expect.element(terminal(name).getByRole("heading", { name })).toBeVisible()
-      await expectStaysAbsent(page.getByRole("textbox", { name: `Rename ${name}` }))
+      await expectStaysAbsent(page.getByRole("textbox", { name: labelled("Rename ", name) }))
       await expect.element(commandInput(name)).toHaveFocus()
     })
   })
@@ -209,7 +211,7 @@ describe("Grid view", () => {
 
       await terminal("Tests").dblClick({ position: headerGap("Tests") })
 
-      await expectStaysAbsent(page.getByRole("textbox", { name: "Rename Tests" }))
+      await expectStaysAbsent(page.getByRole("textbox", { name: labelled("Rename ", "Tests") }))
       await expectStaysAbsent(focusView())
       await expectStaysTrue(() => sameBox(bounds(terminal("Tests")), before), "Tests terminal")
       await expect.element(view("Grid")).toBeChecked()
@@ -221,11 +223,11 @@ describe("Grid view", () => {
     it("opens that terminal in Focus", async () => {
       await openGrid()
 
-      await page.getByRole("button", { name: "Focus Runtime" }).click()
+      await page.getByRole("button", { name: labelled("Focus ", "Runtime") }).click()
 
       await expect.element(view("Focus")).toBeChecked()
       await expect
-        .element(focusView().getByRole("region", { name: "Runtime terminal" }))
+        .element(focusView().getByRole("region", { name: labelled("", "Runtime", " terminal") }))
         .toBeVisible()
       await expect.element(terminal("Checkout implementation")).not.toBeInTheDocument()
       await expectSelected("Runtime")

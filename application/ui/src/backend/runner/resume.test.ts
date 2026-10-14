@@ -10,7 +10,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 20))
 const exited = (terminalId: string): TerminalSummary => ({
   id: terminalId,
   sessionId: id(8),
-  title: "Terminal 01",
+  title: "Terminal",
   titleSource: { kind: "default" },
   handle: "moth",
   ledBy: null,

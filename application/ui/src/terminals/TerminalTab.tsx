@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { subagentMarks, subagentsBadge, subagentsDetail } from "../model/agent-subagents"
+import { terminalLabel } from "../model/handle"
 import { mailBadgeLabel, type MailBadge } from "../model/messages"
 import { isWindow } from "../model/roster"
 import {
@@ -81,7 +82,7 @@ export const TerminalTab = ({
   const terminal = tile
   const shell = isWindow(tile) ? undefined : tile
   const icon = <Icon size={14} strokeWidth={1.5} />
-  const handleId = `terminal-handle-${terminal.id}`
+  const label = terminalLabel(terminal.name, shell?.handle)
   // The detail line shows the phase: a glyph (a spinner while a program runs) beside
   // the program, or a note while the shell starts. A tab that has ended is hatched (styles.css);
   // assistive technology says how it ended.
@@ -144,7 +145,7 @@ export const TerminalTab = ({
             />
             {shell?.handle && (
               <>
-                <HandleChip id={handleId} handle={shell.handle} className="handle-plain" />
+                <HandleChip handle={shell.handle} className="handle-plain" />
                 <span aria-hidden className="shrink-0">
                   ·
                 </span>
@@ -171,11 +172,10 @@ export const TerminalTab = ({
         {...(marks && !editing ? { below: <SubagentBranches marks={marks} /> } : {})}
         selected={selected}
         emphasized={phase === "done"}
-        selectLabel={`Select ${terminal.name}${hidden ? " (hidden)" : ""}`}
+        selectLabel={`Select ${label}${hidden ? " (hidden)" : ""}`}
         {...(description ? { description } : {})}
         {...(companion ? { badge: companion } : {})}
         describedBy={tabInstructionsId}
-        {...(shell?.handle ? { handleId } : {})}
         onSelect={onSelect}
         data-terminal-tab-id={terminal.id}
         data-terminal-phase={phase}
@@ -205,6 +205,7 @@ export const TerminalTab = ({
                 <TerminalRenameInput
                   id={terminal.id}
                   name={terminal.name}
+                  label={label}
                   value={rename.value}
                   request={rename.request}
                   autoFocus={rename.origin === "sidebar"}
@@ -225,7 +226,7 @@ export const TerminalTab = ({
             <Tooltip content={hidden ? "Show" : "Hide"}>
               <button
                 className={revealedActionClasses}
-                aria-label={`${hidden ? "Show" : "Hide"} ${terminal.name} in Grid and Canvas`}
+                aria-label={`${hidden ? "Show" : "Hide"} ${label} in Grid and Canvas`}
                 aria-pressed={hidden}
                 disabled={editing}
                 onClick={() => onVisibilityChange(!hidden)}
@@ -242,7 +243,7 @@ export const TerminalTab = ({
                 <button
                   className={actionClasses}
                   data-rename-terminal={terminal.id}
-                  aria-label={`Save name for ${terminal.name}`}
+                  aria-label={`Save name for ${label}`}
                   onClick={onRenameSave}
                 >
                   <Check size={14} strokeWidth={1.5} />
@@ -258,7 +259,7 @@ export const TerminalTab = ({
               >
                 <button
                   className={revealedActionClasses}
-                  aria-label={`Rename ${terminal.name}`}
+                  aria-label={`Rename ${label}`}
                   onClick={onBeginRename}
                 >
                   <Pencil size={14} strokeWidth={1.5} />
@@ -270,7 +271,7 @@ export const TerminalTab = ({
                 <button
                   className={actionClasses}
                   data-rename-terminal={terminal.id}
-                  aria-label={`Cancel renaming ${terminal.name}`}
+                  aria-label={`Cancel renaming ${label}`}
                   onClick={onRenameCancel}
                 >
                   <X size={14} strokeWidth={1.5} />
@@ -278,11 +279,7 @@ export const TerminalTab = ({
               </Tooltip>
             ) : (
               <Tooltip content="Close">
-                <button
-                  className={actionClasses}
-                  aria-label={`Close ${terminal.name}`}
-                  onClick={onClose}
-                >
+                <button className={actionClasses} aria-label={`Close ${label}`} onClick={onClose}>
                   <X size={14} strokeWidth={1.5} />
                 </button>
               </Tooltip>
@@ -292,5 +289,5 @@ export const TerminalTab = ({
       />
     </div>
   )
-  return <ContextMenu label={`${terminal.name} actions`} items={menu} trigger={tab} />
+  return <ContextMenu label={`${label} actions`} items={menu} trigger={tab} />
 }

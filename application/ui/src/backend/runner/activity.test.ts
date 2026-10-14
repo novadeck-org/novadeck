@@ -6,7 +6,7 @@ import { exitStatus, terminalActivity } from "./activity"
 const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   id: "00000000-0000-4000-8000-000000000001",
   sessionId: "00000000-0000-4000-8000-000000000002",
-  title: "Terminal 01",
+  title: "Terminal",
   titleSource: { kind: "default" },
   handle: "moth",
   ledBy: null,

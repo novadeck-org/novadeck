@@ -143,13 +143,25 @@ export const notifications = (): Locator =>
 export const notification = (project: string): Locator =>
   notifications().filter({ hasText: project })
 
+const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+/** A terminal's name from an accessible name that carries its `, @handle` after it. */
+export const nameOf = (label: string): string => label.replace(/, @[a-z0-9]+(?= |$)/, "")
+
+/**
+ * An accessible name made of `before`, a terminal's name and `after`, as the name of a
+ * control reads with or without the `, @handle` that follows the terminal's name.
+ */
+export const labelled = (before: string, name: string, after = ""): RegExp =>
+  new RegExp(`^${literal(before)}${literal(name)}(, @[a-z0-9]+)?${literal(after)}$`)
+
 /** A terminal as shown in the active Focus, Grid, or Canvas view. */
 export const terminal = (name: string): Locator =>
-  page.getByRole("region", { name: `${name} terminal` })
+  page.getByRole("region", { name: labelled("", name, " terminal") })
 
 /** A terminal's entry in the Terminals sidebar. */
 export const terminalTab = (name: string): Locator =>
-  page.getByRole("button", { name: `Select ${name}`, exact: true })
+  page.getByRole("button", { name: labelled("Select ", name) })
 
 /**
  * Puts keyboard focus on a terminal's sidebar tab, as Tab or a screen reader would. A mouse
@@ -200,14 +212,14 @@ export const expectTypingIn = async (name: string): Promise<void> => {
 }
 
 export const commandInput = (name: string): Locator =>
-  page.getByRole("textbox", { name: `Command for ${name}` })
+  page.getByRole("textbox", { name: labelled("Command for ", name) })
 
 /** Terminal names in sidebar order. */
 export const terminalTabNames = (): string[] =>
   page
     .getByRole("button", { name: /^Select / })
     .elements()
-    .map((element) => element.getAttribute("aria-label")!.replace(/^Select /, ""))
+    .map((element) => nameOf(element.getAttribute("aria-label")!.replace(/^Select /, "")))
 
 export const expectSelected = async (name: string): Promise<void> => {
   await expect.element(terminalTab(name)).toHaveAttribute("aria-current", "true")
@@ -260,13 +272,6 @@ export const tooltipOf = async (trigger: Locator): Promise<string> => {
 /** The platform modifier: Cmd on macOS, Ctrl elsewhere. Chromium on Linux/Windows uses Ctrl. */
 export const isMac = (): boolean => /Mac|iPhone|iPad/.test(navigator.platform)
 
-/** What a screen reader hears of a tab's handle: the row's description that names its chip. */
-export const tabHandleDescription = (name: string): string | undefined => {
-  const ids = terminalTab(name).element().getAttribute("aria-describedby")?.split(/\s+/) ?? []
-  const id = ids.find((each) => each.startsWith("terminal-handle-"))
-  return id ? document.getElementById(id)?.textContent : undefined
-}
-
 /**
  * What a screen reader hears describe a terminal's tab, as aria-describedby resolves it,
  * less the instructions for reordering tabs every tab has; null when that's all.
@@ -279,9 +284,7 @@ export const tabDescription = (name: string): string | null => {
   const parts = ids
     .split(/\s+/)
     // dnd-kit's own description, how to reorder the tab, is every tab's.
-    .filter(
-      (id) => id && !id.startsWith("dnd-kit-description-") && !id.startsWith("terminal-handle-"),
-    )
+    .filter((id) => id && !id.startsWith("dnd-kit-description-"))
     .map((id) => document.getElementById(id)?.textContent ?? "")
   return parts.length ? parts.join(" ") : null
 }

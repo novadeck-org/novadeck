@@ -22,7 +22,7 @@ import {
   viewBox,
   type Box,
 } from "./support/canvas"
-import { escapeFrom } from "./support/keyboard"
+import { escapeFrom, newTerminalName } from "./support/keyboard"
 import { overlaps } from "./support/layouts"
 import {
   chooseView,
@@ -36,6 +36,7 @@ import {
   terminal,
   terminalTab,
   view,
+  labelled,
 } from "./support/workspace"
 
 const names = ["Checkout implementation", "Dev server", "Checkout review", "Runtime"]
@@ -104,9 +105,9 @@ const overlapDevServerOnCheckout = async (): Promise<{ x: number; y: number }> =
 }
 
 const enlarge = (name: string): Locator =>
-  terminal(name).getByRole("button", { name: `Enlarge terminal: ${name}` })
+  terminal(name).getByRole("button", { name: labelled("Enlarge terminal: ", name) })
 const compact = (name: string): Locator =>
-  terminal(name).getByRole("button", { name: `Make compact: ${name}` })
+  terminal(name).getByRole("button", { name: labelled("Make compact: ", name) })
 
 describe("Canvas", () => {
   context("when opened", () => {
@@ -376,9 +377,9 @@ describe("Canvas", () => {
 
       await page.getByRole("button", { name: "New terminal", exact: true }).click()
 
-      await expect.element(terminal("Terminal 07")).toBeVisible()
+      await expect.element(terminal(newTerminalName)).toBeVisible()
       // The camera may pan a moment later to reveal it; wait for what the person ends up seeing.
-      await expect.poll(() => insideView(boxOf(terminal("Terminal 07")))).toBe(true)
+      await expect.poll(() => insideView(boxOf(terminal(newTerminalName)))).toBe(true)
       const after = await settled(() => boxesOf(names))
       for (const name of names) {
         expect(near(after[name]!.width, before[name]!.width)).toBe(true)
@@ -395,11 +396,11 @@ describe("Canvas", () => {
       await openWorkspace()
       await chooseView("Grid")
       await page.getByRole("button", { name: "New terminal" }).click()
-      await expect.element(terminal("Terminal 07")).toBeVisible()
+      await expect.element(terminal(newTerminalName)).toBeVisible()
 
       await chooseView("Canvas")
 
-      const created = await settled(() => boxOf(terminal("Terminal 07")))
+      const created = await settled(() => boxOf(terminal(newTerminalName)))
       expect(near(ratio(created), ratio(viewBox()), 0.05)).toBe(true)
     })
   })
@@ -412,10 +413,10 @@ describe("Canvas", () => {
 
       await canvasMenu().getByRole("menuitem", { name: "Terminal" }).click()
 
-      await expect.element(terminal("Terminal 07")).toBeVisible()
-      await expectSelected("Terminal 07")
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+      await expectSelected(newTerminalName)
       await expect.element(canvasMenu()).not.toBeInTheDocument()
-      const created = await settled(() => boxOf(terminal("Terminal 07")))
+      const created = await settled(() => boxOf(terminal(newTerminalName)))
       // The corner lands on the canvas grid, so allow for snapping.
       expect(near(created.left, 100, 13) && near(created.top, 120, 13)).toBe(true)
       for (const name of names) expect(sameBox(boxOf(terminal(name)), before[name]!)).toBe(true)
@@ -427,8 +428,8 @@ describe("Canvas", () => {
 
       await canvasMenu().getByRole("menuitem", { name: "Terminal" }).click()
 
-      await expect.element(terminal("Terminal 07")).toBeVisible()
-      const created = await settled(() => boxOf(terminal("Terminal 07")))
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+      const created = await settled(() => boxOf(terminal(newTerminalName)))
       expect(near(ratio(created), ratio(viewBox()), 0.05)).toBe(true)
     })
 
@@ -438,9 +439,11 @@ describe("Canvas", () => {
 
       await canvasMenu().getByRole("menuitem", { name: "Terminal" }).click()
 
-      await expect.element(terminalTab("Terminal 07")).toBeVisible()
-      await expectStaysAbsent(page.getByRole("textbox", { name: "Rename Terminal 07" }))
-      await expect.element(commandInput("Terminal 07")).toHaveFocus()
+      await expect.element(terminalTab(newTerminalName)).toBeVisible()
+      await expectStaysAbsent(
+        page.getByRole("textbox", { name: labelled("Rename ", newTerminalName) }),
+      )
+      await expect.element(commandInput(newTerminalName)).toHaveFocus()
     })
   })
 
@@ -609,7 +612,7 @@ describe("Canvas", () => {
       await doubleClickHeader("Checkout implementation")
       expect(await flownTo("Checkout implementation")).toBe(true)
       await terminal("Checkout implementation")
-        .getByRole("button", { name: "Focus Checkout implementation" })
+        .getByRole("button", { name: labelled("Focus ", "Checkout implementation") })
         .click()
       await expect.element(view("Focus")).toBeChecked()
 
@@ -671,7 +674,7 @@ describe("Canvas", () => {
       await openCanvas()
 
       await terminal("Checkout review")
-        .getByRole("button", { name: "Focus Checkout review" })
+        .getByRole("button", { name: labelled("Focus ", "Checkout review") })
         .click()
 
       await expect.element(view("Focus")).toBeChecked()
@@ -689,9 +692,9 @@ describe("Canvas", () => {
 
       await page.getByRole("button", { name: "New terminal", exact: true }).click()
 
-      await expect.element(terminal("Terminal 07")).toBeVisible()
-      const after = await settled(() => boxesOf([...names, "Terminal 07"]))
-      const created = after["Terminal 07"]!
+      await expect.element(terminal(newTerminalName)).toBeVisible()
+      const after = await settled(() => boxesOf([...names, newTerminalName]))
+      const created = after[newTerminalName]!
       expect(insideView(created)).toBe(true)
       for (const name of names) {
         expect(sameBox(after[name]!, before[name]!)).toBe(true)

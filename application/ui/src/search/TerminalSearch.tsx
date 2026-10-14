@@ -35,7 +35,9 @@ export const TerminalSearch = ({
     if (open) chosen.current = null
   }, [open])
   const matches = terminals.filter((terminal) =>
-    `${terminal.name} ${handleOf(terminal)} ${detail(terminal).directory}`
+    [handleOf(terminal), terminal.name, detail(terminal).directory]
+      .filter(Boolean)
+      .join(" ")
       .toLowerCase()
       .includes(query.trim().replace(/^@/, "").toLowerCase()),
   )

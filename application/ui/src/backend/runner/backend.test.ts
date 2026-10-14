@@ -1165,7 +1165,7 @@ describe("runner backend", () => {
                 {
                   id: lost,
                   sessionId: session.id,
-                  title: "Terminal 01",
+                  title: "Terminal",
                   titleSource: { kind: "default" },
                   handle: "moth",
                   ledBy: null,

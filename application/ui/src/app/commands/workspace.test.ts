@@ -369,7 +369,7 @@ describe("workspace commands", () => {
       app.commands.changeRenameDraft("02", "Gone")
       app.commands.close("02")
       expect(app.ui.getSnapshot().rename).toBeNull()
-      expect(app.state().roster.terminals.map((item) => item.name)).toEqual(["Terminal 01"])
+      expect(app.state().roster.terminals.map((item) => item.name)).toEqual(["Terminal"])
     })
   })
 
@@ -438,7 +438,7 @@ describe("workspace commands", () => {
     })
 
     it("places it beside the asking terminal on the canvas, not the selected one", () => {
-      // Terminal 01, selected, at the top; 02, which asks, far below it.
+      // The first terminal, selected, at the top; 02, which asks, far below it.
       const workspace = workspaceFixture()
       workspace.projects[0]!.history[0]!.state.layout.canvas.geometry = {
         "01": { position: { x: 0, y: 0 }, width: 600, height: 400 },

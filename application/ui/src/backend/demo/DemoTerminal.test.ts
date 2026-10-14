@@ -34,7 +34,7 @@ vi.hoisted(() => {
 const key: TerminalKey = { projectId: "p", workspaceSessionId: "s", terminalId: "01" }
 const shell: TerminalMetadata = {
   id: "01",
-  name: "Terminal 01",
+  name: "Terminal",
   directory: "~",
   command: "zsh",
   process: "zsh",

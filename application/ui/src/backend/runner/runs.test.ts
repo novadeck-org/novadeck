@@ -43,7 +43,7 @@ const terminalId = "00000000-0000-4000-8000-000000000001"
 const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   id: terminalId,
   sessionId: "s",
-  title: "Terminal 01",
+  title: "Terminal",
   titleSource: { kind: "default" },
   handle: "moth",
   ledBy: null,

@@ -11,7 +11,7 @@ import {
 import { useRef, type ReactNode } from "react"
 
 import { shortcutBindings } from "../interaction/shortcuts"
-import { handleText } from "../model/handle"
+import { handleText, terminalLabel } from "../model/handle"
 import { isWindow } from "../model/roster"
 import { attentionText, doneText, terminalPhase, unheardText } from "../model/terminal-ending"
 import type { Tile, WindowedView } from "../model/types"
@@ -127,6 +127,7 @@ export const WindowShell = ({
   const ignoreDoubleClickUntil = useRef(0)
   const renaming = Boolean(rename)
   const shell = isWindow(terminal) ? undefined : terminal
+  const label = terminalLabel(terminal.name, shell?.handle)
   const phase = shell ? terminalPhase(shell, unread !== undefined) : "idle"
   const failed = unread === "failed"
   // What the agent waits on the person for, that Novadeck can't hear from it, or that it
@@ -245,6 +246,7 @@ export const WindowShell = ({
             <TerminalRenameInput
               id={terminal.id}
               name={terminal.name}
+              label={label}
               value={rename.value}
               request={rename.request}
               autoFocus={rename.origin === "header"}
@@ -278,8 +280,8 @@ export const WindowShell = ({
               className={`${headerActionClasses} dictation-action nodrag nopan ${dictation.recording ? "dictation-active" : ""}`}
               aria-label={
                 dictation.ready === false
-                  ? `Set up voice input for ${terminal.name}`
-                  : `Dictate into ${terminal.name}`
+                  ? `Set up voice input for ${label}`
+                  : `Dictate into ${label}`
               }
               aria-pressed={dictation.ready === false ? undefined : dictation.recording}
               onClick={(event) => {
@@ -305,7 +307,7 @@ export const WindowShell = ({
           >
             <button
               className={`${headerActionClasses} terminal-view-action nodrag nopan`}
-              aria-label={`${resizeLabel}: ${terminal.name}`}
+              aria-label={`${resizeLabel}: ${label}`}
               aria-pressed={large}
               onClick={(event) => {
                 event.stopPropagation()
@@ -320,7 +322,7 @@ export const WindowShell = ({
           <Tooltip content={`Focus${focusHint}`}>
             <button
               className={`${headerActionClasses} terminal-view-action nodrag nopan`}
-              aria-label={`Focus ${terminal.name}`}
+              aria-label={`Focus ${label}`}
               onClick={(event) => {
                 event.stopPropagation()
                 onFocus()
@@ -345,7 +347,7 @@ export const WindowShell = ({
           <Tooltip content="Close">
             <button
               className={`${headerActionClasses} terminal-close nodrag nopan`}
-              aria-label={`Close ${terminal.name}`}
+              aria-label={`Close ${label}`}
               onClick={(event) => {
                 event.stopPropagation()
                 onClose()
@@ -361,7 +363,7 @@ export const WindowShell = ({
   return (
     <section
       className={`terminal-window flex h-full min-h-0 min-w-0 flex-col overflow-hidden ${compact ? "terminal-compact" : "terminal-focused"}`}
-      aria-label={`${terminal.name} terminal`}
+      aria-label={`${label} terminal`}
       data-terminal={terminal.id}
       data-terminal-phase={phase}
       {...(phase === "done" && failed ? { "data-terminal-failed": true } : {})}
@@ -370,11 +372,7 @@ export const WindowShell = ({
       data-new={fresh}
     >
       <div className="terminal-heading relative shrink-0">
-        {menu ? (
-          <ContextMenu label={`${terminal.name} actions`} items={menu} trigger={header} />
-        ) : (
-          header
-        )}
+        {menu ? <ContextMenu label={`${label} actions`} items={menu} trigger={header} /> : header}
       </div>
       {children}
     </section>

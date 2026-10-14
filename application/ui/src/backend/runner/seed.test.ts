@@ -19,7 +19,7 @@ const summary = (
 ): TerminalSummary => ({
   id: uuid(n),
   sessionId: uuid(session),
-  title: `Terminal ${n}`,
+  title: "Terminal",
   titleSource: { kind: "default" },
   handle: `t${n}`,
   ledBy: null,
@@ -157,8 +157,8 @@ describe("runner seed", () => {
 
     it("lays out terminals the view didn't know after the others, as the runner names them", () => {
       expect(state.roster.terminals.slice(2)).toMatchObject([
-        { id: uuid(22), name: "Terminal 22", command: "vim", state: "running" },
-        { id: uuid(23), name: "Terminal 23", state: "exited", exitCode: 1 },
+        { id: uuid(22), name: "Terminal", command: "vim", state: "running" },
+        { id: uuid(23), name: "Terminal", state: "exited", exitCode: 1 },
       ])
       expect(state.layout.canvas.geometry[uuid(22)]).toBeDefined()
     })
@@ -330,8 +330,8 @@ describe("runner seed", () => {
 
     it("names the terminals of an unsaved session as the runner does, in its order", () => {
       expect(seed.projects[0]!.sessions[2]!.terminals.map((terminal) => terminal.name)).toEqual([
-        "Terminal 30",
-        "Terminal 31",
+        "Terminal",
+        "Terminal",
       ])
     })
   })

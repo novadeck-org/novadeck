@@ -305,18 +305,30 @@ export const demoSeed = (now: number, agents = false): WorkspaceSeed => ({
   })),
 })
 
+// What the runner names a terminal by default (its `defaultTitle`): the program it was
+// opened to run, else "Terminal".
+// The command a plain demo shell stands for, which names nothing.
+export const shellCommand = "zsh"
+
+export const defaultName = (command?: string): string => {
+  if (command === shellCommand) return "Terminal"
+  const program = command?.trim().split(/\s+/)[0]?.split("/").pop()
+  return program || "Terminal"
+}
+
 export const createMockTerminal = (
   target: WorkspaceTarget,
   number: number,
   directory: string,
+  command?: string,
 ): TerminalMetadata => {
   const id = demoTerminalId(target, number)
   return {
     id,
-    name: `Terminal ${String(number).padStart(2, "0")}`,
+    name: defaultName(command),
     handle: demoHandle(number),
     directory,
-    command: "zsh",
+    command: command ?? shellCommand,
     process: "zsh",
     state: "idle",
   }

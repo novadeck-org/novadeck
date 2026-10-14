@@ -20,7 +20,7 @@ export const terminalFixture = (number: number, directory: string): TerminalMeta
   const id = String(number).padStart(2, "0")
   return {
     id,
-    name: `Terminal ${id}`,
+    name: "Terminal",
     directory,
     command: "zsh",
     process: "zsh",

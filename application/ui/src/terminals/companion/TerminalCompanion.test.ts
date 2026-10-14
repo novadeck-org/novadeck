@@ -44,7 +44,7 @@ const commandsOf = (workspace: WorkspaceStore): ItemCommands => ({
   moveBarSlot: () => {},
 })
 
-// Terminal 01 as the app renders it, from the workspace as it stands.
+// The first terminal as the app renders it, from the workspace as it stands.
 const Terminal = ({
   workspace,
   panes,

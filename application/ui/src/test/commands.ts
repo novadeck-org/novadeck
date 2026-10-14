@@ -137,7 +137,7 @@ export const openCommands = ({
       numbers.set(target.workspaceSessionId, number)
       return {
         id: `new-${number}`,
-        name: title ?? `Terminal ${String(number).padStart(2, "0")}`,
+        name: title ?? "Terminal",
         directory,
         command: "zsh",
         process: "zsh",

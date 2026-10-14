@@ -32,7 +32,7 @@ describe("workspace commands", () => {
     store.transact([{ type: "terminal/add", target, terminal: terminalFixture(2, "~/project") }])
     expect(state(store.getSnapshot()).roster.terminals.map((terminal) => terminal.name)).toEqual([
       "Server",
-      "Terminal 02",
+      "Terminal",
     ])
   })
 
@@ -80,7 +80,7 @@ describe("workspace commands", () => {
     store.dispatch({ type: "terminal/rename", target, terminalId: "gone", name: "Stale" })
     expect(store.getSnapshot()).toBe(previous)
     expect(notifications).toBe(1)
-    expect(previous.projects[0]!.history[1]!.state.roster.terminals[0]!.name).toBe("Terminal 01")
+    expect(previous.projects[0]!.history[1]!.state.roster.terminals[0]!.name).toBe("Terminal")
   })
 
   it("keeps layout initialization separate from terminal metadata", () => {

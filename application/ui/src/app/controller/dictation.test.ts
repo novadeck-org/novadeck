@@ -12,7 +12,7 @@ const key: TerminalKey = { projectId: "project", workspaceSessionId: "initial", 
 const context = "project/initial"
 const agent: TerminalMetadata = {
   id: "01",
-  name: "Terminal 01",
+  name: "Terminal",
   directory: "/",
   command: "zsh",
   process: "claude",

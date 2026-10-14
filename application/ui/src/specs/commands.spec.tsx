@@ -1,6 +1,6 @@
 import { describe as context, describe, expect, it } from "vitest"
 
-import { terminalCount } from "./support/keyboard"
+import { terminalCount, newTerminalName } from "./support/keyboard"
 import {
   anyRenameField,
   newTerminalButton,
@@ -25,9 +25,9 @@ describe("workspace commands", () => {
       await newTerminalButton().click()
 
       await expect.element(terminalTab("API server")).toBeVisible()
-      await expect.element(commandInput("Terminal 07")).toHaveFocus()
+      await expect.element(commandInput(newTerminalName)).toHaveFocus()
       await expectStaysAbsent(anyRenameField())
-      await expectSelected("Terminal 07")
+      await expectSelected(newTerminalName)
       await expect.element(terminalCount(7)).toBeVisible()
     })
   })

@@ -9,10 +9,10 @@ const rename = beginRename(terminalFixture(1, "~/project"), "sidebar", scope)
 describe("terminal rename", () => {
   context("when a rename starts", () => {
     it("drafts from the current name", () => {
-      expect(rename).toMatchObject({ id: "01", original: "Terminal 01", draft: "Terminal 01" })
+      expect(rename).toMatchObject({ id: "01", original: "Terminal", draft: "Terminal" })
       expect(renameView(rename)).toEqual({
         id: "01",
-        value: "Terminal 01",
+        value: "Terminal",
         request: 1,
         origin: "sidebar",
       })

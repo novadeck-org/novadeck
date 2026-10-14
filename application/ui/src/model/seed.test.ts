@@ -103,7 +103,7 @@ describe("workspace from a backend seed", () => {
       roster: { ...saved.roster, order: ["02", "01"] },
     })
     const live = terminals.map((terminal) => ({ ...terminal, state: "running" as const }))
-    const extra = { ...terminalFixture(3, "~/one"), id: "extra", name: "Terminal 7" }
+    const extra = { ...terminalFixture(3, "~/one"), id: "extra", name: "Terminal" }
     const seed: WorkspaceSeed = {
       activeProjectId: "two",
       projects: [
