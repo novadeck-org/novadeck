@@ -127,8 +127,12 @@ export const claude: AgentSetup = {
   interrupted: (prompt) =>
     new RegExp(`─\\n❯\\s+${prompt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n─`),
   // Esc-Esc opens its Rewind picker, a list with no text field, which swallows a paste
-  // whole and stays as it was (probed 2026-10-02, 2.1.287).
-  rewind: { shows: /Restore the code and\/or conversation to the point before/, swallows: true },
+  // whole and stays as it was (probed 2026-10-02, 2.1.287). With nothing yet to go back to
+  // it says so instead (seen on Windows CI, a session just interrupted).
+  rewind: {
+    shows: /Restore the code and\/or conversation to the point before|Nothing to rewind to yet/,
+    swallows: true,
+  },
   // Its cost warning, a menu raised once a turn has ended with the session's cost at $5 or
   // more, which it shows a key's user only as a billing admin (seeded `popup: true`).
   // 300k output tokens cost Opus 5.5 over $5; its context meter counts input tokens alone,

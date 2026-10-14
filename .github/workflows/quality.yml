@@ -52,7 +52,19 @@ jobs:
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # pnpm is downloaded from the npm registry with a 30 s bound, which a slow runner
+      # misses now and then (seen on Windows CI); a second try follows a failed first.
       - name: Set Up Toolchain
+        id: toolchain
+        continue-on-error: true
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      - name: Set Up Toolchain Again
+        if: steps.toolchain.outcome == 'failure'
         uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@26

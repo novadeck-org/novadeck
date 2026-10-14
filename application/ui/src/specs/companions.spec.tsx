@@ -1,4 +1,4 @@
-import { describe as context, describe, expect, it } from "vitest"
+import { afterEach, describe as context, describe, expect, it } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { boxOf, canvasView, dragBackground, settled, viewBox } from "./support/canvas"
@@ -206,7 +206,33 @@ describe("Switching terminals in Focus", () => {
   })
 })
 
+/**
+ * Keeps the page's main thread busy for `milliseconds`, in stretches longer than a frame, as a
+ * loaded CI machine does: seen to end a restored scroll too early (Windows and Linux CI).
+ */
+const starving = new Set<ReturnType<typeof setInterval>>()
+const starve = (milliseconds: number): void => {
+  const timer = setInterval(() => {
+    const end = performance.now() + 220
+    while (performance.now() < end) {
+      // Busy.
+    }
+  }, 260)
+  starving.add(timer)
+  setTimeout(() => {
+    clearInterval(timer)
+    starving.delete(timer)
+  }, milliseconds)
+}
+/** Ends any stalls still running, so none reaches the next test. */
+const calm = (): void => {
+  for (const timer of starving) clearInterval(timer)
+  starving.clear()
+}
+
 describe("Switching views", () => {
+  afterEach(calm)
+
   it("opens a plan that wasn't scrolled at its very top again", async () => {
     await openShowcase("grid")
     await taskbarIcon("Refactor auth", "Plan: refactor-auth.md").click()
@@ -223,62 +249,65 @@ describe("Switching views", () => {
     expect(plan()!.scrollTop).toBe(0)
   })
 
-  it("opens a plan's editor as it was left: scrolled, and with what can be undone", async () => {
-    await openShowcase("grid")
-    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
-    const plan = (): HTMLElement =>
-      companionPane("Build Studio").element().querySelector<HTMLElement>(".plan-document-scroll")!
-    const content = (): HTMLElement => plan().querySelector<HTMLElement>(".cm-content")!
-    await expect.poll(() => plan()?.querySelector(".cm-content")).not.toBeNull()
-    content().focus()
-    await userEvent.keyboard("Draft ")
-    await expect.poll(() => content().textContent).toContain("Draft ")
-    await expect.poll(() => plan().scrollHeight).toBeGreaterThan(plan().clientHeight + 200)
-    plan().scrollTop = 200
-    await expect.poll(() => plan().scrollTop).toBe(200)
+  for (const busy of [true, false])
+    it(`opens a plan's editor as it was left: scrolled, and with what can be undone${busy ? ", though the page is busy" : ""}`, async () => {
+      await openShowcase("grid")
+      await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+      const plan = (): HTMLElement =>
+        companionPane("Build Studio").element().querySelector<HTMLElement>(".plan-document-scroll")!
+      const content = (): HTMLElement => plan().querySelector<HTMLElement>(".cm-content")!
+      await expect.poll(() => plan()?.querySelector(".cm-content")).not.toBeNull()
+      content().focus()
+      await userEvent.keyboard("Draft ")
+      await expect.poll(() => content().textContent).toContain("Draft ")
+      await expect.poll(() => plan().scrollHeight).toBeGreaterThan(plan().clientHeight + 200)
+      plan().scrollTop = 200
+      await expect.poll(() => plan().scrollTop).toBe(200)
 
-    // The first line with words showing at the pane's top, and how far down it the top
-    // is, as a share of the line, which holds however wide or zoomed the pane is.
-    const place = (): { readonly line: string; readonly into: number } | undefined => {
-      const { top } = plan().getBoundingClientRect()
-      const line = [...plan().querySelectorAll(".cm-line")].find(
-        (each) => each.getBoundingClientRect().bottom > top + 1 && each.textContent?.trim(),
-      )
-      if (!line) return undefined
-      const box = line.getBoundingClientRect()
-      return { line: line.textContent ?? "", into: (top - box.top) / box.height }
-    }
-    const reading = place()!
-    expect(reading.line).toBeTruthy()
-    const backAt = async (): Promise<void> => {
-      await expect.poll(() => place()?.line).toBe(reading.line)
-      await expect.poll(() => Math.abs(place()!.into - reading.into)).toBeLessThan(0.1)
-    }
+      // The first line with words showing at the pane's top, and how far down it the top
+      // is, as a share of the line, which holds however wide or zoomed the pane is.
+      const place = (): { readonly line: string; readonly into: number } | undefined => {
+        const { top } = plan().getBoundingClientRect()
+        const line = [...plan().querySelectorAll(".cm-line")].find(
+          (each) => each.getBoundingClientRect().bottom > top + 1 && each.textContent?.trim(),
+        )
+        if (!line) return undefined
+        const box = line.getBoundingClientRect()
+        return { line: line.textContent ?? "", into: (top - box.top) / box.height }
+      }
+      const reading = place()!
+      expect(reading.line).toBeTruthy()
+      const backAt = async (): Promise<void> => {
+        await expect.poll(() => place()?.line).toBe(reading.line)
+        await expect.poll(() => Math.abs(place()!.into - reading.into)).toBeLessThan(0.1)
+      }
 
-    await chooseView("Focus")
-    await terminalTab("Build Studio").click()
-    await backAt()
-    // Canvas shows the pane zoomed, as it fits the board.
-    await chooseView("Canvas")
-    await backAt()
-    await chooseView("Grid")
+      await chooseView("Focus")
+      await terminalTab("Build Studio").click()
+      await backAt()
+      // Canvas shows the pane zoomed, as it fits the board. A busy page draws few frames in
+      // which the editor measures and the pane zooms: the place is kept all the same.
+      if (busy) starve(1500)
+      await chooseView("Canvas")
+      await backAt()
+      await chooseView("Grid")
 
-    await expect
-      .poll(() => companionPane("Build Studio").element().querySelector(".cm-content"))
-      .not.toBeNull()
-    await expect.poll(() => Math.abs(plan().scrollTop - 200)).toBeLessThan(24)
-    content().focus()
-    await userEvent.keyboard(isMac() ? "{Meta>}z{/Meta}" : "{Control>}z{/Control}")
-    await expect.poll(() => content().textContent).not.toContain("Draft ")
+      await expect
+        .poll(() => companionPane("Build Studio").element().querySelector(".cm-content"))
+        .not.toBeNull()
+      await expect.poll(() => Math.abs(plan().scrollTop - 200)).toBeLessThan(24)
+      content().focus()
+      await userEvent.keyboard(isMac() ? "{Meta>}z{/Meta}" : "{Control>}z{/Control}")
+      await expect.poll(() => content().textContent).not.toContain("Draft ")
 
-    // The undo reached the plan, not only the editor.
-    await chooseView("Focus")
-    await chooseView("Grid")
-    await expect
-      .poll(() => companionPane("Build Studio").element().querySelector(".cm-content"))
-      .not.toBeNull()
-    expect(content().textContent).not.toContain("Draft ")
-  })
+      // The undo reached the plan, not only the editor.
+      await chooseView("Focus")
+      await chooseView("Grid")
+      await expect
+        .poll(() => companionPane("Build Studio").element().querySelector(".cm-content"))
+        .not.toBeNull()
+      expect(content().textContent).not.toContain("Draft ")
+    })
 })
 
 /** The states of what a tab shows of its terminal's bar, in order. */

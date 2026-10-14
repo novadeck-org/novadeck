@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe as context, describe, expect, it } from "vitest"
+import {
+  afterEach,
+  beforeEach,
+  describe as context,
+  describe,
+  expect,
+  it,
+  onTestFailed,
+} from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { clickBackground } from "./support/canvas"
@@ -1011,11 +1019,81 @@ const saying = (text: string | RegExp): Locator =>
 const layer = (element: Element): number => Number(getComputedStyle(element).zIndex)
 const wait = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds))
+/**
+ * Waits for `until`, and where it fails says what the dictation strip showed meanwhile and
+ * how many microphone tracks were live: a clip's notice fades in four seconds, long before a
+ * wait for the words ends, and a clip too short to keep leaves none, so a failure would not
+ * otherwise say which of them it was. `until` waits less than the test does, so this
+ * reports before the test's own timeout does.
+ */
+const saidWhile = async (
+  microphone: { readonly live: () => number },
+  until: () => Promise<unknown>,
+): Promise<void> => {
+  const said: string[] = []
+  const timer = setInterval(() => {
+    const text = page
+      .getByRole("status")
+      .elements()
+      .filter((one) => one.classList.contains("dictation-strip"))
+      .map((one) => one.textContent?.trim())
+      .filter(Boolean)
+      .join(" | ")
+    if (text && said.at(-1) !== text) said.push(text)
+  }, 100)
+  try {
+    await until()
+  } catch (error) {
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}\n` +
+        `The status line said: ${said.length > 0 ? said.join(" → ") : "nothing"}; ` +
+        `${microphone.live()} microphone track(s) live.`,
+      { cause: error },
+    )
+  } finally {
+    clearInterval(timer)
+  }
+}
+
+/**
+ * Records what dictation shows and the page's state for a whole test, every 50 ms and only
+ * as it changes, and prints it where the test fails: its strip, the microphone's live tracks,
+ * and whether the page has focus and shows. A failure of the first wait of a test, before
+ * `saidWhile` is in place, would not otherwise say what the strip did meanwhile.
+ */
+const watchDictation = (microphone: { readonly live: () => number }): (() => void) => {
+  const began = performance.now()
+  const history: string[] = []
+  let last = ""
+  const note = (): void => {
+    const strip = page
+      .getByRole("status")
+      .elements()
+      .filter((one) => one.classList.contains("dictation-strip"))
+      .map((one) => one.textContent?.trim())
+      .filter(Boolean)
+      .join(" | ")
+    const now = `${strip || "-"} | ${microphone.live()} track(s) live | focus ${document.hasFocus()} | ${document.visibilityState}`
+    if (now === last) return
+    last = now
+    history.push(`+${Math.round(performance.now() - began)} ms ${now}`)
+  }
+  const timer = setInterval(note, 50)
+  onTestFailed(() => console.error(`Dictation, as it changed:\n${history.join("\n")}`))
+  return () => clearInterval(timer)
+}
 
 describe("dictation", () => {
   let microphone: ReturnType<typeof fakeMicrophone>
-  beforeEach(() => void (microphone = fakeMicrophone()))
-  afterEach(() => microphone.restore())
+  let unwatch: () => void
+  beforeEach(() => {
+    microphone = fakeMicrophone()
+    unwatch = watchDictation(microphone)
+  })
+  afterEach(() => {
+    unwatch()
+    microphone.restore()
+  })
 
   context("when voice input is not installed", () => {
     it("points to Preferences instead of recording", async () => {
@@ -1082,9 +1160,11 @@ describe("dictation", () => {
       await press("{/M}")
 
       // "Transcribing" shows only as long as the demo takes, too briefly to wait for.
-      await expect
-        .element(commandInput("Checkout implementation"))
-        .toHaveValue("Add a retry to the checkout request and run the tests.")
+      await saidWhile(microphone, async () => {
+        await expect
+          .element(commandInput("Checkout implementation"), { timeout: 15_000 })
+          .toHaveValue("Add a retry to the checkout request and run the tests.")
+      })
       expect(microphone.live()).toBe(0)
     })
 
@@ -1100,9 +1180,11 @@ describe("dictation", () => {
 
       await press(`${dictateKeys}${releaseKeys}`)
       // "Transcribing" shows only as long as the demo takes, too briefly to wait for.
-      await expect
-        .element(commandInput("Checkout implementation"))
-        .toHaveValue("Add a retry to the checkout request and run the tests.")
+      await saidWhile(microphone, async () => {
+        await expect
+          .element(commandInput("Checkout implementation"), { timeout: 15_000 })
+          .toHaveValue("Add a retry to the checkout request and run the tests.")
+      })
     })
 
     it("shows its strip over a terminal's chat, not under it", async () => {

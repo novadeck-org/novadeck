@@ -572,7 +572,9 @@ the opener's (see [Naming](#naming)).
   binding that replaces a session already bound there (a `/clear`, an in-app resume, a
   plan's "clear context") empties the box only if it was known empty, or the person's
   bare Enter came within the submission window before its hook started with nothing
-  typed since: an Enter that made a newline or took a suggestion leaves their text. An
+  typed since: an Enter that made a newline or took a suggestion leaves their text, so
+  the box is a draft by doubt, which the screen settles (below). The doubt follows an
+  Enter outside the submission window; inside it, the terminal goes Ready as submitted. An
   Enter during a running turn queued a prompt the harness may still hold, so the box
   stays a draft; after an abnormal end (Unknown), where the turn may have run on, that
   Enter was the command that replaced the session, and what it might have queued went
@@ -597,7 +599,13 @@ the opener's (see [Naming](#naming)).
   person next submits.
   Untouched errs toward Drafting: any doubt (keys after an Enter, a turn nobody can
   attribute, a ring that didn't finish) counts as a draft. That costs a ring until the
-  person next submits, never a wrong Enter.
+  person next submits, never a wrong Enter. One doubt the screen settles: a draft kept
+  only because the person's Enter came too long before a replacing session's hook to
+  tell it ran their command (a slow `/clear`). Once the agent's box reads empty on two
+  screen reads running, within 5 s of the doubt, nothing was left in it, and the terminal
+  is Ready. If the 5 s pass, it stays Drafting, and only a later doubt gets its own 5 s.
+  Any key of the person's ends that doubt, Escape and a key while
+  a request waits included. A prompt queued is never doubted: it stays a draft.
 - **The person submitted during a turn** when they sent Enter while a root turn ran and
   no request was pending, or Codex's Tab, which queues a prompt Codex submits after the
   turn. A bare Enter on a box known empty during a root turn is neutral: no harness
@@ -672,7 +680,8 @@ facts above, so the prompt's emptiness is known before any message arrives:
   confirmation or failure.
 - **Drafting**: the person is busy: the prompt isn't known empty, or they queued a prompt Codex
   has yet to submit. No doorbell; their next submitted prompt's hook delivers. It ends
-  only with that submission: nothing on screen returns it to Settled.
+  with that submission; the one thing the screen returns it from is a draft kept by
+  doubt alone (a replacing session announced past the submission window), to Ready.
 - **Unknown**: the last turn ended without a normal Stop (Esc, a denial, `StopFailure`,
   Claude Code's transcript recording an interrupt, Antigravity's status line saying idle
   with no root Stop since the turn began), or a ring failed after its paste. The
@@ -709,6 +718,7 @@ Transitions:
 | Any bound state                          | The binding ends (the instance exits)                                            | Unbound               |
 | Any bound state                          | Its harness announces a new session                                              | As from Unbound, but: |
 | Any bound state                          | A session replaces it at its prompt, box not known empty, no Enter just before   | Drafting              |
+| Drafting (by doubt only)                 | The screen shows the agent's box empty, on two reads running within 5 s          | Ready                 |
 | Fresh, Ready, Settled, Drafting, Unknown | A root prompt                                                                    | Working               |
 | Working                                  | A normal root Stop, not continued, prompt known empty                            | Settled               |
 | Working                                  | A normal root Stop, not continued, prompt not known empty                        | Drafting              |
@@ -891,7 +901,8 @@ text in `record.screen` (`@xterm/headless`), with its paste mode. The ring, in o
    prompt or the session binding, where Left, Home and End count as input as well
    (they move a caret only through the person's own draft), as a harness's own view may
    take them. A draft can exist only if the person typed, so it
-   never reaches the screen checks.
+   never reaches the screen checks (a draft kept by doubt alone is read off the screen
+   first, and is Ready once the box is empty).
 3. **Settled for a while.** At least 6 s have passed since the root turn ended, or the
    Ready session bound, for every harness: screens change for a while after a turn, as
    Claude Code's clears a row about 5 s after it, and after a start, and a ring meanwhile
@@ -1054,7 +1065,11 @@ Two known gaps in telling the box empty at a binding:
   replacement rule. A ring would then append the line to that text and submit both.
 - A `/clear` whose binding's hook fired more than the submission window (about 2 s)
   after its Enter, as when another plugin's slow `SessionEnd` or
-  `SessionStart` hook delays it, goes Drafting: a missed ring, never a wrong one.
+  `SessionStart` hook delays it, goes Drafting by doubt, and Ready again once its
+  screen shows the box empty on two reads within 5 s. Where the box can't be read as an
+  empty prompt box in that time (a dialog over it, a redraw that never settles), it
+  stays Drafting, and only a later doubt gets its own 5 s: a missed ring,
+  never a wrong one.
 
 ### Message states
 

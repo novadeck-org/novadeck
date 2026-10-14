@@ -683,6 +683,15 @@ export class Messaging {
     for (const key of kinds) this.step(live, { type: "key", key, asked, at })
   }
 
+  /**
+   * The terminal's screen shows its agent's box empty, where only a doubt kept its delivery
+   * Drafting (`Box.doubted`) in the `epoch` it was read in: it is Ready.
+   */
+  emptied(terminalId: string, epoch: number): void {
+    const live = this.live.get(terminalId)
+    if (live) this.step(live, { type: "emptied", at: this.now(), epoch })
+  }
+
   /** No request waits on the person any more: what they typed meanwhile counts now. */
   askedCleared(terminalId: string): void {
     const live = this.live.get(terminalId)

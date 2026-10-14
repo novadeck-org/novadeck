@@ -648,12 +648,17 @@ const positive = (value: number | undefined, fallback: number): number => {
   return result
 }
 
+/** How long `settleBox` looks at a screen for an empty box, in milliseconds. */
+const boxSettleMs = 5_000
+
 /**
  * Owns PTYs for one runner lifetime. Exited, unattached records are retained up to a
  * bound, and evicted oldest first beyond it or when a capped runner needs room.
  */
 export class Terminals {
   private readonly records = new Map<string, Record>()
+  /** The terminals whose box `settleBox` is looking at. */
+  private readonly settling = new Set<string>()
   /** Closed records already gone from `records` whose viewers still read their last events. */
   private readonly draining = new Map<string, Record>()
   private readonly pendingOwners = new Map<string, Set<{ released: boolean }>>()
@@ -3644,7 +3649,10 @@ export class Terminals {
       awaited: (sessionId) => this.messaging.awaits(id, sessionId),
     })
     record.root = root
-    if (changes.length > 0) this.messaging.rooted(id, changes)
+    if (changes.length > 0) {
+      this.messaging.rooted(id, changes)
+      this.settleBox(record)
+    }
     // A new root session has yet to hear of the bar beside its terminal.
     if (changes.some((change) => change.type === "new"))
       record.nudges = fired(record.nudges, "session")
@@ -3896,6 +3904,56 @@ export class Terminals {
     return trusted === true ? "counts" : trusted === false ? "untrusted" : "unknown"
   }
 
+  /**
+   * Looks at the screen while the terminal's delivery is Drafting only by doubt (a new
+   * session announced too long after the person's Enter to tell it ran their command, as a
+   * slow /clear on Windows): once the agent's box reads empty on two reads running, nothing
+   * was left in it, and the terminal is Ready. Gives up when the doubt ends or after
+   * `boxSettleMs`, leaving the draft; a later doubt in the same terminal has its own window.
+   */
+  private settleBox(record: Record): void {
+    const id = record.summary.id
+    if (this.settling.has(id) || !this.messaging.delivery(id)?.box.doubted) return
+    this.settling.add(id)
+    void (async () => {
+      let until = 0
+      let epoch: number | undefined
+      let seen = false
+      try {
+        for (;;) {
+          const delivery = this.messaging.delivery(id)
+          // The cases where `emptied` does nothing in the current epoch: keep the two in step,
+          // or the `continue` below spins without waiting.
+          if (!delivery?.box.doubted || delivery.state !== "drafting") return
+          // A new doubt starts anew: its own window, its own two reads.
+          if (delivery.epoch !== epoch) {
+            epoch = delivery.epoch
+            until = Date.now() + boxSettleMs
+            seen = false
+          }
+          if (Date.now() >= until) return
+          // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
+          const screen = await this.screenOf(id)
+          const profile = this.live(id) && this.boxOf(record)
+          if (!screen || !profile) return
+          const box = profile.read(screen)
+          const empty =
+            box !== undefined && box.mode === "prompt" && isEmpty(box) && !profile.queued(screen)
+          if (empty && seen) {
+            this.messaging.emptied(id, delivery.epoch)
+            // Stale if the epoch changed during the read: a later doubt is polled anew.
+            continue
+          }
+          seen = empty
+          // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
+          await sleep(100, undefined, { ref: false })
+        }
+      } finally {
+        this.settling.delete(id)
+      }
+    })().catch(() => undefined)
+  }
+
   /** Whether Novadeck's hooks run for the agent in the terminal's folder; undefined unknown. */
   private hooksTrustedIn(
     record: Record,
@@ -3936,6 +3994,7 @@ export class Terminals {
     // Judged as the title came, not after what was asked since.
     this.messaging.shown(id, agent, sessionPrefix ?? null, true, shown.startedAt, shown.firedAt)
     this.endBinding(record, replaced)
+    this.settleBox(record)
   }
 
   /**

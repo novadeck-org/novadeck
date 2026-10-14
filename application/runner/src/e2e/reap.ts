@@ -422,6 +422,15 @@ export const sandboxProcesses = async (
   sandbox: Scope,
 ): Promise<readonly { readonly pid: number; readonly comm: string }[]> => table.list(sandbox)
 
+/**
+ * The sandbox's processes now, each named as a leftover is, with its recorded parent on
+ * Windows; none elsewhere. Taken while a deck still runs, it names the parent a leftover
+ * later records as gone, which tells a program started apart from the terminal's shell
+ * from one the terminal's tree should have held.
+ */
+export const census = async (sandbox: Scope): Promise<string[]> =>
+  process.platform === "win32" ? (await table.list(sandbox)).map(named) : []
+
 // Waits until none of them is still running or the time is up.
 const ended = async (sandbox: Scope, found: readonly Process[], ms: number): Promise<void> => {
   const deadline = Date.now() + ms

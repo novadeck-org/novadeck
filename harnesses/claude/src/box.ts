@@ -12,6 +12,10 @@ export const shellFooter = (rows: readonly string[]): boolean => {
   return last !== undefined && /^! for shell mode(\s|$)/.test(last.trim())
 }
 
+/** Whether its footer says one more Escape clears the box: "Esc again to clear". */
+export const clearPending = (rows: readonly string[]): boolean =>
+  rows.some((row) => /\bEsc again to clear\b/.test(row))
+
 /**
  * Claude Code's input box: between two `─` rules, `❯ ` leading its first row and the rest
  * indented (probed 2.1.287 and 2.1.292, fixtures/input-box.probe.json). It sits at the
@@ -26,8 +30,11 @@ export const box: BoxProfile = {
   shell: { expands: true, starts: false, footer: shellFooter },
   collapsed: ({ text }) => /^\[Pasted text #\d+(?: \+\d+ lines?)?\]$/.test(text.trim()),
   // Escape twice, over text seen in the box only; it clears a restored prompt or the queued
-  // messages an Escape put back, of any number of lines (probed 2026-10-07).
-  clear: () => "\x1b\x1b",
+  // messages an Escape put back, of any number of lines (probed 2026-10-07). Where its footer
+  // already says "Esc again to clear", a first Escape of an earlier pair has come and one
+  // more clears it: a second would land on the empty box and open the rewind picker (seen on
+  // Windows CI, when the first pair was still being taken after half a second).
+  clear: (_box, screen) => (clearPending(screen?.rows ?? []) ? "\x1b" : "\x1b\x1b"),
   queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),
   collapses: (text) => text.split("\n").length > 3 || text.length > 900,
   room: (rows) => rows - 4,

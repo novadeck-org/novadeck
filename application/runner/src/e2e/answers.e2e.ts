@@ -233,12 +233,17 @@ for (const setup of setups) {
 
         await t1.until("Noted.")
         await t2.until("elsewhere")
-        expect(await t2.screen()).not.toContain("zz")
+        // Its prompt line only: the sandbox's folder, whose name is random, is on its
+        // screen too, and may hold "zz" itself (seen in CI: /tmp/novadeck-e2e-k8fzz3).
+        const prompt = (await t2.screen()).split("\n").filter((line) => line.includes("elsewhere"))
+        expect(prompt.join("\n")).not.toContain("z")
         // What the dialog took was the answer alone: no result of the model's holds their keys.
         await sleep(1000)
-        expect(run.model.calls.slice(calls).filter((call) => result(call)?.includes("zz"))).toEqual(
-          [],
-        )
+        expect(
+          run.model.calls
+            .slice(calls)
+            .filter((call) => result(call)?.replaceAll(run.sandbox.root, "").includes("zz")),
+        ).toEqual([])
         // Typed while the answer held their keys, they were dropped, not replayed into
         // what came next; typed once it was done, they arrive.
         await sleep(500)

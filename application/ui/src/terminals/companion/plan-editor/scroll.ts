@@ -100,8 +100,11 @@ export const followScroll = (view: EditorView, on: (scroll: PlanScroll) => void)
 // Scrolls the pane back to where `scroll` says, at once, then again each frame while the
 // editor measures the lines that came into view, whose heights it had only estimated, or
 // an edit moves the place; `done` once it holds still, after half a second, or once the
-// person, or anything else, scrolls the pane. Out of sight, it waits until the pane
-// shows. Returns the finish, for an editor that closes or jumps elsewhere meanwhile.
+// person, or anything else, scrolls the pane. Holding still counts frames as well as time,
+// and half a second frames as well as time: a busy machine draws few of them, and the
+// editor measures and Canvas zooms the pane only in the ones it does (seen in CI, a restore
+// that ended before either and left the pane a few lines off). Out of sight, it waits until
+// the pane shows. Returns the finish, for an editor that closes or jumps elsewhere meanwhile.
 export const restoreScroll = (
   view: EditorView,
   scroll: () => PlanScroll | null,
@@ -155,20 +158,39 @@ export const restoreScroll = (
     },
     { signal, passive: true },
   )
+  // What the place depends on in the layout: the zoom, and the heights the editor holds,
+  // which it estimates again as the zoom changes and corrects once it has measured.
+  const layoutOf = (): string =>
+    `${scaleOf(view).toFixed(3)}|${view.contentHeight.toFixed(1)}|${scroller.scrollHeight}|${scroller.clientHeight}`
   // The editor may still correct heights it estimated a while on, as it measures again
-  // after a resize settles: it holds still once nothing moved it for 150ms, or after
-  // half a second.
-  let began = 0
+  // after a resize settles: it holds still once neither the pane nor the layout changed for
+  // 150ms and eight frames, or after half a second and twenty frames, and at the latest
+  // after three seconds. Times are the frames' own, so a busy page's long frames count.
+  let began = -1
   let moved = 0
+  let frames = 0
+  let still = 0
+  let layout = ""
   const settle = (now: number): void => {
-    if (go()) moved = now
-    if (now - moved < 150 && now - began < 500) frame = requestAnimationFrame(settle)
-    else finish()
+    if (began < 0) began = moved = now
+    frames += 1
+    const moving = go()
+    const seen = layoutOf()
+    const changed = seen !== layout
+    layout = seen
+    if (moving || changed) {
+      moved = now
+      still = 0
+    } else still += 1
+    const held = now - moved >= 150 && still >= 8
+    const late = (now - began >= 500 && frames >= 20) || now - began >= 3000
+    if (held || late) finish()
+    else frame = requestAnimationFrame(settle)
   }
   const start = (): void => {
     placed = scroller.scrollTop
     go()
-    began = moved = performance.now()
+    layout = layoutOf()
     frame = requestAnimationFrame(settle)
   }
   if (scroller.clientHeight) start()

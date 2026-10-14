@@ -6,7 +6,8 @@
 // milliseconds since the epoch, and how its recorded parent stands (name and pid, then
 // running, gone, taken by a later process, or unreadable), which tells a leftover the
 // terminal's tree could not reach from one it should have held. A process it may not
-// read, another user's or the system's, never counts, as a sandbox's is always this user's.
+// read, another user's or the system's, never counts, as a sandbox's is always this user's,
+// nor does one that has exited.
 // Its arguments: the sandbox's start, root and home, and the caller's pid.
 using System;
 using System.Diagnostics;
@@ -78,6 +79,10 @@ public static class NovadeckReap {
     foreach (var process in Process.GetProcesses()) {
       try {
         if (process.Id == self || process.Id == caller) continue;
+        // One that has exited keeps its process object, and its memory for a moment, while
+        // anything holds a handle to it or its threads wind down: it runs no longer, as the
+        // relay and a signal to its pid also find, and counts as no leftover.
+        try { if (process.HasExited) continue; } catch (Exception) { /* Unreadable: the start and parameters below say. */ }
         DateTime created;
         try { created = process.StartTime.ToUniversalTime(); } catch { continue; }
         if (created < since) continue;

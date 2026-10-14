@@ -31,6 +31,9 @@ export type InterruptOptions = {
   readonly queuedTurnMs?: number
 }
 
+// A screen as one string, to tell whether it has changed.
+const rowsOf = (screen: ScreenText | undefined): string => screen?.rows.join("\n") ?? ""
+
 /** What interrupts need of the terminal manager and messaging, by terminal. */
 export type InterruptHost = {
   /**
@@ -192,24 +195,37 @@ export class Interrupts {
   /**
    * Clears the text of the box with the profile's keys, written, not typed (the box is
    * empty after them, which the person's keys never say), and looks that it reads empty,
-   * writing them again up to twice if not. False where it does not.
+   * writing them again up to twice if not, as the screen then calls for. False where it
+   * does not.
    */
   private async cleared(terminalId: string, profile: BoxProfile, box: InputBox): Promise<boolean> {
     const { host } = this
     let now = box
+    // What the screen shows as each try is made: a harness's keys may need to follow what it
+    // has taken of the last (Claude Code's second Escape, once its first has come).
+    let seen = await host.screen(terminalId)
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      host.write(terminalId, profile.clear!(now))
-      const until = Date.now() + this.restoreCalmMs
-      while (Date.now() < until) {
+      host.write(terminalId, profile.clear!(now, seen))
+      // The same keys are written again only once the screen has changed since they were
+      // (something of them was taken, and says what is left), or `restoreMs` has passed with
+      // no change at all (they were lost): a harness slow to take them, as Claude Code on a
+      // busy Windows machine, is not given a second pair over its first (the Escapes of
+      // the second would open its rewind picker, seen in CI after 0.5 s of no change).
+      const before = rowsOf(seen)
+      const wrote = Date.now()
+      while (Date.now() < wrote + this.restoreMs) {
         // eslint-disable-next-line no-await-in-loop -- The screen is looked at in turn.
         await sleep(50)
         // eslint-disable-next-line no-await-in-loop -- As above.
         const after = await host.screen(terminalId)
         const read = after && profile.read(after)
         if (!after || !host.alive(terminalId)) return false
-        if (read === undefined) continue
-        if (isEmpty(read)) return true
-        now = read
+        seen = after
+        if (read !== undefined) {
+          if (isEmpty(read)) return true
+          now = read
+        }
+        if (Date.now() >= wrote + this.restoreCalmMs && rowsOf(after) !== before) break
       }
     }
     return false

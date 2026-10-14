@@ -7,6 +7,8 @@ import { Interrupts, type InterruptHost } from "./interrupts.js"
 
 const ESC = "\x1b"
 const CLEAR = "<clear>"
+const ONE = "<one>"
+const PENDING = "Esc again to clear"
 
 /**
  * A terminal as interrupts see it: a one-box screen led by `> `, whose text the test sets
@@ -25,6 +27,14 @@ const terminal = (
     /** Whether the harness has keys that clear its box; they empty it where it `clears`. */
     clear?: boolean
     clears?: boolean
+    /**
+     * Whether the first clear keys leave the box as it was, its footer saying one more key
+     * clears it (a harness slow to take them, as Claude Code's first Escape of a pair), and
+     * only a single key then empties it.
+     */
+    slow?: boolean
+    /** How long after the first clear keys the screen shows any sign of them (a hint). */
+    hintAfterMs?: number
     /** What the box holds once the nth Escape has come. */
     /** The most rows the box shows of a taller text, as its harness's `viewport` says. */
     viewport?: number
@@ -32,6 +42,7 @@ const terminal = (
   } = {},
 ) => {
   let box = options.draft ?? ""
+  let pending = false
   const typed: string[] = []
   const written: string[] = []
   const profile: BoxProfile = {
@@ -44,7 +55,12 @@ const terminal = (
       return { text: lines.join("\n").trimEnd(), mode: "prompt", first, last }
     },
     collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
-    ...(options.clear === false ? {} : { clear: () => CLEAR }),
+    ...(options.clear === false
+      ? {}
+      : {
+          clear: (_box: InputBox, screen?: ScreenText) =>
+            screen?.rows.includes(PENDING) ? ONE : CLEAR,
+        }),
     shell: { expands: true, starts: false, footer: () => false },
     queued: () =>
       typeof options.queued === "function" ? options.queued() : options.queued === true,
@@ -65,7 +81,7 @@ const terminal = (
           rows: [
             "header",
             ...box.split("\n").map((line, index) => `${index === 0 ? ">" : " "} ${line}`),
-            "footer",
+            pending ? PENDING : "footer",
           ],
         }),
       ),
@@ -77,7 +93,14 @@ const terminal = (
     },
     write: (_id, data) => {
       written.push(data)
-      if (data === CLEAR && options.clears !== false) box = ""
+      if (data === CLEAR && options.slow) {
+        if (options.hintAfterMs === undefined) pending = true
+        else setTimeout(() => (pending = true), options.hintAfterMs).unref()
+      } else if (data === CLEAR && options.clears !== false) box = ""
+      else if (data === ONE) {
+        box = ""
+        pending = false
+      }
       return true
     },
   }
@@ -168,6 +191,26 @@ describe("interrupts", () => {
 
   it("says so when the clear keys leave the box holding text", async () => {
     const t = terminal({ clears: false, prompt: "Say hi", after: () => "Say hi" })
+    await expect(t.interrupt()).rejects.toMatchObject({ code: "BOX_NOT_CLEARED" })
+    expect(t.written).toEqual([CLEAR, CLEAR, CLEAR])
+  })
+
+  it("writes a single key for the clear its footer says is half done, not the pair again", async () => {
+    const t = terminal({ slow: true, prompt: "Say hi", after: () => "Say hi" })
+    expect(await t.interrupt()).toEqual({ returned: null })
+    expect(t.written).toEqual([CLEAR, ONE])
+  })
+
+  it("waits for a harness slow to take the first clear keys, not writing a pair over them", async () => {
+    // The screen shows no sign of them for longer than the calm a box is given, as Claude
+    // Code did on a busy Windows machine; its hint then says one more key clears it.
+    const t = terminal({ slow: true, hintAfterMs: 300, prompt: "Say hi", after: () => "Say hi" })
+    expect(await t.interrupt()).toEqual({ returned: null })
+    expect(t.written).toEqual([CLEAR, ONE])
+  })
+
+  it("writes the keys again once nothing of them shows within the time it waits", async () => {
+    const t = terminal({ slow: true, hintAfterMs: 5_000, prompt: "Say hi", after: () => "Say hi" })
     await expect(t.interrupt()).rejects.toMatchObject({ code: "BOX_NOT_CLEARED" })
     expect(t.written).toEqual([CLEAR, CLEAR, CLEAR])
   })

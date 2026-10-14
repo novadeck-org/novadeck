@@ -19,8 +19,9 @@
  * agent's activity does (`harnesses/activity.ts`), so an idle status line older than it
  * belongs to a turn already over.
  *
- * Whether the prompt is untouched (`box`) is decided here alone, from the person's keys
- * and the turns that follow them; nothing outside this module reckons it.
+ * Whether the prompt is untouched (`box`) is decided here, from the person's keys and the
+ * turns that follow them; only a draft kept by doubt alone (`Box.doubted`) is settled by
+ * the screen, which the terminal manager reads and reports as `emptied`.
  */
 export type Delivery = Counts &
   (
@@ -111,6 +112,13 @@ export type Box = {
    * draft, applied once the request clears, that only a confirmed submission undoes.
    */
   readonly draftWhileAsked: boolean
+  /**
+   * Whether the box is a draft only by doubt: a new session announced at its prompt, when
+   * the person's Enter was too long before it to tell it ran their command (a slow /clear),
+   * and may have left text. The screen settles it: see the `emptied` event. Any key of the
+   * person's ends the doubt.
+   */
+  readonly doubted: boolean
 }
 
 /** What every state carries. */
@@ -242,6 +250,7 @@ export type DeliveryEvent =
   | { readonly type: "working"; readonly startedAt: number }
   | { readonly type: "key"; readonly key: KeyKind; readonly asked: boolean; readonly at: number }
   | { readonly type: "asked-cleared" }
+  | { readonly type: "emptied"; readonly at: number; readonly epoch: number }
   | { readonly type: "ring"; readonly nonce: string; readonly opening: boolean }
   | { readonly type: "ring-failed"; readonly nonce: string }
 
@@ -257,6 +266,7 @@ const emptyBox: Box = {
   strayed: false,
   queued: false,
   draftWhileAsked: false,
+  doubted: false,
 }
 
 export const unbound: Delivery = {
@@ -308,7 +318,11 @@ const counts = ({ epoch, continued, byPerson, box }: Delivery): Counts => ({
 /** A turn ended normally: Settled with the prompt known empty, else the person drafting. */
 const ended = (delivery: Delivery, at: number): Delivery => {
   const { box } = delivery
-  const next = { ...counts(delivery), continued: 0, box: { ...box, queuing: false } }
+  const next = {
+    ...counts(delivery),
+    continued: 0,
+    box: { ...box, queuing: false, doubted: false },
+  }
   return box.empty && !box.queuing
     ? { ...next, state: "settled", since: at }
     : { ...next, state: "drafting" }
@@ -337,6 +351,7 @@ const typed = (box: Box): Box => ({
   typedAt: null,
   typedSinceEnter: true,
   queued: false,
+  doubted: false,
 })
 
 /**
@@ -384,7 +399,16 @@ const atPrompt = (
     box.queuing && !(delivery.state === "unknown" && entered && box.queuingSince === box.enteredAt)
   const kept = delivery.state !== "unbound" && (queuing || box.queued || (!box.empty && !entered))
   return next.box.typedSinceEnter || kept
-    ? { ...next, box: typed(emptyBox), state: "drafting" }
+    ? {
+        ...next,
+        // Doubt only where an Enter too long ago is all that keeps it: not the person's
+        // keys, nor a prompt queued, which starts as the new session's first turn.
+        box: {
+          ...typed(emptyBox),
+          doubted: !next.box.typedSinceEnter && !queuing && !box.queued,
+        },
+        state: "drafting",
+      }
     : { ...next, state: "ready", since: event.at }
 }
 
@@ -403,6 +427,8 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
   // once the request clears, as one answered with no report has no dialog left.
   if (event.type === "key" && event.key === "neutral") {
     const { box } = delivery
+    // A key ends a doubt: it may be input the harness took as its own.
+    if (box.doubted) return event.asked ? asked(delivery) : keyed(delivery, false, event.at)
     if (delivery.state === "unbound" || box.typedSinceEnter) return delivery
     if (event.asked) return asked(delivery)
     // Only an Enter still within its window can have a prompt to keep the person's: one
@@ -414,7 +440,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
       !box.queued
     )
       return keyed(delivery, false, event.at)
-    return drafted(delivery, { ...box, empty: false, strayed: true })
+    return drafted(delivery, { ...box, empty: false, strayed: true, doubted: false })
   }
   // The person's Escape may interrupt a root turn, which no hook may tell (Claude Code's
   // before its first reply, which puts the prompt back in its box): Unknown, the box a
@@ -429,9 +455,10 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
         state: "unknown",
         escapedAt: event.at,
       }
-    return delivery.box.enteredAt === null || delivery.state === "unbound"
-      ? delivery
-      : { ...delivery, box: { ...delivery.box, escapedAt: event.at } }
+    const kept = undoubted(delivery)
+    return kept.box.enteredAt === null || kept.state === "unbound"
+      ? kept
+      : { ...kept, box: { ...kept.box, escapedAt: event.at } }
   }
   if (event.type === "bound") {
     // The session a ring's own prompt starts, where it rang a prompt shown before any
@@ -635,7 +662,9 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
       // and Tab may too, as the request may have been answered with no report, its
       // dialog gone, and the prompt take a suggestion.
       if (event.asked)
-        return event.key === "content" || event.key === "accept" ? asked(delivery) : delivery
+        return event.key === "content" || event.key === "accept"
+          ? asked(delivery)
+          : undoubted(delivery)
       // A bare Enter on a box known empty (no draft typed while asked either) while a root
       // turn runs queues nothing in any harness: it answered something Novadeck didn't see
       // (a confirmation between two of Antigravity's status lines), or did nothing. At the
@@ -650,6 +679,12 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
         return delivery
       return keyed(delivery, event.key === "enter" || event.key === "queue", event.at)
     }
+    case "emptied":
+      // The screen shows the box empty where only a doubt kept it a draft: nothing was left
+      // in it. Not for one the person typed in since, or a session since.
+      return delivery.state === "drafting" && box.doubted && event.epoch === delivery.epoch
+        ? { ...counts(delivery), box: emptyBox, state: "ready", since: event.at }
+        : delivery
     case "asked-cleared":
       // What the person typed while it waited counts now, as typing outside a request.
       return box.draftWhileAsked
@@ -679,9 +714,13 @@ export const pendingEnter = (
  * should the request be stale, its dialog gone: a draft, applied once the request clears.
  */
 const asked = (delivery: Delivery): Delivery =>
-  delivery.box.draftWhileAsked
+  delivery.box.draftWhileAsked && !delivery.box.doubted
     ? delivery
-    : { ...delivery, box: { ...delivery.box, draftWhileAsked: true } }
+    : { ...delivery, box: { ...delivery.box, draftWhileAsked: true, doubted: false } }
+
+/** The delivery with no doubt left of its draft: any key of the person's ends one. */
+const undoubted = (delivery: Delivery): Delivery =>
+  delivery.box.doubted ? { ...delivery, box: { ...delivery.box, doubted: false } } : delivery
 
 /** The delivery with the person's key changing the box to `box`: no longer ringable. */
 const drafted = (delivery: Delivery, box: Box): Delivery => {
@@ -702,6 +741,7 @@ const keyed = (delivery: Delivery, submits: boolean, at: number | null): Deliver
         ? { ...typed(box), enteredAt: box.enteredAt, typedAt: box.typedAt ?? at }
         : typed(box)),
     empty: false,
+    doubted: false,
     // Only while a root turn runs, or may, does the harness queue what the person submits.
     queuing: box.queuing || (mayRun(delivery) && submits),
     queuingSince: box.queuing ? box.queuingSince : mayRun(delivery) && submits ? at : null,

@@ -11,7 +11,7 @@ import { harnessLogins, loginStore } from "./credentials.js"
 import { createDeck, type Deck } from "./deck.js"
 import { installHarness } from "./install.js"
 import { startFakeModel, type FakeModel } from "./model/server.js"
-import { reap } from "./reap.js"
+import { census, reap } from "./reap.js"
 import { createSandbox, keychainAsks, type Sandbox, unsuffixedClaudeItem } from "./sandbox.js"
 import { unsupported } from "./support.js"
 import { startTrace, tracesAll, tracing } from "./trace.js"
@@ -139,6 +139,15 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
 
       await use({ model, sandbox: { ...sandbox, env }, deck })
 
+      // Antigravity's agy.exe has twice outlived its deck on Windows with no word of why
+      // (a recorded parent that has gone says only that it has): who its parent was, while
+      // it ran, tells a program started apart from the shell from one its tree should have
+      // held. Dropped once that is settled.
+      const running = setups.some((setup) => setup.agent === "agy")
+        ? await census(sandbox).catch((error: unknown) => [
+            `census failed: ${error instanceof Error ? error.message : String(error)}`,
+          ])
+        : []
       // Checked once the deck has closed, so what a harness sends as it exits counts too,
       // while the fake model still listens.
       await close()
@@ -178,6 +187,9 @@ const fixture = (seed: Seed, setups: readonly AgentSetup[]) => {
               `a harness asked the macOS Keychain for the person's own ${service}, which the sandbox refused`,
           ),
         ...leftovers.map((one) => `a process outlived the deck in the sandbox: ${one}`),
+        ...(leftovers.length > 0 && running.length > 0
+          ? [`the sandbox ran, before the deck closed: ${running.join("; ")}`]
+          : []),
         ...unchecked,
       ]
       await model.close()

@@ -43,9 +43,12 @@ export type BoxProfile = {
    * (an interrupted prompt: Claude Code; the messages the person queued: Claude Code and
    * Antigravity): written only over text seen there, as Claude Code's Escape twice open
    * its rewind picker over an empty box. Omitted where nothing comes back (probed: Codex
-   * leaves the box empty), and nothing is pressed.
+   * leaves the box empty), and nothing is pressed. The screen it was read from comes too,
+   * where the keys depend on what the harness has taken of an earlier try: Claude Code's
+   * first Escape says "Esc again to clear", and a pair of them written over that clears
+   * the box and then opens the rewind picker.
    */
-  readonly clear?: (box: InputBox) => string
+  readonly clear?: (box: InputBox, screen?: ScreenText) => string
   /**
    * How the box takes a shell command (`!` typed in an empty box, then the command pasted):
    * `expands` where Enter runs a command it shows as a placeholder as the text the

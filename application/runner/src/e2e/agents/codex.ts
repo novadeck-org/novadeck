@@ -141,6 +141,10 @@ export const codex: AgentSetup = {
     ],
     approved: /Implement the plan\./,
   },
+  // While a turn runs it counts the seconds, saying Escape interrupts it; an Escape pressed
+  // before that is drawn is an idle one, offering to edit the previous message (seen in CI,
+  // 0.159.3).
+  running: /Working \(\d+s • esc to interrupt\)/,
   // Escape mid-turn says so (probed 2026-10-02, 0.159.3).
   interrupted: () => /■ Conversation interrupted/,
   // Esc-Esc browses its transcript, its footer saying so ("↵ rewind · esc back"); a paste

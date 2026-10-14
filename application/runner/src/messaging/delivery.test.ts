@@ -796,6 +796,33 @@ describe("a new session at its own prompt", () => {
       state: "drafting",
       box: { empty: false },
     })
+    // Drafting only by doubt: the screen showing the box empty settles it (a /clear that
+    // took longer than the window, as on Windows), once, and not after a key of theirs.
+    expect(late.at - at).toBeGreaterThan(submitWindowMs)
+    const doubted = run(settled, typing, enter, late)
+    expect(doubted.box.doubted).toBe(true)
+    const empty = { type: "emptied", at: at + 5_000, epoch: doubted.epoch } as const
+    expect(transition(doubted, empty)).toMatchObject({ state: "ready", box: { empty: true } })
+    expect(transition(doubted, { ...empty, epoch: doubted.epoch - 1 })).toBe(doubted)
+    expect(transition(run(doubted, typing), empty).state).toBe("drafting")
+    // A key ends the doubt, a neutral one (Left may open a view) and one while asked too.
+    expect(transition(doubted, key("neutral", at + 3_000)).box.doubted).toBe(false)
+    const answering = transition(doubted, key("content", at + 3_000, true))
+    expect(answering.box).toMatchObject({ doubted: false, draftWhileAsked: true })
+    expect(transition(answering, empty).state).toBe("drafting")
+    // Escape at the prompt, and Enter or Escape while a request waits, end it as well.
+    for (const ending of [key("escape", at + 3_000), key("enter", at + 3_000, true)]) {
+      const after = transition(doubted, ending)
+      expect(after.box.doubted).toBe(false)
+      expect(transition(after, empty).state).toBe("drafting")
+    }
+    // A prompt queued or held stays a draft, not a doubt: it starts the next session's turn.
+    const queued = run(working, typing, enter, late)
+    expect(queued).toMatchObject({ state: "drafting", box: { doubted: false } })
+    expect(transition(queued, { ...empty, epoch: queued.epoch })).toBe(queued)
+    // A draft of the person's own is no doubt.
+    const typed = run(unbound, typing, enter, typing, announced)
+    expect(transition(typed, { ...empty, epoch: typed.epoch })).toBe(typed)
     // Their /clear and its Enter, just before the binding: submitted.
     expect(run(settled, typing, enter, { ...announced, at: at + submitWindowMs }).state).toBe(
       "ready",

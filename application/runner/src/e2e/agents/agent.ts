@@ -308,6 +308,11 @@ export type AgentSetup = {
   /** A popup it raises by itself after its Stop, seeded `popup: true`. */
   readonly popup?: Popup
   /**
+   * What the screen shows while a turn runs, once its TUI reads Escape as an interrupt: a
+   * key pressed as the turn begins can reach it before, and be read as an idle one.
+   */
+  readonly running?: RegExp
+  /**
    * What the screen shows once Escape has interrupted the turn of `prompt` before its
    * reply came, the harness's own account of the interruption.
    */

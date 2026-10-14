@@ -275,6 +275,9 @@ describe("boxes read from synthetic screens", () => {
   it("clears text put back in the box only where a harness puts some back", () => {
     const box = { text: "a\nb", mode: "prompt" as const, first: 3, last: 4 }
     expect(claude.clear?.(box)).toBe("\x1b\x1b")
+    // Its footer says one more Escape clears: a second would open the rewind picker.
+    expect(claude.clear?.(box, screenWith({ rows: ["❯ a", "Esc again to clear"] }))).toBe("\x1b")
+    expect(claude.clear?.(box, screenWith({ rows: ["❯ a", "? for shortcuts"] }))).toBe("\x1b\x1b")
     expect(agy.clear?.(box)).toBe("\x15\x7f\x15")
     expect(agy.clear?.({ text: "a", mode: "prompt" as const, first: 3, last: 3 })).toBe("\x15")
     expect(codex.clear).toBe(undefined)
