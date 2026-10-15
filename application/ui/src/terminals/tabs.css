@@ -11,7 +11,9 @@
    a done tab's agent finished, after its program), `.terminal-tab-action` (an
    `.icon-button.small.dim.quiet`, pressed while it hides the tab but looking as it does
    at rest, so a hidden tab doesn't draw the eye; `.terminal-tab-revealed` on Hide and
-   Rename, which show under the pointer or with keyboard focus), `.terminal-tab-kinds`
+   Rename, which show under the pointer or with keyboard focus), `.terminal-tab-slot`
+   (Hide and Rename, or Save while renaming), `.terminal-tab-handle` (the terminal's
+   `@handle`, held in that slot at rest), `.terminal-tab-kinds`
    (what its companion bar holds, at the end of the name's line), each
    `.terminal-tab-kind` data-state="new" | "seen",
    `.terminal-tab-subagents` (a mark for each subagent after the program:
@@ -43,14 +45,57 @@
 .icon-button.terminal-tab-action:focus-visible {
   outline-offset: -2px;
 }
-/* Hide and Rename fade in under the pointer or with keyboard focus, and stay while the
-   tab is renamed; Close is always there. Without a pointer that hovers, they all stay. */
+/* Hide and Rename slide in from under Close under the pointer or with keyboard focus, and
+   stay while the tab is renamed; Close is always there. At rest their slot holds the
+   handle, which slides out to the left as they come in, so nothing else on the line
+   moves. They wait a moment under the pointer, so sweeping it down the list leaves the
+   tabs it crosses alone. Without a pointer that hovers, they all stay, and the handle
+   follows the program on its line instead, whole: the program gives way before it. */
 .icon-button.terminal-tab-revealed {
   transition: opacity var(--motion-feedback) var(--ease-interface);
 }
+.terminal-tab-handle::before {
+  content: "· ";
+}
 @media (hover: hover) {
+  .terminal-tab-slot {
+    overflow: hidden;
+  }
+  .terminal-tab-slot > * {
+    transition: transform var(--motion-layout) var(--ease-interface);
+  }
   .terminal-tab:not(:hover, :has(:focus-visible), .editing) .icon-button.terminal-tab-revealed {
     opacity: 0;
+  }
+  /* Two buttons wide, so each clears the slot. */
+  .terminal-tab:not(:hover, :has(:focus-visible), .editing) .terminal-tab-slot > * {
+    transform: translateX(200%);
+  }
+  /* At the end of its line, reaching back into the room the line keeps for its actions
+     (--_sidebar-actions-space, 76px) to sit beside Close, at least the slot's width. A
+     longer handle takes what it needs beyond the slot from the line, so the program
+     gives way to it rather than running under it; it stays there while hidden, so the
+     line never moves. */
+  .terminal-tab-handle {
+    display: flex;
+    justify-content: flex-end;
+    min-width: 46px;
+    margin-left: auto;
+    margin-right: calc(26px - var(--_sidebar-actions-space, 76px));
+    pointer-events: none;
+    transition:
+      opacity var(--motion-feedback) var(--ease-interface),
+      transform var(--motion-layout) var(--ease-interface);
+  }
+  .terminal-tab-handle::before {
+    content: none;
+  }
+  .terminal-tab:is(:hover, :has(:focus-visible), .editing) .terminal-tab-handle {
+    opacity: 0;
+    transform: translateX(-0.75rem);
+  }
+  .terminal-tab:hover :is(.terminal-tab-handle, .terminal-tab-slot > *, .terminal-tab-revealed) {
+    transition-delay: 60ms;
   }
 }
 .icon-button.terminal-tab-action:disabled {

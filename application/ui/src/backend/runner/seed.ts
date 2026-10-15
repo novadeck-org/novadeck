@@ -69,6 +69,8 @@ export const runnerTerminal = (
     command: summary.command ?? "",
     handle: summary.handle,
     ...(summary.ledBy ? { ledBy: summary.ledBy } : {}),
+    ...(summary.openedBy ? { openedBy: summary.openedBy } : {}),
+    ...(summary.agentRan ? { agentRan: true } : {}),
     titleSource: summary.titleSource,
   }
   if (!summary.started) return { ...identity, ...restored(summary), process: "", state: "starting" }

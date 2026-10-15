@@ -104,7 +104,7 @@
 :where(.terminal-actions) {
   @apply gap-1;
 }
-/* A terminal's handle before its name (ui-toolkit/HandleChip.tsx), in the quiet metadata voice on a soft
+/* A terminal's handle (ui-toolkit/HandleChip.tsx), in the quiet metadata voice on a soft
    chip tinted from its own ink, so it follows every skin and window ground. It never wraps
    or shrinks: names truncate before it does. */
 .handle-chip {
@@ -118,21 +118,63 @@
   line-height: var(--text-caption--line-height);
   white-space: nowrap;
 }
-/* In a sidebar tab's detail line, before its program, the handle is plain muted text. */
+/* In a sidebar tab, after its program or in its actions slot, the handle is plain muted text. */
 .handle-chip.handle-plain {
   padding: 0;
   background: none;
 }
-/* Who directs the terminal (WindowShell.tsx): "led by @moth · Planner" beside its name, in the
-   quiet metadata voice, the first to give way when the header is short of room. */
-.terminal-lead {
-  min-width: 0;
+/* The switcher at the start of the header (WindowShell.tsx) holds the program's icon and
+   the terminal's handle. The sidebar shows every handle, so here the handle unfolds beside
+   the icon only under the pointer or with keyboard focus, waiting a moment under the
+   pointer so one passing over leaves it folded. Without a pointer that hovers, which a
+   tap can't reveal it to, it stays out. */
+.icon-button.terminal-switch {
+  width: auto;
+  min-width: 2rem;
+}
+.terminal-switch-handle {
+  max-width: 0;
   overflow: hidden;
+  opacity: 0;
+  transition:
+    max-width var(--motion-layout) var(--ease-interface),
+    padding var(--motion-layout) var(--ease-interface),
+    opacity var(--motion-feedback) var(--ease-interface);
+}
+.terminal-switch:is(:hover, :focus-visible) .terminal-switch-handle {
+  max-width: 12ch;
+  padding-left: 0.375rem;
+  opacity: 1;
+}
+@media (hover: none) {
+  .terminal-switch .terminal-switch-handle {
+    max-width: 12ch;
+    padding-left: 0.375rem;
+    opacity: 1;
+  }
+}
+.terminal-switch:hover .terminal-switch-handle {
+  transition-delay: 60ms;
+}
+/* The name and who leads it, on one line one line high: what doesn't fit beside the name
+   wraps to a second line, out of sight, so the name gives way last. */
+.terminal-title-text:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.625rem;
+  min-width: 0;
+  height: 1rem;
+  overflow: hidden;
+}
+/* Who directs the terminal (WindowShell.tsx): "led by @moth" beside its name, in the quiet
+   metadata voice, whole or not at all; the tooltip names the lead too. */
+.terminal-lead {
+  flex: none;
   color: var(--window-metadata-fg, var(--color-muted));
   font-family: var(--window-metadata-font, var(--font-mono));
   font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  text-overflow: ellipsis;
+  line-height: 1rem;
 }
 /* What the agent runs on, floating over its terminal's top right (WindowStats.tsx), over
    the agent's old scrollback, away from the window's buttons and from its prompt below:

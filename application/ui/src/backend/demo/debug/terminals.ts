@@ -86,6 +86,20 @@ export const runProgram = (key: TerminalKey, program: string): BackendAction[] =
   setStatus(key, { state: "running" }),
 ]
 
+// A shell an agent opened, here the demo's first terminal's, for a program it runs: its
+// tab keeps its handle, which the agent names it by.
+export const openedByAgent = (key: TerminalKey, program: string): BackendAction[] => [
+  { type: "terminal/update", target: target(key), terminalId: key.terminalId, openedBy: "moth" },
+  ...runProgram(key, program),
+]
+
+// Back at a shell's prompt after an agent ran there and exited: its tab keeps its handle,
+// which what the agent left behind still names it by.
+export const agentRanHere = (key: TerminalKey): BackendAction[] => [
+  { type: "terminal/update", target: target(key), terminalId: key.terminalId, agentRan: true },
+  ...backToPrompt(key),
+]
+
 // Back at the shell's prompt.
 export const backToPrompt = (key: TerminalKey, shell = "zsh"): BackendAction[] => [
   setProcess(key, shell),

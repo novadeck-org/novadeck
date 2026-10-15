@@ -424,6 +424,13 @@ export const terminalSummary = z.strictObject({
   // when none. It changes only when the lead is set or ended, as when the agent here
   // exits, not while the lead's terminal runs or stops.
   ledBy: handle.nullable(),
+  // The handle of the terminal whose agent opened this one, for an agent, a command or a
+  // plain shell; null when the person opened it. It never changes.
+  openedBy: handle.nullable(),
+  // Whether an agent has reported a session in it since it opened, running now or since
+  // exited. It stays true, so what names the terminal by its handle keeps a terminal to
+  // find, until the person disconnects that agent's harness.
+  agentRan: z.boolean(),
   // The command it was opened to run at its first prompt; null for a plain shell.
   command: startupCommand.nullable(),
   // The program in its foreground when its shell was last seen, which a fresh shell

@@ -1,5 +1,6 @@
 import type { Project, TerminalSummary, WorkspaceSession } from "@novadeck/protocol"
 
+import { showsHandle } from "../../model/handle"
 import { initialGridLayouts } from "../../model/layout/grid-placement"
 import { setTerminalProcess, setTerminalStatus } from "../../model/roster"
 import { workspaceFromSeed } from "../../model/seed"
@@ -23,6 +24,8 @@ const summary = (
   titleSource: { kind: "default" },
   handle: `t${n}`,
   ledBy: null,
+  openedBy: null,
+  agentRan: false,
   started: true,
   command: null,
   lastProgram: null,
@@ -168,6 +171,42 @@ describe("runner seed", () => {
       expect(state.layout.canvas.geometry[uuid(24)]).toBeUndefined()
       expect(state.layout.grid.desktop?.some((item) => item.i === uuid(24))).toBe(false)
       expect(state.selected).toBe(uuid(20))
+    })
+  })
+
+  context("with terminals agents name by handle", () => {
+    const listing: RunnerListing = [
+      {
+        project: project(1),
+        sessions: [
+          {
+            session: fresh(10),
+            terminals: [
+              summary(30, 10, { openedBy: "moth", ...foreground("vite") }),
+              summary(31, 10, { agentRan: true }),
+              kept(32, 10, { agentRan: true }),
+              summary(33, 10),
+            ],
+          },
+        ],
+      },
+    ]
+    const { terminals } = workspaceFromSeed(runnerSeed(listing), defaults).projects[0]!.history[0]!
+      .state.roster
+
+    it("keeps who opened each terminal and whether an agent ran there", () => {
+      expect(terminals).toMatchObject([
+        { id: uuid(30), openedBy: "moth" },
+        { id: uuid(31), agentRan: true },
+        { id: uuid(32), agentRan: true },
+        { id: uuid(33) },
+      ])
+      expect(terminals[3]).not.toHaveProperty("openedBy")
+      expect(terminals[3]).not.toHaveProperty("agentRan")
+    })
+
+    it("shows the handle on their tabs, not on a shell no agent touched", () => {
+      expect(terminals.map(showsHandle)).toEqual([true, true, true, false])
     })
   })
 

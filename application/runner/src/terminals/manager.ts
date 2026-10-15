@@ -166,12 +166,13 @@ import {
 } from "./opens.js"
 import { TerminalPeers } from "./peers.js"
 import { Prompts, type PromptHost, type PromptOptions } from "./prompts.js"
-import type {
-  AgentReport,
-  ListedTerminal,
-  SavedTerminal,
-  TerminalIdentity,
-  TerminalRecords,
+import {
+  hasRun,
+  type AgentReport,
+  type ListedTerminal,
+  type SavedTerminal,
+  type TerminalIdentity,
+  type TerminalRecords,
 } from "./records.js"
 import { freshNonce } from "./ring.js"
 import { screenText } from "./screen.js"
@@ -1019,6 +1020,8 @@ export class Terminals {
           ...titled,
           handle,
           ledBy,
+          openedBy,
+          agentRan: hasRun(saved?.agents ?? {}),
           started: true,
           command,
           lastProgram: saved?.lastProgram ?? null,
@@ -1152,6 +1155,8 @@ export class Terminals {
       ...this.titled(terminal.naming, terminal),
       handle: terminal.handle,
       ledBy: terminal.ledBy,
+      openedBy: terminal.openedBy,
+      agentRan: hasRun(terminal.agents),
       started: false,
       command: terminal.command,
       lastProgram: terminal.lastProgram,
@@ -2316,6 +2321,7 @@ export class Terminals {
     for (const record of this.records.values()) {
       const { [agent]: _forgotten, ...rest } = record.agents
       record.agents = rest
+      const agentRan = hasRun(rest)
       // Its binding ends too: a disconnected harness holds no terminal's foreground.
       if (record.binding?.agent === agent) {
         record.binding = null
@@ -2325,11 +2331,15 @@ export class Terminals {
         this.rebound(record)
         record.summary = {
           ...record.summary,
+          agentRan,
           agent: null,
           ready: this.readyOf(record),
           activity: null,
           telemetry: null,
         }
+        this.announce(record)
+      } else if (record.summary.agentRan !== agentRan) {
+        record.summary = { ...record.summary, agentRan }
         this.announce(record)
       }
     }
@@ -4462,16 +4472,18 @@ export class Terminals {
     const ready = this.readyOf(record)
     const activity = record.binding && record.activity ? activitySummary(record.activity) : null
     const telemetry = record.binding && record.telemetry ? telemetrySummary(record.telemetry) : null
+    const agentRan = hasRun(record.agents)
     const { summary } = record
     if (
       !moved &&
+      summary.agentRan === agentRan &&
       summary.agent === agent &&
       summary.ready === ready &&
       JSON.stringify(summary.activity) === JSON.stringify(activity) &&
       JSON.stringify(summary.telemetry) === JSON.stringify(telemetry)
     )
       return
-    record.summary = { ...summary, agent, ready, activity, telemetry }
+    record.summary = { ...summary, agentRan, agent, ready, activity, telemetry }
     this.announce(record)
   }
 

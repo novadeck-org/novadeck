@@ -333,8 +333,10 @@ agent.
   anywhere else. It adds nothing to the model's context but the messages other agents in
   Novadeck send it, wrapped as theirs (see [Agent messaging](docs/agent-messaging.md)).
   Agents address each other by terminal handle: a word its session gives each terminal,
-  never twice, such as `moth`, which Novadeck shows as `@moth` beside the terminal's name
-  and which stays the terminal's when you rename it.
+  never twice, such as `moth`, which Novadeck shows as `@moth` and which stays the
+  terminal's when you rename it. A sidebar tab shows it beside Close where an agent runs
+  or has run, or where an agent opened or leads the terminal; a window's header shows it
+  in its switcher, under the pointer.
   Without a connected agent
   there is no resume, even for sessions it reported before: disconnecting forgets them,
   and the terminal comes back as a plain shell with its transcript.
@@ -704,7 +706,9 @@ Terminals:
 - **New terminals:** "Every state at once" adds one terminal per state, named after it, so
   the tabs and the windows in Grid and Canvas show attention, done, error, ended and the
   rest side by side; you stay on one that needs permission, and the done marks land on
-  the others. Also a burst of 30, a quick failure, a spawn failure and the terminal limit.
+  the others. Its shell an agent opened and its shell an agent exited from keep their
+  handles on their tabs; its other plain shells show none. Also a burst of 30, a quick
+  failure, a spawn failure and the terminal limit.
 - **Projects and sessions:** mark the selected terminal running, then start a fresh
   session, to see the sessions panel count it; or make the next folder pick fail.
 

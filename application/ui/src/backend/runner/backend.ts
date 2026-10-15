@@ -663,12 +663,19 @@ export const runnerBackend = (
     const directory = current.directory !== summary.cwd ? summary.cwd : undefined
     const handle = current.handle !== summary.handle ? summary.handle : undefined
     const ledBy = (current.ledBy ?? null) !== summary.ledBy ? summary.ledBy : undefined
+    const openedBy = (current.openedBy ?? null) !== summary.openedBy ? summary.openedBy : undefined
+    const agentRan = (current.agentRan ?? false) !== summary.agentRan ? summary.agentRan : undefined
     // While the person's name is on its way, it is theirs, whatever the runner said before.
     const titleSource =
       unconfirmed === undefined && !sameTitleSource(current.titleSource, summary.titleSource)
         ? summary.titleSource
         : undefined
-    if ([name, directory, handle, ledBy, titleSource].every((fact) => fact === undefined)) return []
+    if (
+      [name, directory, handle, ledBy, openedBy, agentRan, titleSource].every(
+        (fact) => fact === undefined,
+      )
+    )
+      return []
     return [
       {
         type: "terminal/update",
@@ -678,6 +685,8 @@ export const runnerBackend = (
         ...(directory !== undefined && { directory }),
         ...(handle !== undefined && { handle }),
         ...(ledBy !== undefined && { ledBy }),
+        ...(openedBy !== undefined && { openedBy }),
+        ...(agentRan !== undefined && { agentRan }),
         ...(titleSource !== undefined && { titleSource }),
       },
     ]

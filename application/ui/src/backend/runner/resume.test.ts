@@ -14,6 +14,8 @@ const exited = (terminalId: string): TerminalSummary => ({
   titleSource: { kind: "default" },
   handle: "moth",
   ledBy: null,
+  openedBy: null,
+  agentRan: false,
   started: true,
   command: null,
   lastProgram: "claude",

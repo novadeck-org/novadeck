@@ -10,6 +10,7 @@ import { createDebugChat } from "./chat"
 import { createDemoFolders } from "./folders"
 import { createDemoNotices } from "./notices"
 import {
+  agentRanHere,
   backToPrompt,
   cleanExit,
   contextOnly,
@@ -20,6 +21,7 @@ import {
   murmurGists,
   murmurHeadlines,
   noisyAgents,
+  openedByAgent,
   othersOf,
   otherTerminals,
   promptTerminals,
@@ -199,6 +201,8 @@ const gallery: readonly {
   },
   { name: "Unheard agent", state: (key) => unheardAgent(key, "claude") },
   { name: "Running a program", state: (key) => runProgram(key, "sleep") },
+  { name: "Opened by an agent", state: (key) => openedByAgent(key, "pnpm") },
+  { name: "Agent exited", state: (key) => agentRanHere(key) },
   { name: "Starting", state: (key) => starting(key) },
   { name: "Idle" },
   { name: "Exit code 3", state: (key) => exitedWithCode(key, 3) },

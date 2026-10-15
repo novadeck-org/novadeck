@@ -45,6 +45,12 @@ export type SavedTerminal = {
   readonly savedAt: number
 }
 
+/**
+ * Whether an agent has reported a session in the terminal, running now or since exited:
+ * then something may name it by its handle.
+ */
+export const hasRun = (agents: SavedTerminal["agents"]): boolean => Object.keys(agents).length > 0
+
 /** A terminal as listed: all but its transcript. */
 export type ListedTerminal = Omit<SavedTerminal, "transcript">
 

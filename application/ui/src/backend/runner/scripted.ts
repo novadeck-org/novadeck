@@ -74,6 +74,8 @@ export const keptSummary = (
   titleSource: { kind: "default" },
   handle: "moth",
   ledBy: null,
+  openedBy: null,
+  agentRan: false,
   started: false,
   command: null,
   lastProgram: null,

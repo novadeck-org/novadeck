@@ -16,6 +16,8 @@ const summary: TerminalSummary = {
   handle: "moth",
   started: true,
   ledBy: null,
+  openedBy: null,
+  agentRan: false,
   command: null,
   lastProgram: null,
   cwd: "/tmp",

@@ -218,13 +218,11 @@ export const WindowShell = ({
         else headerDoubleAction?.()
       }}
     >
-      <div
-        className={`terminal-title flex min-w-0 items-center [&>h1]:truncate [&>h2]:truncate ${phase === "done" ? "[&>h1]:font-bold [&>h2]:font-bold" : "[&>h1]:font-medium [&>h2]:font-medium"}`}
-      >
+      <div className="terminal-title flex min-w-0 flex-1 items-center">
         {switcher ? (
           <Tooltip content="Switch terminal">
             <button
-              className={`${headerActionClasses} nodrag nopan`}
+              className={`${headerActionClasses} terminal-switch nodrag nopan`}
               aria-label="Switch terminal"
               onClick={(event) => {
                 event.stopPropagation()
@@ -232,16 +230,35 @@ export const WindowShell = ({
               }}
             >
               {icon}
+              {/* The sidebar shows every handle, so the header keeps it under the pointer. */}
+              {!renaming && shell && (
+                <HandleChip handle={shell.handle} className="handle-plain terminal-switch-handle" />
+              )}
             </button>
           </Tooltip>
         ) : (
           icon
         )}
         <>
-          {!renaming && !isWindow(terminal) && <HandleChip handle={terminal.handle} />}
-          <Heading hidden={renaming} data-terminal-name="">
-            {terminal.name}
-          </Heading>
+          {/* The name and who leads it share a line; "led by" shows whole beside the name
+              or wraps out of sight (window.css), so the name gives way last. */}
+          <span
+            className={`terminal-title-text [&>h1]:truncate [&>h2]:truncate ${phase === "done" ? "[&>h1]:font-bold [&>h2]:font-bold" : "[&>h1]:font-medium [&>h2]:font-medium"}`}
+            hidden={renaming}
+          >
+            <Heading hidden={renaming} data-terminal-name="">
+              {terminal.name}
+            </Heading>
+            {lead && !renaming && (
+              <Tooltip
+                content={`Directed by the agent in ${handleText(lead.handle)} · ${lead.name}`}
+              >
+                <span className="terminal-lead nodrag nopan" data-terminal-lead={lead.handle}>
+                  led by {handleText(lead.handle)}
+                </span>
+              </Tooltip>
+            )}
+          </span>
           {rename && (
             <TerminalRenameInput
               id={terminal.id}
@@ -255,13 +272,6 @@ export const WindowShell = ({
               onCancel={onRenameCancel}
               className="terminal-rename-input w-full min-w-0 text-body leading-4 font-medium nodrag nopan"
             />
-          )}
-          {lead && !renaming && (
-            <Tooltip content={`Directed by the agent in ${handleText(lead.handle)}`}>
-              <span className="terminal-lead nodrag nopan" data-terminal-lead={lead.handle}>
-                led by {handleText(lead.handle)} · {lead.name}
-              </span>
-            </Tooltip>
           )}
         </>
       </div>

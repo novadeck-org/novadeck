@@ -12,7 +12,13 @@ import {
   thread,
 } from "./support/messages"
 import { confirmClose, sidebarRenameField, tabAction } from "./support/terminals"
-import { expectStaysAbsent, recordChanges, tabDescription, terminalTab } from "./support/workspace"
+import {
+  expectStaysAbsent,
+  recordChanges,
+  tabDescription,
+  terminalTab,
+  tooltipOf,
+} from "./support/workspace"
 
 const textOf = (locator: Locator) => locator.element().textContent
 
@@ -238,10 +244,14 @@ describe("Who named a terminal", () => {
 })
 
 describe("A terminal an agent opened", () => {
-  it("says which terminal leads it, by handle and name", async () => {
+  it("says which terminal leads it by handle, and its name on hover", async () => {
     await openMessagesDemo()
     await terminalTab("Checkout review").click()
-    await expect.element(page.getByText("led by @moth · Checkout implementation")).toBeVisible()
+    const lead = page.getByText("led by @moth", { exact: true })
+    await expect.element(lead).toBeVisible()
+    // Its tab keeps its own handle, which its lead names it by.
+    await expect.element(terminalTab("Checkout review").getByText(/^@[a-z]+$/)).toBeVisible()
+    expect(await tooltipOf(lead)).toBe("Directed by the agent in @moth · Checkout implementation")
     expect(page.getByText(/^led by @owl/).elements()).toHaveLength(0)
   })
 

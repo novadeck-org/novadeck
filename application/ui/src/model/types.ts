@@ -116,6 +116,11 @@ export type TerminalMetadata = {
   // The handle of the terminal whose agent opened it with a brief, its lead, as its
   // backend last said; null once that ended. Whether the lead runs is the roster's to say.
   ledBy?: string | null
+  // The handle of the terminal whose agent opened it, for an agent, a command or a plain
+  // shell; null where the person opened it.
+  openedBy?: string | null
+  // Whether an agent has run in it since it opened, running now or since exited.
+  agentRan?: boolean
   // Who its name is from, where its backend tells.
   titleSource?: TitleSource
   // Never present: a window has one, which tells tiles apart (see `isWindow`).

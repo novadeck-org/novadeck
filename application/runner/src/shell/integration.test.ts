@@ -1467,6 +1467,29 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(manager.reportedSession(terminal.id, "claude")).toBeNull()
   })
 
+  it("says an agent has run in a terminal the person opened, until its harness is disconnected", async ({
+    shell,
+  }) => {
+    fakeClaude(shell.home, shell.plugins, randomUUID())
+    writeFileSync(join(shell.home, ".bashrc"), 'export PATH="$HOME/bin:$PATH"\n')
+    const manager = shell.manager()
+    const next = shell.watch(manager)
+    const terminal = await create(manager, shell)
+    expect(terminal).toMatchObject({ openedBy: null, agentRan: false })
+    manager.write({ terminalId: terminal.id, data: "claude\r" }, "owner")
+    await next((summary) => summary.id === terminal.id && summary.agentRan)
+    // Back at the prompt, no agent is bound, but one has run.
+    manager.write({ terminalId: terminal.id, data: "\r" }, "owner")
+    await expect.poll(() => manager.get(terminal.id).agent).toBeNull()
+    expect(manager.get(terminal.id).agentRan).toBe(true)
+    // Disconnecting its harness forgets what it reported.
+    // A watcher joining now starts from the state with the agent run, so it only sees the change.
+    const later = shell.watch(manager)
+    manager.forgetAgent("claude")
+    await later((summary) => summary.id === terminal.id && !summary.agentRan)
+    expect(manager.get(terminal.id).agentRan).toBe(false)
+  })
+
   it("drops a report that was still waiting when its agent was disconnected", async ({ shell }) => {
     const bin = reporter(shell.home, [
       { agent: "claude", sessionId: "late", seq: 1, source: "startup" },
@@ -1765,6 +1788,32 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))("bash shell i
     expect(manager.get(worker).ledBy).toBeNull()
     expect(shell.store.terminalIdentity(worker)?.ledBy).toBeNull()
     expect(manager.get(plain).ledBy).toBeNull()
+  })
+
+  it("remembers across a restart that an agent has run in a terminal", async ({ shell }) => {
+    const [ran, unused] = [randomUUID(), randomUUID()]
+    shell.saveSession(ran, "claude", randomUUID())
+    shell.store.saveTerminal({
+      id: unused,
+      sessionId: shell.sessionId,
+      cwd: shell.home,
+      handle: "fox",
+      naming: { person: null, agent: null, murmur: null, summary: null },
+      openedBy: null,
+      ledBy: null,
+      command: null,
+      lastProgram: null,
+      work: null,
+      agents: {},
+      promptedAt: null,
+    })
+    const manager = shell.manager()
+    expect(manager.list(shell.sessionId).map(({ id, agentRan }) => ({ id, agentRan }))).toEqual(
+      expect.arrayContaining([
+        { id: ran, agentRan: true },
+        { id: unused, agentRan: false },
+      ]),
+    )
   })
 
   it("keeps a worker's lead through a restore, and ends it when its agent exits", async ({
@@ -2398,6 +2447,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         })
         // Opened for a command, even one that starts an agent, it has no lead.
         expect(manager.get(opened!).ledBy).toBeNull()
+        // It is still known as the opener's.
+        expect(manager.get(opened!).openedBy).toBe("moth")
         expect(shell.store.terminalIdentity(opened!)).toMatchObject({ ledBy: null })
         await shell.until(manager, opened!, "claude args: --fresh")
         // Five a minute, counting each request that was asked, opened or not: two more,

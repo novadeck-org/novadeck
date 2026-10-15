@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 
 import { workspaceShortcutBindings } from "../interaction/shortcuts"
 import { subagentMarks, subagentsBadge, subagentsDetail } from "../model/agent-subagents"
-import { terminalLabel } from "../model/handle"
+import { showsHandle, terminalLabel } from "../model/handle"
 import { mailBadgeLabel, type MailBadge } from "../model/messages"
 import { isWindow } from "../model/roster"
 import {
@@ -143,14 +143,6 @@ export const TerminalTab = ({
               aria-hidden
               className="terminal-glyph inline-block w-[1ch] shrink-0 text-center"
             />
-            {shell?.handle && (
-              <>
-                <HandleChip handle={shell.handle} className="handle-plain" />
-                <span aria-hidden className="shrink-0">
-                  ·
-                </span>
-              </>
-            )}
             {phase === "starting" ? (
               <span className="terminal-tab-starting truncate italic">starting…</span>
             ) : phase === "done" ? (
@@ -167,6 +159,13 @@ export const TerminalTab = ({
                 {marks && <SubagentLine marks={marks} />}
               </>
             )}
+            {/* After the program, so the program comes first; where a pointer hovers it
+                waits in the slot Hide and Rename slide into (tabs.css). Only on a terminal
+                agents name by its handle (model/handle.ts). */}
+            <HandleChip
+              handle={shell && showsHandle(shell) ? shell.handle : undefined}
+              className="handle-plain terminal-tab-handle"
+            />
           </>
         }
         {...(marks && !editing ? { below: <SubagentBranches marks={marks} /> } : {})}
@@ -223,49 +222,52 @@ export const TerminalTab = ({
         }
         actions={
           <div className="terminal-tab-actions flex items-center">
-            <Tooltip content={hidden ? "Show" : "Hide"}>
-              <button
-                className={revealedActionClasses}
-                aria-label={`${hidden ? "Show" : "Hide"} ${label} in Grid and Canvas`}
-                aria-pressed={hidden}
-                disabled={editing}
-                onClick={() => onVisibilityChange(!hidden)}
-              >
-                {hidden ? (
-                  <EyeOff size={14} strokeWidth={1.5} />
-                ) : (
-                  <Eye size={14} strokeWidth={1.5} />
-                )}
-              </button>
-            </Tooltip>
-            {editing ? (
-              <Tooltip content="Save">
-                <button
-                  className={actionClasses}
-                  data-rename-terminal={terminal.id}
-                  aria-label={`Save name for ${label}`}
-                  onClick={onRenameSave}
-                >
-                  <Check size={14} strokeWidth={1.5} />
-                </button>
-              </Tooltip>
-            ) : (
-              <Tooltip
-                content={
-                  selected
-                    ? `Rename · ${workspaceShortcutBindings().rename.display.join(" ")}`
-                    : "Rename"
-                }
-              >
+            {/* Hide and Rename (or Save) share the slot the handle holds at rest. */}
+            <div className="terminal-tab-slot flex items-center">
+              <Tooltip content={hidden ? "Show" : "Hide"}>
                 <button
                   className={revealedActionClasses}
-                  aria-label={`Rename ${label}`}
-                  onClick={onBeginRename}
+                  aria-label={`${hidden ? "Show" : "Hide"} ${label} in Grid and Canvas`}
+                  aria-pressed={hidden}
+                  disabled={editing}
+                  onClick={() => onVisibilityChange(!hidden)}
                 >
-                  <Pencil size={14} strokeWidth={1.5} />
+                  {hidden ? (
+                    <EyeOff size={14} strokeWidth={1.5} />
+                  ) : (
+                    <Eye size={14} strokeWidth={1.5} />
+                  )}
                 </button>
               </Tooltip>
-            )}
+              {editing ? (
+                <Tooltip content="Save">
+                  <button
+                    className={actionClasses}
+                    data-rename-terminal={terminal.id}
+                    aria-label={`Save name for ${label}`}
+                    onClick={onRenameSave}
+                  >
+                    <Check size={14} strokeWidth={1.5} />
+                  </button>
+                </Tooltip>
+              ) : (
+                <Tooltip
+                  content={
+                    selected
+                      ? `Rename · ${workspaceShortcutBindings().rename.display.join(" ")}`
+                      : "Rename"
+                  }
+                >
+                  <button
+                    className={revealedActionClasses}
+                    aria-label={`Rename ${label}`}
+                    onClick={onBeginRename}
+                  >
+                    <Pencil size={14} strokeWidth={1.5} />
+                  </button>
+                </Tooltip>
+              )}
+            </div>
             {editing ? (
               <Tooltip content="Cancel">
                 <button

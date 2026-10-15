@@ -10,6 +10,8 @@ const summary = (change: Partial<TerminalSummary>): TerminalSummary => ({
   titleSource: { kind: "default" },
   handle: "moth",
   ledBy: null,
+  openedBy: null,
+  agentRan: false,
   started: true,
   command: null,
   lastProgram: null,
