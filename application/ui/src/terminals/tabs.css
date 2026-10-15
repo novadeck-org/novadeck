@@ -314,9 +314,10 @@
 .terminal-tab.selected .terminal-tab-subagents .terminal-tab-subagent::before {
   animation-play-state: paused;
 }
-/* Its actions stay beside its line, however tall the rows make the tab. */
-.terminal-tab:has(.terminal-tab-branches) .sidebar-item-actions {
-  top: 33px;
+/* Its actions stay beside its detail line (9px padding, an 18px name, a 4px gap), however
+   tall the rows under it make the tab. */
+.terminal-tab .sidebar-item-actions {
+  top: 31px;
   bottom: auto;
 }
 /* An ended terminal is hatched in its tab, as across its window. */
