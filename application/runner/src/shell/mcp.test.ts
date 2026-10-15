@@ -363,9 +363,10 @@ describe("Novadeck's MCP server", () => {
       )
       expect(show.description).toContain("the files a change touches on the way aren't")
       expect(show.description).toContain("the file you are working on together")
-      expect(show.description).toContain("Set open to true only when they asked to see it")
+      expect(show.description).toContain(
+        "Set open to true for a deliverable you finish or they asked to see",
+      )
       expect(show.description).toContain("one item per deliverable")
-      expect(show.description).toContain("a revision of something you are iterating on with them")
       const showing = described.find((tool) => tool.name === "showing")!
       expect(showing.description).toContain("Check it before showing after a while")
     })

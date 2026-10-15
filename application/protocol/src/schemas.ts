@@ -514,6 +514,22 @@ export const companionChange = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("synced") }),
 ])
 
+// `companions.save`: the plan's new stamp, or, when it changed since the stamp the edit was
+// made on, the plan as it now stands.
+export const planSaveResult = z.discriminatedUnion("saved", [
+  z.strictObject({ saved: z.literal(true), stamp: z.string().max(128) }),
+  z.strictObject({
+    saved: z.literal(false),
+    current: z.strictObject({
+      stamp: z.string().max(128),
+      text: z.string().max(256 * 1024),
+      truncated: z.boolean(),
+      // As in the plan's content.
+      skill: z.boolean(),
+    }),
+  }),
+])
+
 // `companions.content`: what an item points at, read as it is now. `stamp` changes with
 // it. A file is the lines around the ones pointed at, numbered from `firstLine`, with
 // its line count where it was read to its end (`truncated` otherwise), and `clamped`
@@ -542,6 +558,12 @@ export const itemContent = z.discriminatedUnion("state", [
         text: z.string().max(256 * 1024),
         truncated: z.boolean(),
         changedAt: z.number().nullable(),
+        // Whether `companions.save` can write it: a plan in a file, not one the agent
+        // keeps in its transcript.
+        writable: z.boolean(),
+        // Whether Novadeck's plugin is installed into the plan's agent, which tells it to
+        // re-read the plan and apply the notes left in it.
+        skill: z.boolean(),
       }),
     ]),
   }),
@@ -857,6 +879,7 @@ export type CompanionItem = z.infer<typeof companionItem>
 export type CompanionWindow = z.infer<typeof companionWindow>
 export type CompanionChange = z.infer<typeof companionChange>
 export type ItemContent = z.infer<typeof itemContent>
+export type PlanSaveResult = z.infer<typeof planSaveResult>
 export type TerminalRequest = z.infer<typeof terminalRequest>
 export type TerminalRequestAnswer = z.infer<typeof terminalRequestAnswer>
 export type TerminalEvent = z.infer<typeof terminalEvent>

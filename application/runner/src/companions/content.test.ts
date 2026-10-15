@@ -1,6 +1,11 @@
 import { spawnSync } from "node:child_process"
 import {
   appendFileSync,
+  chmodSync,
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  statSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -25,6 +30,7 @@ import {
   pointAt,
   readPlanFile,
   readTextPlan,
+  savePlan,
 } from "./content.js"
 
 const it = base.extend<{ directory: string }>({
@@ -430,5 +436,121 @@ describe("a plan presented as text", () => {
     await expect(readTextPlan("claude", transcript)).resolves.toMatchObject({ text: "# After" })
     // Antigravity keeps its plans in files only.
     await expect(readTextPlan("agy", transcript)).resolves.toBeUndefined()
+  })
+})
+
+describe("saving a plan", () => {
+  const filePlan = (path: string) =>
+    ({
+      path,
+      plan: { agent: "claude", session: "s", actor: null, format: "file" },
+    }) as const
+
+  it("writes a plan's file whole when it is as the edit was made on, and answers its new stamp", async ({
+    directory,
+  }) => {
+    const path = join(directory, "p.md")
+    writeFileSync(path, "# Plan\n")
+    const loaded = await loadPlan(filePlan(path), undefined)
+    expect(loaded).toMatchObject({ state: "ready", content: { writable: true, skill: false } })
+    const stamp = loaded.state === "ready" ? loaded.stamp : ""
+    const saved = await savePlan(filePlan(path), "# Plan\n<!-- novadeck: note -->\n", stamp)
+    expect(saved).toEqual({ saved: true, stamp: (await readPlanFile(path))?.stamp })
+    expect(readFileSync(path, "utf8")).toBe("# Plan\n<!-- novadeck: note -->\n")
+    // No temporary file is left beside it.
+    expect(readdirSync(directory)).toEqual(["p.md"])
+  })
+
+  it("writes nothing and hands back the plan as it stands when the file changed since", async ({
+    directory,
+  }) => {
+    const path = join(directory, "p.md")
+    writeFileSync(path, "# Plan\n")
+    const stamp = (await readPlanFile(path))?.stamp ?? ""
+    writeFileSync(path, "# Plan, rewritten by the agent\n")
+    const result = await savePlan(filePlan(path), "# Mine\n", stamp)
+    expect(result).toEqual({
+      saved: false,
+      current: {
+        stamp: (await readPlanFile(path))?.stamp,
+        text: "# Plan, rewritten by the agent\n",
+        truncated: false,
+      },
+    })
+    expect(readFileSync(path, "utf8")).toBe("# Plan, rewritten by the agent\n")
+  })
+
+  it.skipIf(process.platform === "win32")("keeps the file's permissions", async ({ directory }) => {
+    const path = join(directory, "p.md")
+    writeFileSync(path, "# Plan\n")
+    chmodSync(path, 0o664)
+    // Whatever the umask, as a clipped mode would show.
+    const umask = process.umask(0o022)
+    try {
+      await savePlan(filePlan(path), "# Edited\n", (await readPlanFile(path))?.stamp ?? "")
+    } finally {
+      process.umask(umask)
+    }
+    expect(statSync(path).mode & 0o777).toBe(0o664)
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "writes the file a link points at and leaves the link",
+    async ({ directory }) => {
+      const target = join(directory, "real.md")
+      const link = join(directory, "link.md")
+      writeFileSync(target, "# Plan\n")
+      symlinkSync(target, link)
+      await savePlan(filePlan(link), "# Edited\n", (await readPlanFile(link))?.stamp ?? "")
+      expect(readFileSync(target, "utf8")).toBe("# Edited\n")
+      expect(lstatSync(link).isSymbolicLink()).toBe(true)
+    },
+  )
+
+  it("answers the stamp the file has after, and loads a plan cut short as read-only", async ({
+    directory,
+  }) => {
+    const path = join(directory, "p.md")
+    writeFileSync(path, "# Plan\n")
+    const saved = await savePlan(
+      filePlan(path),
+      "# Edited\n",
+      (await readPlanFile(path))?.stamp ?? "",
+    )
+    expect(saved).toEqual({ saved: true, stamp: (await readPlanFile(path))?.stamp })
+    writeFileSync(path, "a".repeat(256 * 1024 + 10))
+    await expect(loadPlan(filePlan(path), undefined)).resolves.toMatchObject({
+      content: { truncated: true, writable: false },
+    })
+  })
+
+  it("refuses a plan in a transcript, a gone file, a too long text, and a plan cut short", async ({
+    directory,
+  }) => {
+    const path = join(directory, "p.md")
+    writeFileSync(path, "# Plan\n")
+    const stamp = (await readPlanFile(path))?.stamp ?? ""
+    await expect(
+      savePlan(
+        { path, plan: { agent: "claude", session: "s", actor: null, format: "text" } },
+        "x",
+        "",
+      ),
+    ).rejects.toMatchObject({ code: "INVALID_FILE" })
+    await expect(savePlan({ path, plan: null }, "x", stamp)).rejects.toMatchObject({
+      code: "INVALID_FILE",
+    })
+    await expect(savePlan(filePlan(join(directory, "none.md")), "x", stamp)).rejects.toMatchObject({
+      code: "INVALID_FILE",
+    })
+    // A multibyte text under the character limit can still pass the byte limit.
+    await expect(savePlan(filePlan(path), "ż".repeat(200 * 1024), stamp)).rejects.toMatchObject({
+      code: "INVALID_FILE",
+    })
+    writeFileSync(path, "a".repeat(256 * 1024 + 10))
+    await expect(
+      savePlan(filePlan(path), "short", (await readPlanFile(path))?.stamp ?? ""),
+    ).rejects.toMatchObject({ code: "INVALID_FILE" })
+    expect(readFileSync(path, "utf8")).toHaveLength(256 * 1024 + 10)
   })
 })

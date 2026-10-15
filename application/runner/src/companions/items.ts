@@ -152,6 +152,9 @@ export const wireWindow = (window: WindowRecord): CompanionWindow => ({
 const keyOf = (content: ItemContent): string =>
   content.state === "ready" ? `ready:${content.stamp}` : `${content.reason}:${content.size}`
 
+/** How recent a plan's own timestamp must be for it to count as written live. */
+const LIVE_PLAN_MS = 60_000
+
 /**
  * What agents show and the person attaches beside terminals, kept as pointers: each item
  * is held by one terminal's bar or one undocked window, survives restarts, and goes when
@@ -172,6 +175,8 @@ export class CompanionItems {
    * another one, observed while it bound, is not mirrored on its bar.
    */
   private readonly bound = new Map<string, string>()
+  /** Plans the person closed, by session and key: their next version comes back quietly. */
+  private readonly dismissed = new Set<string>()
   /** Plan observations, one after another, so two never add the same slot twice. */
   private observing: Promise<void> = Promise.resolve()
   private stopping = false
@@ -366,7 +371,11 @@ export class CompanionItems {
   close(itemId: string): void {
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
     const removed = this.records.removeItem(itemId)
-    if (removed) this.removed(removed.item, removed.window)
+    if (removed) {
+      if (removed.item.plan !== null)
+        this.dismissed.add(`${removed.item.sessionId}\0${removed.item.pointerKey}`)
+      this.removed(removed.item, removed.window)
+    }
   }
 
   /** Gives a window the person's title, or with null its item's name again. */
@@ -577,6 +586,10 @@ export class CompanionItems {
       ),
       held: false,
     }
+    // Only a root agent's plan first seen just now, and not closed by the person before,
+    // opens on its own (a rewrite only refreshes it); one read back from an older record
+    // (a restart, a resumed session) is kept quietly.
+    const live = Date.now() - at <= LIVE_PLAN_MS && slot.actor === null
     const own = this.shown(place, key)
     if (own) {
       // An older observation, as a replay, changes nothing it already has.
@@ -588,6 +601,7 @@ export class CompanionItems {
         ...own,
         ...pointer,
         version: own.version + 1,
+        asked: false,
         shownAt: Date.now(),
         observedAt: at,
       })
@@ -606,7 +620,7 @@ export class CompanionItems {
       by: "agent",
       from: { terminalId: place.terminalId, handle: place.handle },
       version: 1,
-      asked: false,
+      asked: live && !this.dismissed.has(`${place.sessionId}\0${key}`),
       shownAt: Date.now(),
       observedAt: at,
     })

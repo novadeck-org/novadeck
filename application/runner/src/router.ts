@@ -1,8 +1,15 @@
 import { homedir } from "node:os"
 
-import { contract, errors as contractErrors, protocolVersion } from "@novadeck/protocol"
+import {
+  contract,
+  errors as contractErrors,
+  protocolVersion,
+  type AgentName,
+  type ItemContent,
+} from "@novadeck/protocol"
 import { implement, ORPCError } from "@orpc/server"
 
+import { savePlan } from "./companions/content.js"
 import type { CompanionItems } from "./companions/items.js"
 import { DomainError } from "./errors.js"
 import type { Harnesses } from "./harnesses/service.js"
@@ -54,6 +61,14 @@ export const createRouter = (options: {
   closing: () => boolean
 }) => {
   const { store, terminals, projects, items, agents, uploads, voice, murmur } = options
+  // A plan's content says whether Novadeck's plugin is installed into its agent, which the
+  // companions can't know: it is looked up as the content leaves.
+  const withSkill = async (content: ItemContent, agent: AgentName | undefined) =>
+    content.state === "ready" && content.content.kind === "plan" && agent !== undefined
+      ? { ...content, content: { ...content.content, skill: await agents.connected(agent) } }
+      : content
+  // The save of each plan under way, which the next waits for.
+  const saving = new Map<string, Promise<void>>()
   const api = implement(contract).$context<Context>()
   const authorized = api.use(async ({ context, next }) => {
     const connection = context.connection
@@ -226,7 +241,33 @@ export const createRouter = (options: {
       content: authorized.companions.content.handler(async function* ({ input, context, signal }) {
         if (context.connection.closed) return
         try {
-          yield* items.content(input.itemId, input.reveal === true, signal)
+          for await (const content of items.content(input.itemId, input.reveal === true, signal))
+            yield await withSkill(content, store.item(input.itemId)?.plan?.agent)
+        } catch (error) {
+          throw apiError(error)
+        }
+      }),
+      save: authorized.companions.save.handler(async ({ input }) => {
+        const item = store.item(input.itemId)
+        if (!item) throw apiError(new DomainError("NOT_FOUND", "Item not found"))
+        // One save of a plan at a time, each judged by the file the one before left.
+        const run = async () => {
+          const result = await savePlan(item, input.text, input.basedOn)
+          if (result.saved) return result
+          const skill = item.plan ? await agents.connected(item.plan.agent) : false
+          return { ...result, current: { ...result.current, skill } }
+        }
+        const answer = (saving.get(item.id) ?? Promise.resolve()).then(run, run)
+        const turn = answer.then(
+          () => {},
+          () => {},
+        )
+        saving.set(item.id, turn)
+        void turn.then(() => {
+          if (saving.get(item.id) === turn) saving.delete(item.id)
+        })
+        try {
+          return await answer
         } catch (error) {
           throw apiError(error)
         }

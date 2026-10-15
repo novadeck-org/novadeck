@@ -12,6 +12,7 @@ import {
   type CompanionChange,
   type CompanionItem,
   type CompanionWindow,
+  type PlanSaveResult,
   type ItemContent,
   type Project,
   type RunnerSettings,
@@ -320,6 +321,17 @@ export type Runner = {
       itemId: string,
       options?: { readonly reveal?: boolean },
     ): AsyncIterableIterator<ItemContent, undefined>
+    /**
+     * Writes the person's edit to a plan kept in a file, unless it changed since `basedOn`,
+     * the stamp the edit was made on: then nothing is written and the plan as it now
+     * stands is `current`. Rejects with `NOT_FOUND`, or `INVALID_FILE` saying why for a
+     * plan the agent keeps in its transcript, a file gone or past 256 KiB.
+     */
+    save(input: {
+      readonly itemId: string
+      readonly text: string
+      readonly basedOn: string
+    }): Promise<PlanSaveResult>
     /**
      * Attaches a file to a terminal's bar, by a path absolute or from the terminal's
      * directory. Rejects with `TERMINAL_NOT_FOUND`, or `INVALID_FILE` saying why.
@@ -1220,6 +1232,7 @@ export const connectRunner = async (
         new Resubscription(connection, (wire, signal) =>
           wire.companions.content({ itemId, ...(reveal !== undefined && { reveal }) }, { signal }),
         ),
+      save: (input) => call((wire) => wire.companions.save(input)),
       attach: (input) => call((wire) => wire.companions.attach(input)),
       move: (itemId, terminalId) => call((wire) => wire.companions.move({ itemId, terminalId })),
       undock: (itemId, windowId) => call((wire) => wire.companions.undock({ itemId, windowId })),

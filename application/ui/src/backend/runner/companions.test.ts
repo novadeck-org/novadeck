@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import type { ItemContent as RunnerContent } from "@novadeck/protocol"
+import type { ItemContent as RunnerContent, PlanSaveResult } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { itemIdOf, type ItemContent } from "../../model/companion"
@@ -19,6 +19,8 @@ const following = ({ livePages = false } = {}) => {
   const streams = new Map<string, ReturnType<typeof channel<RunnerContent>>>()
   const asked: { readonly itemId: string; readonly reveal: boolean | undefined }[] = []
   const attached: unknown[] = []
+  const saves: { itemId: string; text: string; basedOn: string }[] = []
+  let saving: PlanSaveResult = { saved: true, stamp: "b2" }
   const companions = createRunnerCompanions(
     {
       content: (itemId, options) => {
@@ -26,6 +28,10 @@ const following = ({ livePages = false } = {}) => {
         const stream = channel<RunnerContent>()
         streams.set(itemId, stream)
         return stream.iterator
+      },
+      save: async (input) => {
+        saves.push(input)
+        return saving
       },
       attach: async (input) => {
         attached.push(input)
@@ -41,6 +47,10 @@ const following = ({ livePages = false } = {}) => {
     companions,
     asked,
     attached,
+    saves,
+    saveReturns: (result: PlanSaveResult) => {
+      saving = result
+    },
     seen,
     follow,
     push: (content: RunnerContent) => streams.get(hero)?.push(content),
@@ -73,19 +83,43 @@ describe("the runner's companion content", () => {
     expect(app.seen[0]).toMatchObject({ content: { kind: "page", live: true } })
   })
 
-  it("gives a plan as read-only, without saying when it changed", async () => {
+  it("gives a plan as the runner says it can be written, without saying when it changed", async () => {
     const app = following()
     app.follow()
     app.push({
       state: "ready",
       stamp: "a1",
-      content: { kind: "plan", text: "# Plan\n", truncated: false, changedAt: 5 },
+      content: {
+        kind: "plan",
+        text: "# Plan\n",
+        truncated: false,
+        changedAt: 5,
+        writable: true,
+        skill: true,
+      },
+    })
+    app.push({
+      state: "ready",
+      stamp: "a2",
+      content: {
+        kind: "plan",
+        text: "# Plan\n",
+        truncated: false,
+        changedAt: 5,
+        writable: false,
+        skill: false,
+      },
     })
     await settle()
     expect(app.seen).toEqual([
       {
         state: "ready",
         stamp: "a1",
+        content: { kind: "plan", text: "# Plan\n", truncated: false, writable: true, skill: true },
+      },
+      {
+        state: "ready",
+        stamp: "a2",
         content: {
           kind: "plan",
           text: "# Plan\n",
@@ -95,6 +129,32 @@ describe("the runner's companion content", () => {
         },
       },
     ])
+  })
+
+  it("saves an edit through the runner, or hands back the plan as it now stands", async () => {
+    const app = following()
+    await expect(app.companions.save(target, hero, "# New\n", "a1")).resolves.toEqual({
+      saved: true,
+      stamp: "b2",
+    })
+    expect(app.saves).toEqual([{ itemId: "hero", text: "# New\n", basedOn: "a1" }])
+    app.saveReturns({
+      saved: false,
+      current: { stamp: "c3", text: "# Theirs\n", truncated: false, skill: true },
+    })
+    await expect(app.companions.save(target, hero, "# New\n", "a1")).resolves.toEqual({
+      saved: false,
+      current: {
+        stamp: "c3",
+        plan: {
+          kind: "plan",
+          text: "# Theirs\n",
+          truncated: false,
+          writable: true,
+          skill: true,
+        },
+      },
+    })
   })
 
   it("passes on a file cut short or pointing past its end", async () => {
@@ -162,6 +222,13 @@ describe("the runner's companion content", () => {
           later.push(content),
         )
         await vi.waitFor(() => expect(later[0]).toMatchObject({ state: "ready" }))
+        // Only a plan in a file is written: a file is no plan, and an unknown item no item.
+        await expect(
+          runner.client.companions.save({ itemId: item.id, text: "x", basedOn: "" }),
+        ).rejects.toMatchObject({ code: "INVALID_FILE" })
+        await expect(
+          runner.client.companions.save({ itemId: crypto.randomUUID(), text: "x", basedOn: "" }),
+        ).rejects.toMatchObject({ code: "NOT_FOUND" })
         await runner.client.companions.close(item.id)
         await vi.waitFor(() =>
           expect(later.at(-1)).toEqual({ state: "unavailable", reason: "gone", size: null }),
@@ -181,9 +248,19 @@ describe("the runner's companion content", () => {
     expect(app.seen).toEqual([])
   })
 
-  it("rejects saving a plan, and attaches a file to a terminal", async () => {
+  it("keeps a plan the runner found cut short read-only after a conflict", async () => {
     const app = following()
-    await expect(app.companions.save(target, hero, "text", "1")).rejects.toThrow()
+    app.saveReturns({
+      saved: false,
+      current: { stamp: "c3", text: "# Long", truncated: true, skill: false },
+    })
+    await expect(app.companions.save(target, hero, "x", "a1")).resolves.toMatchObject({
+      current: { plan: { truncated: true, writable: false } },
+    })
+  })
+
+  it("attaches a file to a terminal", async () => {
+    const app = following()
     await app.companions.attach!({ ...target, terminalId: "t" }, "/p/notes.md")
     expect(app.attached).toEqual([{ terminalId: "t", path: "/p/notes.md" }])
   })

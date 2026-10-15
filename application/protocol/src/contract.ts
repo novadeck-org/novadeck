@@ -17,6 +17,7 @@ import {
   directory,
   id,
   itemContent,
+  planSaveResult,
   maxUploadPartLength,
   maxVoicePartLength,
   murmurSettings,
@@ -303,6 +304,20 @@ export const contract = {
     content: procedure
       .input(z.strictObject({ itemId: id, reveal: z.boolean().optional() }))
       .output(eventIterator(itemContent)),
+    // Writes the person's edit to a plan kept in a file, atomically, unless the file
+    // changed since `basedOn`, the stamp the edit was made on: then nothing is written and
+    // the plan as it now stands comes back. A plan kept in an agent's transcript can't be
+    // written, and nor can one past 256 KiB: INVALID_FILE, saying why. An unknown item is
+    // NOT_FOUND, and one that is no plan, or whose file is gone, INVALID_FILE.
+    save: procedure
+      .input(
+        z.strictObject({
+          itemId: id,
+          text: z.string().max(256 * 1024),
+          basedOn: z.string().max(128),
+        }),
+      )
+      .output(planSaveResult),
     // Attaches a file the person picked to a terminal's bar, by a path absolute or from
     // the terminal's directory. A terminal the runner keeps nothing of is
     // TERMINAL_NOT_FOUND; a path that is no file is INVALID_FILE, saying why.

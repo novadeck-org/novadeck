@@ -159,7 +159,11 @@ const PlanBody = ({
           </span>
         )}
         {!plan.writable && (
-          <span className="plan-meta-hint">Read-only: Novadeck can't write this plan yet.</span>
+          <span className="plan-meta-hint">
+            {plan.truncated && item.plan?.source === "file"
+              ? "Read-only: it's too long to edit here."
+              : `Read-only: this plan lives in ${agent}'s messages, not a file, so notes can't go in it.`}
+          </span>
         )}
         {plan.truncated && (
           <span className="plan-meta-hint">It's long, so only its start is shown.</span>

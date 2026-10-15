@@ -939,9 +939,19 @@ forgets it, including one from an earlier runner.
     file is the lines around those pointed at, read to the last of them and up to 4 MiB
     more to count the rest: `total` once it reached the file's end, else `truncated`;
     lines past the end are pulled back to it and marked `clamped`. A plan is its text, cut
-    short past 256 KiB. Every read resolves symlinks again, refuses anything but a plain
+    short past 256 KiB (`truncated`), with `writable` (a plan in a file that is not cut
+    short, which `companions.save` can write) and `skill` (Novadeck's plugin is installed
+    for its agent). Every read resolves symlinks again, refuses anything but a plain
     file and never blocks on a pipe, and a file that now resolves to one that may hold
     secrets is held.
+  - `companions.save({ itemId, text, basedOn })` writes the person's edit to a plan kept in
+    a file, atomically, keeping the file's permissions, unless the file's stamp is no longer
+    `basedOn` (a text plan's stamp is a hash of its text; a file plan's is its size,
+    modification time and inode): then nothing is written and it answers
+    `{ saved: false, current: { stamp, text, truncated, skill } }`; else
+    `{ saved: true, stamp }`. A plan in an agent's transcript, one over 256 KiB, a missing
+    file or a text over 256 KiB is `INVALID_FILE` saying why; an unknown item `NOT_FOUND`.
+    Saves of one plan are handled one at a time.
   - `companions.attach({ terminalId, path, lines?, title? })` puts a file the person
     picked on a terminal's bar, by a path absolute or from the terminal's directory:
     `TERMINAL_NOT_FOUND`, or `INVALID_FILE` saying why for a missing path, a folder, a

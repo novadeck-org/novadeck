@@ -261,8 +261,8 @@ taskbar, marked new.
 What belongs there is a deliverable: something made to be looked at (an image or
 screenshot, a rendered page or dev server, a report, mockup, diagram or generated
 document, the one file the user asked for, or whatever they ask to see), shown once it
-is done, without `open`; with `open` when they asked to see it, which a revision of
-something they iterate on with the agent is. A source file counts while it is the one
+is done, with `open` so it opens at once; without `open` for anything supporting, which
+waits marked new. A source file counts while it is the one
 the user and the agent work on together; the files a change touches on the way do not,
 and the user reads those in the diff. Every harness hears this two ways, as no plugin ships a skill: the `show` tool's
 own description carries the rule, which every harness reads alike from `tools/list`,
@@ -307,11 +307,13 @@ the UI merges the edit into it line by line, as it merges an agent's rewrite, an
 again. The last stamp both sides agreed on is the merge base, so an agent's rewrite
 that already contains the user's edits merges cleanly. A rewrite reported while a save
 is under way waits for that save's answer, since it may have been written over it. A
-stamp must change whenever the text does, so derive it from the content (a hash), not
-a timestamp: two writes in one tick would otherwise share one. A backend following the
+stamp must change whenever the text does, so a backend derives it from the content, not
+from a timestamp alone: the runner stamps a text plan by a hash of its text, and a plan
+file by its size, modification time and inode, which a save changes by replacing the file. A backend following the
 file may report the UI's own save back; it must carry the stamp the save answered
-with, and the UI takes it as its own. The runner can't write plans yet, so its plans
-are read-only; the content-preview demo writes them. A save that
+with, and the UI takes it as its own. The runner writes plans kept in files (`companions.save`, atomic,
+refused on a stale stamp) and carries `writable` and `skill` in the plan's content; a
+plan in an agent's transcript, or one over 256 KiB, is read-only. A save that
 fails, or goes unanswered for 20 seconds, is tried again, less often each time, and the
 plan shows it isn't saved yet until it is, or until there's nothing left to save. The
 file keeps its line breaks when it uses one kind throughout; a mixed file saves as LF.
@@ -340,7 +342,7 @@ with every safety check again at that time:
   Its first tool, `show`, takes one source under the key that names it, with that
   source's own options inside: a `file` (its path and optional lines) or a page's
   `url`; beside it the options every source shares, a title and `open`, which the agent
-  sets when the user asked to see it (`asked`). A new kind of artifact adds a source key
+  sets for a deliverable it finished or one the user asked to see (`asked`). A new kind of artifact adds a source key
   of its own rather than more fields beside these. `close` takes the same `file` (its
   path alone) or `url` and removes what the agent showed under it from its own bar, as
   the person closing it would; what the person attached, moved away from it, or another

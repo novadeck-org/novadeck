@@ -206,6 +206,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       list: (input) => runner.companions.list(input),
       watch: () => runner.companions.watch(),
       content: (itemId, options) => runner.companions.content(itemId, options),
+      save: (input) => note(`save plan ${input.itemId}`, () => runner.companions.save(input)),
       attach: (input) => note(`attach ${input.path}`, () => runner.companions.attach(input)),
       move: (itemId, terminalId) =>
         note(`move ${itemId} ${terminalId}`, () => runner.companions.move(itemId, terminalId)),

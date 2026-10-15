@@ -104,9 +104,9 @@ const show: Tool<Shown> = {
     "to see. A source file is " +
     "one too while it is the file you are working on together, so show it and keep it " +
     "shown; the files a change touches on the way aren't, and the user reads those in the " +
-    "diff. Set open to true only when they asked to see it, which a revision of " +
-    "something you are iterating on with them is; otherwise it waits for them in Novadeck, " +
-    "marked new. Showing the same file or page again updates it, beside you or wherever " +
+    "diff. Set open to true for a deliverable you finish or they asked to see, " +
+    "so it opens at once; leave it off for anything supporting, which waits for them in " +
+    "Novadeck, marked new. Showing the same file or page again updates it, beside you or wherever " +
     "the user moved it, so one item per deliverable; while they have it open, each save " +
     "shows at once.",
   inputSchema: {
@@ -150,7 +150,8 @@ const show: Tool<Shown> = {
       },
       open: {
         type: "boolean",
-        description: "True only when the user asked to see it: it opens at once.",
+        description:
+          "True for a finished deliverable or one the user asked to see: it opens at once.",
       },
     },
     additionalProperties: false,

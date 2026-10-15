@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto"
 import { constants, type Stats } from "node:fs"
-import { open, realpath, stat, type FileHandle } from "node:fs/promises"
-import { basename, extname, resolve } from "node:path"
+import { lstat, open, realpath, rename, stat, unlink, type FileHandle } from "node:fs/promises"
+import { basename, dirname, extname, join, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
-import type { AgentName, ItemContent } from "@novadeck/protocol"
+import type { AgentName, ItemContent, PlanSaveResult } from "@novadeck/protocol"
 
+import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
 import type { ItemRecord } from "./records.js"
 import { failure, maxUrlChars, type PresentFailure } from "./request.js"
@@ -462,7 +463,7 @@ const decodePlans = async (
 export const planReady = (plan: PlanText): ItemContent => ({
   state: "ready",
   stamp: hashOf(plan.text),
-  content: { kind: "plan", ...plan },
+  content: { kind: "plan", ...plan, writable: false, skill: false },
 })
 
 /**
@@ -478,10 +479,93 @@ export const loadPlan = async (
     const plan = await readPlanFile(item.path)
     if (!plan) return unavailable("gone")
     const { stamp, ...text } = plan
-    return { state: "ready", stamp, content: { kind: "plan", ...text } }
+    return {
+      state: "ready",
+      stamp,
+      // One past what is read whole can't be written back without cutting it.
+      content: { kind: "plan", ...text, writable: !text.truncated, skill: false },
+    }
   }
   const plan = live ?? (await readTextPlan(item.plan.agent, item.path))
   return plan ? planReady(plan) : unavailable("gone")
+}
+
+/** What `savePlan` answers: the protocol's, but for whether the plan's agent has the skill. */
+type SavedPlan =
+  | Extract<PlanSaveResult, { saved: true }>
+  | { saved: false; current: Omit<Extract<PlanSaveResult, { saved: false }>["current"], "skill"> }
+
+/**
+ * Writes the person's edit to a plan kept in a file, unless the file is no longer as it
+ * was at stamp `basedOn`: then nothing is written and `current` is what it holds now. The
+ * text goes to a temporary file beside the plan, which replaces it at once, so a reader
+ * sees the old plan or the new, never a part. Only the plan's own regular file is written:
+ * a plan in an agent's transcript, a file that is gone, past what is shown whole, or no
+ * longer a plain file is refused. The rewritten file keeps its permissions.
+ */
+export const savePlan = async (
+  item: Pick<ItemRecord, "path" | "plan">,
+  text: string,
+  basedOn: string,
+): Promise<SavedPlan> => {
+  if (item.plan === null || item.path === null)
+    throw new DomainError("INVALID_FILE", "That isn't a plan.")
+  if (item.plan.format !== "file")
+    throw new DomainError(
+      "INVALID_FILE",
+      "This plan lives in the agent's messages; it can't be edited.",
+    )
+  if (Buffer.byteLength(text) > maxPlanBytes)
+    throw new DomainError("INVALID_FILE", "That plan is too long to save.")
+  // The file a link points at is the plan; the link is left in place.
+  const path = await realpath(item.path).catch(() => undefined)
+  const before = path === undefined ? undefined : await readPlanFile(path)
+  if (path === undefined || before === undefined)
+    throw new DomainError("INVALID_FILE", "The plan's file is gone.")
+  if (before.truncated)
+    throw new DomainError("INVALID_FILE", "That plan is too long to edit; saving would cut it.")
+  if (before.stamp !== basedOn) {
+    const { text: now, truncated, stamp } = before
+    return { saved: false, current: { stamp, text: now, truncated } }
+  }
+  const stats = await lstat(path)
+  if (!stats.isFile()) throw new DomainError("INVALID_FILE", "The plan's file is gone.")
+  const temporary = join(dirname(path), `.${basename(path)}.${process.pid}.${Date.now()}.tmp`)
+  const mode = stats.mode & 0o777
+  try {
+    const handle = await open(
+      temporary,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+      mode,
+    )
+    let written: Stats
+    try {
+      // The umask clipped the mode it was created with.
+      await handle.chmod(mode)
+      await handle.writeFile(text)
+      await handle.sync()
+      written = await handle.stat()
+    } finally {
+      await handle.close()
+    }
+    // The agent may have rewritten the plan since it was read: its version stands.
+    const now = await readPlanFile(path)
+    if (!now) throw new Error("The plan's file is gone.")
+    if (now.stamp !== before.stamp) {
+      await unlink(temporary).catch(() => {})
+      const { text: current, truncated, stamp } = now
+      return { saved: false, current: { stamp, text: current, truncated } }
+    }
+    await rename(temporary, path)
+    // Its size, change time and file survive the rename.
+    return { saved: true, stamp: stampOf(written) }
+  } catch (error) {
+    await unlink(temporary).catch(() => {})
+    throw new DomainError(
+      "INVALID_FILE",
+      `The plan couldn't be saved: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
 }
 
 /**
