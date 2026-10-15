@@ -167,6 +167,21 @@ type Made = { title: Description; headline: Headline; gist: Gist }
 const priority: Record<Task, number> = { headline: 0, gist: 1, title: 2 }
 const parsers = { title: parseDescription, headline: parseHeadline, gist: parseGist } as const
 
+// What the install check takes for a working GPU: a reply that is a JSON object with a
+// title of at least two letters in a row (a broken backend writes junk the grammar still closes). The check asks whether the engine runs the model and writes its reply in the
+// format, not whether the title is one murmur would show (those rules change with the
+// prompt, and a check that shared them failed on every machine when they did).
+const parseCheck = (raw: string): Description | undefined => {
+  try {
+    const title = (JSON.parse(raw) as { title?: unknown } | null)?.title
+    return typeof title === "string" && /\p{L}{2}/u.test(title)
+      ? { title: title.trim(), changed: true }
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** Resolves when `signal` aborts, never when there is none. */
 const dropped = (signal: AbortSignal | undefined): Promise<void> =>
   new Promise((resolve) => signal?.addEventListener("abort", () => resolve(), { once: true }))
@@ -686,6 +701,7 @@ export class Murmur implements Describer {
     signal: AbortSignal,
     task: T,
     input?: Input,
+    parse?: (raw: string) => Made[T] | undefined,
   ): Promise<Made[T] | undefined> {
     const running = await this.started(server, config, signal)
     const format = input === undefined ? formats[task] : formatOf(task, input)
@@ -727,6 +743,7 @@ export class Murmur implements Describer {
     // The model is held to what it was shown: a text that copies an example is refused. A
     // title also loses the project's name, which the person sits in already.
     const project = input?.kind === "agent" || input?.kind === "shell" ? input.project : null
+    if (typeof content === "string" && parse) return parse(content)
     return typeof content === "string"
       ? (parsers[task](
           content,
@@ -796,11 +813,11 @@ export class Murmur implements Describer {
         const config = { folder, model: this.modelPath(), device: device.id }
         // The first run loads the model and warms up the GPU, which later jobs do not pay for.
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
-        if (!(await this.complete(config, server, chat, limit, "title", checkDigest)))
+        if (!(await this.complete(config, server, chat, limit, "title", checkDigest, parseCheck)))
           throw new EngineError("The model's reply was no usable title.")
         const started = performance.now()
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
-        if (!(await this.complete(config, server, chat, limit, "title", checkDigest)))
+        if (!(await this.complete(config, server, chat, limit, "title", checkDigest, parseCheck)))
           throw new EngineError("The model's reply was no usable title.")
         return {
           device: device.name.slice(0, 256),

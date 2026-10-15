@@ -10,6 +10,8 @@
 //   "garbage"       answers with something that isn't the JSON asked for
 //   "device"        puts the device it runs on in its title
 //   "project"       answers a title that opens with the project "shopdeck", for a test of its removal
+//   "verbose"       answers a title that breaks the title rules (a verb phrase), which the check still takes
+//   "junk"          answers a title of symbols only, as a broken backend does under the grammar
 //   "same"          answers a title with `changed` false, as when the model sees no new work
 //   "log"           appends each request it is sent, as a line of JSON, to the model's file name + ".requests"
 // What the file says at the start steers loading ("fail", "late"); what it says at each
@@ -124,7 +126,11 @@ const server = createServer(async (request, response) => {
             ...(kind === "agent_title" && { changed: !mode.includes("same") }),
             title: mode.includes("project")
               ? "Shopdeck login redirect"
-              : text("Fake title", "Webhook key rotation"),
+              : mode.includes("junk")
+                ? "!!!!!!!!"
+                : mode.includes("verbose")
+                  ? "Add retries with backoff to the payment client"
+                  : text("Fake title", "Webhook key rotation"),
           }
   const content = mode.includes("garbage")
     ? "Sure! Here is a title for your terminal."
