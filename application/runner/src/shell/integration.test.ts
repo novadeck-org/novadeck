@@ -4225,6 +4225,17 @@ describe.skipIf(process.platform === "win32" || !existsSync(zsh))("zsh shell int
     expect(shown).toContain("rc read []")
   })
 
+  it("starts a command on the terminal's own device, not /dev/tty, which macOS's kqueue refuses", async ({
+    shell,
+  }) => {
+    const manager = shell.manager({ shell: zsh })
+    const terminal = await create(manager, shell, {
+      command: 'echo "in=$(tty) err=$(tty <&2)"',
+    })
+    const shown = await shell.until(manager, terminal.id, /in=\S+ err=\S+/)
+    expect(shown).toMatch(/in=\/dev\/(?:ttys|pts\/)\d+ err=\/dev\/(?:ttys|pts\/)\d+/)
+  })
+
   it("resumes an agent that then reports its session from the foreground", async ({ shell }) => {
     const session = randomUUID()
     fakeClaude(shell.home, shell.plugins, session)

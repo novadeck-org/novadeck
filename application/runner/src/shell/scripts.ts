@@ -180,12 +180,15 @@ __novadeck_resume() {
   add-zsh-hook -d precmd __novadeck_resume
   [[ -n "$NOVADECK_RESUME" ]] || return 0
   # Named so the command, which runs in here, sees none of its own as yours.
-  local __novadeck_file=$NOVADECK_RESUME __novadeck_command
+  local __novadeck_file=$NOVADECK_RESUME __novadeck_command __novadeck_tty
   unset NOVADECK_RESUME
   if [[ -f "$__novadeck_file" ]]; then
     __novadeck_command=$(<"$__novadeck_file")
     command rm -f -- "$__novadeck_file"
-    eval "$__novadeck_command" </dev/tty >/dev/tty 2>/dev/tty
+    # The terminal by its own name: macOS's kqueue refuses /dev/tty, so a program that
+    # watches its input there, as Bun does, would die with EINVAL.
+    __novadeck_tty=\${TTY:-/dev/tty}
+    eval "$__novadeck_command" <"$__novadeck_tty" >"$__novadeck_tty" 2>&1
   fi
   __novadeck_prompt
 }
