@@ -3,9 +3,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { ItemContent as RunnerContent, PlanSaveResult } from "@novadeck/protocol"
+import { RunnerError } from "@novadeck/protocol/client"
 import { vi } from "vitest"
 
-import { itemIdOf, type ItemContent } from "../../model/companion"
+import { itemIdOf, PlanUnwritableError, type ItemContent } from "../../model/companion"
 import { context, describe, expect, it } from "../../test"
 import { createRunnerCompanions, itemOf, windowOf } from "./companions"
 import { channel } from "./scripted"
@@ -21,6 +22,7 @@ const following = ({ livePages = false } = {}) => {
   const attached: unknown[] = []
   const saves: { itemId: string; text: string; basedOn: string }[] = []
   let saving: PlanSaveResult = { saved: true, stamp: "b2" }
+  let failure: unknown
   const companions = createRunnerCompanions(
     {
       content: (itemId, options) => {
@@ -31,6 +33,7 @@ const following = ({ livePages = false } = {}) => {
       },
       save: async (input) => {
         saves.push(input)
+        if (failure) throw failure
         return saving
       },
       attach: async (input) => {
@@ -48,6 +51,9 @@ const following = ({ livePages = false } = {}) => {
     asked,
     attached,
     saves,
+    saveFails: (error: unknown) => {
+      failure = error
+    },
     saveReturns: (result: PlanSaveResult) => {
       saving = result
     },
@@ -157,6 +163,24 @@ describe("the runner's companion content", () => {
     })
   })
 
+  it("says why a plan can't be written, and leaves any other failure as it is", async () => {
+    const app = following()
+    for (const reason of ["gone", "folder", "transcript", "too-large", "not-a-plan"]) {
+      app.saveFails(new RunnerError("PLAN_UNWRITABLE", "no", { data: { reason } }))
+      // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
+      const rejected = await app.companions.save(target, hero, "# New\n", "a1").catch((e) => e)
+      expect(rejected).toBeInstanceOf(PlanUnwritableError)
+      expect(rejected.reason).toBe(reason)
+    }
+    // Without a reason the runner can give, or with another code, the failure may pass.
+    const unreasoned = new RunnerError("PLAN_UNWRITABLE", "no", { data: { reason: "other" } })
+    app.saveFails(unreasoned)
+    await expect(app.companions.save(target, hero, "# New\n", "a1")).rejects.toBe(unreasoned)
+    const dropped = new RunnerError("DISCONNECTED")
+    app.saveFails(dropped)
+    await expect(app.companions.save(target, hero, "# New\n", "a1")).rejects.toBe(dropped)
+  })
+
   it("passes on a file cut short or pointing past its end", async () => {
     const app = following()
     app.follow()
@@ -225,7 +249,7 @@ describe("the runner's companion content", () => {
         // Only a plan in a file is written: a file is no plan, and an unknown item no item.
         await expect(
           runner.client.companions.save({ itemId: item.id, text: "x", basedOn: "" }),
-        ).rejects.toMatchObject({ code: "INVALID_FILE" })
+        ).rejects.toMatchObject({ code: "PLAN_UNWRITABLE", data: { reason: "not-a-plan" } })
         await expect(
           runner.client.companions.save({ itemId: crypto.randomUUID(), text: "x", basedOn: "" }),
         ).rejects.toMatchObject({ code: "NOT_FOUND" })

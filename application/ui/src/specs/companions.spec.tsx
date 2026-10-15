@@ -19,7 +19,14 @@ import {
   windowMenu,
 } from "./support/companions"
 import { gridView } from "./support/layouts"
-import { chooseView, expectStaysAbsent, isMac, terminal, terminalTab } from "./support/workspace"
+import {
+  chooseView,
+  expectStaysAbsent,
+  isMac,
+  openWorkspace,
+  terminal,
+  terminalTab,
+} from "./support/workspace"
 
 describe("A terminal's taskbar", () => {
   it("shows its agent's plan, what it showed, and its messages, stacked by kind", async () => {
@@ -177,6 +184,73 @@ describe("A plan", () => {
 
     await expect.poll(() => scroll.scrollTop).toBeGreaterThan(0)
     await expect.element(path).toBeInViewport()
+  })
+})
+
+describe("A plan whose edits can't be saved", () => {
+  // Opens Build Studio's plan with the debug panel's fault in place, and types into it.
+  const typeInto = async (fault: string): Promise<void> => {
+    await openWorkspace(`/projects/studio/sessions/initial/grid?demo=showcase&planFault=${fault}`)
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    const content = (): HTMLElement | null =>
+      companionPane("Build Studio").element().querySelector<HTMLElement>(".cm-content")
+    await expect.poll(content).not.toBeNull()
+    content()!.focus()
+    await userEvent.keyboard("Draft ")
+    await expect.poll(() => content()!.textContent).toContain("Draft ")
+  }
+
+  it("says why, keeps the edits, and offers to copy them or try again", async () => {
+    await typeInto("folder")
+    const pane = companionPane("Build Studio")
+    await expect
+      .element(
+        pane.getByText(
+          "Novadeck can't write to this plan's folder, so your edits can't be saved. Your edits are kept here until you close this plan.",
+        ),
+      )
+      .toBeVisible()
+    await expect.element(pane.getByRole("button", { name: "Copy my edits" })).toBeVisible()
+    const notice = (): Element | null => pane.element().querySelector(".plan-notice")
+    const before = notice()
+    await pane.getByRole("button", { name: "Try saving again" }).click()
+    // A new save was tried, which the folder refused again: the notice went and came back.
+    await expect.poll(() => notice() !== null && notice() !== before).toBe(true)
+    await expect.element(pane.getByText(/Novadeck can't write to this plan's folder/)).toBeVisible()
+    expect(pane.element().querySelector(".cm-content")!.textContent).toContain("Draft ")
+  })
+
+  it("asks before closing the plan once it was placed elsewhere, copying the edits first", async () => {
+    await typeInto("folder")
+    await dragIconToBar("Build Studio", "Plan: A home for Studio", "Refactor auth")
+    // Beside Refactor auth's own plan, which only hides; the placed one would be lost.
+    await chooseFromIconMenu("Refactor auth", "2 plans", "Close 2 plans")
+    const dialog = page.getByRole("alertdialog")
+    await expect
+      .element(dialog.getByText(/couldn't be saved, and closing it loses them/))
+      .toBeVisible()
+    await dialog.getByRole("button", { name: "Cancel" }).click()
+    await expect.element(dialog).not.toBeInTheDocument()
+    const placed = taskbarIcon("Refactor auth", "Plan: A home for Studio")
+    await expect.element(placed).toBeVisible()
+
+    await chooseFromIconMenu("Refactor auth", "Plan: A home for Studio", "Close")
+    await page.getByRole("button", { name: "Copy my edits and close" }).click()
+    await expect.element(placed).not.toBeInTheDocument()
+  })
+
+  it("keeps saying a plan in its agent's messages is read-only", async () => {
+    await openWorkspace("/projects/studio/sessions/initial/grid?demo=showcase&planFault=transcript")
+    await taskbarIcon("Build Studio", "Plan: A home for Studio").click()
+    await expect
+      .element(companionPane("Build Studio").getByText(/^Read-only: this plan lives in Codex/))
+      .toBeVisible()
+  })
+
+  it("only says a save is being tried again while a failure may pass", async () => {
+    await typeInto("failing")
+    const pane = companionPane("Build Studio")
+    await expect.element(pane.getByText("Not saved yet. Trying again.")).toBeVisible()
   })
 })
 

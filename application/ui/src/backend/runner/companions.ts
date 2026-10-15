@@ -5,11 +5,13 @@ import {
   type CompanionWindow as RunnerWindow,
   type ItemContent as RunnerContent,
 } from "@novadeck/protocol"
+import { planUnwritable } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/protocol/client"
 
 import {
   itemIdOf,
   type CompanionItem,
+  PlanUnwritableError,
   type Companions,
   type ItemContent,
 } from "../../model/companion"
@@ -92,7 +94,11 @@ export const createRunnerCompanions = (
     }
   },
   save: async (_target, itemId, text, basedOn) => {
-    const result = await runner.save({ itemId, text, basedOn })
+    const result = await runner.save({ itemId, text, basedOn }).catch((error: unknown) => {
+      // A plan that can't be written says why; any other failure may pass.
+      const why = hasCode(error, "PLAN_UNWRITABLE") && planUnwritable.safeParse(error.data)
+      throw why && why.success ? new PlanUnwritableError(why.data.reason) : error
+    })
     if (result.saved) return result
     const { stamp, ...plan } = result.current
     // Only a plan in a file is saved; one cut short is read-only.

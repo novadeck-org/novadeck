@@ -1483,7 +1483,8 @@ export class Terminals {
         record.activity = next
         this.publishAgent(record, false)
       },
-      fileHead: async (path) => (await readPlanFile(path))?.text.slice(0, 16 * 1024) ?? null,
+      fileHead: async (path) =>
+        (await readPlanFile(path).catch(() => undefined))?.text.slice(0, 16 * 1024) ?? null,
       cleared: () => {
         // Murmur is off or gone: its titles go, running terminals' and saved ones', and the
         // headlines and gists it wrote.

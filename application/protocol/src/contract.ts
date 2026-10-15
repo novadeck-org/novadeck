@@ -44,6 +44,7 @@ import {
   voiceTranscript,
   voiceUnavailable,
   conflictReason,
+  planUnwritable,
   workspaceSession,
 } from "./schemas.js"
 
@@ -57,6 +58,8 @@ export const errors = {
   INVALID_FILE: { status: 400 },
   // Optional data says why, for typing into an agent's terminal (`conflictReason`).
   CONFLICT: { status: 409, data: conflictReason.optional() },
+  // A plan can't be written, and why (`planUnwritable`): saving it again won't help.
+  PLAN_UNWRITABLE: { status: 409, data: planUnwritable },
   RESOURCE_LIMIT: { status: 429 },
   TERMINAL_LIMIT: { status: 429 },
   TERMINAL_NOT_FOUND: { status: 404 },
@@ -307,8 +310,9 @@ export const contract = {
     // Writes the person's edit to a plan kept in a file, atomically, unless the file
     // changed since `basedOn`, the stamp the edit was made on: then nothing is written and
     // the plan as it now stands comes back. A plan kept in an agent's transcript can't be
-    // written, and nor can one past 256 KiB: INVALID_FILE, saying why. An unknown item is
-    // NOT_FOUND, and one that is no plan, or whose file is gone, INVALID_FILE.
+    // written, and nor can one past 256 KiB, a file that is gone, one in a folder the
+    // runner may not write to, or an item that is no plan: PLAN_UNWRITABLE, saying why
+    // (`gone`, `folder`, `transcript`, `too-large`, `not-a-plan`). An unknown item is NOT_FOUND.
     save: procedure
       .input(
         z.strictObject({

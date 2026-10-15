@@ -524,33 +524,63 @@ describe("saving a plan", () => {
     })
   })
 
-  it("refuses a plan in a transcript, a gone file, a too long text, and a plan cut short", async ({
-    directory,
-  }) => {
+  it("refuses what can never be saved as PLAN_UNWRITABLE, saying why", async ({ directory }) => {
     const path = join(directory, "p.md")
     writeFileSync(path, "# Plan\n")
     const stamp = (await readPlanFile(path))?.stamp ?? ""
+    const reason = (why: string) => ({ code: "PLAN_UNWRITABLE", data: { reason: why } })
     await expect(
       savePlan(
         { path, plan: { agent: "claude", session: "s", actor: null, format: "text" } },
         "x",
         "",
       ),
-    ).rejects.toMatchObject({ code: "INVALID_FILE" })
-    await expect(savePlan({ path, plan: null }, "x", stamp)).rejects.toMatchObject({
-      code: "INVALID_FILE",
-    })
-    await expect(savePlan(filePlan(join(directory, "none.md")), "x", stamp)).rejects.toMatchObject({
-      code: "INVALID_FILE",
-    })
+    ).rejects.toMatchObject(reason("transcript"))
+    await expect(savePlan({ path, plan: null }, "x", stamp)).rejects.toMatchObject(
+      reason("not-a-plan"),
+    )
+    await expect(savePlan(filePlan(join(directory, "none.md")), "x", stamp)).rejects.toMatchObject(
+      reason("gone"),
+    )
+    // No longer a plain file.
+    mkdirSync(join(directory, "dir.md"))
+    await expect(savePlan(filePlan(join(directory, "dir.md")), "x", stamp)).rejects.toMatchObject(
+      reason("gone"),
+    )
+    await expect(savePlan(filePlan(path), "a".repeat(256 * 1024 + 1), stamp)).rejects.toMatchObject(
+      reason("too-large"),
+    )
     // A multibyte text under the character limit can still pass the byte limit.
-    await expect(savePlan(filePlan(path), "ż".repeat(200 * 1024), stamp)).rejects.toMatchObject({
-      code: "INVALID_FILE",
-    })
+    await expect(savePlan(filePlan(path), "ż".repeat(200 * 1024), stamp)).rejects.toMatchObject(
+      reason("too-large"),
+    )
     writeFileSync(path, "a".repeat(256 * 1024 + 10))
     await expect(
       savePlan(filePlan(path), "short", (await readPlanFile(path))?.stamp ?? ""),
-    ).rejects.toMatchObject({ code: "INVALID_FILE" })
+    ).rejects.toMatchObject(reason("too-large"))
     expect(readFileSync(path, "utf8")).toHaveLength(256 * 1024 + 10)
+    expect(readdirSync(directory).toSorted()).toEqual(["dir.md", "p.md"])
   })
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "refuses a plan in a folder it may not write to as PLAN_UNWRITABLE folder",
+    async ({ directory }) => {
+      const folder = join(directory, "ro")
+      mkdirSync(folder)
+      const path = join(folder, "p.md")
+      writeFileSync(path, "# Plan\n")
+      const stamp = (await readPlanFile(path))?.stamp ?? ""
+      chmodSync(folder, 0o555)
+      try {
+        await expect(savePlan(filePlan(path), "# Edited\n", stamp)).rejects.toMatchObject({
+          code: "PLAN_UNWRITABLE",
+          data: { reason: "folder" },
+        })
+        expect(readdirSync(folder)).toEqual(["p.md"])
+        expect(readFileSync(path, "utf8")).toBe("# Plan\n")
+      } finally {
+        chmodSync(folder, 0o755)
+      }
+    },
+  )
 })

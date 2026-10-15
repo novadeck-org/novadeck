@@ -1,5 +1,6 @@
 import {
   itemIdOf,
+  PlanUnwritableError,
   type CompanionItem,
   type CompanionKey,
   type ItemContent,
@@ -191,6 +192,44 @@ describe("showcase agents", () => {
         saved: false,
         current: { plan: { text: edited } },
       })
+    })
+  })
+
+  context("when its plan is put in a fault", () => {
+    it("tells whoever follows it, and puts it back", () => {
+      const { showcase, contentOf } = running()
+      const heard: ItemContent[] = []
+      showcase.follow(session, studioPlan, { reveal: false }, (content) => heard.push(content))
+      expect(showcase.fault(studio, "gone")).toBe(true)
+      expect(heard.at(-1)).toEqual({ state: "unavailable", reason: "gone", size: null })
+      showcase.fault(studio, "transcript")
+      expect(contentOf(studioPlan)).toMatchObject({ content: { writable: false } })
+      showcase.fault(studio, undefined)
+      expect(contentOf(studioPlan)).toMatchObject({ content: { writable: true } })
+    })
+
+    it("refuses saves for the reason, or fails them without one", async () => {
+      const { showcase, stampOf } = running()
+      for (const fault of ["gone", "folder", "transcript", "too-large"] as const) {
+        showcase.fault(studio, fault)
+        // eslint-disable-next-line no-await-in-loop -- Each step waits for the one before.
+        const refused = await showcase
+          .save(session, studioPlan, "x", stampOf(studioPlan))
+          .catch((error: unknown) => error)
+        expect(refused).toBeInstanceOf(PlanUnwritableError)
+        expect((refused as PlanUnwritableError).reason).toBe(fault)
+      }
+      showcase.fault(studio, "failing")
+      const failed = await showcase.save(session, studioPlan, "x", "1").catch((e: unknown) => e)
+      expect(failed).toBeInstanceOf(Error)
+      expect(failed).not.toBeInstanceOf(PlanUnwritableError)
+    })
+
+    it("leaves the other agent's plan alone, and a terminal with no agent", () => {
+      const { showcase, contentOf } = running()
+      showcase.fault(studio, "gone")
+      expect(contentOf(authPlan)).toMatchObject({ state: "ready" })
+      expect(showcase.fault(devServer, "gone")).toBe(false)
     })
   })
 

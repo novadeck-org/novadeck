@@ -14,6 +14,7 @@ import { demoTurns } from "../turns"
 import { createDemo, type DemoVariant } from "../variants"
 import { createDebugPanel } from "./DebugPanel"
 import { inboxGroups } from "./inbox"
+import { planGroups } from "./plans"
 import { createDemoPortable, type DemoPortable } from "./portable"
 import { createDemoSandbox } from "./sandbox"
 import { createDemoStates } from "./states"
@@ -180,6 +181,7 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
         groups: [
           ...states.groups,
           ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined),
+          ...planGroups(inner.companions),
         ],
       },
       dispatch: () => sink?.dispatch,

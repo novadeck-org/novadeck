@@ -314,8 +314,11 @@ file may report the UI's own save back; it must carry the stamp the save answere
 with, and the UI takes it as its own. The runner writes plans kept in files (`companions.save`, atomic,
 refused on a stale stamp) and carries `writable` and `skill` in the plan's content; a
 plan in an agent's transcript, or one over 256 KiB, is read-only. A save that
-fails, or goes unanswered for 20 seconds, is tried again, less often each time, and the
-plan shows it isn't saved yet until it is, or until there's nothing left to save. The
+can never work (`PLAN_UNWRITABLE`: the file is gone, its folder can't be written, the plan
+is in a transcript or too large) stops at once and the plan says why. One that fails
+for a moment, or goes unanswered for 20 seconds, is tried again after 2, 4, 8 and 16
+seconds, then stalls after 5 tries with a Retry button. Until it is saved the plan shows it
+isn't, and the edits stay in the editor, which can Copy my edits. The
 file keeps its line breaks when it uses one kind throughout; a mixed file saves as LF.
 
 ### The runner's items

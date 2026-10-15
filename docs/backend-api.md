@@ -949,8 +949,12 @@ forgets it, including one from an earlier runner.
     `basedOn` (a text plan's stamp is a hash of its text; a file plan's is its size,
     modification time and inode): then nothing is written and it answers
     `{ saved: false, current: { stamp, text, truncated, skill } }`; else
-    `{ saved: true, stamp }`. A plan in an agent's transcript, one over 256 KiB, a missing
-    file or a text over 256 KiB is `INVALID_FILE` saying why; an unknown item `NOT_FOUND`.
+    `{ saved: true, stamp }`. What can never be saved is `PLAN_UNWRITABLE`, whose data says
+    why: `transcript` (the plan is in an agent's messages), `too-large` (a text or file over
+    256 KiB), `gone` (the file is missing or no plain file), `folder` (the runner may not
+    write in the plan's folder) or `not-a-plan`. Any other failure (a full disk, a file held
+    open by another program) is an ordinary error that may pass; an unknown item is
+    `NOT_FOUND`.
     Saves of one plan are handled one at a time.
   - `companions.attach({ terminalId, path, lines?, title? })` puts a file the person
     picked on a terminal's bar, by a path absolute or from the terminal's directory:
@@ -984,7 +988,7 @@ forgets it, including one from an earlier runner.
   transcript) and whether the person has seen the first-run choice of agents.
 
 Typed errors include `UNAUTHORIZED`, `INCOMPATIBLE_PROTOCOL`, `CONFLICT`,
-`INVALID_DIRECTORY`, `INVALID_FILE`, `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,
+`INVALID_DIRECTORY`, `INVALID_FILE`, `PLAN_UNWRITABLE` (a plan can never be saved; its data says why), `NOT_FOUND`, `TERMINAL_NOT_FOUND`, `CONTROL_REQUIRED`, `CONTROL_IN_USE`,
 `INVALID_CURSOR`, `UPLOAD_TOO_LARGE`, `RESOURCE_LIMIT` (too many calls in flight; retry later),
 `TERMINAL_LIMIT` (the runner's terminal cap is reached), and `SLOW_CONSUMER`. A
 `CONFLICT` about typing into an agent's terminal (`agents.prompt`, `agents.answer`,

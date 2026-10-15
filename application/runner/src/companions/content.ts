@@ -5,7 +5,7 @@ import { basename, dirname, extname, join, resolve } from "node:path"
 import { StringDecoder } from "node:string_decoder"
 
 import type { PlanSource } from "@novadeck/harness-core/events"
-import type { AgentName, ItemContent, PlanSaveResult } from "@novadeck/protocol"
+import type { AgentName, ItemContent, PlanSaveResult, PlanUnwritable } from "@novadeck/protocol"
 
 import { DomainError } from "../errors.js"
 import { harnesses } from "../harnesses/registry.js"
@@ -318,7 +318,23 @@ export type PlanText = {
   readonly changedAt: number | null
 }
 
-/** A plan's file as it stands, or undefined while it is not there, or not a file. */
+/** The error code of a failed file operation, such as `EACCES`. */
+const errnoOf = (error: unknown): string | undefined =>
+  typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+    ? error.code
+    : undefined
+
+/** Whether an error says a path is not there: nothing to read, rather than a failed read. */
+const isMissing = (error: unknown): boolean => {
+  const code = errnoOf(error)
+  return code === "ENOENT" || code === "ENOTDIR"
+}
+
+/**
+ * A plan's file as it stands, or undefined while it is not there, or not a file. Any other
+ * failure to read it (no permission, too many files open, a failing disk) is raised: it
+ * does not say the file is gone.
+ */
 export const readPlanFile = async (
   path: string,
 ): Promise<(PlanText & { readonly stamp: string }) | undefined> => {
@@ -335,8 +351,9 @@ export const readPlanFile = async (
     } finally {
       await handle.close()
     }
-  } catch {
-    return undefined
+  } catch (error) {
+    if (isMissing(error)) return undefined
+    throw error
   }
 }
 
@@ -476,7 +493,8 @@ export const loadPlan = async (
 ): Promise<ItemContent> => {
   if (item.path === null || item.plan === null) return unavailable("gone")
   if (item.plan.format === "file") {
-    const plan = await readPlanFile(item.path)
+    const plan = await readPlanFile(item.path).catch(() => "unreadable" as const)
+    if (plan === "unreadable") return unavailable("unreadable")
     if (!plan) return unavailable("gone")
     const { stamp, ...text } = plan
     return {
@@ -495,43 +513,77 @@ type SavedPlan =
   | Extract<PlanSaveResult, { saved: true }>
   | { saved: false; current: Omit<Extract<PlanSaveResult, { saved: false }>["current"], "skill"> }
 
+const renameTries = 3
+const renameWait = 100
+
+/**
+ * Renames over a plan. Another program holding the plan open (a scanner, an indexer, an
+ * editor) makes this fail for a moment on Windows with EPERM, EACCES or EBUSY, so it is
+ * tried a few times before giving up.
+ */
+const renameSettled = async (from: string, to: string): Promise<void> => {
+  for (let tried = 1; ; tried++) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- One try after another.
+      await rename(from, to)
+      return
+    } catch (error) {
+      const code = errnoOf(error)
+      if (tried >= renameTries || (code !== "EPERM" && code !== "EACCES" && code !== "EBUSY"))
+        throw error
+      // eslint-disable-next-line no-await-in-loop -- Waits between tries.
+      await new Promise((done) => setTimeout(done, renameWait))
+    }
+  }
+}
+
+/** Why a plan can't be written, as `PLAN_UNWRITABLE` carries it. */
+const unwritable = (reason: PlanUnwritable["reason"], message: string) =>
+  new DomainError("PLAN_UNWRITABLE", message, { reason })
+
 /**
  * Writes the person's edit to a plan kept in a file, unless the file is no longer as it
  * was at stamp `basedOn`: then nothing is written and `current` is what it holds now. The
  * text goes to a temporary file beside the plan, which replaces it at once, so a reader
- * sees the old plan or the new, never a part. Only the plan's own regular file is written:
- * a plan in an agent's transcript, a file that is gone, past what is shown whole, or no
- * longer a plain file is refused. The rewritten file keeps its permissions.
+ * sees the old plan or the new, never a part. Only the plan's own regular file is written.
+ * What can never succeed is refused as PLAN_UNWRITABLE, saying why: a plan in an agent's
+ * transcript, a file that is gone or no longer a plain file, a text or file past 256 KiB,
+ * a folder the runner may not write to, an item that is no plan. Any other failure, such as
+ * a full disk, is not classified: it may pass, so it is raised as it is. The rewritten file
+ * keeps its permissions, and no temporary file is left behind.
  */
 export const savePlan = async (
   item: Pick<ItemRecord, "path" | "plan">,
   text: string,
   basedOn: string,
 ): Promise<SavedPlan> => {
-  if (item.plan === null || item.path === null)
-    throw new DomainError("INVALID_FILE", "That isn't a plan.")
+  if (item.plan === null || item.path === null) throw unwritable("not-a-plan", "That isn't a plan.")
   if (item.plan.format !== "file")
-    throw new DomainError(
-      "INVALID_FILE",
-      "This plan lives in the agent's messages; it can't be edited.",
-    )
-  if (Buffer.byteLength(text) > maxPlanBytes)
-    throw new DomainError("INVALID_FILE", "That plan is too long to save.")
+    throw unwritable("transcript", "This plan lives in the agent's messages; it can't be edited.")
+  if (text.length > maxPlanBytes || Buffer.byteLength(text) > maxPlanBytes)
+    throw unwritable("too-large", "That plan is too long to save.")
   // The file a link points at is the plan; the link is left in place.
-  const path = await realpath(item.path).catch(() => undefined)
+  const path = await realpath(item.path).catch((error: unknown) => {
+    if (isMissing(error)) return undefined
+    throw error
+  })
   const before = path === undefined ? undefined : await readPlanFile(path)
   if (path === undefined || before === undefined)
-    throw new DomainError("INVALID_FILE", "The plan's file is gone.")
+    throw unwritable("gone", "The plan's file is gone.")
   if (before.truncated)
-    throw new DomainError("INVALID_FILE", "That plan is too long to edit; saving would cut it.")
+    throw unwritable("too-large", "That plan is too long to edit; saving would cut it.")
   if (before.stamp !== basedOn) {
     const { text: now, truncated, stamp } = before
     return { saved: false, current: { stamp, text: now, truncated } }
   }
-  const stats = await lstat(path)
-  if (!stats.isFile()) throw new DomainError("INVALID_FILE", "The plan's file is gone.")
+  const stats = await lstat(path).catch((error: unknown) => {
+    if (isMissing(error)) return undefined
+    throw error
+  })
+  if (!stats?.isFile()) throw unwritable("gone", "The plan's file is gone.")
   const temporary = join(dirname(path), `.${basename(path)}.${process.pid}.${Date.now()}.tmp`)
   const mode = stats.mode & 0o777
+  let renaming = false
   try {
     const handle = await open(
       temporary,
@@ -541,7 +593,8 @@ export const savePlan = async (
     let written: Stats
     try {
       // The umask clipped the mode it was created with.
-      await handle.chmod(mode)
+      // A file system without modes (FAT, some network shares) refuses; the save goes on.
+      await handle.chmod(mode).catch(() => {})
       await handle.writeFile(text)
       await handle.sync()
       written = await handle.stat()
@@ -549,22 +602,30 @@ export const savePlan = async (
       await handle.close()
     }
     // The agent may have rewritten the plan since it was read: its version stands.
-    const now = await readPlanFile(path)
-    if (!now) throw new Error("The plan's file is gone.")
+    // A failed read is not the folder refusing: it is raised without its code.
+    const now = await readPlanFile(path).catch((error: unknown) => {
+      throw new Error("The plan couldn't be read.", { cause: error })
+    })
+    if (!now) throw unwritable("gone", "The plan's file is gone.")
     if (now.stamp !== before.stamp) {
       await unlink(temporary).catch(() => {})
       const { text: current, truncated, stamp } = now
       return { saved: false, current: { stamp, text: current, truncated } }
     }
-    await rename(temporary, path)
+    renaming = true
+    await renameSettled(temporary, path)
     // Its size, change time and file survive the rename.
     return { saved: true, stamp: stampOf(written) }
   } catch (error) {
     await unlink(temporary).catch(() => {})
-    throw new DomainError(
-      "INVALID_FILE",
-      `The plan couldn't be saved: ${error instanceof Error ? error.message : String(error)}`,
-    )
+    if (error instanceof DomainError) throw error
+    const code = errnoOf(error)
+    // The folder refuses the runner: saving again won't help. A rename refused after the
+    // temporary file was written in that folder is a plan another program holds: it passes.
+    if (code === "EROFS" || (!renaming && (code === "EACCES" || code === "EPERM")))
+      throw unwritable("folder", "The plan's folder can't be written to.")
+    if (code === "ENOENT") throw unwritable("gone", "The plan's file is gone.")
+    throw error
   }
 }
 
@@ -573,7 +634,10 @@ export const savePlan = async (
  * its file can't be read.
  */
 export const planTitle = async (source: PlanSource): Promise<string | undefined> => {
-  const text = source.kind === "text" ? source.text : (await readPlanFile(source.path))?.text
+  const text =
+    source.kind === "text"
+      ? source.text
+      : (await readPlanFile(source.path).catch(() => undefined))?.text
   if (text === undefined) return undefined
   const heading = /^#{1,6}\s+(.+?)\s*#*\s*$/m.exec(text)?.[1]
   return heading ?? (source.kind === "file" ? basename(source.path) : undefined)

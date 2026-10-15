@@ -211,6 +211,20 @@ export type PlanSaved =
   | { readonly saved: true; readonly stamp: string }
   | { readonly saved: false; readonly current: PlanVersion }
 
+// Why a plan can't be written, which saving it again won't change until the plan or its
+// folder does: its file is gone, Novadeck may not write in its folder or file, it lives in
+// an agent's messages, it is past what Novadeck writes, or the item is no plan.
+export type PlanUnwritableReason = "gone" | "folder" | "transcript" | "too-large" | "not-a-plan"
+
+// What `save` rejects with when the plan can't be written for good. Any other rejection
+// is a failure that may pass, which the pane tries again.
+export class PlanUnwritableError extends Error {
+  constructor(readonly reason: PlanUnwritableReason) {
+    super(`The plan can't be written: ${reason}`)
+    this.name = "PlanUnwritableError"
+  }
+}
+
 // Where the items' content comes from. The items themselves reach the workspace store
 // as the backend's seed and actions, like terminals.
 export type Companions = {
@@ -222,7 +236,8 @@ export type Companions = {
     options: { readonly reveal: boolean },
     on: (content: ItemContent) => void,
   ) => () => void
-  // Writes the person's edit to the plan, unless it changed since `basedOn`.
+  // Writes the person's edit to the plan, unless it changed since `basedOn`. Rejects with
+  // a `PlanUnwritableError` when the plan can't be written at all.
   readonly save: (
     target: WorkspaceTarget,
     itemId: ItemId,

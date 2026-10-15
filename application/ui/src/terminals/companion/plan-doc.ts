@@ -1,4 +1,4 @@
-import type { PlanVersion } from "../../model/companion"
+import type { ItemContent, PlanUnwritableReason, PlanVersion } from "../../model/companion"
 
 // A stretch of the text the agent's latest revision wrote.
 export type Mark = { readonly from: number; readonly to: number }
@@ -26,6 +26,11 @@ export type PlanDoc = {
   readonly resolved: number
   // The last save didn't reach the file; it's tried again.
   readonly unsaved: boolean
+  // The backend said saving won't work until the plan or its folder changes, and why:
+  // saves stop until the person asks for another try.
+  readonly blocked: PlanUnwritableReason | null
+  // Saves failed too many times in a row: they stop until the person retries.
+  readonly stalled: boolean
 }
 
 export const lf = (text: string): string => text.replace(/\r\n?/g, "\n")
@@ -50,7 +55,37 @@ export const docOf = ({ stamp, plan }: PlanVersion): PlanDoc => ({
   showChanges: false,
   resolved: 0,
   unsaved: false,
+  blocked: null,
+  stalled: false,
 })
+
+// Why the person's edits can't reach the plan's file, if they can't: its content says it
+// is gone, the backend can't write it, or a save said so. Saving can't work then until
+// something changes.
+// Whether the content says the file can't be read for now, which saves can't get past
+// either, though trying again may help.
+export const unreadableNow = (content: ItemContent | undefined): boolean =>
+  content?.state === "unavailable" && content.reason === "unreadable"
+
+// Edits the file doesn't hold and can't take for now: they live only in the pane, so
+// closing the plan loses them.
+export const stuckEdits = (plan: PlanDoc, content: ItemContent | undefined): boolean =>
+  plan.writable &&
+  plan.text !== plan.base &&
+  (plan.blocked !== null ||
+    plan.stalled ||
+    blockOf(plan, content) === "gone" ||
+    unreadableNow(content))
+
+export const blockOf = (
+  plan: PlanDoc,
+  content: ItemContent | undefined,
+): PlanUnwritableReason | null =>
+  content?.state === "unavailable" && content.reason === "gone"
+    ? "gone"
+    : !plan.writable
+      ? "transcript"
+      : plan.blocked
 
 // The latest rewrite's marks, while the text is still the one they describe.
 export const currentMarks = (plan: PlanDoc): readonly Mark[] =>

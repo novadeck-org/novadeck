@@ -2,9 +2,11 @@ import {
   companionKeyOf,
   notesIn,
   planVersionOf,
+  PlanUnwritableError,
   type Companions,
   type ItemContent,
   type ItemId,
+  type PlanUnwritableReason,
   type PlanVersion,
 } from "../../model/companion"
 import { messagesKey } from "../../model/companion-bar"
@@ -50,6 +52,9 @@ export type PlanActions = {
   // Focus left the plan: what's waiting for a pause in typing is saved now, so an agent
   // told to re-read it finds it.
   readonly flush: () => void
+  // The person asked to try saving again after saves stopped: they go on, and a plan
+  // that can be written again is cleared of what stopped them.
+  readonly retry: () => void
   readonly toggleChanges: () => void
 }
 
@@ -88,6 +93,9 @@ type Session = {
   readonly pending: Map<ItemId, PlanVersion>
   // Per plan, how many saves in a row failed, which spaces out the next try.
   readonly failures: Map<ItemId, number>
+  // Per plan, whether the wait before the next try of a failed save is running: edits and
+  // focus changes leave it alone, so only tries it spaced out count toward the cap.
+  readonly backingOff: Set<ItemId>
   // Per plan, texts sent in saves whose answer never came: the file may hold any of them.
   readonly unconfirmed: Map<ItemId, readonly string[]>
 }
@@ -120,6 +128,7 @@ const lingerMs = 30_000
 const typingPause = 400
 
 const saveSoon = (session: Session, target: WorkspaceTarget, id: ItemId): void => {
+  if (session.backingOff.has(id)) return
   clearTimeout(session.waiting.get(id))
   session.waiting.set(
     id,
@@ -132,32 +141,48 @@ const saveSoon = (session: Session, target: WorkspaceTarget, id: ItemId): void =
 
 // Saves what's waiting at once, as when the editor closes.
 const saveNow = (session: Session, target: WorkspaceTarget, id: ItemId): void => {
-  clearTimeout(session.waiting.get(id))
-  session.waiting.delete(id)
+  // While a failed save waits to be tried again, only the wait's end tries it.
+  if (!session.backingOff.has(id)) {
+    clearTimeout(session.waiting.get(id))
+    session.waiting.delete(id)
+  }
   persist(session, target, id)
 }
 
 // How long a save may go unanswered before it counts as failed and is tried again.
 const saveTimeout = 20_000
 
+// How many saves in a row may fail before they stop until the person retries.
+const failureCap = 5
+
 // The person's edits reach the file one save at a time. A save the file refused, having
 // changed since, merges like any rewrite, and what's left of the edits goes again. A
-// save that failed is tried again, less often each time, and the plan says so.
-const persist = (session: Session, target: WorkspaceTarget, id: ItemId): void => {
+// save that failed is tried again, less often each time, and the plan says so, until
+// `failureCap` fail in a row. One the backend says can never work, and one made while the
+// plan's file is gone, stop at once. Either waits for the person to retry (`manual`).
+const persist = (session: Session, target: WorkspaceTarget, id: ItemId, manual = false): void => {
   const plan = planIn(session, id)
   // A plan the backend can't write is never saved.
   if (session.saving.has(id) || !plan?.writable) return
-  const mark = (unsaved: boolean): void => {
+  // Says how saving stands, changing the plan only if that's new.
+  const stand = (flags: Pick<PlanDoc, "unsaved" | "blocked" | "stalled">): void => {
     withPlan(session, id, (current) =>
-      current.unsaved === unsaved ? current : { ...current, unsaved },
+      current.unsaved === flags.unsaved &&
+      current.blocked === flags.blocked &&
+      current.stalled === flags.stalled
+        ? current
+        : { ...current, ...flags },
     )
   }
   // Nothing left to save, as when the person undid the edit or the agent wrote the same.
   if (plan.text === plan.base) {
     session.failures.delete(id)
-    if (plan.unsaved) mark(false)
+    stand({ unsaved: false, blocked: null, stalled: false })
     return
   }
+  const content = session.panes.getSnapshot().content[id]
+  const gone = content?.state === "unavailable" && content.reason === "gone"
+  if (!manual && (plan.blocked || plan.stalled || gone || session.backingOff.has(id))) return
   const sent = plan.text
   const basedOn = plan.revision
   session.saving.set(id, sent)
@@ -171,23 +196,47 @@ const persist = (session: Session, target: WorkspaceTarget, id: ItemId): void =>
     session.saving.delete(id)
     return true
   }
+  // A rewrite that came meanwhile applies now, over the base the file still has.
+  const applyPending = (): void => {
+    const pending = session.pending.get(id)
+    session.pending.delete(id)
+    if (pending) void revise(session, target, id, pending)
+  }
+  // The backend said why it never will: nothing was written, and saves stop.
+  const refused = (reason: PlanUnwritableReason): void => {
+    // A file that is gone while the stream shows it, or a rewrite of it waiting, was put
+    // back meanwhile: that's a failure that may pass, not a verdict.
+    const shown = session.panes.getSnapshot().content[id]?.state === "ready"
+    if (reason === "gone" && (shown || session.pending.has(id))) return failed()
+    if (!settleAttempt()) return
+    session.failures.delete(id)
+    clearTimeout(session.waiting.get(id))
+    session.waiting.delete(id)
+    stand({ unsaved: true, blocked: reason, stalled: false })
+    applyPending()
+  }
   const failed = (): void => {
     if (!settleAttempt()) return
     // It may have been written all the same: the next version of the file tells.
     session.unconfirmed.set(id, [...(session.unconfirmed.get(id) ?? []), sent])
     const failures = (session.failures.get(id) ?? 0) + 1
     session.failures.set(id, failures)
-    mark(true)
-    // A rewrite that came meanwhile applies now, over the base the file still has.
-    const pending = session.pending.get(id)
-    session.pending.delete(id)
-    if (pending) void revise(session, target, id, pending)
+    const stalled = failures >= failureCap
+    stand({ unsaved: true, blocked: null, stalled })
+    applyPending()
     clearTimeout(session.waiting.get(id))
+    if (stalled) {
+      session.waiting.delete(id)
+      session.backingOff.delete(id)
+      return
+    }
+    session.backingOff.add(id)
     session.waiting.set(
       id,
       setTimeout(
         () => {
           session.waiting.delete(id)
+          session.backingOff.delete(id)
           persist(session, target, id)
         },
         Math.min(30_000, 1000 * 2 ** failures),
@@ -195,22 +244,27 @@ const persist = (session: Session, target: WorkspaceTarget, id: ItemId): void =>
     )
   }
   const timer = setTimeout(failed, saveTimeout)
-  session.companions.save(target, id, text, basedOn).then(async (result) => {
-    if (!settleAttempt()) return
-    if (result.saved) session.unconfirmed.delete(id)
-    session.failures.delete(id)
-    mark(false)
-    const pending = session.pending.get(id)
-    session.pending.delete(id)
-    if (result.saved) {
-      withPlan(session, id, (current) =>
-        current.revision === basedOn ? { ...current, base: sent, revision: result.stamp } : current,
-      )
-      // A rewrite that came meanwhile was written over this save.
-      if (pending) await revise(session, target, id, pending)
-    } else await revise(session, target, id, result.current)
-    persist(session, target, id)
-  }, failed)
+  session.companions.save(target, id, text, basedOn).then(
+    async (result) => {
+      if (!settleAttempt()) return
+      if (result.saved) session.unconfirmed.delete(id)
+      session.failures.delete(id)
+      stand({ unsaved: false, blocked: null, stalled: false })
+      const pending = session.pending.get(id)
+      session.pending.delete(id)
+      if (result.saved) {
+        withPlan(session, id, (current) =>
+          current.revision === basedOn
+            ? { ...current, base: sent, revision: result.stamp }
+            : current,
+        )
+        // A rewrite that came meanwhile was written over this save.
+        if (pending) await revise(session, target, id, pending)
+      } else await revise(session, target, id, result.current)
+      persist(session, target, id)
+    },
+    (error: unknown) => (error instanceof PlanUnwritableError ? refused(error.reason) : failed()),
+  )
 }
 
 // The plan's file changed: the agent rewrote it over the file as the person left it. Its
@@ -296,7 +350,19 @@ const received = (
       ...(first ? { plans: { ...state.plans, [id]: docOf(version) } } : {}),
     }
   })
-  if (version && known) void revise(session, target, id, version)
+  if (version && known) {
+    // The file is back, or can be written again: what stopped saves no longer holds.
+    // A fresh version also means the link is healthy: saves that gave up try again.
+    if (planIn(session, id)?.stalled) session.failures.delete(id)
+    withPlan(session, id, (plan) =>
+      plan.blocked === "gone" || (plan.blocked === "transcript" && version.plan.writable)
+        ? { ...plan, blocked: null, stalled: false }
+        : plan.stalled
+          ? { ...plan, stalled: false }
+          : plan,
+    )
+    void revise(session, target, id, version)
+  }
 }
 
 const follow = (
@@ -375,6 +441,7 @@ const forgetPlan = (session: Session, id: ItemId): void => {
     session.unconfirmed,
   ])
     each.delete(id)
+  session.backingOff.delete(id)
 }
 
 // A record without the items that are gone.
@@ -479,6 +546,7 @@ export const createPanes = ({
     waiting: new Map(),
     pending: new Map(),
     failures: new Map(),
+    backingOff: new Set(),
     unconfirmed: new Map(),
   }
   const watch = (target: WorkspaceTarget, id: ItemId): (() => void) => {
@@ -510,10 +578,17 @@ export const createPanes = ({
   const plan = (target: WorkspaceTarget, id: ItemId): PlanActions => ({
     edit: (text, marks) => {
       const edited = withPlan(session, id, (current) =>
-        // A plan the backend can't write takes no edits.
-        text === current.text || !current.writable
+        // A plan the backend can't write takes no edits. One that was too large may not
+        // be, now.
+        text === current.text || !current.writable || current.blocked === "transcript"
           ? current
-          : { ...current, text, marks, marked: text },
+          : {
+              ...current,
+              text,
+              marks,
+              marked: text,
+              blocked: current.blocked === "too-large" ? null : current.blocked,
+            },
       )
       if (edited) saveSoon(session, target, id)
     },
@@ -529,6 +604,18 @@ export const createPanes = ({
       })
     },
     flush: () => saveNow(session, target, id),
+    retry: () => {
+      session.failures.delete(id)
+      session.backingOff.delete(id)
+      withPlan(session, id, (current) =>
+        current.blocked || current.stalled
+          ? { ...current, blocked: null, stalled: false }
+          : current,
+      )
+      clearTimeout(session.waiting.get(id))
+      session.waiting.delete(id)
+      persist(session, target, id, true)
+    },
     toggleChanges: () => {
       withPlan(session, id, (current) => ({ ...current, showChanges: !current.showChanges }))
     },

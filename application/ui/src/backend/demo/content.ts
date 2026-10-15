@@ -19,7 +19,7 @@ import { createDemoMessages, studioMailbox } from "./messages"
 import { defaultName, demoTerminalId } from "./samples"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { devServerArtifacts } from "./showcase/artifacts"
-import { createShowcase } from "./showcase/simulation"
+import { createShowcase, planFaults, type PlanFault } from "./showcase/simulation"
 import { showcaseTranscripts } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
 
@@ -34,6 +34,9 @@ const planned: AgentStatus = {
 export const contentDemo = (
   runtime?: DemoSurfaceRuntime,
   turns: DemoTurns = demoTurns(),
+  // Opens with the plan of the Build Studio agent in this fault, as the debug panel's
+  // Plan group would put it.
+  planFault?: PlanFault,
 ): Backend => {
   const session = { projectId: "studio", workspaceSessionId: "initial" }
   const terminals: TerminalMetadata[] = [
@@ -137,6 +140,7 @@ export const contentDemo = (
       },
     ],
   })
+  if (planFault) showcase.fault(agents[0]!.key, planFault)
   const agentAt = (key: TerminalKey): SampleAgent | undefined =>
     agents.find((agent) => companionKeyId(agent.key) === companionKeyId(key))?.sample
   const backend = demoBackend(
@@ -268,4 +272,12 @@ export const contentDemo = (
   }))
 }
 
-export const createContentDemo: CreateBackend = () => contentDemo()
+// Specs open the showcase with `&planFault=` one of the debug panel's plan faults.
+export const createContentDemo: CreateBackend = () => {
+  const fault = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("planFault")
+  return contentDemo(
+    undefined,
+    undefined,
+    planFaults.find((each) => each === fault),
+  )
+}

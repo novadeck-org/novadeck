@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
-import type { CompanionItem, CompanionKey, ItemId } from "../../model/companion"
+import { isOnBar, type CompanionItem, type CompanionKey, type ItemId } from "../../model/companion"
 import { messagesKey, type Bar, type BarKey } from "../../model/companion-bar"
 import type { WindowPlace } from "../../model/layout/window-place"
 import type { Messages } from "../../model/messages"
 import type { ViewMode } from "../../model/types"
+import { ConfirmDialog } from "../../ui-toolkit/ConfirmDialog"
 import { usePresence, type Presence } from "../../ui-toolkit/presence"
 import { useDrag, type BarDrag } from "../drag-session"
 import type { TerminalLayoutControls } from "../WindowShell"
 import { barMembers, composeBar, dropOutcome, shownTab, slotKeys, type BarMember } from "./bar"
 import { CompanionPane } from "./CompanionPane"
 import { useMail } from "./mail"
+import { stuckEdits } from "./plan-doc"
 import { presentationOf, type Panes } from "./state"
 import { Taskbar } from "./Taskbar"
 import type { SlotActions } from "./TaskbarSlot"
@@ -169,6 +171,9 @@ export const TerminalCompanion = ({
   )
   const plans = usePlans(panes, planIds)
   const tab = shownTab(bar, members)
+  // A plan the person closes while edits in it can't reach its file: asked first, since
+  // closing loses them.
+  const [closing, setClosing] = useState<CompanionItem | null>(null)
   // Open while there's something to show.
   const open = bar.open && tab !== null
   const showing = open ? tab : null
@@ -215,10 +220,19 @@ export const TerminalCompanion = ({
     activate: (key) => (key === showing ? commands.closeBarPane(terminal) : openPicked(key)),
     open: openPicked,
     seen: (itemIds) => commands.markSeen(itemIds),
-    close: (each) =>
-      each.kind === "messages"
-        ? commands.hideOnBar(terminal, messagesKey)
-        : commands.closeItem(each.key),
+    close: (each) => {
+      if (each.kind === "messages") return commands.hideOnBar(terminal, messagesKey)
+      // On its own terminal's bar a plan only hides, keeping its edits.
+      const plan = panes.store.getSnapshot().plans[each.key]
+      if (
+        each.item.kind === "plan" &&
+        !isOnBar(each.item, each.item.from.terminalId) &&
+        plan &&
+        stuckEdits(plan, panes.store.getSnapshot().content[each.key])
+      )
+        return setClosing(each.item)
+      commands.closeItem(each.key)
+    },
     sendBack: (each) => {
       if (each.kind === "item") commands.place([each.key], each.item.from.terminalId)
     },
@@ -303,6 +317,28 @@ export const TerminalCompanion = ({
           <span className="plan-tb-empty-hint">Drop here to show it on this terminal</span>
         </div>
       )}
+      <ConfirmDialog
+        subject={closing}
+        title={(item) => `Close “${item.name}”?`}
+        description={() =>
+          "Your edits to this plan couldn't be saved, and closing it loses them. Copy them first to keep them."
+        }
+        confirmLabel="Copy my edits and close"
+        cancelLabel="Cancel"
+        onCancel={() => setClosing(null)}
+        onConfirm={() => {
+          const item = closing
+          setClosing(null)
+          if (!item) return
+          const plan = panes.store.getSnapshot().plans[item.id]
+          if (plan)
+            void navigator.clipboard
+              ?.writeText(plan.eol === "\n" ? plan.text : plan.text.replaceAll("\n", plan.eol))
+              .catch(() => undefined)
+          commands.closeItem(item.id)
+        }}
+        widthClassName="w-[min(360px,calc(100vw-32px))]"
+      />
       {shown.mounted && presentation === "attached" && (
         <AttachedPane view={paneView} onReveal={onReveal} presence={shown} />
       )}

@@ -269,6 +269,12 @@ export const createRouter = (options: {
         try {
           return await answer
         } catch (error) {
+          // A plan that can't be written is told to the client; anything else is only seen here.
+          if (!(error instanceof DomainError))
+            console.error(
+              `Novadeck could not save a plan (${(error as NodeJS.ErrnoException | undefined)?.code ?? "unknown"}) at ${item.path ?? "no path"}:`,
+              error,
+            )
           throw apiError(error)
         }
       }),

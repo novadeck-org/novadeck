@@ -2,6 +2,7 @@ import {
   companionKeyId,
   itemIdOf,
   notesIn,
+  PlanUnwritableError,
   shownItemWith,
   type CompanionItem,
   type CompanionKey,
@@ -20,6 +21,20 @@ import { applyEdits, removeNotes } from "./revise"
 // plans over the file as the person left it, and show things, on a delay as if thinking.
 // It reports all of it as a backend would, items through the workspace's actions and
 // their content through `follow`, so the companion pane can't tell it from a runner.
+// What can go wrong with an agent's plan for the person's edits, for the debug panel and
+// specs to reach: it lives in the agent's messages (`transcript`), its file is deleted
+// (`gone`), its folder can't be written (`folder`), it is too large to write
+// (`too-large`), or saves fail for a while without saying why (`failing`).
+export type PlanFault = "transcript" | "gone" | "folder" | "too-large" | "failing"
+
+export const planFaults: readonly PlanFault[] = [
+  "transcript",
+  "gone",
+  "folder",
+  "too-large",
+  "failing",
+]
+
 export type Showcase = Companions & {
   // What the terminals held before the demo started, for the seed.
   readonly items: readonly CompanionItem[]
@@ -35,7 +50,14 @@ export type Showcase = Companions & {
   readonly told: (key: CompanionKey, input: string, revised?: () => void) => void
   // The terminal closed: its agent is gone.
   readonly closed: (key: CompanionKey) => void
+  // Puts the plan of the agent in this terminal in a fault, or back to normal; false where
+  // the terminal has no agent with a plan.
+  readonly fault: (key: CompanionKey, fault: PlanFault | undefined) => boolean
 }
+
+// Whether a backend's companions are the showcase's, which the debug panel can fault.
+export const isShowcase = (companions: Companions): companions is Showcase =>
+  "fault" in companions && "told" in companions
 
 // A terminal of the showcase's, by the handle its agents know it by.
 type Holder = { readonly key: CompanionKey; readonly handle: string }
@@ -59,6 +81,7 @@ type Running = Holder & {
   planIds: Set<string>
   // How many of `artifacts.next` it has shown.
   shown: number
+  fault?: PlanFault | undefined
 }
 
 const noItems = (): readonly CompanionItem[] => []
@@ -118,12 +141,13 @@ const versionOf = (agent: Running): PlanVersion => ({
     kind: "plan",
     text: agent.file,
     truncated: false,
-    writable: true,
+    writable: agent.fault !== "transcript",
     skill: agent.sample.plan.skill,
   },
 })
 
 const contentOf = (agent: Running): ItemContent => {
+  if (agent.fault === "gone") return { state: "unavailable", reason: "gone", size: null }
   const { stamp, plan } = versionOf(agent)
   return { state: "ready", stamp, content: plan }
 }
@@ -286,6 +310,8 @@ export const createShowcase = (
     save: (target, id, text, basedOn) => {
       const agent = planOf(target, id)
       if (!agent) return Promise.reject(new Error(`No plan ${id}`))
+      if (agent.fault === "failing") return Promise.reject(new Error("The save didn't go through"))
+      if (agent.fault) return Promise.reject(new PlanUnwritableError(agent.fault))
       if (basedOn !== String(agent.writes))
         return Promise.resolve({ saved: false, current: versionOf(agent) })
       write(agent, text)
@@ -329,6 +355,13 @@ export const createShowcase = (
     },
     closed: (key) => {
       running.delete(companionKeyId(key))
+    },
+    fault: (key, fault) => {
+      const agent = agentAt(key)
+      if (!agent) return false
+      agent.fault = fault
+      written(agent)
+      return true
     },
   }
 }

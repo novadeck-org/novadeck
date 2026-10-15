@@ -750,6 +750,14 @@ Agents:
   from an older runner (check the terminal). Arm the next Stop to fail as the runner's does
   when the words queued behind the turn stay in the box (with Open terminal), or when a
   request waits (answer it first).
+- **Plan:** only in the `showcase` variant, on the selected terminal's agent (Build Studio or
+  the auth agent), for what happens to a plan the person has edited. "Plan in the agent's
+  messages" makes it read-only; "Plan file deleted" shows that its file is gone, with the
+  edits kept; "Plan folder can't be written" and "Plan too large to save" show their
+  message once you type, with Copy my edits and Try saving again; "Plan saves keep
+  failing" shows "Not saved yet. Trying again." and, after five failures in a row
+  (about 30 s), Retry; "Plan back to normal" lets saves work again. Specs open the showcase
+  with `&planFault=` `transcript`, `gone`, `folder`, `too-large` or `failing`.
 - **Agent connections:** make the next connect in Preferences fail, refresh the agents, or
   connect Antigravity with the note Preferences shows where its own status line keeps
   Novadeck's out, as on Windows.

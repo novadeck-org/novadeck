@@ -761,6 +761,20 @@ export const murmurSettings = z.strictObject({
 })
 
 /**
+ * Why `companions.save` can't write a plan, in `PLAN_UNWRITABLE`'s data, which retrying
+ * won't change until the plan or its folder does:
+ * - `gone`: the plan's file is no longer there.
+ * - `folder`: Novadeck may not write in the plan's folder or file.
+ * - `transcript`: the plan lives in an agent's messages, not a file.
+ * - `too-large`: the plan is past what Novadeck writes (256 KiB).
+ * - `not-a-plan`: the item is no plan.
+ */
+export const planUnwritable = z.strictObject({
+  reason: z.enum(["gone", "folder", "transcript", "too-large", "not-a-plan"]),
+})
+export type PlanUnwritable = z.infer<typeof planUnwritable>
+
+/**
  * Why a `CONFLICT` about typing into an agent's terminal is one, as its data, so a client
  * can tell what clears by itself from what the person settles in the terminal:
  * - `pending`: a request waits on the person, whose dialog would take the text;
