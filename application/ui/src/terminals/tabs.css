@@ -54,6 +54,10 @@
 .icon-button.terminal-tab-revealed {
   transition: opacity var(--motion-feedback) var(--ease-interface);
 }
+.handle-chip.terminal-tab-handle {
+  color: var(--color-muted);
+  opacity: var(--icon-button-dim-opacity, 0.5);
+}
 .terminal-tab-handle::before {
   content: "· ";
 }
