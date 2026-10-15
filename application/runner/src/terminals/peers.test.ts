@@ -62,6 +62,8 @@ describe("murmur's words for the person", () => {
         reply: null,
         at: 5,
         recorded: false,
+        files: [],
+        from: 0,
         gist: { text: gist, asks: false },
       },
     }

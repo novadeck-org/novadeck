@@ -6,6 +6,7 @@ import {
   clock,
   codeParts,
   labelOf,
+  limitWindow,
   readLabel,
   recommended,
   resumesLabel,
@@ -145,7 +146,7 @@ describe("An item's reading time", () => {
 })
 
 describe("A limit that resumes", () => {
-  const limit = (autoResume: boolean): InboxItem => ({
+  const limit = (autoResume: boolean | null): InboxItem => ({
     ...base,
     stopped: !autoResume,
     kind: "trouble",
@@ -161,6 +162,7 @@ describe("A limit that resumes", () => {
   it("says when, while Novadeck resumes it", () => {
     expect(resumesLabel(limit(true))).toBe("Resumes at 15:40")
     expect(resumesLabel(limit(false))).toBeNull()
+    expect(resumesLabel(limit(null))).toBeNull()
   })
 })
 
@@ -355,5 +357,15 @@ describe("What a dialog shows of what it asks", () => {
 
   it("keeps a detail with no folder as it is", () => {
     expect(splitDetail("The plan")).toEqual({ folder: null, command: "The plan" })
+  })
+})
+
+describe("A limit's window", () => {
+  it("is named by its length, or plainly where the length is unknown", () => {
+    expect(limitWindow(300)).toBe("5-hour")
+    expect(limitWindow(45)).toBe("45-minute")
+    expect(limitWindow(0)).toBe("usage")
+    expect(limitWindow(10_080)).toBe("weekly")
+    expect(limitWindow(1440)).toBe("daily")
   })
 })

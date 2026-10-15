@@ -225,6 +225,7 @@ describe("the runner's conversations", () => {
                 ],
               },
               answered: false,
+              askedAt: 1,
             },
             {
               ref: "req2req2req2req2",
@@ -235,6 +236,7 @@ describe("the runner's conversations", () => {
               choices: [],
               dialog: null,
               answered: false,
+              askedAt: 1,
             },
           ],
         }),
@@ -289,6 +291,7 @@ describe("the runner's conversations", () => {
               choices: ["Yes"],
               dialog,
               answered,
+              askedAt: 1,
             },
           ],
         })

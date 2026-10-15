@@ -69,10 +69,16 @@ export const fallback: Reply = { text: "OK." }
 
 /**
  * Thrown by a rule, the model refuses the call with an HTTP `status`, as an API rejecting
- * a request does: an answer in its own right, never a failure of the fake model's.
+ * a request does: an answer in its own right, never a failure of the fake model's. Its
+ * `body` is the JSON the API answers with and its `headers` go with it; without a body, the
+ * generic error each API answers a bad request with.
  */
 export class Refusal extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly body?: unknown,
+    readonly headers: Readonly<Record<string, string>> = {},
+  ) {
     super(`refused with ${status}`)
   }
 }

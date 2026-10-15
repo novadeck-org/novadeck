@@ -186,7 +186,9 @@ export type Backend = {
   readonly murmur?: Murmur
   // Optional. The Inbox: what the agents in every project wait on the person for, one
   // item per agent terminal, answered in place. Absent where the backend has none; the
-  // runner's has none yet, and only the demo's `inbox` variant does.
+  // runner's builds it from the app's workspace (`bind`) and the runner's facts, the
+  // demo's from hardcoded items in its `inbox` variant. Where present it replaces the
+  // Notifications panel.
   readonly inbox?: Inbox
   // Optional. Types text into a terminal as a paste, bracketed where its program asks,
   // without pressing Enter, as dictation does. Says whether it typed: false when the

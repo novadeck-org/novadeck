@@ -66,7 +66,12 @@ type Opened = {
     | { readonly ok: false; readonly reason: string }
   readonly taskWaits?: boolean
 }
-type Gone = { readonly id: string; readonly to: string }
+type Gone = { readonly id: string; readonly to: string; readonly stopped?: true }
+// Why an earlier message of the caller's won't arrive, after "to @x".
+const wontArrive = (gone: Gone): string =>
+  gone.stopped
+    ? " won't arrive: the user stopped that thread in Novadeck."
+    : " won't arrive: the agent session it was for ended there."
 type Closed = {
   readonly handle: string
   readonly title: string
@@ -368,12 +373,7 @@ const closeTerminal: Tool<Closed> = {
               mention(gone.to) +
               " won't arrive, as that terminal " +
               "is closed."
-          : "Your earlier message " +
-              gone.id +
-              " to " +
-              mention(gone.to) +
-              " won't arrive: the agent " +
-              "session it was for ended there.",
+          : "Your earlier message " + gone.id + " to " + mention(gone.to) + wontArrive(gone),
       )
     if (answer.others)
       lines.push(
@@ -463,14 +463,7 @@ const send: Tool<Sent> = {
           : message + " was sent moments ago already; it is " + answer.state + ".",
     ]
     for (const gone of answer.gone ?? [])
-      lines.push(
-        "Your earlier message " +
-          gone.id +
-          " to " +
-          mention(gone.to) +
-          " won't arrive: the agent " +
-          "session it was for ended there.",
-      )
+      lines.push("Your earlier message " + gone.id + " to " + mention(gone.to) + wontArrive(gone))
     if (answer.unbound) lines.push(unboundNote)
     lines.push("End your turn rather than wait for a reply; replies arrive by themselves.")
     return lines.join("\n")

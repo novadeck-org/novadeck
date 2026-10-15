@@ -26,6 +26,7 @@ const message = (fields: Partial<Message> = {}): Message => ({
   state: "queued",
   deliveredAt: null,
   notified: false,
+  stopped: false,
   fromLead: false,
   toLead: false,
   ...fields,
@@ -341,6 +342,22 @@ describe("what agents and a refused send say", () => {
       ),
     ])
     expect(text).toContain("replies can't reach you")
+  })
+
+  it("say why a message of the caller's will not arrive: its session ended, or the user stopped its thread", () => {
+    const told = (fields: Partial<Message>) =>
+      renderAgents({
+        handle: "moth",
+        lead: null,
+        peers: [],
+        messages: [{ message: message({ state: "gone", ...fields }), hold: null }],
+        unbound: false,
+        now,
+      })
+    expect(told({})).toMatch(/won't arrive: the agent session it was for ended$/m)
+    expect(told({ stopped: true })).toMatch(
+      /won't arrive: the user stopped that thread in Novadeck$/m,
+    )
   })
 
   it("refuses a name that is no handle by describing every terminal there", () => {

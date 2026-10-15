@@ -132,6 +132,10 @@ export type ActivityEvent = {
        * its hook, its records or its transcript tell it.
        */
       readonly reply?: string
+      /** A failed turn's error as its harness said it, where it did. */
+      readonly error?: string
+      /** The turn failed on a usage limit, as its harness said. */
+      readonly limited?: true
     }
   | {
       readonly type: "turn-idle"
@@ -180,7 +184,16 @@ export type ActivityEvent = {
        */
       readonly reply?: string
     }
-  | { readonly type: "file-touched"; readonly actor: string | null; readonly path: string }
+  | {
+      readonly type: "file-touched"
+      readonly actor: string | null
+      readonly path: string
+      /**
+       * Told by the harness's records alone, with no hook to settle the request that asked
+       * for the write (Codex's rollout for a patch its shell ran): it settles that request.
+       */
+      readonly settles?: true
+    }
   | {
       readonly type: "attention-requested"
       readonly requestId: string

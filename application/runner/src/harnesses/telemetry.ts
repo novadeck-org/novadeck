@@ -1,7 +1,7 @@
 import type { TelemetryObserved } from "@novadeck/harness-core/events"
 import type { AgentTelemetry } from "@novadeck/protocol"
 
-import { bound } from "./activity.js"
+import { bound, type LastTurn } from "./activity.js"
 import type { Binding } from "./bindings.js"
 
 /**
@@ -59,3 +59,47 @@ export const telemetrySummary = ({
   model,
   effort,
 })
+
+type Window = AgentTelemetry["limits"][number]
+
+/**
+ * How long after a turn ended a record showing a window used up still counts as the turn
+ * running into it. A window that fills later is the person's, not the turn's: it latches
+ * nothing on a terminal idle since.
+ */
+export const limitGraceMs = 60_000
+
+/**
+ * The usage-limit window the last turn ran into, or null. Only a turn whose harness said it
+ * failed on a limit (`limited`) has one: a window used up alone proves nothing, as
+ * Antigravity's status line lists every model's buckets. The windows only tell when it
+ * resets: of those with a reset to come after the turn ended, in a record made (`seenAt`)
+ * by the turn's end or within `limitGraceMs` after it, the used-up one that resets last, as
+ * nothing runs before it does, else the most-used one (`spent` false), which a used-up
+ * window seen within the grace replaces. Latch it on the turn (`withLimit`): it stays after
+ * the window's records move on.
+ */
+export const limitOf = (
+  lastTurn: LastTurn | null,
+  limits: readonly Window[],
+  seenAt: number,
+): { minutes: number | null; resetsAt: number; spent: boolean } | null => {
+  if (!lastTurn?.limited || lastTurn.outcome === "interrupted") return null
+  // A window used up fixes the latch; one picked as the most used gives way to it.
+  if (lastTurn.limit && !lastTurn.guessed) return null
+  if (seenAt > lastTurn.at + limitGraceMs) return null
+  const ahead = limits.filter(
+    (window): window is Window & { resetsAt: number } =>
+      window.resetsAt !== null && window.resetsAt > lastTurn.at,
+  )
+  const spent = ahead.filter(({ used }) => used >= 1)
+  if (lastTurn.limit && spent.length === 0) return null
+  const pick =
+    spent.length > 0
+      ? spent.reduce((a, b) => (b.resetsAt > a.resetsAt ? b : a))
+      : ahead.reduce<(Window & { resetsAt: number }) | null>(
+          (a, b) => (!a || b.used > a.used ? b : a),
+          null,
+        )
+  return pick && { minutes: pick.minutes, resetsAt: pick.resetsAt, spent: spent.length > 0 }
+}

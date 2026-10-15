@@ -712,11 +712,17 @@ describe("Novadeck's MCP server", () => {
         id: "m-2",
         state: "held",
         held: "release",
-        gone: [{ id: "m-0", to: "owl" }],
+        gone: [
+          { id: "m-0", to: "owl" },
+          { id: "m-3", to: "fox", stopped: true },
+        ],
         unbound: true,
       })
       expect(held.content[0]?.text).toContain("waits for the user to release it")
       expect(held.content[0]?.text).toContain("m-0 to @owl won't arrive")
+      expect(held.content[0]?.text).toContain(
+        "Your earlier message m-3 to @fox won't arrive: the user stopped that thread in Novadeck.",
+      )
       expect(held.content[0]?.text).toContain("/hooks")
       const refused = await said({ ok: false, reason: '"codex" is no terminal\'s handle here.' })
       expect(refused).toEqual({

@@ -264,9 +264,10 @@ Agents in a project's terminals message each other (see
 
 ```ts
 const messages = await runner.messages.list(terminalId)
-// { terminalId, handle, delivery, paused, threads: [{ id, peer, hops, allowed, held, messages }] }
+// { terminalId, handle, delivery, paused, threads: [{ id, peer, hops, allowed, held, stopped, messages }] }
 await runner.messages.pause(true) // or false to resume
 await runner.messages.release(threadId) // a thread held after too many hops
+await runner.messages.stop(threadId) // end a thread: nothing more of it is delivered
 for await (const listing of runner.messages.watch(terminalId)) show(listing) // as it changes
 ```
 
@@ -274,14 +275,21 @@ for await (const listing of runner.messages.watch(terminalId)) show(listing) // 
 state (`unbound`, `fresh`, `working`, `settled`, `ringing`, `drafting` or `unknown`), whether
 messaging is paused, and its threads, newest first, each with the other terminal's
 handle, its hops so far and the hops it is allowed before the person must release it,
-whether it is held, and its messages, oldest first: id, hop, sender and recipient
+whether it is held, whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
 handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `held` or
 `gone`), why it is held (`paused` or `release`), and when delivered. A terminal the
 runner doesn't hold is `TERMINAL_NOT_FOUND`. `messages.pause(paused)` pauses messaging
 across the whole runner, every project and session, keeping the switch across
 restarts: waiting messages are held, and wait in order again once resumed.
 `messages.release(threadId)` lets a held thread's messages wait to be delivered and
-allows it 12 more hops; an unknown thread is `NOT_FOUND`. Each refuses with
+allows it 12 more hops, and a stopped thread no longer stopped; an unknown thread is
+`NOT_FOUND`. `messages.stop(threadId)` stops a thread: its messages not yet delivered or
+leased are `gone`, their senders told (once, through the MCP tools' answers) that the
+person stopped it, and a send that would continue it, in either direction, is refused
+until 10 minutes after the later of the stop and the thread's last message (a refused send
+does not extend them) or the person releases it, the listing's `stopped` holding only
+meanwhile; a leased message is left to finish, the recipient is told nothing,
+stopping a stopped thread does nothing, and an unknown thread is `NOT_FOUND`. Each refuses with
 `RUNTIME_CLOSING` once the runner is stopping. `messages.watch(terminalId)` streams what
 `list` says, then again on each change to the terminal's threads, messages or delivery
 state, and on each pause or resume, a burst of changes within one tick as one listing;
@@ -640,7 +648,8 @@ forgets it, including one from an earlier runner.
   (the root first, then each subagent with its kind; a subagent's parent is null, as no
   harness says which agent started a nested one; a subagent seen only through its requests is listed without a kind), each request waiting on the person
   (its kind, tool, the actor asking, what it asks about: a command, a path, a question
-  and its answers, or a plan's file, and its `dialog`, below), and how much of each
+  and its answers, or a plan's file, when its hook started it as `askedAt`, in epoch
+  milliseconds on the runner's clock, and its `dialog`, below), and how much of each
   feature the agent's harness
   tells (`unsupported`, `partial`, `complete`). Actors and requests have runner-issued
   refs, never a harness's own ids; the summary's subagents use the same refs. Without an
@@ -858,7 +867,12 @@ forgets it, including one from an earlier runner.
 - `agents.interrupt({ terminalId })` presses Escape in the terminal's agent, which stops
   its turn in every harness (the turn ends without a normal Stop: its activity is
   `unknown` until the next prompt, see `agent-messaging.md`, and the agent's `lastTurn`
-  reads `interrupted`). The harness has the last word: one that had the model's reply
+  reads `interrupted`; `lastTurn` also tells a failed turn's `error` as its harness said it,
+  the usage-limit window the turn ran into as `limit` (`minutes`, `resetsAt`; kept for that
+  end only when its harness said the turn failed on a limit; its records within a minute of
+  the end only tell when it resets, the window used up that resets last, else the most used), and the absolute paths its write and edit tools wrote as
+  `files`, at most 16, first written first, each once, root and subagents, those told after
+  the turn's Stop included). The harness has the last word: one that had the model's reply
   before it took the key finishes the turn all the same, and the turn's `lastTurn` then
   reads `completed` with that reply, as for any finished turn, once the harness has said
   so (at once for Antigravity's Stop or a record of the finish, else about 1.5 s after the

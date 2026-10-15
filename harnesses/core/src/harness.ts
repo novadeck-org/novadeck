@@ -558,6 +558,25 @@ export const replyPreview = (value: unknown): string | undefined => {
   return `${line.slice(0, end).trimEnd()}…`
 }
 
+/** The longest error a failed turn keeps, as the protocol takes it. */
+export const maxError = 2048
+
+/**
+ * What a harness said of a failed turn, as plain text a person reads: escapes, control
+ * characters and reordering marks out (a line break kept), cut to `maxError`. Undefined when
+ * nothing is left.
+ */
+export const errorText = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined
+  const plain = value
+    .slice(0, maxError * 2)
+    .replace(escapes, "")
+    // eslint-disable-next-line no-control-regex -- These are the characters it removes.
+    .replace(/[\x00-\x09\x0b-\x1f\x7f-\x9f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]+/g, " ")
+    .trim()
+  return plain === "" ? undefined : plain.slice(0, maxError)
+}
+
 /** A turn's end's `reply`, from a field holding the agent's last reply; nothing without one. */
 export const replied = (value: unknown): { readonly reply?: string } => {
   const reply = replyPreview(value)

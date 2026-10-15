@@ -39,6 +39,8 @@ import {
   maxUndelivered,
   rates,
   retentionMs,
+  stopBlocks,
+  stoppedBetween,
   threadBetween,
   undelivered,
   waiting,
@@ -114,7 +116,12 @@ export type SendAnswer =
       /** Why a held message waits. */
       readonly held?: "paused" | "release"
       /** Earlier messages from this terminal that won't arrive, told once. */
-      readonly gone?: readonly { readonly id: string; readonly to: string }[]
+      readonly gone?: readonly {
+        readonly id: string
+        readonly to: string
+        /** The person stopped the thread it was in. */
+        readonly stopped?: true
+      }[]
       /** This terminal's own session never bound, so replies can't reach it. */
       readonly unbound?: true
     }
@@ -830,13 +837,19 @@ export class Messaging {
   }
 
   /** The caller's messages gone since it was last told, told now, as every answer tells them. */
-  goneFrom(terminalId: string): readonly { readonly id: string; readonly to: string }[] {
+  goneFrom(
+    terminalId: string,
+  ): readonly { readonly id: string; readonly to: string; readonly stopped?: true }[] {
     const gone = [...this.messages.values()].filter(
       (message) =>
         message.from.terminalId === terminalId && message.state === "gone" && !message.notified,
     )
     for (const message of gone) this.put({ ...message, notified: true })
-    return gone.map((message) => ({ id: message.id, to: message.to.handle }))
+    return gone.map((message) => ({
+      id: message.id,
+      to: message.to.handle,
+      ...(message.stopped && { stopped: true as const }),
+    }))
   }
 
   /**
@@ -884,9 +897,15 @@ export class Messaging {
         `${mention(recipient.handle)} has no agent running there that Novadeck can deliver to.`,
       )
     const now = this.now()
+    const known = threadBetween(this.threads.values(), terminalId, recipient.terminalId, now)
+    // The person stopped it: nothing continues it, and the refusal leaves its clock alone.
+    if (stoppedBetween(this.threads.values(), terminalId, recipient.terminalId, now))
+      return refused(
+        `The user stopped your thread with ${mention(recipient.handle)} in Novadeck. ` +
+          `Don't message ${mention(recipient.handle)} about it again unless the user asks.`,
+      )
     const same = duplicateOf(this.messages.values(), terminalId, recipient.terminalId, text, now)
     if (same) return { ...this.answer(same, recipient), ...this.extras(live) }
-    const known = threadBetween(this.threads.values(), terminalId, recipient.terminalId, now)
     const thread: Thread = known
       ? { ...known, hops: known.hops + 1, lastAt: now }
       : {
@@ -896,6 +915,7 @@ export class Messaging {
           hops: 1,
           allowed: hopsPerRelease,
           lastAt: now,
+          stoppedAt: null,
         }
     // Its authority is fixed now: from the recipient's running lead, it is marked so when
     // delivered, and never awaits release, whatever happens to the lead after.
@@ -977,6 +997,7 @@ export class Messaging {
       state: "queued",
       deliveredAt: null,
       notified: false,
+      stopped: false,
       fromLead: false,
       toLead: false,
     }
@@ -1083,6 +1104,7 @@ export class Messaging {
         held: messages.some(
           (message) => message.state === "held" && this.holdOf(message) === "release",
         ),
+        stopped: thread !== undefined && stopBlocks(thread, this.now()),
         messages: messages.slice(-1000).map((message) => ({
           id: message.id,
           thread: message.thread,
@@ -1136,11 +1158,14 @@ export class Messaging {
     if (changed) this.emit({ kind: "pause", paused })
   }
 
-  /** Releases a thread: its held messages wait to be delivered, and it may have 12 more. */
+  /**
+   * Releases a thread: its held messages wait to be delivered, and it may have 12 more. A
+   * stopped one is no longer stopped, but its messages that went stay gone.
+   */
   release(threadId: string): void {
     const thread = this.threads.get(threadId)
     if (!thread) throw new DomainError("NOT_FOUND")
-    this.putThread({ ...thread, allowed: thread.hops + hopsPerRelease })
+    this.putThread({ ...thread, allowed: thread.hops + hopsPerRelease, stoppedAt: null })
     const terminals = new Set<string>()
     for (const message of this.messages.values()) {
       if (message.thread !== threadId) continue
@@ -1148,6 +1173,27 @@ export class Messaging {
       if (message.state === "held") this.wait(message)
     }
     // Its hops allowed changed, whether or not any message waited.
+    for (const terminalId of terminals) this.changed(terminalId)
+  }
+
+  /**
+   * Stops a thread: its messages still queued or held are gone, their senders told the
+   * person stopped it; one a lease holds is left to finish. A message that would continue
+   * it is refused until it lapses (`threadMs`) or the person releases it. Stopping a
+   * stopped thread does nothing.
+   */
+  stop(threadId: string): void {
+    const thread = this.threads.get(threadId)
+    if (!thread) throw new DomainError("NOT_FOUND")
+    if (stopBlocks(thread, this.now())) return
+    this.putThread({ ...thread, stoppedAt: this.now() })
+    const terminals = new Set<string>()
+    for (const message of this.messages.values()) {
+      if (message.thread !== threadId) continue
+      terminals.add(message.from.terminalId).add(message.to.terminalId)
+      if (message.state === "queued" || message.state === "held")
+        this.put({ ...message, state: "gone", notified: false, stopped: true })
+    }
     for (const terminalId of terminals) this.changed(terminalId)
   }
 
@@ -1272,7 +1318,14 @@ export class Messaging {
 
   /** Puts an undelivered message back to waiting: held for a reason, else queued. */
   private wait(message: Message): void {
-    const state = waiting(message, this.threads.get(message.thread), this.paused)
+    // A stopped thread's message never waits again: one a lease held is gone with it.
+    if (message.stopped) return
+    const thread = this.threads.get(message.thread)
+    if (thread?.stoppedAt != null && undelivered(message)) {
+      this.put({ ...message, state: "gone", notified: false, stopped: true })
+      return
+    }
+    const state = waiting(message, thread, this.paused)
     if (state !== message.state) this.put({ ...message, state })
   }
 

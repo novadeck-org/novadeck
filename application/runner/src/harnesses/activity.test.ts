@@ -13,6 +13,7 @@ import {
   subagentRef,
   summary,
   withGist,
+  withLimit,
   withHeadline,
   withoutNotes,
   type Activity,
@@ -77,7 +78,14 @@ const idle = (lastTurn: Omit<NonNullable<ReturnType<typeof summary>["lastTurn"]>
 const ongoing = { lastTurn: null }
 
 // A completed turn, its reply as the captured hook named it.
-const replied = { outcome: "completed", reply: "<text>", gist: null } as const
+const replied = {
+  outcome: "completed",
+  reply: "<text>",
+  gist: null,
+  error: null,
+  limit: null,
+  files: [] as string[],
+} as const
 
 describe("activity from captured hooks", () => {
   it("waits on the person while Claude Code asks, and works again once allowed", () => {
@@ -127,7 +135,16 @@ describe("activity from captured hooks", () => {
       background: null,
       ...ongoing,
     })
-    expect(last).toEqual(idle({ outcome: "interrupted", reply: null, gist: null }))
+    expect(last).toEqual(
+      idle({
+        outcome: "interrupted",
+        reply: null,
+        gist: null,
+        error: null,
+        limit: null,
+        files: [],
+      }),
+    )
   })
 
   it("settles an approved Codex request, whose result no longer describes the call", () => {
@@ -170,7 +187,9 @@ describe("activity from captured hooks", () => {
       ...ongoing,
     })
     // Its Stop names no reply; its transcript does, which the runner reads apart.
-    expect(states).toContainEqual(idle({ outcome: "completed", reply: null, gist: null }))
+    expect(states).toContainEqual(
+      idle({ outcome: "completed", reply: null, gist: null, error: null, limit: null, files: [] }),
+    )
   })
 })
 
@@ -1056,15 +1075,29 @@ describe("how an agent's latest turn ended", () => {
       reply: "Fixed the flaky spec.",
       at: 2,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
     expect(summary(stop(running, 2)).lastTurn).toEqual({
       outcome: "completed",
       reply: null,
       at: 2,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
     const failed = stop(running, 2, { outcome: "failed" })
-    expect(summary(failed).lastTurn).toEqual({ outcome: "failed", reply: null, at: 2, gist: null })
+    expect(summary(failed).lastTurn).toEqual({
+      outcome: "failed",
+      reply: null,
+      at: 2,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
   })
 
   it("tells the person's interrupt, an Escape and an idle without a Stop apart from completion", () => {
@@ -1074,7 +1107,15 @@ describe("how an agent's latest turn ended", () => {
     expect(summary(escaped).lastTurn?.outcome).toBe("interrupted")
     const none = { agents: 0, tasks: 0 }
     const quiet = on(running, { type: "turn-idle", startedAt: 2, background: none })
-    expect(summary(quiet).lastTurn).toEqual({ outcome: "unknown", reply: null, at: 2, gist: null })
+    expect(summary(quiet).lastTurn).toEqual({
+      outcome: "unknown",
+      reply: null,
+      at: 2,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
   })
 
   it("tells the end while subagents it left run, the agent working on", () => {
@@ -1082,7 +1123,15 @@ describe("how an agent's latest turn ended", () => {
     const waiting = stop(running, 2, { reply: "Waiting on two agents.", background })
     expect(summary(waiting)).toMatchObject({
       state: "working",
-      lastTurn: { outcome: "completed", reply: "Waiting on two agents.", at: 2, gist: null },
+      lastTurn: {
+        outcome: "completed",
+        reply: "Waiting on two agents.",
+        at: 2,
+        gist: null,
+        error: null,
+        limit: null,
+        files: [],
+      },
     })
   })
 
@@ -1098,6 +1147,9 @@ describe("how an agent's latest turn ended", () => {
       reply: "First answer.",
       at: 2,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
   })
 
@@ -1108,12 +1160,18 @@ describe("how an agent's latest turn ended", () => {
       reply: null,
       at: 3,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
     expect(summary(stop(recorded, 4, { reply: "All green." })).lastTurn).toEqual({
       outcome: "completed",
       reply: "All green.",
       at: 3,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
   })
 
@@ -1125,6 +1183,9 @@ describe("how an agent's latest turn ended", () => {
       reply: "Second.",
       at: 5,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
   })
 })
@@ -1150,18 +1211,37 @@ describe("a turn the person's Escape ended", () => {
 
   it("reads interrupted from the Escape at once, before its harness says anything", () => {
     expect(summary(stopped)).toMatchObject({ state: "idle" })
-    expect(outcome(stopped)).toEqual({ outcome: "interrupted", reply: null, at: 20, gist: null })
+    expect(outcome(stopped)).toEqual({
+      outcome: "interrupted",
+      reply: null,
+      at: 20,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
   })
 
   it("reads completed once the window passes with a Stop told since, its reply as the last turn's", () => {
     const told = stop(stopped, 25, { reply: "Too late." })
     // Claude Code's Stop fires too when it took the Escape just after the reply: not yet.
-    expect(outcome(told)).toEqual({ outcome: "interrupted", reply: null, at: 20, gist: null })
+    expect(outcome(told)).toEqual({
+      outcome: "interrupted",
+      reply: null,
+      at: 20,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
     expect(outcome(lapsed(told, 20))).toEqual({
       outcome: "completed",
       reply: "Too late.",
       at: 25,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
   })
 
@@ -1172,6 +1252,9 @@ describe("a turn the person's Escape ended", () => {
       reply: "Too late.",
       at: 25,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
     // Nor is there a window left to wait out.
     expect(lapsed(stop(antigravity, 25), 20)).toBeUndefined()
@@ -1184,6 +1267,9 @@ describe("a turn the person's Escape ended", () => {
       reply: "Too late.",
       at: 25,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
     // Its record with no Stop told yet is the end too.
     expect(outcome(stop(stopped, 30, { recorded: true }))).toEqual({
@@ -1191,6 +1277,9 @@ describe("a turn the person's Escape ended", () => {
       reply: null,
       at: 30,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
   })
 
@@ -1201,6 +1290,9 @@ describe("a turn the person's Escape ended", () => {
       reply: "Too late.",
       at: 21,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
   })
 
@@ -1212,12 +1304,23 @@ describe("a turn the person's Escape ended", () => {
       reply: null,
       at: 30,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
     // Nothing is left to lapse, so the Stop held before is never the end.
     expect(lapsed(interrupted, 20)).toBeUndefined()
     // Nor does a record of the interruption: it names the Escape's own end.
     const recorded = stop(told, 30, { outcome: "interrupted", recorded: true })
-    expect(outcome(recorded)).toEqual({ outcome: "interrupted", reply: null, at: 20, gist: null })
+    expect(outcome(recorded)).toEqual({
+      outcome: "interrupted",
+      reply: null,
+      at: 20,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
     expect(lapsed(recorded, 20)).toBeUndefined()
   })
 
@@ -1228,12 +1331,23 @@ describe("a turn the person's Escape ended", () => {
       reply: null,
       at: 22,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
   })
 
   it("reads interrupted when the window passes with nothing said", () => {
     const quiet = lapsed(stopped, 20)
-    expect(outcome(quiet)).toEqual({ outcome: "interrupted", reply: null, at: 20, gist: null })
+    expect(outcome(quiet)).toEqual({
+      outcome: "interrupted",
+      reply: null,
+      at: 20,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
     // The window is closed: a lapse again changes nothing.
     expect(
       apply(quiet, binding, fact({ type: "turn-escape-lapsed", startedAt: 20 })),
@@ -1245,14 +1359,30 @@ describe("a turn the person's Escape ended", () => {
     const antigravity = escaped(turn(started(0, true, false), 10), 20)
     const kept = on(antigravity, { type: "turn-escape-lapsed", startedAt: 20, reply: "Too late." })
     expect(summary(kept)).toMatchObject({ state: "idle" })
-    expect(outcome(kept)).toEqual({ outcome: "completed", reply: "Too late.", at: 21, gist: null })
+    expect(outcome(kept)).toEqual({
+      outcome: "completed",
+      reply: "Too late.",
+      at: 21,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
     // The window is closed: a lapse again changes nothing.
     expect(lapsed(kept, 20)).toBeUndefined()
     // A Stop told since stays the end, its own reply with it.
     const told = stop(stopped, 25, { reply: "Told." })
     expect(
       outcome(on(told, { type: "turn-escape-lapsed", startedAt: 20, reply: "Too late." })),
-    ).toEqual({ outcome: "completed", reply: "Told.", at: 25, gist: null })
+    ).toEqual({
+      outcome: "completed",
+      reply: "Told.",
+      at: 25,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
   })
 
   it("does not count a Stop from an earlier turn", () => {
@@ -1267,6 +1397,9 @@ describe("a turn the person's Escape ended", () => {
       reply: null,
       at: 20,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
     // Codex names the turn each record is of.
     const codex: Binding = { agent: "codex", sessionId: "s", instance: "7" }
@@ -1302,6 +1435,9 @@ describe("a turn the person's Escape ended", () => {
       reply: "Late.",
       at: 40,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
     // A new turn's own Escape is not closed by the earlier one's lapse.
     const next = escaped(turn(quiet, 50), 60)
@@ -1366,13 +1502,24 @@ describe("a turn the person's Escape ended", () => {
 
   it("keeps a record's turn and word that it was recorded, so the hook's Stop says more of the end", () => {
     const recorded = stop(stopped, 30, { recorded: true, reply: "Done." })
-    expect(outcome(recorded)).toEqual({ outcome: "completed", reply: "Done.", at: 30, gist: null })
+    expect(outcome(recorded)).toEqual({
+      outcome: "completed",
+      reply: "Done.",
+      at: 30,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
     expect(recorded.lastTurn?.recorded).toBe(true)
     expect(outcome(stop(recorded, 35, { reply: "Done, fully." }))).toEqual({
       outcome: "completed",
       reply: "Done, fully.",
       at: 30,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
   })
 
@@ -1393,6 +1540,9 @@ describe("a turn the person's Escape ended", () => {
       reply: "Done.",
       at: 40,
       gist: null,
+      error: null,
+      limit: null,
+      files: [],
     })
   })
 })
@@ -1473,6 +1623,9 @@ describe("murmur's headlines and gists", () => {
       reply: "Done.",
       at: 2,
       gist: { text: "Fixed the rounding bug", asks: true },
+      error: null,
+      limit: null,
+      files: [],
     })
     // Once only; and the outcome is never changed by it.
     expect(withGist(gisted, 2, { text: "Other", asks: false })).toBeUndefined()
@@ -1500,6 +1653,9 @@ describe("murmur's headlines and gists", () => {
       reply: "All green.",
       at: 3,
       gist: { text: "Fixed it", asks: false },
+      error: null,
+      limit: null,
+      files: [],
     })
     // Another end of its own is a new one.
     const other = stop(turn(gisted, 5), 6, { reply: "More." })
@@ -1510,7 +1666,14 @@ describe("murmur's headlines and gists", () => {
     const recorded = stop(running, 3, { recorded: true })
     const gisted = withGist(recorded, 3, { text: "Fixed it", asks: false })!
     const other = stop(gisted, 4, { outcome: "failed" })
-    expect(summary(other).lastTurn).toMatchObject({ outcome: "failed", at: 3, gist: null })
+    expect(summary(other).lastTurn).toMatchObject({
+      outcome: "failed",
+      at: 3,
+      gist: null,
+      error: null,
+      limit: null,
+      files: [],
+    })
   })
 
   it("takes both away when murmur is turned off, and says when it had none", () => {
@@ -1521,5 +1684,311 @@ describe("murmur's headlines and gists", () => {
     const gisted = withGist(stop(running, 2), 2, { text: "Fixed it", asks: false })!
     expect(summary(withoutNotes(gisted)!).lastTurn?.gist).toBeNull()
     expect(withoutNotes(withoutNotes(gisted)!)).toBeUndefined()
+  })
+})
+
+describe("what a turn wrote and how it failed", () => {
+  const binding: Binding = { agent: "claude", sessionId: "s", instance: "7" }
+  type Fields = Parameters<typeof fact>[0]
+  const on = (activity: Activity, fields: object) =>
+    apply(activity, binding, fact(fields as Fields))!
+  const turn = (activity: Activity, startedAt: number, cause = "prompt") =>
+    on(activity, { type: "turn-started", cause, startedAt })
+  const wrote = (activity: Activity, path: string, startedAt: number) =>
+    on(activity, { type: "file-touched", actor: null, path, startedAt })
+  const stop = (activity: Activity, startedAt: number, extra: object = {}) =>
+    on(activity, { type: "turn-ended", outcome: "completed", startedAt, ...extra })
+
+  it("names the files a turn wrote once each, first written first, until the turn ends", () => {
+    let activity = turn(started(0), 1)
+    activity = wrote(activity, "/w/a.ts", 2)
+    activity = wrote(activity, "/w/b.ts", 3)
+    expect(
+      apply(
+        activity,
+        binding,
+        fact({ type: "file-touched", actor: null, path: "/w/a.ts", startedAt: 4 } as Fields),
+      ),
+    ).toBeUndefined()
+    expect(summary(activity).lastTurn).toBeNull()
+    expect(summary(stop(activity, 5)).lastTurn?.files).toEqual(["/w/a.ts", "/w/b.ts"])
+  })
+
+  describe("a patch's permission, settled by the rollout's word on the file", () => {
+    const patch = (...files: string[]) =>
+      `*** Begin Patch\n${files.map((file) => `*** Add File: ${file}\n+x`).join("\n")}\n*** End Patch`
+    const asked = (
+      activity: Activity,
+      requestId: string,
+      input: unknown,
+      startedAt: number,
+      extra: object = {},
+    ) =>
+      on(activity, {
+        type: "attention-requested",
+        requestId,
+        actor: null,
+        toolName: "apply_patch",
+        kind: "permission",
+        subject: null,
+        choices: [],
+        input,
+        cwd: "/w",
+        startedAt,
+        ...extra,
+      })
+    const patching = (...files: string[]) => ({ command: patch(...files) })
+    const settled = (activity: Activity, path: string, startedAt: number, settles = true) =>
+      on(activity, {
+        type: "file-touched",
+        actor: null,
+        path,
+        startedAt,
+        ...(settles && { settles }),
+      })
+    const waiting = (activity: Activity) => activity.pending.map(({ requestId }) => requestId)
+
+    it("settles the request that asked for the file, and only that one", () => {
+      let activity = turn(started(0), 1)
+      activity = asked(asked(activity, "a", patching("a.ts"), 2), "b", patching("/w/b.ts"), 3)
+      activity = settled(activity, "/w/a.ts", 4)
+      expect(waiting(activity)).toEqual(["b"])
+      // A file nobody asked about settles nothing, and is still named.
+      activity = settled(activity, "/w/c.ts", 5)
+      expect(waiting(activity)).toEqual(["b"])
+      expect(activity.files).toEqual(["/w/a.ts", "/w/c.ts"])
+    })
+
+    it("compares whole paths, never a part of one", () => {
+      let activity = turn(started(0), 1)
+      activity = asked(activity, "a", patching("a.ts"), 2)
+      for (const path of ["/w/data.ts", "/w/a.tsx", "/w/x/a.ts", "/w/..a.ts"])
+        activity = settled(activity, path, 3)
+      expect(waiting(activity)).toEqual(["a"])
+      // A directory named `..foo` is a directory, not a way out of one.
+      const dotted = asked(turn(started(0), 1), "d", patching("..foo/a.ts"), 2)
+      expect(waiting(settled(dotted, "/w/..foo/a.ts", 3))).toEqual([])
+      expect(waiting(settled(dotted, "/foo/a.ts", 3))).toEqual(["d"])
+    })
+
+    it("settles no command's permission, whatever its text holds", () => {
+      const activity = asked(turn(started(0), 1), "c", { command: "cat /w/a.ts" }, 2, {
+        toolName: "Bash",
+      })
+      expect(waiting(settled(activity, "/w/a.ts", 3))).toEqual(["c"])
+    })
+
+    it("settles on a rollout's word alone, never on a hook's", () => {
+      const activity = asked(turn(started(0), 1), "a", patching("a.ts"), 2)
+      expect(
+        apply(
+          activity,
+          binding,
+          fact({ type: "file-touched", actor: null, path: "/w/a.ts", startedAt: 3 } as Fields),
+        )?.pending,
+      ).toEqual(activity.pending)
+    })
+
+    it("settles no request asked after the write", () => {
+      let activity = turn(started(0), 1)
+      activity = asked(activity, "late", patching("a.ts"), 9)
+      expect(waiting(settled(activity, "/w/a.ts", 4))).toEqual(["late"])
+    })
+
+    it("takes every file of a patch, and the latest of two asking for the same one", () => {
+      let activity = turn(started(0), 1)
+      activity = asked(activity, "old", patching("a.ts"), 2)
+      activity = asked(activity, "multi", patching("m.ts", "a.ts"), 3)
+      activity = settled(activity, "/w/a.ts", 4)
+      expect(waiting(activity)).toEqual(["old"])
+      const several = settled(
+        asked(turn(started(0), 1), "m", patching("m.ts", "n.ts"), 2),
+        "/w/n.ts",
+        3,
+      )
+      expect(waiting(several)).toEqual([])
+    })
+
+    it("compares Windows paths across separators and case, on any host", () => {
+      const input = { command: patch("C:\\Work\\a.ts", "src\\b.ts") }
+      const activity = asked(turn(started(0), 1), "w", input, 2, { cwd: "C:\\Work" })
+      expect(waiting(settled(activity, "c:/work/A.ts", 3))).toEqual([])
+      // A relative file is from the request's directory, its separators either way.
+      expect(waiting(settled(activity, "C:/WORK/src/b.ts", 3))).toEqual([])
+      expect(waiting(settled(activity, "C:\\Work\\src\\c.ts", 3))).toEqual(["w"])
+      // A UNC share is a Windows path too.
+      const unc = asked(turn(started(0), 1), "u", { command: patch("\\\\host\\share\\a.ts") }, 2)
+      expect(waiting(settled(unc, "\\\\host\\share\\a.ts", 3))).toEqual([])
+    })
+
+    it("compares POSIX paths as they are, on any host", () => {
+      // Case matters, and a backslash-less path is not resolved against a drive.
+      const activity = asked(turn(started(0), 1), "p", patching("src/a.ts"), 2)
+      expect(waiting(settled(activity, "/w/SRC/a.ts", 3))).toEqual(["p"])
+      expect(waiting(settled(activity, "/w/src/../src/a.ts", 3))).toEqual([])
+    })
+
+    it("leaves a Claude write's PostToolUse to settle only its own request", () => {
+      let activity = turn(started(0), 1)
+      for (const [id, startedAt] of [
+        ["a", 2],
+        ["b", 3],
+      ] as const)
+        activity = asked(activity, id, { file_path: `/w/${id}.ts` }, startedAt, {
+          toolName: "Write",
+        })
+      activity = on(activity, {
+        type: "attention-resolved",
+        requestId: "a",
+        actor: null,
+        toolName: "Write",
+        loose: false,
+        outcome: "allowed",
+        startedAt: 4,
+      })
+      activity = settled(activity, "/w/a.ts", 5, false)
+      expect(waiting(activity)).toEqual(["b"])
+    })
+  })
+
+  it("keeps at most 16 files and ignores a path too long to show", () => {
+    let activity = turn(started(0), 1)
+    for (let n = 0; n < 20; n++)
+      activity =
+        apply(
+          activity,
+          binding,
+          fact({
+            type: "file-touched",
+            actor: null,
+            path: `/w/${n}.ts`,
+            startedAt: 2 + n,
+          } as Fields),
+        ) ?? activity
+    activity =
+      apply(
+        activity,
+        binding,
+        fact({
+          type: "file-touched",
+          actor: null,
+          path: `/${"x".repeat(1024)}`,
+          startedAt: 30,
+        } as Fields),
+      ) ?? activity
+    const { files } = summary(stop(activity, 40)).lastTurn!
+    expect(files).toHaveLength(16)
+    expect(files[0]).toBe("/w/0.ts")
+    expect(files.at(-1)).toBe("/w/15.ts")
+  })
+
+  it("empties the files when a new turn starts, but not when the turn already ran", () => {
+    let activity = wrote(turn(started(0), 1), "/w/a.ts", 2)
+    // A call that resumes the running turn (Antigravity's) adds to it.
+    activity = wrote(turn(activity, 3, "call"), "/w/b.ts", 4)
+    expect(summary(stop(activity, 5)).lastTurn?.files).toEqual(["/w/a.ts", "/w/b.ts"])
+    const ended = stop(activity, 5)
+    expect(summary(stop(turn(ended, 6), 7)).lastTurn?.files).toEqual([])
+    // A continued Stop resumes the same turn: its files stay.
+    const continued = on(ended, { type: "turn-continued", startedAt: 5 })
+    expect(summary(stop(wrote(continued, "/w/c.ts", 6), 7)).lastTurn?.files).toEqual([
+      "/w/a.ts",
+      "/w/b.ts",
+      "/w/c.ts",
+    ])
+  })
+
+  it("ignores a file older than the turn's start, and one told while no turn ran", () => {
+    const ended = stop(turn(started(0), 10), 12)
+    expect(
+      apply(
+        turn(started(0), 10),
+        binding,
+        fact({ type: "file-touched", actor: null, path: "/w/old.ts", startedAt: 5 } as Fields),
+      ),
+    ).toBeUndefined()
+    expect(
+      apply(
+        ended,
+        binding,
+        fact({ type: "file-touched", actor: null, path: "/w/old.ts", startedAt: 5 } as Fields),
+      ),
+    ).toBeUndefined()
+  })
+
+  it("adds a file told after the turn's Stop to that turn's files, until a new turn starts", () => {
+    let activity = wrote(turn(started(0), 10), "/w/a.ts", 11)
+    activity = stop(activity, 20)
+    // Written in the turn, read late (Codex's rollout), or by a subagent running on.
+    activity = wrote(activity, "/w/b.ts", 15)
+    expect(
+      apply(
+        activity,
+        binding,
+        fact({ type: "file-touched", actor: null, path: "/w/b.ts", startedAt: 16 } as Fields),
+      ),
+    ).toBeUndefined()
+    expect(summary(activity).lastTurn?.files).toEqual(["/w/a.ts", "/w/b.ts"])
+    expect(summary(turn(activity, 30)).lastTurn).toBeNull()
+    expect(summary(stop(turn(activity, 30), 31)).lastTurn?.files).toEqual([])
+  })
+
+  it("keeps the files of a call that resumes a turn an Escape ended", () => {
+    let activity = wrote(turn(started(0), 10), "/w/a.ts", 11)
+    activity = on(activity, { type: "turn-escaped", startedAt: 12 })
+    activity = turn(activity, 13, "call")
+    expect(summary(stop(wrote(activity, "/w/b.ts", 14), 15)).lastTurn?.files).toEqual([
+      "/w/a.ts",
+      "/w/b.ts",
+    ])
+  })
+
+  it("tells a failed turn's error, trimmed to what the wire holds, and no error of any other", () => {
+    const failed = stop(turn(started(0), 1), 2, { outcome: "failed", error: "x".repeat(3000) })
+    expect(summary(failed).lastTurn?.error).toHaveLength(2048)
+    expect(summary(stop(turn(started(0), 1), 2, { error: "ignored" })).lastTurn?.error).toBeNull()
+    expect(summary(stop(turn(started(0), 1), 2, { outcome: "failed" })).lastTurn?.error).toBeNull()
+  })
+
+  it("keeps the error and the limit of an end when the hook's Stop fills it in, the records told it first", () => {
+    const records = stop(turn(started(0), 1), 2, {
+      outcome: "failed",
+      recorded: true,
+      error: "out of quota",
+      limited: true,
+    })
+    const limited = withLimit(records, { minutes: 300, resetsAt: 9_000, spent: true })!
+    const hook = stop(limited, 3, { outcome: "failed" })
+    expect(summary(hook).lastTurn).toMatchObject({
+      at: 2,
+      error: "out of quota",
+      limit: { minutes: 300, resetsAt: 9_000 },
+    })
+    // Told by the hook alone, it shows the same.
+    const first = stop(turn(started(0), 1), 2, { outcome: "failed", error: "rate limited" })
+    expect(summary(first).lastTurn).toMatchObject({ error: "rate limited", limit: null })
+    // An end told another way drops them.
+    expect(summary(stop(limited, 3, { outcome: "interrupted" })).lastTurn).toMatchObject({
+      error: null,
+      limit: null,
+    })
+  })
+
+  it("lets a window used up replace a latch picked as the most used, and no other", () => {
+    const ended = stop(turn(started(0), 1), 2)
+    const guessed = withLimit(ended, { minutes: 300, resetsAt: 5, spent: false })!
+    const fixed = withLimit(guessed, { minutes: 10_080, resetsAt: 9, spent: true })!
+    expect(summary(fixed).lastTurn?.limit).toEqual({ minutes: 10_080, resetsAt: 9 })
+    expect(withLimit(fixed, { minutes: 1, resetsAt: 1, spent: true })).toBeUndefined()
+  })
+
+  it("latches a limit on the last turn only once, while none runs, and drops it with the next turn", () => {
+    const running = turn(started(0), 1)
+    expect(withLimit(running, { minutes: null, resetsAt: 9, spent: true })).toBeUndefined()
+    const ended = stop(running, 2)
+    const latched = withLimit(ended, { minutes: null, resetsAt: 9, spent: true })!
+    expect(summary(latched).lastTurn?.limit).toEqual({ minutes: null, resetsAt: 9 })
+    expect(withLimit(latched, { minutes: 5, resetsAt: 10, spent: true })).toBeUndefined()
+    expect(summary(turn(latched, 3)).lastTurn).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join, resolve } from "node:path"
+import { join } from "node:path"
 
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import {
@@ -410,7 +410,7 @@ describe("files an agent wrote, as each harness reports them", () => {
         tool_name: "apply_patch",
         tool_input: { command: patch },
       }).map((event) => event.type === "file-touched" && event.path),
-    ).toEqual([resolve("/w", "src/a.ts"), "/abs/b.ts"])
+    ).toEqual(["/w/src/a.ts", "/abs/b.ts"])
   })
 
   it("come from Antigravity's write_to_file", () => {

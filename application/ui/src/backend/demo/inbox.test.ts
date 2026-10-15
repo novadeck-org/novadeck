@@ -39,8 +39,9 @@ describe("the demo Inbox's items", () => {
   })
 
   it("puts one item on each sample terminal, none seen, none from the future", () => {
-    // The states the debug panel adds too: each on a terminal of its own.
-    const items = demoInboxItemsAll(now)
+    // The states the debug panel adds too: each on a terminal of its own, but for a held
+    // message, which is its thread's whatever else its terminal shows.
+    const items = demoInboxItemsAll(now).filter((each) => each.kind !== "held")
     const terminals = items.map((each) => each.source.terminalId)
     expect(new Set(terminals).size).toBe(terminals.length)
     expect(items.every((each) => !each.seen && each.at <= now)).toBe(true)

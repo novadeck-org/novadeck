@@ -30,6 +30,7 @@ const message = (fields: Partial<Message> = {}): Message => ({
   state: "queued",
   deliveredAt: null,
   notified: false,
+  stopped: false,
   fromLead: false,
   toLead: false,
   ...fields,
@@ -42,6 +43,7 @@ const thread = (fields: Partial<Thread> = {}): Thread => ({
   hops: 1,
   allowed: 12,
   lastAt: 0,
+  stoppedAt: null,
   ...fields,
 })
 

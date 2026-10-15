@@ -19,6 +19,7 @@ const listing = (delivery: DeliveryState, state?: MessageState): TerminalMessage
             hops: 1,
             allowed: 8,
             held: false,
+            stopped: false,
             messages: [
               {
                 id: "m-1",

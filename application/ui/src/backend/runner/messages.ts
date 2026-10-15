@@ -13,6 +13,7 @@ export type MailStreams = {
   readonly watch: (terminalId: string) => AsyncIterableIterator<TerminalMessages, undefined>
   readonly pause: (paused: boolean) => Promise<void>
   readonly release: (thread: string) => Promise<void>
+  readonly stop: (thread: string) => Promise<void>
 }
 
 export type RunnerMessages = Messages & {
@@ -22,7 +23,7 @@ export type RunnerMessages = Messages & {
   // The terminal is gone: stop following it, and forget its messages.
   readonly unfollow: (key: CompanionKey) => void
   // Stops following every terminal.
-  readonly stop: () => void
+  readonly end: () => void
 }
 
 export const mailOf = (listing: TerminalMessages): TerminalMail => ({
@@ -138,6 +139,37 @@ export const createRunnerMessages = (
     forget(id)
   }
 
+  // A release or a stop: the thread goes on once a listing shows it no longer held.
+  const settle = (thread: string, call: () => Promise<void>, what: string): void => {
+    state.update((current) => {
+      const { [thread]: _before, ...failed } = current.failed
+      return { ...current, releasing: { ...current.releasing, [thread]: "asked" }, failed }
+    })
+    track(call()).then(
+      () => {
+        state.update((current) =>
+          thread in current.releasing
+            ? reconcile(
+                { ...current, releasing: { ...current.releasing, [thread]: "accepted" } },
+                true,
+              )
+            : current,
+        )
+      },
+      (error: unknown) =>
+        state.update((current) => ({
+          ...current,
+          releasing: Object.fromEntries(
+            Object.entries(current.releasing).filter(([each]) => each !== thread),
+          ),
+          // A thread a listing already shows going on was released all the same.
+          failed: goesOn(current, thread)
+            ? current.failed
+            : { ...current.failed, [thread]: `Couldn't ${what} it: ${reason(error)}` },
+        })),
+    )
+  }
+
   return {
     state,
     pause: (paused) => {
@@ -153,38 +185,11 @@ export const createRunnerMessages = (
           })),
       )
     },
-    release: (thread) => {
-      state.update((current) => {
-        const { [thread]: _before, ...failed } = current.failed
-        return { ...current, releasing: { ...current.releasing, [thread]: "asked" }, failed }
-      })
-      track(streams.release(thread)).then(
-        () => {
-          state.update((current) =>
-            thread in current.releasing
-              ? reconcile(
-                  { ...current, releasing: { ...current.releasing, [thread]: "accepted" } },
-                  true,
-                )
-              : current,
-          )
-        },
-        (error: unknown) =>
-          state.update((current) => ({
-            ...current,
-            releasing: Object.fromEntries(
-              Object.entries(current.releasing).filter(([each]) => each !== thread),
-            ),
-            // A thread a listing already shows going on was released all the same.
-            failed: goesOn(current, thread)
-              ? current.failed
-              : { ...current.failed, [thread]: `Couldn't release it: ${reason(error)}` },
-          })),
-      )
-    },
+    release: (thread) => settle(thread, () => streams.release(thread), "release"),
+    stop: (thread) => settle(thread, () => streams.stop(thread), "stop"),
     follow,
     unfollow,
-    stop: () => {
+    end: () => {
       for (const [id, stream] of followed) {
         followed.delete(id)
         void stream.return?.()

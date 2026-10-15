@@ -117,6 +117,22 @@ export const createDemoMessages = (initial: readonly DemoMailbox[], paused = fal
       }))
       publish()
     },
+    stop: (thread) => {
+      boxes = boxes.map((box) => ({
+        ...box,
+        threads: box.threads.map((each) =>
+          each.id === thread
+            ? {
+                ...each,
+                messages: each.messages.map((message) =>
+                  message.state === "queued" ? { ...message, state: "gone" as const } : message,
+                ),
+              }
+            : each,
+        ),
+      }))
+      publish()
+    },
   }
 }
 

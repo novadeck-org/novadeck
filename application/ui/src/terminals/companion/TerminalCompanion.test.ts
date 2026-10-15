@@ -146,6 +146,7 @@ describe("a terminal's taskbar", () => {
           state,
           pause: () => {},
           release: () => {},
+          stop: () => {},
         },
       )
       const icon = () => container.querySelector(".plan-tb-item[aria-label^='Messages']")

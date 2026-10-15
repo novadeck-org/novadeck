@@ -79,6 +79,9 @@ export type Messages = {
   // Lets a thread held for going back and forth too often go on: its held messages wait
   // to be delivered again, and it may have more.
   readonly release: (thread: string) => void
+  // Stops a thread held for release: its messages not yet delivered are gone, and its
+  // senders are told the person stopped it.
+  readonly stop: (thread: string) => void
 }
 
 const waitingStates: ReadonlySet<MessageState> = new Set(["queued", "leased", "held"])

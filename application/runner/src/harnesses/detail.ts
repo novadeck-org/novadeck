@@ -91,6 +91,7 @@ export const agentDetail = (
           choices: [...choices],
           dialog: dialogs.get(at) ?? null,
           answered: answered.has(at),
+          askedAt: request.askedAt,
         }
       }),
     coverage: harnesses[binding.agent].coverage,

@@ -1,4 +1,4 @@
-import { isAbsolute, resolve } from "node:path"
+import { posix, win32 } from "node:path"
 
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import {
@@ -118,12 +118,14 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           loose: tool === "request_user_input",
           outcome: "allowed",
         },
-        ...patched(input, absolute(payload.cwd)).map((path): HarnessEvent => ({
-          type: "file-touched",
-          ...base,
-          actor,
-          path,
-        })),
+        ...(applied(payload.tool_response)
+          ? patched(input, absolute(payload.cwd)).map((path): HarnessEvent => ({
+              type: "file-touched",
+              ...base,
+              actor,
+              path,
+            }))
+          : []),
       ]
     default:
       return []
@@ -172,20 +174,46 @@ const asked = (
   input,
 })
 
-// The lines of a patch that name the files it adds, changes or moves to.
-const patchFile = /^\*\*\* (?:Add File|Update File|Move to): (.+)$/gm
+// The lines of a patch that name the files it adds, changes, deletes or moves to.
+const patchFile = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/gm
+
+// Whether a patch's PostToolUse response does not say it failed. Codex answers a patch it
+// applied "Success. Updated the following files: ..." (seen from the shell's, 0.159.3); a
+// text that begins otherwise (a failed verification) names no file. A response of no text
+// is no word of failure. Its response for the tool itself is unprobed: the fake model's
+// Codex is offered none, and a rollout's completed `FileChange` backs this up.
+const applied = (response: unknown): boolean =>
+  typeof response !== "string" || response.trim() === "" || /^Success\b/.test(response.trim())
+
+/**
+ * The path rules the given paths are written in, whatever host this runs on: a drive
+ * letter, a backslash or a UNC prefix make them Windows paths, anything else POSIX.
+ */
+export const flavourOf = (...paths: (string | undefined)[]): typeof posix =>
+  paths.some((path) => path !== undefined && /^[A-Za-z]:[\\/]|^\\\\|\\/.test(path)) ? win32 : posix
 
 /**
  * The files a tool call's patch wrote, as Codex's apply_patch names them in its input,
  * from the session's directory; none for any other call.
  */
-const patched = (input: unknown, cwd: string | undefined): readonly string[] => {
+export const patched = (input: unknown, cwd: string | undefined): readonly string[] => {
   if (typeof input !== "object" || input === null) return []
   const texts = Object.values(input).filter((value): value is string => typeof value === "string")
   const paths = texts.flatMap((each) =>
     [...each.matchAll(patchFile)].map(([, path]) => path!.trim()),
   )
   return paths.flatMap((path) =>
-    isAbsolute(path) ? [path] : cwd !== undefined ? [resolve(cwd, path)] : [],
+    flavourOf(path, cwd).isAbsolute(path)
+      ? [flavourOf(path).normalize(path)]
+      : cwd !== undefined
+        ? [flavourOf(path, cwd).resolve(cwd, path)]
+        : [],
   )
 }
+
+/** The files a permission request for a Codex patch asks to write, from its directory. */
+export const patchRequested = (
+  tool: string,
+  input: unknown,
+  cwd: string | undefined,
+): readonly string[] => (tool === "apply_patch" ? patched(input, cwd) : [])

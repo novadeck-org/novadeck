@@ -673,7 +673,7 @@ describe("a terminal's messages on its taskbar", () => {
     const panes = createPanes({
       companions: emptyCompanions(),
       workspace,
-      messages: { state, pause: () => {}, release: () => {} },
+      messages: { state, pause: () => {}, release: () => {}, stop: () => {} },
     })
     panes.connect()
     const bar = () => activeSession(workspace.getSnapshot())!.state.bars["01"]

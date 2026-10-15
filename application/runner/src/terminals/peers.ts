@@ -144,6 +144,12 @@ export class TerminalPeers {
     this.options.messaging.release(thread)
   }
 
+  /** Stops a thread: its messages not yet delivered are gone, and nothing continues it. */
+  stop(thread: string): void {
+    if (this.options.stopping()) throw new DomainError("RUNTIME_CLOSING")
+    this.options.messaging.stop(thread)
+  }
+
   /**
    * What Novadeck knows of each running terminal in a session beyond its agent's hooks:
    * its title and who gave it; its folder, relative to the project when inside it; its

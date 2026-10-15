@@ -480,6 +480,7 @@ describe("runner client project removal", () => {
         hops: 1,
         allowed: 12,
         lastAt: Date.now(),
+        stoppedAt: null,
       })
       earlier.saveMessage({
         id: `m-${project}`,
@@ -493,6 +494,7 @@ describe("runner client project removal", () => {
         state: "delivered",
         deliveredAt: Date.now(),
         notified: false,
+        stopped: false,
         fromLead: false,
         toLead: false,
       })

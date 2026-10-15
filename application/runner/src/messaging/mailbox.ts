@@ -46,6 +46,8 @@ export type Message = {
   readonly state: MessageState
   readonly deliveredAt: number | null
   readonly notified: boolean
+  /** Whether the person stopped its thread before it was delivered, which made it gone. */
+  readonly stopped: boolean
   /**
    * Whether its sender was the recipient terminal's lead when it was sent, which fixes its
    * authority: delivery marks it so, and it never awaits release, whatever the lead does
@@ -73,6 +75,12 @@ export type Thread = {
   readonly allowed: number
   /** When its latest message was sent, in epoch milliseconds. */
   readonly lastAt: number
+  /**
+   * When the person stopped it, in epoch milliseconds; null if they have not, or released
+   * it since. A message that would continue it is refused until `threadMs` after the later
+   * of this and `lastAt`.
+   */
+  readonly stoppedAt: number | null
 }
 
 /** The most a message's text may hold, in UTF-8 bytes. */
@@ -154,6 +162,28 @@ export const threadBetween = (
       latest = thread
   }
   return latest
+}
+
+/**
+ * Whether the person's stop of a thread still blocks it: from the later of its latest
+ * message and the stop, for as long as a thread lasts (`threadMs`).
+ */
+export const stopBlocks = (thread: Thread, now: number): boolean =>
+  thread.stoppedAt !== null && now - Math.max(thread.lastAt, thread.stoppedAt) <= threadMs
+
+/** The thread between two terminals the person stopped, if its stop still blocks it. */
+export const stoppedBetween = (
+  threads: Iterable<Thread>,
+  a: string,
+  b: string,
+  now: number,
+): Thread | undefined => {
+  for (const thread of threads) {
+    const [one, two] = thread.between
+    if (((one === a && two === b) || (one === b && two === a)) && stopBlocks(thread, now))
+      return thread
+  }
+  return undefined
 }
 
 /** The same text from the same sender to the same recipient, sent moments ago. */

@@ -242,7 +242,10 @@ const standing = (message: Message, hold: ReturnType<typeof holdOf>): string => 
     return hold === "release"
       ? "held until the user releases its thread"
       : "held while the user has messaging paused"
-  if (message.state === "gone") return "won't arrive: the agent session it was for ended"
+  if (message.state === "gone")
+    return message.stopped
+      ? "won't arrive: the user stopped that thread in Novadeck"
+      : "won't arrive: the agent session it was for ended"
   return message.state
 }
 

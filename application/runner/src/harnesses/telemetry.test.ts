@@ -1,8 +1,14 @@
 import type { TelemetryObserved } from "@novadeck/harness-core/events"
 
 import { describe, expect, it } from "../test.js"
+import type { LastTurn } from "./activity.js"
 import type { Binding } from "./bindings.js"
-import { observeTelemetry, telemetrySummary } from "./telemetry.js"
+import {
+  limitGraceMs,
+  limitOf as limitIn,
+  observeTelemetry,
+  telemetrySummary,
+} from "./telemetry.js"
 
 const binding: Binding = { agent: "codex", sessionId: "s", instance: null }
 const seen = (fields: Partial<TelemetryObserved>): TelemetryObserved => ({
@@ -80,5 +86,121 @@ describe("observing telemetry", () => {
     expect(
       observeTelemetry(first, binding, seen({ sessionId: "t", limits: [limit] })),
     ).toBeUndefined()
+  })
+})
+
+describe("the limit a turn ran into", () => {
+  // Seen as the turn ended, unless a case says when.
+  const limitOf = (
+    lastTurn: LastTurn | null,
+    limits: Parameters<typeof limitIn>[1],
+    seenAt = 1_000,
+  ) => limitIn(lastTurn, limits, seenAt)
+
+  const turn = (fields: Partial<LastTurn> = {}): LastTurn => ({
+    outcome: "failed",
+    limited: true,
+    reply: null,
+    at: 1_000,
+    recorded: false,
+    files: [],
+    from: 0,
+    ...fields,
+  })
+  const window = (minutes: number | null, used: number, resetsAt: number | null) => ({
+    minutes,
+    used,
+    resetsAt,
+  })
+
+  // A turn its harness did not say hit a limit.
+  const plain = (fields: Partial<LastTurn> = {}) => {
+    const { limited: _, ...rest } = turn(fields)
+    return rest
+  }
+
+  it("takes a window used up, as the turn ended or since", () => {
+    expect(limitOf(turn(), [window(300, 0.4, 5_000), window(10_080, 1, 9_000)])).toMatchObject({
+      minutes: 10_080,
+      resetsAt: 9_000,
+    })
+  })
+
+  it("takes the one that resets last of several used up", () => {
+    expect(limitOf(turn(), [window(300, 1, 5_000), window(10_080, 1, 9_000)])).toMatchObject({
+      minutes: 10_080,
+      resetsAt: 9_000,
+    })
+  })
+
+  it("takes the most-used window when its harness said the turn hit a limit and none shows used up", () => {
+    expect(limitOf(turn(), [window(300, 0.4, 5_000), window(10_080, 0.9, 9_000)])).toMatchObject({
+      minutes: 10_080,
+      resetsAt: 9_000,
+    })
+  })
+
+  it("takes none for a window with no reset to come, or an interrupted turn", () => {
+    expect(limitOf(turn(), [window(300, 1, null)])).toBeNull()
+    expect(limitOf(turn(), [window(300, 1, 900)])).toBeNull()
+    expect(
+      limitOf(turn({ outcome: "interrupted", limited: true }), [window(300, 1, 5_000)]),
+    ).toBeNull()
+    expect(limitOf(turn(), [])).toBeNull()
+    expect(limitOf(null, [window(300, 1, 5_000)])).toBeNull()
+  })
+
+  it("takes a window used up seen within the grace after the turn, not one that fills later", () => {
+    const full = [window(300, 1, 900_000)]
+    expect(limitOf(turn(), full, 1_000 + limitGraceMs)).toMatchObject({
+      minutes: 300,
+      resetsAt: 900_000,
+    })
+    expect(limitOf(turn(), full, 1_000 + limitGraceMs + 1)).toBeNull()
+  })
+
+  it("takes no window of a turn its harness did not say hit a limit, whatever its outcome", () => {
+    // Antigravity lists every model's buckets: one used up beside the turn is no limit it ran into.
+    const full = [window(300, 1, 900_000)]
+    for (const outcome of ["completed", "failed", "unknown"] as const)
+      expect(limitOf(plain({ outcome }), full)).toBeNull()
+    expect(limitOf(turn({ outcome: "completed" }), full)).toMatchObject({
+      minutes: 300,
+      resetsAt: 900_000,
+    })
+  })
+
+  it("takes nothing from records made after the grace, the harness's word included", () => {
+    const full = [window(300, 1, 900_000)]
+    const after = 1_000 + limitGraceMs + 1
+    expect(limitOf(turn({ limited: true }), full, after)).toBeNull()
+    expect(limitOf(turn({ limited: true }), [window(300, 0.4, 900_000)], after)).toBeNull()
+  })
+
+  it("takes the next window after a reset for none: its records show nothing used up", () => {
+    // The window the turn hit reset; the redraw shows the next one, fresh.
+    expect(
+      limitOf(turn({ limited: true }), [window(300, 0, 950_000)], 1_000 + limitGraceMs + 1),
+    ).toBeNull()
+    expect(limitOf(plain(), [window(300, 1, 950_000)])).toBeNull()
+  })
+
+  it("replaces a latch picked as the most used with a window seen used up within the grace", () => {
+    const guessed = turn({ limit: { minutes: 300, resetsAt: 5_000 }, guessed: true })
+    // Still none used up: nothing to correct it with.
+    expect(limitOf(guessed, [window(300, 0.9, 5_000)])).toBeNull()
+    expect(limitOf(guessed, [window(300, 0.9, 5_000), window(10_080, 1, 9_000)])).toMatchObject({
+      minutes: 10_080,
+      resetsAt: 9_000,
+      spent: true,
+    })
+    // Not after the grace.
+    expect(limitOf(guessed, [window(10_080, 1, 9_000)], 1_000 + limitGraceMs + 1)).toBeNull()
+  })
+
+  it("keeps the window it latched whatever the records say after", () => {
+    expect(
+      limitOf(turn({ limit: { minutes: 300, resetsAt: 5_000 } }), [window(300, 1, 9_000)]),
+    ).toBeNull()
   })
 })

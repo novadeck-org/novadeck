@@ -56,6 +56,9 @@ const agentStatus = (
           ...(lastTurn.reply === null ? {} : { reply: lastTurn.reply }),
           ...(lastTurn.gist ? { gist: lastTurn.gist.text } : {}),
           ...(lastTurn.gist?.asks ? { asks: true as const } : {}),
+          ...(lastTurn.error === null ? {} : { error: lastTurn.error }),
+          ...(lastTurn.limit === null ? {} : { limit: lastTurn.limit }),
+          ...(lastTurn.files.length > 0 ? { files: lastTurn.files } : {}),
           at: lastTurn.at,
         },
       }

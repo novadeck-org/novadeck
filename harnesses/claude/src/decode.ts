@@ -5,6 +5,7 @@ import {
   absolute,
   withRequestCwd,
   bounded,
+  errorText,
   callId,
   promptStart,
   replied,
@@ -95,8 +96,25 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
               ...replied(payload.last_assistant_message),
             },
           ]
-    case "StopFailure":
-      return actor ? [] : [{ type: "turn-ended", ...base, outcome: "failed" }]
+    case "StopFailure": {
+      if (actor) return []
+      // Its `error` is a class (`rate_limit`, `overloaded`, `unknown`, ...), which is no
+      // text for a person; the message it showed (`last_assistant_message`, "API Error: ...")
+      // is, and `error_details` where it names more (probed 2026-10-15, 2.1.287).
+      const error =
+        errorText(payload.last_assistant_message) ??
+        errorText(payload.error_details) ??
+        (text(payload.error) === "unknown" ? undefined : errorText(payload.error))
+      return [
+        {
+          type: "turn-ended",
+          ...base,
+          outcome: "failed",
+          ...(error && { error }),
+          ...(payload.error === "rate_limit" && { limited: true as const }),
+        },
+      ]
+    }
     case "SubagentStart":
       return actor
         ? [
@@ -190,7 +208,8 @@ const decodeHook = ({ event, seq, instance, env, payload }: Report): readonly Ha
           ...(payload.is_interrupt === true && { interrupted: true as const }),
         },
         ...drafted(base, actor, tool, payload),
-        ...touched(base, actor, tool, payload.tool_input),
+        // A write that failed wrote nothing.
+        ...(event === "PostToolUse" ? touched(base, actor, tool, payload.tool_input) : []),
       ]
     case "StatusLine":
       return statusLine(base, payload)

@@ -259,7 +259,7 @@ describe("Antigravity's PreToolUse answer", () => {
     },
   )
 
-  it("is registered for every tool, with PostToolUse for the two that matter", () => {
+  it("is registered for every tool, with PostToolUse for the three that matter", () => {
     const launchers: Launchers = { mcp: { command: "/data/shell/mcp" } }
     const hooks = (platform: NodeJS.Platform, machine?: Machine) =>
       (
@@ -283,6 +283,7 @@ describe("Antigravity's PreToolUse answer", () => {
       ])
       expect(registered.PostToolUse?.map(({ matcher }) => matcher)).toEqual([
         "write_to_file",
+        "replace_file_content",
         "ask_question",
       ])
     }

@@ -328,13 +328,15 @@ export const startFakeModel = async (options: FakeModelOptions): Promise<FakeMod
       // A rule's refusal: the error each API answers a bad request with, as far as its
       // harness reads one.
       if (error instanceof Refusal && !outgoing.headersSent) {
-        outgoing.writeHead(error.status, { "content-type": "application/json" })
+        outgoing.writeHead(error.status, { "content-type": "application/json", ...error.headers })
         const message = "The fake model refused the request."
         outgoing.end(
-          JSON.stringify({
-            type: "error",
-            error: { type: "invalid_request_error", message, code: error.status },
-          }),
+          JSON.stringify(
+            error.body ?? {
+              type: "error",
+              error: { type: "invalid_request_error", message, code: error.status },
+            },
+          ),
         )
         return
       }

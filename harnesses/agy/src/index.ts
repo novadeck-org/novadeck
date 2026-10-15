@@ -125,13 +125,14 @@ export const agy = {
         novadeck: {
           PreInvocation: [handler(platform, "PreInvocation")],
           Stop: [handler(platform, "Stop")],
-          // Tool events take matcher groups: after a tool, the one that writes artifacts,
-          // which names a plan, and the one that asks the person; before every tool.
+          // Tool events take matcher groups: after a tool, the ones that write files (one
+          // writes artifacts, which names a plan), and the one that asks the person; before every tool.
           ...(!(platform === "win32" && machine.cmdPrints) && {
             PreToolUse: [{ matcher: "*", hooks: [handler(platform, "PreToolUse")] }],
           }),
           PostToolUse: [
             { matcher: "write_to_file", hooks: [handler(platform, "PostToolUse")] },
+            { matcher: "replace_file_content", hooks: [handler(platform, "PostToolUse")] },
             { matcher: "ask_question", hooks: [handler(platform, "PostToolUse")] },
           ],
         },

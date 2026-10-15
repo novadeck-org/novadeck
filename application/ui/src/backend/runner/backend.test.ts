@@ -15,8 +15,10 @@ import {
   workspaceReducer,
   type WorkspaceAction,
 } from "../../model/state"
+import { createStore } from "../../model/store"
 import type { Workspace, WorkspaceTarget } from "../../model/types"
 import { context, describe, expect, it } from "../../test"
+import { workspaceFixture } from "../../test/fixtures"
 import type { BackendAction } from "../port"
 import {
   runnerBackend,
@@ -628,6 +630,25 @@ describe("runner backend", () => {
       expect(await runner.client.messages.list(terminal.id)).toMatchObject({ paused: false })
       app.commit([{ type: "terminal/close", target: app.target(), terminalId: terminal.id }])
       expect(messages.state.getSnapshot().terminals[id]).toBeUndefined()
+      app.stop()
+    })
+  })
+
+  context("as an Inbox for the person's agents", () => {
+    it("is there once the app binds its workspace, and empty with no agent waiting", async () => {
+      const app = open()
+      app.addTerminal()
+      await app.idle()
+      const inbox = app.backend.inbox!
+      const workspace = createStore(workspaceFixture())
+      const unbind = inbox.bind!({
+        workspace,
+        unread: createStore({}),
+        read: () => {},
+      })
+
+      expect(inbox.state.getSnapshot().items).toEqual([])
+      unbind()
       app.stop()
     })
   })

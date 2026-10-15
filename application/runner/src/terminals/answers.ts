@@ -19,6 +19,8 @@ type Other = {
   readonly ref: string
   readonly actor: string | null
   readonly facts: RequestFacts
+  /** When its hook started, on the clock of `Date.now`. */
+  readonly askedAt: number
 }
 
 /** What answers need of the terminal manager and the dialogs tracker, by terminal. */
@@ -269,8 +271,21 @@ export class Answers {
       // before any key is pressed, not after the dialog took its answer.
       const refusal = words === undefined ? undefined : promptRefusal(words)
       if (refusal) throw new DomainError("PROMPT_REFUSED", refusal)
-      await this.run(terminalId, ref, steps, { adapter, facts, id: answer.dialog })
-      const taken = await this.confirmed(terminalId, ref, read, adapter, self, others, found.rows)
+      const pressedAt = await this.run(terminalId, ref, steps, {
+        adapter,
+        facts,
+        id: answer.dialog,
+      })
+      const taken = await this.confirmed(
+        terminalId,
+        ref,
+        read,
+        adapter,
+        self,
+        others,
+        found.rows,
+        pressedAt,
+      )
       rows = taken.rows
       hold.discard()
       hold.release()
@@ -477,12 +492,14 @@ export class Answers {
     ref: string,
     steps: readonly KeyStep[],
     check: { readonly adapter: DialogAdapter; readonly facts: RequestFacts; readonly id: string },
-  ): Promise<void> {
+  ): Promise<number> {
     // Words typed into a field are checked by the adapter's own `until` right after, which
     // knows where its field shows them; an answer that would type unchecked presses nothing.
     if (steps.some((step, at) => "type" in step && !(steps[at + 1] && "until" in steps[at + 1]!)))
       throw new Error("The adapter types words without a check that they showed.")
     let pressed = false
+    // When the first key went, on the clock of `Date.now`.
+    let pressedAt = Date.now()
     for (const step of steps) {
       if ("until" in step) {
         // eslint-disable-next-line no-await-in-loop -- Each step needs the one before.
@@ -503,10 +520,12 @@ export class Answers {
           )
       }
       const text = "press" in step ? step.press : this.typed(step.type, screen)
+      if (!pressed) pressedAt = Date.now()
       if (!this.host.type(terminalId, text))
         throw new Failed("The terminal went away before the keys were pressed.", pressed)
       pressed = true
     }
+    return pressedAt
   }
 
   /** The text of a `type` step as the screen takes it: one bracketed paste, where it can. */
@@ -550,6 +569,7 @@ export class Answers {
     self: Pick<Other, "facts" | "actor">,
     others: readonly Other[],
     before: readonly string[],
+    pressedAt: number,
   ): Promise<{ readonly rows: readonly string[]; readonly viaTwin: boolean }> {
     const until = Date.now() + this.answeredMs
     let last: string | undefined
@@ -560,16 +580,27 @@ export class Answers {
       const steady = now === last
       last = now
       if (steady) {
+        // Answered as its adapter reads it, before anything asks the host: an answer
+        // confirmed must not turn into the terminal's exit seen in the same poll.
+        if (read.answered(screen.rows)) return { rows: screen.rows, viaTwin: false }
         // Or the dialog is no longer the request's, and another pending request's shows at
-        // once, as queued permissions do.
+        // once, as queued permissions do. The requests are read now, not as they were when
+        // the answer began: the next dialog's hook comes with its dialog (Codex's patch
+        // approvals, one after another), so its request may not have existed when the keys
+        // were pressed. A request that came into being only after the keys counts when it
+        // was asked since the first of them, never one that came by for its own reasons.
+        const current = this.host.request(terminalId, ref)
+        if (!current) return { rows: screen.rows, viaTwin: false }
+        const started = new Set(others.map(({ ref: each }) => each))
         const next = () =>
           !adapter.read(screen.rows, self.facts) &&
-          others.some(
+          current.others.some(
             (other) =>
-              !this.host.closed(terminalId, other.ref) && adapter.read(screen.rows, other.facts),
+              (started.has(other.ref) || other.askedAt >= pressedAt) &&
+              !this.host.closed(terminalId, other.ref) &&
+              adapter.read(screen.rows, other.facts),
           )
-        if (read.answered(screen.rows) || !this.host.request(terminalId, ref) || next())
-          return { rows: screen.rows, viaTwin: false }
+        if (next()) return { rows: screen.rows, viaTwin: false }
         // A twin's hook said it was answered: the dialog was approved all the same, and what
         // shows now may be the next of them, which is this request's to answer, not done.
         // The screen must have moved on from the dialog read before the keys, as a twin's

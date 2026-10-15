@@ -152,18 +152,74 @@ describe("terminal activity", () => {
         subagents: [],
         planning: false,
         background: null,
-        lastTurn: { outcome: "completed" as const, reply: "All green.", at: 7, gist: null },
+        lastTurn: {
+          outcome: "completed" as const,
+          reply: "All green.",
+          at: 7,
+          gist: null,
+          error: null,
+          limit: null,
+          files: [],
+        },
       }
       expect(claude(ended).status).toEqual({
         state: "running",
         agent: { working: false, lastTurn: { outcome: "completed", reply: "All green.", at: 7 } },
       })
       expect(
-        claude({ ...ended, lastTurn: { outcome: "interrupted", reply: null, at: 8, gist: null } })
-          .status,
+        claude({
+          ...ended,
+          lastTurn: {
+            outcome: "interrupted",
+            reply: null,
+            at: 8,
+            gist: null,
+            error: null,
+            limit: null,
+            files: [],
+          },
+        }).status,
       ).toEqual({
         state: "running",
         agent: { working: false, lastTurn: { outcome: "interrupted", at: 8 } },
+      })
+    })
+
+    it("carries a failed turn's error, its usage limit and the files it wrote", () => {
+      const ended = (change: object) =>
+        claude({
+          state: "idle",
+          attention: { pending: 0, kind: null, headline: null },
+          subagents: [],
+          planning: false,
+          background: null,
+          lastTurn: {
+            outcome: "failed",
+            reply: null,
+            at: 7,
+            gist: null,
+            error: "5-hour limit reached",
+            limit: { minutes: 300, resetsAt: 9000 },
+            files: ["/work/a.ts", "/work/b.ts"],
+            ...change,
+          },
+        }).status
+      expect(ended({})).toEqual({
+        state: "running",
+        agent: {
+          working: false,
+          lastTurn: {
+            outcome: "failed",
+            error: "5-hour limit reached",
+            limit: { minutes: 300, resetsAt: 9000 },
+            files: ["/work/a.ts", "/work/b.ts"],
+            at: 7,
+          },
+        },
+      })
+      expect(ended({ error: null, limit: null, files: [] })).toEqual({
+        state: "running",
+        agent: { working: false, lastTurn: { outcome: "failed", at: 7 } },
       })
     })
 
@@ -175,7 +231,15 @@ describe("terminal activity", () => {
           subagents: [],
           planning: false,
           background: null,
-          lastTurn: { outcome: "completed", reply: "Rounded.", at: 7, gist },
+          lastTurn: {
+            outcome: "completed",
+            reply: "Rounded.",
+            at: 7,
+            gist,
+            error: null,
+            limit: null,
+            files: [],
+          },
         }).status
       expect(ended({ text: "Rounded each line", asks: false })).toEqual({
         state: "running",

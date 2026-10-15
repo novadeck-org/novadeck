@@ -25,6 +25,7 @@ export const ZenDock = ({
   view,
   enabledViews,
   badge,
+  inbox = false,
   onCreate,
   onViewChange,
   onNotifications,
@@ -33,6 +34,8 @@ export const ZenDock = ({
   view: ViewMode
   enabledViews: ViewMode[]
   badge: BellBadge | undefined
+  // Whether the bell opens the Inbox, as where the backend has one, and not Notifications.
+  inbox?: boolean
   onCreate: () => void
   onViewChange: (view: ViewMode) => void
   onNotifications: () => void
@@ -83,7 +86,7 @@ export const ZenDock = ({
         </button>
       </Tooltip>
       {badge && (
-        <Tooltip content="Notifications">
+        <Tooltip content={inbox ? "Inbox" : "Notifications"}>
           <button
             className="icon-button zen-notifications relative"
             aria-label={badge.label}

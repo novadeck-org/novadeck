@@ -17,6 +17,7 @@ import {
   started as fresh,
   type Activity,
 } from "../harnesses/activity.js"
+import { limitGraceMs } from "../harnesses/telemetry.js"
 import { describe, expect, it as base } from "../test.js"
 import { command, ptyOptions, ptyTrace } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
@@ -2019,5 +2020,99 @@ describe("saving a terminal that was closed", () => {
     } finally {
       store.close()
     }
+  })
+})
+
+describe("a usage limit a turn ran into", () => {
+  type Inside = {
+    records: Map<
+      string,
+      { binding: unknown; activity: Activity | null; summary: { activity: unknown } }
+    >
+    applyFact: (record: unknown, fact: ActivityEvent) => boolean
+  }
+
+  it("latches the window its records show used up, as the turn ends or once it is idle, and keeps it", async ({
+    terminals,
+  }) => {
+    const manager = terminals.manager(ptyOptions)
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const binding = { agent: "claude", sessionId: "s", instance: null } as const
+    record.binding = binding
+    const tell = (fact: object) =>
+      inside.applyFact(record, { ...binding, ...fact } as ActivityEvent)
+    const lastTurn = () => record.activity?.lastTurn
+    const usage = (used: number, startedAt: number) =>
+      tell({
+        type: "telemetry-observed",
+        limits: [{ minutes: 300, used, resetsAt: 900_000 }],
+        startedAt,
+      })
+
+    // The window is used up before the turn ends.
+    record.activity = fresh(0)
+    usage(1, 5)
+    tell({ type: "turn-started", cause: "prompt", startedAt: 10 })
+    tell({
+      type: "turn-ended",
+      outcome: "failed",
+      startedAt: 20,
+      error: "Limit reached",
+      limited: true,
+    })
+    expect(lastTurn()).toMatchObject({
+      error: "Limit reached",
+      limit: { minutes: 300, resetsAt: 900_000 },
+    })
+
+    // Without its harness's word, a window used up is no limit the turn ran into, as when
+    // another model's bucket fills beside it.
+    record.activity = fresh(0)
+    usage(0.5, 25)
+    tell({ type: "turn-started", cause: "prompt", startedAt: 30 })
+    tell({ type: "turn-ended", outcome: "failed", startedAt: 40 })
+    usage(1, 50)
+    expect(lastTurn()?.limit).toBeUndefined()
+
+    // With it, the window latches and stays latched when the records move on.
+    record.activity = fresh(0)
+    usage(1, 55)
+    tell({ type: "turn-started", cause: "prompt", startedAt: 60 })
+    tell({ type: "turn-ended", outcome: "failed", startedAt: 65, limited: true })
+    expect(lastTurn()?.limit).toEqual({ minutes: 300, resetsAt: 900_000 })
+    usage(0.1, 70)
+    expect(lastTurn()?.limit).toEqual({ minutes: 300, resetsAt: 900_000 })
+    tell({ type: "turn-started", cause: "prompt", startedAt: 75 })
+    expect(lastTurn()).toBeNull()
+
+    // A latch picked as the most used gives way to a window then seen used up, within the grace.
+    record.activity = fresh(0)
+    usage(0.9, 100)
+    tell({ type: "turn-started", cause: "prompt", startedAt: 101 })
+    tell({ type: "turn-ended", outcome: "failed", startedAt: 105, limited: true })
+    expect(lastTurn()?.limit).toEqual({ minutes: 300, resetsAt: 900_000 })
+    tell({
+      type: "telemetry-observed",
+      limits: [
+        { minutes: 300, used: 0.9, resetsAt: 900_000 },
+        { minutes: 10_080, used: 1, resetsAt: 990_000 },
+      ],
+      startedAt: 110,
+    })
+    expect(lastTurn()?.limit).toEqual({ minutes: 10_080, resetsAt: 990_000 })
+    usage(1, 120)
+    expect(lastTurn()?.limit).toEqual({ minutes: 10_080, resetsAt: 990_000 })
+
+    // A window that fills long after a turn is the person's, not the turn's.
+    record.activity = fresh(0)
+    tell({ type: "turn-started", cause: "prompt", startedAt: 200 })
+    tell({ type: "turn-ended", outcome: "failed", startedAt: 205 })
+    usage(1, 205 + limitGraceMs + 1)
+    expect(lastTurn()?.limit).toBeUndefined()
   })
 })

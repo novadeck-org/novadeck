@@ -106,6 +106,7 @@ describe("an agent's detail", () => {
         choices: ["Red", "Blue"],
         dialog: null,
         answered: false,
+        askedAt: 3,
       },
     ])
     expect(detail.coverage).toBe(harnesses.claude.coverage)

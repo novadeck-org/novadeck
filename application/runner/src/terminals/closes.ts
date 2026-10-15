@@ -29,7 +29,11 @@ export type CloseAnswer =
       readonly title: string
       /** The agent that ran there, as agents read its name, such as Codex. */
       readonly ran?: string
-      readonly gone?: readonly { readonly id: string; readonly to: string }[]
+      readonly gone?: readonly {
+        readonly id: string
+        readonly to: string
+        readonly stopped?: true
+      }[]
       /** Messages other terminals sent it, undelivered, which won't arrive now. */
       readonly others?: number
     }

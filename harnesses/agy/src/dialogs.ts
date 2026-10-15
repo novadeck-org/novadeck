@@ -12,8 +12,8 @@ import type { RequestAnswer } from "@novadeck/protocol"
  * Antigravity's dialogs, as its TUI draws them and takes keys (probed 2026-10-06, 1.2.14;
  * fixtures/ask.probe.json):
  *
- * - A command's confirmation, "Run this command?", and a file write's, "Allow creation of
- *   this file?": numbered options, one marked with `>`, which a digit takes at once, with
+ * - A command's confirmation, "Run this command?", a file write's, "Allow creation of
+ *   this file?", and a file edit's, "Accept this file edit?": numbered options, one marked with `>`, which a digit takes at once, with
  *   no Enter. The options are read from the screen, never assumed: they differ by tool.
  *   The request's call (its PreToolUse, which decode keeps for the confirmation) must
  *   agree with what the screen shows: the command, or the file.
@@ -127,7 +127,7 @@ type Confirmation = {
 // (the command it shows) or from above the question, to its footer.
 const confirmation = (rows: readonly string[]): Confirmation | undefined => {
   const lines = rows.map((row) => row.trimEnd())
-  const ask = only(rowsLike(lines, /^(Run this command\?|Allow [^?]+\?)$/))
+  const ask = only(rowsLike(lines, /^(Run this command\?|Allow [^?]+\?|Accept this file edit\?)$/))
   if (ask === undefined) return undefined
   const options = optionsFrom(lines, ask + 1)
   if (!options || footerAfter(lines, ask + 1) === undefined) return undefined
@@ -159,15 +159,21 @@ const confirmation = (rows: readonly string[]): Confirmation | undefined => {
   const header = ruleAt > 0 ? lines[ruleAt - 1]!.trim() : ""
   const tool = files[header]
   if (tool === undefined) return undefined
+  // Its edit's hint about auto-approval is no part of what it asks.
   const shown = lines
     .slice(ruleAt + 1, ask)
+    .filter((row) => !row.trim().startsWith("shift+tab to auto-approve"))
     .join("\n")
     .trim()
   return shown === "" ? undefined : { question, options, shown, command: false, tool }
 }
 
 // The tool each file confirmation's header means (only what was probed).
-const files: { readonly [header: string]: string } = { "Create file": "write_to_file" }
+const files: { readonly [header: string]: string } = {
+  "Create file": "write_to_file",
+  // A line replaced in a file (probed 2026-10-15, 1.2.14 and 1.3.5): "Accept this file edit?".
+  "Pending edit": "replace_file_content",
+}
 
 // Whether what the screen shows of a command is the call's, all of it. A command cut short
 // with `...` is no match, as its start could be another call's (parallel calls share one

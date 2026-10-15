@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useNavigationType, type Location } from "reac
 import type { CreateBackend } from "../backend/port"
 import type { CanvasHandle } from "../layouts/canvas/types"
 import { workspaceFromSeed } from "../model/seed"
-import { createWorkspaceStore } from "../model/store"
+import { createWorkspaceStore, type Store } from "../model/store"
 import { readPreferences } from "../preferences/preferences-storage"
 import { readProjectArrangement } from "../projects/project-arrangement-storage"
 import { readSidebarCollapsed, readUpdateSeen, readWindowedView } from "../shell/shell-storage"
@@ -34,6 +34,8 @@ import {
   watchSandbox,
   watchUpdates,
   type UiLocation,
+  type UiState,
+  type UiStore,
 } from "./ui-store"
 
 const now = (): number => Date.now()
@@ -100,6 +102,20 @@ const createServices = (
   }
 }
 
+// The UI store's unread finishes as a store of their own, heard only when they change.
+const unreadOf = (ui: UiStore): Store<UiState["unread"]> => ({
+  getSnapshot: () => ui.getSnapshot().unread,
+  subscribe: (listener) => {
+    let before = ui.getSnapshot().unread
+    return ui.subscribe(() => {
+      const unread = ui.getSnapshot().unread
+      if (unread === before) return
+      before = unread
+      listener()
+    })
+  },
+})
+
 // Creates the backend, stores and navigation once, keeps them in step with the URL,
 // and shares them with its children. Navigation re-renders stop here: the tree
 // arrives as `children` and reads the stores instead of the router.
@@ -142,6 +158,15 @@ export const WorkspaceProvider = ({
       watchFinishes(services.workspace, services.ui, {
         notify: services.backend.notices?.show,
         unread: services.backend.murmur?.gist,
+      }),
+    [services],
+  )
+  useEffect(
+    () =>
+      services.backend.inbox?.bind?.({
+        workspace: services.workspace,
+        unread: unreadOf(services.ui),
+        read: services.commands.dismissAllNotifications,
       }),
     [services],
   )

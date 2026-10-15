@@ -195,6 +195,7 @@ describe("workspace metadata", () => {
       hops: 1,
       allowed: 12,
       lastAt: 1,
+      stoppedAt: null,
     }
     workspace.saveThread(thread)
     workspace.saveThread({ ...thread, id: "t-2", projectId: kept.id })
@@ -610,7 +611,14 @@ describe("saved terminals", () => {
           "SECRET_THREAD_ID",
           () => {
             const between = ["a", "b"] as const
-            const thread = { projectId: project.id, between, hops: 1, allowed: 12, lastAt: 1 }
+            const thread = {
+              projectId: project.id,
+              between,
+              hops: 1,
+              allowed: 12,
+              lastAt: 1,
+              stoppedAt: null,
+            }
             workspace.saveThread({ ...thread, id: "SECRET_THREAD_ID" })
             workspace.removeThreads(["SECRET_THREAD_ID"])
           },
@@ -871,6 +879,7 @@ const message = (id: string, state: Message["state"]): Message => ({
   state,
   deliveredAt: null,
   notified: false,
+  stopped: false,
   fromLead: false,
   toLead: false,
 })
@@ -901,9 +910,13 @@ describe("the mailbox", () => {
       hops: 2,
       allowed: 12,
       lastAt: 3,
+      stoppedAt: null,
     }
     original.saveThread(thread)
     original.saveThread({ ...thread, allowed: 14 })
+    // One the person stopped, whose queued message went gone for it.
+    original.saveMessage({ ...message("m-4", "gone"), stopped: true })
+    original.saveThread({ ...thread, id: "t-2", stoppedAt: 7 })
     original.pauseMessaging(true)
     original.saveTerminal({
       id: "a",
@@ -930,8 +943,12 @@ describe("the mailbox", () => {
       },
       { ...message("m-2", "held"), fromLead: true, toLead: true },
       { ...waiting, to: { ...waiting.to, sessionId: null } },
+      { ...message("m-4", "gone"), stopped: true },
     ])
-    expect(reopened.threads()).toEqual([{ ...thread, allowed: 14 }])
+    expect(reopened.threads()).toEqual([
+      { ...thread, allowed: 14 },
+      { ...thread, id: "t-2", stoppedAt: 7 },
+    ])
     expect(reopened.messagingPaused()).toBe(true)
     // The pause is the runner's own, not one of the client's settings.
     expect(reopened.settings()).toEqual({ transcripts: true, welcomed: false })
@@ -940,7 +957,10 @@ describe("the mailbox", () => {
     reopened.removeMessages(["m-1"])
     reopened.removeThreads(["t-1"])
     reopened.pauseMessaging(false)
-    expect(reopened.messages().map(({ id }) => id)).toEqual(["m-2", "m-3"])
+    expect(reopened.messages().map(({ id }) => id)).toEqual(["m-2", "m-3", "m-4"])
+    reopened.saveThread({ ...thread, id: "t-2", stoppedAt: null })
+    expect(reopened.threads()[0]?.stoppedAt).toBeNull()
+    reopened.removeThreads(["t-2"])
     expect(reopened.threads()).toEqual([])
     expect(reopened.messagingPaused()).toBe(false)
   })

@@ -373,6 +373,7 @@ export type Runner = {
     pause(paused: boolean): Promise<void>
     /** Releases a held thread: its messages go on, and it may have 12 more. */
     release(thread: string): Promise<void>
+    stop(thread: string): Promise<void>
   }
   readonly voice: {
     /**
@@ -1251,6 +1252,7 @@ export const connectRunner = async (
         ),
       pause: (paused) => call((wire) => wire.messages.pause({ paused })),
       release: (thread) => call((wire) => wire.messages.release({ thread })),
+      stop: (thread) => call((wire) => wire.messages.stop({ thread })),
     },
     voice: {
       watch: () =>

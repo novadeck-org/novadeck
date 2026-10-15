@@ -199,10 +199,14 @@ export const demoInboxIds = {
   secret: "demo-secret",
   login: "demo-login",
   limit: "demo-limit",
+  limitManual: "demo-limit-manual",
   told: "demo-told",
   finished: "demo-finished",
   plan: "demo-plan",
   failed: "demo-failed",
+  noDialog: "demo-no-dialog",
+  failedNoError: "demo-failed-no-error",
+  heldSenderGone: "demo-held-sender-gone",
   text: "demo-text-ask",
   plainDeny: "demo-plain-deny",
 } as const
@@ -254,7 +258,8 @@ const plainDenyRequest: ChatRequest = {
 }
 
 // The states the list does not start with, which the debug panel adds: a plan, a failed
-// turn, a free-text ask and a permission with a plain Deny.
+// turn, a free-text ask, a permission with a plain Deny, a limit Novadeck can't resume, a request with no
+// dialog, a failure with no error, and a held message whose sender has gone.
 const extraFixtures: readonly Fixture[] = [
   {
     id: demoInboxIds.plan,
@@ -264,6 +269,77 @@ const extraFixtures: readonly Fixture[] = [
     minutes: 2,
     stopped: true,
     content: { kind: "request", request: planRequest },
+  },
+  {
+    id: demoInboxIds.limitManual,
+    project: "api-service",
+    terminal: 1,
+    agent: "codex",
+    minutes: 22,
+    stopped: true,
+    content: {
+      kind: "trouble",
+      trouble: {
+        type: "limit",
+        minutes: 0,
+        // Set by `demoInboxItems`, which knows now.
+        resetsAt: 0,
+        autoResume: null,
+        evidence: [{ text: "Usage limit reached", result: null, times: 1 }],
+      },
+    },
+  },
+  {
+    id: demoInboxIds.noDialog,
+    project: "docs-site",
+    terminal: 5,
+    agent: "claude",
+    minutes: 4,
+    stopped: true,
+    content: {
+      kind: "request",
+      request: {
+        id: "demo-no-dialog",
+        kind: "permission",
+        tool: "Bash",
+        subject: "pnpm build:docs",
+        choices: [],
+        subagent: false,
+        // The agent's dialog hasn't read after a few seconds: answered in the terminal.
+        dialog: null,
+        answered: false,
+      },
+    },
+  },
+  {
+    id: demoInboxIds.failedNoError,
+    project: "docs-site",
+    terminal: 6,
+    agent: "codex",
+    minutes: 6,
+    stopped: true,
+    content: { kind: "trouble", trouble: { type: "failed", error: null } },
+  },
+  {
+    id: demoInboxIds.heldSenderGone,
+    project: "docs-site",
+    terminal: 4,
+    agent: "codex",
+    minutes: 8,
+    stopped: true,
+    content: {
+      kind: "held",
+      held: {
+        threadId: "demo-thread-gone",
+        // The sender's terminal has closed: it shows by its handle, and the item is the
+        // recipient's.
+        from: { handle: "kestrel", title: "kestrel" },
+        to: { handle: demoHandle(4), title: "Release notes" },
+        text: "Last check before I wrap up: is the 2.3 changelog final?",
+        hop: 4,
+        allowed: 4,
+      },
+    },
   },
   {
     id: demoInboxIds.failed,

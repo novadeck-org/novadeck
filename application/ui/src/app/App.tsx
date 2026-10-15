@@ -174,6 +174,7 @@ export const WorkspaceApp = (): React.JSX.Element => {
               <ZenDockWithBadge
                 view={view}
                 enabledViews={enabledViews}
+                inbox={services.backend.inbox !== undefined}
                 onCreate={() => add()}
                 onViewChange={(next) => {
                   if (next !== view) changeView(next)

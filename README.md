@@ -288,15 +288,20 @@ switcher's dot covers them again. The order and the pins are kept in this browse
 (`novadeck.project-arrangement` in local storage), not shared with other clients of the
 runner.
 
-The Notifications panel (the bell on the sidebar rail) lists everything across every
-project and session that waits on you: questions, permissions and plans to review, and
-agents that finished while you looked elsewhere. Click a row to reveal its terminal;
-dismiss a finish to mark it read. A count badge on the bell, and on Zen's dock, tells how
-many wait. With Murmur on, a waiting question or plan shows a headline under its row, such
-as "Asks which database to use", and a finish you haven't seen shows a short gist of its
-reply in place of the reply's start, marked when the reply asks you something; the tooltip
-and the screen reader's description keep the reply itself. Without Murmur every row reads
-as it always did.
+The Inbox (the bell on the sidebar rail, on by default on the runner) lists everything
+across every project and session that waits on you, one row per agent terminal: a dialog to
+answer, a message between agents held for you to release, a turn that failed, a usage
+limit, and a turn that finished while you looked elsewhere. Click a row to read it and
+answer in place, or reveal its terminal; a row clears itself once answered, once you view
+the terminal, or when its agent starts working again. A count badge on the bell, and on
+Zen's dock, tells how many wait on you, finishes not counted. A usage limit stays until
+the agent's next turn, so Continue is there after the reset. Where a backend has no Inbox,
+the bell opens the Notifications panel, which lists the questions, permissions and plans
+to review and the agents that finished while you looked elsewhere. With Murmur on, a
+waiting question or plan shows a headline under its row, such as "Asks which database to
+use", and a finish you haven't seen shows a short gist of its reply in place of the
+reply's start, marked when the reply asks you something; the tooltip and the screen
+reader's description keep the reply itself. Without Murmur every row reads as it always did.
 
 The project switcher removes a project from its row's trash icon, after
 you confirm; its terminals close, and the folder on disk stays. The last project stays.
@@ -687,7 +692,7 @@ connection state, the crash-loop count and the terminal count, over the demo swi
 sample agents' plans and artifacts), `plain`, `agents` (its seven projects each with
 an agent in a state of its own: waiting, asking, working, and two that finish done and
 failed a moment after it opens, for the project switcher), `messages`, `inbox` (the agents
-demo with the Inbox, which no other variant has) or `welcome`. The
+demo with hardcoded Inbox items, which no other variant has) or `welcome`. The
 switcher in the panel's header changes between them without reloading (pressing the
 current one boots it again), and the browser
 tab remembers the last one chosen. `&turnMs=` sets how long a demo agent's turn works
@@ -765,13 +770,14 @@ Agents:
 
 App:
 
-- **Inbox:** only in the `inbox` variant. Each action adds one item of its kind to the Inbox,
+- **Inbox:** the actions show up in the `inbox` variant, whose Inbox holds hardcoded items. Each action adds one item of its kind to the Inbox,
   waiting from now and in place of the one of its kind already there: a stuck agent, Codex's
   command permission, an unreadable dialog, a held message, a decision with options, a
-  detected question, a secret request, a login request, the 5-hour limit, a plan approval
+  detected question, a secret request, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
+  failed turn with no error, a held message whose sender is gone, a plan approval
   (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, a heads-up and a finished turn. "Fail the next answer" makes
-  the next answer to any item fail, so its sheet shows why and keeps the item. "Usage limit, reset passed" adds the limit with auto-resume off and its
+  the next answer to any item fail, so its sheet shows why and keeps the item. "Usage limit, reset passed" adds the limit Novadeck can't resume, with its
   window reset, offering Continue now. "A new item arrives" adds the next kind not there
   yet, and "Clear the Inbox" empties it.
 - **Startup:** "Hold the splash" keeps it until you press Escape; "Slow attach" counts

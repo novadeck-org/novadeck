@@ -90,17 +90,23 @@ export const withBatch = (
   return next
 }
 
+// A request of the agent's detail, as the chat has it; `root` is the root agent's ref.
+export const requestOf = (
+  request: AgentDetail["requests"][number],
+  root: string | null,
+): ChatRequest => ({
+  id: request.ref,
+  kind: request.kind,
+  tool: request.tool,
+  subject: request.subject,
+  choices: request.choices,
+  subagent: request.actor !== root,
+  dialog: request.dialog,
+  answered: request.answered,
+})
+
 const requestsOf = (detail: AgentDetail, root: string | null): readonly ChatRequest[] =>
-  detail.requests.map((request) => ({
-    id: request.ref,
-    kind: request.kind,
-    tool: request.tool,
-    subject: request.subject,
-    choices: request.choices,
-    subagent: request.actor !== root,
-    dialog: request.dialog,
-    answered: request.answered,
-  }))
+  detail.requests.map((request) => requestOf(request, root))
 
 // Dialogs are plain data a snapshot sends again whole, so they are the same when they read
 // the same.

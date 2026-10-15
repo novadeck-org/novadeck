@@ -309,6 +309,44 @@ describe("Antigravity's file confirmation", () => {
   })
 })
 
+describe("Antigravity's file edit confirmation", () => {
+  const edit = {
+    name: "replace_file_content",
+    args: { TargetFile: "/tmp/sandbox/project/probe.txt" },
+  }
+  const { replace_file_content: replaced } = scenarios as unknown as {
+    replace_file_content: { pending: Screens }
+  }
+  const screen = replaced.pending.screen120!.rows
+
+  it("is read by its wording, without the auto-approval hint", () => {
+    const found = read(screen, permission(edit))
+    expect(found.dialog).toEqual({
+      type: "choices",
+      title: "Accept this file edit?",
+      detail: "/tmp/sandbox/project/probe.txt  +1 -1\n   1 -  hello\n   1 +  goodbye",
+      options: [
+        { id: "1", label: "Yes, accept this change", text: null },
+        { id: "2", label: "No, reject this change", text: "prompt" },
+      ],
+    })
+    expect(sent(found.keys(choice("1")))).toEqual(["1"])
+    expect(found.answered(screen)).toBe(false)
+    expect(found.answered(gone.ask!.rows)).toBe(true)
+  })
+
+  it("agrees with the call's file and tool, or is none", () => {
+    const other = {
+      name: "replace_file_content",
+      args: { TargetFile: "/tmp/sandbox/project/b.txt" },
+    }
+    expect(dialogs.read(screen, permission(other))).toBeUndefined()
+    expect(
+      dialogs.read(screen, permission({ name: "write_to_file", args: edit.args })),
+    ).toBeUndefined()
+  })
+})
+
 describe("Antigravity's ask_question", () => {
   it("is read at both sizes: one single-select, its Write-in a field", () => {
     for (const screen of [ask.pending.screen120!.rows, ask.pending.screen60!.rows]) {

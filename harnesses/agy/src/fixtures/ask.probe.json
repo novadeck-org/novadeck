@@ -675,6 +675,29 @@
           "19": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
         }
       }
+    },
+    "replace_file_content": {
+      "what": "replace_file_content of a line of a file in the project (1.2.14, probed 2026-10-15)",
+      "pending": {
+        "screen120": {
+          "height": 16,
+          "columns": 120,
+          "rows": {
+            "0": "● Edit(/tmp/sandbox/project/probe.txt) (ctrl+o to expand)",
+            "2": "Pending edit",
+            "3": "────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────",
+            "5": "/tmp/sandbox/project/probe.txt  +1 -1",
+            "6": "   1 -  hello",
+            "7": "   1 +  goodbye",
+            "9": "  shift+tab to auto-approve file edits",
+            "10": "Accept this file edit?",
+            "11": "> 1. Yes, accept this change",
+            "12": "  2. No, reject this change",
+            "14": "  ↑/↓ Navigate · tab Amend · f full diff",
+            "15": "esc to cancel                                                                                       Gemini 3.1 Pro · low"
+          }
+        }
+      }
     }
   }
 }

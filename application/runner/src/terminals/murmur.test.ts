@@ -2759,7 +2759,7 @@ const asking = (requests: readonly Request[], fields: Partial<Activity> = {}): A
 })
 const ended = (at = 20, outcome: "completed" | "failed" = "completed"): Activity => ({
   ...started(0),
-  lastTurn: { outcome, reply: null, at, recorded: false },
+  lastTurn: { outcome, reply: null, at, recorded: false, files: [], from: 0 },
 })
 const planned = (source: string): Partial<Activity> => ({
   plans: [{ actor: null, source: { kind: "text", text: source, truncated: false }, at: 1 }],

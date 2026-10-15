@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import { extname, isAbsolute, relative } from "node:path"
 
 import type { HarnessEvent, PromptShown } from "@novadeck/harness-core/events"
-import { absolute, shortName, sessionId, text } from "@novadeck/harness-core/harness"
+import { absolute, errorText, shortName, sessionId, text } from "@novadeck/harness-core/harness"
 import type { Report } from "@novadeck/harness-core/report"
 
 /**
@@ -66,6 +66,24 @@ const reading = (name: unknown): { model: string; effort: string | null } | unde
     : { model: whole, effort: null }
 }
 
+// A quota it ran out of: its error names the API's status RESOURCE_EXHAUSTED, bar a mere
+// rate limit's reason (probed 2026-10-15, 1.2.14: the status line of its error is
+// "generating and executing: Error 429, Message: ..., Status: RESOURCE_EXHAUSTED, Details: [...]";
+// its own wording for a real account's exhausted quota is unverified).
+const exhausted = /Status: RESOURCE_EXHAUSTED/
+const throttled = /reason:RATE_LIMIT_EXCEEDED/
+
+const failed = (value: unknown): { error?: string; limited?: true } => {
+  const error = errorText(value)
+  if (error === undefined) return {}
+  // Read from the whole text: the cut of it to what is kept may lose the reason.
+  const whole = typeof value === "string" ? value : ""
+  return {
+    error,
+    ...(exhausted.test(whole) && !throttled.test(whole) && { limited: true as const }),
+  }
+}
+
 const decodeEvent = ({ event, seq, instance, payload }: Report): readonly HarnessEvent[] => {
   if (event === "StatusLine") return statusLine({ seq, instance, payload })
   const id = sessionId(payload.conversationId)
@@ -96,6 +114,7 @@ const decodeEvent = ({ event, seq, instance, payload }: Report): readonly Harnes
           type: "turn-ended",
           ...base,
           outcome: text(payload.error) ? "failed" : "completed",
+          ...failed(payload.error),
           // It says only that something runs on: its status line, drawn just after,
           // counts the subagents among it, but never a command it backgrounded, whose end
           // wakes it too (probed 2026-10-04, 1.2.14).
@@ -223,7 +242,12 @@ const artifact = (
   return [{ type: "plan-observed", ...base, actor: null, plan: { kind: "file", path } }]
 }
 
-// A file it wrote, as its write_to_file call names it.
+// The tools that write a file, each naming it as TargetFile in its PostToolUse (probed
+// 2026-10-15, 1.2.14 and 1.3.5: replace_file_content is its only edit tool; a model is
+// offered no multi_replace_file_content).
+const writers: ReadonlySet<string> = new Set(["write_to_file", "replace_file_content"])
+
+// A file it wrote, as its write_to_file or replace_file_content call names it.
 const written = (
   base: { agent: "agy"; sessionId: string; instance: string | null; startedAt: number },
   payload: Report["payload"],
@@ -233,7 +257,7 @@ const written = (
     args?: Record<string, unknown>
   }
   const path = absolute(args?.TargetFile)
-  if (name !== "write_to_file" || !path || text(payload.error)) return []
+  if (typeof name !== "string" || !writers.has(name) || !path || text(payload.error)) return []
   return [{ type: "file-touched", ...base, actor: null, path }]
 }
 

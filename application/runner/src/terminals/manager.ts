@@ -65,6 +65,7 @@ import {
   started as fresh,
   summary as activitySummary,
   withGist,
+  withLimit,
   withHeadline,
   withoutNotes,
   type Activity,
@@ -75,7 +76,12 @@ import { resumeAvailability } from "../harnesses/eligibility.js"
 import { agents, harnesses } from "../harnesses/registry.js"
 import { lastReply, unreplied, withReplies } from "../harnesses/replies.js"
 import { followRoot, rootedIn, type Root, type RootChange } from "../harnesses/roots.js"
-import { observeTelemetry, telemetrySummary, type Telemetry } from "../harnesses/telemetry.js"
+import {
+  limitOf,
+  observeTelemetry,
+  telemetrySummary,
+  type Telemetry,
+} from "../harnesses/telemetry.js"
 import { transcriptWaitMs, typedPromptStart } from "../harnesses/typed-prompts.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import {
@@ -1747,6 +1753,7 @@ export class Terminals {
               ref: requestRef(binding, each),
               actor: each.actor,
               facts: this.factsOf(record, each),
+              askedAt: each.askedAt,
             })),
         }
       },
@@ -2849,6 +2856,11 @@ export class Terminals {
   /** Releases a thread held for going back and forth too often. */
   releaseThread(thread: string): void {
     this.peers.release(thread)
+  }
+
+  /** Stops a thread: its messages not yet delivered are gone, and nothing continues it. */
+  stopThread(thread: string): void {
+    this.peers.stop(thread)
   }
 
   /** The project a session belongs to, or the session itself when that cannot be told. */
@@ -4409,12 +4421,26 @@ export class Terminals {
     if (fact.type === "telemetry-observed") {
       const next = observeTelemetry(record.telemetry, record.binding, fact)
       if (next) record.telemetry = next
+      if (next) this.latchLimit(record)
       return next !== undefined
     }
     const next = record.activity && apply(record.activity, record.binding, fact)
     if (next) record.activity = next
     if (next && fact.type === "plan-observed") void this.planned(record, record.binding, fact)
+    if (next && fact.type === "turn-ended") this.latchLimit(record)
     return Boolean(next)
+  }
+
+  /**
+   * Latches the usage-limit window a turn that just ended, or one idle since, ran into on
+   * its last turn, from the limits the session's records showed (`limitOf`).
+   */
+  private latchLimit(record: Record): void {
+    const { activity, telemetry } = record
+    if (!activity || !telemetry || activity.state !== "idle") return
+    const limit = limitOf(activity.lastTurn, telemetry.limits, telemetry.at)
+    const next = limit && withLimit(activity, limit)
+    if (next) record.activity = next
   }
 
   /**

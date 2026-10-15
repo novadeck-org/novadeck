@@ -3,7 +3,9 @@ import { setTimeout as sleep } from "node:timers/promises"
 import type { HarnessEvent } from "@novadeck/harness-core/events"
 import { followLines } from "@novadeck/harness-core/follow"
 import {
+  absolute,
   bounded,
+  errorText,
   callId,
   shortName,
   replied,
@@ -15,6 +17,19 @@ import type { AgentTelemetry } from "@novadeck/protocol"
 
 import { callOf, mcpTool } from "./decode.js"
 import { transcripts } from "./transcripts.js"
+
+// A failed turn's `task_complete` error: its message, and `codex_error_info`, which is
+// "usage_limit_exceeded" for a usage limit (a rollout of 2026-10-15, codex 0.16x).
+const errored = (error: unknown): { error?: string; limited?: true } => {
+  const { message, codex_error_info: info } = (
+    typeof error === "object" && error !== null ? error : { message: error }
+  ) as { message?: unknown; codex_error_info?: unknown }
+  const text = errorText(message)
+  return {
+    ...(text && { error: text }),
+    ...(info === "usage_limit_exceeded" && { limited: true as const }),
+  }
+}
 
 type Limit = AgentTelemetry["limits"][number]
 
@@ -99,12 +114,10 @@ export const rolloutEvents = (
     case "task_complete":
     case "turn_aborted": {
       const turn = typeof fields.turn_id === "string" ? fields.turn_id : undefined
+      const failed =
+        fields.type === "task_complete" && fields.error !== undefined && fields.error !== null
       const outcome =
-        fields.type === "turn_aborted"
-          ? "interrupted"
-          : fields.error !== undefined && fields.error !== null
-            ? "failed"
-            : "completed"
+        fields.type === "turn_aborted" ? "interrupted" : failed ? "failed" : "completed"
       return [
         {
           type: "turn-ended",
@@ -113,12 +126,43 @@ export const rolloutEvents = (
           recorded: true,
           ...(turn && { turn }),
           ...replied(fields.last_agent_message),
+          ...(failed && errored(fields.error)),
         },
       ]
     }
     case "item_completed": {
-      const { type: kind, text } = (fields.item ?? {}) as { type?: unknown; text?: unknown }
+      const {
+        type: kind,
+        text,
+        status,
+        changes,
+      } = (fields.item ?? {}) as {
+        type?: unknown
+        text?: unknown
+        status?: unknown
+        changes?: unknown
+      }
       if (kind === "McpToolCall") return mcpSettled(base, fields.item as Record<string, unknown>)
+      // Files a patch changed, by absolute path, however it ran: its PostToolUse comes for
+      // the apply_patch tool alone, and none for a patch the model ran through its shell
+      // (`apply_patch <<EOF`; probed 2026-10-15, 0.159.3, which the fake model does).
+      if (kind === "FileChange")
+        return status === "completed" && typeof changes === "object" && changes !== null
+          ? Object.keys(changes).flatMap((file) => {
+              const path = absolute(file)
+              return path
+                ? [
+                    {
+                      type: "file-touched" as const,
+                      ...base,
+                      actor: null,
+                      path,
+                      settles: true as const,
+                    },
+                  ]
+                : []
+            })
+          : []
       if (kind !== "Plan" || typeof text !== "string" || !text) return []
       const { text: plan, truncated } = bounded(text)
       return [

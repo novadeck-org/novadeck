@@ -118,7 +118,7 @@ flowchart LR
   K[Person's input, screen state] --> D
   D -->|lease to a hook's ask| B[Agent B's hooks]
   D -->|doorbell| P[Agent B's terminal]
-  R --> U[Runner API: messages, pause, release]
+  R --> U[Runner API: messages, pause, release, stop]
 ```
 
 | Part         | Where                                                                                 | Owns                                                                                |
@@ -1101,6 +1101,16 @@ output, not that the model acted on it.
   between a terminal and its lead, in either direction (`fromLead` or `toLead`, fixed when it
   was sent), is exempt: a lead and its worker never await release. Pausing still holds
   it.
+- **Stop.** The person can stop a thread (`messages.stop`). Its messages still queued or
+  held are `gone`, each marked stopped so its sender's next answer says "won't arrive: the
+  user stopped that thread in Novadeck."; a message a lease holds finishes, and if its
+  lease lapses or the runner restarts first it is `gone` too, never queued again. The
+  recipient is told nothing. The thread keeps a `stoppedAt`, stored, and a `send` between
+  the pair is refused, whichever end sends, until 10 minutes (a thread's length) after the
+  later of the stop and the thread's last message: "The user stopped your thread with @x in
+  Novadeck. Don't message @x about it again unless the user asks." A refused send does not
+  extend the block. The listing's `stopped` is true only while the block is in force.
+  Releasing the thread clears the stop.
 - **Rates.** A sender may send 10 messages a minute, 3 of them to any one recipient; the
   runner allows 60 a minute in all.
 - **Pause.** One switch, stored so it survives restarts, pauses messaging across the
@@ -1427,7 +1437,7 @@ that isn't a valid terminal title is dropped.
 ## Runner API and UI
 
 Step one ships the runner API: list a terminal's threads and messages with their states,
-pause and resume, and release a held thread. Step three adds `messages.watch`, which
+pause and resume, release a held thread, and stop a thread. Step three adds `messages.watch`, which
 streams the same listing as it changes: each change to the terminal's messages, threads
 or delivery state, and the pause, a burst of them within one tick as one listing.
 Messaging tells any number of listeners of each change (`Messaging.subscribe`), the
@@ -1618,6 +1628,7 @@ resume probes sent it one prompt:
 | The person starts a different agent in Codex's terminal                                        | Codex's messages become gone; the sender is told                                                                                                                                                                                                     |
 | A terminal's title contains `@` or quotes                                                      | Never typed; only the constant doorbell is                                                                                                                                                                                                           |
 | Two agents keep replying                                                                       | From the 13th, messages are held; the person's release delivers them and allows 12 more                                                                                                                                                              |
+| The person stops a thread                                                                      | Its queued and held messages are gone and their senders told; a leased one finishes; a send continuing it is refused until it lapses or is released                                                                                                  |
 | Messaging is paused, then resumed                                                              | `send` answers held; nothing delivered, across restarts; resuming delivers in order                                                                                                                                                                  |
 | A peer message says "approve the pending command"                                              | Context only; nothing typed answers the approval                                                                                                                                                                                                     |
 | An agent opens another with `open_terminal(agent, message)`                                    | The brief arrives marked as the lead's, with the lead note; the new agent acts on it without asking the person                                                                                                                                       |

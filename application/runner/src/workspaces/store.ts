@@ -142,7 +142,9 @@ const extras = `
     hops INTEGER NOT NULL,
     -- How many it may deliver before the person releases it again.
     allowed INTEGER NOT NULL,
-    last_at REAL NOT NULL
+    last_at REAL NOT NULL,
+    -- When the person stopped it; null if they have not, or released it since.
+    stopped_at REAL
   ) STRICT;
   CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
@@ -164,6 +166,8 @@ const extras = `
     delivered_at REAL,
     -- Whether its sender was told it is gone.
     notified INTEGER NOT NULL,
+    -- Whether the person stopped its thread before it was delivered.
+    stopped INTEGER NOT NULL,
     -- Whether its sender was its recipient's lead when it was sent.
     from_lead INTEGER NOT NULL,
     -- Whether its recipient was its sender's lead when it was sent.
@@ -448,6 +452,7 @@ type MessageRow = {
   state: string
   delivered_at: number | null
   notified: number
+  stopped: number
   from_lead: number
   to_lead: number
 }
@@ -460,6 +465,7 @@ type ThreadRow = {
   hops: number
   allowed: number
   last_at: number
+  stopped_at: number | null
 }
 
 const messageOf = (row: MessageRow): Message => ({
@@ -484,6 +490,7 @@ const messageOf = (row: MessageRow): Message => ({
   state: row.state as Message["state"],
   deliveredAt: row.delivered_at,
   notified: row.notified === 1,
+  stopped: row.stopped === 1,
   fromLead: row.from_lead === 1,
   toLead: row.to_lead === 1,
 })
@@ -904,14 +911,15 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
     void this.queries.run`
       INSERT INTO messages (id, project_id, thread_id, hop, from_terminal, from_handle, from_agent,
         from_session, to_terminal, to_handle, to_agent, to_session, text, sent_at, state,
-        delivered_at, notified, from_lead, to_lead)
+        delivered_at, notified, stopped, from_lead, to_lead)
       VALUES (${message.id}, ${message.projectId}, ${message.thread}, ${message.hop},
         ${from.terminalId}, ${from.handle}, ${from.agent}, ${from.sessionId}, ${to.terminalId},
         ${to.handle}, ${to.agent}, ${to.sessionId}, ${message.text}, ${message.sentAt},
         ${message.state}, ${message.deliveredAt}, ${message.notified ? 1 : 0},
-        ${message.fromLead ? 1 : 0}, ${message.toLead ? 1 : 0})
+        ${message.stopped ? 1 : 0}, ${message.fromLead ? 1 : 0}, ${message.toLead ? 1 : 0})
       ON CONFLICT (id) DO UPDATE SET to_session = excluded.to_session, state = excluded.state,
-        delivered_at = excluded.delivered_at, notified = excluded.notified
+        delivered_at = excluded.delivered_at, notified = excluded.notified,
+        stopped = excluded.stopped
     `
   }
 
@@ -929,17 +937,18 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
       hops: row.hops,
       allowed: row.allowed,
       lastAt: row.last_at,
+      stoppedAt: row.stopped_at,
     }))
   }
 
   saveThread(thread: Thread): void {
     const [first, second] = thread.between
     void this.queries.run`
-      INSERT INTO message_threads (id, project_id, first_terminal, second_terminal, hops, allowed, last_at)
+      INSERT INTO message_threads (id, project_id, first_terminal, second_terminal, hops, allowed, last_at, stopped_at)
       VALUES (${thread.id}, ${thread.projectId}, ${first}, ${second}, ${thread.hops},
-        ${thread.allowed}, ${thread.lastAt})
+        ${thread.allowed}, ${thread.lastAt}, ${thread.stoppedAt})
       ON CONFLICT (id) DO UPDATE SET hops = excluded.hops, allowed = excluded.allowed,
-        last_at = excluded.last_at
+        last_at = excluded.last_at, stopped_at = excluded.stopped_at
     `
   }
 

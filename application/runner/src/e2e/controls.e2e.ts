@@ -1,6 +1,8 @@
+import { basename, isAbsolute, join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
 import type { Harness } from "@novadeck/harness-core/harness"
+import type { AgentName } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
 import type { FolderQuestion } from "./agents/agent.js"
@@ -8,7 +10,7 @@ import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { racesOwnSettings } from "./known-gaps.js"
-import { asked, gate, latest, Refusal, tool, type Call } from "./model/script.js"
+import { asked, gate, latest, Refusal, tool, type Call, type Reply } from "./model/script.js"
 import {
   answers,
   delivered,
@@ -110,6 +112,84 @@ const leave = async (
   }
   throw new Error(`${terminal.handle} still shows ${String(shows)} after ${skip} pressed 10 times`)
 }
+
+// The refusal each harness's API gives a plan out of quota: Claude Code's subscription
+// limit (without a retry, as it would otherwise wait out its backoff), Codex's
+// `usage_limit_reached`, and the quota error Antigravity's backend answers.
+const limitRefusal = (agent: AgentName): Refusal =>
+  agent === "claude"
+    ? new Refusal(
+        429,
+        {
+          type: "error",
+          error: {
+            type: "rate_limit_error",
+            message: "This request would exceed your usage limit.",
+          },
+        },
+        { "x-should-retry": "false", "anthropic-ratelimit-unified-status": "rejected" },
+      )
+    : agent === "codex"
+      ? new Refusal(429, {
+          error: {
+            type: "usage_limit_reached",
+            message: "The usage limit has been reached",
+            plan_type: "plus",
+            resets_in_seconds: 3600,
+          },
+        })
+      : new Refusal(429, {
+          error: {
+            code: 429,
+            message:
+              "You have exhausted your capacity on this model. Your quota will reset after 59m30s.",
+            status: "RESOURCE_EXHAUSTED",
+            // Antigravity retries by the delay it names, for minutes if it is long.
+            details: [
+              {
+                "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                reason: "QUOTA_EXHAUSTED",
+                domain: "cloudcode-pa.googleapis.com",
+                metadata: { model: "gemini-3.1-pro", quotaResetDelay: "59m30s" },
+              },
+              { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "1s" },
+            ],
+          },
+        })
+
+// A reply that has the agent write `path` with its harness's own tool.
+const writing = (agent: AgentName, path: string): Reply =>
+  agent === "claude"
+    ? { calls: [{ name: "Write", input: { file_path: path, content: "x\n" } }] }
+    : agent === "codex"
+      ? {
+          // The fake model's Codex is offered no apply_patch tool of its own (0.159.3), but
+          // runs the program through its shell, which Codex takes as the same patch.
+          calls: [
+            {
+              name: "exec_command",
+              input: {
+                cmd: `apply_patch <<'EOF'\n*** Begin Patch\n*** Add File: ${path}\n+x\n*** End Patch\nEOF`,
+                yield_time_ms: 5000,
+              },
+            },
+          ],
+        }
+      : {
+          calls: [
+            {
+              name: "write_to_file",
+              input: {
+                TargetFile: path,
+                Overwrite: true,
+                CodeContent: "x\n",
+                Description: "Writes the file",
+                toolSummary: "Write",
+                toolAction: "Writing",
+              },
+            },
+          ],
+        }
 
 for (const setup of setups) {
   describe.skipIf(!supported)(setup.name, () => {
@@ -535,6 +615,85 @@ for (const setup of setups) {
         "delivery to take the failed turn as over",
         5_000,
       )
+      // The turn says why it failed, in its harness's words: the API's refusal.
+      const lastTurn = t1.summary().activity?.lastTurn
+      expect(lastTurn).toMatchObject({ outcome: "failed", limit: null })
+      expect(lastTurn?.error).toMatch(/400|refused/)
+    })
+
+    it("ends a turn its model refused on a usage limit, and says why", async ({ e2e: run }) => {
+      // The refusal each API gives a spent plan: a 429 its harness takes as a limit and,
+      // without a window of the account's own to name (only Codex's rate-limit headers can
+      // be faked), carries as the turn's error alone.
+      run.model.use(
+        own((call) => {
+          if (!call.side && asked(call, "Hit the limit")) throw limitRefusal(setup.agent)
+          return undefined
+        }),
+      )
+      const t1 = await start(run, setup)
+      const mark = t1.mark()
+
+      await t1.submit("Hit the limit")
+      await t1.reached("working", { after: mark })
+      const lastTurn = await t1.poll(
+        () => {
+          const last = t1.summary().activity?.lastTurn
+          return t1.summary().activity?.state === "idle" ? last : undefined
+        },
+        "the failed turn to end",
+        60_000,
+      )
+      expect(lastTurn).toMatchObject({ outcome: "failed" })
+      expect(lastTurn?.error).toMatch(/limit|429|exhausted|quota/i)
+    })
+
+    it("names the files a turn wrote", async ({ e2e: run }) => {
+      const file = join(run.sandbox.project, "wrote.txt")
+      const second = join(run.sandbox.project, "again.txt")
+      run.model.use(
+        own(async (call) => {
+          const done = call.turns.filter((each) => each.role === "tool").length
+          if (!asked(call, "Write them") && done === 0) return undefined
+          if (done === 0) return writing(setup.agent, file)
+          if (done === 1) return writing(setup.agent, second)
+          // Codex's rollout, which names a patch its shell ran, is read a moment behind
+          // its hooks: the turn runs on a little past its last write, as a real one does.
+          await sleep(3000)
+          return { text: "Wrote them." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const mark = t1.mark()
+
+      await t1.submit("Write them")
+      await t1.reached("working", { after: mark })
+      // Its tools may ask the person before writing (Claude Code and Antigravity by default,
+      // Codex where its sandbox fails, one patch after another): the chat allows each
+      // through the dialog the adapter read, the oldest not yet answered first (an answered
+      // one waits for its hook or its rollout to settle it, as the Inbox shows it answering).
+      await t1.poll(
+        async () => {
+          const request = (await t1.detail()).requests.find((each) => !each.answered)
+          const { dialog } = request ?? {}
+          const yes = dialog?.type === "choices" ? dialog.options[0] : undefined
+          if (request && dialog?.type === "choices" && yes && yes.label.startsWith("Yes"))
+            await t1.answer(request.ref, { dialog: dialog.id, type: "choice", option: yes.id })
+          return t1.summary().activity?.lastTurn?.outcome === "completed" ? true : undefined
+        },
+        "the turn to end",
+        90_000,
+      )
+      // Every permission asked is settled: a write Codex ran through its shell fires no hook,
+      // so its rollout's word on the file does (a request left pending would head the Inbox).
+      await t1.poll(
+        async () => ((await t1.detail()).requests.length === 0 ? true : undefined),
+        "the writes' requests to be settled",
+        10_000,
+      )
+      const files = t1.summary().activity?.lastTurn?.files
+      expect(files?.map((one) => basename(one))).toEqual(["wrote.txt", "again.txt"])
+      expect(files?.every((one) => isAbsolute(one))).toBe(true)
     })
   })
 

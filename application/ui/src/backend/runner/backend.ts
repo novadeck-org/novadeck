@@ -29,6 +29,7 @@ import { defaultQuickExitMs, exitStatus, restartable, terminalActivity } from ".
 import { createBootProgress } from "./boot-progress"
 import { createRunnerCompanions } from "./companions"
 import { createRunnerConversations } from "./conversations"
+import { createRunnerInbox } from "./inbox"
 import { createRunnerItems } from "./items"
 import { createRunnerMessages } from "./messages"
 import { createRunnerMurmur } from "./murmur"
@@ -980,6 +981,7 @@ export const runnerBackend = (
       watch: (terminalId) => runner.messages.watch(terminalId),
       pause: (paused) => runner.messages.pause(paused),
       release: (thread) => runner.messages.release(thread),
+      stop: (thread) => runner.messages.stop(thread),
     },
     track,
   )
@@ -992,6 +994,20 @@ export const runnerBackend = (
       answer: (terminalId, request, answer) => runner.agents.answer(terminalId, request, answer),
     },
     track,
+  )
+  // The Inbox: built from the terminals' statuses, the messages and the requests of the
+  // agents that ask, once the app binds it to its workspace. Every runner backend has it.
+  const inbox = createRunnerInbox(
+    {
+      detail: (terminalId) => runner.agents.detail(terminalId),
+      answer: (key, request, answer) => conversations.answer(key, request, answer),
+      send: (key, text) => conversations.send(key, text),
+      interrupt: (key) => conversations.interrupt(key),
+      release: messages.release,
+      stop: messages.stop,
+    },
+    messages.state,
+    { track },
   )
   // The voice input addon, followed from `start` like the messages.
   const voice = createRunnerVoice(runner.voice, track)
@@ -1270,8 +1286,9 @@ export const runnerBackend = (
       stopQuit?.()
       following = false
       stopItems()
-      messages.stop()
+      messages.end()
       conversations.stop()
+      inbox.end()
       voice.stop()
       murmur.stop()
       // The last changes are saved; nothing retries after this.
@@ -1305,6 +1322,7 @@ export const runnerBackend = (
     }),
     messages,
     conversations,
+    inbox,
     resetTitle: (key) => {
       const { terminalId } = key
       if (items.holdsWindow(target(key), terminalId))

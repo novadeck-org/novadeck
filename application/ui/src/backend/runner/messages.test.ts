@@ -21,6 +21,7 @@ const listing = (change: Partial<TerminalMessages> = {}): TerminalMessages => ({
       hops: 1,
       allowed: 12,
       held: false,
+      stopped: false,
       messages: [
         {
           id: "m-1",
@@ -72,6 +73,7 @@ const streams = (overrides: Partial<MailStreams> = {}) => {
     watch,
     pause: vi.fn<MailStreams["pause"]>(async () => {}),
     release: vi.fn<MailStreams["release"]>(async () => {}),
+    stop: vi.fn<MailStreams["stop"]>(async () => {}),
     ...overrides,
   }
   return { api, push, messages: createRunnerMessages(api) }
@@ -142,6 +144,19 @@ describe("the runner's messages", () => {
     await vi.waitFor(() => expect(messages.state.getSnapshot().terminals[id]).toBeDefined())
     messages.unfollow(key)
     expect(messages.state.getSnapshot().terminals[id]).toBeUndefined()
+  })
+
+  context("when the person stops a thread", () => {
+    it("tracks it as a release, and says why a refused stop didn't take", async () => {
+      const { messages, api } = streams({ stop: () => Promise.reject(new Error("lost")) })
+      messages.stop("t-1")
+      expect(api.watch).toBeDefined()
+      expect(messages.state.getSnapshot().releasing).toEqual({ "t-1": "asked" })
+      await vi.waitFor(() =>
+        expect(messages.state.getSnapshot().failed).toEqual({ "t-1": "Couldn't stop it: lost" }),
+      )
+      expect(messages.state.getSnapshot().releasing).toEqual({})
+    })
   })
 
   context("when the person releases a thread", () => {

@@ -179,6 +179,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       watch: (terminalId) => runner.messages.watch(terminalId),
       pause: (paused) => note(`pause messages ${paused}`, () => runner.messages.pause(paused)),
       release: (thread) => note(`release ${thread}`, () => runner.messages.release(thread)),
+      stop: (thread) => note(`stop ${thread}`, () => runner.messages.stop(thread)),
     },
     voice: {
       watch: () => runner.voice.watch(),

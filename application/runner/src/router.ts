@@ -309,6 +309,7 @@ export const createRouter = (options: {
       release: authorized.messages.release.handler(({ input }) =>
         terminals.releaseThread(input.thread),
       ),
+      stop: authorized.messages.stop.handler(({ input }) => terminals.stopThread(input.thread)),
     },
     voice: {
       watch: authorized.voice.watch.handler(async function* ({ context, signal }) {

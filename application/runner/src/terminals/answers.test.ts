@@ -36,8 +36,10 @@ const terminal = (
     unchecked?: boolean
     /** Whether the other request "r2" still waits. */
     twinWaits?: () => boolean
-    /** Other requests waiting. */
-    others?: { ref: string; actor?: string | null; facts: RequestFacts }[]
+    /** Other requests waiting; a function gives those waiting at the time it is asked. */
+    others?:
+      | { ref: string; actor?: string | null; facts: RequestFacts; askedAt?: number }[]
+      | (() => { ref: string; actor?: string | null; facts: RequestFacts; askedAt?: number }[])
     /** Whether the request is still waiting; false once it is answered elsewhere. */
     waiting?: () => boolean
     shown?: boolean
@@ -168,7 +170,9 @@ const terminal = (
               facts,
               actor: null,
               adapter: options.adapter === false ? undefined : adapter(),
-              others: (options.others ?? []).map((other) => ({ actor: null, ...other })),
+              others: (
+                (typeof options.others === "function" ? options.others() : options.others) ?? []
+              ).map((other) => ({ actor: null, askedAt: 0, ...other })),
             }
           : undefined,
     ringing: () => undefined,
@@ -612,6 +616,39 @@ describe("answering a request through its dialog", () => {
     })
     await give(tui, answers, { type: "choice", option: "1" })
     expect(tui.written).toEqual(["1"])
+  })
+
+  it("takes the next request's dialog for an answer even where that request registered after the keys", async () => {
+    // Codex's patch approvals come one after another, and the next one's hook runs as its
+    // dialog is drawn: it is no request yet when the first is answered.
+    const next: RequestFacts = { ...facts, input: { command: "pwd" } }
+    let registered = false
+    const { tui, answers } = terminal({
+      others: () => (registered ? [{ ref: "r2", facts: next, askedAt: Date.now() }] : []),
+      after: (each) => {
+        // The next dialog is drawn in place of the answered one, and its request exists now.
+        each.command = "pwd"
+        each.state = "ask"
+        registered = true
+      },
+    })
+    await give(tui, answers, { type: "choice", option: "1" })
+    expect(tui.written).toEqual(["1"])
+  })
+
+  it("takes no request asked before the keys, and unknown at the start, for the next dialog's", async () => {
+    const next: RequestFacts = { ...facts, input: { command: "pwd" } }
+    let registered = false
+    const { tui, answers } = terminal({
+      // It was asked a while ago, and only came into the list as the answer was taken.
+      others: () => (registered ? [{ ref: "r2", facts: next, askedAt: 1 }] : []),
+      after: (each) => {
+        each.command = "pwd"
+        each.state = "ask"
+        registered = true
+      },
+    })
+    expect(await fails(give(tui, answers, { type: "choice", option: "1" }))).toBe("ANSWER_FAILED")
   })
 
   it("is a CONFLICT, locking nothing, where its dialog shows raw and unlocked", async () => {

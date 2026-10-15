@@ -327,6 +327,50 @@ for (const setup of setups) {
       }
     })
 
+    it("drops a stopped thread's waiting message, and refuses the sender another", async ({
+      e2e: run,
+    }) => {
+      // t1's turn runs while t2's message waits for it; the person stops the thread, so the
+      // message never arrives, and t2's next message to t1 is refused, as its agent reads.
+      const ending = gate()
+      run.model.use(
+        sends("Tell moth the news", "moth", "The build is green."),
+        own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
+        sends("Tell moth more", "moth", "And the lint too."),
+        own((call) =>
+          result(call)?.includes("The user stopped your thread with @moth in Novadeck")
+            ? { text: "Moth is not to be told." }
+            : undefined,
+        ),
+        own(async (call) => {
+          if (call.side || !asked(call, "Hold then stop")) return undefined
+          await ending.opened
+          return { text: "First done." }
+        }),
+      )
+      const t1 = await start(run, setup)
+      const t2 = await start(run, setup)
+      const mark = t1.mark()
+      await t1.submit("Hold then stop")
+      await t1.reached("working", { after: mark })
+      await t2.submit("Tell moth the news")
+      await t1.reached(holds("fox", "moth", "queued"), { after: mark })
+
+      const [waiting] = messages(t1)
+      await run.deck.terminals.stopThread(waiting!.thread)
+      await t1.reached(holds("fox", "moth", "gone"), { after: mark })
+      expect(t1.messages().threads[0]).toMatchObject({ stopped: true })
+
+      // t1's turn ends with nothing delivered to it, and t2 may not continue the thread.
+      ending.open()
+      await t1.until("First done.")
+      await t2.submit("Tell moth more")
+      await t2.until("Moth is not to be told.")
+      expect(messages(t1).map((one) => [one.from, one.to, one.state])).toEqual([
+        ["fox", "moth", "gone"],
+      ])
+    })
+
     gated(it, lacking(setup, "idleCommand"))(
       "keeps telling its agent at its prompt after a command there that submits nothing",
       async ({ e2e: run }) => {

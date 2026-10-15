@@ -101,24 +101,26 @@ const LimitReached = (
           ? `${agent} used up its ${limitWindow(trouble.minutes)} window. Novadeck continues it when the limit resets at ${at}.`
           : `${agent} used up its ${limitWindow(trouble.minutes)} window, which resets at ${at}. It stays stopped until you continue it.`}
       </p>
-      <div className="inbox-switch-row">
-        <Switch
-          checked={trouble.autoResume}
-          labelledBy={title}
-          describedBy={hint}
-          onChange={(on) => change({ kind: "trouble", action: { type: "auto-resume", on } })}
-        />
-        <span className="inbox-switch-copy">
-          <span id={title} className="inbox-switch-title text-body">
-            Resume automatically at {at}
+      {trouble.autoResume !== null && (
+        <div className="inbox-switch-row">
+          <Switch
+            checked={trouble.autoResume}
+            labelledBy={title}
+            describedBy={hint}
+            onChange={(on) => change({ kind: "trouble", action: { type: "auto-resume", on } })}
+          />
+          <span className="inbox-switch-copy">
+            <span id={title} className="inbox-switch-title text-body">
+              Resume automatically at {at}
+            </span>
+            <span id={hint} className="inbox-switch-hint text-caption">
+              {trouble.autoResume
+                ? "Turn off to keep it paused until you continue it yourself."
+                : "It stays paused until you continue it yourself."}
+            </span>
           </span>
-          <span id={hint} className="inbox-switch-hint text-caption">
-            {trouble.autoResume
-              ? "Turn off to keep it paused until you continue it yourself."
-              : "It stays paused until you continue it yourself."}
-          </span>
-        </span>
-      </div>
+        </div>
+      )}
       {!trouble.autoResume && !sent && trouble.resetsAt <= now && (
         <div className="inbox-actions">
           <button

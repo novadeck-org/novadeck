@@ -20,6 +20,7 @@ const message = (fields: Partial<Message> = {}): Message => ({
   state: "queued",
   deliveredAt: null,
   notified: false,
+  stopped: false,
   fromLead: false,
   toLead: false,
   ...fields,
@@ -144,6 +145,7 @@ const listing = (delivery: DeliveryState, state: MessageState): TerminalMessages
       hops: 1,
       allowed: 8,
       held: false,
+      stopped: false,
       messages: [
         {
           id: "m-1",
