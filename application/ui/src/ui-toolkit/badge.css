@@ -7,7 +7,8 @@
    --badge-radius (radius-control), --badge-font (mono): a badge.
    --kbd-bg (shell), --kbd-fg (the surrounding text), --kbd-border-color (line),
    --kbd-shadow (none), --kbd-radius (radius-control), --kbd-font (mono): a key.
-   --kbd-hint-fg (muted), --kbd-hint-opacity (0.7): a hint's key. */
+   --kbd-hint-fg (muted): a hint's key, at full strength so it holds the contrast of its
+   colour. */
 .badge {
   --_bg: var(--badge-bg, var(--color-soft));
   --_fg: var(--badge-fg, var(--color-ink));
@@ -37,5 +38,4 @@ kbd.hint {
   padding: 0;
   border-width: 0;
   box-shadow: none;
-  opacity: var(--kbd-hint-opacity, 0.7);
 }

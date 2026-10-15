@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-import { contentSecurityPolicyConnectSources } from "./content-security-policy"
+import { buildConnectSources, contentSecurityPolicyConnectSources } from "./content-security-policy"
 import { context, describe, expect, it } from "./test"
 
 describe("frontend Content Security Policy", () => {
@@ -64,6 +64,30 @@ describe("frontend Content Security Policy", () => {
       expect(() =>
         contentSecurityPolicyConnectSources(undefined, false, "https://runner.example.com"),
       ).toThrow("VITE_NOVADECK_RUNNER_URL must be an absolute ws: or wss: URL")
+    })
+  })
+
+  context("for the visitor build", () => {
+    it("reaches nothing but the page's own origin, whatever is configured", () => {
+      expect(
+        buildConnectSources(
+          { mode: "try", command: "build" },
+          "https://api.example.com",
+          "wss://runner.example.com",
+        ),
+      ).toEqual(["'self'"])
+    })
+
+    it("still allows the development server's WebSocket while served", () => {
+      expect(buildConnectSources({ mode: "try", command: "serve" }, undefined)).toContain(
+        "ws://127.0.0.1:*",
+      )
+    })
+
+    it("leaves a production build's sources to its configuration", () => {
+      expect(
+        buildConnectSources({ mode: "production", command: "build" }, "https://api.example.com"),
+      ).toEqual(["'self'", "http://127.0.0.1:*", "https://api.example.com"])
     })
   })
 })

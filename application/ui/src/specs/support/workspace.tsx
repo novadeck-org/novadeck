@@ -4,6 +4,7 @@ import { cleanup, render } from "vitest-browser-react"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { App } from "../../app/App"
+import { createSpecBackend } from "../../backend/demo/spec-variants"
 
 // User-level vocabulary for behaviour specs. Specs describe what a person sees and
 // does; only this module knows how that maps to accessible roles and names, so a
@@ -16,14 +17,20 @@ import { App } from "../../app/App"
 
 const nextFrame = (): Promise<number> => new Promise(requestAnimationFrame)
 
-/** Opens the app, optionally at a deep link such as `/projects/storefront/sessions/initial/grid`. */
-export const openWorkspace = async (route?: string): Promise<void> => {
+/**
+ * Opens the app, optionally at a deep link such as `/projects/storefront/sessions/initial/grid`,
+ * and `embedded` as another page frames it.
+ */
+export const openWorkspace = async (
+  route?: string,
+  { embedded = false }: { readonly embedded?: boolean } = {},
+): Promise<void> => {
   // A same-page history entry below the app keeps an extra Back inside the test page.
   window.history.replaceState(null, "", "/")
   window.history.pushState(null, "", route === undefined ? "/" : `/#${route}`)
   await render(
     <StrictMode>
-      <App />
+      <App createBackend={createSpecBackend} embedded={embedded} />
     </StrictMode>,
   )
   // A link may open with a modal dialog, which hides the rest of the app.

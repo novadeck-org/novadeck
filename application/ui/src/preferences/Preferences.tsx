@@ -108,7 +108,6 @@ export const Preferences = ({
   uninstall,
   notices = false,
   chat = false,
-  visitor = false,
 }: {
   open: boolean
   tab: PreferencesTab
@@ -127,9 +126,6 @@ export const Preferences = ({
   notices?: boolean
   // Whether the backend reads agents' conversations, which the chat view shows.
   chat?: boolean
-  // Whether this is the website's demo, whose Addons (chat view, voice input, murmur)
-  // all need the desktop app, so it has no tab for them.
-  visitor?: boolean
   // Agents whose sessions resume once connected; absent where the backend has none.
   agents?: {
     readonly list: readonly AgentSwitch[]
@@ -160,8 +156,10 @@ export const Preferences = ({
     setOpenSelect(null)
     if (panels.current) panels.current.scrollTop = 0
   }
-  // A URL can still name the Addons section, which a visitor's demo has no tab for.
-  const shown = visitor && tab === "addons" ? "general" : tab
+  // The Addons are the chat view, voice input and murmur; a backend with none of them,
+  // as the website's demo, has no tab for them, though a URL can still name the section.
+  const hasAddons = chat || voice !== undefined || murmur !== undefined
+  const shown = !hasAddons && tab === "addons" ? "general" : tab
   const lastView = value.enabledViews.length === 1
   const { appearance } = value
   const theme: ThemeEntry<ThemeId> =
@@ -207,7 +205,7 @@ export const Preferences = ({
             indicatorClassName="bottom-[-1px] h-0.5"
           >
             {preferencesTabs
-              .filter(({ id }) => !(visitor && id === "addons"))
+              .filter(({ id }) => hasAddons || id !== "addons")
               .map(({ id, label }) => (
                 <Tab key={id} value={id} className="relative min-h-9 px-0.5 text-left text-body">
                   {label}
@@ -420,7 +418,7 @@ export const Preferences = ({
               </Section>
             )}
           </TabPanel>
-          {!visitor && (
+          {hasAddons && (
             <TabPanel value="addons" className={panelClasses}>
               <Section
                 title="Chat view"

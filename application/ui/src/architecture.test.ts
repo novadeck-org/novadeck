@@ -100,6 +100,9 @@ const rules: Record<string, readonly string[]> = {
   "test.ts": [],
   "class-name.ts": [],
   "content-security-policy.ts": [],
+  "bundle-boundary.ts": [],
+  "search-visibility.ts": [],
+  "hosting-headers.ts": [],
 }
 const adapterRule = (layer: string): readonly string[] => [
   layer,
@@ -110,6 +113,8 @@ const adapterRule = (layer: string): readonly string[] => [
 ]
 // The only file that may import a backend adapter; it exports nothing else.
 const adapterSelection = "app/backend.ts"
+// Tests and specs open the demo through its spec entry, never another adapter module.
+const specBackend = "backend/demo/spec-variants.ts"
 const adapterSelectionExports = ["selectBackend"]
 // Packages are denied unless listed here, owned through `vendors`, or used by an
 // adapter or test code. model/, theme/, interaction/ and app/commands/ use none; core
@@ -218,7 +223,8 @@ const importViolation = (file: string, layer: string | undefined) => {
     if (!target) return [`${file} -> ${specifier} (unresolved)`]
     const targetLayer = layerOf(target)
     if (targetLayer && adapterOf(targetLayer) && targetLayer !== layer)
-      return file === adapterSelection
+      return file === adapterSelection ||
+        ((isTest(file) || layer === "specs/") && target === specBackend)
         ? []
         : [`${file} -> ${target} (only ${adapterSelection} selects an adapter)`]
     // Root-level tests exercise the root modules beside them.

@@ -7,6 +7,7 @@ import type { AgentStatus, TerminalMetadata, Workspace } from "../../../model/ty
 import { describe, expect, it } from "../../../test"
 import type { BackendAction, TerminalKey } from "../../port"
 import { demoSeed, demoTerminalId } from "../samples"
+import { terminalOf } from "../terminals"
 import {
   backToPrompt,
   cleanExit,
@@ -21,7 +22,6 @@ import {
   resting,
   runAgent,
   runProgram,
-  terminalOf,
   unheardAgent,
   contextOnly,
   withUsage,

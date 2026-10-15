@@ -1,6 +1,7 @@
 import { act, createElement } from "react"
 import { beforeAll, vi } from "vitest"
 
+import { createSpecBackend } from "../backend/demo/spec-variants"
 import { describe, expect, it } from "../test"
 import { render } from "../test/render"
 import { App } from "./App"
@@ -70,7 +71,7 @@ describe("workspace dialogs that load on demand", () => {
 
   it("opens the dialog requested last when an earlier one never finished loading", async () => {
     window.location.hash = ""
-    const app = render(createElement(App))
+    const app = render(createElement(App, { createBackend: createSpecBackend }))
     press("K", { ctrlKey: true, shiftKey: true })
     press(",", { ctrlKey: true })
     expect(window.location.hash).toContain("dialog=preferences")

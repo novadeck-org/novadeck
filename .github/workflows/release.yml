@@ -1055,3 +1055,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: pnpm exec release-it "${{ needs.prepare.outputs.version }}" --ci
+
+  # The visitor demo follows each release, prereleases included, until launch; then it moves
+  # to Promote to Stable. Publishing with GITHUB_TOKEN starts no `release` workflow, so this
+  # calls it here.
+  try:
+    name: Visitor Demo
+    if: github.event_name != 'pull_request' && needs.prepare.outputs.package == 'true'
+    needs: [prepare, release]
+    uses: ./.github/workflows/try.yml
+    with:
+      tag: v${{ needs.prepare.outputs.version }}
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

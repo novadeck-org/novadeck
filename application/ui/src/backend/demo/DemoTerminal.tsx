@@ -21,9 +21,9 @@ import { terminalKeyId } from "../registry"
 import { readLine, shownRequest, withWords } from "./agent-input"
 import { DemoAgentContext, type DemoAgentLink } from "./agent-link"
 import { AgentScreen, tailOf } from "./AgentScreen"
-import type { DemoScreen, DemoSurfaceRuntime } from "./debug/types"
 import type { DemoEngine, DemoTerminalSnapshot } from "./engine"
 import { chatAgent, chatAgents, demoAgent } from "./samples"
+import type { DemoScreen, DemoSurfaceRuntime } from "./surface"
 import { TerminalOutput } from "./TerminalOutput"
 
 type DemoTerminalSurfaceProps = Omit<TerminalSurfaceProps, "terminalKey" | "renderWindow"> &

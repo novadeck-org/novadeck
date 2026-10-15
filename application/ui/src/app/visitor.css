@@ -1,16 +1,12 @@
-/* The visitor build's recipes: the strip above the header, the card of things to try and
-   the panel that replaces the app in a window too narrow for it.
-
-   Hooks: `data-done` on a hint once the person did it.
+/* The visitor build's recipes: the strip above the header and the panel that replaces
+   the app in a window too narrow for it.
 
    Tokens, each optional (its fallback in brackets):
    --visitor-bar-bg (shell), --visitor-bar-fg (muted), --visitor-bar-border-color (line):
    the strip. --visitor-bar-mark-fg (ink): the word "Demo" in it.
    --visitor-download-fg (ink): its download link; underlined under the pointer.
-   --visitor-hints-shadow (shadow-floating): the card of hints, lifted off the page.
-   --visitor-hint-done-fg (muted): a hint that is done.
    --visitor-phone-bg (canvas), --visitor-phone-fg (ink), --visitor-phone-muted-fg (muted):
-   the narrow window's panel. The hints card is a `.card`. */
+   the narrow window's panel. */
 .visitor-bar {
   --_bg: var(--visitor-bar-bg, var(--color-shell));
   --_fg: var(--visitor-bar-fg, var(--color-muted));
@@ -29,24 +25,6 @@
 }
 .visitor-download:is(:hover, :focus-visible) {
   text-decoration: underline;
-}
-.visitor-hints {
-  --_shadow: var(--visitor-hints-shadow, var(--shadow-floating));
-  bottom: 2.5rem;
-}
-/* Zen's dock sits at the same corner, and open it is taller than the footer the card
-   clears: the card rises above it. */
-[data-zen="true"] .visitor-hints {
-  bottom: 4.75rem;
-}
-.visitor-hints-list {
-  list-style: none;
-}
-.visitor-hint[data-done="true"] {
-  color: var(--visitor-hint-done-fg, var(--color-muted));
-}
-.visitor-hint[data-done="true"] span {
-  text-decoration: line-through;
 }
 .visitor-phone {
   background-color: var(--visitor-phone-bg, var(--color-canvas));

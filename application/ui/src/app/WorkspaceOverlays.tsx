@@ -304,7 +304,6 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           {...(transcripts ? { transcripts } : {})}
           notices={backend.notices !== undefined}
           chat={backend.conversations !== undefined}
-          visitor={backend.visitor !== undefined}
           {...(voice ? { voice } : {})}
           {...(murmur ? { murmur } : {})}
           {...(updates ? { updates } : {})}

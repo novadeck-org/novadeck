@@ -1,5 +1,5 @@
-import type { ComponentProps } from "react"
-import { HashRouter } from "react-router"
+import { useRef, type ComponentProps } from "react"
+import { HashRouter, MemoryRouter } from "react-router"
 
 import type { CreateBackend } from "../backend/port"
 import { sidebarToggle } from "../interaction/dom"
@@ -18,12 +18,13 @@ import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controlle
 import { DictationContext, useDictationController } from "./controller/dictation"
 import { useKeyboard } from "./controller/useKeyboard"
 import { useWorkspaceEffects } from "./controller/useWorkspaceEffects"
+import { announceShown, EmbeddedContext } from "./embedded"
 import { HeaderSection } from "./HeaderSection"
 import { InboxHost } from "./InboxHost"
 import { currentState, currentTarget, shallowEqual } from "./selectors"
 import { SidebarSection } from "./SidebarSection"
 import { useNotificationBadge } from "./useNotifications"
-import { VisitorBar, VisitorCover, VisitorHints } from "./Visitor"
+import { VisitorBar, VisitorCover } from "./Visitor"
 import { WorkspaceFooter } from "./WorkspaceFooter"
 import { WorkspaceOverlays } from "./WorkspaceOverlays"
 import { WorkspaceProvider } from "./WorkspaceProvider"
@@ -32,23 +33,40 @@ import { WorkspaceStage } from "./WorkspaceStage"
 export type AppProps = {
   // Read once when the app mounts; later changes are ignored. Defaults to app/backend.ts.
   readonly createBackend?: CreateBackend
+  // True when another page frames the app (see app/embedded.ts). Its address then stays in
+  // memory, so moving around the app adds nothing to the framing page's Back button.
+  readonly embedded?: boolean
 }
 
-export const App = ({ createBackend }: AppProps): React.JSX.Element => (
-  <BackendGate
-    selection={createBackend ? { createBackend } : selectBackend}
-    render={(create, boot) => (
-      <HashRouter useTransitions={false}>
-        <WorkspaceProvider createBackend={create}>
-          <BootReporter report={boot} />
-          <VisitorCover>
-            <WorkspaceApp />
-          </VisitorCover>
-        </WorkspaceProvider>
-      </HashRouter>
-    )}
-  />
-)
+export const App = ({ createBackend, embedded = false }: AppProps): React.JSX.Element => {
+  const Router = embedded ? MemoryRouter : HashRouter
+  // Framed, the app tells the page around it once it is in view, once per page load:
+  // StrictMode's second effect run, or a reboot, finds this set.
+  const announced = useRef(false)
+  const shown = (): void => {
+    if (!embedded || announced.current) return
+    announced.current = true
+    announceShown()
+  }
+  return (
+    <EmbeddedContext value={embedded}>
+      <BackendGate
+        onShown={shown}
+        selection={createBackend ? { createBackend } : selectBackend}
+        render={(create, boot) => (
+          <Router useTransitions={false}>
+            <WorkspaceProvider createBackend={create}>
+              <BootReporter report={boot} />
+              <VisitorCover>
+                <WorkspaceApp />
+              </VisitorCover>
+            </WorkspaceProvider>
+          </Router>
+        )}
+      />
+    </EmbeddedContext>
+  )
+}
 
 // The backend's debug panel, where this launch offers one.
 const DebugSection = (): React.JSX.Element | null => {
@@ -171,7 +189,6 @@ export const WorkspaceApp = (): React.JSX.Element => {
           <WorkspaceOverlays />
           {voice && <DictationOverlay view={voice.view} level={voice.level} docks={voice.docks} />}
           <DebugSection />
-          <VisitorHints />
         </main>
       </InboxHost>
     </DictationContext.Provider>

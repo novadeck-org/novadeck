@@ -839,19 +839,48 @@ A clickable, public version of the demo, for a website. `pnpm dev:try` serves it
 mode `try` (http://127.0.0.1:5190); `pnpm build:try` writes static files to
 `application/ui/dist-try` (beside `dist/`, which the desktop app packages), with relative
 paths and a hash router, so any static host serves them from any path, and
-`pnpm preview:try` serves them on http://127.0.0.1:5191.
+`pnpm preview:try` serves them on http://127.0.0.1:5191. The [Try
+workflow](.github/workflows/try.yml) deploys a release's build to Cloudflare Pages at
+https://try.novadeck.dev, beside the website, so the demo always shows a published
+version. Until launch, Release runs it for each version it publishes, prereleases
+included; at launch it moves to Promote to Stable, so the demo shows what Download gives
+people. Run workflow deploys a tag by hand. Quality builds it on every pull request. The
+build carries a `_headers` file (`src/hosting-headers.ts`): only novadeck.dev may frame
+it, nothing of it is indexed, and hashed assets are
+kept for good.
 
-It runs the agents demo's storefront and its other projects with no debug panel, chat
-view, voice, murmur, agent connections, notices or updates, and no Welcome dialog
-(`backend/demo/visitor/`). A scenario plays the agents on the verbs alone (`beats.ts`):
-agents in the other projects finish, ask and fail, and the switcher, the bell and the tabs
-mark each, a little over two minutes in all and quieter at the end. A beat never acts on
-the selected terminal, nor on one the person's own prompt works, and waits while they click,
-type or scroll (`scenario.ts`). A strip above the header says the agents are simulated and
-links to the download; a card lists four things to try and ticks them off
-(`app/Visitor.tsx`); under 760 px wide a panel pointing to a desktop browser replaces the
-app, whose UI unmounts behind it and comes back on widening. Typing into a shell answers as a
-simulated one (`mockReply`).
+Setting it up takes a Cloudflare Pages project named `novadeck-try`, made in the dashboard
+(Workers & Pages, Create, Pages, Upload assets) with production branch `main`: wrangler's
+`pages project create`, run by an agent, makes a Workers project instead. Add
+try.novadeck.dev to it as a custom domain, with the `try` CNAME to `novadeck-try.pages.dev`
+it asks for at the domain's DNS host; put an API token with Cloudflare Pages: Edit in the
+repository secret `CLOUDFLARE_API_TOKEN` and the account ID in the repository variable
+`CLOUDFLARE_ACCOUNT_ID`. Until both are set the workflow deploys nothing and says so; with
+only one it fails. Only releases cut with this setup can be deployed, rolled back to
+included.
+
+It runs the agents demo's storefront and its other projects as fixtures, with no debug
+panel, chat view, voice, murmur, agent connections, notices or updates, and no Welcome
+dialog; `backend/demo/visitor/` lists the backend's fields one by one, so nothing added to
+the agents demo reaches the page unasked. A strip above the header says the agents are
+simulated and links to the download (`app/Visitor.tsx`); under 760 px wide a panel pointing
+to a desktop browser replaces the app, whose UI unmounts behind it and comes back on
+widening. Typing into a shell answers as a simulated one (`mockReply`). A page loaded
+before a deploy reloads once when a view it loads later is gone from the host.
+
+Another page frames it at `https://try.novadeck.dev/?embed` (the query string, before any
+hash), as the website's hero does. Framed, the app shows neither the strip nor the narrow
+window's panel, since the page around it says what it is and decides what a phone gets; it
+lays out at the frame's own size, so a page scales a desktop-sized frame rather than
+shrinking it; it keeps its address in memory, adding nothing to the framing page's Back
+button; and it takes no focus until the person uses it. Its links then carry plain paths
+the static host doesn't serve, so a link opened in a new tab from the frame finds nothing;
+a click works as anywhere. Once the app is in view (the backend connected, the workspace
+mounted and the boot splash lifted) it posts `{ type: "novadeck:ready" }` to its parent
+window, once per page load, with target origin `*`: the frame's `load` event fires for an
+error page too, so this is how the page tells a booted app from a failed load. The message
+carries nothing sensitive; the page checks its origin and source. `?embed` means nothing
+outside the visitor build.
 
 ## Repository map
 
@@ -949,7 +978,7 @@ features add `ui-toolkit/`; `terminals/` may use `sidebar/`; `layouts/` may use
 `terminals/unread-state.ts`; `inbox/` builds on the base layers, `sidebar/` and the
 chat's markdown reader and answers; `shell/` may use `layouts/`, `projects/`,
 `notifications/` and `inbox/`. `app/` composes every feature layer, `notifications/`, `inbox/` and `backend/`, and within it only `app/backend.ts` imports a
-backend adapter. `app/commands/` has no direct React or package imports, though
+backend adapter (tests and specs may import the demo's spec entry). `app/commands/` has no direct React or package imports, though
 routing still loads React Router at runtime: it builds on `model/`,
 `interaction/keymap.ts`, `backend/port.ts`, the UI store, routing, selectors,
 the Canvas handle type in `layouts/canvas/types.ts`, and the pure state modules
@@ -1062,8 +1091,9 @@ lifecycle for any adapter. An adapter opts into the port contract suite by
 calling `describeBackendContract` from `test/backend-contract.tsx` in a
 colocated `contract.test.ts`, with a probe of what it holds and the I/O it
 started, and a driver when it has `start`. `App` reads a `createBackend` factory
-once at mount, and `app/backend.ts` chooses the default: the demo under tests, and
-a runner connection in every build. A backend that must connect first supplies a
+once at mount, and `app/backend.ts` chooses a build's default: a runner connection,
+or the demo in the content preview and visitor builds. Tests and specs pass the demo's
+spec backend (`backend/demo/spec-variants.ts`) themselves. A backend that must connect first supplies a
 `ConnectBackend`; `app/BackendGate.tsx` shows a splash until it resolves with the
 seed loaded, or a card saying what failed with a Retry button, and closes it on unmount.
 

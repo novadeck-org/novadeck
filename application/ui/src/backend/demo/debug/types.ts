@@ -1,31 +1,14 @@
 import type { ComponentType } from "react"
 
-import type { Store } from "../../../model/store"
 import type { Workspace } from "../../../model/types"
 import type { UpdateOffer } from "../../../model/update"
-import type { Backend, BackendConnectionState, BackendSink, TerminalKey } from "../../port"
+import type { Backend, BackendSink, TerminalKey } from "../../port"
+import type { DemoScreens } from "../surface"
 
 // The demo's debug layer, in two halves: the shell (startup, connection, crash loop, the
 // panel itself and which demo runs) and the states a terminal, an agent or the page can
 // be put in. The shell composes the backend and the panel; the states provide the parts
 // below and the actions the panel lists.
-
-// What a terminal's screen is doing that its metadata doesn't say: its output still on
-// the way after a reconnection, or a notice for a moment, as a failed paste's.
-export type DemoScreen = { readonly attaching?: true; readonly notice?: string }
-
-// The demo's screens, by `terminalKeyId`; a terminal without an entry shows its output.
-export type DemoScreens = Store<ReadonlyMap<string, DemoScreen>>
-
-// What the demo's terminal surface reads beyond its engine: whether the far side is
-// there to type into, what its screen is doing, and how to start a fresh shell after one
-// ended.
-export type DemoSurfaceRuntime = {
-  readonly connection: Store<BackendConnectionState>
-  readonly screens: DemoScreens
-  // Restart, or Enter, on an ended terminal.
-  readonly restart: (key: TerminalKey) => void
-}
 
 // Which terminal an agent action acts on: the selected one; another of its session, added
 // in the background where it has none, so the person looks elsewhere and gets the unread

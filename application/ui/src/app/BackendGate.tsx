@@ -34,6 +34,10 @@ type GateProps = {
     createBackend: CreateBackend,
     boot: (progress: BootProgress) => void,
   ) => ReactNode
+  // Optional. Called when the workspace comes into view: the splash has lifted, or there
+  // was none. It may come again, after a reboot or StrictMode's second mount, so a caller
+  // that must act once keeps count itself.
+  readonly onShown?: () => void
 }
 
 // One attempt to reach the backend. It keeps the connection, and the workspace on it,
@@ -94,7 +98,7 @@ const stageOf = (phase: Phase, boot: BootProgress | null, lift: Lift): BootStage
 // it, and keeps the boot splash over it until the restored terminals are attached.
 // When connecting fails the splash stays and explains it in place, retrying transient
 // failures on its own a few times.
-export const BackendGate = ({ selection, render }: GateProps): ReactNode => {
+export const BackendGate = ({ selection, render, onShown }: GateProps): ReactNode => {
   const [initial] = useState(selection)
   // A backend ready at once, as in tests, needs no splash.
   const splashed = "connect" in initial
@@ -171,6 +175,12 @@ export const BackendGate = ({ selection, render }: GateProps): ReactNode => {
     ]
     return () => timers.forEach(clearTimeout)
   }, [attached])
+
+  const shown = splashed ? lift === "gone" : true
+  const showing = useEffectEvent(() => onShown?.())
+  useEffect(() => {
+    if (shown) showing()
+  }, [shown])
 
   if (quit) return null
   const stage = stageOf(phase, boot, lift)

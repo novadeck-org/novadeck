@@ -48,7 +48,6 @@ export const SidebarRail = ({
             : { id: "notifications", label: "Notifications", icon: Bell },
         ] as const
       ).map(({ id, label, icon: Icon }) => {
-        const activePanel = sidebarPanel === id && sidebarVisible
         const status = id === "notifications" || id === "inbox" ? badge : undefined
         return (
           <ToggleGroupItem
@@ -63,8 +62,6 @@ export const SidebarRail = ({
             className="segment relative inline-flex size-8 shrink-0 items-center justify-center p-2 [&>svg]:shrink-0"
             aria-label={status?.label ?? label}
             data-project-status={status?.status}
-            aria-controls={`${id}-panel`}
-            aria-expanded={activePanel}
           >
             <Icon size={16} />
             {status && <NotificationBadge text={status.text} />}

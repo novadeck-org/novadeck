@@ -11,7 +11,6 @@ import {
   isDemoInbox,
 } from "./inbox"
 import { createDemo, demoVariants } from "./variants"
-import { visitorDemo } from "./visitor"
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -174,6 +173,5 @@ describe("the demo variants' Inbox", () => {
     expect(isDemoInbox(createDemo("inbox").inbox)).toBe(true)
     for (const variant of demoVariants.filter((each) => each !== "inbox"))
       expect(createDemo(variant).inbox).toBeUndefined()
-    expect(visitorDemo().inbox).toBeUndefined()
   })
 })

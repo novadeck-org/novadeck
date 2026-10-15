@@ -2,10 +2,10 @@ import { act, createElement, Fragment, useEffect, type ComponentProps } from "re
 import { HashRouter } from "react-router"
 import { vi } from "vitest"
 
+import { createSpecBackend } from "../backend/demo/spec-variants"
 import type { CreateBackend, TerminalSurfaceProps } from "../backend/port"
 import { context, describe, expect, it } from "../test"
 import { render } from "../test/render"
-import { selectBackend } from "./backend"
 import {
   useWorkspaceServices,
   useWorkspaceState,
@@ -45,8 +45,7 @@ const open = async (id: string) => {
   window.location.hash = "#/projects/storefront/sessions/initial/focus"
   const lifecycle = { mounted: 0, unmounted: 0 }
   const createBackend: CreateBackend = () => {
-    if (!("createBackend" in selectBackend)) throw new Error("Tests expect a ready backend")
-    const backend = selectBackend.createBackend()
+    const backend = createSpecBackend()
     const TerminalSurface = ({
       terminal,
       renderWindow,

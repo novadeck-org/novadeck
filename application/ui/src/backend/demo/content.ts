@@ -11,8 +11,6 @@ import type {
   Workspace,
 } from "../../model/types"
 import type { Backend, BackendSink, CreateBackend, TerminalKey } from "../port"
-import { terminalOf } from "./debug/terminals"
-import type { DemoSurfaceRuntime } from "./debug/types"
 import { createDemoEngine } from "./engine"
 import { demoBackend, windowReset, withConversations } from "./index"
 import { createDemoMessages, studioMailbox } from "./messages"
@@ -20,6 +18,8 @@ import { defaultName, demoTerminalId } from "./samples"
 import { authAgent, studioAgent, type SampleAgent } from "./showcase/agents"
 import { devServerArtifacts } from "./showcase/artifacts"
 import { createShowcase, planFaults, type PlanFault } from "./showcase/simulation"
+import type { DemoSurfaceRuntime } from "./surface"
+import { terminalOf } from "./terminals"
 import { showcaseTranscripts } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
 

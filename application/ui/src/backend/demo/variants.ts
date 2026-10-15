@@ -1,7 +1,7 @@
 import type { Backend } from "../port"
 import { contentDemo } from "./content"
-import type { DemoSurfaceRuntime } from "./debug/types"
 import { plainDemo, type PlainVariant } from "./index"
+import type { DemoSurfaceRuntime } from "./surface"
 import type { DemoTurns } from "./turns"
 
 // The demos the content preview can run: the content showcase, and the plain ones.

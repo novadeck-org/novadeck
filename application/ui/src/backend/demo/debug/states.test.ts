@@ -10,10 +10,11 @@ import { context, describe, expect, it } from "../../../test"
 import type { BackendAction, TerminalKey } from "../../port"
 import type { DemoAgentVerbs } from "../agent-link"
 import { createMockTerminal, demoSeed, demoTerminalId, terminalSlot } from "../samples"
+import { terminalOf } from "../terminals"
 import { demoTurns } from "../turns"
 import { createDemo } from "../variants"
 import { createDemoStates } from "./states"
-import { backToPrompt, runProgram, terminalOf } from "./terminals"
+import { backToPrompt, runProgram } from "./terminals"
 import { demoSections, type DemoActionContext, type DemoTarget } from "./types"
 
 beforeEach(() => vi.useFakeTimers())

@@ -42,7 +42,7 @@ const pending = () => {
 }
 
 // The gate with a workspace that hands out its boot report.
-const show = (selection: BackendSelection) => {
+const show = (selection: BackendSelection, onShown?: () => void) => {
   const reports: ((progress: BootProgress) => void)[] = []
   const page = render(
     createElement(
@@ -50,6 +50,7 @@ const show = (selection: BackendSelection) => {
       null,
       createElement(BackendGate, {
         selection,
+        ...(onShown && { onShown }),
         render: (_create, boot) => {
           reports.push(boot)
           return createElement("p", null, "workspace")
@@ -80,6 +81,15 @@ const failing = (kind: ConnectFailure["kind"], code: string) =>
   })
 
 describe("backend gate", () => {
+  context("with a backend ready at once", () => {
+    it("says the workspace is shown straight away, having no splash", () => {
+      const shown = vi.fn<() => void>()
+      show({ createBackend }, shown)
+      // Twice: StrictMode mounts the gate a second time, and the caller keeps count.
+      expect(shown).toHaveBeenCalledTimes(2)
+    })
+  })
+
   context("while the backend connects", () => {
     it("shows the splash powering up", () => {
       const { phase } = show(pending().selection)
@@ -95,9 +105,9 @@ describe("backend gate", () => {
   })
 
   context("once connected", () => {
-    const connected = async () => {
+    const connected = async (onShown?: () => void) => {
       const { selection, attempts } = pending()
-      const page = show(selection)
+      const page = show(selection, onShown)
       let closed = 0
       await act(async () => attempts.at(-1)!.resolve({ createBackend, close: () => closed++ }))
       return { ...page, closed: () => closed }
@@ -119,6 +129,17 @@ describe("backend gate", () => {
       act(() => vi.advanceTimersByTime(onlineHoldMs + splashFadeMs))
       expect(page.phase()).toBeNull()
       expect(page.container.textContent).toBe("workspace")
+    })
+
+    it("says the workspace is shown only once the splash has lifted", async () => {
+      const shown = vi.fn<() => void>()
+      const page = await connected(shown)
+      vi.useFakeTimers()
+      page.report({ attached: 3, total: 3, done: true })
+      act(() => vi.advanceTimersByTime(onlineHoldMs))
+      expect(shown).not.toHaveBeenCalled()
+      act(() => vi.advanceTimersByTime(splashFadeMs))
+      expect(shown).toHaveBeenCalledTimes(1)
     })
 
     it("closes the connection when unmounted", async () => {

@@ -1,4 +1,4 @@
-import { createElement } from "react"
+import { createElement, type ComponentProps } from "react"
 import { afterEach, vi } from "vitest"
 
 import { describe, expect, it } from "../test"
@@ -18,7 +18,7 @@ vi.hoisted(() => {
 const mounted: Rendered[] = []
 afterEach(() => mounted.splice(0).forEach((page) => page.unmount()))
 
-const show = (visitor: boolean) => {
+const show = (addons: Partial<ComponentProps<typeof Preferences>>) => {
   const page = render(
     createElement(Preferences, {
       open: true,
@@ -27,7 +27,7 @@ const show = (visitor: boolean) => {
       value: readPreferences(),
       onChange: () => {},
       onClose: () => {},
-      visitor,
+      ...addons,
     }),
   )
   mounted.push(page)
@@ -38,17 +38,17 @@ const tabs = (): string[] =>
 const selected = (): string | null =>
   document.querySelector('[role="tab"][aria-selected="true"]')?.textContent ?? null
 
-describe("the preferences of a visitor's demo", () => {
+describe("the preferences of a backend with no addons", () => {
   it("opens General, not the Addons panel, when a URL names Addons", () => {
-    show(true)
+    show({})
 
     expect(tabs()).not.toContain("Addons")
     expect(selected()).toBe("General")
     expect(document.querySelector('[role="tabpanel"][aria-labelledby$="addons"]')).toBeNull()
   })
 
-  it("still opens Addons elsewhere", () => {
-    show(false)
+  it("still opens Addons where the backend reads conversations", () => {
+    show({ chat: true })
 
     expect(selected()).toBe("Addons")
     expect(document.querySelector('[role="tabpanel"][aria-labelledby$="addons"]')).not.toBeNull()

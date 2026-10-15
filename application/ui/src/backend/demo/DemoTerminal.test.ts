@@ -17,10 +17,10 @@ import { render, type Rendered } from "../../test/render"
 import type { BackendConnectionState, TerminalKey } from "../port"
 import { terminalKeyId } from "../registry"
 import { DemoAgentContext } from "./agent-link"
-import type { DemoScreen } from "./debug/types"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine } from "./engine"
 import { createMockTerminal } from "./samples"
+import type { DemoScreen } from "./surface"
 
 // jsdom has no resizes; the demo terminal watches for its output coming back on screen.
 vi.hoisted(() => {

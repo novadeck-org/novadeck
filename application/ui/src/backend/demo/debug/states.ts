@@ -5,6 +5,8 @@ import type { TerminalMetadata, Workspace } from "../../../model/types"
 import type { BackendAction, TerminalKey } from "../../port"
 import { terminalKeyId } from "../../registry"
 import type { DemoAgentVerbs } from "../agent-link"
+import type { DemoScreen } from "../surface"
+import { terminalOf } from "../terminals"
 import { createDemoAgents } from "./agents"
 import { createDebugChat } from "./chat"
 import { createDemoFolders } from "./folders"
@@ -29,17 +31,10 @@ import {
   runAgent,
   runProgram,
   starting,
-  terminalOf,
   unheardAgent,
   withUsage,
 } from "./terminals"
-import type {
-  DemoAction,
-  DemoActionContext,
-  DemoActionGroup,
-  DemoScreen,
-  DemoStates,
-} from "./types"
+import type { DemoAction, DemoActionContext, DemoActionGroup, DemoStates } from "./types"
 import { createDemoUpdates, longestNotes, sampleNotes } from "./updates"
 
 // How long an agent works before its turn ends, so the person can look elsewhere.

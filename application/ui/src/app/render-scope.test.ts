@@ -9,11 +9,11 @@ import {
 import { HashRouter } from "react-router"
 import { afterEach, beforeAll, vi } from "vitest"
 
+import { createSpecBackend } from "../backend/demo/spec-variants"
 import { context, describe, expect, it } from "../test"
 import { itemFixture } from "../test/fixtures"
 import { render } from "../test/render"
 import { WorkspaceApp } from "./App"
-import { selectBackend } from "./backend"
 import { useWorkspaceServices, type WorkspaceServices } from "./controller/context"
 import { WorkspaceProvider } from "./WorkspaceProvider"
 
@@ -96,12 +96,6 @@ const second = "storefront-initial-02"
 // Rendering the whole page in jsdom is slow on small CI runners, Windows in particular.
 vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 })
 
-// Tests run on the backend app/backend.ts picks for them, which is ready at once.
-const demoBackend = () => {
-  if (!("createBackend" in selectBackend)) throw new Error("Tests expect a ready backend")
-  return selectBackend.createBackend
-}
-
 // The mocks above wait on the real module, and a second import from the same module that
 // arrives meanwhile is answered with the real one, unmocked. Slowly loading runners hit that
 // when the page imports Canvas on demand twice at once, and Canvas then goes uncounted. Load
@@ -143,7 +137,7 @@ const open = async () => {
         createElement(
           WorkspaceProvider,
           // The children follow as arguments.
-          { createBackend: demoBackend() } as ComponentProps<typeof WorkspaceProvider>,
+          { createBackend: createSpecBackend } as ComponentProps<typeof WorkspaceProvider>,
           createElement(Grab, { found }),
           createElement(WorkspaceApp),
         ),

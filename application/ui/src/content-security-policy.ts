@@ -44,3 +44,17 @@ export const contentSecurityPolicyConnectSources = (
 
   return [...sources]
 }
+
+// The connect-src sources of a build. The visitor build, the website's demo, reaches
+// nothing but the page's own origin; every other build reaches what it is configured for.
+export const buildConnectSources = (
+  build: {
+    readonly mode: string
+    readonly command: "build" | "serve"
+  },
+  apiUrl: string | undefined,
+  runnerUrl?: string | undefined,
+): readonly string[] =>
+  build.mode === "try" && build.command === "build"
+    ? ["'self'"]
+    : contentSecurityPolicyConnectSources(apiUrl, build.command === "serve", runnerUrl)
