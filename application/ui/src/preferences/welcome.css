@@ -7,8 +7,8 @@
    `.welcome-intro`: the column holding the headline and the preview, beside the
    choices (under them on narrow screens) across a hairline.
    `.welcome-pattern`: the Nova pattern behind the intro.
-   `.welcome-brand`, `.welcome-headline`, `.welcome-heading`: the wordmark's line, the
-   headline and the choices' heading, set tight.
+   `.welcome-headline`, `.welcome-heading`: the headline and the choices' heading, set
+   tight.
    `.welcome-enter` and `.welcome-rise` arrive `--_at` after the dialog opens; each
    `.welcome-letter` is typed `--_i` letters in, followed by the `.welcome-caret`.
    `.welcome-start`: a variant of `.button.primary` drawn as the brand tile, with its
@@ -43,9 +43,6 @@
 .welcome-pattern {
   color: var(--welcome-pattern-fg, var(--color-line-strong));
   opacity: var(--welcome-pattern-opacity, 0.4);
-}
-.welcome-brand {
-  letter-spacing: -0.8px;
 }
 .welcome-headline {
   letter-spacing: -2.2px;

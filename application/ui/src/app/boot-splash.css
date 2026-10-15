@@ -54,9 +54,6 @@
   border-radius: var(--radius-panel);
   opacity: 0;
 }
-.boot-splash-word {
-  letter-spacing: -0.045em;
-}
 .boot-splash-tag,
 .boot-splash-phase {
   color: var(--boot-splash-fg, var(--color-muted));

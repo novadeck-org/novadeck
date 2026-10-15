@@ -5,10 +5,12 @@
 @import "./theme/contract.css";
 @import "allotment/dist/style.css" layer(base);
 @import "./theme/base.css" layer(base);
-/* Inter and JetBrains Mono ship with the app: the CSP only loads fonts from the app
-   itself. A theme with its own face imports it in its file, as Phosphor does. */
+/* Inter, JetBrains Mono and Archivo (the wordmark's face) ship with the app: the CSP only
+   loads fonts from the app itself. A theme with its own face imports it in its file, as
+   Phosphor does. */
 @import "./theme/fonts.css" layer(base);
 @import "@fontsource-variable/jetbrains-mono" layer(base);
+@import "@fontsource-variable/archivo/standard.css" layer(base);
 
 /* Recipes, each beside its component. Feature CSS that a lazily loaded view imports
    itself wraps its own rules in `@layer components`. */

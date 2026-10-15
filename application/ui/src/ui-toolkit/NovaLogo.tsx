@@ -40,8 +40,8 @@ export const NovaMark = ({
   </svg>
 )
 
-// The wordmark: "Nova" regular and "deck" semibold. Sized by the
-// surrounding font size; `animated` raises it letter by letter.
+// The wordmark: "Novadeck" in Archivo, bold and expanded (see nova-logo.css). Sized by
+// the surrounding font size; `animated` raises it letter by letter.
 export const Wordmark = ({
   animated = false,
   className,
@@ -49,25 +49,21 @@ export const Wordmark = ({
   readonly animated?: boolean
   readonly className?: string | undefined
 }): React.JSX.Element => {
-  const letters = [
-    ..."Nova".split("").map((letter) => ({ letter, className: "font-normal" })),
-    ..."deck".split("").map((letter) => ({ letter, className: undefined })),
-  ]
+  const letters = brandName.split("")
   return (
     <span
       className={cn(
-        "wordmark inline-flex items-baseline font-semibold *:inline-block",
+        "wordmark inline-flex items-baseline *:inline-block",
         animated && "animated",
         className,
       )}
       aria-hidden="true"
     >
-      {letters.map(({ letter, className: letterClass }, index) => (
+      {letters.map((letter, index) => (
         <span
           // The letters never reorder.
           // oxlint-disable-next-line react/no-array-index-key
           key={index}
-          className={letterClass}
           style={{ "--_i": index } as CSSProperties}
         >
           {letter}

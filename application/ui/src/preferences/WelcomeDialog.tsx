@@ -138,13 +138,11 @@ const WelcomeForm = ({
     >
       <div className="welcome-intro relative isolate min-w-0 overflow-hidden px-8 pt-8 pb-6 min-[820px]:px-10 min-[820px]:pt-10 max-[420px]:px-5">
         <NovaPattern className="welcome-pattern pointer-events-none absolute top-0 right-0 -z-10 h-[230px] w-[72%]" />
-        <div
-          className="welcome-brand flex items-center gap-2.5 text-[23px] font-semibold"
-          role="img"
-          aria-label={brandName}
-        >
+        <div className="flex items-center gap-2.5 text-[23px]" role="img" aria-label={brandName}>
           <NovaMark size={35} animated />
-          <Wordmark animated />
+          {/* With no descenders the letters ride high in their line; this centres their
+              capitals and baseline on the mark. */}
+          <Wordmark animated className="translate-y-[0.07em]" />
         </div>
         <div className="mt-10 max-[819px]:mt-6">
           <DialogTitle

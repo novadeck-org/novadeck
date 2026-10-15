@@ -34,8 +34,15 @@
   --_dx: 0px;
   --_dy: -22px;
 }
+/* The wordmark is a shape, as the mark is: Archivo, bold and expanded, one word at one
+   weight, as the website sets it. Every theme recolours it and nothing more, so it keeps
+   this face in Phosphor too. */
 .wordmark {
   color: var(--wordmark-fg, var(--color-ink));
+  font-family: "Archivo Variable", var(--font-sans);
+  font-weight: 700;
+  font-stretch: 118%;
+  letter-spacing: -0.01em;
 }
 
 /* Assembling: the cursor lights first (about 0.45s in) and blinks once, then the chevrons

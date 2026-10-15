@@ -212,7 +212,10 @@ token: every theme shares it.
 The app ships its fonts: Inter for the interface, the official build in
 `assets/fonts/` declared in `theme/fonts.css` (Google Fonts' build drops the character
 variants below), and JetBrains Mono from `@fontsource-variable/jetbrains-mono` for
-terminals and code, both imported in `styles.css` into `layer(base)`. A theme with its
+terminals and code, both imported in `styles.css` into `layer(base)`. Archivo, from
+`@fontsource-variable/archivo`, is imported there too, for the wordmark alone:
+`ui-toolkit/nova-logo.css` sets it bold and expanded in every theme, which only recolours
+it, as the website does. A theme with its
 own face imports it at the top of its own file, `@import "<package>" layer(base);`, as
 `theme/phosphor.css` does for Share Tech Mono; inside `layer(themes)` it nests as
 `themes.base`, which is harmless, since `@font-face` ignores layers. A face loads only
