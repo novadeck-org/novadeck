@@ -33,6 +33,7 @@ const digest: AgentDigest = {
   reply: null,
   summary: null,
   previous: null,
+  stage: "forming",
 }
 
 const setup = async (
@@ -464,10 +465,12 @@ describe("describing", () => {
     expect(text).not.toContain("hunter2")
     expect(text).toContain("API_KEY=[redacted]")
     expect(text.indexOf("first thing")).toBeLessThan(text.indexOf("fix the build"))
-    expect(text).toMatch(/CURRENT prompt[^]*fix the build/)
+    expect(text).toMatch(/latest prompt[^]*fix the build/)
   })
 
-  it("describes a shell, showing it the previous label", async ({ resources }) => {
+  it("describes a shell, without its previous title, which is renamed on every command", async ({
+    resources,
+  }) => {
     const { murmur, directory } = await installed(resources, { behaviour: "log" })
     const shell: Digest = {
       kind: "shell",
@@ -483,7 +486,86 @@ describe("describing", () => {
     const text = (await requests(directory)).at(-1)?.messages[1]?.content ?? ""
     expect(text).toContain("tail -f app.log")
     expect(text).not.toContain("abc123")
-    expect(text).toContain("Tailing log")
+    expect(text).not.toContain("Tailing log")
+  })
+
+  it("asks an agent for a verdict before the title, and a shell for the title alone", async ({
+    resources,
+  }) => {
+    const { murmur, directory } = await installed(resources, { behaviour: "log" })
+
+    await murmur.describe(digest, { terminal: "t" })
+    await murmur.describe(
+      { kind: "shell", project: null, folder: null, command: null, screen: ["$"], previous: null },
+      { terminal: "t" },
+    )
+
+    const [agent, shell] = (await requests(directory)).slice(-2) as unknown as {
+      response_format: { json_schema: { name: string; schema: { required: string[] } } }
+    }[]
+    // The schemas have names of their own, which the fake answers by.
+    expect(agent?.response_format.json_schema.name).toBe("agent_title")
+    expect(shell?.response_format.json_schema.name).toBe("terminal_title")
+    expect(agent?.response_format.json_schema.schema.required).toEqual(["changed", "title"])
+    expect(shell?.response_format.json_schema.schema.required).toEqual(["title"])
+  })
+
+  it("takes the project's name out of a title", async ({ resources }) => {
+    const { murmur } = await installed(resources, { behaviour: "project" })
+
+    expect(await murmur.describe({ ...digest, project: "shopdeck" }, { terminal: "t" })).toEqual({
+      title: "Login redirect",
+      changed: true,
+    })
+  })
+
+  it("judges a settled name changed only when the new title shares no word with it", async ({
+    resources,
+  }) => {
+    const { murmur } = await installed(resources)
+    const settled = (title: string): AgentDigest => ({
+      ...digest,
+      previous: { title },
+      stage: "settled",
+    })
+
+    expect(await murmur.describe(settled("Billing schema"), { terminal: "t" })).toMatchObject({
+      changed: true,
+    })
+    expect(await murmur.describe(settled("Fake title"), { terminal: "t" })).toMatchObject({
+      changed: false,
+    })
+    // A forming name is the model's call.
+    expect(
+      await murmur.describe({ ...settled("Fake title"), stage: "forming" }, { terminal: "t" }),
+    ).toMatchObject({ changed: true })
+  })
+
+  it("hands over the model's title and verdict as they are, but for a first title and a shell", async ({
+    resources,
+  }) => {
+    const { murmur } = await installed(resources, { behaviour: "same" })
+    const settled: Digest = { ...digest, previous: { title: "Billing schema" }, stage: "settled" }
+
+    expect(await murmur.describe(settled, { terminal: "t" })).toEqual({
+      title: "Fake title 1",
+      changed: false,
+    })
+    // With no previous title, a first title is always a change; so is any shell's.
+    expect(await murmur.describe(digest, { terminal: "t" })).toMatchObject({ changed: true })
+    expect(
+      await murmur.describe(
+        {
+          kind: "shell",
+          project: null,
+          folder: null,
+          command: null,
+          screen: ["$"],
+          previous: null,
+        },
+        { terminal: "t" },
+      ),
+    ).toMatchObject({ changed: true })
   })
 
   it("does one job at a time", async ({ resources }) => {
@@ -638,10 +720,10 @@ describe("a model that copies an example", () => {
 
     expect(
       await murmur.describe(
-        { ...digest, prompts: ["rotating billing webhook keys, please"] },
+        { ...digest, prompts: ["webhook key rotation, please"] },
         { terminal: "t" },
       ),
-    ).toEqual({ title: "Rotating billing webhook keys" })
+    ).toEqual({ title: "Webhook key rotation", changed: true })
   })
 })
 

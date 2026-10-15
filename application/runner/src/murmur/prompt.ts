@@ -1,7 +1,7 @@
 // What the model is told. It is a 2B model reading a few kilobytes: the prompt is short,
 // the person's current ask comes last where it weighs most, and every rule is one the
 // model was seen to break without it (see docs/murmur.md).
-import type { Digest, Input, NoteDigest } from "./describer.js"
+import type { AgentDigest, Input, NoteDigest } from "./describer.js"
 import {
   exampleGists,
   exampleHeadlines,
@@ -19,27 +19,47 @@ export type Task = "title" | "headline" | "gist"
 
 export type Message = { readonly role: "system" | "user"; readonly content: string }
 
-export const system = `You name terminals in a developer's sidebar. You get what one terminal shows: an AI coding agent's session, or a plain shell. Reply with a JSON object holding a title.
+// A title is a short noun name, like a ticket or a branch ("Webhook key rotation", "EMO-118"),
+// of what a session works toward or what a window shows. The two kinds of terminal are told
+// apart, as an agent's session is named by its goal over many turns and a shell's window by
+// the command it just ran.
+const nameRules = `title: ${titleWords.min} to 3 words, at most ${titleCharacters} characters, a short memorable name like a ticket or branch name: a noun phrase, not a sentence. Never a verb phrase or filler such as "Help with", "Review", "Updating" or "Working on", never a raw command line, never the project's name. A ticket id from the text may be used ("EMO-118").`
 
-title: ${titleWords.min} to ${titleWords.max} words, at most ${titleCharacters} characters, naming the concrete task or program. Write it like a tab name: no verb needed, no full sentence, never a raw command line.
+export const agentSystem = `You name AI coding agent sessions in a developer's sidebar. Reply with a JSON object holding changed and title, in that order.
+
+changed: true when the work now differs from the previous name's, false when the previous name still fits. With no previous name it is true.
+${nameRules}
 
 Rules:
-- Write the title in the language of the agent's own summary when one is given, otherwise in the language of the person's CURRENT prompt, whatever language these instructions are in. For a plain shell, use the language of the screen, English if unsure.
-- When the agent's own summary is given, it was written with full context: name what it says, unless the current prompt has plainly moved on.
-- The title names the work or the program, never the person's last message. Do not repeat a greeting, a question or a request back, such as "How is it going" or "Try again".
-- Name the CURRENT prompt, the last one, even when earlier prompts or the agent's reply are about something else. Earlier prompts are only background.
-- A previous title may be given. Keep it word for word unless the work has clearly moved on to something else.
-- Use only facts in the text. Never say something failed unless it plainly says so.
-- A shell that tails logs, watches files or serves something is running it, not failing, even when the lines it shows contain errors.
-- Use no markdown and no quotation marks.
+- Name the goal the whole session works toward, from the person's substantial prompts, the agent's summary, the plan and the agent's reply. Not the latest step, a side question or a tool the agent ran.
+- Start the title with its subject, not with a verb: "${exampleTitles[0]}", not "Rotate the webhook signing keys".
+- The latest prompt counts most when it moves the session to different work. A short reply such as "yes" or "continue" moves nothing.
+- Write the title in the language of the agent's own summary when one is given, otherwise in the language of the person's prompts, whatever language these instructions are in.
+- When changed is false, repeat the previous name word for word.
+- Do not repeat a greeting, a question or a request back, such as "How is it going" or "Try again".
+- Use only facts in the text. Use no markdown and no quotation marks.
 
-Examples of the reply, which show the shape only: never reuse their words for another terminal:
+Examples of the reply, which show the shape only: never reuse their words for another session:
 Prompt "rotate the webhook signing keys for billing" gives:
-{"title":"${exampleTitles[0]}"}
+{"changed":true,"title":"${exampleTitles[0]}"}
 Prompt "dodaj walidację formularza rejestracji" gives:
-{"title":"${exampleTitles[1]}"}
+{"changed":true,"title":"${exampleTitles[1]}"}
 Prompt "sprawdź, dlaczego testy się wywalają" gives:
-{"title":"${exampleTitles[2]}"}
+{"changed":true,"title":"${exampleTitles[2]}"}`
+
+export const shellSystem = `You name plain shell windows in a developer's sidebar. Reply with a JSON object holding a title.
+
+${nameRules}
+
+Rules:
+- Name what the window shows now, not that a command runs or ran: the last command and its output matter most, older rows are background. After a file tree, name the tree; after failing tests, name the failures ("Login test failures"); after passing tests, "Passing tests"; after git log, "Git history"; for a dev server, name the tool it runs ("Vite dev server"). Never "Running", "Finished" or "Waiting for".
+- The command's own words are not a name: "pnpm dev", "ls" or "git log" say what was typed, not what the window is about.
+- When the command is a program with no output to read (htop, vim), name the program.
+- Write the title in the language of the screen, English if unsure, whatever language these instructions are in.
+- A shell that tails logs, watches files or serves something is running it, not failing, even when the lines it shows contain errors.
+- Use only facts in the text. Use no markdown and no quotation marks.
+
+Examples of the reply, which show the shape only: never reuse their words for another window:
 A shell running tail -f /var/log/nginx/access.log gives:
 {"title":"${exampleTitles[3]}"}`
 
@@ -48,14 +68,23 @@ A shell running tail -f /var/log/nginx/access.log gives:
 // limit it comes out whole and is refused.
 const overrun = 32
 
-/** The schema for `response_format`, which keeps the reply to the title. */
+const titleText = { type: "string", minLength: 2, maxLength: titleCharacters + overrun } as const
+
+// `changed` comes first because the engine's grammar writes properties in this order, so the
+// model has decided whether the work moved on before it names anything.
+export const agentTitleSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["changed", "title"],
+  properties: { changed: { type: "boolean" }, title: titleText },
+} as const
+
+/** The schema for `response_format` of a shell's title, which keeps the reply to the title. */
 export const schema = {
   type: "object",
   additionalProperties: false,
   required: ["title"],
-  properties: {
-    title: { type: "string", minLength: 3, maxLength: titleCharacters + overrun },
-  },
+  properties: { title: titleText },
 } as const
 
 export const responseFormat = {
@@ -143,6 +172,21 @@ export const formats = {
   },
 } as const
 
+/** What each input asks of the engine: an agent's title also carries `changed`. */
+export const formatOf = (
+  task: Task,
+  input: Input,
+): { readonly responseFormat: object; readonly maxTokens: number } =>
+  task === "title" && input.kind === "agent"
+    ? {
+        responseFormat: {
+          type: "json_schema",
+          json_schema: { name: "agent_title", strict: true, schema: agentTitleSchema },
+        },
+        maxTokens: formats.title.maxTokens,
+      }
+    : formats[task]
+
 // Rough budgets in characters, to keep a job inside the model's 4096-token window. The
 // terminals side already trims; this is the last guard.
 const budget = {
@@ -153,6 +197,7 @@ const budget = {
   summary: 600,
   row: 160,
   rows: 30,
+  olderRows: 6,
   question: 600,
   choices: 8,
   choice: 80,
@@ -289,11 +334,6 @@ const tail = (text: string, limit: number): string =>
 const fact = (name: string, value: string | null): string[] =>
   value === null || value.trim() === "" ? [] : [`${name}: ${value.trim()}`]
 
-const previous = (digest: Digest): string[] =>
-  digest.previous === null
-    ? []
-    : ["", `Previous title (keep it unless the work clearly changed): ${digest.previous.title}`]
-
 // The chat for a note. The text is cut here, after redaction, so a cut never splits a secret
 // that redaction would have caught whole.
 const noteMessages = (input: NoteDigest): Message[] => {
@@ -340,60 +380,108 @@ const noteMessages = (input: NoteDigest): Message[] => {
   ]
 }
 
+// The chat for an agent's title. The goal of the session is what is named, so the person's
+// first prompt and the agent's summary lead, the latest prompt comes last where it weighs
+// most, and the stage says how freely the previous name may be replaced. The project's name
+// is left out: the person sits in it, and the parser would strip it from the title anyway.
+const agentMessages = (digest: AgentDigest): Message[] => {
+  const lines: string[] = [`Terminal: a ${digest.harness} agent session`]
+  lines.push(...fact("Git branch", digest.branch), ...fact("Plan", digest.plan))
+  if (digest.folders.length > 0) lines.push(`Writes mostly in: ${digest.folders.join(", ")}`)
+  // A settled name already holds the earlier prompts, so only the latest is weighed against it.
+  const settled = digest.stage === "settled" && digest.previous !== null
+  const asked = digest.prompts.filter((prompt) => prompt.trim() !== "")
+  const latest = settled || asked.length > 1 ? asked.at(-1) : undefined
+  const first = settled ? undefined : asked.at(0)
+  const between = settled ? [] : asked.slice(1, -1).slice(-budget.earlierCount)
+  if (digest.summary !== null && digest.summary.trim() !== "")
+    lines.push(
+      "",
+      "The agent's own summary of its work (written with full context; trust it):",
+      head(digest.summary.trim(), budget.summary),
+    )
+  if (first !== undefined) {
+    lines.push("", asked.length > 1 ? "The person's first prompt:" : "The person's prompt:")
+    lines.push(head(first.trim(), budget.current))
+  }
+  if (between.length > 0) {
+    lines.push("", "Later prompts from the person, oldest first:")
+    for (const prompt of between) lines.push(`- ${head(prompt.trim(), budget.earlier)}`)
+  }
+  if (digest.reply !== null && digest.reply.trim() !== "")
+    lines.push("", "The agent's latest reply, its end:", tail(digest.reply.trim(), budget.reply))
+  if (latest !== undefined) {
+    lines.push("", "The person's latest prompt:", head(latest.trim(), budget.current))
+  }
+  lines.push("")
+  if (digest.previous === null) lines.push("Name what this session works toward. changed is true.")
+  else if (!settled)
+    lines.push(
+      `Previous name: ${digest.previous.title}`,
+      "The session is still taking shape, so a better name may replace the previous one: changed is true when your title names different or clearer work than the previous name does. A command or step (run, commit, merge, open, show, push) names no work: then changed is false.",
+    )
+  else
+    lines.push(
+      `Previous name: ${digest.previous.title}`,
+      "The name has settled. changed is true when the person's latest prompt starts a different feature, bug or area than the previous name names. changed is false for a follow-up, fix, test, review or next step of the same work, and the title then repeats the previous name.",
+    )
+  lines.push(
+    `Reply with changed, then a title of ${titleWords.min} to 3 words: a noun name, not a sentence.`,
+  )
+  const summarized = digest.summary !== null && digest.summary.trim() !== ""
+  lines.push(
+    summarized
+      ? "Write the title in the language of the agent's summary above."
+      : "Write the title in the language of the person's prompts above.",
+  )
+  return [
+    { role: "system", content: agentSystem },
+    { role: "user", content: lines.join("\n") },
+  ]
+}
+
 /** The chat that asks the model to write about `input`; it should already be redacted. */
 export const messages = (digest: Input): Message[] => {
   if (digest.kind === "question" || digest.kind === "plan" || digest.kind === "reply")
     return noteMessages(digest)
-  const lines: string[] = []
-  if (digest.kind === "agent") {
-    lines.push(`Terminal: a ${digest.harness} agent session`)
-    lines.push(...fact("Project", digest.project), ...fact("Folder", digest.folder))
-    lines.push(...fact("Git branch", digest.branch), ...fact("Plan", digest.plan))
-    if (digest.folders.length > 0) lines.push(`Writes mostly in: ${digest.folders.join(", ")}`)
-    const asked = digest.prompts.filter((prompt) => prompt.trim() !== "")
-    const current = asked.at(-1)
-    const earlier = asked.slice(0, -1).slice(-budget.earlierCount)
-    if (earlier.length > 0) {
-      lines.push("", "Earlier prompts from the person (background only, oldest first):")
-      for (const prompt of earlier) lines.push(`- ${head(prompt.trim(), budget.earlier)}`)
-    }
-    if (digest.reply !== null && digest.reply.trim() !== "") {
-      lines.push("", "The agent's latest reply, its end:", tail(digest.reply.trim(), budget.reply))
-    }
-    if (digest.summary !== null && digest.summary.trim() !== "")
-      lines.push(
-        "",
-        "The agent's own summary of its work (written with full context; trust it):",
-        head(digest.summary.trim(), budget.summary),
-      )
-    lines.push(...previous(digest))
-    const summarized = digest.summary !== null && digest.summary.trim() !== ""
-    // With no prompt at all, as when an agent's own summary drives the title, there is no
-    // current prompt to point at.
-    if (current !== undefined) {
-      lines.push("", "CURRENT prompt from the person (label this, in its language):")
-      lines.push(head(current.trim(), budget.current))
-    }
+  if (digest.kind === "agent") return agentMessages(digest)
+  const lines: string[] = ["Terminal: a plain shell"]
+  const screen = digest.screen.slice(-budget.rows).map((row) => head(row, budget.row))
+  // The runner says on which row the last command was typed (`commandAt`, from the shell
+  // integration's prompt report). The rows from it lead as the last command and its output;
+  // the rows above are background, as a small model otherwise names the oldest thing it reads.
+  // Without it nothing is claimed of the rows: they are the screen.
+  const first = digest.screen.length - screen.length
+  const start =
+    digest.commandAt === undefined ||
+    !Number.isInteger(digest.commandAt) ||
+    digest.commandAt < first ||
+    digest.commandAt >= digest.screen.length
+      ? -1
+      : digest.commandAt - first
+  const older = screen.slice(0, Math.max(0, start)).slice(-budget.olderRows)
+  if (older.length > 0) lines.push("", "Earlier on the screen (background only):", ...older)
+  if (screen.length > 0 && start === -1)
     lines.push(
       "",
-      summarized
-        ? "Write the title in the language of the agent's summary above."
-        : "Write the title in the language of the CURRENT prompt above.",
+      "The screen, oldest row first (the last command and its output matter most):",
+      ...screen,
     )
-  } else {
-    lines.push("Terminal: a plain shell")
-    lines.push(...fact("Project", digest.project), ...fact("Folder", digest.folder))
-    lines.push(...fact("Running", digest.command))
-    const screen = digest.screen.slice(-budget.rows).map((row) => head(row, budget.row))
-    // A full-screen program's screen is not shown, only what it runs.
-    if (screen.length > 0)
-      lines.push("", "What the screen shows now (oldest row first):", ...screen)
-    else lines.push("", "The screen is not shown; title this terminal by what it runs.")
-    lines.push(...previous(digest))
-    lines.push("", "Title this terminal as it is now.")
-  }
+  // A full-screen program's screen is not shown, only what it runs.
+  else if (screen.length > 0)
+    lines.push("", "The last command and its output:", ...screen.slice(start))
+  // The program comes last, and what to title with it, since it is what the window is about
+  // now. A shell is renamed on every command, so its previous title is not shown: it would
+  // only be kept.
+  lines.push(
+    "",
+    digest.command === null || digest.command.trim() === ""
+      ? "Nothing runs now: the shell waits at its prompt."
+      : `Running now: ${digest.command.trim()}`,
+    "Title what this window shows now, by the last command's output: what it is about, such as a folder's file tree, a project's git history or failing login tests. Never just that a command runs or finished.",
+  )
   return [
-    { role: "system", content: system },
+    { role: "system", content: shellSystem },
     { role: "user", content: lines.join("\n") },
   ]
 }

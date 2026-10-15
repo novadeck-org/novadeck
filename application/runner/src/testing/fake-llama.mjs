@@ -9,6 +9,8 @@
 //   "hang"          never answers a completion
 //   "garbage"       answers with something that isn't the JSON asked for
 //   "device"        puts the device it runs on in its title
+//   "project"       answers a title that opens with the project "shopdeck", for a test of its removal
+//   "same"          answers a title with `changed` false, as when the model sees no new work
 //   "log"           appends each request it is sent, as a line of JSON, to the model's file name + ".requests"
 // What the file says at the start steers loading ("fail", "late"); what it says at each
 // request steers the answer, so a test can mend or break a running server by rewriting it.
@@ -117,7 +119,13 @@ const server = createServer(async (request, response) => {
       ? { headline: text("Fake headline", "Asks which database to use") }
       : kind === "reply_gist"
         ? { asks: false, gist: text("Fake gist", "Checkout totals now round per line") }
-        : { title: text("Fake title", "Rotating billing webhook keys") }
+        : {
+            // An agent's title (`agent_title`) carries the verdict; a shell's has only the title.
+            ...(kind === "agent_title" && { changed: !mode.includes("same") }),
+            title: mode.includes("project")
+              ? "Shopdeck login redirect"
+              : text("Fake title", "Webhook key rotation"),
+          }
   const content = mode.includes("garbage")
     ? "Sure! Here is a title for your terminal."
     : JSON.stringify(answer)

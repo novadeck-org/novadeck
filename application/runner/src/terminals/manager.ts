@@ -44,7 +44,7 @@ import { SerializeAddon } from "@xterm/addon-serialize"
 import type { SerializeAddon as Serializer } from "@xterm/addon-serialize"
 import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes"
 import headless from "@xterm/headless"
-import type { Terminal as Screen } from "@xterm/headless"
+import type { IMarker, Terminal as Screen } from "@xterm/headless"
 import * as pty from "node-pty"
 
 import { readPlanFile, type PlanText } from "../companions/content.js"
@@ -131,6 +131,7 @@ import { InputQueue, type HoldBudget, type InputHold } from "./input-queue.js"
 import { Interrupts, type InterruptHost, type InterruptOptions } from "./interrupts.js"
 import { keysOf, splitReports } from "./keys.js"
 import { Latest } from "./latest.js"
+import { afterKeys, emptyLine, type Line } from "./line.js"
 import { withLocale } from "./locale.js"
 import { type MouseEncoding, mouseReporting, watchMouseEncoding } from "./mouse.js"
 import {
@@ -385,6 +386,17 @@ type Record = {
   sourceReaders: Set<AbortController>
   /** When the shell last showed its prompt, in epoch milliseconds. */
   promptedAt: number | null
+  /**
+   * Markers on the screen's lines where the shell integration reported its latest
+   * prompt and the prompt before the latest one a command was entered at, oldest first.
+   * A marker follows its line through scrolling, trimming and reflow, and is disposed
+   * with it.
+   */
+  prompts: IMarker[]
+  /** The line being typed at the prompt, as far as the keys tell (see `afterKeys`). */
+  line: Line
+  /** Whether a non-empty line was entered since the last prompt (an empty Enter runs no command). */
+  lineEntered: boolean
   /** How many titles that may tell a harness's prompt the terminal set, so a stale check is dropped. */
   titles?: number
   /** The latest title the terminal set, which a trust check may read again. */
@@ -561,6 +573,30 @@ const murmurSubject = (record: Record): MurmurSubject => ({
   atPrompt: shellAtPrompt(record),
   expecting: record.binding === null ? record.expecting : null,
 })
+
+/**
+ * The screen row the shell's last command was typed on, from the prompt markers: at the
+ * prompt, the line of the prompt before the current one; while a program runs, or a line
+ * was entered and its prompt has not been reported yet, the line of the latest, which the
+ * command was started from. A marker marks the first line of its prompt, which is the
+ * command's line for a one-line prompt. Undefined with no such marker, when its line has
+ * left the screen or the buffer, when a full-screen program draws, or when the line is now
+ * blank (cleared in place): never another line's row. A prompt no command was entered at
+ * keeps no marker, so the row is the last command's, not an empty Enter's. On Windows,
+ * ConPTY may desync OSC 9;9 from the frames it renders and repaint on resize, so the row
+ * there is best-effort.
+ */
+const commandRowOf = (record: Record): number | undefined => {
+  const buffer = record.screen.buffer.active
+  if (buffer.type === "alternate") return undefined
+  const running = !shellAtPrompt(record) || record.lineEntered
+  const marker = running ? record.prompts.at(-1) : record.prompts.at(-2)
+  if (!marker || marker.isDisposed || marker.line < 0) return undefined
+  const row = marker.line - buffer.viewportY
+  if (row < 0 || row >= record.screen.rows) return undefined
+  const line = buffer.getLine(marker.line)
+  return line && line.translateToString(true).trim() !== "" ? row : undefined
+}
 
 // Whether the shell holds its terminal's foreground, as at its prompt: by the foreground
 // process group where the platform tells it, so a script its own interpreter runs (`bash
@@ -1028,6 +1064,9 @@ export class Terminals {
         transcript: null,
         sourceReaders: new Set(),
         promptedAt: saved?.promptedAt ?? null,
+        prompts: [],
+        line: emptyLine,
+        lineEntered: started.resumes,
         changed: false,
         savedAt: 0,
         submitted: started.resumes,
@@ -1368,6 +1407,10 @@ export class Terminals {
       if (claim && this.claims.get(claim) === record.summary.id) this.claims.delete(claim)
     }
     if (/[\r\n]/.test(data)) record.submitted = true
+    // A line with something on it is a command; Enter on an empty prompt is not.
+    const line = afterKeys(record.line, data)
+    record.line = line.line
+    if (line.entered) record.lineEntered = true
     if (keys.some(({ kind }) => kind === "enter") && this.readyOf(record)) this.readyEnter(record)
     this.messaging.keys(
       record.summary.id,
@@ -1397,11 +1440,13 @@ export class Terminals {
         ),
       facts: (terminal) => this.peers.facts(terminal),
       screen: async (terminalId) => {
-        const screen = await this.screenOf(terminalId)
+        const shown = await this.shellScreenOf(terminalId)
+        const screen = shown?.text
         return (
           screen && {
             rows: screen.rows,
             alternate: screen.alternate,
+            ...(shown.commandRow !== undefined && { commandRow: shown.commandRow }),
             ...(screen.wrapped && { wrapped: screen.wrapped }),
             ...(screen.continues && { continues: screen.continues }),
           }
@@ -1462,6 +1507,42 @@ export class Terminals {
         }
       },
     }
+  }
+
+  /**
+   * A plain shell's screen as murmur is shown it: the screen, and the row the last command
+   * was typed on (see `commandRowOf`), read together once the screen has drawn.
+   */
+  private async shellScreenOf(
+    terminalId: string,
+  ): Promise<{ text: ScreenText; commandRow?: number } | undefined> {
+    const record = this.live(terminalId)
+    if (!record) return undefined
+    const { process: child } = record
+    const shown = await this.enqueue(record, () => {
+      const commandRow = commandRowOf(record)
+      return { text: screenText(record.screen), ...(commandRow !== undefined && { commandRow }) }
+    })
+    return record.process === child && this.live(terminalId) ? shown : undefined
+  }
+
+  /**
+   * Keeps the line of the prompt just reported (the parser runs this with the cursor where
+   * it is drawn). The prompt before it is kept if a command was entered there, else
+   * dropped: it names no command.
+   */
+  private markPrompt(record: Record, entered: boolean): void {
+    if (!entered) record.prompts.pop()?.dispose()
+    const marker = record.screen.registerMarker(0)
+    if (!marker) return
+    record.prompts.push(marker)
+    while (record.prompts.length > 2) record.prompts.shift()?.dispose()
+  }
+
+  /** Disposes the prompt markers, as when the shell ends or is replaced. */
+  private forgetPrompts(record: Record): void {
+    for (const marker of record.prompts) marker.dispose()
+    record.prompts = []
   }
 
   /** The screen of a running terminal once it has drawn what its shell already sent. */
@@ -1935,6 +2016,7 @@ export class Terminals {
           this.claims.set(resume.key, record.summary.id)
           started.resumeClaim = resume.key
         }
+        this.forgetPrompts(record)
         const earlier =
           this.transcripts && !started.resumes
             ? transcriptOf(record.screen, record.serializer, this.options.transcriptChars)
@@ -1978,6 +2060,9 @@ export class Terminals {
           submitted: started.resumes,
           startupRuns: started.resumes,
           readyEntered: false,
+          prompts: [],
+          line: emptyLine,
+          lineEntered: started.resumes,
         })
         // The earlier shell's screen shows above the new one's.
         if (earlier) this.show(record, earlier, null)
@@ -3288,6 +3373,12 @@ export class Terminals {
         if (cwd !== undefined) this.prompted(record, child, cwd)
         return true
       }),
+      // A full reset (ESC c, as `reset` sends) clears the screen: no marker keeps a line
+      // that is no longer the one it marked. The screen still handles the reset itself.
+      screen.parser.registerEscHandler({ final: "c" }, () => {
+        this.forgetPrompts(record)
+        return false
+      }),
       screen.parser.registerOscHandler(9, (data) => {
         const cwd = osc9Directory(data)
         if (cwd === undefined) return false
@@ -3305,7 +3396,12 @@ export class Terminals {
   private prompted(record: Record, child: pty.IPty, cwd: string): void {
     if (record.process !== child) return
     record.promptedAt = Date.now()
+    // Whether a non-empty line was entered since the last prompt: a command may have run.
+    const entered = record.lineEntered
+    record.lineEntered = false
+    record.line = emptyLine
     record.submitted = false
+    this.markPrompt(record, entered)
     record.readyEntered = false
     // Whether the startup command (an agent opened or resumed there) ran, so this prompt
     // is the first after it ended.
@@ -3334,8 +3430,10 @@ export class Terminals {
       record.summary = { ...record.summary, cwd }
       this.announce(record)
       this.save(record, false)
-      this.murmur?.moved(record.summary.id)
     }
+    // Every return to the prompt names the shell again (murmur skips one that shows what it
+    // last described), but not one an agent just left: that is its agent's, till the next.
+    if (binding === null || moved) this.murmur?.prompted(record.summary.id, entered || moved)
   }
 
   /**
@@ -4490,6 +4588,7 @@ export class Terminals {
       record.root = null
       record.activity = null
       record.telemetry = null
+      this.forgetPrompts(record)
       this.unwatch(record)
       // An exited terminal takes no messages; its agent's are gone until it runs again.
       this.messaging.unregister(record.summary.id)

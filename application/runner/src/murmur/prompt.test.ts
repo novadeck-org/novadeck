@@ -1,7 +1,15 @@
 import { describe, expect, it } from "../test.js"
 import type { AgentDigest, NoteDigest, ShellDigest } from "./describer.js"
 import { gistCharacters, headlineCharacters, titleCharacters } from "./description.js"
-import { formats, messages, responseFormat } from "./prompt.js"
+import {
+  agentSystem,
+  agentTitleSchema,
+  formatOf,
+  formats,
+  messages,
+  responseFormat,
+  shellSystem,
+} from "./prompt.js"
 
 const agent: AgentDigest = {
   kind: "agent",
@@ -15,58 +23,178 @@ const agent: AgentDigest = {
   reply: "Done.",
   summary: "Migrating the billing tables to the new schema.",
   previous: { title: "Billing schema" },
+  stage: "forming",
+}
+
+const shell: ShellDigest = {
+  kind: "shell",
+  project: "app",
+  folder: "api",
+  command: "tail -f app.log",
+  screen: ["a", "b"],
+  previous: null,
 }
 
 const user = (digest: AgentDigest | ShellDigest | NoteDigest): string =>
   messages(digest)[1]?.content ?? ""
 
 describe("asking for a title", () => {
-  it("asks for a title alone", () => {
+  it("asks an agent for the verdict first and a shell for the title alone", () => {
+    expect(Object.keys(agentTitleSchema.properties)).toEqual(["changed", "title"])
+    expect(agentTitleSchema.required).toEqual(["changed", "title"])
     expect(responseFormat.json_schema.schema.required).toEqual(["title"])
-    expect(messages(agent)[0]?.content).not.toMatch(/^summary:/m)
+    expect(formatOf("title", agent)).toMatchObject({
+      responseFormat: { json_schema: { name: "agent_title", schema: agentTitleSchema } },
+      maxTokens: 64,
+    })
+    expect(formatOf("title", shell).responseFormat).toBe(responseFormat)
+    expect(responseFormat.json_schema.name).toBe("terminal_title")
+    expect(messages(agent)[0]?.content).toBe(agentSystem)
+    expect(messages(shell)[0]?.content).toBe(shellSystem)
   })
 
-  it("shows the agent's summary, the previous title, and the current prompt last", () => {
+  it("asks for a short noun name, never the project's", () => {
+    expect(agentSystem).toMatch(/1 to 3 words/)
+    expect(agentSystem).toMatch(/never the project's name/)
+    expect(agentSystem).toMatch(/"Help with"/)
+    expect(agentSystem).toMatch(/EMO-118/)
+    expect(shellSystem).toMatch(/never the project's name/)
+  })
+
+  it("shows the agent's summary, the first prompt, and the latest prompt last", () => {
     const text = user(agent)
 
     expect(text).toContain("Migrating the billing tables")
-    expect(text).toContain(
-      "Previous title (keep it unless the work clearly changed): Billing schema",
-    )
-    expect(text.indexOf("Migrating")).toBeLessThan(text.indexOf("CURRENT prompt"))
+    expect(text).not.toContain("Project")
+    expect(text).not.toMatch(/\bapp\b/)
+    expect(text.indexOf("Migrating")).toBeLessThan(text.indexOf("The person's first prompt"))
+    expect(text).toMatch(/first prompt:\nfirst\n/)
+    expect(text).toMatch(/Later prompts[^]*- second/)
+    expect(text).toMatch(/latest prompt:\nthe current one/)
+    expect(text.indexOf("first")).toBeLessThan(text.indexOf("the current one"))
+    expect(text.indexOf("The agent's latest reply")).toBeLessThan(text.indexOf("latest prompt"))
     expect(text.trimEnd().split("\n").at(-1)).toMatch(/language of the agent's summary/)
     expect(
       user({ ...agent, summary: null })
         .trimEnd()
         .split("\n")
         .at(-1),
-    ).toMatch(/language of the CURRENT prompt/)
-    expect(text).toMatch(/CURRENT prompt[^]*the current one/)
-    expect(text.indexOf("first")).toBeLessThan(text.indexOf("the current one"))
+    ).toMatch(/language of the person's prompts/)
   })
 
-  it("leaves the summary out of an agent that has none, and shells unchanged", () => {
+  it("calls a lone prompt the prompt, not a first and a latest", () => {
+    const text = user({ ...agent, prompts: ["only this"] })
+
+    expect(text).toContain("The person's prompt:\nonly this")
+    expect(text).not.toContain("latest prompt")
+  })
+
+  it("leaves the summary out of an agent that has none", () => {
     expect(user({ ...agent, summary: null })).not.toContain("own summary")
-    const shell: ShellDigest = {
-      kind: "shell",
-      project: null,
-      folder: null,
-      command: "tail -f app.log",
-      screen: ["a", "b"],
-      previous: null,
+  })
+
+  it("lets a forming name be replaced freely, and a settled one only by a different area", () => {
+    expect(user({ ...agent, stage: "forming" })).toMatch(
+      /Previous name: Billing schema\nThe session is still taking shape, so a better name may replace/,
+    )
+    const settled = user({ ...agent, stage: "settled" })
+    expect(settled).toContain("Previous name: Billing schema")
+    expect(settled).toMatch(/starts a different feature, bug or area than the previous name names/)
+    expect(settled).toMatch(/follow-up, fix, test, review or next step of the same work/)
+  })
+
+  it("weighs only the latest prompt against a settled name, which holds the earlier ones", () => {
+    const text = user({ ...agent, stage: "settled" })
+
+    expect(text).toMatch(/The person's latest prompt:\nthe current one/)
+    expect(text).not.toContain("first prompt")
+    expect(text).not.toContain("Later prompts")
+    expect(text).not.toContain("- second")
+    // With no previous title there is nothing settled to hold them.
+    expect(user({ ...agent, stage: "settled", previous: null })).toContain(
+      "The person's first prompt",
+    )
+  })
+
+  it("asks for a first name without a previous one, whatever the stage", () => {
+    for (const stage of ["forming", "settled"] as const) {
+      const text = user({ ...agent, previous: null, stage })
+
+      expect(text).not.toContain("Previous name")
+      expect(text).toContain("Name what this session works toward")
     }
-    expect(user(shell)).toContain("Running: tail -f app.log")
-    expect(user(shell)).toContain("What the screen shows now")
-    expect(user({ ...shell, screen: [] })).not.toContain("What the screen shows now")
-    expect(user({ ...shell, screen: [] })).toContain("The screen is not shown")
+  })
+
+  it("splits a shell's screen at the row the runner says the last command was typed on", () => {
+    const prompt = "me@host:~/app$"
+    const text = user({
+      ...shell,
+      command: null,
+      screen: ["old output", `${prompt} pnpm test`, "FAIL login.test.ts", prompt],
+      commandAt: 1,
+      previous: { title: "Tailing log" },
+    })
+
+    expect(text).not.toContain("Tailing log")
+    expect(text).toMatch(/Earlier on the screen \(background only\):\nold output\n/)
+    expect(text).toMatch(/The last command and its output:\nme@host:~\/app\$ pnpm test\nFAIL/)
+    expect(text).toContain("Nothing runs now: the shell waits at its prompt.")
+    expect(text.trimEnd().split("\n").at(-1)).toMatch(/Never just that a command runs or finished/)
+    expect(user(shell)).toContain("Running now: tail -f app.log")
+  })
+
+  it("splits at row 0 without a background section", () => {
+    const text = user({
+      ...shell,
+      command: "pnpm dev",
+      screen: ["$ pnpm dev", "ready"],
+      commandAt: 0,
+    })
+
+    expect(text).toContain("The last command and its output:\n$ pnpm dev\nready")
+    expect(text).not.toContain("Earlier on the screen")
+  })
+
+  it("shows the rows as the screen when the runner gives no row", () => {
+    const text = user({ ...shell, command: null, screen: ["$ ls", "a.txt", "$"] })
+
+    expect(text).toContain("The screen, oldest row first")
+    expect(text).not.toContain("The last command and its output")
+    expect(text).not.toContain("Earlier on the screen")
+  })
+
+  it.each([-1, 3, 1.5, Number.NaN])("ignores a row that is not on the screen: %s", (commandAt) => {
+    const text = user({ ...shell, command: null, screen: ["$ ls", "a.txt", "$"], commandAt })
+
+    expect(text).toContain("The screen, oldest row first")
+  })
+
+  it("moves the row with the screen when only its last rows are shown", () => {
+    const screen = Array.from({ length: 40 }, (_, index) => `row ${index}`)
+    const text = user({ ...shell, command: null, screen, commandAt: 20 })
+
+    // The 30 lowest rows are 10..39: the command is the eleventh of them.
+    expect(text).toContain("The last command and its output:\nrow 20\nrow 21")
+    expect(text).toContain("Earlier on the screen (background only):\nrow 14\nrow 15")
+    expect(user({ ...shell, command: null, screen, commandAt: 5 })).toContain(
+      "The screen, oldest row first",
+    )
+  })
+
+  it("leaves a full-screen program's screen out and names only what runs", () => {
+    const text = user({ ...shell, command: "htop", screen: [], commandAt: 0 })
+
+    expect(text).not.toContain("The last command")
+    expect(text).not.toContain("The screen, oldest row first")
+    expect(text).toContain("Running now: htop")
   })
 
   it("is driven by the agent's summary when there are no prompts", () => {
     const text = user({ ...agent, prompts: [] })
 
-    expect(text).not.toContain("CURRENT prompt from")
+    expect(text).not.toContain("prompt:")
     expect(text).not.toContain("(none yet)")
-    expect(text).not.toContain("Earlier prompts")
+    expect(text).not.toContain("Later prompts")
     expect(text).toContain("Migrating the billing tables")
     expect(text.trimEnd().split("\n").at(-1)).toMatch(/language of the agent's summary/)
   })

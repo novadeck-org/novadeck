@@ -14,13 +14,22 @@ Code: `application/runner/src/murmur`, the engine build in `engines/murmur`.
 Terminals ask for a description when something worth a new one happened (see
 `terminals/murmur.ts`) and hand over a digest:
 
-- an agent terminal: the harness, project, folder, branch, plan, its busiest folders, the
-  person's prompts (the last one is the current one), the tail of the agent's last reply, the
-  agent's own summary when it has written one, and murmur's previous title;
-- a plain shell: project, folder, the foreground command, the visible screen rows and the
-  previous title. While a full-screen program draws on the terminal's alternate buffer (vim, less, htop,
+- an agent terminal: the harness, branch, plan, its busiest folders, the person's prompts (the
+  first substantial one, then the recent ones, the last being the latest), the tail of the
+  agent's last reply, the agent's own summary when it has written one, murmur's previous title,
+  and the `stage` of the name: `forming` while the session's work is still taking shape (its
+  first turns, or just after a pivot) and `settled` once it has held. The project and folder
+  are never shown to the model: the person sits in that project already, so naming it says
+  nothing;
+- a plain shell: the foreground command and the visible screen rows. The runner says on which
+  row the last command was typed (`commandAt`, from the shell integration's prompt report, an
+  xterm marker placed at each OSC 7 / OSC 9;9): the rows from it are "the last command and its
+  output", the rows above are background (at most six), since a small model otherwise names the
+  oldest thing on the screen. Without a row (no shell integration, or the line has left the
+  screen or the 30 rows shown) nothing is claimed: the rows are labelled as the screen. Redaction
+  keeps every row where it is, so the index holds. The previous title is not shown: a shell is renamed on every command. While a full-screen program draws on the terminal's alternate buffer (vim, less, htop,
   tmux, `kubectl edit`), no screen rows are read at all: the
-  program's command line, folder and project are all murmur gets, and with no command known
+  program's command line is all murmur gets (the project and folder are never shown), and with no command known
   (Windows has no foreground sampling) it is not asked and the title stays. When the
   program quits, the normal screen is read again. A program that draws on the normal
   screen is read as any screen is: procps `top`, `less -X`, and git's pager, which git runs
@@ -76,11 +85,27 @@ behind a random API key made for each launch and passed in the environment
   off for a while, and the others carry on. A thread that will not start at all backs murmur
   off and shows on the card. The install check's test terminal goes through the worker too,
   so a broken worker fails the install.
-- **Validation** (`description.ts`): the reply must be JSON with a title of 2 to 6 words and
-  at most 48 characters. Anything else is dropped. A headline is 2 to 10 words and at most 56
+- **Titles are short noun names**, like a ticket or a branch ("Webhook key rotation",
+  "EMO-118 login", "Git history"), asked for as 1 to 3 words. They name what an agent's session
+  works toward (the person's substantial prompts, the summary, the plan and the reply), not its
+  latest step, and what a shell's window shows (a file tree, failing tests, a dev server), not
+  that a command runs: never "Running X", "Review X" or "Help with X".
+- **Validation** (`description.ts`): the reply must be JSON with a title of 1 to 4 words and
+  at most 32 characters (2 to 10 characters in a script written without spaces). An agent's
+  reply also carries a boolean `changed`; a shell's has none and counts as changed. The
+  project's name, as the folder spells it, is taken out of a title (one token, any case or accent,
+  also as a possessive such as `Novadeck's`, with the joiners it leaves at the edges; a title that
+  began with a capital begins the rest with one, except a word lower case by design like `pnpm`
+  or `iOS`), unless it is a generic
+  word (`app`, `api`, `ui`, `web`, `docs`, `src`, ...) or three letters or fewer; a title that is
+  only the project's name is refused. A leading verb filler ("Working on", "Help with", "Review
+  of", "Updating"; not "Running", which is content for `docker ps`) is taken off when real words remain ("Fixing login" is kept), and a
+  title made only of chat or filler words (Help, Done, Status, Review, Working on, ...) is
+  refused. Anything else is dropped. A headline is 2 to 10 words and at most 56
   characters, and may end in `?`. A gist is 3 to 10 words and at most 60 characters (two lines of the sidebar), comes with a
   boolean `asks`, and is refused if it ends in `?` or opens like an English question put to someone (`Should I`, `Do you`, `Can we`) (the question is `asks`' to carry). Notes are
-  refused like titles for chat words, a copy of a prompt example and `looksSecret`. Format characters (bidi overrides,
+  refused like titles for chat words, a copy of a prompt example (the example itself, or a part
+  of it that the digest does not say, in any inflection and by whole words: "awarie" says "Awaria", "monkey" does not say "key") and `looksSecret`. Format characters (bidi overrides,
   zero-width characters) and C1 controls are stripped first, so a title shows what it says.
 - **Asking**: `asks` is true when the reply ends by asking the person to pick, decide or supply
   something the agent needs to go on, with or without a question mark. An offer to do more
@@ -88,15 +113,46 @@ behind a random API key made for each launch and passed in the environment
   "Asks" and one that opens with `Should`, `Can`, `Is` and the like is refused.
 - **Room in the schemas**: each schema's `maxLength` is 32 above the parser's limit. The engine's
   grammar cuts a string at the schema's length, which would turn an overrun into a cut phrase that
-  passes; with room it comes out whole and is refused. The schema puts `asks` before the gist,
-  as the engine's grammar writes properties in order.
-- **Stability**: the previous title goes in the prompt, with the instruction to keep it
-  unless the work clearly changed.
+  passes; with room it comes out whole and is refused. The schema puts `asks` before the gist and
+  an agent's `changed` before its title, as the engine's grammar writes properties in order: the
+  model decides before it names.
+- **Stability**: an agent's previous title goes in the prompt with the stage. While the name is
+  `forming`, a better name may replace it, and `changed` is true when the title names different
+  or clearer work. Once `settled`, the prompt shows only the latest prompt against the name, and
+  `changed` is true when it starts a different feature, bug or area; a follow-up, fix, test,
+  review or next step of the same work is not a change. The service then adds a guard: a settled
+  verdict of changed stands only if the new title shares no content word with the previous one
+  (`sharesContentWord` in `description.ts`: ticket ids such as `EMO-118` whole, other words by
+  their stems with plural, `ing`, `ed` and `ion` stripped, ignoring case, accents and the function
+  words of English, Polish, German, French and Spanish; generic work
+  words (test, bug, fix, update, ...) count for nothing and two-letter acronyms like `UI` count; a
+  script without spaces is compared by character pairs, half of the shorter title's being shared), since the 2B model calls a sub-topic "different" far too often. A first title and a
+  shell's are always changed. The model's title and verdict otherwise go to the terminals side
+  as they are; it decides what to store (see `terminals/murmur.ts`).
 - **Prompt** (`prompt.ts`): the current prompt comes last and is labelled. The size is
   capped to fit the 4096-token window.
 
 ## Known limits
 
+- The split of a shell's screen rests on the shell integration's prompt report. Where there is
+  none (a shell it is not installed in, or one that does not report), the rows are shown as the
+  screen with no split, and titles lean on whatever the model reads last. On Windows, ConPTY
+  passes the OSC 9;9 report through apart from the frames it renders and repaints the screen
+  on a resize rather than letting it reflow, so the row there is best effort.
+- The 2B model's `changed` verdict follows the wording of the instruction more than the work.
+  Measured through the terminals side's stage machine on 38 real sessions and 8 synthetic ones
+  (two real sessions joined at a topic change), per settled strategy: pivots caught within two
+  turns on the synthetic ones, false renames on the real ones after the third check (old prompt:
+  221): "keep unless clearly other work" 0/8, 41; "different feature, bug or area" 6/8, 118;
+  that plus the shared-word guard (shipped) 5/8, 87; free naming with no previous name shown and a
+  pivot whenever the new name shares no word with the old 8/8, 136. None pivots without also
+  renaming follow-ups; a hard signal (summary, branch or plan change) is the reliable pivot.
+- A project name is taken from the project's folder, so `novadeck-website` is stripped from a
+  title whole ("Scaffold novadeck-website" becomes "Scaffold"), but not a title that holds only
+  the first part ("Novadeck" for that project).
+- Titles that echo the typed command (`pnpm test`, `sleep 15`) still come out for a shell
+  whose output says little. A shell right after an agent exits is not described until its next
+  entered command, so the agent's leftover screen names nothing.
 - Redaction is best effort, and weakest on a narrow pane that splits a secret across rows.
   Rows that run to the pane's edge are read together with the next; a group that redacts
   differently as one is masked whole (so a neighbouring row can go with a secret). A quote left
@@ -182,10 +238,13 @@ runner; packaged, the manifest is at `resources/murmur/engine.json`.
 ## Testing
 
 `testing/fake-llama.mjs` stands in for `llama-server`; the model file's contents steer it
-(`fail:<device>`, `crash`, `slow`, `hang`, `garbage`, `copy`, `device`, `late`, `log`); it
+(`fail:<device>`, `crash`, `slow`, `hang`, `garbage`, `copy`, `device`, `project`, `same`, `overflow`,
+`late`, `log`; a mode is found anywhere in the text, so names must not contain one another); it
 reads the file again at each request, so a test can mend a running server. It answers by the
-`response_format.json_schema.name` it is asked with (`terminal_title`, `request_headline`,
-`reply_gist`), and `copy` copies the first example of that kind. The model is
+`response_format.json_schema.name` it is asked with (`agent_title`, `terminal_title` for a shell, `request_headline`,
+`reply_gist`), and `copy` copies the first example of that kind. The reply to `agent_title` also
+carries `changed` (true; `same` makes it false); a shell's has the title alone. `project` writes a
+title that opens with the project "shopdeck". The model is
 installed as `models/<first 12 of its sha256>-<name>`, and other files there are removed
 after a model install. `testing/slow-worker.mjs` and `testing/regex-worker.mjs` stand in for the
 redaction thread (a spinning loop, and a regex that backtracks without end). `murmur/real.test.ts`

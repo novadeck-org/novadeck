@@ -3249,9 +3249,16 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       shell,
     }) => {
       const bin = standIn(shell.home)
+      // The terminals' shells are described at their prompts too: here murmur does not run
+      // for them, so only the agent's digests are answered and counted.
+      let asked = 0
       const describer = new FakeDescriber({
-        reply: (_digest, call) => ({ title: call === 1 ? "Login fix" : "Login fix and tests" }),
+        reply: (digest) =>
+          digest.kind !== "agent"
+            ? undefined
+            : { title: ++asked === 1 ? "Login fix" : "Login fix and tests" },
       })
+      const agentDigests = () => describer.digests.filter((digest) => digest.kind === "agent")
       const manager = shell.manager({
         env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
         describer,
@@ -3280,7 +3287,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // Murmur titles it once its first prompt is known.
       await expect.poll(() => manager.get(codex.id).title, { timeout: 30_000 }).toBe("Login fix")
       expect(manager.get(codex.id).titleSource).toEqual({ kind: "murmur" })
-      expect(describer.digests[0]).toMatchObject({
+      expect(agentDigests()[0]).toMatchObject({
         kind: "agent",
         harness: "Codex",
         prompts: ["Fix the login bug"],
@@ -3297,8 +3304,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           to: "moth",
         }),
       ).resolves.toEqual({ ok: true, text: "Summarized this terminal." })
-      await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBe(2)
-      expect(describer.digests[1]).toMatchObject({
+      await expect.poll(() => agentDigests().length, { timeout: 30_000 }).toBe(2)
+      expect(agentDigests()[1]).toMatchObject({
         summary: "Fixes the login bug.\nThen its tests.",
         previous: { title: "Login fix" },
       })
@@ -3343,7 +3350,11 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       shell,
     }) => {
       const bin = standIn(shell.home)
-      const describer = new FakeDescriber()
+      // The shell the stand-in agent ran in is described at its prompt when the machine is slow
+      // to bind the agent; murmur does not run for shells here, so only the agent's digests count.
+      const describer = new FakeDescriber({
+        reply: (digest, call) => (digest.kind === "shell" ? undefined : { title: `Title ${call}` }),
+      })
       const manager = shell.manager({
         env: { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` },
         describer,
@@ -3351,17 +3362,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       })
       const terminal = await create(manager, shell)
       const { start, step } = driver(shell, manager)
+      const agents = () => describer.digests.filter((digest) => digest.kind === "agent")
       await start(terminal.id, "claude", "s-claude")
       const prompt = async (text: string) =>
         context(await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: text } }))
       await prompt("Fix the build")
       // Murmur titles it from the prompt before the agent summarizes, so the two are two jobs.
-      await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBe(1)
+      await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(1)
       await step(terminal.id, {
         call: "summarize",
         request: { summary: "Fixes the build." },
       })
-      await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBe(2)
+      await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(2)
       await step(terminal.id, { hook: "Stop", payload: {} })
       await expect(prompt("go on")).resolves.toBe("")
       await step(terminal.id, { hook: "Stop", payload: {} })
@@ -3377,8 +3389,8 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // Murmur titled it from its first prompt and its summary; the compaction, the Stops and
       // the terse prompts after them retitled nothing.
       await new Promise((resolve) => setTimeout(resolve, 300))
-      expect(describer.digests).toHaveLength(2)
-      expect(describer.digests[1]).toMatchObject({ summary: "Fixes the build." })
+      expect(agents()).toHaveLength(2)
+      expect(agents()[1]).toMatchObject({ summary: "Fixes the build." })
     })
 
     it("never retitles an agent from a terse prompt, a turn's end or its drift", async ({
@@ -3405,12 +3417,14 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       // A terse first prompt is no mission: nothing is asked of murmur.
       await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: "hows going?" } })
       await new Promise((resolve) => setTimeout(resolve, 300))
-      expect(describer.jobs).toHaveLength(0)
+      // (The shell the stand-in agent ran in is described at its prompt, as any shell is.)
+      const agents = () => describer.digests.filter((digest) => digest.kind === "agent")
+      expect(agents()).toHaveLength(0)
       // The next substantial one is, and the terse one is not shown.
       await step(terminal.id, { hook: "Stop", payload: {} })
       await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: "Fix the build" } })
-      await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBe(1)
-      expect(describer.digests[0]).toMatchObject({ prompts: ["Fix the build"] })
+      await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(1)
+      expect(agents()[0]).toMatchObject({ prompts: ["Fix the build"] })
       // Drift and further turns retitle nothing.
       for (const _ of [1, 2, 3, 4])
         // eslint-disable-next-line no-await-in-loop -- Each write is its own hook.
@@ -3419,10 +3433,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       await step(terminal.id, { hook: "UserPromptSubmit", payload: { prompt: "try again" } })
       await step(terminal.id, { hook: "Stop", payload: {} })
       await new Promise((resolve) => setTimeout(resolve, 300))
-      expect(describer.digests).toHaveLength(1)
+      expect(agents()).toHaveLength(1)
     })
 
-    it("describes a plain shell once a program has run a few seconds, and when its directory changes", async ({
+    it("describes a plain shell at its prompt, while a program has run a few seconds, and when its directory changes", async ({
       shell,
     }) => {
       const describer = new FakeDescriber({
@@ -3434,14 +3448,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const manager = shell.manager({ describer, murmurTimes, processPollMs: 50 })
       const terminal = await create(manager, shell)
       await shell.until(manager, terminal.id, "$ ")
-      // A command that ends at once describes nothing.
-      manager.write({ terminalId: terminal.id, data: "true\r" }, "owner")
-      await new Promise((resolve) => setTimeout(resolve, 700))
-      expect(describer.jobs).toHaveLength(0)
-      // One that runs on is described by its command line (where the platform tells it) and screen.
-      manager.write({ terminalId: terminal.id, data: "sleep 30\r" }, "owner")
+      // A command that ends at once is described at the prompt it returns to, with no program.
+      manager.write({ terminalId: terminal.id, data: "echo quick\r" }, "owner")
       await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBe(1)
       expect(describer.digests[0]).toMatchObject({
+        kind: "shell",
+        command: null,
+        screen: expect.arrayContaining([expect.stringContaining("quick")]),
+      })
+      // One that runs on is described by its command line (where the platform tells it) and screen.
+      manager.write({ terminalId: terminal.id, data: "sleep 30\r" }, "owner")
+      await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBe(2)
+      expect(describer.digests[1]).toMatchObject({
         kind: "shell",
         command: expect.stringContaining("sleep"),
         screen: expect.arrayContaining([expect.stringContaining("sleep 30")]),
@@ -3472,6 +3490,153 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         kind: "shell",
         folder: expect.stringContaining("sub"),
       })
+    })
+
+    it("tells which screen line the last command was typed on, from the prompt reports", async ({
+      shell,
+    }) => {
+      const describer = new FakeDescriber({ reply: () => ({ title: "Shell" }) })
+      const manager = shell.manager({ describer, murmurTimes, processPollMs: 50 })
+      const terminal = await create(manager, shell)
+      await shell.until(manager, terminal.id, "$ ")
+      const run = async (line: string, seen: string) => {
+        const before = describer.digests.length
+        manager.write({ terminalId: terminal.id, data: `${line}\r` }, "owner")
+        await expect
+          .poll(
+            () =>
+              describer.digests
+                .slice(before)
+                .find(
+                  (digest) =>
+                    digest.kind === "shell" && digest.screen.some((row) => row.includes(seen)),
+                ),
+            { timeout: 30_000 },
+          )
+          .toBeDefined()
+        return describer.digests.slice(before).findLast((digest) => digest.kind === "shell")!
+      }
+      await run("echo a", "echo a")
+      // Output that looks like prompts and commands is not a command's line.
+      const digest = await run("printf '> not a prompt\\n$ neither\\n'", "neither")
+      if (digest.kind !== "shell") throw new Error("shell digest expected")
+      expect(digest.commandAt).toBeDefined()
+      expect(digest.screen[digest.commandAt!]).toContain("printf")
+      expect(digest.screen[digest.commandAt!]).not.toContain("not a prompt\n")
+      expect(digest.screen).toContain("> not a prompt")
+    })
+
+    it("describes nothing for an empty Enter, and keeps no line for a command that was not entered", async ({
+      shell,
+    }) => {
+      const describer = new FakeDescriber({ reply: () => ({ title: "Shell" }) })
+      const manager = shell.manager({ describer, murmurTimes, processPollMs: 50 })
+      const terminal = await create(manager, shell)
+      await shell.until(manager, terminal.id, "$ ")
+      manager.write({ terminalId: terminal.id, data: "echo hello\r" }, "owner")
+      await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBeGreaterThan(0)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      const before = describer.digests.length
+      manager.write({ terminalId: terminal.id, data: "\r" }, "owner")
+      manager.write({ terminalId: terminal.id, data: "\r" }, "owner")
+      await new Promise((resolve) => setTimeout(resolve, 600))
+      expect(describer.digests).toHaveLength(before)
+    })
+
+    it("describes nothing for an Enter on a line with nothing on it", async ({ shell }) => {
+      const describer = new FakeDescriber({ reply: () => ({ title: "Shell" }) })
+      const manager = shell.manager({ describer, murmurTimes, processPollMs: 50 })
+      const terminal = await create(manager, shell)
+      await shell.until(manager, terminal.id, "$ ")
+      manager.write({ terminalId: terminal.id, data: "echo hello\r" }, "owner")
+      await expect.poll(() => describer.digests.length, { timeout: 30_000 }).toBeGreaterThan(0)
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      const before = describer.digests.length
+      // A line typed and erased, Ctrl+L, and a line cleared with Ctrl+U: each then Enter.
+      for (const keys of ["ls\x7f\x7f\r", "\x0c\r", "abc\x15\r"]) {
+        manager.write({ terminalId: terminal.id, data: keys }, "owner")
+        // eslint-disable-next-line no-await-in-loop -- One after the other.
+        await new Promise((resolve) => setTimeout(resolve, 400))
+      }
+      expect(describer.digests).toHaveLength(before)
+    })
+
+    it("keeps no line across a full reset, which clears the screen", async ({ shell }) => {
+      const describer = new FakeDescriber({ reply: () => ({ title: "Shell" }) })
+      const manager = shell.manager({ describer, murmurTimes, processPollMs: 50 })
+      const terminal = await create(manager, shell)
+      await shell.until(manager, terminal.id, "$ ")
+      // A clean screen, so the lines below are the same on every machine.
+      manager.write({ terminalId: terminal.id, data: "printf '\\ec'\r" }, "owner")
+      // (A bare prompt is no digest: wait for the prompt to be reported and settled.)
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      const earlier = describer.digests.length
+      manager.write({ terminalId: terminal.id, data: "seq 3\r" }, "owner")
+      await expect
+        .poll(() => describer.digests.length, { timeout: 30_000 })
+        .toBeGreaterThan(earlier)
+      const before = describer.digests.length
+      manager.write({ terminalId: terminal.id, data: "printf '\\ec'; seq 6\r" }, "owner")
+      await expect
+        .poll(
+          () =>
+            describer.digests
+              .slice(before)
+              .find((digest) => digest.kind === "shell" && digest.screen.includes("6")),
+          { timeout: 30_000 },
+        )
+        .toBeDefined()
+      const digest = describer.digests
+        .slice(before)
+        .findLast((candidate) => candidate.kind === "shell" && candidate.screen.includes("6"))
+      if (digest?.kind !== "shell") throw new Error("shell digest expected")
+      // The marker of the prompt the reset cleared is gone: no row, not another line's.
+      expect(digest.commandAt).toBeUndefined()
+    })
+
+    it("forms an agent typed into a titled shell afresh, and its exit does not retitle from its screen", async ({
+      shell,
+    }) => {
+      const bin = standIn(shell.home)
+      const env = { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` }
+      // Shells are described here, as they are for a person's terminal.
+      const describer = new FakeDescriber({
+        reply: (digest) => ({ title: digest.kind === "shell" ? "Shell work" : "Login fix" }),
+      })
+      const manager = shell.manager({ env, describer, murmurTimes, processPollMs: 50 })
+      const terminal = await create(manager, shell)
+      await shell.until(manager, terminal.id, "$ ")
+      manager.write({ terminalId: terminal.id, data: "echo hello\r" }, "owner")
+      await expect
+        .poll(() => manager.get(terminal.id).title, { timeout: 30_000 })
+        .toBe("Shell work")
+      // An agent is typed into it and given its first prompt.
+      const { start, step } = driver(shell, manager)
+      await start(terminal.id, "claude", "s-claude")
+      await step(terminal.id, {
+        hook: "UserPromptSubmit",
+        payload: { prompt: "Fix the login bug" },
+      })
+      await expect
+        .poll(() => describer.digests.some((digest) => digest.kind === "agent"), {
+          timeout: 30_000,
+        })
+        .toBe(true)
+      // It is named afresh: the shell's title is not shown to the model as its previous one.
+      expect(describer.digests.find((digest) => digest.kind === "agent")).toMatchObject({
+        stage: "forming",
+        previous: null,
+      })
+      await expect.poll(() => manager.get(terminal.id).title, { timeout: 30_000 }).toBe("Login fix")
+      // It runs a while, then the person ends it: what its exit leaves on the screen does not
+      // name the terminal again.
+      await new Promise((resolve) => setTimeout(resolve, 700))
+      const shells = describer.digests.filter((digest) => digest.kind === "shell").length
+      manager.write({ terminalId: terminal.id, data: "\x03" }, "owner")
+      await expect.poll(() => manager.get(terminal.id).agent, { timeout: 30_000 }).toBeNull()
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      expect(describer.digests.filter((digest) => digest.kind === "shell")).toHaveLength(shells)
+      expect(manager.get(terminal.id).title).toBe("Login fix")
     })
 
     it("drops a restarted terminal's job in flight, and the stale answer lands nowhere", async ({
@@ -3574,14 +3739,18 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(shell.store.terminalIdentity(terminal.id)?.naming.murmur).not.toBeNull()
 
       // The runner restarts, and the same session binds again: it is no new conversation.
-      const describer = new FakeDescriber()
+      // The shell the stand-in agent ran in is described at its prompt when the machine is slow
+      // to bind the agent; murmur does not run for shells here, so only the agent's digests count.
+      const describer = new FakeDescriber({
+        reply: (digest, call) => (digest.kind === "shell" ? undefined : { title: `Title ${call}` }),
+      })
       const second = shell.manager({ env, describer, murmurTimes })
       await create(second, shell, { id: terminal.id, restore: true })
       const after = driver(shell, second)
       await after.start(terminal.id, "claude", "s-claude")
       await after.step(terminal.id, { hook: "Stop", payload: {} })
       await new Promise((resolve) => setTimeout(resolve, 400))
-      expect(describer.jobs).toHaveLength(0)
+      expect(describer.digests.filter((digest) => digest.kind === "agent")).toHaveLength(0)
       expect(second.get(terminal.id).titleSource).toEqual({ kind: "murmur" })
     })
 
@@ -3590,7 +3759,10 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
     }) => {
       const bin = standIn(shell.home)
       const env = { HOME: shell.home, PS1: "$ ", PATH: `${bin}:${process.env.PATH}` }
+      // The shell the stand-in agent ran in may be described at its prompt when the machine is
+      // slow to bind the agent: only the agent's digests are counted.
       const describer = new FakeDescriber()
+      const agents = () => describer.digests.filter((digest) => digest.kind === "agent")
       const manager = shell.manager({ env, describer, murmurTimes })
       const terminal = await create(manager, shell)
       const { start, step } = driver(shell, manager)
@@ -3599,7 +3771,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         hook: "UserPromptSubmit",
         payload: { prompt: "Fix the login bug" },
       })
-      await expect.poll(() => describer.jobs.length, { timeout: 30_000 }).toBe(1)
+      await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(1)
       await step(terminal.id, { hook: "Stop", payload: {} })
       await step(terminal.id, {
         hook: "SessionStart",
@@ -3609,7 +3781,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
         hook: "UserPromptSubmit",
         payload: { prompt: "Write the signup tests", session_id: "s-two" },
       })
-      await expect.poll(() => describer.jobs.length, { timeout: 30_000 }).toBe(2)
+      await expect.poll(() => agents().length, { timeout: 30_000 }).toBe(2)
     })
 
     it("takes murmur's titles from running and kept terminals when murmur is turned off", async ({

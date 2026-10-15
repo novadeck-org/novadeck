@@ -15,6 +15,7 @@ const digest = (project: string): AgentDigest => ({
   reply: null,
   summary: null,
   previous: null,
+  stage: "forming",
 })
 
 describe("preparing a digest in a thread", () => {

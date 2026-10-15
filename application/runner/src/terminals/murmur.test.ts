@@ -51,6 +51,15 @@ const work = (fields: Partial<Work> = {}): Work => ({
 
 const { Terminal } = headless
 
+// The summary of the terminal `create` makes, to change one field of in a test.
+const subjectSummary = () =>
+  ({
+    id: "a",
+    sessionId: "s",
+    cwd: "/home/me/shop",
+    process: null,
+  }) as MurmurSubject["summary"]
+
 // Draws text at a row of the screen, by a cursor move.
 const draw = (row: number, text: string) => `\u001b[${row};1H${text}`
 
@@ -65,6 +74,7 @@ describe("the digest of an agent's terminal", () => {
     reply: "Done, the cookie is set.",
     summary: "Fixes the login cookie.",
     previous: null,
+    stage: "forming" as const,
   }
 
   it("is built from the project, place, branch, plan, folders, prompts, reply and the agent's summary", () => {
@@ -81,6 +91,7 @@ describe("the digest of an agent's terminal", () => {
       reply: "Done, the cookie is set.",
       summary: "Fixes the login cookie.",
       previous: null,
+      stage: "forming",
     })
   })
 
@@ -183,6 +194,53 @@ describe("the tail of an agent's reply", () => {
 })
 
 describe("the digest of a plain shell", () => {
+  it("tells where the last command's line is in the screen it shows", () => {
+    // Wrapped rows are one line, and the blank rows above the first text are dropped.
+    const rows = [
+      "",
+      "",
+      "$ first",
+      "out",
+      "$ a very long command",
+      " that wrapped",
+      "result",
+      "$ ",
+    ]
+    const wrapped = [false, false, false, false, false, true, false, false]
+    expect(screenLines(rows, wrapped, [], 5)).toMatchObject({
+      screen: ["$ first", "out", "$ a very long command that wrapped", "result", "$"],
+      at: 2,
+    })
+    expect(screenLines(rows, wrapped, [], 4).at).toBe(2)
+    expect(screenLines(rows, wrapped, [], 2).at).toBe(0)
+    // On a blank row above the text, or below the last, or none given: no line.
+    expect(screenLines(rows, wrapped, [], 0).at).toBeUndefined()
+    expect(screenLines([...rows, ""], [...wrapped, false], [], 8).at).toBeUndefined()
+    expect(screenLines(rows, wrapped).at).toBeUndefined()
+  })
+
+  it("tells no line for a command above the last rows it keeps", () => {
+    const rows = Array.from({ length: screenRows + 5 }, (_, index) => `line ${index}`)
+    expect(screenLines(rows, [], [], 2).at).toBeUndefined()
+    expect(screenLines(rows, [], [], 5).at).toBe(0)
+    expect(screenLines(rows, [], [], rows.length - 1).at).toBe(screenRows - 1)
+  })
+
+  it("puts the command's line in the digest as commandAt, and none on a full-screen program", () => {
+    const input = {
+      projectFolder: undefined,
+      cwd: "/w",
+      command: null,
+      rows: ["$ echo a", "a", "$ printf x", "x", "$ "],
+      previous: null,
+    }
+    expect(shellDigest({ ...input, commandRow: 2 })).toMatchObject({ commandAt: 2 })
+    expect(shellDigest(input)).not.toHaveProperty("commandAt")
+    expect(
+      shellDigest({ ...input, commandRow: 2, alternate: true, command: "vim" }),
+    ).not.toHaveProperty("commandAt")
+  })
+
   it("is the command, the place and the visible rows, trimmed", () => {
     expect(
       shellDigest({
@@ -326,7 +384,7 @@ describe("the digest of a plain shell", () => {
   })
 })
 
-const text = (title: string): Description => ({ title })
+const text = (title: string): Description => ({ title, changed: true })
 
 describe("the descriptions of a terminal", () => {
   beforeEach(() => {
@@ -495,11 +553,12 @@ const create = (
   const rows: { current: readonly string[] } = { current: ["$ ls", "a b", "$ "] }
   const wrapped: { current: readonly boolean[] | undefined } = { current: undefined }
   const alternate = { current: false }
+  const commandRow: { current: number | undefined } = { current: undefined }
   // The terminals are there only once murmur is built, as when the runner starts.
   let ready = false
   const reads = { facts: 0, screens: 0 }
   const replies: { current: string | null } = { current: null }
-  const written: Description[] = []
+  const written: { readonly title: string }[] = []
   const clears = { count: 0 }
   const files = new Map<string, string>()
   const heads: string[] = []
@@ -518,6 +577,7 @@ const create = (
       return Promise.resolve({
         rows: rows.current,
         alternate: alternate.current,
+        ...(commandRow.current !== undefined && { commandRow: commandRow.current }),
         ...(wrapped.current && { wrapped: wrapped.current }),
       })
     },
@@ -573,6 +633,7 @@ const create = (
     promptsBetween: 3,
     expectMs: 1_000,
     noteMs: 50,
+    settledGapMs: 10_000,
     ...more,
   }
   const murmur = new Murmur(describer, host, times)
@@ -586,6 +647,7 @@ const create = (
     rows,
     wrapped,
     alternate,
+    commandRow,
     reads,
     replies,
     written,
@@ -644,7 +706,8 @@ describe("when an agent's terminal is titled", () => {
       previous: null,
     })
     expect(written).toEqual([{ title: "Title 1" }])
-    // Titled, it is not titled again by turns, prompts, compactions or drift.
+    // Titled, reports alone (hooks, prompts, compactions) do not check it again: only a
+    // turn's end with new evidence does, or a summary.
     change({
       work: work({ recent: ["Fix the login bug", "hows going?", "try again"] }),
       activity: idle("Fixed it."),
@@ -692,9 +755,10 @@ describe("when an agent's terminal is titled", () => {
     murmur.summarized("a")
     await settle()
     expect(describer.jobs).toHaveLength(1)
+    // The greeting says nothing of the goal, and is not shown.
     expect(describer.digests[0]).toMatchObject({
       summary: "Fixes the login cookie.",
-      prompts: ["hey!"],
+      prompts: [],
     })
   })
 
@@ -959,9 +1023,13 @@ describe("a mission murmur refused to title", () => {
     murmur.summarized("a")
     await settle()
     expect(describer.jobs).toHaveLength(3)
+    // A refused summary is asked for once more, as a hard signal, and then let go.
     for (let count = 0; count < 10; count += 1) murmur.reported("a", report())
     await settle()
-    expect(describer.jobs).toHaveLength(3)
+    expect(describer.jobs).toHaveLength(4)
+    for (let count = 0; count < 10; count += 1) murmur.reported("a", report())
+    await settle()
+    expect(describer.jobs).toHaveLength(4)
     change({
       naming: unnamed,
       work: work({
@@ -972,7 +1040,7 @@ describe("a mission murmur refused to title", () => {
     })
     murmur.reported("a", report({ session: true }))
     await settle()
-    expect(describer.jobs).toHaveLength(4)
+    expect(describer.jobs).toHaveLength(5)
   })
 })
 
@@ -1037,6 +1105,7 @@ describe("a summary across root sessions", () => {
         reply: null,
         summary: null,
         previous: null,
+        stage: "forming",
       }),
     ).toBeNull()
   })
@@ -1072,6 +1141,841 @@ describe("a summary across root sessions", () => {
     describer.setUsable(true)
     await settle(300)
     expect(describer.digests[0]).toMatchObject({ summary: "Fixes login." })
+  })
+})
+
+// A turn that has ended at `at`, as the activity tells it.
+const finished = (at: number, reply: string | null = "Done.") =>
+  ({
+    state: "idle",
+    pending: [],
+    plans: [],
+    lastTurn: { reply, at, outcome: "completed", recorded: false },
+  }) as unknown as MurmurSubject["activity"]
+
+// The work of a session whose prompts are these, oldest first.
+const prompted = (session: string, ...prompts: string[]): Work =>
+  work({
+    session,
+    first: prompts[0] ?? null,
+    latest: prompts.at(-1) ?? null,
+    recent: prompts.slice(-5),
+  })
+
+describe("when an agent's terminal is checked at the end of its turns", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  // A terminal in its first turn, its mission given and titled; each `turn` the person
+  // prompts again (or not) and the turn ends.
+  const start = (
+    replies: (call: number) => { title: string; changed?: boolean } | null | undefined,
+    fields: Partial<MurmurSubject> = {},
+    times: Partial<MurmurTimes> = {},
+  ) => {
+    const made = create(
+      { work: prompted("claude:s1", "Fix the login bug"), activity: working(), ...fields },
+      new FakeDescriber({ reply: (_digest, call) => replies(call) }),
+      times,
+    )
+    let at = 0
+    const turn = async (...more: string[]) => {
+      at += 1
+      const all = made.subjects.get("a")!.work
+      made.change({
+        work: prompted("claude:s1", ...promptsOf(all), ...more),
+        activity: finished(at),
+      })
+      made.murmur.changed("a")
+      await settle()
+    }
+    return { ...made, turn }
+  }
+
+  it("refines the name at each turn end that brings a prompt, until it has held twice in a row", async () => {
+    const titles = ["Login bug", "Login cookie bug", "Login cookie bug", "Login cookie bug"]
+    const { murmur, describer, written, turn } = start((call) => ({
+      title: titles[call - 1] ?? "More",
+      changed: call < 3,
+    }))
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(written).toEqual([{ title: "Login bug" }])
+    expect(describer.digests[0]).toMatchObject({ stage: "forming", previous: null })
+    // No rate limit: the next turn is checked at once, and the name replaced.
+    await turn("Also the cookie expires too early")
+    expect(describer.jobs).toHaveLength(2)
+    expect(describer.digests[1]).toMatchObject({
+      stage: "forming",
+      previous: { title: "Login bug" },
+    })
+    expect(written).toEqual([{ title: "Login bug" }, { title: "Login cookie bug" }])
+    // Two verdicts in a row that kept it (the title's the same, or the work didn't change).
+    await turn("Make the cookie secure as well")
+    await turn("And add a test for the cookie")
+    expect(describer.jobs).toHaveLength(4)
+    expect(written).toHaveLength(2)
+    // Settled: another prompt right after is within the gap, and waits.
+    await turn("Now rename the helper functions")
+    expect(describer.jobs).toHaveLength(4)
+    expect(describer.digests[3]).toMatchObject({ stage: "forming" })
+  })
+
+  it("settles after four checks, however they went", async () => {
+    const { murmur, describer, turn } = start((call) => ({ title: `Name ${call}` }))
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    await turn("Second thing to do here")
+    await turn("Third thing to do here")
+    await turn("Fourth thing to do here")
+    expect(describer.jobs).toHaveLength(4)
+    await turn("Fifth thing to do here")
+    expect(describer.jobs).toHaveLength(4)
+    expect(describer.digests[3]).toMatchObject({ stage: "forming" })
+  })
+
+  it("brings no check from a turn whose only prompt was filler", async () => {
+    const { murmur, describer, turn } = start((call) => ({ title: `Name ${call}` }))
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    await turn("ok")
+    await turn("go on")
+    await turn("yes please")
+    expect(describer.jobs).toHaveLength(1)
+    // The same prompt again says nothing new, and neither does a turn with no prompt.
+    await turn()
+    expect(describer.jobs).toHaveLength(1)
+    await turn("Add paging to the users API")
+    expect(describer.jobs).toHaveLength(2)
+  })
+
+  // A terminal whose name settled at its third check, the name having held twice.
+  const settledAfterThree = async (
+    replies: (call: number) => { title: string; changed?: boolean } | null | undefined,
+    fields: Partial<MurmurSubject> = {},
+    seen?: Facts,
+  ) => {
+    const made = start(
+      (call) => (call <= 3 ? { title: "Login", changed: call === 1 } : replies(call - 3)),
+      fields,
+    )
+    if (seen) made.facts.current = seen
+    made.murmur.reported("a", report({ session: true }))
+    await settle()
+    await made.turn("Fix the cookie of the login too")
+    await made.turn("Fix the refresh token of the login")
+    expect(made.describer.jobs).toHaveLength(3)
+    return made
+  }
+
+  it("checks a settled terminal at most once in the gap, with one timer for the evidence inside it", async () => {
+    const { describer, turn, times } = await settledAfterThree(() => ({
+      title: "Login",
+      changed: false,
+    }))
+    await turn("Fix the cookie expiry as well")
+    await turn("Then the refresh token")
+    await turn("And the logout button")
+    expect(describer.jobs).toHaveLength(3)
+    // The timer runs the check owed when the gap ends: once, with the latest evidence.
+    await settle(times.settledGapMs)
+    expect(describer.jobs).toHaveLength(4)
+    expect(describer.digests[3]).toMatchObject({
+      stage: "settled",
+      prompts: expect.arrayContaining(["And the logout button"]) as string[],
+    })
+    // Nothing polls afterwards.
+    await settle(10 * times.settledGapMs)
+    expect(describer.jobs).toHaveLength(4)
+    // Out of the gap, the next turn with a prompt is checked at once.
+    await turn("A fresh matter of the signup page")
+    expect(describer.jobs).toHaveLength(5)
+  })
+
+  it("keeps the name when the model says the work is the same", async () => {
+    const { describer, turn, written, times } = await settledAfterThree(() => ({
+      title: "Another name",
+      changed: false,
+    }))
+    await settle(times.settledGapMs)
+    await turn("Look into the session cookie")
+    expect(describer.jobs).toHaveLength(4)
+    expect(written).toEqual([{ title: "Login" }])
+  })
+
+  it("applies a pivot only when two settled checks in a row say the work changed", async () => {
+    const { describer, turn, written, times } = await settledAfterThree(() => ({
+      title: "Billing",
+      changed: true,
+    }))
+    await settle(times.settledGapMs)
+    await turn("Switch to the billing invoices")
+    // The first says so: remembered, the name kept.
+    expect(describer.jobs).toHaveLength(4)
+    expect(written).toEqual([{ title: "Login" }])
+    await settle(times.settledGapMs)
+    await turn("Invoices need a PDF export")
+    expect(describer.jobs).toHaveLength(5)
+    expect(written).toEqual([{ title: "Login" }, { title: "Billing" }])
+    // Forming again: the next turn is checked at once.
+    await turn("Make the PDF export accessible")
+    expect(describer.jobs).toHaveLength(6)
+    expect(describer.digests[5]).toMatchObject({ stage: "forming" })
+  })
+
+  it("forgets a pivot candidate when a check in between says the work is the same", async () => {
+    const verdicts = [true, false, true]
+    const { describer, turn, written, times } = await settledAfterThree((call) => ({
+      title: "Billing",
+      changed: verdicts[call - 1] ?? false,
+    }))
+    for (const prompt of ["Switch to billing", "Back to the login", "Billing once more"]) {
+      // eslint-disable-next-line no-await-in-loop -- Each check follows the one before.
+      await settle(times.settledGapMs)
+      // eslint-disable-next-line no-await-in-loop -- Each check follows the one before.
+      await turn(prompt)
+    }
+    expect(describer.jobs).toHaveLength(6)
+    expect(written).toEqual([{ title: "Login" }])
+  })
+
+  it("applies a pivot at once when the branch changed, and checks inside the gap for it", async () => {
+    const { describer, turn, written, facts } = await settledAfterThree(() => ({
+      title: "Billing",
+      changed: true,
+    }))
+    // No prompt, and the gap not over: the branch alone is evidence, and a hard signal.
+    facts.current = { ...facts.current, branch: "feat/billing" }
+    await turn()
+    expect(describer.jobs).toHaveLength(4)
+    expect(written).toEqual([{ title: "Login" }, { title: "Billing" }])
+  })
+
+  it("applies a pivot at once when the plan changed", async () => {
+    const { describer, turn, written, facts } = await settledAfterThree(
+      () => ({ title: "Billing", changed: true }),
+      {},
+      { plan: "Fix login", folder: null, branch: "main" },
+    )
+    facts.current = { plan: "Invoice export", folder: null, branch: "main" }
+    await turn()
+    expect(describer.jobs).toHaveLength(4)
+    expect(written.at(-1)).toEqual({ title: "Billing" })
+  })
+
+  it("does not take the busiest folder for a pivot", async () => {
+    const { describer, turn, facts } = await settledAfterThree(() => ({ title: "Billing" }))
+    facts.current = { ...facts.current, folder: "/home/me/shop/billing" }
+    await turn()
+    expect(describer.jobs).toHaveLength(3)
+  })
+
+  it("applies a pivot at once when the agent summarizes, even inside the gap", async () => {
+    const { murmur, describer, change, written } = await settledAfterThree(() => ({
+      title: "Billing",
+      changed: true,
+    }))
+    change({
+      naming: { ...unnamed, murmur: { title: "Login" }, summary: "Builds invoice export." },
+    })
+    murmur.summarized("a")
+    await settle()
+    expect(describer.jobs).toHaveLength(4)
+    expect(describer.digests[3]).toMatchObject({
+      stage: "forming",
+      summary: "Builds invoice export.",
+    })
+    expect(written.at(-1)).toEqual({ title: "Billing" })
+  })
+
+  it("renames directly on a hard signal, with no changed verdict, and forms again", async () => {
+    const { murmur, describer, change, written, turn } = await settledAfterThree(() => ({
+      title: "Billing",
+      changed: false,
+    }))
+    change({
+      naming: { ...unnamed, murmur: { title: "Login" }, summary: "Builds invoice export." },
+    })
+    murmur.summarized("a")
+    await settle()
+    // Shown as a forming digest, and the differing title stored though the model said unchanged.
+    expect(describer.digests.at(-1)).toMatchObject({ stage: "forming" })
+    expect(written.at(-1)).toEqual({ title: "Billing" })
+    // Forming again: the next prompt is checked at once, inside the gap.
+    await turn("Add a PDF export for the invoices")
+    expect(describer.digests.at(-1)).toMatchObject({ stage: "forming" })
+    expect(describer.jobs).toHaveLength(5)
+  })
+
+  it("stays settled when a hard signal brings the same name", async () => {
+    const { murmur, describer, change, written, turn } = await settledAfterThree(() => ({
+      title: "Login",
+      changed: false,
+    }))
+    change({ naming: { ...unnamed, murmur: { title: "Login" }, summary: "Fixes the login." } })
+    murmur.summarized("a")
+    await settle()
+    expect(written).toEqual([{ title: "Login" }])
+    await turn("Add a PDF export for the invoices")
+    expect(describer.jobs).toHaveLength(4)
+  })
+
+  it("asks once more after a hard signal's check was refused, and then lets it go", async () => {
+    const answers = [null, { title: "Billing", changed: true }]
+    const { describer, turn, facts, written } = await settledAfterThree(
+      (call) => answers[call - 1],
+      {},
+      { plan: null, folder: null, branch: "main" },
+    )
+    facts.current = { plan: null, folder: null, branch: "feat/billing" }
+    await turn()
+    expect(describer.jobs).toHaveLength(4)
+    // The branch change is still news: the next turn end is checked, hard, with no prompt.
+    await turn()
+    expect(describer.jobs).toHaveLength(5)
+    expect(written.at(-1)).toEqual({ title: "Billing" })
+  })
+
+  it("lets a hard signal go when its check is refused twice", async () => {
+    const { describer, turn, facts } = await settledAfterThree(
+      () => null,
+      {},
+      {
+        plan: null,
+        folder: null,
+        branch: "main",
+      },
+    )
+    facts.current = { plan: null, folder: null, branch: "feat/billing" }
+    await turn()
+    await turn()
+    expect(describer.jobs).toHaveLength(5)
+    await turn()
+    expect(describer.jobs).toHaveLength(5)
+  })
+
+  it("shows a branch change as a forming digest", async () => {
+    const { describer, turn, facts } = await settledAfterThree(
+      () => ({ title: "Login", changed: false }),
+      {},
+      { plan: null, folder: null, branch: "main" },
+    )
+    facts.current = { plan: null, folder: null, branch: "feat/billing" }
+    await turn()
+    expect(describer.digests.at(-1)).toMatchObject({ stage: "forming" })
+  })
+
+  it("treats the same summary again as ordinary evidence, not a hard signal", async () => {
+    const { murmur, describer, change } = await settledAfterThree(() => ({
+      title: "Billing",
+      changed: true,
+    }))
+    change({
+      naming: { ...unnamed, murmur: { title: "Login" }, summary: "Builds invoice export." },
+    })
+    murmur.summarized("a")
+    await settle()
+    expect(describer.jobs).toHaveLength(4)
+    // The nudges bring the summary again, in other letters and spaces: nothing is new.
+    change({
+      naming: { ...unnamed, murmur: { title: "Billing" }, summary: "builds  Invoice export." },
+    })
+    murmur.summarized("a")
+    murmur.summarized("a")
+    await settle()
+    expect(describer.jobs).toHaveLength(4)
+  })
+
+  it("keeps the name when a hard check only rewords it, and stays settled", async () => {
+    const { murmur, describer, change, written, turn } = await settledAfterThree(() => ({
+      title: "Login flow",
+      changed: false,
+    }))
+    change({ naming: { ...unnamed, murmur: { title: "Login" }, summary: "Fixes the login." } })
+    murmur.summarized("a")
+    await settle()
+    expect(describer.jobs).toHaveLength(4)
+    expect(written).toEqual([{ title: "Login" }])
+    // Settled still: the next prompt inside the gap waits.
+    await turn("Add a PDF export for the invoices")
+    expect(describer.jobs).toHaveLength(4)
+  })
+
+  it("keeps the name in the forming stage when the model says the work did not change", async () => {
+    const answers = [
+      { title: "Login defect", changed: true },
+      { title: "Login issue fix", changed: false },
+    ]
+    const { murmur, describer, written, turn } = start((call) => answers[call - 1])
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    await turn("Also the cookie expires too early")
+    expect(describer.jobs).toHaveLength(2)
+    expect(written).toEqual([{ title: "Login defect" }])
+  })
+
+  it("renames on a summary while forming, with no verdict, when the new name shares no word", async () => {
+    const answers = [
+      { title: "Repo overview", changed: true },
+      { title: "Invoice export", changed: false },
+      { title: "Invoice export flow", changed: false },
+    ]
+    const { murmur, change, written } = start((call) => answers[call - 1])
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    change({
+      naming: {
+        ...unnamed,
+        murmur: { title: "Repo overview" },
+        summary: "Builds the invoice PDF export.",
+      },
+    })
+    murmur.summarized("a")
+    await settle()
+    expect(written).toEqual([{ title: "Repo overview" }, { title: "Invoice export" }])
+    // A reworded name after another summary keeps it: the work is the same.
+    change({
+      naming: {
+        ...unnamed,
+        murmur: { title: "Invoice export" },
+        summary: "Adds a layout to the PDF.",
+      },
+    })
+    murmur.summarized("a")
+    await settle()
+    expect(written).toHaveLength(2)
+  })
+
+  it("keeps the name for a new root session until the session has evidence of its own", async () => {
+    const { murmur, describer, change, written, turn } = await settledAfterThree(() => ({
+      title: "Docs",
+      changed: true,
+    }))
+    change({ work: freshWork("claude:s2") })
+    murmur.reported("a", report({ session: true }))
+    await settle(60_000)
+    expect(describer.jobs).toHaveLength(3)
+    expect(written).toEqual([{ title: "Login" }])
+    // Its first prompt is checked as a first mission, forming: the next turn is checked at once.
+    change({ work: prompted("claude:s2", "Write the release docs") })
+    murmur.reported("a", report())
+    await settle()
+    expect(describer.jobs).toHaveLength(4)
+    expect(describer.digests[3]).toMatchObject({
+      stage: "forming",
+      prompts: ["Write the release docs"],
+    })
+    await turn("Include the migration notes")
+    expect(describer.jobs).toHaveLength(5)
+  })
+
+  it("never asks for a terminal the person titled, until they clear the title", async () => {
+    const { murmur, describer, change, turn } = start((call) => ({ title: `Name ${call}` }), {
+      naming: { ...unnamed, person: "My terminal" },
+    })
+    murmur.reported("a", report({ session: true }))
+    await turn("Another prompt of the real kind")
+    change({ naming: { ...unnamed, person: "My terminal", summary: "Does it." } })
+    murmur.summarized("a")
+    await settle(10_000)
+    expect(describer.jobs).toHaveLength(0)
+    change({ naming: unnamed })
+    await turn("And one more prompt of the kind")
+    expect(describer.jobs).toHaveLength(1)
+  })
+
+  it("starts a terminal its opening agent titled settled, with that title as the previous one", async () => {
+    const { murmur, describer, written, turn, times } = start(
+      () => ({ title: "Billing", changed: true }),
+      { naming: { ...unnamed, agent: { title: "Billing worker", by: "t1" } } },
+    )
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    // The mission was the opener's: nothing to check yet.
+    expect(describer.jobs).toHaveLength(0)
+    await turn("Add retries to the invoice sync")
+    expect(describer.digests[0]).toMatchObject({
+      stage: "settled",
+      previous: { title: "Billing worker" },
+    })
+    // A pivot candidate, not yet applied.
+    expect(written).toEqual([])
+    await settle(times.settledGapMs)
+    await turn("Now rework the invoice sync queue")
+    expect(written).toEqual([{ title: "Billing" }])
+  })
+
+  it("is asked again at the next evidence after a refusal or a check that did not run", async () => {
+    const answers = [null, undefined, { title: "Login" }]
+    const { murmur, describer, written, turn } = start((call) => answers[call - 1])
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(describer.jobs).toHaveLength(1)
+    // The refusal locks nothing: a new prompt at a turn end asks again.
+    await turn("Fix the cookie of the login too")
+    expect(describer.jobs).toHaveLength(2)
+    // A check that did not run is asked for again after the retry, with that evidence.
+    await settle(61_000)
+    expect(describer.jobs).toHaveLength(3)
+    expect(written).toEqual([{ title: "Login" }])
+  })
+
+  it("is asked again after a refusal by a settled terminal too", async () => {
+    const { describer, turn, times } = await settledAfterThree((call) =>
+      call === 1 ? null : { title: "Login", changed: false },
+    )
+    await settle(times.settledGapMs)
+    await turn("A new matter of the cookie")
+    await settle(times.settledGapMs)
+    await turn("Another new matter of the cookie")
+    expect(describer.jobs).toHaveLength(5)
+  })
+
+  it("counts a changed branch as a hard signal once: a verdict that kept the name takes it as seen", async () => {
+    const { describer, turn, facts } = await settledAfterThree(
+      () => ({ title: "Login", changed: false }),
+      {},
+      { plan: null, folder: null, branch: "main" },
+    )
+    facts.current = { plan: null, folder: null, branch: "feat/billing" }
+    // The branch moved: checked at once, inside the gap, and the name kept.
+    await turn()
+    expect(describer.jobs).toHaveLength(4)
+    // It is no longer news: a prompt inside the gap waits for it, as for any evidence.
+    await turn("Another matter of the login cookie")
+    expect(describer.jobs).toHaveLength(4)
+  })
+
+  it("does not count a plan that appears as a hard signal: planning the same task is no pivot", async () => {
+    const { describer, turn, facts } = await settledAfterThree(
+      () => ({ title: "Login", changed: true }),
+      {},
+      { plan: null, folder: null, branch: "main" },
+    )
+    facts.current = { plan: "Invoice export", folder: null, branch: "main" }
+    await turn()
+    expect(describer.jobs).toHaveLength(3)
+  })
+
+  it("keeps the plan it knew when a check reads none, so a flicker is no change but a new plan is", async () => {
+    const { describer, turn, facts, times } = await settledAfterThree(
+      () => ({ title: "Login", changed: false }),
+      {},
+      { plan: "Fix login", folder: null, branch: "main" },
+    )
+    await settle(times.settledGapMs)
+    // The plan is not read for a check; the name is kept.
+    facts.current = { plan: null, folder: null, branch: "main" }
+    await turn("Another matter of the login cookie")
+    expect(describer.jobs).toHaveLength(4)
+    // A different plan is a change from the one before the flicker: hard, inside the gap.
+    facts.current = { plan: "Invoice export", folder: null, branch: "main" }
+    await turn()
+    expect(describer.jobs).toHaveLength(5)
+  })
+
+  it("looks again at the report after a turn's end, whose prompt is tallied after the end is seen", async () => {
+    const { murmur, describer, change } = start((call) => ({ title: `Name ${call}` }))
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(describer.jobs).toHaveLength(1)
+    // The turn ends before the work holds the report's prompt.
+    change({ activity: finished(1) })
+    murmur.changed("a")
+    await settle()
+    expect(describer.jobs).toHaveLength(1)
+    change({ work: prompted("claude:s1", "Fix the login bug", "Also the logout button is broken") })
+    murmur.reported("a", report())
+    await settle()
+    expect(describer.jobs).toHaveLength(2)
+  })
+
+  it("checks once, at the turn end with its reply, when a harness's Stop is reported before the end is seen", async () => {
+    const { murmur, describer, change } = start((call) => ({ title: `Name ${call}` }))
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(describer.jobs).toHaveLength(1)
+    // The second prompt: its report comes while the turn works.
+    change({
+      work: prompted("claude:s1", "Fix the login bug", "Also the logout button is broken"),
+      activity: working(),
+    })
+    murmur.changed("a")
+    murmur.reported("a", report())
+    // Its Stop: reported first, the turn's end seen after, as a stop ask orders them.
+    murmur.reported("a", report())
+    change({ activity: finished(1, "Fixed both.") })
+    murmur.changed("a")
+    await settle()
+    expect(describer.jobs).toHaveLength(2)
+    expect(describer.digests[1]).toMatchObject({ reply: "Fixed both." })
+    // The next prompt's report, mid-turn, checks nothing: that waits for its own end.
+    change({
+      work: prompted(
+        "claude:s1",
+        "Fix the login bug",
+        "Also the logout button is broken",
+        "Then write the docs",
+      ),
+      activity: working(),
+    })
+    murmur.changed("a")
+    murmur.reported("a", report())
+    await settle()
+    expect(describer.jobs).toHaveLength(2)
+    change({ activity: finished(2, "Docs written.") })
+    murmur.changed("a")
+    await settle()
+    expect(describer.jobs).toHaveLength(3)
+    expect(describer.digests[2]).toMatchObject({ reply: "Docs written." })
+  })
+
+  it("keeps the evidence of a check that murmur stopped before it ran", async () => {
+    const { murmur, describer } = start((call) => ({ title: `Name ${call}` }))
+    describer.hold = true
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(describer.jobs).toHaveLength(1)
+    // Murmur stops while the model works: the job is dropped, and its evidence owed.
+    describer.setUsable(false)
+    describer.hold = false
+    describer.setUsable(true)
+    await settle(300)
+    expect(describer.jobs).toHaveLength(2)
+  })
+
+  it("does not name a terminal the person titled while the model ran", async () => {
+    const { murmur, describer, change, written } = start((call) => ({ title: `Name ${call}` }))
+    describer.hold = true
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    change({ naming: { ...unnamed, person: "Mine" } })
+    describer.jobs[0]!.answer({ title: "Late name" })
+    await settle()
+    expect(written).toEqual([])
+  })
+
+  it("looks at turns ended the same way whatever the harness: any idle activity with a new end", async () => {
+    for (const outcome of ["completed", "failed", "interrupted"] as const) {
+      const { murmur, describer, change } = create(
+        { work: prompted("claude:s1", "Fix the login bug"), activity: working() },
+        new FakeDescriber(),
+      )
+      murmur.reported("a", report({ session: true }))
+      // eslint-disable-next-line no-await-in-loop -- One harness's outcome after another.
+      await settle()
+      change({
+        work: prompted("claude:s1", "Fix the login bug", "Also repair the logout button"),
+        activity: {
+          ...finished(5),
+          lastTurn: { reply: null, at: 5, outcome, recorded: true },
+        } as unknown as MurmurSubject["activity"],
+      })
+      murmur.changed("a")
+      // eslint-disable-next-line no-await-in-loop -- One harness's outcome after another.
+      await settle()
+      expect(describer.jobs).toHaveLength(2)
+    }
+  })
+})
+
+describe("when an agent runs in a shell murmur already titled", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const shellTitled = async () => {
+    const made = create(
+      { agent: null },
+      new FakeDescriber({
+        reply: (digest, call) => ({
+          title: digest.kind === "shell" ? `Shell ${call}` : `Agent ${call}`,
+        }),
+      }),
+    )
+    made.murmur.prompted("a")
+    await settle(made.times.shellSettleMs + 50)
+    expect(made.written).toEqual([{ title: "Shell 1" }])
+    return made
+  }
+
+  it("forms the agent's name afresh, without the shell's title as the previous one", async () => {
+    const { murmur, describer, change, written, times } = await shellTitled()
+    change({ agent: "claude", work: work(), activity: working() })
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(describer.digests[1]).toMatchObject({ kind: "agent", stage: "forming", previous: null })
+    expect(written.at(-1)).toEqual({ title: "Agent 2" })
+    // Forming, not settled: the next turn with a prompt is checked at once, inside the gap.
+    change({
+      work: prompted("claude:s1", "Fix the login bug", "Also the logout button is broken"),
+      activity: {
+        state: "idle",
+        pending: [],
+        plans: [],
+        lastTurn: { reply: null, at: 1, outcome: "completed", recorded: false },
+      } as unknown as MurmurSubject["activity"],
+    })
+    murmur.changed("a")
+    await settle()
+    expect(describer.digests).toHaveLength(3)
+    expect(describer.digests[2]).toMatchObject({ stage: "forming", previous: { title: "Agent 2" } })
+    expect(times.settledGapMs).toBeGreaterThan(200)
+  })
+
+  it("does not show the agent's title to the shell it leaves behind as its previous one", async () => {
+    const { murmur, describer, change, rows, times } = await shellTitled()
+    change({ agent: "claude", work: work(), activity: working() })
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    change({ agent: null })
+    rows.current = ["$ git log --oneline", "abc123 fix login", "$ "]
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.digests.at(-1)).toMatchObject({ kind: "shell", previous: null })
+  })
+
+  it("is asked again by the agent after a shell's request took the terminal's job", async () => {
+    const made = create(
+      { work: work(), activity: working() },
+      new FakeDescriber({
+        reply: (digest) => (digest.kind === "shell" ? undefined : { title: "Login" }),
+      }),
+    )
+    made.murmur.reported("a", report({ session: true }))
+    // Before its check ran, the agent left and the shell asked for the job.
+    made.change({ agent: null })
+    made.murmur.prompted("a")
+    await settle(made.times.shellSettleMs + 50)
+    made.change({ agent: "claude" })
+    made.murmur.reported("a", report())
+    await settle()
+    expect(made.describer.digests.at(-1)).toMatchObject({ kind: "agent" })
+    expect(made.written).toEqual([{ title: "Login" }])
+  })
+
+  it("checks the evidence once when an agent check ends after a shell's request but before its job starts", async () => {
+    const made = create(
+      { work: work(), activity: working() },
+      new FakeDescriber({
+        reply: (digest) => (digest.kind === "shell" ? undefined : { title: "Login" }),
+      }),
+    )
+    made.describer.hold = true
+    made.murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(made.describer.digests).toHaveLength(1)
+    made.describer.hold = false
+    made.change({ agent: null })
+    made.murmur.prompted("a")
+    // The agent's check ends while the shell's request still waits for its quiet.
+    made.describer.jobs[0]!.answer({ title: "Login" })
+    await settle(10)
+    expect(made.written).toEqual([{ title: "Login" }])
+    await settle(made.times.shellSettleMs + 50)
+    made.change({ agent: "claude" })
+    made.murmur.reported("a", report())
+    await settle()
+    expect(made.describer.digests.filter((digest) => digest.kind === "agent")).toHaveLength(1)
+  })
+
+  it("starts a new session forming even when its prompt comes in a report after the session's", async () => {
+    const { murmur, describer, change } = create(
+      {
+        agent: null,
+        work: prompted("claude:s1", "Look at the git history"),
+        naming: { ...unnamed, murmur: { title: "Git history" } },
+      },
+      new FakeDescriber(),
+    )
+    describer.setUsable(false)
+    describer.setUsable(true)
+    await settle(300)
+    // SessionStart first, with no prompt; the prompt is a report of its own.
+    change({ agent: "claude", work: freshWork("claude:s2"), activity: working() })
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    change({ work: prompted("claude:s2", "Write the release docs now") })
+    murmur.reported("a", report())
+    await settle()
+    // Of unknown source, the restored title is not shown to the model as the previous one.
+    expect(describer.digests.at(-1)).toMatchObject({
+      kind: "agent",
+      stage: "forming",
+      previous: null,
+    })
+  })
+
+  it("gives back an agent check a shell's request aborted while it ran", async () => {
+    const made = create(
+      { work: work(), activity: working() },
+      new FakeDescriber({
+        reply: (digest) => (digest.kind === "shell" ? undefined : { title: "Login" }),
+      }),
+    )
+    made.describer.hold = true
+    made.murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(made.describer.digests.at(-1)).toMatchObject({ kind: "agent" })
+    // The agent leaves while the model works, and the shell's request takes the job.
+    made.describer.hold = false
+    made.change({ agent: null })
+    made.murmur.prompted("a")
+    await settle(made.times.shellSettleMs + 50)
+    made.change({ agent: "claude" })
+    made.murmur.reported("a", report())
+    await settle()
+    expect(made.written).toEqual([{ title: "Login" }])
+  })
+
+  it("starts a new session in a terminal whose title came from before a restart forming", async () => {
+    const { murmur, describer, change } = create(
+      {
+        agent: null,
+        work: prompted("claude:s1", "Look at the git history"),
+        naming: { ...unnamed, murmur: { title: "Git history" } },
+      },
+      new FakeDescriber(),
+    )
+    // The runner restarted: the title's source is lost.
+    describer.setUsable(false)
+    describer.setUsable(true)
+    await settle(300)
+    change({ agent: "claude", work: prompted("claude:s2", "Write the release docs now") })
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(describer.digests.at(-1)).toMatchObject({ kind: "agent", stage: "forming" })
+  })
+
+  it("names the shell again from its screen once the agent has left", async () => {
+    const { murmur, describer, change, rows, written, times } = await shellTitled()
+    change({ agent: "claude", work: work(), activity: working() })
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    // The agent exits; the shell is back at its prompt with something new on screen.
+    change({ agent: null })
+    rows.current = ["$ git log --oneline", "abc123 fix login", "$ "]
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.digests.at(-1)).toMatchObject({ kind: "shell", command: null })
+    expect(written.at(-1)).toEqual({ title: "Shell 3" })
+    // The next agent there forms its own name too.
+    change({ agent: "claude", work: prompted("claude:s2", "Write the release docs now") })
+    murmur.reported("a", report({ session: true }))
+    await settle()
+    expect(describer.digests.at(-1)).toMatchObject({
+      kind: "agent",
+      stage: "forming",
+      previous: null,
+      prompts: ["Write the release docs now"],
+    })
   })
 })
 
@@ -1218,20 +2122,119 @@ describe("when a plain shell's terminal is described", () => {
     expect(describer.digests[0]).toMatchObject({ command: "vim" })
   })
 
-  it("describes when its directory changed, debounced", async () => {
-    const { murmur, describer, times } = create({ agent: null })
-    murmur.moved("a")
+  it("describes at every return to the prompt, debounced, so rapid commands make one description", async () => {
+    const { murmur, describer, rows, times } = create({ agent: null })
+    murmur.prompted("a")
     await settle(times.shellSettleMs - 50)
-    murmur.moved("a")
+    rows.current = ["$ tree", "src", "$ "]
+    murmur.prompted("a")
     await settle(times.shellSettleMs - 50)
     expect(describer.jobs).toHaveLength(0)
     await settle(100)
+    expect(describer.jobs).toHaveLength(1)
+    expect(describer.digests[0]).toMatchObject({
+      kind: "shell",
+      command: null,
+      screen: ["$ tree", "src", "$"],
+    })
+    // A quick command with no program running long enough to be sampled still names it.
+    rows.current = ["$ git status", "clean", "$ "]
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(2)
+  })
+
+  it("describes nothing for a prompt that shows what it last described", async () => {
+    const { murmur, describer, rows, change, times } = create({ agent: null })
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(1)
+    // A command that printed nothing and left the screen as it was.
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(1)
+    // But a directory changed is something new, whatever the screen shows.
+    change({ summary: { ...subjectSummary(), cwd: "/home/me/shop/web" } })
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(2)
+    rows.current = ["$ ls", "x", "$ "]
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(3)
+  })
+
+  it("describes nothing for a prompt no command was entered at", async () => {
+    const { murmur, describer, times } = create({ agent: null })
+    murmur.prompted("a", false)
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(0)
+    murmur.prompted("a", true)
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(1)
+  })
+
+  it("describes nothing from a screen of bare prompts, which nothing was entered after", async () => {
+    const { murmur, describer, rows, commandRow, times } = create({ agent: null })
+    // Ctrl+L, a line typed and erased, or arrows, then an empty Enter: only prompts remain.
+    rows.current = ["user@host:~$", "user@host:~$"]
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(0)
+    // The line the last command was typed on is a prompt like the bottom one.
+    rows.current = ["user@host:~$", "output of nothing known", "user@host:~$"]
+    commandRow.current = 0
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(0)
+    // With a command on that line, it is described.
+    rows.current = ["user@host:~$ ls", "a b", "user@host:~$"]
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(1)
+    expect(describer.digests[0]).toMatchObject({ commandAt: 0 })
+  })
+
+  it("owes a shell nothing for a run during which an agent was bound", async () => {
+    const { murmur, describer, change, times } = create({
+      agent: null,
+      work: work(),
+      activity: working(),
+    })
+    // The real order: the sampler takes the program for what it is before the agent binds,
+    // and, the foreground being the same all along, is not told again while it runs.
+    change({ program: { name: "claude", argv: ["claude"] } })
+    murmur.sampled("a")
+    await settle(times.shellRunMs - 100)
+    change({ agent: "claude" })
+    murmur.reported("a", report({ session: true }))
+    await settle(times.shellRunMs + 300)
+    // It exits: a sample may land before the prompt is reported, with the agent still bound.
+    change({ program: { name: "bash", argv: null } })
+    murmur.sampled("a")
+    change({ agent: null })
+    murmur.sampled("a")
+    await settle(times.shellSettleMs + times.shellRunMs + 200)
+    expect(describer.digests.filter((digest) => digest.kind === "shell")).toHaveLength(0)
+  })
+
+  it("is not asked for a shell the person titled", async () => {
+    const { murmur, describer, change, times } = create({
+      agent: null,
+      naming: { ...unnamed, person: "My shell" },
+    })
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
+    expect(describer.jobs).toHaveLength(0)
+    change({ naming: unnamed })
+    murmur.prompted("a")
+    await settle(times.shellSettleMs + 50)
     expect(describer.jobs).toHaveLength(1)
   })
 
   it("leaves a terminal that runs an agent to its agent triggers", async () => {
     const { murmur, describer } = create({ agent: "claude" })
-    murmur.moved("a")
+    murmur.prompted("a")
     murmur.sampled("a")
     await settle(2_000)
     expect(describer.jobs).toHaveLength(0)
@@ -1265,7 +2268,7 @@ describe("when a plain shell's terminal is described", () => {
     const { murmur, describer, alternate, rows, change } = create({ agent: null })
     alternate.current = true
     rows.current = ["drawn by a program", "on two lines"]
-    murmur.moved("a")
+    murmur.prompted("a")
     change({ program: null })
     murmur.sampled("a")
     await settle(2_000)
@@ -1299,7 +2302,7 @@ describe("when a plain shell's terminal is described", () => {
   it("says nothing of a bare prompt", async () => {
     const { murmur, describer, rows } = create({ agent: null })
     rows.current = ["$ "]
-    murmur.moved("a")
+    murmur.prompted("a")
     await settle(1_000)
     expect(describer.jobs).toHaveLength(0)
   })
@@ -1326,7 +2329,7 @@ describe("when murmur is not usable", () => {
     }
     change({ agent: null, program: { name: "node", argv: ["node", "dev.js"] } })
     murmur.sampled("a")
-    murmur.moved("a")
+    murmur.prompted("a")
     await settle(times.shellRunMs * 3)
     expect(describer.jobs).toHaveLength(0)
     expect(reads).toEqual({ facts: 0, screens: 0 })
@@ -1344,7 +2347,7 @@ describe("when murmur is not usable", () => {
     }
     const { murmur } = create({ work: work(), activity: idle("ok") }, silent as never)
     murmur.reported("a", report({ session: true }))
-    murmur.moved("a")
+    murmur.prompted("a")
     await settle(5_000)
     expect(calls).toEqual([])
   })
@@ -1434,7 +2437,7 @@ describe("when a plain shell's terminal runs more than the prompt", () => {
 
   it("still describes a directory change that a short command followed", async () => {
     const { murmur, describer, change, times } = create({ agent: null })
-    murmur.moved("a")
+    murmur.prompted("a")
     await settle(times.shellSettleMs / 2)
     change({ program: { name: "git", argv: ["git", "status"] }, atPrompt: false })
     murmur.sampled("a")
@@ -1451,7 +2454,7 @@ describe("when a plain shell's terminal runs more than the prompt", () => {
     const secret = "9f2c4e7a1b3d5f60718293a4b5c6d7e8f9a0b1c2d3e4f5061728394a5b6c7d8e"
     rows.current = ["$ cat key.txt", secret.slice(0, 40), secret.slice(40), "$ "]
     wrapped.current = [false, false, true, false]
-    murmur.moved("a")
+    murmur.prompted("a")
     await settle(times.shellSettleMs + 10)
     expect(describer.digests[0]).toMatchObject({ screen: ["$ cat key.txt", secret, "$"] })
   })
@@ -1461,7 +2464,7 @@ describe("when a plain shell's terminal runs more than the prompt", () => {
       agent: null,
       expecting: "claude",
     })
-    murmur.moved("a")
+    murmur.prompted("a")
     await settle(times.expectMs - 100)
     expect(describer.jobs).toHaveLength(0)
     // The agent binds: it is no shell, and has no prompt yet to be described by.
@@ -1471,7 +2474,7 @@ describe("when a plain shell's terminal runs more than the prompt", () => {
 
     // Another that never starts is a shell after the wait.
     const other = create({ agent: null, expecting: "claude" })
-    other.murmur.moved("a")
+    other.murmur.prompted("a")
     await settle(times.expectMs + 50)
     expect(other.describer.digests).toHaveLength(1)
     expect(other.describer.digests[0]).toMatchObject({ kind: "shell" })
@@ -1480,7 +2483,7 @@ describe("when a plain shell's terminal runs more than the prompt", () => {
   it("forgets a terminal's job and state when it is restarted", async () => {
     const { murmur, describer, written, times } = create({ agent: null })
     describer.hold = true
-    murmur.moved("a")
+    murmur.prompted("a")
     await settle(times.shellSettleMs + 10)
     expect(describer.jobs).toHaveLength(1)
     murmur.gone("a")
@@ -1607,17 +2610,23 @@ describe("when a session or a summary comes while murmur is unusable", () => {
 
   const titled = { ...unnamed, murmur: { title: "Old title" } }
 
-  it("keeps a new session owed, and retitles for it once murmur is usable", async () => {
-    const { murmur, describer } = create(
+  it("keeps a new session owed, and checks it once murmur is usable", async () => {
+    const { murmur, describer, change } = create(
       { work: work(), activity: idle("ok"), naming: titled },
       new FakeDescriber({ usable: false }),
     )
+    murmur.reported("a", report({ session: true }))
+    // A new session, with a prompt of its own, while murmur is unusable.
+    change({
+      work: work({ session: "claude:s2", first: "Write the docs", recent: ["Write the docs"] }),
+    })
     murmur.reported("a", report({ session: true }))
     await settle()
     expect(describer.jobs).toHaveLength(0)
     describer.setUsable(true)
     await settle(300)
     expect(describer.jobs).toHaveLength(1)
+    expect(describer.digests[0]).toMatchObject({ prompts: ["Write the docs"], stage: "forming" })
   })
 
   it("keeps a summary owed, and retitles for it once murmur is usable", async () => {
@@ -1713,7 +2722,7 @@ describe("when the person turns murmur off or removes it", () => {
     const { murmur, describer, change } = create({ agent: null })
     change({ program: { name: "node", argv: ["node", "dev.js"] } })
     murmur.sampled("a")
-    murmur.moved("a")
+    murmur.prompted("a")
     describer.fireCleared()
     await settle(10)
     change({ program: { name: "bash", argv: null } })

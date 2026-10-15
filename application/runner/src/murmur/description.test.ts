@@ -6,22 +6,255 @@ import {
   parseDescription,
   parseGist,
   parseHeadline,
+  sharesContentWord,
 } from "./description.js"
 
-const reply = (title: unknown) => JSON.stringify({ title })
+const reply = (title: unknown, changed?: unknown) =>
+  JSON.stringify(changed === undefined ? { title } : { changed, title })
 
-const title = (text: string, source?: string) =>
-  parseDescription(JSON.stringify({ title: text }), source)?.title
+const title = (text: string, source?: string, project?: string | null) =>
+  parseDescription(JSON.stringify({ title: text }), source, project)?.title
+
+// The guard on secrets and token-like pieces is shared by every line murmur writes, but a
+// title's limit (a short name) is too tight for the long names and keys these checks put
+// through it, so they go in as a headline, which holds up to 56 characters.
+const guarded = (text: string, source?: string) =>
+  parseHeadline(JSON.stringify({ headline: text }), source)?.text
 
 describe("reading the model's title", () => {
   it("keeps a title that fits", () => {
     expect(parseDescription(reply("Upload client retries"))).toEqual({
       title: "Upload client retries",
+      changed: true,
     })
   })
 
+  it("keeps a short noun name, a single word or a ticket id", () => {
+    expect(title("Vim")).toBe("Vim")
+    expect(title("EMO-118 login")).toBe("EMO-118 login")
+    expect(title("Git history")).toBe("Git history")
+  })
+
+  it("reads whether the work changed, which a shell's reply leaves out and counts as true", () => {
+    expect(parseDescription(reply("Login flow", false))).toEqual({
+      title: "Login flow",
+      changed: false,
+    })
+    expect(parseDescription(reply("Login flow", true))?.changed).toBe(true)
+    expect(parseDescription(reply("Login flow"))?.changed).toBe(true)
+    expect(parseDescription(reply("Login flow", "no"))).toBeUndefined()
+    expect(parseDescription(reply("Login flow", null))).toBeUndefined()
+  })
+
   it("tidies whitespace, markdown, quotes and a trailing full stop", () => {
-    expect(parseDescription(reply('  "**Fix** the  build."  '))).toEqual({ title: "Fix the build" })
+    expect(parseDescription(reply('  "**Fix** the  build."  '))).toEqual({
+      title: "Fix the build",
+      changed: true,
+    })
+  })
+
+  it("takes the project's name out of a title as the folder spells it, in any case", () => {
+    expect(title("Novadeck release notes", undefined, "novadeck")).toBe("Release notes")
+    expect(title("UI polish for Novadeck", undefined, "novadeck")).toBe("UI polish")
+    expect(title("novadeck-website copy", undefined, "novadeck-website")).toBe("copy")
+    expect(title("Scaffold novadeck-website", undefined, "novadeck-website")).toBe("Scaffold")
+    expect(title("Pulling World50-Websites", undefined, "world50-websites")).toBe("Pulling")
+    expect(title("Login redirect", undefined, "novadeck")).toBe("Login redirect")
+    expect(title("Novadeck release notes", undefined, null)).toBe("Novadeck release notes")
+    // The possessive goes with the name.
+    expect(title("Novadeck's onboarding", undefined, "novadeck")).toBe("Onboarding")
+    expect(title("Novadeck’s onboarding", undefined, "novadeck")).toBe("Onboarding")
+    // Accents fold on both sides.
+    expect(title("Crème release", undefined, "creme")).toBe("Release")
+  })
+
+  it("leaves a name that is spelled as several words, which would mangle a title", () => {
+    expect(title("Novadeck website copy", undefined, "novadeck-website")).toBe(
+      "Novadeck website copy",
+    )
+    expect(title("Fix login", undefined, "fix-login")).toBe("Fix login")
+    expect(title("Login redirect tests", undefined, "login-redirect-tests")).toBe(
+      "Login redirect tests",
+    )
+  })
+
+  it("never takes out a project name that is a generic word or three letters or fewer", () => {
+    for (const project of [
+      "app",
+      "api",
+      "ui",
+      "web",
+      "server",
+      "client",
+      "docs",
+      "tests",
+      "src",
+      "core",
+      "frontend",
+      "backend",
+      "site",
+      "website",
+      "cli",
+      "lib",
+      "ios",
+    ])
+      expect(title(`Login ${project} redirect`, undefined, project)).toBe(
+        `Login ${project} redirect`,
+      )
+  })
+
+  it("keeps the case of what is left", () => {
+    expect(title("iOS build novadeck", undefined, "novadeck")).toBe("iOS build")
+    expect(title("novadeck pnpm lockfile", undefined, "novadeck")).toBe("pnpm lockfile")
+    // A capital is given to what is left, unless its first word is lower case by design.
+    expect(title("Novadeck pnpm lockfile", undefined, "novadeck")).toBe("pnpm lockfile")
+    expect(title("Novadeck iOS build", undefined, "novadeck")).toBe("iOS build")
+    expect(title("Novadeck login redirect", undefined, "novadeck")).toBe("Login redirect")
+    expect(title("Working on login redirect")).toBe("Login redirect")
+  })
+
+  it("takes a leading verb filler off a title with real words after it", () => {
+    expect(title("Working on login redirect")).toBe("Login redirect")
+    expect(title("Help with login redirect")).toBe("Login redirect")
+    expect(title("Review of billing schema")).toBe("Billing schema")
+    expect(title("Updating billing schema")).toBe("Billing schema")
+    // "Running" is content for `docker ps`; "Fixing login" is not "login".
+    expect(title("Running containers")).toBe("Running containers")
+    expect(title("Fixing login")).toBe("Fixing login")
+  })
+
+  it.each([
+    "Help",
+    "Cheers",
+    "Howdy",
+    "Welcome",
+    "Lgtm",
+    "Done",
+    "Status",
+    "Question",
+    "Review",
+    "Updating",
+    "Working",
+    "Running",
+    "Finished",
+    "Help with",
+    "Working on",
+    "Hi there",
+    "Fixing",
+  ])("refuses %s, which says only that something is going on", (text) => {
+    expect(title(text)).toBeUndefined()
+  })
+
+  it("keeps a single word that names something", () => {
+    for (const text of [
+      "Login",
+      "Vim",
+      "EMO-118",
+      "Billing",
+      "Sandbox",
+      "Git status",
+      "Git history",
+    ])
+      expect(title(text)).toBe(text)
+  })
+
+  it("tells names that share a content word from names that don't", () => {
+    expect(sharesContentWord("Webhook key rotation", "Rotating webhook keys")).toBe(true)
+    expect(sharesContentWord("Mailbox sketch", "Package structure")).toBe(false)
+    expect(sharesContentWord("Awaria testów", "awaria TESTOW")).toBe(true)
+    expect(sharesContentWord("Login redirect", "Redirects of login")).toBe(true)
+  })
+
+  it("compares a ticket id whole", () => {
+    expect(sharesContentWord("EMO-118 login", "EMO-118 signup")).toBe(true)
+    expect(sharesContentWord("EMO-118", "EMO-119")).toBe(false)
+    expect(sharesContentWord("ENG-1234 build", "ENG-1567 invoices")).toBe(false)
+  })
+
+  it("does not take a likeness of the first letters for a shared word", () => {
+    expect(sharesContentWord("Transaction logs", "Translation memos")).toBe(false)
+    expect(sharesContentWord("Config loader", "Confirm dialog")).toBe(false)
+    expect(sharesContentWord("Interface layout", "Internal tooling")).toBe(false)
+    expect(sharesContentWord("Transaction export", "Transactions export")).toBe(true)
+  })
+
+  it("counts generic names of work for nothing, and acronyms for something", () => {
+    for (const [a, b] of [
+      ["Fix login tests", "Fixing billing bugs"],
+      ["Update docs", "Updating setup"],
+      ["Error review", "Feature support"],
+      ["Refactor cleanup", "Issue"],
+    ] as const)
+      expect(sharesContentWord(a, b)).toBe(false)
+    expect(sharesContentWord("UI polish", "UI mockups")).toBe(true)
+    expect(sharesContentWord("CI cache", "CI setup")).toBe(true)
+    expect(sharesContentWord("DB schema", "DB seeds")).toBe(true)
+  })
+
+  it("ignores function words of English, Polish, German, French and Spanish", () => {
+    for (const [a, b] of [
+      ["Setup for the cluster", "Billing for the shop"],
+      ["Notes from my up", "Index from my up"],
+      ["Logowanie do systemu", "Raporty do sprzedaży"],
+      ["Datei und Ordner", "Bericht und Zahlen"],
+      ["Gestion des factures", "Pagos des clientes"],
+    ] as const)
+      expect(sharesContentWord(a, b)).toBe(false)
+  })
+
+  it("ignores prepositions and the generic page", () => {
+    for (const [x, y] of [
+      ["Notes via email", "Index via shell"],
+      ["Data into tables", "Logs into files"],
+      ["Tests after build", "Docs after deploy"],
+      ["Over the wire", "Over the top"],
+      ["Landing page", "Login page"],
+    ] as const)
+      expect(sharesContentWord(x, y)).toBe(false)
+  })
+
+  it("keeps a tool lower case at the start of what is left", () => {
+    for (const tool of [
+      "tsc",
+      "eslint",
+      "vitest",
+      "pytest",
+      "jq",
+      "curl",
+      "vim",
+      "nvim",
+      "tmux",
+      "htop",
+      "ssh",
+      "rsync",
+      "zsh",
+      "bash",
+      "ffmpeg",
+      "webpack",
+    ])
+      expect(title(`Novadeck ${tool} setup`, undefined, "novadeck")).toBe(`${tool} setup`)
+    expect(title("Novadeck git setup", undefined, "novadeck")).toBe("Git setup")
+  })
+
+  it("keeps acronyms of two capitals, and drops other two-letter words", () => {
+    expect(sharesContentWord("UI polish", "Mock UI")).toBe(true)
+    expect(sharesContentWord("QA notes", "QA plan")).toBe(true)
+    expect(sharesContentWord("OS images", "OS update")).toBe(true)
+    expect(sharesContentWord("Go app", "Go tool")).toBe(false)
+    expect(sharesContentWord("Be polite", "be nice")).toBe(false)
+  })
+
+  it("compares a title in a script without spaces by character pairs", () => {
+    expect(sharesContentWord("登录页面修复", "登录页面样式")).toBe(true)
+    expect(sharesContentWord("登录页面修复", "登录流程")).toBe(false)
+    expect(sharesContentWord("登录页面修复", "数据库迁移修复")).toBe(false)
+    expect(sharesContentWord("ログイン画面", "ログイン処理")).toBe(true)
+  })
+
+  it("refuses a title that is only the project's name", () => {
+    expect(title("Novadeck", undefined, "novadeck")).toBeUndefined()
+    expect(title("The Novadeck", undefined, "novadeck")).toBeUndefined()
+    expect(title("Novadeck-website", undefined, "novadeck-website")).toBeUndefined()
   })
 
   it("drops invisible and reordering characters from a title", () => {
@@ -85,16 +318,15 @@ describe("reading the model's title", () => {
   })
 
   it.each([
-    "Rotating webhook keys",
+    "Webhook keys",
     "Billing webhook keys",
-    "Rotating billing webhook secrets",
-    "Rotating billing webhook keys rollout",
-    "Following nginx access log",
-    "Following the nginx error log",
+    "Billing webhook key rotation",
+    "Key rotation",
+    "Nginx error log",
+    "Access log",
     "Awaria testów runnera",
     "Walidacja formularza",
     "Walidacja formularza logowania",
-    "Following the access log",
     "Upload client retries",
     "Fixing C++ build",
     "Node.js upgrade",
@@ -108,15 +340,42 @@ describe("reading the model's title", () => {
   })
 
   it("refuses an example copied, unless the digest is about the same work", () => {
-    expect(title("Rotating billing webhook keys")).toBeUndefined()
+    expect(title("Webhook key rotation")).toBeUndefined()
     expect(title("Awaria testów")).toBeUndefined()
-    expect(title("Rotating billing webhook keys", "fix the billing page")).toBeUndefined()
+    expect(title("Webhook key rotation", "fix the billing page")).toBeUndefined()
     // The source is folded like the title's words: accents don't hide it.
     expect(title("Awaria testów", "Naprawa: awaria TESTÓW w CI")).toBe("Awaria testów")
-    expect(title("Rotating webhook keys", "fix the billing page")).toBeUndefined()
+    expect(title("Webhook key rotation plan", "fix the billing page")).toBeUndefined()
+    expect(title("Webhook key rotation", "please do: webhook key rotation")).toBe(
+      "Webhook key rotation",
+    )
+  })
+
+  it("takes an inflected word of the digest as saying a part of an example", () => {
+    expect(title("Awaria", "naprawa: awarie w ci")).toBe("Awaria")
     expect(
-      title("Rotating billing webhook keys", "please rotate: rotating billing webhook keys"),
-    ).toBe("Rotating billing webhook keys")
+      title("Walidacja formularza rejestracji", "dodaj walidację formularza rejestracji"),
+    ).toBe("Walidacja formularza rejestracji")
+    expect(title("Awaria", "naprawa logowania")).toBeUndefined()
+  })
+
+  it("hears whole words only, not pieces of longer ones", () => {
+    expect(title("Key rotation", "monkey rotational")).toBeUndefined()
+    expect(title("Key rotation", "rotate the key")).toBeDefined()
+  })
+
+  it("hears the words of a path or a name in the digest", () => {
+    for (const text of ["Access log", "Nginx log", "Nginx access log"])
+      expect(title(text, "tail -f /var/log/nginx/access.log")).toBeDefined()
+    expect(title("Access log", "tail -f /var/log/nginx/error.log")).toBeUndefined()
+  })
+
+  it("refuses a part of an example, unless the digest says it", () => {
+    for (const text of ["Key rotation", "Webhook keys", "Access log", "Awaria", "Nginx log"]) {
+      expect(title(text)).toBeDefined()
+      expect(title(text, "fix the billing page")).toBeUndefined()
+      expect(title(text, `about ${text.toLowerCase()}`)).toBeDefined()
+    }
   })
 
   it.each([
@@ -140,6 +399,7 @@ describe("reading the model's title", () => {
   it("ignores fields it didn't ask for", () => {
     expect(parseDescription(JSON.stringify({ title: "Fix the build", summary: "x" }))).toEqual({
       title: "Fix the build",
+      changed: true,
     })
   })
 
@@ -148,18 +408,16 @@ describe("reading the model's title", () => {
     ["a question about the work", reply("What is the build status?")],
     ["a chat phrase", reply("Try again")],
     ["a greeting", reply("Hello there")],
-    ["an example title", reply("Rotating billing webhook keys")],
-    ["an example title in other case", reply("rotating Billing webhook KEYS.")],
+    ["an example title", reply("Webhook key rotation")],
+    ["an example title in other case", reply("webhook KEY rotation.")],
     ["not JSON", "Sure! A title."],
     ["a non-object", "[1]"],
     ["no title", JSON.stringify({ summary: "Fix the build" })],
     ["a title that isn't text", reply(3)],
-    ["a one-word title", reply("Build")],
+    ["a five-word title", reply("one two three four five")],
     ["a seven-word title", reply("one two three four five six seven")],
-    [
-      "a title past 48 characters",
-      reply("Internationalisation internationalisation internationalisation"),
-    ],
+    ["a title past 32 characters", reply("Internationalisation internationalisation")],
+    ["a verdict that isn't a boolean", reply("Fix the build", "yes")],
     ["an empty title", reply("  ")],
   ])("rejects %s", (_name, raw) => {
     expect(parseDescription(raw)).toBeUndefined()
@@ -175,7 +433,7 @@ describe("refusing a title that looks like a secret", () => {
     "Bump React 19.2 types",
     "Internationalisation of checkout",
   ])("keeps %s", (text) => {
-    expect(title(text)).toBe(text)
+    expect(guarded(text)).toBe(text)
   })
 
   it.each([
@@ -186,7 +444,7 @@ describe("refusing a title that looks like a secret", () => {
     "Set password: hunter2xyz99",
     "Deploy a1b2c3d4e5f6g7h8i9",
   ])("refuses %s", (text) => {
-    expect(title(text)).toBeUndefined()
+    expect(guarded(text)).toBeUndefined()
   })
 })
 
@@ -298,7 +556,7 @@ describe("realistic titles with names, versions and numbers", () => {
   ]
 
   it("keeps every one", () => {
-    expect(titles.filter((text) => title(text) === undefined)).toEqual([])
+    expect(titles.filter((text) => guarded(text) === undefined)).toEqual([])
   })
 
   it.each([
@@ -312,7 +570,7 @@ describe("realistic titles with names, versions and numbers", () => {
     "Debug xoxb-123456789012-abcdefghijkl",
     "Google ya29.a0AfH6SMBx-abcdefghijklmnop",
   ])("refuses %s", (text) => {
-    expect(title(text)).toBeUndefined()
+    expect(guarded(text)).toBeUndefined()
   })
 })
 
@@ -501,7 +759,7 @@ describe("the guard on titles and the words in them", () => {
     { timeout: 5000 },
     () => {
       for (const text of ["Solving 𝐱: system", "修复𠀀登录问题", "😀 Fix login 😀", "Fix 𝐀=b"])
-        expect(title(text)).toBe(text)
+        expect(guarded(text)).toBe(text)
     },
   )
 })
@@ -637,8 +895,8 @@ describe("provider keys with an underscore", () => {
     "pypi-AgEIcHlwaS5vcmcCJGE0ZjYx",
     "npm_aBcDeFgHiJkLmNoPqRsT",
   ])("refuses %s in a title", (key) => {
-    expect(title(`Using ${key} now`)).toBeUndefined()
-    expect(title(`Using **${key}** now`)).toBeUndefined()
+    expect(guarded(`Using ${key} now`)).toBeUndefined()
+    expect(guarded(`Using **${key}** now`)).toBeUndefined()
   })
 })
 
@@ -674,7 +932,7 @@ describe("provider keys, wherever they are and whatever is around them", () => {
       for (const wrap of wrappers)
         for (const place of ["Using X now", "X rotated", "Rotating X"]) {
           const text = place.replace("X", wrap(key))
-          if (title(text) !== undefined) passed.push(text)
+          if (guarded(text) !== undefined) passed.push(text)
         }
     expect(passed).toEqual([])
   })
@@ -704,7 +962,7 @@ describe("provider keys, wherever they are and whatever is around them", () => {
     "Debugging AIzaSyClient wrapper",
     "Fixing xoxb-scopes docs",
   ])("keeps the name in %s", (text) => {
-    expect(title(text)).toBeDefined()
+    expect(guarded(text)).toBeDefined()
   })
 
   it.each([
@@ -715,7 +973,7 @@ describe("provider keys, wherever they are and whatever is around them", () => {
     "Fixing _iPhone15ProMax_ layout",
     "Fixing `Float32Array` bug",
   ])("keeps a code name in markdown: %s", (text) => {
-    expect(title(text)).toBeDefined()
+    expect(guarded(text)).toBeDefined()
   })
 })
 
@@ -732,8 +990,8 @@ describe("keys cut short, and names that begin like keys", () => {
     "AIzaSyAb3dEf6hIj9lMn",
     "xoxb-123456789012-12345",
   ])("refuses %s, whole or cut short", (key) => {
-    expect(title(`Fix ${key}`)).toBeUndefined()
-    expect(title(`Fix (${key})`)).toBeUndefined()
+    expect(guarded(`Fix ${key}`)).toBeUndefined()
+    expect(guarded(`Fix (${key})`)).toBeUndefined()
   })
 
   it.each([
@@ -763,7 +1021,7 @@ describe("keys cut short, and names that begin like keys", () => {
     "Using AGE-SECRET-KEY-1 format docs",
     "Reviewing shpat_access_token_scopes",
   ])("keeps %s", (text) => {
-    expect(title(text)).toBeDefined()
+    expect(guarded(text)).toBeDefined()
   })
 })
 

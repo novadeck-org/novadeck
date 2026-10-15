@@ -1200,7 +1200,7 @@ model behind a `Describer` (`murmur/`).
   caller from its terminal token. The summary is one or two lines of up to 200 characters
   with words in it, kept with the terminal's record; `agents()` lists it as "described by
   its agent". A refused summary (empty, three lines) says why. A call also tells murmur
-  to title the terminal again (see below).
+  to check the terminal's title at once, as a hard signal (see below).
 - **Who wins the title.** The record keeps each layer apart (`naming`: `person`; `agent`,
   the opener's title with the handle of the terminal that gave it; `murmur`, its title;
   and `summary`, the agent's own), and the store persists only these (`person_title`,
@@ -1214,10 +1214,11 @@ model behind a `Describer` (`murmur/`).
   4. the default: the program it was opened to run (`claude`), else "Terminal".
 
   Clients see who it is from as the summary's `titleSource` (`person`, `murmur`, `agent`
-  with its handle, or `default`). A summary is no part of the title, and a person's title
-  doesn't stop either: murmur still titles the terminal and the agent still summarizes
-  it. The runner API's `terminals.resetTitle` takes the person's title away, so the title
-  is automatic again: murmur's, else the opener's.
+  with its handle, or `default`). A summary is no part of the title. While a person's title
+  is set murmur is not asked about the terminal at all (it could not show), though the
+  agent still summarizes it; the runner API's `terminals.resetTitle` takes the person's
+  title away, so the title is automatic again, and the terminal is eligible for murmur
+  on its next evidence: murmur's, else the opener's.
 
 - **The opener's title.** An opener's title never passes through the client as the
   person's: the request the client gets has no title, and the client creates the terminal
@@ -1287,42 +1288,90 @@ starts out as unusable until its service says otherwise, and while it is, nothin
 read or serialized (no git branch or plan, no transcript, no screen), and what waited is
 dropped. When it becomes usable, every running terminal with no murmur title yet is
 titled: an agent's from its latest summary, else its first substantial prompt, and one
-with neither waits; a shell's once it has more on screen than a prompt.
+with neither waits; a shell's once it has more on screen than a prompt. A terminal the
+person titled is never asked about.
 
-An **agent's terminal** (one with a bound agent) is titled on two triggers only:
+An **agent's terminal** (one with a bound agent) is _checked_, never just titled once: a
+check builds a digest and asks the model for a title and for its verdict on whether the
+work differs from the previous title's (`changed`). What a check is shown and when it is
+made depend on the terminal's stage, kept per terminal in memory (`Watch` in
+`terminals/murmur.ts`). A check waits for 3 seconds of quiet (`settleMs`) so a burst is
+one job.
 
-1. **Once**, after the person's first prompt of a root session (a new conversation:
-   start or `/clear`; not a runner restart or a resume of the same session, which keep
-   their title), taken as the terminal's mission. A prompt that says nothing of it is skipped:
-   under three words, or a greeting or pleasantry ("hey!", "try again", "thanks a lot").
-   The title then waits for the next substantial prompt, or for the first summary,
-   whichever comes first. Without a summary the digest shows that mission prompt alone,
-   so a terse later prompt ("hows going?") never becomes a title.
-2. **Every `summarize` call**, whose summary is the main input to the title; a burst of
-   calls is one job.
+_New evidence_ is what makes a check worth asking: a substantial prompt not seen at the
+last check (not "ok", "go on" or a greeting; a turn whose only prompt was such brings
+none), a new summary, or a change of the git branch or the plan's title from what it was
+at the last check, both known and different (a plan or branch that was unknown and is
+read now is no change, as entering plan mode for the same task is not one, and a check
+that reads none keeps the one before; a verdict that keeps the name takes the change as
+seen, so it is news once). The busiest folder is not counted: it moves with every task
+inside a project and would pivot too readily (it still drives the summary nudges). A turn
+end is the activity going idle after a completed, failed or interrupted turn, with a new
+`lastTurn.at`; every harness's events produce that alike, so Claude Code, Codex and
+Antigravity are treated the same.
 
-A compaction, drift in the plan, branch or busiest folder, and more of the person's prompts
-retitle nothing by themselves: they nudge the agent to summarize (see [Nudges](#nudges)),
-and its summary then pings murmur. So murmur never retitles from a bare terse prompt, and
-a terminal whose agent never summarizes keeps the title its mission gave.
+1. **Forming** (a new root session, or right after a pivot): the first check is made 3
+   seconds after the person's first substantial prompt (a new conversation: start or
+   `/clear`; not a runner restart or a resume of the same session) or the agent's first
+   summary. Then it is checked at every turn end that brought new evidence, with no rate
+   limit, and a check replaces the name only when the model judges the work changed (or
+   there is no name yet); a verdict that it did not is a keep. Two checks in a row whose verdict
+   kept the name (`changed` false, or the same title), or four checks in all, settle it.
+2. **Settled**: checked at a turn end with new evidence, at most once in 5 minutes
+   (`settledGapMs`) since the last check. Evidence inside the gap sets one timer for when
+   the gap ends, which makes the check then, so a session that goes quiet right after a
+   change is still checked; nothing else polls. `changed` false keeps the name. `changed`
+   true is a _pivot candidate_: it is applied (the title stored, back to forming) when the
+   previous settled check said the same too, or when a hard signal came with it;
+   otherwise the name is kept and the candidate remembered, and a check that finds the
+   work unchanged forgets it.
+3. **Hard signals** ignore the gap and rename directly: a check that carries one (a
+   `summarize` summary that says something other than the last one seen, in other words
+   not the same text again in other letters or spaces, or the branch or the plan's title
+   differing from those at the last check) is shown a forming digest, whatever the stage.
+   A title that differs from the name is stored when the model says the work changed, or
+   when it shares no content word with the name; a rewording of the same work keeps it.
+   The terminal then forms again, as a summary or new plan often marks a new phase; a
+   kept name leaves it settled.
 
-Both wait for 3 seconds of quiet (`settleMs`), so a burst is one job. A **plain shell**
-is titled (never summarized) on:
+A new root session returns the terminal to forming but keeps its name until the new session
+brings evidence. A terminal opened by an agent with a title (`open_terminal`) starts
+settled, with that title as the previous one, so murmur replaces it only on a pivot; a
+terminal that kept a murmur title across a runner restart starts settled too. A
+compaction changes nothing, and its nudge asks the agent to summarize as before. A
+refusal from the model, or a check that did not run (murmur busy or backed off, retried
+after a minute), never locks out evidence: the next evidence asks again.
 
-1. the foreground program changed and has run for 5 seconds (`shellRunMs`): `ls` or
-   `git status` never describe, a dev server or a build does. The prompt is the shell
-   itself holding the foreground (told by the foreground process group on Linux), so a
-   script its own interpreter runs, `./build.sh` or `bash deploy.sh`, is a program;
-2. the shell is back at its prompt after such a run, 3 seconds after (`shellSettleMs`);
-3. its directory changed (the prompt reports it), after the same 3 seconds of quiet. A
-   short command that follows doesn't lose it: it is asked for again at the prompt.
+A **plain shell** is titled (never summarized) on:
+
+1. every return to its prompt at which a line was entered since the last one
+   (`record.lineEntered`: the keys sent left something on the line, counted roughly in
+   `terminals/line.ts`: characters add one, Backspace removes one, Ctrl+U, Ctrl+C and Ctrl+W
+   empty it, cursor moves and Ctrl+L change nothing, and any other control key or escape
+   sequence (history, search, completion, yank, F3 or F8 recalls, a paste) makes it
+   unknown, which counts as typed), 3 seconds after (`shellSettleMs`) so rapid commands make one
+   description, so `tree`, `cat` or `git status` rename it too. It is skipped when the
+   directory, command and screen's rows are the same as at the last description (a command
+   that printed nothing, a cleared screen) and when the screen shows only prompts (the line
+   the last command was typed on is a prompt like the bottom one, as after Ctrl+L or a line
+   typed and erased); a changed directory always describes;
+2. the foreground program changed and has run for 5 seconds (`shellRunMs`): a dev server or
+   a build is named while it runs. The prompt is the shell itself holding the foreground
+   (told by the foreground process group on Linux), so a script its own interpreter
+   runs, `./build.sh` or `bash deploy.sh`, is a program;
+3. the shell is back at its prompt after such a run, which is trigger 1 too. A run during
+   which an agent was bound is the agent's: its end owes the shell nothing, and the shell
+   is described at its next entered command.
+
+A shell's description is always applied (`changed` is true for a shell). A prompt a
+bound agent just left is not described until the next one.
 
 A shell opened to run an agent (`open_terminal` with a command that starts one, or a
 resume) isn't described as a shell until the agent binds, or 10 seconds (`expectMs`)
 pass without one. A restarted terminal drops its job and what murmur kept of it.
 
 The foreground program is sampled only where the platform tells it: Linux and macOS.
-Windows has no such sample, so only the directory triggers there; none is invented.
+Windows has no such sample, so only the prompt triggers there; none is invented.
 
 **Digests.** The terminal side builds what murmur is shown (the types are in
 `murmur/describer.ts`); the service redacts secrets from every string before the model
@@ -1330,9 +1379,11 @@ sees it, and the terminal side never includes a permission's command.
 
 - An agent's: its harness, its latest summary (`summarize`), the project's folder name, the last two segments of its
   directory, the branch, the plan's title, the three folders it writes in most (relative
-  to the project when inside it), the person's last prompts, and the tail of its last
-  reply. The prompts are the first one if it has left the last five (`work.recent`, up to
-  300 characters each, persisted with the terminal's work), then those, the current last.
+  to the project when inside it), the person's substantial prompts, its stage
+  (`forming` or `settled`), and the tail of its last reply. The prompts are the first one
+  if it has left the last five (`work.recent`, up to 300 characters each, persisted with
+  the terminal's work), then those, the current last, with pure filler ("ok", "go on")
+  dropped, since a title names the session's goal.
   The reply is the last assistant text since the person's latest prompt and the latest
   tool step, read from the end of the agent's transcript through its harness's items: the
   last 3000 characters, with terminal escapes out; the service redacts it and keeps the
@@ -1354,8 +1405,18 @@ sees it, and the terminal side never includes a permission's command.
   stays. The triggers read no screen, so a program's redraws ask for nothing; the program's
   start titles it, and its quitting is the prompt trigger above, which reads the normal
   screen.
-- Both carry murmur's last title of the terminal (`Naming.murmur`) as `previous`,
-  so titles stay stable.
+- A shell's digest also says where the last command was typed (`commandAt`, an index in
+  its screen). The runner keeps an xterm marker on the line of each prompt the shell
+  integration reports (OSC 7, or OSC 9;9 from PowerShell and cmd), which follows the line
+  through scrolling and reflow: at the prompt the digest uses the prompt before the
+  current one that a command was entered at (an empty Enter keeps no marker), while a
+  program runs the latest. A marker that is disposed, left the screen, sits on a line
+  cleared in place, or was dropped by a full reset gives no `commandAt`; neither does a
+  full-screen program. A prompt's marker is on its first line, so with a two-line prompt
+  the command is the line after. On Windows, ConPTY may desync OSC 9;9 from the frames it
+  renders and repaint on resize, so the row there is best-effort.
+- Both carry the terminal's last title as `previous`, so titles stay stable: a shell's is
+  murmur's (`Naming.murmur`); an agent's is murmur's, else the title its opener gave.
 
 **Coalescing.** At most one job is outstanding per terminal. A trigger waits out its quiet
 (a newer one restarts the wait); when it fires, its digest is built and any older job for

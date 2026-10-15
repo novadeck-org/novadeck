@@ -84,6 +84,7 @@ describe("redacting a digest", () => {
       reply: "done with https://u:p@host/",
       summary: "rotated sk-abcdefghijklmnopqrstuvwxyz",
       previous,
+      stage: "settled",
     }
     const clean = redactDigest(digest) as AgentDigest
     expect(JSON.stringify(clean)).not.toMatch(/ghp_|sk-abc|=pw|=abc|u:p@/)
@@ -128,6 +129,28 @@ describe("redacting a digest", () => {
     const clean = redactDigest(digest) as ShellDigest
     // Every row of the block is masked, and the rows stay where they are.
     expect(clean.screen).toEqual([redacted, redacted, redacted, "$"])
+  })
+
+  it("keeps the row of the last command, as no row is dropped or merged", () => {
+    const digest: ShellDigest = {
+      kind: "shell",
+      project: null,
+      folder: null,
+      command: null,
+      screen: [
+        "$ cat id_rsa",
+        "-----BEGIN PRIVATE KEY-----",
+        "MIIEvQIBADANBgkqhkiG9w0B",
+        "-----END PRIVATE KEY-----",
+        "$",
+      ],
+      continues: [false, false, true, false, false],
+      commandAt: 0,
+      previous: null,
+    }
+    const clean = redactDigest(digest) as ShellDigest
+    expect(clean.screen).toHaveLength(digest.screen.length)
+    expect(clean.commandAt).toBe(0)
   })
 })
 

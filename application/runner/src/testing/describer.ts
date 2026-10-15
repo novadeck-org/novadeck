@@ -1,5 +1,14 @@
 import type { Describer, Description, Digest, Note, NoteDigest } from "../murmur/describer.js"
 
+/**
+ * What a test has the fake describer answer: a title, and whether the work changed from
+ * the previous title's, true unless the test says otherwise.
+ */
+export type Reply = { readonly title: string; readonly changed?: boolean }
+
+const described = (reply: Reply | null | undefined): Description | null | undefined =>
+  reply ? { title: reply.title, changed: reply.changed ?? true } : reply
+
 /** One call to a fake describer: the digest and signal it was given, and a way to answer it. */
 export type FakeJob = {
   readonly digest: Digest
@@ -7,7 +16,7 @@ export type FakeJob = {
   /** The terminal it was asked for. */
   readonly terminal: string | undefined
   /** Answers a held call; a call aborted meanwhile answers undefined on its own. */
-  readonly answer: (description: Description | null | undefined) => void
+  readonly answer: (description: Reply | null | undefined) => void
 }
 
 /** One call to a fake describer's `note`. */
@@ -37,7 +46,7 @@ export class FakeDescriber implements Describer {
   constructor(
     options: {
       readonly usable?: boolean
-      readonly reply?: (digest: Digest, call: number) => Description | null | undefined
+      readonly reply?: (digest: Digest, call: number) => Reply | null | undefined
       readonly note?: (digest: NoteDigest, call: number) => Note | null | undefined
     } = {},
   ) {
@@ -71,7 +80,7 @@ export class FakeDescriber implements Describer {
     })
   }
 
-  private readonly reply: (digest: Digest, call: number) => Description | null | undefined
+  private readonly reply: (digest: Digest, call: number) => Reply | null | undefined
 
   describe(
     digest: Digest,
@@ -84,10 +93,10 @@ export class FakeDescriber implements Describer {
       return Promise.resolve(undefined)
     }
     return new Promise((resolve) => {
-      const answer = (description: Description | null | undefined) => resolve(description)
+      const answer = (description: Reply | null | undefined) => resolve(described(description))
       this.jobs.push({ digest, signal, terminal, answer })
       signal?.addEventListener("abort", () => resolve(undefined), { once: true })
-      if (!this.hold) resolve(this.reply(digest, call))
+      if (!this.hold) resolve(described(this.reply(digest, call)))
     })
   }
 

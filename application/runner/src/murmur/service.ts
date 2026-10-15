@@ -31,11 +31,11 @@ import type {
   Note,
   NoteDigest,
 } from "./describer.js"
-import { parseDescription, parseGist, parseHeadline } from "./description.js"
+import { parseDescription, parseGist, parseHeadline, sharesContentWord } from "./description.js"
 import { candidates, parseDevices, type Device } from "./devices.js"
 import { parseVmStat } from "./memory.js"
 import { Preparer } from "./prepare.js"
-import { formats, type Message, type Task } from "./prompt.js"
+import { formatOf, formats, type Message, type Task } from "./prompt.js"
 
 /** Where the runner keeps murmur's settings. */
 export type MurmurSettingsStore = {
@@ -124,6 +124,7 @@ const checkDigest: Digest = {
   reply: "I added the retries in src/checkout/payments.ts. The tests pass. Anything else?",
   summary: null,
   previous: null,
+  stage: "forming",
 }
 
 type Config = {
@@ -684,8 +685,10 @@ export class Murmur implements Describer {
     chat: readonly Message[],
     signal: AbortSignal,
     task: T,
+    input?: Input,
   ): Promise<Made[T] | undefined> {
     const running = await this.started(server, config, signal)
+    const format = input === undefined ? formats[task] : formatOf(task, input)
     // A stuck engine must not hold every job behind it.
     const limit = AbortSignal.any([signal, AbortSignal.timeout(this.options.requestMs ?? 60_000)])
     const response = await server.request(running, "/v1/chat/completions", {
@@ -694,9 +697,9 @@ export class Murmur implements Describer {
       body: JSON.stringify({
         messages: chat,
         temperature: 0,
-        max_tokens: formats[task].maxTokens,
+        max_tokens: format.maxTokens,
         stream: false,
-        response_format: formats[task].responseFormat,
+        response_format: format.responseFormat,
       }),
       signal: limit,
     })
@@ -721,11 +724,15 @@ export class Murmur implements Describer {
       if (limit.aborted) throw error
     }
     const content = body?.choices?.[0]?.message?.content
-    // The model is held to what it was shown: a text that copies an example is refused.
+    // The model is held to what it was shown: a text that copies an example is refused. A
+    // title also loses the project's name, which the person sits in already.
+    const project = input?.kind === "agent" || input?.kind === "shell" ? input.project : null
     return typeof content === "string"
-      ? (parsers[task](content, chat.findLast((message) => message.role === "user")?.content) as
-          | Made[T]
-          | undefined)
+      ? (parsers[task](
+          content,
+          chat.findLast((message) => message.role === "user")?.content,
+          project,
+        ) as Made[T] | undefined)
       : undefined
   }
 
@@ -789,11 +796,11 @@ export class Murmur implements Describer {
         const config = { folder, model: this.modelPath(), device: device.id }
         // The first run loads the model and warms up the GPU, which later jobs do not pay for.
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
-        if (!(await this.complete(config, server, chat, limit, "title")))
+        if (!(await this.complete(config, server, chat, limit, "title", checkDigest)))
           throw new EngineError("The model's reply was no usable title.")
         const started = performance.now()
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
-        if (!(await this.complete(config, server, chat, limit, "title")))
+        if (!(await this.complete(config, server, chat, limit, "title", checkDigest)))
           throw new EngineError("The model's reply was no usable title.")
         return {
           device: device.name.slice(0, 256),
@@ -834,11 +841,20 @@ export class Murmur implements Describer {
     for (const sleeper of this.sleepers) sleeper()
   }
 
-  describe(
+  async describe(
     digest: Digest,
     options: { readonly signal?: AbortSignal; readonly terminal: string },
   ): Promise<Description | null | undefined> {
-    return this.write(digest, "title", options.signal, options.terminal)
+    const made = await this.write(digest, "title", options.signal, options.terminal)
+    if (!made) return made
+    // A shell is renamed on every command, and a first title has nothing to differ from.
+    if (digest.kind === "shell" || digest.previous === null) return { ...made, changed: true }
+    // A settled name is judged changed only when the model says so and the new title shares
+    // no word with the old: the 2B model calls a sub-topic of the same work "different" often,
+    // and its title then gives it away (see docs/murmur.md). A forming name is the model's call.
+    if (digest.stage === "settled" && sharesContentWord(made.title, digest.previous.title))
+      return { ...made, changed: false }
+    return made
   }
 
   note(
@@ -979,7 +995,7 @@ export class Murmur implements Describer {
         }
         if (config === undefined) return undefined
         // eslint-disable-next-line no-await-in-loop -- One job at a time.
-        const made = await this.complete(config, this.server, chat, controller.signal, task)
+        const made = await this.complete(config, this.server, chat, controller.signal, task, input)
         this.failures = 0
         this.engineStrikes = 0
         if (this.runtimeFailure !== null) {

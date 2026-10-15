@@ -10,7 +10,10 @@ export type AgentDigest = {
   readonly kind: "agent"
   /** The agent's program, such as "Claude Code". */
   readonly harness: string
-  /** The project's name. */
+  /**
+   * The project's name. The model is not shown it (the person sits in that project already);
+   * it is taken out of the title it writes.
+   */
   readonly project: string | null
   /** The last segment or two of the terminal's directory. */
   readonly folder: string | null
@@ -19,19 +22,31 @@ export type AgentDigest = {
   readonly plan: string | null
   /** The busiest folders it writes in, at most 3, short. */
   readonly folders: readonly string[]
-  /** The person's prompts, oldest first; the last is the current one. */
+  /**
+   * The person's substantial prompts, oldest first: the first one, which says what the
+   * session is for, then the recent ones; the last is the latest, which counts most when it
+   * moves the session to other work.
+   */
   readonly prompts: readonly string[]
   /** The tail of the agent's last reply. */
   readonly reply: string | null
   /** The agent's own latest summary of its work, from `summarize`: written with full context, the strongest input. */
   readonly summary: string | null
   readonly previous: Previous
+  /**
+   * Where the terminal's name stands: `forming` while the session's work is still taking
+   * shape (its first turns, or just after a pivot), when a better name may replace the
+   * previous one freely; `settled` once it has held, when it is kept unless the work changed.
+   */
+  readonly stage: "forming" | "settled"
 }
 
 /** What murmur is shown of a plain shell. */
 export type ShellDigest = {
   readonly kind: "shell"
+  /** Not shown to the model, only taken out of the title it writes, as for an agent. */
   readonly project: string | null
+  /** Not shown to the model. */
   readonly folder: string | null
   /** The foreground program's command line, or its name. */
   readonly command: string | null
@@ -42,6 +57,14 @@ export type ShellDigest = {
    * it may go on in line `i + 1`. Redaction looks across such a boundary, and nowhere else.
    */
   readonly continues?: readonly boolean[]
+  /**
+   * The index in `screen` of the line the last command was typed on, as the shell
+   * integration's prompt report placed it: the prompt before the current one at a prompt, the
+   * current one while a program runs. Absent where that is not known, as with no shell
+   * integration, or once that line has left the screen.
+   */
+  readonly commandAt?: number
+  /** Not shown to the model: a shell is renamed on every command, so it would only be kept. */
   readonly previous: Previous
 }
 
@@ -77,8 +100,12 @@ export type NoteDigest = QuestionDigest | PlanDigest | ReplyDigest
 /** Everything murmur may be shown: what the worker redacts and writes a chat for. */
 export type Input = Digest | NoteDigest
 
-/** A terminal's title, written by murmur and already validated. */
-export type Description = { readonly title: string }
+/**
+ * A terminal's title, written by murmur and already validated, and whether the model judged
+ * the work changed from the previous title's (always true for a plain shell's, and with no
+ * previous title).
+ */
+export type Description = { readonly title: string; readonly changed: boolean }
 
 export type Headline = { readonly kind: "headline"; readonly text: string }
 export type Gist = { readonly kind: "gist"; readonly text: string; readonly asks: boolean }
