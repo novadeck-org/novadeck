@@ -24,4 +24,16 @@ describe("the visitor build's hosting headers", () => {
       "  Cache-Control: public, max-age=31536000, immutable",
     ])
   })
+
+  it("keeps the posters only briefly, since their names stay the same", () => {
+    expect(lines.slice(5, 7)).toEqual(["/poster-*", "  Cache-Control: public, max-age=300"])
+  })
+
+  it("sets no header under two rules, which Cloudflare would join", () => {
+    const names = lines.filter((line) => line.startsWith("  ")).map((line) => line.split(":")[0])
+    const cached = names.filter((name) => name === "  Cache-Control")
+    // /assets/* and /poster-* never match the same path, so each file has one.
+    expect(cached).toHaveLength(2)
+    expect(new Set(names).size).toBe(3)
+  })
 })

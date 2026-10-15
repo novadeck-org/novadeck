@@ -49,9 +49,12 @@ jobs:
             os: ubuntu-latest
             command: npm run build
           # The visitor build, which the Try workflow deploys from each release.
+          # It also captures the posters the deploy makes, so a change that breaks that fails
+          # here rather than at release.
           - name: Build (try)
             os: ubuntu-latest
-            command: npm run build:try
+            browser: true
+            command: npm run build:try && npm run poster:try
     steps:
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

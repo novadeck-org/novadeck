@@ -847,8 +847,19 @@ version. Until launch, Release runs it for each version it publishes, prerelease
 included; at launch it moves to Promote to Stable, so the demo shows what Download gives
 people. Run workflow deploys a tag by hand. Quality builds it on every pull request. The
 build carries a `_headers` file (`src/hosting-headers.ts`): only novadeck.dev may frame
-it, nothing of it is indexed, and hashed assets are
-kept for good.
+it, nothing of it is indexed, hashed assets are kept for good, and the posters for five
+minutes.
+
+The Try workflow also writes four posters into the build before it deploys it, and
+`pnpm poster:try` does the same for a local build: `poster-light-1280.webp`,
+`poster-light-2560.webp`, `poster-dark-1280.webp` and `poster-dark-2560.webp`. Each is a
+screenshot of `?embed` at rest once the app has booted, in a 1280 × 640 window, captured
+at its own pixel density (1280 × 640 and 2560 × 1280 pixels) rather than scaled down, from
+`application/ui/scripts/poster.ts`. It needs Playwright's Chromium (`pnpm --filter
+@novadeck/ui exec playwright install chromium`). novadeck.dev's hero shows the one that
+matches the visitor's color scheme and screen until the live demo is ready, so it always
+pictures the deployed demo; the posters exist only in `dist-try`. Quality's "Build (try)"
+captures them too. Run workflow can deploy only releases made since the posters.
 
 Setting it up takes a Cloudflare Pages project named `novadeck-try`, made in the dashboard
 (Workers & Pages, Create, Pages, Upload assets) with production branch `main`: wrangler's
