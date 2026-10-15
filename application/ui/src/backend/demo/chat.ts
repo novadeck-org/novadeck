@@ -135,6 +135,9 @@ export const createDemoChat = (
     }
   >()
   let requested = 0
+  // The transcript requests each agent has asked, by terminal and the request's id in its
+  // transcript: each but a plan is asked once, then the agent makes one up.
+  const asked = new Set<string>()
   // What each terminal's agent was sent while it worked, oldest first, and which agent it
   // was for: a later agent in the terminal never gets it.
   const queues = new Map<
@@ -183,22 +186,27 @@ export const createDemoChat = (
           (request.dialog?.type === "raw" || outcomeOf(found, made, request.id) !== undefined),
       )
       .slice(0, attention.count)
+    const transcript = transcriptOf(found)
+    const askedId = (id: string): string => `${terminalKeyId(found.key)}/${id}`
+    for (const request of requests)
+      if (transcript?.requests.some((each) => each.id === request.id))
+        asked.add(askedId(request.id))
     const name = chatAgents[chatAgent(found.terminal)!]
     while (requests.length < attention.count) {
       requested += 1
       const id = `${terminalKeyId(found.key)}:ask-${requested}`
-      // A plan is the agent's own: as its transcript's plan asks, with its options.
-      const transcript = transcriptOf(found)
-      const seeded =
-        attention.kind === "plan"
-          ? transcript?.requests?.find(
-              (request) =>
-                request.kind === "plan" &&
-                request.dialog?.type === "choices" &&
-                transcript.outcomes?.[request.id],
-            )
-          : undefined
+      // A plan is the agent's own: as its transcript's plan asks, with its options. Any
+      // other request its transcript holds it asks once, the first time it asks one of its
+      // kind, as an agent that reached it after the transcript ends.
+      const seeded = transcript?.requests?.find(
+        (request) =>
+          request.kind === attention.kind &&
+          request.dialog?.type === "choices" &&
+          transcript.outcomes?.[request.id] &&
+          (request.kind === "plan" || !asked.has(askedId(request.id))),
+      )
       if (seeded?.dialog?.type === "choices") {
+        if (seeded.kind !== "plan") asked.add(askedId(seeded.id))
         made.set(id, transcript!.outcomes![seeded.id]!)
         requests.push({
           ...seeded,

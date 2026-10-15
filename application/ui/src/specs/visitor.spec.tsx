@@ -1,15 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { page } from "vitest/browser"
 
+import { taskbarIcon } from "./support/companions"
 import { pressShortcut, terminalCount } from "./support/keyboard"
 import { workspaceSwitcher } from "./support/sessions"
 import {
   chooseView,
+  commandInput,
   expectStaysAbsent,
+  labelled,
   openWorkspace,
   press,
   sidebar,
   sidebarPanel,
+  tabDescription,
   view,
   viewSwitcher,
 } from "./support/workspace"
@@ -84,13 +88,13 @@ describe("the visitor build", () => {
 
     it("does not act on the app's shortcuts", async () => {
       await openVisitor()
-      await expect.element(terminalCount(6)).toBeVisible()
+      await expect.element(terminalCount(4)).toBeVisible()
       await page.viewport(390, 800)
       await expect.element(panel()).toBeVisible()
       await pressShortcut("newTerminal")
       await page.viewport(1440, 900)
-      await expect.element(terminalCount(6)).toBeVisible()
-      await expectStaysAbsent(terminalCount(7))
+      await expect.element(terminalCount(4)).toBeVisible()
+      await expectStaysAbsent(terminalCount(5))
     })
 
     it("brings a dialog the address names back when the window widens, with focus inside", async () => {
@@ -196,6 +200,51 @@ describe("the visitor build", () => {
       await openEmbedded()
       await framesPass(10)
       expect(document.activeElement).toBe(document.body)
+    })
+  })
+
+  describe("on its desk", () => {
+    // The bell, whose name says how many wait, e.g. "Notifications, 1 waiting".
+    const bell = () => sidebarPanel("Notifications")
+    const waiting = (count: number) =>
+      page.getByRole("radio", { name: `Notifications, ${count} waiting` })
+    // Answers what the agent in the terminal asks with its first option, on its screen.
+    const answer = async (name: string): Promise<void> => {
+      await page.getByRole("button", { name: labelled("Select ", name) }).click()
+      await commandInput(name).fill("1")
+      await press("{Enter}")
+    }
+
+    it("opens with one agent asking, and nothing elsewhere", async () => {
+      await openVisitor()
+      await expect.element(terminalCount(4)).toBeVisible()
+      await expect
+        .poll(() => tabDescription("Checkout implementation"))
+        .toBe("Plan ready for review")
+      await expect.element(bell()).toHaveAccessibleName("Notifications, 1 waiting")
+      await expect.element(workspaceSwitcher()).not.toHaveAttribute("data-project-status")
+    })
+
+    it("moves on only once the visitor answers, and ends quiet", async () => {
+      // Codex asks a second after Claude Code's turn ends, past the moment a finish counts as
+      // seen by whoever looks at it.
+      await openWorkspace("/?visitor=on&turnMs=200&nudgeMs=1000")
+      // Codex reviews, and asks nothing while the plan waits.
+      await expect.element(waiting(1)).toBeInTheDocument()
+      await expectStaysAbsent(waiting(2), { ms: 800 })
+      expect(tabDescription("Checkout review")).toBeNull()
+
+      await answer("Checkout implementation")
+      await expect
+        .element(taskbarIcon("Checkout implementation", "order-summary.png"))
+        .toBeVisible()
+      await expect.poll(() => tabDescription("Checkout review")).toBe("Needs permission")
+      await expect.element(waiting(1)).toBeInTheDocument()
+
+      await answer("Checkout review")
+      await expect.poll(() => tabDescription("Checkout review") ?? "").not.toContain("Needs")
+      await expect.element(bell()).toHaveAccessibleName("Notifications")
+      await expectStaysAbsent(page.getByRole("radio", { name: /^Notifications, / }), { ms: 800 })
     })
   })
 })

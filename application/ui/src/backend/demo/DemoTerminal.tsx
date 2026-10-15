@@ -203,7 +203,12 @@ const DemoTerminalSurface = ({
     >
       {!cleared &&
         (intro ?? (
-          <TerminalOutput terminal={terminal} projectName={projectName} planned={opening.planned} />
+          <TerminalOutput
+            terminal={terminal}
+            projectName={projectName}
+            planned={opening.planned}
+            reviewing={opening.reviewing}
+          />
         ))}
       {entries.map((entry) => (
         <div className="output-gap" key={entry.id}>

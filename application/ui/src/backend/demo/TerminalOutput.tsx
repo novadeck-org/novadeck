@@ -6,15 +6,20 @@ export const TerminalOutput = ({
   terminal,
   projectName,
   planned = false,
+  reviewing = false,
 }: {
   terminal: TerminalMetadata
   projectName: string
-  // Whether the agent opened asking to plan; see Opening.
+  // Whether the agent opened asking to plan, or reviewing still; see Opening.
   planned?: boolean
+  reviewing?: boolean
 }): React.JSX.Element => {
   const { directory } = terminal
   const agent = demoAgent(terminal)
-  if (agent) return <AgentOutput agent={agent} directory={directory} planned={planned} />
+  if (agent)
+    return (
+      <AgentOutput agent={agent} directory={directory} planned={planned} reviewing={reviewing} />
+    )
   const output = sampleOutput(terminal)
   if (output === "shell")
     return (

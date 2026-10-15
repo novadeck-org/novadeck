@@ -15,11 +15,18 @@ export type Entry = {
 export type Opening = {
   readonly agent: DemoAgent | undefined
   readonly planned: boolean
+  // Codex at work and asking nothing: its review is still under way.
+  readonly reviewing: boolean
 }
 
 const openingOf = (terminal: TerminalMetadata): Opening => ({
   agent: demoAgent(terminal),
   planned: terminal.state === "running" && terminal.agent?.planning === true,
+  reviewing:
+    demoAgent(terminal) === "codex" &&
+    terminal.state === "running" &&
+    terminal.agent?.working === true &&
+    terminal.agent.attention === undefined,
 })
 
 export type DemoTerminalSnapshot = {
@@ -44,7 +51,7 @@ export type DemoEngine = {
 }
 
 const empty: DemoTerminalSnapshot = {
-  opening: { agent: undefined, planned: false },
+  opening: { agent: undefined, planned: false, reviewing: false },
   draft: "",
   scrollOffset: undefined,
   entries: [],

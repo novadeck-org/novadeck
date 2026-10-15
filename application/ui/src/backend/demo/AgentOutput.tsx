@@ -17,16 +17,60 @@ const ClaudePlan = (): React.JSX.Element => (
   </>
 )
 
-// Whether the agent opened planning is decided by the caller, once per terminal, so that
-// remounting this leaves the opening as it was.
+// Codex asked to review: what it looked at so far. Done reviewing, it ran the tests and
+// reported; still at it, it stops after the diff.
+const CodexReview = ({ done }: { done: boolean }): React.JSX.Element => (
+  <>
+    <p className="agent-request mb-4 px-3 py-2">› Review the checkout changes for regressions.</p>
+    <p>I’ll inspect the diff and check the empty-cart and quantity-update cases.</p>
+    <div className="agent-tool mt-4">
+      <p>
+        • <strong>Explored</strong>
+      </p>
+      <p className="agent-tool-result pl-3 muted">└ Read Checkout.tsx, OrderSummary.tsx</p>
+      <p className="agent-tool-result pl-3 muted">&nbsp; Read checkout.spec.ts</p>
+    </div>
+    <div className="agent-tool mt-4">
+      <p>
+        • <strong>Ran</strong> git diff --stat
+      </p>
+      <p className="agent-tool-result pl-3 muted">
+        └ 2 files changed, 24 insertions(+), 8 deletions(-)
+      </p>
+    </div>
+    {done && (
+      <>
+        <div className="agent-tool mt-4">
+          <p>
+            • <strong>Ran</strong> pnpm test -- checkout
+          </p>
+          <p className="agent-tool-result pl-3 muted">└ Test Files 1 passed · Tests 6 passed</p>
+        </div>
+        <p className="agent-divider mt-4 pt-3 text-[0.85em] muted">Worked for 24s</p>
+        <div className="agent-answer mt-5">
+          <p>No regressions found in the reviewed changes.</p>
+          <p className="muted">
+            The total updates with quantity changes, and an empty cart disables checkout. Existing
+            tests cover both paths.
+          </p>
+        </div>
+      </>
+    )}
+  </>
+)
+
+// Whether the agent opened planning, or reviewing still, is decided by the caller, once per
+// terminal, so that remounting this leaves the opening as it was.
 export const AgentOutput = ({
   agent,
   directory,
   planned = false,
+  reviewing = false,
 }: {
   agent: DemoAgent
   directory: string
   planned?: boolean
+  reviewing?: boolean
 }): React.JSX.Element => {
   return (
     <div
@@ -77,41 +121,7 @@ export const AgentOutput = ({
           <p className="agent-completion mt-4 muted text-[0.85em]">✻ Worked for 38s</p>
         </>
       ) : (
-        <>
-          <p className="agent-request mb-4 px-3 py-2">
-            › Review the checkout changes for regressions.
-          </p>
-          <p>I’ll inspect the diff and check the empty-cart and quantity-update cases.</p>
-          <div className="agent-tool mt-4">
-            <p>
-              • <strong>Explored</strong>
-            </p>
-            <p className="agent-tool-result pl-3 muted">└ Read Checkout.tsx, OrderSummary.tsx</p>
-            <p className="agent-tool-result pl-3 muted">&nbsp; Read checkout.spec.ts</p>
-          </div>
-          <div className="agent-tool mt-4">
-            <p>
-              • <strong>Ran</strong> git diff --stat
-            </p>
-            <p className="agent-tool-result pl-3 muted">
-              └ 2 files changed, 24 insertions(+), 8 deletions(-)
-            </p>
-          </div>
-          <div className="agent-tool mt-4">
-            <p>
-              • <strong>Ran</strong> pnpm test -- checkout
-            </p>
-            <p className="agent-tool-result pl-3 muted">└ Test Files 1 passed · Tests 6 passed</p>
-          </div>
-          <p className="agent-divider mt-4 pt-3 text-[0.85em] muted">Worked for 24s</p>
-          <div className="agent-answer mt-5">
-            <p>No regressions found in the reviewed changes.</p>
-            <p className="muted">
-              The total updates with quantity changes, and an empty cart disables checkout. Existing
-              tests cover both paths.
-            </p>
-          </div>
-        </>
+        <CodexReview done={!reviewing} />
       )}
     </div>
   )

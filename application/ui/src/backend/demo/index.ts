@@ -51,12 +51,13 @@ const addressOf = (projectId: string, sessionId: string) => `${projectId}/${sess
 // transcripts and connects no agents, but its settings switch like the runner's.
 // `welcome` opens the first-run welcome dialog; `introOf` gives terminals their own
 // opening output. `runtime` is the debug layer's: what its terminals read of the
-// connection, and how they restart.
+// connection, and how they restart. `seed` is the workspace it opens with.
 export const demoBackend = (
   engine: DemoEngine,
   welcome = false,
   introOf?: (terminal: TerminalMetadata, key: TerminalKey) => ReactNode,
   runtime?: DemoSurfaceRuntime,
+  seed: WorkspaceSeed = demoSeed(Date.now()),
 ): Backend => {
   const transcripts = createStore(true)
   const agents = createStore(sampleAgents)
@@ -65,7 +66,6 @@ export const demoBackend = (
   const murmur = createDemoMurmur()
   // Standing in for the runner, it numbers each session's terminals itself, never
   // giving a number twice, from the workspace it last saw.
-  const seed = demoSeed(Date.now())
   const numbers = new Map(
     seed.projects.flatMap((project) =>
       project.sessions.map(

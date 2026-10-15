@@ -52,7 +52,7 @@ const row = (y: number, label: string, price: string, strong = false): string =>
   `<text x="470" y="${y}" ${sans} font-size="15" fill="${strong ? ink : muted}" font-weight="${strong ? 700 : 400}">${label}</text>` +
   `<text x="730" y="${y}" ${sans} font-size="15" fill="${ink}" font-weight="${strong ? 700 : 400}" text-anchor="end">${price}</text>`
 
-const orderSummary = image(
+export const orderSummary = image(
   "storefront-order-summary",
   "order-summary.png",
   `<rect width="800" height="450" fill="${paper}"/>` +

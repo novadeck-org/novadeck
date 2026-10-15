@@ -104,12 +104,20 @@ const requestedVersion = (
 }
 
 // Specs open the demo as a visitor's, with `?visitor=on`: what the app shows for one.
+// `&turnMs=` and `&nudgeMs=` shorten its agents' turns and the wait before Codex asks.
 const visitorRequested = (): boolean =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("visitor") === "on"
 
+const visitorTimings = (): { turnMs?: number; nudgeMs?: number } => {
+  const params = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
+  const turnMs = Number(params.get("turnMs"))
+  const nudgeMs = Number(params.get("nudgeMs"))
+  return { ...(turnMs > 0 && { turnMs }), ...(nudgeMs > 0 && { nudgeMs }) }
+}
+
 // The demo a spec opens, as its address's hash asks.
 export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
-  if (visitorRequested()) return visitorDemo()
+  if (visitorRequested()) return visitorDemo(visitorTimings())
   if (showcaseRequested()) return createContentDemo()
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
