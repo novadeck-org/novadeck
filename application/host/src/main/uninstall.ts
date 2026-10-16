@@ -287,6 +287,16 @@ export const uninstaller = (host: UninstallHost): Uninstaller => {
       host.log("Moving the app to the Trash failed.", error)
       return failed(macTrashReason)
     }
+    // What an interrupted install left beside it, which a later launch would restore.
+    const folder = posix.dirname(target.bundle)
+    const name = posix.basename(target.bundle)
+    await Promise.all(
+      [`.${name}.old`, `.${name}.new`].map((leftover) =>
+        host
+          .remove(posix.join(folder, leftover), { recursive: true })
+          .catch((error: unknown) => host.log("A leftover of an install was not removed.", error)),
+      ),
+    )
     return undefined
   }
 

@@ -98,7 +98,6 @@ describe("desktop notices", () => {
 // A host's update bridge that lets a test report offers and counts what the page asks.
 const updater = (channel: unknown = "stable") => {
   let report: ((offer: unknown) => void) | undefined
-  let installs = 0
   let pages = 0
   const set: unknown[] = []
   const bridge = {
@@ -108,7 +107,6 @@ const updater = (channel: unknown = "stable") => {
         report = undefined
       }
     },
-    installUpdate: () => void (installs += 1),
     openUpdatePage: () => void (pages += 1),
     updateChannel: () => Promise.resolve(channel),
     setUpdateChannel: (next: unknown) => void set.push(next),
@@ -116,7 +114,6 @@ const updater = (channel: unknown = "stable") => {
   return {
     bridge,
     report: (offer: unknown) => report?.(offer),
-    installs: () => installs,
     pages: () => pages,
     set,
   }
@@ -148,22 +145,24 @@ describe("desktop version", () => {
 
 describe("desktop updates", () => {
   context("in a host that has them", () => {
-    it("hears offers that look like a release's and no others", () => {
+    it("hears offers that look like a release's, and a download to retry, and no others", () => {
       const { bridge, report } = updater()
       const heard: unknown[] = []
       const stop = desktopUpdates(bridge)!.onOffer((offer) => heard.push(offer))
-      report({ kind: "ready", version: "0.0.80", notes: ["One."] })
-      report({ kind: "available", version: "1.2.3-beta.1", notes: [] })
-      report({ kind: "later", version: "0.0.80", notes: [] })
-      report({ kind: "ready", version: "latest", notes: [] })
-      report({ kind: "ready", version: "0.0.80\n<b>", notes: [] })
+      report({ kind: "ready", version: "0.0.80" })
+      report({ kind: "available", version: "1.2.3-beta.1" })
+      report({ kind: "later", version: "0.0.80" })
+      report({ kind: "retrying", version: "0.0.82" })
+      report({ kind: "ready", version: "latest" })
+      report({ kind: "ready", version: "0.0.80\n<b>" })
       report("0.0.80")
       report(null)
       stop()
-      report({ kind: "ready", version: "0.0.81", notes: [] })
+      report({ kind: "ready", version: "0.0.81" })
       expect(heard).toEqual([
-        { kind: "ready", version: "0.0.80", notes: ["One."] },
-        { kind: "available", version: "1.2.3-beta.1", notes: [] },
+        { kind: "ready", version: "0.0.80" },
+        { kind: "available", version: "1.2.3-beta.1" },
+        { kind: "retrying", version: "0.0.82" },
       ])
     })
 
@@ -171,55 +170,25 @@ describe("desktop updates", () => {
       const { bridge, report } = updater()
       const heard: unknown[] = []
       desktopUpdates(bridge)!.onOffer((offer) => heard.push(offer))
-      report({ kind: "downloading", version: "0.0.80", notes: [], percent: 0 })
-      report({ kind: "downloading", version: "0.0.80", notes: [], percent: 100 })
-      report({ kind: "downloading", version: "0.0.80", notes: [] })
-      report({ kind: "downloading", version: "0.0.80", notes: [], percent: 42.5 })
-      report({ kind: "downloading", version: "0.0.80", notes: [], percent: 101 })
-      report({ kind: "downloading", version: "0.0.80", notes: [], percent: "40" })
-      report({ kind: "ready", version: "0.0.80", notes: [], percent: 40 })
+      report({ kind: "downloading", version: "0.0.80", percent: 0 })
+      report({ kind: "downloading", version: "0.0.80", percent: 100 })
+      report({ kind: "downloading", version: "0.0.80" })
+      report({ kind: "downloading", version: "0.0.80", percent: 42.5 })
+      report({ kind: "downloading", version: "0.0.80", percent: 101 })
+      report({ kind: "downloading", version: "0.0.80", percent: "40" })
+      report({ kind: "ready", version: "0.0.80", percent: 40 })
       expect(heard).toEqual([
-        { kind: "downloading", version: "0.0.80", notes: [], percent: 0 },
-        { kind: "downloading", version: "0.0.80", notes: [], percent: 100 },
-        { kind: "ready", version: "0.0.80", notes: [] },
+        { kind: "downloading", version: "0.0.80", percent: 0 },
+        { kind: "downloading", version: "0.0.80", percent: 100 },
+        { kind: "ready", version: "0.0.80" },
       ])
     })
 
-    it("keeps the notes to the lines and length the page shows, as plain text", () => {
-      const { bridge, report } = updater()
-      const heard: { notes: readonly string[] }[] = []
-      desktopUpdates(bridge)!.onOffer((offer) => heard.push(offer))
-      report({
-        kind: "ready",
-        version: "0.0.80",
-        notes: [
-          "Fixed\u0007 a thing.",
-          7,
-          "   ",
-          "x".repeat(500),
-          ...Array.from({ length: 20 }, (_, index) => `Note ${index}`),
-        ],
-      })
-      const { notes } = heard[0]!
-      expect(notes[0]).toBe("Fixed a thing.")
-      expect(notes[1]).toHaveLength(200)
-      expect(notes).toHaveLength(12)
-    })
-
-    it("hears no notes from a host that sends none", () => {
-      const { bridge, report } = updater()
-      const heard: { notes: readonly string[] }[] = []
-      desktopUpdates(bridge)!.onOffer((offer) => heard.push(offer))
-      report({ kind: "ready", version: "0.0.80" })
-      expect(heard[0]!.notes).toEqual([])
-    })
-
-    it("installs and opens the release page through the host", () => {
-      const { bridge, installs, pages } = updater()
+    it("opens the release page through the host", () => {
+      const { bridge, pages } = updater()
       const updates = desktopUpdates(bridge)!
-      updates.install()
       updates.openPage()
-      expect([installs(), pages()]).toEqual([1, 1])
+      expect(pages()).toBe(1)
     })
 
     it("reads the channel and switches it, accepting only a channel it knows", async () => {
@@ -289,11 +258,16 @@ describe("a host's sandbox", () => {
 
 describe("a host's portable copy", () => {
   it("fits the protocol's, which the page's own copy must keep to", () => {
-    const state: PortableState = { portable: true, version: "0.0.70", run: "0a1b-2c3d" }
+    const state: PortableState = {
+      portable: true,
+      version: "0.0.70",
+      run: "0a1b-2c3d",
+      installed: false,
+    }
     const theirs: BridgePortable = state
     const back: PortableState = theirs
     const results: InstallResult[] = [
-      { kind: "installing" },
+      { kind: "installed" },
       { kind: "newer", version: "0.0.80" },
       { kind: "failed", reason: "x" },
     ]
@@ -304,24 +278,25 @@ describe("a host's portable copy", () => {
 
   it("is portable with its version, or not", () => {
     expect(hostPortable({ portable: false })).toEqual({ portable: false })
-    expect(hostPortable({ portable: true, version: "0.0.70", run: "0a1b-2c3d" })).toEqual({
-      portable: true,
-      version: "0.0.70",
-      run: "0a1b-2c3d",
-    })
+    expect(
+      hostPortable({ portable: true, version: "0.0.70", run: "0a1b-2c3d", installed: true }),
+    ).toEqual({ portable: true, version: "0.0.70", run: "0a1b-2c3d", installed: true })
   })
 
   it("is not taken from an answer that is neither", () => {
     expect(() => hostPortable(null)).toThrow()
     expect(() => hostPortable({ portable: true })).toThrow()
     expect(() => hostPortable({ portable: true, version: "0.0.70" })).toThrow()
-    expect(() => hostPortable({ portable: true, version: "0.0.70", run: "a b" })).toThrow()
+    expect(() => hostPortable({ portable: true, version: "0.0.70", run: "0a1b" })).toThrow()
+    expect(() =>
+      hostPortable({ portable: true, version: "0.0.70", run: "a b", installed: false }),
+    ).toThrow()
     expect(() => hostPortable({ portable: true, version: "latest", run: "0a1b" })).toThrow()
     expect(() => hostPortable({ portable: "yes", version: "0.0.70", run: "0a1b" })).toThrow()
   })
 
   it("takes an install's answer when it is one of the three", () => {
-    expect(hostInstall({ kind: "installing" })).toEqual({ kind: "installing" })
+    expect(hostInstall({ kind: "installed" })).toEqual({ kind: "installed" })
     expect(hostInstall({ kind: "newer", version: "0.0.80" })).toEqual({
       kind: "newer",
       version: "0.0.80",
@@ -344,32 +319,39 @@ describe("a host's portable copy", () => {
     expect(hostInstall({ kind: "done" })).toEqual(unknown)
   })
 
-  it("installs and opens the installed copy through the host", async () => {
-    let opened = 0
+  it("installs through the host and passes on the progress it can read", async () => {
+    let tell: (progress: unknown) => void = () => {}
     const bridge = {
-      portable: () => Promise.resolve({ portable: true, version: "0.0.70", run: "0a1b-2c3d" }),
+      portable: () =>
+        Promise.resolve({ portable: true, version: "0.0.70", run: "0a1b-2c3d", installed: false }),
       installApp: () => Promise.resolve({ kind: "newer", version: "0.0.80" }),
-      openInstalled: () => void (opened += 1),
+      onInstallProgress: (listener: (progress: unknown) => void) => {
+        tell = listener
+        return () => {}
+      },
     } as unknown as DesktopHost
     const portable = desktopPortable(bridge)!
     expect(await portable.state()).toEqual({
       portable: true,
       version: "0.0.70",
       run: "0a1b-2c3d",
+      installed: false,
     })
-    expect(await portable.install()).toEqual({
-      kind: "newer",
-      version: "0.0.80",
-    })
-    portable.openInstalled()
-    expect(opened).toBe(1)
+    expect(await portable.install()).toEqual({ kind: "newer", version: "0.0.80" })
+    const heard: unknown[] = []
+    portable.onProgress!((progress) => heard.push(progress))
+    tell({ phase: "downloading", percent: 40 })
+    tell({ phase: "downloading", percent: 140 })
+    tell({ phase: "installing" })
+    tell({ phase: "done" })
+    expect(heard).toEqual([{ phase: "downloading", percent: 40 }, { phase: "installing" }])
   })
 
   it("fails an install the host throws on", async () => {
     const bridge = {
-      portable: () => Promise.resolve({ portable: true, version: "0.0.70", run: "0a1b-2c3d" }),
+      portable: () =>
+        Promise.resolve({ portable: true, version: "0.0.70", run: "0a1b-2c3d", installed: false }),
       installApp: () => Promise.reject(new Error("gone")),
-      openInstalled: () => {},
     } as unknown as DesktopHost
     expect((await desktopPortable(bridge)!.install()).kind).toBe("failed")
   })
@@ -377,34 +359,6 @@ describe("a host's portable copy", () => {
   it("is absent in a browser, or a host that came before it", () => {
     expect(desktopPortable(undefined)).toBeUndefined()
     expect(desktopPortable({} as DesktopHost)).toBeUndefined()
-  })
-})
-
-// The outdated-since date of the offer a host reports with this `outdatedSince`, as the page hears it.
-const heardDate = (outdatedSince: unknown) => {
-  let offer: { outdatedSince?: string } | undefined
-  desktopUpdates({
-    onUpdate: (listener: (offer: unknown) => void) => {
-      listener({
-        kind: "available",
-        version: "0.0.80",
-        notes: [],
-        outdatedSince,
-      })
-      return () => {}
-    },
-    installUpdate: () => {},
-    openUpdatePage: () => {},
-  } as unknown as DesktopHost)!.onOffer((each) => (offer = each))
-  return offer?.outdatedSince
-}
-
-describe("an offer's outdated-since date", () => {
-  it("is kept when it reads as a date, and dropped otherwise", () => {
-    expect(heardDate("2026-10-01T10:00:00Z")).toBe("2026-10-01T10:00:00Z")
-    expect(heardDate("last week")).toBeUndefined()
-    expect(heardDate(7)).toBeUndefined()
-    expect(heardDate("2026-10-01T10:00:00Z".padEnd(80, " "))).toBeUndefined()
   })
 })
 

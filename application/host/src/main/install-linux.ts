@@ -116,6 +116,24 @@ export const newerCopy = (
 }
 
 /**
+ * The installed copy that is the same version as `running` or newer, the newest if several
+ * are, preferring the earliest listed among equals. A copy whose version is not known does
+ * not count.
+ */
+export const currentOrNewerCopy = (
+  copies: readonly InstalledCopy[],
+  running: string,
+): (InstalledCopy & { readonly version: string }) | undefined => {
+  const newer = newerCopy(copies, running)
+  if (newer) return newer
+  for (const copy of copies) {
+    const { version } = copy
+    if (version !== undefined && version.trim() === running.trim()) return { ...copy, version }
+  }
+  return undefined
+}
+
+/**
  * The version an AppImage's menu entry names, `X-AppImage-Version`, which electron-builder
  * writes from the package version, or undefined when it names none a release has.
  */

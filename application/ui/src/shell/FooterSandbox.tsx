@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react"
 
-import { useOverlayOpen } from "./FooterUpdate"
-import { KeepFocus, useRecoverFocus } from "./notice-focus"
+import { KeepFocus, useOverlayOpen, useRecoverFocus } from "./notice-focus"
 
 const copiedMs = 1500
 

@@ -1,371 +1,121 @@
-import { afterEach, describe as context, describe, expect, it } from "vitest"
-import { cleanup } from "vitest-browser-react"
+import { describe as context, describe, expect, it } from "vitest"
 import { page, type Locator } from "vitest/browser"
 
-import { boxOf, doubleClickHeader, fillsView, sameBox } from "./support/canvas"
-import { findDialog, pressShortcut, preferencesDialog, recentSwitcher } from "./support/keyboard"
+import { preferencesDialog } from "./support/keyboard"
 import {
   commandInput,
-  enterNavigateMode,
   expectStaysAbsent,
   expectTypingIn,
-  chooseView,
-  focusStage,
-  navigateChip,
   openWorkspace,
   press,
-  terminal,
   terminalTab,
 } from "./support/workspace"
 
-// The version whose notice came up last, as the app keeps it between launches.
-const seenKey = "novadeck.update-seen"
-
-const chip = (name: RegExp = /^Update (ready|available):/): Locator =>
-  page.getByRole("button", { name })
-const popover = (title: string): Locator => page.getByRole("region", { name: title })
-const ready = () => popover("Novadeck 0.0.80 is ready")
-const available = () => popover("Novadeck 0.0.80 is available")
-const restart = () => ready().getByRole("button", { name: "Restart now" })
+// The floating bar is aria-hidden, so it is found by its words, not its role.
+const title = (text: string): Locator => page.getByText(text, { exact: true })
+const updating = () => title("Updating Novadeck")
+const finished = () => title("Update ready")
+const bar = (): Element | null => document.querySelector(".update-progress")
+const percent = () => page.getByText(/^\d+%$/)
+const announcer = () => page.getByRole("status").filter({ hasText: /Novadeck update/ })
+// A demo download takes 3 seconds to finish, then the bar stays 4 more before it fades.
+const slow = { timeout: 10_000 }
 const typing = () => commandInput("Dev server")
-const pill = () => page.getByRole("group", { name: "Subscriptions" }).getByRole("button").first()
-const checkout = () => boxOf(terminal("Checkout implementation"))
-const later = (dialog: Locator) => dialog.getByRole("button", { name: "Later" })
 
-describe("the update notice", () => {
-  afterEach(() => page.viewport(1440, 900))
+const availableChip = (): Locator =>
+  page.getByRole("button", { name: "Update available: Novadeck 0.0.80" })
 
+describe("the update progress bar", () => {
   it("is absent where the host does not update", async () => {
     await openWorkspace()
-    await expectStaysAbsent(chip())
-    expect(chip().query()).toBeNull()
-  })
-
-  context("for a downloaded update", () => {
-    it("comes up over the footer's chip with the notes and its actions", async () => {
-      await openWorkspace("/?demo=update")
-      await expect.element(ready()).toBeVisible()
-      await expect
-        .element(ready().getByText("Terminals keep their place when you switch projects."))
-        .toBeVisible()
-      await expect.element(ready().getByRole("button", { name: "Release notes" })).toBeVisible()
-      await expect.element(restart()).toBeVisible()
-      await expect.element(later(ready())).toBeVisible()
-      await expect
-        .element(page.getByRole("status").filter({ hasText: "Update ready" }))
-        .toBeInTheDocument()
-      await expect.element(chip(/^Update ready: Novadeck 0.0.80$/)).toBeVisible()
-    })
-
-    it("shows Restarting in the footer once Restart now is pressed, and does nothing more", async () => {
-      await openWorkspace("/?demo=update")
-      await restart().click()
-      await expect.element(ready()).not.toBeInTheDocument()
-      const restarting = chip(/^Restarting…$/)
-      await expect.element(restarting).toBeDisabled()
-      await expect.element(restarting).toHaveTextContent("Restarting…")
-    })
-
-    it("keeps the chip after Later and opens the popover again from it", async () => {
-      await openWorkspace("/?demo=update")
-      await later(ready()).click()
-      await expect.element(ready()).not.toBeInTheDocument()
-      await expect.element(chip()).toBeVisible()
-      await chip().click()
-      await expect.element(ready()).toBeVisible()
-    })
-
-    it("closes on Escape from inside it", async () => {
-      await openWorkspace("/?demo=update")
-      ready().getByRole("button", { name: "Later" }).element().focus()
-      await press("{Escape}")
-      await expect.element(ready()).not.toBeInTheDocument()
-    })
-
-    it("keeps the narrow bar's chip as Update alone", async () => {
-      await page.viewport(600, 800)
-      await openWorkspace("/?demo=update")
-      await later(ready()).click()
-      await expect.element(chip().getByText("Update", { exact: true })).toBeVisible()
-      await expect.element(chip().getByText("Update ready", { exact: true })).not.toBeVisible()
-    })
+    await expectStaysAbsent(updating())
+    expect(bar()).toBeNull()
   })
 
   context("for an update being downloaded", () => {
-    const downloading = () => popover("Novadeck 0.0.80 is downloading")
-
-    it("counts on the chip without raising the notice, then raises the ready one", async () => {
+    it("shows the percent with nothing to press, and no chip in the footer", async () => {
       await openWorkspace("/?demo=update-downloading")
-      await expect.element(chip(/^Downloading update: Novadeck 0.0.80$/)).toBeVisible()
-      await expect.element(downloading()).not.toBeInTheDocument()
-      await expect.element(ready(), { timeout: 10_000 }).toBeVisible()
-      await expect.element(restart()).toBeVisible()
+      await expect.element(updating()).toBeVisible()
+      await expect.element(title("Downloading 0.0.80")).toBeVisible()
+      await expect.element(percent()).toBeVisible()
+      expect(bar()?.querySelector("button, a, input")).toBeNull()
+      expect(bar()?.getAttribute("aria-hidden")).toBe("true")
+      expect(page.getByRole("button", { name: /update/i }).query()).toBeNull()
+      await expect.element(announcer()).toHaveTextContent("Downloading Novadeck update")
     })
 
-    it("opens from the chip with Later alone to press", async () => {
+    it("says the update is ready when the download ends, then goes away", async () => {
       await openWorkspace("/?demo=update-downloading")
-      await chip(/^Downloading update/).click()
-      await expect.element(downloading()).toBeVisible()
-      await expect.element(downloading().getByRole("progressbar")).toBeVisible()
-      await expect.element(later(downloading())).toBeVisible()
+      await expect.element(finished(), slow).toBeVisible()
+      await expect.element(title("100%")).toBeVisible()
+      await expect.element(title("0.0.80 installs on the next restart")).toBeVisible()
       await expect
-        .element(downloading().getByRole("button", { name: "Restart now" }))
-        .not.toBeInTheDocument()
+        .element(announcer())
+        .toHaveTextContent("Novadeck update downloaded, installs on the next restart")
+      await expect.element(finished(), slow).not.toBeInTheDocument()
+      expect(bar()).toBeNull()
+    })
+
+    it("never takes the keyboard's focus, so typing still reaches the terminal", async () => {
+      await openWorkspace("/?demo=update-downloading")
+      await expect.element(updating()).toBeVisible()
+      await terminalTab("Dev server").click()
+      await expect.element(typing()).toHaveFocus()
+      expect(bar()?.contains(document.activeElement) ?? false).toBe(false)
+      await press("echo hi")
+      await expect.element(typing()).toHaveValue("echo hi")
+      await expectTypingIn("Dev server")
+    })
+
+    it("lets clicks through to what is under it", async () => {
+      await openWorkspace("/?demo=update-downloading")
+      await expect.element(updating()).toBeVisible()
+      expect(getComputedStyle(bar()!).pointerEvents).toBe("none")
+    })
+
+    it("waits for Zen mode to end with the footer", async () => {
+      await openWorkspace("/?demo=update-downloading")
+      await expect.element(updating()).toBeVisible()
+      await page.getByRole("button", { name: "Enter Zen mode" }).click()
+      await expect.element(updating()).not.toBeInTheDocument()
+      expect(bar()).toBeNull()
     })
   })
 
   context("for an update the host can't install itself", () => {
-    it("offers Download rather than Restart, and the chip says available", async () => {
+    it("shows a quiet chip instead, with no bar, panel or dialog", async () => {
       await openWorkspace("/?demo=update-available")
-      await expect.element(available()).toBeVisible()
-      await expect.element(available().getByRole("button", { name: "Download" })).toBeVisible()
-      await expect
-        .element(available().getByRole("button", { name: "Restart now" }))
-        .not.toBeInTheDocument()
-      await expect.element(later(available())).toBeVisible()
-      await later(available()).click()
-      await expect.element(chip(/^Update available: Novadeck 0.0.80$/)).toBeVisible()
+      await expect.element(availableChip()).toBeVisible()
+      expect(availableChip().element().hasAttribute("aria-expanded")).toBe(false)
+      expect(bar()).toBeNull()
+      expect(page.getByRole("region", { name: /Novadeck 0\.0\.80/ }).query()).toBeNull()
     })
 
-    it("closes after Download", async () => {
+    it("opens the release page on a press, and stays", async () => {
       await openWorkspace("/?demo=update-available")
-      await available().getByRole("button", { name: "Download" }).click()
-      await expect.element(available()).not.toBeInTheDocument()
-    })
-  })
-
-  context("once per version", () => {
-    it("does not come up again on a relaunch of the version it came up for", async () => {
-      await openWorkspace("/?demo=update")
-      await expect.element(ready()).toBeVisible()
-      // The next launch: the same version is offered again.
-      await cleanup()
-      await openWorkspace("/?demo=update")
-      await expect.element(chip()).toBeVisible()
-      await expectStaysAbsent(ready())
-    })
-
-    it("comes up for a version newer than the last it showed", async () => {
-      localStorage.setItem(seenKey, "ready:0.0.79")
-      await openWorkspace("/?demo=update")
-      await expect.element(ready()).toBeVisible()
-      // Kept once the store has saved it, a moment after the notice shows.
-      await expect.poll(() => localStorage.getItem(seenKey)).toBe("ready:0.0.80")
-    })
-
-    it("comes up again when the version shown before is now one to download", async () => {
-      localStorage.setItem(seenKey, "ready:0.0.80")
-      await openWorkspace("/?demo=update-available")
-      await expect.element(available()).toBeVisible()
-    })
-
-    it("does not come up for a version that was shown before", async () => {
-      localStorage.setItem(seenKey, "ready:0.0.80")
-      await openWorkspace("/?demo=update")
-      await expect.element(chip()).toBeVisible()
-      await expectStaysAbsent(ready())
-    })
-  })
-
-  context("while the footer is hidden", () => {
-    it("waits for Zen mode to end, and is still there for the person to answer", async () => {
-      await openWorkspace("/?demo=update")
-      await expect.element(ready()).toBeVisible()
-      await page.getByRole("button", { name: "Enter Zen mode" }).click()
-      await expect.element(ready()).not.toBeInTheDocument()
-      const dock = page.getByRole("group", { name: "Zen controls" })
-      await dock.getByRole("button", { name: "Show Zen controls" }).click()
-      await dock.getByRole("button", { name: "Exit Zen" }).click()
-      await expect.element(ready()).toBeVisible()
-    })
-  })
-
-  context("while the notice is up and the person works", () => {
-    const noticeUp = async (): Promise<void> => {
-      await openWorkspace("/?demo=update")
-      await expect.element(ready()).toBeVisible()
-      await terminalTab("Dev server").click()
-      await expect.element(typing()).toHaveFocus()
-    }
-
-    it("never takes the keyboard's focus when it comes up", async () => {
-      await openWorkspace("/?demo=update")
-      await expect.element(ready()).toBeVisible()
-      expect(ready().element().contains(document.activeElement)).toBe(false)
-    })
-
-    it("is no dialog, so Preferences and the like see no overlay", async () => {
-      await openWorkspace("/?demo=update")
-      await expect.element(ready()).toBeVisible()
+      await availableChip().click()
+      await expect.element(availableChip()).toBeVisible()
       expect(page.getByRole("dialog").query()).toBeNull()
+      expect(page.getByRole("region", { name: /Novadeck 0\.0\.80/ }).query()).toBeNull()
     })
 
-    it("lets typed keys reach the terminal, and stays up", async () => {
-      await noticeUp()
-      await press("echo hi")
-      await expect.element(typing()).toHaveValue("echo hi")
-      await expect.element(ready()).toBeVisible()
+    it("shortens to Update on a narrow bar", async () => {
+      await page.viewport(600, 800)
+      try {
+        await openWorkspace("/?demo=update-available")
+        await expect.element(availableChip().getByText("Update", { exact: true })).toBeVisible()
+      } finally {
+        await page.viewport(1440, 900)
+      }
     })
+  })
 
-    it("lets Escape close the terminal switcher", async () => {
-      await noticeUp()
-      await press("{Control>}{Tab}")
-      await expect.element(recentSwitcher()).toBeVisible()
-      await press("{Escape}")
-      await expect.element(recentSwitcher()).not.toBeInTheDocument()
-      await expect.element(ready()).toBeVisible()
-    })
-
-    it("lets Escape, Enter or typing end navigating", async () => {
-      await noticeUp()
-      await enterNavigateMode()
-      await press("{Escape}")
-      await expectTypingIn("Dev server")
-      await enterNavigateMode()
-      await press("{Enter}")
-      await expectTypingIn("Dev server")
-      await enterNavigateMode()
-      await press("a")
-      await expectTypingIn("Dev server")
-      await expect.element(ready()).toBeVisible()
-    })
-
-    it("hands focus back to the terminal when the footer is clicked", async () => {
-      await noticeUp()
-      await focusStage()
-      await page
-        .getByText(/running$/)
-        .last()
-        .click()
-      await expect.element(typing()).toHaveFocus()
-    })
-
-    it("hands focus back to the terminal when its text is clicked while the view has focus", async () => {
-      await noticeUp()
-      await focusStage()
-      await ready().getByText("Terminals keep their place when you switch projects.").click()
-      await expect.element(typing()).toHaveFocus()
-      await expect.element(ready()).toBeVisible()
-    })
-
-    it("leaves focus in the terminal when its buttons are clicked with the mouse", async () => {
-      await noticeUp()
-      await later(ready()).click()
-      await expect.element(ready()).not.toBeInTheDocument()
-      await expect.element(typing()).toHaveFocus()
-    })
-
-    it("returns focus to the terminal after Later pressed from the keyboard", async () => {
-      await noticeUp()
-      later(ready()).element().focus()
-      await press("{Enter}")
-      await expect.element(ready()).not.toBeInTheDocument()
-      await expect.element(typing()).toHaveFocus()
-    })
-
-    it("keeps focus in the terminal when its text or padding is clicked", async () => {
-      await noticeUp()
-      await ready().getByText("Novadeck 0.0.80 is ready").click()
-      await expect.element(typing()).toHaveFocus()
-    })
-
-    it("takes focus on the panel itself when the chip opens it, not on a button", async () => {
-      await noticeUp()
-      await later(ready()).click()
-      await chip().click()
-      await expect.element(ready()).toHaveFocus()
-    })
-
-    it("lets Shift+Escape from inside it start navigating, and plain Escape close it", async () => {
-      await noticeUp()
-      await later(ready()).click()
-      await chip().click()
-      await expect.element(ready()).toHaveFocus()
-      await press("{Shift>}{Escape}{/Shift}")
-      await expect.element(navigateChip()).toBeVisible()
-      await expect.element(ready()).toBeVisible()
-    })
-
-    it("closes on Escape in Canvas without moving the camera back to its origin", async () => {
+  context("for an update that is not one to watch download", () => {
+    it("shows nothing for one ready at launch", async () => {
       await openWorkspace("/?demo=update")
-      await chooseView("Canvas")
-      await later(ready()).click()
-      await doubleClickHeader("Checkout implementation")
-      await expect.poll(() => fillsView(checkout())).toBe(true)
-      const zoomed = checkout()
-      await chip().click()
-      await expect.element(ready()).toHaveFocus()
-      await press("{Escape}")
-      await expect.element(ready()).not.toBeInTheDocument()
-      await new Promise((done) => setTimeout(done, 600))
-      expect(sameBox(checkout(), zoomed)).toBe(true)
-    })
-
-    it("returns focus to the chip after a dialog opened from inside it closes", async () => {
-      await noticeUp()
-      await later(ready()).click()
-      await chip().click()
-      await expect.element(ready()).toHaveFocus()
-      await pressShortcut("find")
-      await expect.element(findDialog()).toBeVisible()
-      await expectStaysAbsent(ready())
-      await press("{Escape}")
-      await expect.element(findDialog()).not.toBeInTheDocument()
-      await expect.element(chip()).toHaveFocus()
-    })
-
-    it("moves focus in when the chip opens it, and Escape returns it to the chip", async () => {
-      await noticeUp()
-      await later(ready()).click()
-      await chip().click()
-      await expect.element(ready()).toBeVisible()
-      await expect.poll(() => ready().element().contains(document.activeElement)).toBe(true)
-      await press("{Escape}")
-      await expect.element(ready()).not.toBeInTheDocument()
-      await expect.element(chip()).toHaveFocus()
-      await expect.element(chip()).toHaveAttribute("aria-expanded", "false")
-    })
-  })
-
-  context("while a subscription's detail or a menu is open", () => {
-    const open = async (): Promise<void> => {
-      await openWorkspace("/?demo=agents&update=ready")
-      const skip = page.getByRole("button", { name: "Skip for now" })
-      if (await skip.query()) await skip.click()
-      await expect.element(ready()).toBeVisible()
-    }
-
-    it("waits behind the subscription's detail, and returns when it closes", async () => {
-      await open()
-      await pill().click()
-      await expect
-        .element(page.getByRole("dialog", { name: "Claude Code subscription" }))
-        .toBeVisible()
-      await expect.element(ready()).not.toBeInTheDocument()
-      await press("{Escape}")
-      await expect.element(ready()).toBeVisible()
-    })
-
-    it("waits behind a menu, and returns when it closes", async () => {
-      await open()
-      await pill().click({ button: "right" })
-      await expect.element(page.getByRole("menuitem", { name: "Move right" })).toBeVisible()
-      await expect.element(ready()).not.toBeInTheDocument()
-      await press("{Escape}")
-      await expect.element(ready()).toBeVisible()
-    })
-  })
-
-  context("while a dialog is open", () => {
-    it("waits for it to close, and counts as shown only then", async () => {
-      await openWorkspace("/?demo=update&dialog=preferences")
-      await expect.element(preferencesDialog()).toBeVisible()
-      await expectStaysAbsent(ready())
-      expect(localStorage.getItem(seenKey)).toBeNull()
-      await preferencesDialog().getByRole("button", { name: "Close preferences" }).click()
-      await expect.element(preferencesDialog()).not.toBeInTheDocument()
-      await expect.element(ready()).toBeVisible()
-      await expect.poll(() => localStorage.getItem(seenKey)).toBe("ready:0.0.80")
+      await expectStaysAbsent(finished())
+      expect(bar()).toBeNull()
+      expect(page.getByRole("button", { name: /update/i }).query()).toBeNull()
     })
   })
 })

@@ -6,7 +6,7 @@ import type { AgentName } from "../model/harnesses"
 import type { Inbox } from "../model/inbox"
 import type { Messages } from "../model/messages"
 import type { Murmur } from "../model/murmur"
-import type { InstallResult, PortableState } from "../model/portable"
+import type { InstallProgress, InstallResult, PortableState } from "../model/portable"
 import type { SandboxState } from "../model/sandbox"
 import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
@@ -215,14 +215,13 @@ export type Backend = {
   }
   // Optional. The desktop app's self-updates: `onOffer` hears each update the app learns
   // of, at once when one already waits and again for each newer one, and returns the
-  // stop. A `ready` offer is downloaded: `install` restarts the app into it once the
-  // pages have saved. An `available` one the app can't install itself, so the person
-  // gets it from its release page, which `openPage` opens. `channel`, where the app
+  // stop. A `ready` offer is downloaded and installs when the app next quits. An
+  // `available` one the app can't install itself, so the person gets it from its release
+  // page, which `openPage` opens. `channel`, where the app
   // lets the person choose, reads which releases it follows and switches them. Absent
   // where the app does not update itself, as in a browser.
   readonly updates?: {
     readonly onOffer: (listener: (offer: UpdateOffer) => void) => () => void
-    readonly install: () => void
     readonly openPage: () => void
     readonly channel?: {
       readonly get: () => Promise<UpdateChannel>
@@ -238,13 +237,17 @@ export type Backend = {
   readonly sandbox?: () => Promise<SandboxState>
   // Optional. Whether the desktop app is a portable copy, asked once at startup. A portable
   // never updates itself; `install` puts the app that does in place, keeping the workspace,
-  // and on `installing` the app is about to restart into it. On `newer`, an installed copy
-  // newer than this one was left alone and `openInstalled` restarts into it. Absent in a
-  // browser and in a host that has no portable copy.
+  // and on `installed` it is in place and takes effect when the person next opens Novadeck;
+  // so does a newer one found already installed (`newer`). Nothing restarts by itself.
+  // `onState`, where the host pushes it, hears the portable state change, as when this run
+  // installed the app from another window or before this page was reloaded.
+  // `onProgress`, where the host reports it, hears how far an install under way has got.
+  // Absent in a browser and in a host that has no portable copy.
   readonly portable?: {
     readonly state: () => Promise<PortableState>
     readonly install: () => Promise<InstallResult>
-    readonly openInstalled: () => void
+    readonly onState?: (listener: (state: PortableState) => void) => () => void
+    readonly onProgress?: (listener: (progress: InstallProgress) => void) => () => void
   }
   // Optional. Removing the desktop app from this computer. `plan` says what that would do
   // here, asked each time Preferences opens; `run` removes the app, after the page has

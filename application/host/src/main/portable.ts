@@ -1,29 +1,27 @@
-import type { InstallResult, PortableState } from "@novadeck/protocol/bridge"
+import type { InstallProgress, InstallResult, PortableState } from "@novadeck/protocol/bridge"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
-import { installAppChannel, openInstalledChannel, portableChannel } from "../bridge.js"
-import { newerCopy, type InstalledCopy, type InstallOutcome } from "./install-linux.js"
+import {
+  installAppChannel,
+  installProgressChannel,
+  portableChannel,
+  portableStateChannel,
+} from "../bridge.js"
+import { isNewerVersion } from "./applications-folder.js"
+import {
+  currentOrNewerCopy,
+  newerCopy,
+  type InstalledCopy,
+  type InstallOutcome,
+} from "./install-linux.js"
 
 /**
  * How an install went, as the platform reports it: the copy now installed, a newer
- * installed copy found and left alone (`image`, of `version`), why nothing was installed,
- * or `leaving`, when the platform itself is already ending this app to start the installed
- * copy, as macOS does after moving the app to Applications, or `staged`, when the install
- * must run after this app has shut down, as the Windows setup does: it is downloaded and
- * checked, `start` runs it in place of this copy and ends this process (false if it could
- * not), and `alert` tells the person it did not run.
+ * installed copy found and left alone (`version`), or why nothing was installed.
  */
-export type PortableInstall =
-  | InstallOutcome
-  | { readonly kind: "newer"; readonly image: string; readonly version: string }
-  | { readonly kind: "leaving" }
-  | {
-      readonly kind: "staged"
-      readonly start: () => Promise<boolean>
-      readonly alert: () => Promise<void>
-    }
+export type PortableInstall = InstallOutcome | { readonly kind: "newer"; readonly version: string }
 
-/** What installing from a portable copy, and leaving for the installed one, ask of the app. */
+/** What installing from a portable copy asks of the app. */
 export type PortableHost = {
   /** Whether this copy is portable; see `portableOf`. */
   readonly portable: boolean
@@ -37,31 +35,22 @@ export type PortableHost = {
   readonly find: () => Promise<readonly InstalledCopy[]>
   /**
    * Installs this copy over `target`, an installed copy, or where the platform installs
-   * when `target` is undefined.
+   * when `target` is undefined, telling `progress` how it goes. Starts nothing: this copy
+   * keeps running.
    */
-  readonly install: (target: string | undefined) => Promise<PortableInstall>
-  /** The shutdown quitting runs: pages save, the runner ends its shells. */
-  readonly shutdown: () => Promise<void>
-  /**
-   * Starts the installed copy `image` in place of this one and ends this process; false if
-   * it could not start.
-   */
-  readonly start: (image: string) => Promise<boolean>
-  /** Tells the person that the installed copy at `image` would not start. */
-  readonly alert: (image: string) => Promise<void>
-  /** Whether the app is already on its way out, as a quit or a restart into an update is. */
+  readonly install: (
+    target: string | undefined,
+    progress: (progress: InstallProgress) => void,
+  ) => Promise<PortableInstall>
+  /** Whether the app is already on its way out, as a quit is. */
   readonly stopping: () => boolean
-  /** How long after the installed copy started this one waits to be gone before it quits. */
-  readonly fallbackMs: number
-  readonly quit: () => void
   readonly log: (message: string, error: unknown) => void
 }
 
 /** The page's view of a portable copy: what it is and what installing does. */
 export type PortableInstaller = {
   readonly state: () => PortableState
-  readonly install: () => Promise<InstallResult>
-  readonly openInstalled: () => void
+  readonly install: (progress: (progress: InstallProgress) => void) => Promise<InstallResult>
 }
 
 const quitting: InstallResult = {
@@ -70,63 +59,32 @@ const quitting: InstallResult = {
 }
 
 /**
- * Installs the app from a portable copy and leaves for it. `install` first looks at the
- * installed copies: one newer than this copy is left alone, since this copy would
- * replace it with an older app that could not open the data the newer one may have
- * upgraded, and the answer is `newer`, which `openInstalled` then acts on. Otherwise the
- * app is installed from this very copy, over the installed copy there is, else where the
- * platform installs, and the answer is `installing`: this copy
- * then shuts down as quitting does and starts the installed one. On macOS the install is
- * Electron's move to Applications, which quits this app and starts the moved one itself,
- * through the quit that shuts down; the answer is then `installing` at once, and a quit
- * follows after `fallbackMs` should the app somehow still run. Should the installed copy not start,
- * the person is told, and the app quits, as the shells are gone by then; it also quits
- * should it somehow still be running `fallbackMs` after the installed copy started. An
- * installed copy that could not be looked at is not replaced, nor is anything installed
- * while the app is quitting; either answers `failed`. A failed install says why and
- * changes nothing. A second request while one is under way gets that one's answer, which may
- * be `newer` or `failed`, and does nothing more; once the copy began leaving, it answers
- * `installing`. A copy that is not portable installs
- * nothing. On Windows the install is a setup downloaded and checked while the app runs,
- * a failure of which changes nothing; the setup is then run after the same shutdown,
- * and the answer is `installing`.
+ * Installs the app from a portable copy while it keeps running; nothing is restarted,
+ * quit or started. `install` first looks at the installed copies: one newer than this
+ * copy is left alone, since this copy would replace it with an older app that could not
+ * open the data the newer one may have upgraded, and the answer is `newer`. An installed
+ * copy that could not be looked at is not replaced either; that answers `failed`, as does
+ * an install while the app is quitting. Otherwise the app is installed from this very
+ * copy, over the installed copy there is, else where the platform installs, and the
+ * answer is `installed`; the installed copy takes effect when the person next opens
+ * Novadeck. A failed install says why and changes nothing. A second request while one is
+ * under way gets that one's answer, and after a success the same answer without
+ * installing again. A copy that is not portable installs nothing.
  */
 export const portableInstaller = (host: PortableHost): PortableInstaller => {
   let under: Promise<InstallResult> | undefined
-  let leaving = false
-  let newer: string | undefined
+  let done: InstallResult | undefined
+  // Whether this run installed, or found a newer installed copy: either way there is
+  // nothing more for the page to offer.
+  let settled = false
 
-  const leave = (start: () => Promise<boolean>, alert: () => Promise<void>): void => {
-    if (leaving) return
-    leaving = true
-    void host
-      .shutdown()
-      .catch((error: unknown) => host.log("Shutting down failed.", error))
-      .then(start)
-      .then((started) => {
-        if (started) return void setTimeout(host.quit, host.fallbackMs)
-        return alert().then(host.quit)
-      })
-      .catch(host.quit)
-  }
-  const leaveFor = (image: string): void =>
-    leave(
-      () => host.start(image),
-      () => host.alert(image),
-    )
-
-  const run = async (): Promise<InstallResult> => {
+  const run = async (progress: (progress: InstallProgress) => void): Promise<InstallResult> => {
     const copies = await host.find()
     const copy = newerCopy(copies, host.version)
-    if (copy) {
-      newer = copy.image
-      return { kind: "newer", version: copy.version }
-    }
-    newer = undefined
+    if (copy) return { kind: "newer", version: copy.version }
     // On Linux an installed copy is replaced where it is, the installer's own before
-    // Homebrew's, so no second copy appears; `find` lists them in that order. (On macOS
-    // Electron decides where the copy goes; see `renamedMoveReason`.) One that could not be
-    // looked at may be a newer app, so it is left as it is.
+    // Homebrew's, so no second copy appears; `find` lists them in that order. One that
+    // could not be looked at may be a newer app, so it is left as it is.
     const [replaced] = copies
     if (replaced?.unchecked) {
       host.log("The installed copy could not be checked.", replaced.image)
@@ -138,60 +96,48 @@ export const portableInstaller = (host: PortableHost): PortableInstaller => {
       }
     }
     if (host.stopping()) return quitting
-    const outcome = await host.install(replaced?.image)
+    const outcome = await host.install(replaced?.image, progress)
     if (outcome.kind === "failed") return outcome
-    if (outcome.kind === "newer") {
-      newer = outcome.image
-      return { kind: "newer", version: outcome.version }
-    }
-    if (outcome.kind === "leaving") {
-      leaving = true
-      setTimeout(host.quit, host.fallbackMs)
-      return { kind: "installing" }
-    }
-    // The copy took a while: should the person have quit meanwhile, stay quit.
-    if (host.stopping()) return quitting
-    if (outcome.kind === "staged") leave(outcome.start, outcome.alert)
-    else leaveFor(outcome.image)
-    return { kind: "installing" }
+    if (outcome.kind === "newer") return outcome
+    return { kind: "installed" }
   }
 
   return {
     state: () =>
       host.portable
-        ? { portable: true, version: host.version, run: host.run }
+        ? { portable: true, version: host.version, run: host.run, installed: settled }
         : { portable: false },
-    install: () => {
+    install: (progress) => {
       if (!host.portable)
         return Promise.resolve({
           kind: "failed",
           reason: "This copy of Novadeck is installed.",
         })
-      if (leaving) return Promise.resolve({ kind: "installing" })
+      if (done !== undefined) return Promise.resolve(done)
       if (host.stopping()) return Promise.resolve(quitting)
-      under ??= run()
+      under ??= run(progress)
         .catch((error: unknown): InstallResult => {
           host.log("Installing failed.", error)
           return { kind: "failed", reason: "Something went wrong." }
+        })
+        .then((result) => {
+          if (result.kind === "installed") done = result
+          if (result.kind !== "failed") settled = true
+          return result
         })
         .finally(() => {
           under = undefined
         })
       return under
     },
-    openInstalled: () => {
-      if (newer !== undefined && !host.stopping()) leaveFor(newer)
-    },
   }
 }
 
-/** What a launch of a portable copy does about an installed copy that is newer. */
-export type NewerInstalledCheck = {
+/** What a launch of a portable copy does about an installed copy of the same version or newer. */
+export type InstalledCopyCheck = {
   readonly portable: boolean
   readonly version: string
   readonly find: () => Promise<readonly InstalledCopy[]>
-  /** Tells the person of the newer `version`; true if they want it opened, false to quit. */
-  readonly ask: (version: string) => Promise<boolean>
   /**
    * Starts the installed copy `image` in place of this one and ends this process; false if
    * it could not start.
@@ -199,56 +145,126 @@ export type NewerInstalledCheck = {
   readonly start: (image: string) => Promise<boolean>
   /** Tells the person that the installed copy at `image` would not start. */
   readonly alert: (image: string) => Promise<void>
+  /** Whether this copy redirected a launch to an installed copy of the same version just now. */
+  readonly recentRedirect: () => boolean
+  /** Notes that this copy is redirecting a launch to an installed copy of the same version. */
+  readonly markRedirect: () => void
   readonly quit: () => void
   readonly log: (message: string, error: unknown) => void
 }
 
 /**
- * Before a portable copy starts anything, checks whether an installed copy is newer.
- * Then this copy must not run: the newer one may have upgraded the database, which an
- * older runner refuses to open, so the person is told and may open the installed copy,
- * or quit. Returns whether the launch is over, which it is when a newer copy exists,
- * whichever the person chooses, and not when none is found or the copies cannot be
- * listed; then the launch goes on. A copy that could not be looked at counts as none:
- * the runner refuses a workspace that is too new, which is the fallback.
+ * Before a portable copy starts anything, checks for an installed copy of the same
+ * version or a newer one, and if there is one starts it in place of this launch, without
+ * asking: the person opened Novadeck, and the installed copy is the one they keep. A
+ * newer copy must also not be shadowed by this one: it may have upgraded the database,
+ * which an older runner refuses to open. So if a newer copy will not start, the person is
+ * told and this copy quits; if one of the same version will not start, this copy carries
+ * on, as it can open the same workspace. Returns whether the launch is over, which it is
+ * when the installed copy started, or this copy quit, and not when none is found, only
+ * an older or unchecked copy exists, or the copies cannot be listed; then the launch goes
+ * on. A copy that could not be looked at counts as none: the runner refuses a workspace
+ * that is too new, which is the fallback.
  */
-export const leaveForNewerInstalled = async (check: NewerInstalledCheck): Promise<boolean> => {
+export const leaveForNewerInstalled = async (check: InstalledCopyCheck): Promise<boolean> => {
   if (!check.portable) return false
-  let copy: ReturnType<typeof newerCopy>
+  let copy: ReturnType<typeof currentOrNewerCopy>
   try {
-    copy = newerCopy(await check.find(), check.version)
+    copy = currentOrNewerCopy(await check.find(), check.version)
   } catch (error) {
     check.log("The installed copies could not be looked at.", error)
     return false
   }
   if (!copy) return false
-  if (await check.ask(copy.version)) {
-    if (await check.start(copy.image)) return true
-    await check.alert(copy.image)
+  const same = !isNewerVersion(copy.version, check.version)
+  // An installed copy of the same version that the system starts and ends at once (a
+  // quarantined or damaged bundle) would make every launch open nothing; so a launch soon
+  // after a redirect stays here. A newer copy is never skipped: this one may not open its data.
+  if (same && check.recentRedirect()) {
+    check.log("Redirected to the installed copy just now; carrying on in this one.", copy.image)
+    return false
   }
+  if (same) check.markRedirect()
+  if (await check.start(copy.image)) return true
+  if (same) {
+    check.log("The installed copy did not start; carrying on in this one.", copy.image)
+    return false
+  }
+  await check.alert(copy.image)
   check.quit()
   return true
 }
+
+/** The files a redirect marker uses. */
+export type MarkerFiles = {
+  /** When the file was last written, in ms since the epoch; throws where there is none. */
+  readonly modified: (file: string) => number
+  readonly write: (file: string) => void
+  readonly remove: (file: string) => void
+}
+
+/**
+ * The note a portable copy leaves in the data folder when it redirects to an installed copy
+ * of the same version, which the installed copy clears as it starts: `recent` is true
+ * only if a redirect was made within `windowMs` and the installed copy has not started
+ * since. So a launch that follows a redirect the installed copy never answered stays in
+ * the portable copy, and one after the installed copy ran and was quit redirects again.
+ * Failures to read, write or clear are not fatal: the note is then absent or stale.
+ */
+export const redirectMarker = (
+  file: string,
+  windowMs: number,
+  files: MarkerFiles,
+  now: () => number,
+  log: (message: string, error: unknown) => void,
+) => ({
+  recent: (): boolean => {
+    try {
+      return now() - files.modified(file) < windowMs
+    } catch {
+      return false
+    }
+  },
+  mark: (): void => {
+    try {
+      files.write(file)
+    } catch (error) {
+      log("The redirect was not noted.", error)
+    }
+  },
+  clear: (): void => {
+    try {
+      files.remove(file)
+    } catch (error) {
+      log("The redirect note was not cleared.", error)
+    }
+  },
+})
 
 type PortableIpc = {
   on(channel: string, listener: (event: IpcMainEvent) => void): unknown
   handle(channel: string, listener: (event: IpcMainInvokeEvent) => unknown): unknown
 }
 
+/** A page that install progress and the portable state are sent to. */
+export type ProgressTarget = { send(channel: string, value: unknown): void }
+
 /**
  * Answers the app's own pages whether this is a portable copy, and their requests to
- * install from it and to open the installed copy found newer. `window` names the window
- * of a request from the main frame of the app's own page, or undefined for any other
- * sender, which is told this is not a portable copy, may not install, and is ignored when
- * it asks to open. The requests carry no value.
+ * install from it, telling every page of `pages` how the install goes. `window` names
+ * the window of a request from the main frame of the app's own page, or undefined for any
+ * other sender, which is told this is not a portable copy and may not install. The
+ * requests carry no value.
  */
 export const registerPortableIpc = <Window>(
   ipc: PortableIpc,
   {
     window,
+    pages,
     installer,
   }: {
     readonly window: (event: IpcMainEvent | IpcMainInvokeEvent) => Window | undefined
+    readonly pages: () => readonly ProgressTarget[]
     readonly installer: PortableInstaller
   },
 ): void => {
@@ -258,11 +274,17 @@ export const registerPortableIpc = <Window>(
   ipc.handle(installAppChannel, (event): Promise<InstallResult> | InstallResult =>
     window(event) === undefined
       ? { kind: "failed", reason: "Installing is not allowed from here." }
-      : installer.install(),
+      : installer
+          .install((progress) => {
+            for (const page of pages()) page.send(installProgressChannel, progress)
+          })
+          .then((result) => {
+            // Every window learns of a settled install, not only the one that asked.
+            if (result.kind !== "failed")
+              for (const page of pages()) page.send(portableStateChannel, installer.state())
+            return result
+          }),
   )
-  ipc.on(openInstalledChannel, (event) => {
-    if (window(event) !== undefined) installer.openInstalled()
-  })
 }
 
 const appImageVariables = new Set(["APPIMAGE", "APPDIR", "OWD", "ARGV0"])
@@ -325,8 +347,8 @@ const shells = ["/bin/bash", "/usr/bin/bash"]
  * Linux: its child inherits no-new-privileges, and the AppImage runtime then cannot mount
  * itself. The child starts through bash, which closes the descriptors it inherited and
  * becomes the app, or directly, logged, when there is no bash at /bin or /usr/bin. The
- * lock on the data folder is let go first so the child can take it; this process has
- * shut down by now. Resolves true
+ * lock on the data folder is let go first so the child can take it, and taken back with
+ * `reclaimLock` should the start fail (this process ends if that is refused). Resolves true
  * after `exit`, or false, having logged why, when the child could not be started, as with
  * a missing file or exec bit: `runnable` says whether a path can be executed, as bash
  * would only report that after the fact.
@@ -338,6 +360,7 @@ export const startAppImage = ({
   spawn,
   runnable,
   releaseLock,
+  reclaimLock,
   exit,
   log,
 }: {
@@ -356,6 +379,8 @@ export const startAppImage = ({
   ) => StartedProcess
   readonly runnable: (path: string) => boolean
   readonly releaseLock: () => void
+  /** Takes the lock back after a failed start; false when another process holds it. */
+  readonly reclaimLock: () => boolean
   readonly exit: () => void
   readonly log: (message: string, error: unknown) => void
 }): Promise<boolean> =>
@@ -365,6 +390,11 @@ export const startAppImage = ({
       return resolve(false)
     }
     releaseLock()
+    const failed = (error: unknown): void => {
+      log("The installed copy did not start.", error)
+      if (!reclaimLock()) exit()
+      resolve(false)
+    }
     try {
       const bash = shells.find(runnable)
       if (bash === undefined)
@@ -379,17 +409,13 @@ export const startAppImage = ({
         stdio: "ignore",
         env: installedEnvironment(env, mounts),
       })
-      child.once("error", (error) => {
-        log("The installed copy did not start.", error)
-        resolve(false)
-      })
+      child.once("error", failed)
       child.once("spawn", () => {
         child.unref()
         exit()
         resolve(true)
       })
     } catch (error) {
-      log("The installed copy did not start.", error)
-      resolve(false)
+      failed(error)
     }
   })

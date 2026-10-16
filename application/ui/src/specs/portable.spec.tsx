@@ -4,49 +4,57 @@ import { page, type Locator } from "vitest/browser"
 
 import { expectStaysAbsent, openWorkspace, press } from "./support/workspace"
 
-// The version whose notice came up last, as the app keeps it between launches.
-const seenKey = "novadeck.update-seen"
-
-// The footer's chips come before the panel in the page, which has its own buttons.
+// The footer's chips come before the card in the page, which has its own buttons.
 const install = (): Locator =>
   page.getByRole("button", { name: "Install Novadeck", exact: true }).first()
 const update = (): Locator => page.getByRole("button", { name: /^Update available:/ }).first()
+const installedChip = (): Locator => page.getByRole("button", { name: /^Installed:/ })
+const installingChip = (): Locator => page.getByRole("button", { name: "Installing…", exact: true })
 const sandbox = (): Locator => page.getByRole("button", { name: /^No sandbox:/ })
-const quiet = (): Locator => page.getByRole("region", { name: "Install Novadeck" })
-const offered = (): Locator => page.getByRole("region", { name: "Novadeck 0.0.80 is available" })
-const later = (panel: Locator): Locator => panel.getByRole("button", { name: "Later" })
-const primary = (panel: Locator): Locator => panel.getByRole("button", { name: "Install Novadeck" })
+const quiet = (): Locator => page.getByRole("region", { name: "Portable copy" })
+const offered = (): Locator => page.getByRole("region", { name: "Novadeck 0.0.80 is out" })
+const installing = (): Locator => page.getByRole("region", { name: "Installing Novadeck" })
+const done = (): Locator => page.getByRole("region", { name: "Novadeck installed" })
+const dismiss = (card: Locator): Locator => card.getByRole("button", { name: "Dismiss" })
+const primary = (card: Locator): Locator =>
+  card.getByRole("button", { name: "Install", exact: true })
 
-describe("a portable copy's install entry", () => {
+describe("a portable copy's install card", () => {
   afterEach(() => page.viewport(1440, 900))
 
   it("is absent where the host has no portable copy", async () => {
     await openWorkspace()
     await expectStaysAbsent(install())
+    await expectStaysAbsent(quiet())
     expect(install().query()).toBeNull()
   })
 
   context("with no release known", () => {
-    it("waits in the footer as a chip, and never opens by itself", async () => {
+    it("comes up by itself, saying what a portable copy lacks, without taking focus", async () => {
       await openWorkspace("/?portable=on")
+      await expect.element(quiet()).toBeVisible()
+      await expect.element(quiet().getByText("Updates need an installed Novadeck.")).toBeVisible()
+      await expect.element(quiet().getByText("Keeps your workspace")).toBeVisible()
+      await expect.element(quiet()).not.toHaveFocus()
       await expect.element(install()).toBeVisible()
-      await expectStaysAbsent(quiet())
-      expect(quiet().query()).toBeNull()
+      await expect
+        .element(quiet().getByRole("button", { name: "Release notes" }))
+        .not.toBeInTheDocument()
+      await expect.element(quiet().getByRole("button", { name: "Later" })).not.toBeInTheDocument()
     })
 
-    it("opens from the chip with what installing means, and closes on Later", async () => {
+    it("folds into the chip on ×, and the chip opens it again with focus", async () => {
       await openWorkspace("/?portable=on")
+      await dismiss(quiet()).click()
+      await expect.element(quiet()).not.toBeInTheDocument()
       await install().click()
       await expect.element(quiet()).toBeVisible()
-      await expect.element(quiet().getByText(/can't update itself/)).toBeVisible()
-      await expect.element(quiet().getByText(/keeps your workspace/)).toBeVisible()
-      await later(quiet()).click()
-      await expect.element(quiet()).not.toBeInTheDocument()
-      await expect.element(install()).toBeVisible()
+      await expect.element(quiet()).toHaveFocus()
     })
 
-    it("closes on Escape from inside it, as the update notice does", async () => {
+    it("folds on Escape from inside it and returns focus to the chip", async () => {
       await openWorkspace("/?portable=on")
+      await dismiss(quiet()).click()
       await install().click()
       await expect.element(quiet()).toHaveFocus()
       await press("{Escape}")
@@ -54,7 +62,16 @@ describe("a portable copy's install entry", () => {
       await expect.element(install()).toHaveFocus()
     })
 
-    it("shortens to Install on a narrow bar", async () => {
+    it("does not come up by itself again after a page reload in the same launch", async () => {
+      await openWorkspace("/?portable=on")
+      await expect.element(quiet()).toBeVisible()
+      await cleanup()
+      await openWorkspace("/?portable=on")
+      await expect.element(install()).toBeVisible()
+      await expectStaysAbsent(quiet())
+    })
+
+    it("shortens the chip to Install on a narrow bar", async () => {
       await page.viewport(600, 800)
       await openWorkspace("/?portable=on")
       await expect.element(install().getByText("Install", { exact: true })).toBeVisible()
@@ -65,71 +82,132 @@ describe("a portable copy's install entry", () => {
 
     it("says nothing of the sandbox where the host runs sandboxed", async () => {
       await openWorkspace("/?portable=on")
-      await install().click()
+      await expect.element(quiet()).toBeVisible()
       await expect.element(quiet().getByText(/sandbox/)).not.toBeInTheDocument()
     })
   })
 
   context("while installing", () => {
-    it("shows Installing… once Install Novadeck is pressed, named as it reads, and does nothing more", async () => {
-      await openWorkspace("/?portable=on")
-      await install().click()
+    it("shows Installing Novadeck with the chip reading Installing…", async () => {
+      await openWorkspace("/?portable=on&install=never")
       await primary(quiet()).click()
-      await expect.element(quiet()).not.toBeInTheDocument()
-      const installing = page.getByRole("button", { name: "Installing…", exact: true })
-      await expect.element(installing).toHaveAttribute("aria-disabled", "true")
-      await expect.element(installing).toHaveTextContent("Installing…")
-      installing.element().dispatchEvent(new MouseEvent("click", { bubbles: true }))
-      await expectStaysAbsent(quiet())
+      await expect.element(installing()).toBeVisible()
+      await expect.element(installing().getByText("Keeps your workspace")).toBeVisible()
+      await expect.element(dismiss(installing())).toBeVisible()
+      await expect.element(installingChip()).toHaveTextContent("Installing…")
     })
 
-    it("keeps focus on the chip when it is pressed while installing", async () => {
-      await openWorkspace("/?portable=on")
-      await install().click()
+    it("folds into the chip on ×, which reopens it, and on Escape back to the chip", async () => {
+      await openWorkspace("/?portable=on&install=never")
       await primary(quiet()).click()
-      const installing = page.getByRole("button", { name: "Installing…", exact: true })
-      await expect.element(installing).toBeVisible()
-      installing.element().focus()
-      await expect.element(installing).toHaveFocus()
-      await press("{Enter}")
-      await expect.element(installing).toHaveFocus()
-      await expectStaysAbsent(quiet())
+      await dismiss(installing()).click()
+      await expect.element(installing()).not.toBeInTheDocument()
+      await installingChip().click()
+      await expect.element(installing()).toBeVisible()
+      await expect.element(installing()).toHaveFocus()
+      await press("{Escape}")
+      await expect.element(installing()).not.toBeInTheDocument()
+      await expect.element(installingChip()).toHaveFocus()
     })
 
-    it("says a newer Novadeck is installed, and offers to open it", async () => {
+    it("raises the card again with the answer once it was folded", async () => {
+      await openWorkspace("/?portable=on&progress=on")
+      await primary(quiet()).click()
+      await dismiss(installing()).click()
+      await expect.element(installing()).not.toBeInTheDocument()
+      await expect.element(done(), { timeout: 8000 }).toBeVisible()
+    })
+  })
+
+  context("once installed", () => {
+    it("says it takes effect after a restart, never restarts, then fades and leaves Installed", async () => {
+      await openWorkspace("/?portable=on")
+      await primary(quiet()).click()
+      await expect.element(done()).toBeVisible()
+      await expect
+        .element(done().getByText("Takes effect after you restart Novadeck"))
+        .toBeVisible()
+      await expect.element(done().getByRole("button", { name: /restart/i })).not.toBeInTheDocument()
+      await expect.element(done(), { timeout: 8000 }).not.toBeInTheDocument()
+      await expect.element(installedChip()).toBeVisible()
+      await expect.element(installedChip()).toHaveTextContent("Installed")
+    })
+
+    it("lets the chip bring the line back until it is dismissed", async () => {
+      await openWorkspace("/?portable=on")
+      await primary(quiet()).click()
+      await expect.element(done(), { timeout: 8000 }).not.toBeInTheDocument()
+      await installedChip().click()
+      await expect.element(done()).toBeVisible()
+      // Opened by the person, it stays past where the first showing faded (4 s and a fade).
+      await new Promise((resolve) => setTimeout(resolve, 4500))
+      await expect.element(done()).toBeVisible()
+      await dismiss(done()).click()
+      await expect.element(done()).not.toBeInTheDocument()
+    })
+  })
+
+  context("when the host reports a download", () => {
+    it("shows the percent under Installing Novadeck, then the indeterminate bar", async () => {
+      await openWorkspace("/?portable=on&progress=on")
+      await primary(quiet()).click()
+      await expect.element(installing().getByText("Downloading…")).toBeVisible()
+      await expect.element(installing().getByText(/^\d+%$/)).toBeVisible()
+      await expect.element(installing().getByText("Keeps your workspace")).toBeVisible()
+      // Nothing to measure now: the bar has no value, rather than a stale percent.
+      expect(installing().element().querySelector("[role=progressbar]")).not.toBeNull()
+      expect(
+        installing().element().querySelector("[role=progressbar]")!.getAttribute("data-state"),
+      ).toBe("indeterminate")
+      expect(
+        installing().element().querySelector("[role=progressbar]")!.hasAttribute("aria-valuenow"),
+      ).toBe(false)
+      await expect.element(done()).toBeVisible()
+    })
+  })
+
+  context("in a window opened again after installing", () => {
+    it("raises no card and reads Installed on the chip", async () => {
+      await openWorkspace("/?portable=on&installed=on")
+      await expect.element(installedChip()).toBeVisible()
+      await expectStaysAbsent(done())
+      await installedChip().click()
+      await expect.element(done()).toBeVisible()
+    })
+  })
+
+  context("when the install ends otherwise", () => {
+    it("says a newer Novadeck is already installed, taking effect after a restart, with no buttons", async () => {
       await openWorkspace("/?portable=on&install=newer")
-      await install().click()
       await primary(quiet()).click()
-      const newer = page.getByRole("region", {
-        name: "Novadeck 0.0.99 is already installed",
-      })
+      const newer = page.getByRole("region", { name: "Novadeck 0.0.99 is already installed" })
       await expect.element(newer).toBeVisible()
-      await expect.element(newer.getByRole("button", { name: "Open Novadeck" })).toBeVisible()
+      await expect.element(newer.getByText("Takes effect after you restart Novadeck")).toBeVisible()
       await expect.element(primary(newer)).not.toBeInTheDocument()
-      await newer.getByRole("button", { name: "Open Novadeck" }).click()
+      await expect
+        .element(newer.getByRole("button", { name: /open|restart/i }))
+        .not.toBeInTheDocument()
+      await dismiss(newer).click()
       await expect.element(newer).not.toBeInTheDocument()
+      await expect.element(installedChip()).toBeVisible()
     })
 
-    it("says why it failed and keeps Install Novadeck to try again", async () => {
+    it("says why it failed and offers Try again", async () => {
       await openWorkspace("/?portable=on&install=failed")
-      await install().click()
+      const failed = page.getByRole("region", { name: "Couldn't install" })
       await primary(quiet()).click()
-      await expect
-        .element(quiet().getByRole("alert"))
-        .toHaveTextContent("Could not install Novadeck: There is no space left.")
-      await primary(quiet()).click()
-      await expect
-        .element(quiet().getByRole("alert"))
-        .toHaveTextContent("Could not install Novadeck: There is no space left.")
+      await expect.element(failed.getByRole("alert")).toHaveTextContent("There is no space left.")
+      await failed.getByRole("button", { name: "Try again" }).click()
+      await expect.element(failed.getByRole("alert")).toHaveTextContent("There is no space left.")
     })
 
-    it("does not show an earlier failure when the chip opens the panel again", async () => {
+    it("does not show an earlier failure when the chip opens the card again", async () => {
       await openWorkspace("/?portable=on&install=failed")
-      await install().click()
       await primary(quiet()).click()
-      await expect.element(quiet().getByRole("alert")).toBeVisible()
-      await later(quiet()).click()
-      await expect.element(quiet()).not.toBeInTheDocument()
+      const failed = page.getByRole("region", { name: "Couldn't install" })
+      await expect.element(failed.getByRole("alert")).toBeVisible()
+      await dismiss(failed).click()
+      await expect.element(failed).not.toBeInTheDocument()
       await install().click()
       await expect.element(quiet()).toBeVisible()
       await expect.element(quiet().getByRole("alert")).not.toBeInTheDocument()
@@ -138,73 +216,46 @@ describe("a portable copy's install entry", () => {
 })
 
 describe("a portable copy with a release waiting", () => {
-  it("turns the chip to Update available and raises the notice, with Install Novadeck", async () => {
-    await openWorkspace("/?portable=on&update=available&outdated=recent")
+  it("turns the chip to Update available and raises the card with Install", async () => {
+    await openWorkspace("/?portable=on&update=available")
     await expect.element(offered()).toBeVisible()
-    await expect.element(offered().getByText(/can't update itself/)).toBeVisible()
+    await expect.element(offered().getByText("This copy can't update itself.")).toBeVisible()
     await expect.element(primary(offered())).toBeVisible()
-    await expect.element(offered().getByRole("button", { name: "Release notes" })).toBeVisible()
     await expect
-      .element(offered().getByRole("button", { name: "Download" }))
+      .element(offered().getByRole("button", { name: "Release notes" }))
       .not.toBeInTheDocument()
     await expect.element(update()).toBeVisible()
   })
 
-  it("raises the notice once per version while the release is recent", async () => {
-    await openWorkspace("/?portable=on&update=available&outdated=recent")
+  it("raises the card once per launch, then only from the chip", async () => {
+    await openWorkspace("/?portable=on&update=available")
     await expect.element(offered()).toBeVisible()
-    await later(offered()).click()
-    await expect.poll(() => localStorage.getItem(seenKey)).toBe("available:0.0.80")
+    await dismiss(offered()).click()
     await cleanup()
-    await openWorkspace("/?portable=on&update=available&outdated=recent")
-    await expect.element(update()).toBeVisible()
-    await expectStaysAbsent(offered())
-  })
-
-  it("raises the notice at every launch once the release is 14 days old", async () => {
-    localStorage.setItem(seenKey, "available:0.0.80")
-    await openWorkspace("/?portable=on&update=available&outdated=old")
-    await expect.element(offered()).toBeVisible()
-  })
-
-  it("raises the stale notice once per launch, not again after a page reload", async () => {
-    localStorage.setItem(seenKey, "available:0.0.80")
-    await openWorkspace("/?portable=on&update=available&outdated=old")
-    await expect.element(offered()).toBeVisible()
-    await later(offered()).click()
-    await cleanup()
-    await openWorkspace("/?portable=on&update=available&outdated=old")
-    await expect.element(update()).toBeVisible()
-    await expectStaysAbsent(offered())
-  })
-
-  it("treats a release with no date as not stale", async () => {
-    localStorage.setItem(seenKey, "available:0.0.80")
     await openWorkspace("/?portable=on&update=available")
     await expect.element(update()).toBeVisible()
     await expectStaysAbsent(offered())
+    await update().click()
+    await expect.element(offered()).toBeVisible()
   })
 
-  it("installs from the notice", async () => {
-    await openWorkspace("/?portable=on&update=available&outdated=recent")
+  it("installs from the card", async () => {
+    await openWorkspace("/?portable=on&update=available&install=never")
     await primary(offered()).click()
-    await expect.element(offered()).not.toBeInTheDocument()
-    const installing = page.getByRole("button", { name: "Installing…", exact: true })
-    await expect.element(installing).toHaveAttribute("aria-disabled", "true")
-    await expect.element(installing).toHaveTextContent("Installing…")
-    // It looks disabled too: dimmed, and not a pointer.
-    await expect.element(installing).toHaveStyle({ opacity: "0.7", cursor: "default" })
+    await expect.element(installing()).toBeVisible()
+    await expect.element(installingChip()).toBeVisible()
   })
 })
 
 describe("the sandbox chip on a portable copy", () => {
-  it("is not shown, and the install panel says what installing allows", async () => {
+  it("is not shown, and the card says what installing allows", async () => {
     await openWorkspace("/?portable=on&sandbox=off")
     await expect.element(install()).toBeVisible()
     await expectStaysAbsent(sandbox())
     expect(sandbox().query()).toBeNull()
-    await install().click()
-    await expect.element(quiet().getByText(/turn on the sandbox/)).toBeVisible()
+    await expect
+      .element(quiet().getByText("Installing also lets you turn on the sandbox."))
+      .toBeVisible()
   })
 
   it("does not flash while the host has yet to say it is a portable copy", async () => {

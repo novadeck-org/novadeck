@@ -3,54 +3,11 @@ import {
   bundleVersionOf,
   findInstalledApps,
   isNewerVersion,
-  moveToApplications,
-  renamedMoveReason,
+  installBundle,
+  recoverBundles,
   relaunchIntoCopy,
-  resolveMoveConflict,
+  type BundleInstallHost,
 } from "./applications-folder"
-
-describe("a name taken in Applications", () => {
-  const running = "0.5.0"
-
-  it("lets the move replace a copy that is not running", () => {
-    expect(
-      resolveMoveConflict("exists", { existingVersion: "0.4.0", runningVersion: running }),
-    ).toBe("replace")
-    expect(
-      resolveMoveConflict("exists", { existingVersion: running, runningVersion: running }),
-    ).toBe("replace")
-  })
-
-  it("lets it replace a copy whose version cannot be read", () => {
-    expect(
-      resolveMoveConflict("exists", { existingVersion: undefined, runningVersion: running }),
-    ).toBe("replace")
-    expect(
-      resolveMoveConflict("exists", { existingVersion: "garbage", runningVersion: running }),
-    ).toBe("replace")
-  })
-
-  it("cancels the move rather than replace a newer copy", () => {
-    expect(
-      resolveMoveConflict("exists", { existingVersion: "0.5.1", runningVersion: running }),
-    ).toBe("newer")
-    expect(
-      resolveMoveConflict("exists", { existingVersion: "1.0.0", runningVersion: running }),
-    ).toBe("newer")
-    expect(
-      resolveMoveConflict("exists", { existingVersion: "0.5.0", runningVersion: "0.5.0-beta.1" }),
-    ).toBe("newer")
-  })
-
-  it("leaves a copy that is running alone", () => {
-    expect(
-      resolveMoveConflict("existsAndRunning", {
-        existingVersion: "0.1.0",
-        runningVersion: running,
-      }),
-    ).toBe("running")
-  })
-})
 
 describe("which version is newer", () => {
   it("compares numbers, not text", () => {
@@ -84,103 +41,218 @@ describe("the version of an app in Applications", () => {
   })
 })
 
-describe("moving the app to Applications", () => {
-  type Conflict = "exists" | "existsAndRunning"
-  // A move that finds `conflict` in Applications, if any, and then does as Electron does:
-  // stops at a handler that says no, throws as told, else moves.
-  const moving = (
-    {
-      conflict,
-      throws,
-      moved = true,
-      existing = "0.4.0",
-    }: { conflict?: Conflict; throws?: Error; moved?: boolean; existing?: string } = {},
-    running = "0.5.0",
+describe("installing the app bundle", () => {
+  const running = "/Volumes/Novadeck/novadeck.app"
+
+  // A machine with the given paths present and writable; steps are recorded in order.
+  const machine = (
+    options: {
+      present?: string[]
+      unwritable?: string[]
+      failAt?: string
+      failCode?: string
+      versions?: Record<string, string>
+    } = {},
   ) => {
+    const present = new Set(options.present ?? [])
     const steps: string[] = []
-    const outcome = moveToApplications({
-      move: (handler) => {
-        steps.push("move")
-        if (throws) throw throws
-        if (conflict && !handler(conflict)) return false
-        return moved
+    const step = async (name: string): Promise<void> => {
+      steps.push(name)
+      if (options.failAt === name)
+        throw Object.assign(new Error("it broke"), { code: options.failCode })
+    }
+    const host: BundleInstallHost = {
+      running,
+      version: "1.0.0",
+      versionOf: (path) => Promise.resolve(options.versions?.[path]),
+      packaged: "novadeck.app",
+      applications: "/Applications",
+      userApplications: "/Users/me/Applications",
+      exists: (path) => Promise.resolve(present.has(path)),
+      writable: (path) => Promise.resolve(!(options.unwritable ?? []).includes(path)),
+      mkdir: (folder) => step(`mkdir ${folder}`),
+      ditto: (from, to) => step(`ditto ${from} ${to}`),
+      unquarantine: (path) => step(`xattr ${path}`),
+      rename: async (from, to) => {
+        await step(`rename ${from} ${to}`)
+        present.delete(from)
+        present.add(to)
       },
-      existingVersion: () => existing,
-      runningVersion: running,
-      log: (message) => void steps.push(`log ${message}`),
-    })
-    return { outcome, steps }
+      remove: async (path) => {
+        await step(`rm ${path}`)
+        present.delete(path)
+      },
+      log: () => {},
+    }
+    return { host, steps }
   }
+  // The steps that change the machine, without the clean-up of leftovers.
+  const changes = (steps: string[]): string[] => steps.filter((each) => !each.startsWith("rm "))
 
-  it("moves, and leaves the quit to Electron", () => {
-    expect(moving()).toEqual({ outcome: { kind: "moved" }, steps: ["move"] })
-  })
-
-  it("replaces an older copy that is not running", () => {
-    expect(moving({ conflict: "exists", existing: "0.4.0" }).outcome).toEqual({ kind: "moved" })
-    expect(moving({ conflict: "exists", existing: "0.5.0" }).outcome).toEqual({ kind: "moved" })
-  })
-
-  it("leaves a newer copy alone and says which version it is", () => {
-    const { outcome, steps } = moving({ conflict: "exists", existing: "0.6.0" })
-    expect(outcome).toEqual({ kind: "newer", version: "0.6.0" })
-    expect(steps).toEqual(["move"])
-  })
-
-  it("leaves a running copy alone, whatever its version, with the reason", () => {
-    for (const existing of ["0.4.0", "0.6.0"])
-      expect(moving({ conflict: "existsAndRunning", existing }).outcome).toEqual({
-        kind: "failed",
-        reason: "Novadeck is already running from Applications.",
-      })
-  })
-
-  it("fails with the reason Electron gave, one line, and logs", () => {
-    const { outcome, steps } = moving({
-      throws: new Error("Failed to copy current bundle\nto the applications folder"),
+  it("puts a new copy under the packaged name in Applications, copy then unquarantine then rename", async () => {
+    const { host, steps } = machine()
+    expect(await installBundle(undefined, host)).toEqual({
+      kind: "installed",
+      image: "/Applications/novadeck.app",
     })
-    expect(outcome).toEqual({
-      kind: "failed",
-      reason: "Failed to copy current bundle to the applications folder",
+    expect(changes(steps)).toEqual([
+      `ditto ${running} /Applications/.novadeck.app.new`,
+      "xattr /Applications/.novadeck.app.new",
+      "rename /Applications/.novadeck.app.new /Applications/novadeck.app",
+    ])
+  })
+
+  it("uses the person's own Applications folder when the system one cannot be written", async () => {
+    const { host, steps } = machine({ unwritable: ["/Applications"] })
+    expect(await installBundle(undefined, host)).toEqual({
+      kind: "installed",
+      image: "/Users/me/Applications/novadeck.app",
     })
-    expect(steps).toEqual(["move", "log Moving to Applications failed."])
+    expect(steps[0]).toBe("mkdir /Users/me/Applications")
   })
 
-  it("fails when the person refused the authorization", () => {
-    expect(
-      moving({ throws: new Error("User rejected the authorization request") }).outcome,
-    ).toEqual({ kind: "failed", reason: "User rejected the authorization request" })
+  it("replaces the existing copy where it is, swapping it aside and removing it last", async () => {
+    const existing = "/Users/me/Applications/novadeck.app"
+    const { host, steps } = machine({ present: [existing] })
+    expect(await installBundle(existing, host)).toEqual({ kind: "installed", image: existing })
+    const dir = "/Users/me/Applications"
+    expect(steps.slice(-4)).toEqual([
+      `xattr ${dir}/.novadeck.app.new`,
+      `rename ${existing} ${dir}/.novadeck.app.old`,
+      `rename ${dir}/.novadeck.app.new ${existing}`,
+      `rm ${dir}/.novadeck.app.old`,
+    ])
   })
 
-  it("fails when Electron would not move the app, without throwing", () => {
-    expect(moving({ moved: false }).outcome).toEqual({
-      kind: "failed",
-      reason: "Moving to Applications was cancelled.",
+  it("puts the old copy back when the new one cannot be renamed into place", async () => {
+    const existing = "/Applications/novadeck.app"
+    const { host, steps } = machine({
+      present: [existing],
+      failAt: "rename /Applications/.novadeck.app.new /Applications/novadeck.app",
     })
+    const result = await installBundle(existing, host)
+    expect(result.kind).toBe("failed")
+    expect(steps).toContain("rename /Applications/.novadeck.app.old /Applications/novadeck.app")
+    expect(steps.at(-1)).toBe("rm /Applications/.novadeck.app.new")
   })
 
-  it("says something for a failure that has no message", () => {
-    expect(moving({ throws: new Error("") }).outcome).toEqual({
-      kind: "failed",
-      reason: "Moving to Applications failed.",
+  it("restores a copy left renamed aside, before installing over it", async () => {
+    const aside = "/Applications/.novadeck.app.old"
+    const { host, steps } = machine({ present: [aside] })
+    expect(await installBundle(undefined, host)).toEqual({
+      kind: "installed",
+      image: "/Applications/novadeck.app",
     })
+    expect(steps[0]).toBe(`rename ${aside} /Applications/novadeck.app`)
+    expect(steps).toContain("rename /Applications/novadeck.app /Applications/.novadeck.app.old")
   })
-})
 
-describe("a renamed copy moving beside an installed one", () => {
-  const reason = (running: string, installed: boolean) =>
-    renamedMoveReason({ running, packaged: "novadeck.app", installed })
+  it("clears a stale half-made copy and an aside beside a copy that is there", async () => {
+    const present = [
+      "/Applications/novadeck.app",
+      "/Applications/.novadeck.app.old",
+      "/Users/me/Applications/.novadeck.app.new",
+    ]
+    const { host, steps } = machine({ present })
+    expect(await recoverBundles({ ...host, names: ["novadeck.app"] })).toBeUndefined()
+    expect(steps).toEqual([
+      "rm /Applications/.novadeck.app.old",
+      "rm /Users/me/Applications/.novadeck.app.new",
+    ])
+  })
 
-  it("is refused, with how to go on, when the packaged name is installed", () => {
-    expect(reason("novadeck 2.app", true)).toBe(
-      "This copy is named novadeck 2.app, and novadeck.app is already in Applications. " +
-        "Rename this copy to novadeck.app, or remove the old one, and try again.",
+  it("restores the only copy when the person's own Applications folder holds it aside", async () => {
+    const { host, steps } = machine({ present: ["/Users/me/Applications/.novadeck.app.old"] })
+    expect(await recoverBundles({ ...host, names: ["novadeck.app"] })).toBe(
+      "/Users/me/Applications/novadeck.app",
     )
+    expect(steps).toEqual([
+      "rename /Users/me/Applications/.novadeck.app.old /Users/me/Applications/novadeck.app",
+    ])
   })
 
-  it("is allowed where the copy has the packaged name, or none is installed", () => {
-    expect(reason("novadeck.app", true)).toBeUndefined()
-    expect(reason("novadeck 2.app", false)).toBeUndefined()
+  it("restores a renamed installed copy left aside, by its own name", async () => {
+    const aside = "/Applications/.novadeck 2.app.old"
+    const { host, steps } = machine({ present: [aside] })
+    expect(await recoverBundles({ ...host, names: ["novadeck.app", "novadeck 2.app"] })).toBe(
+      "/Applications/novadeck 2.app",
+    )
+    expect(steps).toEqual([`rename ${aside} /Applications/novadeck 2.app`])
+  })
+
+  it("restores the aside of the renamed copy it is about to replace", async () => {
+    const existing = "/Applications/novadeck 2.app"
+    const aside = "/Applications/.novadeck 2.app.old"
+    const { host, steps } = machine({ present: [aside, "/Applications/.novadeck 2.app.new"] })
+    expect(await installBundle(existing, host)).toMatchObject({ kind: "installed" })
+    expect(steps[0]).toBe(`rename ${aside} ${existing}`)
+    expect(steps).toContain("rm /Applications/.novadeck 2.app.new")
+  })
+
+  it("says plainly that macOS did not allow replacing the installed copy on EPERM", async () => {
+    const existing = "/Applications/novadeck.app"
+    const { host, steps } = machine({
+      present: [existing],
+      failAt: `rename ${existing} /Applications/.novadeck.app.old`,
+      failCode: "EPERM",
+      versions: { [existing]: "0.9.0" },
+    })
+    expect(await installBundle(existing, host)).toEqual({
+      kind: "failed",
+      reason:
+        "macOS didn't allow replacing the installed Novadeck. Remove it yourself and try again.",
+    })
+    expect(steps.at(-1)).toBe("rm /Applications/.novadeck.app.new")
+  })
+
+  it("replaces an older installed copy", async () => {
+    const existing = "/Applications/novadeck.app"
+    const { host } = machine({ present: [existing], versions: { [existing]: "0.9.0" } })
+    expect(await installBundle(existing, host)).toEqual({ kind: "installed", image: existing })
+  })
+
+  it("leaves an installed copy of the same version alone, writing nothing", async () => {
+    const existing = "/Applications/novadeck.app"
+    const { host, steps } = machine({ present: [existing], versions: { [existing]: "1.0.0" } })
+    expect(await installBundle(existing, host)).toEqual({ kind: "installed", image: existing })
+    expect(steps).toEqual([])
+  })
+
+  it("never replaces the bundle it runs from", async () => {
+    const { host, steps } = machine({ present: [running] })
+    expect(await installBundle(running, host)).toEqual({ kind: "installed", image: running })
+    expect(steps).toEqual([])
+  })
+
+  it("fails and writes nothing for an existing copy that belongs to another account", async () => {
+    const existing = "/Applications/novadeck.app"
+    const runs = [[existing], ["/Applications"]].map(async (unwritable) => {
+      const { host, steps } = machine({ present: [existing], unwritable })
+      return { result: await installBundle(existing, host), steps }
+    })
+    for (const { result, steps } of await Promise.all(runs)) {
+      expect(result).toEqual({
+        kind: "failed",
+        reason:
+          "Novadeck in Applications belongs to another account on this Mac. Remove it and try again.",
+      })
+      expect(steps).toEqual([])
+    }
+  })
+
+  it("removes the half-made copy and changes nothing when copying or unquarantining fails", async () => {
+    const failures = [
+      `ditto ${running} /Applications/.novadeck.app.new`,
+      "xattr /Applications/.novadeck.app.new",
+    ].map(async (failAt) => {
+      const { host, steps } = machine({ present: ["/Applications/novadeck.app"], failAt })
+      return { result: await installBundle("/Applications/novadeck.app", host), steps }
+    })
+    for (const { result, steps } of await Promise.all(failures)) {
+      expect(result.kind).toBe("failed")
+      expect(steps.some((each) => each.startsWith("rename"))).toBe(false)
+      expect(steps.at(-1)).toBe("rm /Applications/.novadeck.app.new")
+    }
   })
 })
 

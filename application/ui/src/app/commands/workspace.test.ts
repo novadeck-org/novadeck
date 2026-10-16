@@ -332,16 +332,16 @@ describe("workspace commands", () => {
     it("closes the sandbox's on opening the update's, and the update's on opening the sandbox's", () => {
       const app = openCommands()
       app.commands.setSandboxOpen(true)
-      app.commands.setUpdateOpen(true)
-      expect(app.ui.getSnapshot()).toMatchObject({ updateOpen: true, sandboxOpen: false })
+      app.commands.setPortableCardOpen(true)
+      expect(app.ui.getSnapshot()).toMatchObject({ portableCardOpen: true, sandboxOpen: false })
       app.commands.setSandboxOpen(true)
-      expect(app.ui.getSnapshot()).toMatchObject({ updateOpen: false, sandboxOpen: true })
+      expect(app.ui.getSnapshot()).toMatchObject({ portableCardOpen: false, sandboxOpen: true })
     })
 
     it("leaves the other alone on closing one", () => {
       const app = openCommands()
       app.commands.setSandboxOpen(true)
-      app.commands.setUpdateOpen(false)
+      app.commands.setPortableCardOpen(false)
       expect(app.ui.getSnapshot().sandboxOpen).toBe(true)
     })
   })

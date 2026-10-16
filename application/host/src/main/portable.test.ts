@@ -5,11 +5,16 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import type { InstallResult } from "@novadeck/protocol/bridge"
+import type { InstallProgress, InstallResult } from "@novadeck/protocol/bridge"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 import { afterEach, beforeEach, vi } from "vitest"
 
-import { installAppChannel, openInstalledChannel, portableChannel } from "../bridge.js"
+import {
+  installAppChannel,
+  installProgressChannel,
+  portableChannel,
+  portableStateChannel,
+} from "../bridge.js"
 import { context, describe, expect, it } from "../test"
 import type { InstalledCopy } from "./install-linux"
 import {
@@ -17,9 +22,10 @@ import {
   installedEnvironment,
   leaveForNewerInstalled,
   portableInstaller,
+  redirectMarker,
   registerPortableIpc,
   startAppImage,
-  type NewerInstalledCheck,
+  type InstalledCopyCheck,
   type PortableHost,
   type PortableInstall,
 } from "./portable"
@@ -33,27 +39,19 @@ const hosting = (overrides: Partial<PortableHost> = {}) => {
     run: "run-1",
     uncheckedAdvice: "Try again, or reinstall Novadeck with install.sh.",
     find: async () => [],
-    install: async (target): Promise<PortableInstall> => {
+    install: async (target, progress): Promise<PortableInstall> => {
       calls.push(`install${target ? ` over ${target}` : ""}`)
+      progress({ phase: "installing" })
       return { kind: "installed", image: "/i/novadeck.AppImage" }
     },
-    shutdown: async () => void calls.push("shutdown"),
-    start: async (image) => {
-      calls.push(`start ${image}`)
-      return true
-    },
-    alert: async (image) => void calls.push(`alert ${image}`),
     stopping: () => false,
-    fallbackMs: 10_000,
-    quit: () => void calls.push("quit"),
     log: () => {},
     ...overrides,
   }
   return { host, calls }
 }
 
-// Lets the shutdown and relaunch that follow an answer run.
-const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
+const noProgress = (): void => {}
 
 const copy = (version: string | undefined, unchecked = false): InstalledCopy => ({
   image: "/n/novadeck.AppImage",
@@ -62,12 +60,33 @@ const copy = (version: string | undefined, unchecked = false): InstalledCopy => 
 })
 
 describe("what a portable copy reports", () => {
-  it("is portable, with this build's version", () => {
+  it("is portable, with this build's version, and not yet installed", () => {
     expect(portableInstaller(hosting().host).state()).toEqual({
       portable: true,
       version: "1.0.0",
       run: "run-1",
+      installed: false,
     })
+  })
+
+  it("is installed once this run installed", async () => {
+    const installer = portableInstaller(hosting().host)
+    await installer.install(noProgress)
+    expect(installer.state()).toMatchObject({ portable: true, installed: true })
+  })
+
+  it("is installed once a newer installed copy was found, as nothing more is left to offer", async () => {
+    const installer = portableInstaller(hosting({ find: async () => [copy("1.1.0")] }).host)
+    expect(await installer.install(noProgress)).toMatchObject({ kind: "newer" })
+    expect(installer.state()).toMatchObject({ installed: true })
+  })
+
+  it("is not installed after a failed install", async () => {
+    const installer = portableInstaller(
+      hosting({ install: async () => ({ kind: "failed", reason: "No." }) }).host,
+    )
+    await installer.install(noProgress)
+    expect(installer.state()).toMatchObject({ installed: false })
   })
 
   it("is not portable for an installed copy", () => {
@@ -78,21 +97,32 @@ describe("what a portable copy reports", () => {
 })
 
 describe("installing from a portable copy", () => {
-  it("installs this very file, shuts down, then starts the installed copy", async () => {
+  it("installs this very file and answers installed, starting and quitting nothing", async () => {
     const { host, calls } = hosting()
-    const result = await portableInstaller(host).install()
-    expect(result).toEqual({ kind: "installing" })
-    await settle()
-    expect(calls).toEqual(["install", "shutdown", "start /i/novadeck.AppImage"])
+    expect(await portableInstaller(host).install(noProgress)).toEqual({ kind: "installed" })
+    expect(calls).toEqual(["install"])
+  })
+
+  it("forwards the platform's progress", async () => {
+    const seen: InstallProgress[] = []
+    const { host } = hosting({
+      install: async (_target, progress) => {
+        progress({ phase: "downloading", percent: 50 })
+        progress({ phase: "installing" })
+        return { kind: "installed", image: "/i/novadeck.AppImage" }
+      },
+    })
+    await portableInstaller(host).install((progress) => seen.push(progress))
+    expect(seen).toEqual([{ phase: "downloading", percent: 50 }, { phase: "installing" }])
   })
 
   it("replaces an installed copy that is the same or older", async () => {
     const runs = ["1.0.0", "0.9.0", undefined].map(async (version) => {
       const { host, calls } = hosting({ find: async () => [copy(version)] })
-      return { result: await portableInstaller(host).install(), calls }
+      return { result: await portableInstaller(host).install(noProgress), calls }
     })
     for (const { result, calls } of await Promise.all(runs)) {
-      expect(result).toEqual({ kind: "installing" })
+      expect(result).toEqual({ kind: "installed" })
       expect(calls[0]).toBe("install over /n/novadeck.AppImage")
     }
   })
@@ -103,41 +133,66 @@ describe("installing from a portable copy", () => {
       { image: "/b/novadeck.AppImage", version: "0.9.0", unchecked: false },
     ]
     const { host, calls } = hosting({ find: async () => both })
-    await portableInstaller(host).install()
-    await settle()
-    expect(calls).toEqual([
-      "install over /c/novadeck.AppImage",
-      "shutdown",
-      "start /i/novadeck.AppImage",
-    ])
+    await portableInstaller(host).install(noProgress)
+    expect(calls).toEqual(["install over /c/novadeck.AppImage"])
     const brew = hosting({ find: async () => both.slice(1) })
-    await portableInstaller(brew.host).install()
+    await portableInstaller(brew.host).install(noProgress)
     expect(brew.calls[0]).toBe("install over /b/novadeck.AppImage")
+  })
+
+  it("answers a second request with the first's result without installing again", async () => {
+    const { host, calls } = hosting()
+    const installer = portableInstaller(host)
+    const [one, two] = await Promise.all([
+      installer.install(noProgress),
+      installer.install(noProgress),
+    ])
+    expect(one).toEqual({ kind: "installed" })
+    expect(two).toEqual({ kind: "installed" })
+    expect(await installer.install(noProgress)).toEqual({ kind: "installed" })
+    expect(calls).toEqual(["install"])
+  })
+
+  it("tries again after a failure", async () => {
+    let attempts = 0
+    const { host } = hosting({
+      install: async () => {
+        attempts += 1
+        return attempts === 1
+          ? { kind: "failed", reason: "No." }
+          : { kind: "installed", image: "/i/novadeck.AppImage" }
+      },
+    })
+    const installer = portableInstaller(host)
+    expect(await installer.install(noProgress)).toEqual({ kind: "failed", reason: "No." })
+    expect(await installer.install(noProgress)).toEqual({ kind: "installed" })
   })
 
   it("leaves a newer installed copy alone and says which version it is", async () => {
     const { host, calls } = hosting({ find: async () => [copy("1.1.0")] })
-    expect(await portableInstaller(host).install()).toEqual({
+    expect(await portableInstaller(host).install(noProgress)).toEqual({
       kind: "newer",
       version: "1.1.0",
     })
-    await settle()
     expect(calls).toEqual([])
   })
 
-  it("fails with the reason, and keeps running", async () => {
-    const { host, calls } = hosting({
-      install: async () => ({
-        kind: "failed",
-        reason: "There is no space left on the disk.",
-      }),
+  it("passes on a newer copy the platform found while installing, writing nothing here", async () => {
+    const { host } = hosting({ install: async () => ({ kind: "newer", version: "1.2.0" }) })
+    expect(await portableInstaller(host).install(noProgress)).toEqual({
+      kind: "newer",
+      version: "1.2.0",
     })
-    expect(await portableInstaller(host).install()).toEqual({
+  })
+
+  it("passes a failure's reason through, and keeps running", async () => {
+    const { host } = hosting({
+      install: async () => ({ kind: "failed", reason: "There is no space left on the disk." }),
+    })
+    expect(await portableInstaller(host).install(noProgress)).toEqual({
       kind: "failed",
       reason: "There is no space left on the disk.",
     })
-    await settle()
-    expect(calls).toEqual([])
   })
 
   it("fails, and logs, when installing throws", async () => {
@@ -146,206 +201,55 @@ describe("installing from a portable copy", () => {
       install: () => Promise.reject(new Error("boom")),
       log: (message) => void logged.push(message),
     })
-    expect(await portableInstaller(host).install()).toEqual({
+    expect(await portableInstaller(host).install(noProgress)).toEqual({
       kind: "failed",
       reason: "Something went wrong.",
     })
     expect(logged).toEqual(["Installing failed."])
   })
 
-  context("by moving to Applications, as on macOS", () => {
-    const app = "/Applications/novadeck.app"
-
-    it("answers installing at once and leaves the quit to the move, with a quit as fallback", async () => {
-      vi.useFakeTimers()
-      try {
-        const { host, calls } = hosting({
-          fallbackMs: 30_000,
-          install: async () => {
-            calls.push("move")
-            return { kind: "leaving" }
-          },
-        })
-        expect(await portableInstaller(host).install()).toEqual({ kind: "installing" })
-        // Electron quits and starts the moved copy itself: no shutdown or start from here.
-        expect(calls).toEqual(["move"])
-        await vi.advanceTimersByTimeAsync(29_999)
-        expect(calls).toEqual(["move"])
-        await vi.advanceTimersByTimeAsync(1)
-        expect(calls).toEqual(["move", "quit"])
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
-    it("answers installing for a request that comes once the move began, though Electron is quitting", async () => {
-      vi.useFakeTimers()
-      try {
-        let quitting = false
-        const installer = portableInstaller(
-          hosting({
-            install: async () => {
-              quitting = true
-              return { kind: "leaving" }
-            },
-            stopping: () => quitting,
-          }).host,
-        )
-        expect(await installer.install()).toEqual({ kind: "installing" })
-        expect(await installer.install()).toEqual({ kind: "installing" })
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-
-    it("tells an unchecked installed copy's way out in the platform's own words", async () => {
-      const { host, calls } = hosting({
-        uncheckedAdvice: "Check the copy in your Applications folder.",
-        find: async () => [copy(undefined, true)],
-      })
-      const result = await portableInstaller(host).install()
-      expect(result).toEqual({
-        kind: "failed",
-        reason:
-          "The installed copy could not be checked, so it was left as it is. " +
-          "Check the copy in your Applications folder.",
-      })
-      expect(calls).toEqual([])
-    })
-
-    it("fails with the reason and keeps running, shells and all", async () => {
-      const { host, calls } = hosting({
-        install: async () => ({ kind: "failed", reason: "Failed to copy the bundle." }),
-      })
-      expect(await portableInstaller(host).install()).toEqual({
-        kind: "failed",
-        reason: "Failed to copy the bundle.",
-      })
-      await settle()
-      expect(calls).toEqual([])
-    })
-
-    it("answers newer when Applications gained a newer copy since it looked, and opens that", async () => {
-      const { host, calls } = hosting({
-        install: async () => ({ kind: "newer", image: app, version: "1.2.0" }),
-      })
-      const installer = portableInstaller(host)
-      expect(await installer.install()).toEqual({ kind: "newer", version: "1.2.0" })
-      installer.openInstalled()
-      await settle()
-      expect(calls).toEqual(["shutdown", `start ${app}`])
-    })
-  })
-
   it("installs nothing from a copy that is not portable", async () => {
     const { host, calls } = hosting({ portable: false })
-    expect((await portableInstaller(host).install()).kind).toBe("failed")
+    expect(await portableInstaller(host).install(noProgress)).toEqual({
+      kind: "failed",
+      reason: "This copy of Novadeck is installed.",
+    })
     expect(calls).toEqual([])
   })
 
-  it("does nothing more for a second request, whether under way or after leaving", async () => {
-    const { host, calls } = hosting()
-    const installer = portableInstaller(host)
-    const [first, second] = await Promise.all([installer.install(), installer.install()])
-    expect([first, second]).toEqual([{ kind: "installing" }, { kind: "installing" }])
-    expect(await installer.install()).toEqual({ kind: "installing" })
-    await settle()
-    expect(calls.filter((call) => call.startsWith("install"))).toHaveLength(1)
-    expect(calls.filter((call) => call === "shutdown")).toHaveLength(1)
+  it("does not replace an installed copy that could not be looked at", async () => {
+    const logged: string[] = []
+    const { host, calls } = hosting({
+      find: async () => [copy(undefined, true)],
+      log: (message) => void logged.push(message),
+    })
+    const result = await portableInstaller(host).install(noProgress)
+    expect(result).toMatchObject({ kind: "failed" })
+    expect(result.kind === "failed" && result.reason).toContain("could not be checked")
+    expect(result.kind === "failed" && result.reason).toContain("install.sh")
+    expect(calls).toEqual([])
+    expect(logged).toHaveLength(1)
   })
 
-  context("when the installed copy will not start", () => {
-    it("tells the person where it is, then quits, as the shells are gone", async () => {
-      const { host, calls } = hosting({ start: async () => false })
-      await portableInstaller(host).install()
-      await settle()
-      expect(calls).toEqual(["install", "shutdown", "alert /i/novadeck.AppImage", "quit"])
-    })
-
-    it("quits even when the person cannot be told", async () => {
-      const { host, calls } = hosting({
-        start: async () => false,
-        alert: () => Promise.reject(new Error("no display")),
-      })
-      await portableInstaller(host).install()
-      await settle()
-      expect(calls.at(-1)).toBe("quit")
-    })
-  })
-
-  context("when the installed copy started but this one is somehow still running", () => {
-    it("quits after the fallback time, and not before", async () => {
-      vi.useFakeTimers()
-      try {
-        const { host, calls } = hosting({ fallbackMs: 5_000 })
-        await portableInstaller(host).install()
-        await vi.advanceTimersByTimeAsync(4_999)
-        expect(calls).not.toContain("quit")
-        await vi.advanceTimersByTimeAsync(1)
-        expect(calls.at(-1)).toBe("quit")
-      } finally {
-        vi.useRealTimers()
-      }
-    })
-  })
-
-  context("when the installed copy could not be looked at", () => {
-    it("is left as it is, whether or not it would be newer", async () => {
-      const logs: unknown[][] = []
-      const { host, calls } = hosting({
-        find: async () => [copy(undefined, true)],
-        log: (...entry) => void logs.push(entry),
-      })
-      const result = await portableInstaller(host).install()
-      expect(result).toMatchObject({
-        kind: "failed",
-        reason: expect.stringContaining("install.sh"),
-      })
-      await settle()
-      expect(calls).toEqual([])
-      expect(logs).toEqual([["The installed copy could not be checked.", "/n/novadeck.AppImage"]])
-    })
-  })
-
-  context("when the installed copy runs but names no version", () => {
-    it("is replaced", async () => {
-      const { host, calls } = hosting({ find: async () => [copy(undefined, false)] })
-      expect(await portableInstaller(host).install()).toEqual({ kind: "installing" })
-      expect(calls[0]).toBe("install over /n/novadeck.AppImage")
-    })
-  })
-
-  context("when the person quit while the copy was made", () => {
-    it("does not start the installed copy, and says so", async () => {
-      let quitting = false
-      const { host, calls } = hosting({
-        install: async () => {
-          quitting = true
-          return { kind: "installed", image: "/i/novadeck.AppImage" }
-        },
-        stopping: () => quitting,
-      })
-      expect(await portableInstaller(host).install()).toEqual({
-        kind: "failed",
-        reason: "Novadeck is quitting.",
-      })
-      await settle()
-      expect(calls).toEqual([])
-    })
+  it("replaces an installed copy that names no version", async () => {
+    const { host, calls } = hosting({ find: async () => [copy(undefined)] })
+    expect(await portableInstaller(host).install(noProgress)).toEqual({ kind: "installed" })
+    expect(calls[0]).toBe("install over /n/novadeck.AppImage")
   })
 
   context("when the app is already quitting", () => {
-    it("installs nothing", async () => {
+    it("installs nothing and says so", async () => {
       const { host, calls } = hosting({ stopping: () => true })
-      expect(await portableInstaller(host).install()).toEqual({
+      expect(await portableInstaller(host).install(noProgress)).toEqual({
         kind: "failed",
         reason: "Novadeck is quitting.",
       })
-      await settle()
       expect(calls).toEqual([])
     })
+  })
 
-    it("installs nothing when the quit began while the installed copies were looked at", async () => {
+  context("when the app starts quitting while the installed copy is looked for", () => {
+    it("installs nothing", async () => {
       let quitting = false
       const { host, calls } = hosting({
         find: async () => {
@@ -354,179 +258,85 @@ describe("installing from a portable copy", () => {
         },
         stopping: () => quitting,
       })
-      expect(await portableInstaller(host).install()).toMatchObject({ kind: "failed" })
+      expect(await portableInstaller(host).install(noProgress)).toEqual({
+        kind: "failed",
+        reason: "Novadeck is quitting.",
+      })
       expect(calls).toEqual([])
     })
-  })
-
-  context("when shutting down fails", () => {
-    it("still starts the installed copy", async () => {
-      const { host, calls } = hosting({
-        shutdown: () => Promise.reject(new Error("runner gone")),
-      })
-      await portableInstaller(host).install()
-      await settle()
-      expect(calls).toEqual(["install", "start /i/novadeck.AppImage"])
-    })
-  })
-})
-
-describe("installing a setup that runs after the shutdown", () => {
-  const staging = (started: boolean, calls: string[]) => ({
-    install: async (): Promise<PortableInstall> => {
-      calls.push("install")
-      return {
-        kind: "staged",
-        start: async () => {
-          calls.push("run setup")
-          return started
-        },
-        alert: async () => void calls.push("alert setup"),
-      }
-    },
-  })
-
-  it("shuts down, then runs the setup, then quits after the fallback", async () => {
-    vi.useFakeTimers()
-    try {
-      const calls: string[] = []
-      const { host } = hosting({
-        ...staging(true, calls),
-        shutdown: async () => void calls.push("shutdown"),
-        quit: () => void calls.push("quit"),
-      })
-      expect(await portableInstaller(host).install()).toEqual({ kind: "installing" })
-      await vi.advanceTimersByTimeAsync(0)
-      expect(calls).toEqual(["install", "shutdown", "run setup"])
-      await vi.advanceTimersByTimeAsync(host.fallbackMs)
-      expect(calls).toEqual(["install", "shutdown", "run setup", "quit"])
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it("tells the person and quits when the setup did not run", async () => {
-    const calls: string[] = []
-    const { host } = hosting({
-      ...staging(false, calls),
-      shutdown: async () => void calls.push("shutdown"),
-      quit: () => void calls.push("quit"),
-    })
-    await portableInstaller(host).install()
-    await settle()
-    expect(calls).toEqual(["install", "shutdown", "run setup", "alert setup", "quit"])
-  })
-
-  it("keeps the app running when the setup could not be made ready", async () => {
-    const { host, calls } = hosting({
-      install: async () => ({ kind: "failed", reason: "The latest release could not be fetched." }),
-    })
-    expect(await portableInstaller(host).install()).toEqual({
-      kind: "failed",
-      reason: "The latest release could not be fetched.",
-    })
-    await settle()
-    expect(calls).toEqual([])
-  })
-
-  it("leaves a newer installed copy alone and never makes the setup", async () => {
-    const calls: string[] = []
-    const { host } = hosting({ ...staging(true, calls), find: async () => [copy("1.1.0")] })
-    expect(await portableInstaller(host).install()).toMatchObject({ kind: "newer" })
-    await settle()
-    expect(calls).toEqual([])
-  })
-
-  it("does not install over an installed copy that could not be checked", async () => {
-    const calls: string[] = []
-    const { host } = hosting({
-      ...staging(true, calls),
-      find: async () => [copy(undefined, true)],
-      uncheckedAdvice: "Open the installed Novadeck from the Start menu.",
-    })
-    const result = await portableInstaller(host).install()
-    expect(result).toMatchObject({ kind: "failed" })
-    expect(result.kind === "failed" && result.reason).toContain("Start menu")
-    expect(calls).toEqual([])
-  })
-})
-
-describe("opening the installed copy found newer", () => {
-  it("shuts down and starts it", async () => {
-    const { host, calls } = hosting({ find: async () => [copy("1.1.0")] })
-    const installer = portableInstaller(host)
-    await installer.install()
-    installer.openInstalled()
-    await settle()
-    expect(calls).toEqual(["shutdown", "start /n/novadeck.AppImage"])
-  })
-
-  it("does nothing while the app is already quitting, so a shutdown is not run twice", async () => {
-    let quitting = false
-    const { host, calls } = hosting({
-      find: async () => [copy("1.1.0")],
-      stopping: () => quitting,
-    })
-    const installer = portableInstaller(host)
-    await installer.install()
-    quitting = true
-    installer.openInstalled()
-    await settle()
-    expect(calls).toEqual([])
-  })
-
-  it("does nothing before one was found", async () => {
-    const { host, calls } = hosting()
-    portableInstaller(host).openInstalled()
-    await settle()
-    expect(calls).toEqual([])
   })
 })
 
 describe("a launch of a portable copy", () => {
-  const checking = (overrides: Partial<NewerInstalledCheck> = {}) => {
+  const checking = (
+    overrides: Partial<InstalledCopyCheck> = {},
+    refuse = false,
+    recent = false,
+  ) => {
     const calls: string[] = []
-    const check: NewerInstalledCheck = {
+    const check: InstalledCopyCheck = {
       portable: true,
       version: "1.0.0",
       find: async () => [copy("1.1.0")],
-      ask: async (version) => {
-        calls.push(`ask ${version}`)
-        return true
-      },
       start: async (image) => {
         calls.push(`start ${image}`)
-        return true
+        return !refuse
       },
       alert: async (image) => void calls.push(`alert ${image}`),
+      recentRedirect: () => recent,
+      markRedirect: () => void calls.push("mark"),
       quit: () => void calls.push("quit"),
-      log: () => {},
+      log: (message) => void calls.push(`log ${message}`),
       ...overrides,
     }
     return { check, calls }
   }
 
-  it("offers to open a newer installed copy, and starts it when asked", async () => {
+  it("starts a newer installed copy in place of the launch, without asking", async () => {
     const { check, calls } = checking()
     expect(await leaveForNewerInstalled(check)).toBe(true)
-    expect(calls).toEqual(["ask 1.1.0", "start /n/novadeck.AppImage"])
+    expect(calls).toEqual(["start /n/novadeck.AppImage"])
   })
 
-  it("quits when the person chooses to", async () => {
-    const { check, calls } = checking({ ask: async () => false })
+  it("starts an installed copy of the same version too", async () => {
+    const { check, calls } = checking({ find: async () => [copy("1.0.0")] })
     expect(await leaveForNewerInstalled(check)).toBe(true)
-    expect(calls).toEqual(["quit"])
+    expect(calls).toEqual(["mark", "start /n/novadeck.AppImage"])
   })
 
-  it("tells the person and quits when the installed copy will not start", async () => {
-    const { check, calls } = checking({ start: async () => false })
+  it("tells the person and quits when a newer installed copy will not start", async () => {
+    const { check, calls } = checking({}, true)
     expect(await leaveForNewerInstalled(check)).toBe(true)
-    expect(calls).toEqual(["ask 1.1.0", "alert /n/novadeck.AppImage", "quit"])
+    expect(calls).toEqual(["start /n/novadeck.AppImage", "alert /n/novadeck.AppImage", "quit"])
   })
 
-  it("goes on when no installed copy is newer, or when the copy is not portable", async () => {
+  it("carries on, with no alert, when a same-version copy will not start", async () => {
+    const { check, calls } = checking({ find: async () => [copy("1.0.0")] }, true)
+    expect(await leaveForNewerInstalled(check)).toBe(false)
+    expect(calls).toEqual([
+      "mark",
+      "start /n/novadeck.AppImage",
+      "log The installed copy did not start; carrying on in this one.",
+    ])
+  })
+
+  it("carries on, starting nothing, when it redirected to a same-version copy moments ago", async () => {
+    const { check, calls } = checking({ find: async () => [copy("1.0.0")] }, false, true)
+    expect(await leaveForNewerInstalled(check)).toBe(false)
+    expect(calls).toEqual([
+      "log Redirected to the installed copy just now; carrying on in this one.",
+    ])
+  })
+
+  it("still starts a newer copy soon after a redirect", async () => {
+    const { check, calls } = checking({}, false, true)
+    expect(await leaveForNewerInstalled(check)).toBe(true)
+    expect(calls).toEqual(["start /n/novadeck.AppImage"])
+  })
+
+  it("carries on when the installed copy is older, unchecked or none, or this copy is not portable", async () => {
     const runs = [
-      { find: async () => [copy("1.0.0"), copy(undefined)] },
+      { find: async () => [copy("0.9.0"), copy(undefined)] },
       // One that could not be looked at: the runner's refusal of a newer workspace is the fallback.
       { find: async () => [copy(undefined, true)] },
       { find: async () => [] },
@@ -541,7 +351,7 @@ describe("a launch of a portable copy", () => {
     }
   })
 
-  it("goes on, and logs, when the installed copies cannot be looked at", async () => {
+  it("carries on, and logs, when the installed copies cannot be looked at", async () => {
     const logged: string[] = []
     const { check } = checking({
       find: () => Promise.reject(new Error("denied")),
@@ -552,10 +362,69 @@ describe("a launch of a portable copy", () => {
   })
 })
 
+describe("the note of a redirect", () => {
+  const noting = () => {
+    let at: number | undefined
+    let clock = 1_000
+    const marker = redirectMarker(
+      "/data/redirected-at",
+      30_000,
+      {
+        modified: () => {
+          if (at === undefined) throw new Error("ENOENT")
+          return at
+        },
+        write: () => void (at = clock),
+        remove: () => void (at = undefined),
+      },
+      () => clock,
+      () => {},
+    )
+    return { marker, tick: (ms: number) => void (clock += ms) }
+  }
+
+  it("is recent within the window after a redirect, and not before one", () => {
+    const { marker, tick } = noting()
+    expect(marker.recent()).toBe(false)
+    marker.mark()
+    tick(10_000)
+    expect(marker.recent()).toBe(true)
+    tick(25_000)
+    expect(marker.recent()).toBe(false)
+  })
+
+  it("is cleared when the installed copy starts, so a relaunch of the portable redirects again", () => {
+    const { marker } = noting()
+    marker.mark()
+    marker.clear()
+    expect(marker.recent()).toBe(false)
+  })
+
+  it("does not fail when the files cannot be written or removed", () => {
+    const marker = redirectMarker(
+      "/x",
+      30_000,
+      {
+        modified: () => 0,
+        write: () => {
+          throw new Error("EACCES")
+        },
+        remove: () => {
+          throw new Error("EACCES")
+        },
+      },
+      () => 1,
+      () => {},
+    )
+    expect(() => (marker.mark(), marker.clear())).not.toThrow()
+  })
+})
+
 describe("answering the app's pages", () => {
   type Handler = (event: unknown) => unknown
   const registered = (known: boolean) => {
     const handlers = new Map<string, Handler>()
+    const sent: [string, unknown][] = []
     const { host, calls } = hosting()
     const installer = portableInstaller(host)
     registerPortableIpc(
@@ -563,11 +432,15 @@ describe("answering the app's pages", () => {
         handle: (channel, listener) => void handlers.set(channel, listener as Handler),
         on: (channel, listener) => void handlers.set(channel, listener as Handler),
       },
-      { window: () => (known ? "window" : undefined), installer },
+      {
+        window: () => (known ? "window" : undefined),
+        pages: () => [{ send: (channel, progress) => void sent.push([channel, progress]) }],
+        installer,
+      },
     )
     const ask = (channel: string): unknown =>
       handlers.get(channel)!({} as IpcMainEvent & IpcMainInvokeEvent)
-    return { ask, calls }
+    return { ask, calls, sent, handlers }
   }
 
   it("tells the app's own page whether the copy is portable, and installs for it", async () => {
@@ -576,20 +449,44 @@ describe("answering the app's pages", () => {
       portable: true,
       version: "1.0.0",
       run: "run-1",
+      installed: false,
     })
     expect(await (ask(installAppChannel) as Promise<InstallResult>)).toEqual({
-      kind: "installing",
+      kind: "installed",
     })
     expect(calls[0]).toBe("install")
+    expect(await ask(portableChannel)).toMatchObject({ installed: true })
+  })
+
+  it("sends the install's progress to the app's pages on its own channel", async () => {
+    const { ask, sent } = registered(true)
+    await (ask(installAppChannel) as Promise<InstallResult>)
+    expect(sent.filter(([channel]) => channel === installProgressChannel)).toEqual([
+      [installProgressChannel, { phase: "installing" }],
+    ])
+  })
+
+  it("pushes the new state to every page once an install settles, and not after a failure", async () => {
+    const { ask, sent } = registered(true)
+    await (ask(installAppChannel) as Promise<InstallResult>)
+    expect(sent.filter(([channel]) => channel === portableStateChannel)).toEqual([
+      [portableStateChannel, expect.objectContaining({ portable: true, installed: true })],
+    ])
+    const failing = registered(false)
+    await failing.ask(installAppChannel)
+    expect(failing.sent).toEqual([])
+  })
+
+  it("has no channel to open an installed copy", () => {
+    expect(registered(true).handlers.size).toBe(2)
   })
 
   it("tells any other sender the copy is not portable, and refuses it", async () => {
-    const { ask, calls } = registered(false)
+    const { ask, calls, sent } = registered(false)
     expect(await ask(portableChannel)).toEqual({ portable: false })
     expect(await ask(installAppChannel)).toMatchObject({ kind: "failed" })
-    ask(openInstalledChannel)
-    await settle()
     expect(calls).toEqual([])
+    expect(sent).toEqual([])
   })
 })
 
@@ -640,7 +537,7 @@ describe("the environment of the installed copy", () => {
 
 const starting = (
   behave: (child: EventEmitter & { unref: () => void }) => void,
-  overrides: { runnable?: (path: string) => boolean; throws?: boolean } = {},
+  overrides: { runnable?: (path: string) => boolean; throws?: boolean; refused?: boolean } = {},
 ) => {
   const calls: string[] = []
   const spawned: { file: string; args: readonly string[]; options: unknown }[] = []
@@ -657,6 +554,7 @@ const starting = (
     },
     runnable: overrides.runnable ?? (() => true),
     releaseLock: () => void calls.push("release"),
+    reclaimLock: () => (calls.push("reclaim"), !overrides.refused),
     exit: () => void calls.push("exit"),
     log: (message) => void calls.push(`log ${message}`),
   })
@@ -700,17 +598,22 @@ describe("starting the installed copy", () => {
     )
   })
 
-  it("does not exit when the child fails to start", async () => {
+  it("does not exit, and holds the lock again, when the child fails to start", async () => {
     const { start, calls } = starting((child) => child.emit("error", new Error("EACCES")))
     expect(await start).toBe(false)
-    expect(calls).not.toContain("exit")
-    expect(calls).toContain("log The installed copy did not start.")
+    expect(calls).toEqual(["release", "log The installed copy did not start.", "reclaim"])
   })
 
-  it("does not exit when spawning throws", async () => {
+  it("holds the lock again when spawning throws", async () => {
     const { start, calls } = starting(() => {}, { throws: true })
     expect(await start).toBe(false)
-    expect(calls).not.toContain("exit")
+    expect(calls).toEqual(["release", "log The installed copy did not start.", "reclaim"])
+  })
+
+  it("ends this process when the lock cannot be taken back, as another copy has it", async () => {
+    const { start, calls } = starting(() => {}, { throws: true, refused: true })
+    expect(await start).toBe(false)
+    expect(calls).toContain("exit")
   })
 
   it("does not spawn a file that is missing or lacks the exec bit", async () => {
@@ -755,6 +658,7 @@ describe.skipIf(process.platform !== "linux")("the descriptors of the installed 
           spawn(file, [...args], { ...options, stdio: ["ignore", "ignore", "ignore", ...held] }),
         runnable: (path) => (direct ? !path.endsWith("/bash") : true),
         releaseLock: () => {},
+        reclaimLock: () => true,
         exit: () => {},
         log: () => {},
       })

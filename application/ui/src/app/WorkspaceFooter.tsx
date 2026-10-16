@@ -31,10 +31,11 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
   const connection = useConnection(backend.connection)
   const crashes = useUiState((state) => state.crashLoop)
   const offer = useUiState((state) => state.update)
-  const updateOpen = useUiState((state) => state.updateOpen)
+  const portableCardOpen = useUiState((state) => state.portableCardOpen)
   const sandbox = useUiState((state) => state.sandbox)
   const sandboxOpen = useUiState((state) => state.sandboxOpen)
-  const portable = useUiState((state) => state.portable?.portable === true)
+  const portableState = useUiState((state) => state.portable)
+  const portable = portableState?.portable === true
   // A host that can say it is portable has not yet: the sandbox chip waits, so it does not
   // flash on a copy whose install entry replaces it.
   const portablePending = useUiState((state) => state.portable === null) && !!portableHost
@@ -98,25 +99,30 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
       status={status}
       navigate={navigate}
       onRetry={backend.crashLoop ? commands.retryAfterCrashLoop : undefined}
-      update={
-        (offer && updates) || (portable && portableHost)
+      // A copy that updates itself shows only its downloads; a portable one, which can't,
+      // has its install entry, with the release it is missing.
+      progress={updates && !portable ? offer : null}
+      noticeOpen={sandboxOpen}
+      available={
+        updates && !portable && !portablePending && offer?.kind === "available"
+          ? { version: offer.version, onOpenPage: updates.openPage }
+          : undefined
+      }
+      portable={
+        portable && portableHost
           ? {
               offer: updates ? (offer ?? undefined) : undefined,
-              portable:
-                portable && portableHost
-                  ? {
-                      // The install entry covers the sandbox notice a portable copy would show.
-                      unsandboxed: sandbox !== null && !sandbox.sandboxed,
-                      onInstall: portableHost.install,
-                      onOpenInstalled: portableHost.openInstalled,
-                    }
-                  : undefined,
-              open: updateOpen,
+              portable: {
+                // The install entry covers the sandbox notice a portable copy would show.
+                unsandboxed: sandbox !== null && !sandbox.sandboxed,
+                onInstall: portableHost.install,
+                installed: portableState?.portable === true && portableState.installed,
+                ...(portableHost.onProgress && { onProgress: portableHost.onProgress }),
+              },
+              open: portableCardOpen,
               blocked: asking || welcome || sandboxOpen,
-              onOpenChange: commands.setUpdateOpen,
-              onShown: commands.updateShown,
-              onInstall: updates?.install ?? (() => {}),
-              onOpenPage: updates?.openPage ?? (() => {}),
+              onOpenChange: commands.setPortableCardOpen,
+              onShown: commands.portableCardShown,
               returnFocus: () => {
                 const { selected, view } = currentState(store.getSnapshot())
                 if (!selected) return false

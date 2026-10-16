@@ -91,6 +91,26 @@ const folderKey = (folder: string): string =>
     .toLowerCase()
 
 /**
+ * The folder of `folders` that the executable `execPath` is inside of, or undefined if
+ * none. The setup replaces everything in the install folder, and its running-app check
+ * (`_CHECK_APP_RUNNING` in electron-builder's `allowOnlyOneInstallerInstance.nsh`) stops
+ * every process whose path `StartsWith($INSTDIR, CurrentCultureIgnoreCase)`: a plain
+ * case-insensitive prefix with no separator after it. So this mirrors that exactly, and a
+ * sibling that starts with the same letters (`novadeck-portable`) counts as inside, since
+ * the setup would stop it too.
+ */
+export const insideInstallFolder = (
+  execPath: string,
+  folders: readonly (string | undefined)[],
+): string | undefined => {
+  const here = win32.normalize(execPath).toLowerCase()
+  return folders.find((folder): folder is string => {
+    if (folder === undefined || folder === "") return false
+    return here.startsWith(folderKey(folder))
+  })
+}
+
+/**
  * Whether the running executable is a copy the installer made, as opposed to the unpacked
  * ZIP, which carries nothing of the installer. The NSIS installer writes
  * `Uninstall <executable name>.exe` beside the executable (`UNINSTALL_FILENAME` in
@@ -230,9 +250,88 @@ export const sha512Of = (yaml: string, name: string): string | undefined => {
   return top.path === name ? top.hash || undefined : undefined
 }
 
+/**
+ * The `size` in bytes that `latest.yml` lists for the file `name` in its `files` entries,
+ * or undefined if there is none or it is not a positive whole number.
+ */
+export const sizeOf = (yaml: string, name: string): number | undefined => {
+  let url: string | undefined
+  let size: string | undefined
+  const entries: { url: string | undefined; size: string | undefined }[] = []
+  for (const line of yaml.split(/\r?\n/u)) {
+    if (/^\s*-\s/u.test(line)) {
+      if (url !== undefined || size !== undefined) entries.push({ url, size })
+      url = undefined
+      size = undefined
+    }
+    if (/^\s/u.test(line)) {
+      url = yamlValue(line, "url") ?? url
+      size = yamlValue(line, "size") ?? size
+    }
+  }
+  if (url !== undefined || size !== undefined) entries.push({ url, size })
+  const listed = entries.find((entry) => entry.url === name)?.size
+  const bytes = listed !== undefined && /^\d{1,12}$/u.test(listed) ? Number(listed) : undefined
+  return bytes !== undefined && bytes > 0 ? bytes : undefined
+}
+
+/** The whole percent that `received` bytes are of `total`, 0 to 100; undefined with no total. */
+export const wholePercent = (received: number, total: number | undefined): number | undefined =>
+  total === undefined || !(total > 0)
+    ? undefined
+    : Math.min(100, Math.max(0, Math.floor((received / total) * 100)))
+
+/**
+ * Turns byte counts into whole-percent reports, each told once as it changes. Without a
+ * `total` nothing is reported.
+ */
+export const reportPercents = (
+  total: number | undefined,
+  report: (percent: number) => void,
+): ((received: number) => void) => {
+  let last: number | undefined
+  return (received) => {
+    const percent = wholePercent(received, total)
+    if (percent === undefined || percent === last) return
+    last = percent
+    report(percent)
+  }
+}
+
+/** What the person is told while an earlier setup is still running. */
+export const setupRunningReason = "The installer is still running. Try again in a few minutes."
+
+/**
+ * Thrown by a download that cannot clear the setup folder because an earlier setup still
+ * runs from it (its file is locked), which is no sign of a network problem.
+ */
+export class SetupBusyError extends Error {}
+
+/**
+ * What the install answers once the setup has run: `failed` when it never started, the
+ * copy it left when one of the release's version or newer is there, and otherwise, for a
+ * setup that was still running when the wait ended, a plain statement of that; a setup that
+ * exited without leaving the copy did not finish.
+ */
+export const setupResult = (
+  ran: SetupRun,
+  installed: InstalledCopy | undefined,
+):
+  | { readonly kind: "installed"; readonly image: string }
+  | { readonly kind: "failed"; readonly reason: string } => {
+  if (ran === "failed")
+    return {
+      kind: "failed",
+      reason: "Windows did not run the installer. Download Novadeck again from its Releases page.",
+    }
+  if (installed !== undefined) return { kind: "installed", image: installed.image }
+  if (ran === "timeout") return { kind: "failed", reason: setupRunningReason }
+  return { kind: "failed", reason: "The installer did not finish installing Novadeck." }
+}
+
 /** How getting the setup ready went: the file, or why not. */
 export type SetupOutcome =
-  | { readonly kind: "ready"; readonly setup: string }
+  | { readonly kind: "ready"; readonly setup: string; readonly version: string }
   | { readonly kind: "failed"; readonly reason: string }
 
 /** What getting the setup uses of the machine and the network. */
@@ -254,13 +353,19 @@ export type SetupHost = {
   readonly text: (url: string) => Promise<string | undefined>
   /**
    * Downloads `url` into a fresh file and gives its path and the base64 SHA-512 of what
-   * was written; throws on any failure, and gives up past `maxBytes`.
+   * was written; throws on any failure, and gives up past `maxBytes`. `size` is the
+   * release's byte count for the file, when it lists one, which whole-percent `progress`
+   * is measured against.
    */
   readonly download: (
     url: string,
     maxBytes: number,
+    size: number | undefined,
+    progress: (percent: number) => void,
   ) => Promise<{ readonly file: string; readonly sha512: string }>
   readonly remove: (file: string) => Promise<void>
+  /** Told the whole percent downloaded, each as it changes. */
+  readonly progress: (percent: number) => void
   readonly log: (message: string, error: unknown) => void
 }
 
@@ -307,9 +412,15 @@ export const prepareSetup = async (host: SetupHost): Promise<SetupOutcome> => {
     return { kind: "failed", reason: "The release does not list the Windows installer." }
   let downloaded: { readonly file: string; readonly sha512: string }
   try {
-    downloaded = await host.download(`${base}${setupName}`, maxSetupBytes)
+    downloaded = await host.download(
+      `${base}${setupName}`,
+      maxSetupBytes,
+      sizeOf(yaml, setupName),
+      host.progress,
+    )
   } catch (error) {
     host.log("The installer could not be downloaded.", error)
+    if (error instanceof SetupBusyError) return { kind: "failed", reason: setupRunningReason }
     return { kind: "failed", reason: "The installer could not be downloaded. Are you online?" }
   }
   if (downloaded.sha512 !== expected) {
@@ -319,7 +430,7 @@ export const prepareSetup = async (host: SetupHost): Promise<SetupOutcome> => {
       reason: "The downloaded installer did not match the release, so it was discarded.",
     }
   }
-  return { kind: "ready", setup: downloaded.file }
+  return { kind: "ready", setup: downloaded.file, version: latestVersionOf(yaml) ?? host.version }
 }
 
 /** The part of a response that downloading uses. */
@@ -331,12 +442,14 @@ export type DownloadResponse = {
 
 /**
  * Streams a response's body into `write`, hashing it on the way, and stops past `maxBytes`.
+ * `received` is told the bytes written so far after each chunk.
  * Returns the base64 SHA-512 of the body.
  */
 export const hashBody = async (
   response: DownloadResponse,
   write: (chunk: Uint8Array) => Promise<void>,
   maxBytes: number,
+  received: (total: number) => void = () => {},
 ): Promise<string> => {
   if (!response.ok || response.body === null)
     throw new Error(`The download answered ${response.status}.`)
@@ -347,18 +460,19 @@ export const hashBody = async (
     if (total > maxBytes) throw new Error("The download is larger than expected.")
     hash.update(chunk)
     await write(chunk)
+    received(total)
   }
   return hash.digest("base64")
 }
 
 /**
- * Starts `file` with `args` as a detached child and ends this process, the way
- * both the setup and an installed copy are started. The single-instance lock is let go
- * first so the program started can take it; this process has shut down by now. Never
- * through the shell, which would run it past SmartScreen and Mark of the Web (the file
- * this app wrote has none). Resolves true after `exit`, or false, having logged why, when
- * the file is missing or the system refused to start it, as an application control policy
- * (Smart App Control) does.
+ * Starts the program `file` with `args` as a detached child and ends this process, the way
+ * an installed copy or the uninstaller is started. The single-instance lock is let go
+ * first so the program started can take it. Should the start fail after that, the lock is
+ * taken back with `reclaimLock`; if it is refused, another copy has it and this process
+ * ends. Never through the shell, which would run it past SmartScreen and Mark of the Web.
+ * Resolves true after `exit`, or false, having logged why, when the file is missing or the
+ * system refused to start it, as an application control policy (Smart App Control) does.
  */
 export const startDetached = ({
   file,
@@ -367,6 +481,7 @@ export const startDetached = ({
   spawn,
   exists,
   releaseLock,
+  reclaimLock,
   exit,
   log,
 }: {
@@ -384,6 +499,8 @@ export const startDetached = ({
   ) => StartedProcess
   readonly exists: (path: string) => boolean
   readonly releaseLock: () => void
+  /** Takes the lock back after a failed start; false when another process holds it. */
+  readonly reclaimLock: () => boolean
   readonly exit: () => void
   readonly log: (message: string, error: unknown) => void
 }): Promise<boolean> =>
@@ -393,26 +510,136 @@ export const startDetached = ({
       return resolve(false)
     }
     releaseLock()
+    const failed = (error: unknown): void => {
+      log("The program did not start.", error)
+      if (!reclaimLock()) exit()
+      resolve(false)
+    }
     try {
       const child = spawn(file, args, {
         detached: true,
         stdio: "ignore",
         ...(cwd === undefined ? {} : { cwd }),
       })
-      child.once("error", (error) => {
-        log("The program did not start.", error)
-        resolve(false)
-      })
+      child.once("error", failed)
       child.once("spawn", () => {
         child.unref()
         exit()
         resolve(true)
       })
     } catch (error) {
-      log("The program did not start.", error)
-      resolve(false)
+      failed(error)
     }
   })
 
-/** The arguments the setup is run with: silently, and starting the installed app after. */
-export const setupArguments = ["/S", "--force-run"] as const
+/**
+ * The arguments the setup is run with: silently, and not starting the installed app after
+ * (no `--force-run`), since this copy keeps running and nothing restarts by itself.
+ */
+export const setupArguments = ["/S"] as const
+
+/** How running the setup ended: it exited, it was still running at `timeoutMs`, or never started. */
+export type SetupRun = "exited" | "timeout" | "failed"
+
+/** The part of a child process that waiting for the setup uses. */
+export type SetupProcess = {
+  once(event: "spawn", listener: () => void): unknown
+  once(event: "exit", listener: () => void): unknown
+  once(event: "error", listener: (error: Error) => void): unknown
+  unref(): void
+}
+
+/**
+ * Runs the setup `file` with `args` as a detached child and waits for it to exit, or for
+ * `timeoutMs`, whichever is first; it is not killed at the timeout, as a setup stopped
+ * halfway leaves a broken install. This process keeps running, holds its single-instance
+ * lock, and never exits here. Never through the shell, which would run it past
+ * SmartScreen and Mark of the Web (the file this app wrote has none). The caller checks
+ * what the setup did: how it ended says little, as the setup may have started a helper
+ * and returned.
+ */
+export const runSetup = ({
+  file,
+  args = setupArguments,
+  spawn,
+  exists,
+  timeoutMs,
+  log,
+}: {
+  readonly file: string
+  readonly args?: readonly string[]
+  readonly spawn: (
+    file: string,
+    args: readonly string[],
+    options: { readonly detached: true; readonly stdio: "ignore"; readonly windowsHide: true },
+  ) => SetupProcess
+  readonly exists: (path: string) => boolean
+  readonly timeoutMs: number
+  readonly log: (message: string, error: unknown) => void
+}): Promise<SetupRun> =>
+  new Promise((resolve) => {
+    if (!exists(file)) {
+      log("There is no setup to run.", file)
+      return resolve("failed")
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const end = (outcome: SetupRun): void => {
+      clearTimeout(timer)
+      resolve(outcome)
+    }
+    try {
+      const child = spawn(file, args, { detached: true, stdio: "ignore", windowsHide: true })
+      child.once("error", (error) => {
+        log("The setup did not start.", error)
+        end("failed")
+      })
+      child.once("spawn", () => {
+        child.unref()
+        timer = setTimeout(() => {
+          log("The setup is still running.", file)
+          end("timeout")
+        }, timeoutMs)
+      })
+      child.once("exit", () => end("exited"))
+    } catch (error) {
+      log("The setup did not start.", error)
+      end("failed")
+    }
+  })
+
+/**
+ * The installed copy of `version` or newer, whose executable is there: the only
+ * proof that the setup did its work. The installer's own record names the version, so a
+ * copy that cannot be checked does not count.
+ */
+export const installedAtLeast = (
+  copies: readonly InstalledCopy[],
+  version: string,
+): InstalledCopy | undefined =>
+  copies.find(
+    ({ version: found }) =>
+      found !== undefined && (found === version || isNewerVersion(found, version)),
+  )
+
+/**
+ * The two PowerShell commands electron-builder's `IS_POWERSHELL_AVAILABLE` runs (see
+ * `allowOnlyOneInstallerInstance.nsh`), each answering by exit code 0 for yes. The
+ * installer's `_CHECK_APP_RUNNING` then stops only the processes running from its install
+ * folder; where PowerShell is not available it stops every process named `novadeck.exe`
+ * instead, which would stop this copy. So the setup is run only where both say yes.
+ */
+export const powershellChecks = [
+  "if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }",
+  "if ((Get-ExecutionPolicy -Scope Process) -eq 'Restricted') { exit 1 } else { exit 0 }",
+] as const
+
+/**
+ * Whether the installer's running-app check can use PowerShell, which `run` asks by
+ * running `powershell.exe -C <command>` and answering whether it exited 0.
+ */
+export const powershellUsable = async (
+  run: (command: string) => Promise<boolean>,
+): Promise<boolean> => {
+  for (const command of powershellChecks) if (!(await run(command))) return false
+  return true
+}

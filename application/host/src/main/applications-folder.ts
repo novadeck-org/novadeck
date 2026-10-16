@@ -1,3 +1,6 @@
+// macOS paths, whichever system the tests run on.
+import { posix } from "node:path"
+
 import { updateVersionPattern } from "@novadeck/protocol/bridge"
 
 import type { InstalledCopy } from "./install-linux.js"
@@ -30,26 +33,6 @@ export const isNewerVersion = (existing: string, running: string): boolean => {
 }
 
 /**
- * What Electron's `moveToApplicationsFolder` does when the Applications folder already
- * holds an app of the same name: replace a copy that is not running, as the person asked
- * for this one to take its place, unless that copy is a newer version than this one, and
- * leave one that runs, which this must not quit. `existingVersion` is the version the
- * copy in Applications reports, when it can be read.
- */
-export const resolveMoveConflict = (
-  conflict: "exists" | "existsAndRunning",
-  {
-    existingVersion,
-    runningVersion,
-  }: { existingVersion: string | undefined; runningVersion: string },
-): "replace" | "newer" | "running" => {
-  if (conflict === "existsAndRunning") return "running"
-  if (existingVersion !== undefined && isNewerVersion(existingVersion, runningVersion))
-    return "newer"
-  return "replace"
-}
-
-/**
  * The `CFBundleShortVersionString` in the text of an XML `Info.plist`, if it has one.
  */
 export const bundleVersionOf = (plist: string): string | undefined =>
@@ -57,92 +40,175 @@ export const bundleVersionOf = (plist: string): string | undefined =>
     .exec(plist)?.[1]
     ?.trim()
 
-/** How a move to Applications went. */
-export type MoveOutcome =
-  /** The app is copied, and Electron is quitting it to start the copy. */
-  | { readonly kind: "moved" }
-  /** Applications holds a newer copy, `version`, which was left alone. */
-  | { readonly kind: "newer"; readonly version: string }
+/** How installing the bundle went: where it now is, or why nothing was installed. */
+export type BundleInstall =
+  | { readonly kind: "installed"; readonly image: string }
   | { readonly kind: "failed"; readonly reason: string }
 
-// A reason from an error's message, or a general one where it has none.
-const reasonOf = (error: unknown): string =>
-  reasonText(error instanceof Error ? error.message : "") || "Moving to Applications failed."
-
-/**
- * Why a move must not go ahead when the running bundle was renamed: Electron writes the
- * copy to `/Applications/<running name>`, so a copy `running` named otherwise (Finder and
- * Archive Utility add " 2" to a name already taken) would sit beside an older installed
- * one under the `packaged` name, which stays launchable and never runs the launch check.
- * Undefined when the names agree or no such copy is installed (`installed`).
- */
-export const renamedMoveReason = ({
-  running,
-  packaged,
-  installed,
-}: {
+/** What installing the app bundle asks of the machine. */
+export type BundleInstallHost = {
+  /** The running bundle, which is copied. */
   readonly running: string
+  /** The running app's version. */
+  readonly version: string
+  /** The version the bundle at `path` names, when it can be read. */
+  readonly versionOf: (path: string) => Promise<string | undefined>
+  /** The bundle name the app is installed under, `novadeck.app`, whatever the running one is called. */
   readonly packaged: string
-  readonly installed: boolean
-}): string | undefined =>
-  running === packaged || !installed
-    ? undefined
-    : reasonText(
-        `This copy is named ${running}, and ${packaged} is already in Applications. ` +
-          `Rename this copy to ${packaged}, or remove the old one, and try again.`,
-      )
+  /** The system Applications folder and the person's own, in the order a new copy is put. */
+  readonly applications: string
+  readonly userApplications: string
+  readonly exists: (path: string) => Promise<boolean>
+  /** Whether the person can write to `path`, a file or a folder. */
+  readonly writable: (path: string) => Promise<boolean>
+  readonly mkdir: (folder: string) => Promise<void>
+  /** `ditto <source> <destination>`: copies a bundle whole, keeping what it carries. */
+  readonly ditto: (source: string, destination: string) => Promise<void>
+  /** `xattr -dr com.apple.quarantine <path>`. */
+  readonly unquarantine: (path: string) => Promise<void>
+  readonly rename: (from: string, to: string) => Promise<void>
+  readonly remove: (path: string) => Promise<void>
+  readonly log: (message: string, error: unknown) => void
+}
+
+// A reason from an error, or a general one where it has none.
+const reasonOf = (error: unknown): string => {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code
+  if (code === "ENOSPC") return "There is no space left on the disk."
+  if (code === "EACCES" || code === "EPERM" || code === "EROFS")
+    return "Novadeck cannot write to the Applications folder."
+  return reasonText(error instanceof Error ? error.message : "") || "Installing failed."
+}
+
+const failed = (reason: string): BundleInstall => ({ kind: "failed", reason })
+
+/** What recovering from an interrupted install asks of the machine. */
+export type BundleRecoveryHost = Pick<
+  BundleInstallHost,
+  "applications" | "userApplications" | "exists" | "rename" | "remove" | "log"
+> & {
+  /** The bundle names an installed copy may have: the packaged one, and a renamed copy's. */
+  readonly names: readonly string[]
+}
 
 /**
- * Moves the app to Applications with Electron's `moveToApplicationsFolder`, passed as
- * `move`. On success Electron has copied the app, deleted the original (or trashed it where
- * deleting fails; a read-only translocated copy stays, and a disk image's is never touched),
- * started a script that opens the copy once this process ends,
- * and called `app.quit()` itself, all before `move` returns true (see
- * `ElectronBundleMover::Move`); the quit runs the app's own shutdown, so nothing here quits.
- * The move is made before any shutdown on purpose: it can fail, and the person's shells
- * should survive that. A copy in Applications that is a newer version than this one is
- * never replaced: the move is cancelled and the answer is `newer`. Electron throws for a
- * failed copy or a refused authorization, and returns false for a conflict this turned down
- * or for what it will not do; either says why in a `failed` answer.
+ * Tidies what an install interrupted by a quit or a failed rollback leaves in the two
+ * Applications folders: a copy renamed aside while its replacement is not in place is put
+ * back (it may be the only installed copy), and a half-made copy is removed, as is an
+ * aside next to a copy that is there, for each of `names`. Returns the copy it restored, if any. Run before an
+ * install and at the launch of a portable copy; nothing else runs then, as one instance
+ * holds the data folder.
  */
-export const moveToApplications = ({
-  move,
-  existingVersion,
-  runningVersion,
-  log,
-}: {
-  /** Electron's `moveToApplicationsFolder`, given the handler for a copy already there. */
-  readonly move: (conflictHandler: (conflict: "exists" | "existsAndRunning") => boolean) => boolean
-  /** The version of the copy in Applications, when it can be read. */
-  readonly existingVersion: () => string | undefined
-  readonly runningVersion: string
-  readonly log: (message: string, error: unknown) => void
-}): MoveOutcome => {
-  // What the conflict handler found, if Electron asked it.
-  const found: { answer: ReturnType<typeof resolveMoveConflict>; version?: string } = {
-    answer: "replace",
+export const recoverBundles = async (host: BundleRecoveryHost): Promise<string | undefined> => {
+  const tidy = async (place: readonly [string, string]): Promise<string | undefined> => {
+    const [folder, name] = place
+    const target = posix.join(folder, name)
+    const aside = posix.join(folder, `.${name}.old`)
+    const staged = posix.join(folder, `.${name}.new`)
+    let restored: string | undefined
+    try {
+      if (await host.exists(aside)) {
+        if (await host.exists(target)) await host.remove(aside)
+        else {
+          await host.rename(aside, target)
+          restored = target
+        }
+      }
+      if (await host.exists(staged)) await host.remove(staged)
+    } catch (error) {
+      host.log("An interrupted install could not be tidied.", error)
+    }
+    return restored
+  }
+  const places = [host.applications, host.userApplications].flatMap((folder) =>
+    [...new Set(host.names)].map((name): readonly [string, string] => [folder, name]),
+  )
+  const restored = await Promise.all(places.map(tidy))
+  return restored.find((each) => each !== undefined)
+}
+
+/**
+ * Installs the running bundle as a copy, and leaves this app running. The target is the
+ * installed copy being replaced (`existing`), else `/Applications/<packaged name>` where
+ * that folder can be written, else the same in `~/Applications`. The bundle is copied
+ * with `ditto` into a hidden folder beside the target, stripped of its quarantine
+ * attribute (without which the system would run the installed copy translocated, and it
+ * would take itself for a portable one), and then swapped in: the old copy is renamed
+ * aside, the new one renamed into place, the old one removed. Should the second rename
+ * fail, the old copy is put back. A copy the person cannot write to belongs to another
+ * account, and nothing is written. An installed copy of the same version as this one, or
+ * this very bundle, is left alone and counts as installed. The running bundle is left where it is. Unlike
+ * Electron's `moveToApplicationsFolder`, nothing here quits or relaunches the app.
+ */
+export const installBundle = async (
+  existing: string | undefined,
+  host: BundleInstallHost,
+): Promise<BundleInstall> => {
+  const names = existing === undefined ? [host.packaged] : [host.packaged, posix.basename(existing)]
+  const restored = await recoverBundles({ ...host, names })
+  existing ??= restored
+  let target: string
+  if (existing !== undefined) {
+    // Never replace the bundle this app runs from. A translocated copy of the one in
+    // Applications runs from another path, but names the same version, so the version
+    // check is what leaves it alone; there is nothing to install.
+    if (existing === host.running || (await host.versionOf(existing)) === host.version)
+      return { kind: "installed", image: existing }
+    target = existing
+    if (!(await host.writable(existing)) || !(await host.writable(posix.dirname(existing))))
+      return failed(
+        "Novadeck in Applications belongs to another account on this Mac. Remove it and try again.",
+      )
+  } else if (await host.writable(host.applications)) {
+    target = posix.join(host.applications, host.packaged)
+  } else {
+    target = posix.join(host.userApplications, host.packaged)
+    try {
+      await host.mkdir(host.userApplications)
+    } catch (error) {
+      host.log("The Applications folder could not be made.", error)
+      return failed(reasonOf(error))
+    }
+  }
+  const folder = posix.dirname(target)
+  const name = posix.basename(target)
+  const staged = posix.join(folder, `.${name}.new`)
+  const aside = posix.join(folder, `.${name}.old`)
+  try {
+    await host.remove(staged)
+    await host.remove(aside)
+    await host.ditto(host.running, staged)
+    await host.unquarantine(staged)
+  } catch (error) {
+    host.log("The copy could not be made.", error)
+    await host.remove(staged).catch(() => {})
+    return failed(reasonOf(error))
   }
   try {
-    const moved = move((conflict) => {
-      const existing = existingVersion()
-      found.answer = resolveMoveConflict(conflict, { existingVersion: existing, runningVersion })
-      if (existing !== undefined) found.version = existing
-      return found.answer === "replace"
-    })
-    if (moved) return { kind: "moved" }
+    const replacing = await host.exists(target)
+    if (replacing) await host.rename(target, aside)
+    try {
+      await host.rename(staged, target)
+    } catch (error) {
+      if (replacing) await host.rename(aside, target).catch(() => {})
+      throw error
+    }
   } catch (error) {
-    log("Moving to Applications failed.", error)
-    return { kind: "failed", reason: reasonOf(error) }
+    host.log("The copy could not be put in place.", error)
+    await host.remove(staged).catch(() => {})
+    // macOS 13 and later let an app replace another only with the person's consent
+    // (App Management), refusing with EPERM.
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (code === "EPERM" || code === "EACCES")
+      return failed(
+        "macOS didn't allow replacing the installed Novadeck. Remove it yourself and try again.",
+      )
+    return failed(reasonOf(error))
   }
-  if (found.answer === "newer" && found.version !== undefined)
-    return { kind: "newer", version: found.version }
-  return {
-    kind: "failed",
-    reason:
-      found.answer === "running"
-        ? "Novadeck is already running from Applications."
-        : "Moving to Applications was cancelled.",
-  }
+  await host
+    .remove(aside)
+    .catch((error: unknown) => host.log("The replaced copy could not be removed.", error))
+  return { kind: "installed", image: target }
 }
 
 /** What finding the copies installed in Applications folders looks at of the machine. */

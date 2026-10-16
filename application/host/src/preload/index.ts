@@ -3,11 +3,10 @@ import {
   portableRunPattern,
   runnerPortMessage,
   updateChannels,
-  updateNoteLength,
-  updateNotesLength,
   updateVersionPattern,
   type DesktopBridge,
   type DesktopHost,
+  type InstallProgress,
   type InstallResult,
   type PortableState,
   type SandboxState,
@@ -22,10 +21,10 @@ import {
   appearanceChannel,
   directoryPickerChannel,
   installAppChannel,
-  installUpdateChannel,
+  installProgressChannel,
+  portableStateChannel,
   noticeChannel,
   noticeClickChannel,
-  openInstalledChannel,
   openUpdatePageChannel,
   portableChannel,
   quitAppChannel,
@@ -66,37 +65,20 @@ ipcRenderer.on(saveBeforeQuitChannel, () => {
 // and paragraph separators.
 const unwanted = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
 
-// What the date a copy fell behind is as the host reports it: an ISO 8601 date-time in UTC, as
-// `Date.toISOString` writes it.
-const datePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u
-
 // The offer when it is one the contract allows, or undefined. The host builds offers
 // that obey it; this holds the page's side to it should the host be wrong or tricked.
-// A note the page may not have is dropped rather than shortened.
 const offerOf = (value: unknown): UpdateOffer | undefined => {
   if (typeof value !== "object" || value === null) return undefined
-  const { kind, version, notes, percent, outdatedSince } = value as Record<string, unknown>
-  if (kind !== "downloading" && kind !== "ready" && kind !== "available") return undefined
+  const { kind, version, percent } = value as Record<string, unknown>
+  if (kind !== "downloading" && kind !== "ready" && kind !== "retrying" && kind !== "available")
+    return undefined
   // Only a download has a percent, and it has one always.
   if (kind === "downloading" && !isUpdatePercent(percent)) return undefined
   if (typeof version !== "string" || !updateVersionPattern.test(version)) return undefined
-  const lines = Array.isArray(notes) ? (notes as unknown[]) : []
   return {
     kind,
     version,
     ...(kind === "downloading" && isUpdatePercent(percent) ? { percent } : {}),
-    ...(typeof outdatedSince === "string" && datePattern.test(outdatedSince)
-      ? { outdatedSince }
-      : {}),
-    notes: lines
-      .filter(
-        (line): line is string =>
-          typeof line === "string" &&
-          line !== "" &&
-          Array.from(line).length <= updateNoteLength &&
-          !unwanted.test(line),
-      )
-      .slice(0, updateNotesLength),
   }
 }
 
@@ -121,7 +103,7 @@ const sandboxOf = (value: unknown): SandboxState => {
 // installed copy, so a broken answer never offers an install the host would not do.
 const portableStateOf = (value: unknown): PortableState => {
   if (typeof value !== "object" || value === null) return { portable: false }
-  const { portable, version, run } = value as Record<string, unknown>
+  const { portable, version, run, installed } = value as Record<string, unknown>
   if (
     portable !== true ||
     typeof version !== "string" ||
@@ -130,7 +112,22 @@ const portableStateOf = (value: unknown): PortableState => {
     !portableRunPattern.test(run)
   )
     return { portable: false }
-  return { portable: true, version, run }
+  return { portable: true, version, run, installed: installed === true }
+}
+
+// An install's progress when it is one the contract allows, else undefined.
+const installProgressOf = (value: unknown): InstallProgress | undefined => {
+  if (typeof value !== "object" || value === null) return undefined
+  const { phase, percent } = value as Record<string, unknown>
+  if (phase === "installing") return { phase }
+  if (phase === "downloading")
+    return typeof percent === "number" &&
+      Number.isInteger(percent) &&
+      percent >= 0 &&
+      percent <= 100
+      ? { phase, percent }
+      : undefined
+  return undefined
 }
 
 // The longest reason an install may give the page for failing: a sentence.
@@ -145,7 +142,7 @@ const installResultOf = (value: unknown): InstallResult => {
   }
   if (typeof value !== "object" || value === null) return unknown
   const { kind, version, reason } = value as Record<string, unknown>
-  if (kind === "installing") return { kind }
+  if (kind === "installed") return { kind }
   if (kind === "newer")
     return typeof version === "string" && updateVersionPattern.test(version)
       ? { kind, version }
@@ -251,9 +248,6 @@ const bridge = {
       ipcRenderer.removeListener(updateOfferChannel, relay)
     }
   },
-  installUpdate: () => {
-    ipcRenderer.send(installUpdateChannel)
-  },
   openUpdatePage: () => {
     ipcRenderer.send(openUpdatePageChannel)
   },
@@ -275,8 +269,24 @@ const bridge = {
   sandbox: async () => sandboxOf(await ipcRenderer.invoke(sandboxChannel)),
   portable: async () => portableStateOf(await ipcRenderer.invoke(portableChannel)),
   installApp: async () => installResultOf(await ipcRenderer.invoke(installAppChannel)),
-  openInstalled: () => {
-    ipcRenderer.send(openInstalledChannel)
+  // Only valid progress comes back.
+  onInstallProgress: (listener) => {
+    const relay = (_event: unknown, value: unknown): void => {
+      const progress = installProgressOf(value)
+      if (progress) listener(progress)
+    }
+    ipcRenderer.on(installProgressChannel, relay)
+    return () => {
+      ipcRenderer.removeListener(installProgressChannel, relay)
+    }
+  },
+  // Only a valid state comes back, as `portable()` gives it.
+  onPortableState: (listener) => {
+    const relay = (_event: unknown, value: unknown): void => listener(portableStateOf(value))
+    ipcRenderer.on(portableStateChannel, relay)
+    return () => {
+      ipcRenderer.removeListener(portableStateChannel, relay)
+    }
   },
   uninstallPlan: async () => uninstallPlanOf(await ipcRenderer.invoke(uninstallPlanChannel)),
   // Only a boolean crosses; the main process keeps data unless it is told exactly `false`.

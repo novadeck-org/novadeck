@@ -37,16 +37,13 @@ export const noticeChannel = "novadeck:notice"
 export const noticeClickChannel = "novadeck:notice-click"
 
 /**
- * Main-to-renderer report of an update offer, `{ kind, version, notes, outdatedSince? }`; see
+ * Main-to-renderer report of an update offer, `{ kind, version, notes }`; see
  * main/updater.ts. A page that starts listening later asks for it on `updateRequestChannel`.
  */
 export const updateOfferChannel = "novadeck:update-offer"
 
 /** Renderer-to-main request to be told, on `updateOfferChannel`, of the last offer. */
 export const updateRequestChannel = "novadeck:update-request"
-
-/** Renderer-to-main request to restart into the downloaded update. */
-export const installUpdateChannel = "novadeck:install-update"
 
 /** Renderer-to-main request to open the release page of the last offer in the browser. */
 export const openUpdatePageChannel = "novadeck:open-update-page"
@@ -73,10 +70,16 @@ export const portableChannel = "novadeck:portable"
 export const installAppChannel = "novadeck:install-app"
 
 /**
- * Renderer-to-main request to start the installed copy that `installAppChannel` found
- * newer, in place of this one.
+ * Main-to-renderer report of how an install under way goes, an `InstallProgress`; see
+ * main/portable.ts.
  */
-export const openInstalledChannel = "novadeck:open-installed"
+export const installProgressChannel = "novadeck:install-progress"
+
+/**
+ * Main-to-renderer report of the portable state, a `PortableState`, whenever it changes;
+ * see main/portable.ts.
+ */
+export const portableStateChannel = "novadeck:portable-state"
 
 /**
  * Renderer-to-main request for what uninstalling this copy would do; answers an

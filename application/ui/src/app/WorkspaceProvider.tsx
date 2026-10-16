@@ -7,7 +7,7 @@ import { workspaceFromSeed } from "../model/seed"
 import { createWorkspaceStore, type Store } from "../model/store"
 import { readPreferences } from "../preferences/preferences-storage"
 import { readProjectArrangement } from "../projects/project-arrangement-storage"
-import { readSidebarCollapsed, readUpdateSeen, readWindowedView } from "../shell/shell-storage"
+import { readSidebarCollapsed, readWindowedView } from "../shell/shell-storage"
 import { createPanes } from "../terminals/companion/state"
 import { createDragSession, DragSessionContext } from "../terminals/drag-session"
 import { followSavedPreferences, watchAppearance } from "./appearance"
@@ -65,7 +65,6 @@ const createServices = (
       preferences,
       sidebarCollapsed: readSidebarCollapsed(),
       projectArrangement: readProjectArrangement(),
-      updateSeen: readUpdateSeen(),
     }),
   )
   const { bind, settle, ...navigation } = createNavigator({ workspace, ui, now })

@@ -2,7 +2,8 @@ import { Progress as ArkProgress } from "@ark-ui/react/progress"
 
 import { cn } from "../class-name"
 
-// A bar for work of a known size: `value` of `max`. The label names it for assistive
+// A bar for work of a known size: `value` of `max`, or, with a `null` value, for work that
+// has no size to tell, a short segment sliding along it. The label names it for assistive
 // technology; the caller shows the numbers where it wants them.
 export const Progress = ({
   label,
@@ -11,12 +12,12 @@ export const Progress = ({
   className,
 }: {
   readonly label: string
-  readonly value: number
+  readonly value: number | null
   readonly max: number
   readonly className?: string
 }): React.JSX.Element => (
   <ArkProgress.Root
-    value={Math.min(value, max)}
+    value={value === null ? null : Math.min(value, max)}
     min={0}
     max={Math.max(max, 1)}
     aria-label={label}

@@ -4,6 +4,7 @@ import type { Workspace } from "../../../model/types"
 import type { UpdateOffer } from "../../../model/update"
 import type { Backend, BackendSink, TerminalKey } from "../../port"
 import type { DemoScreens } from "../surface"
+import type { DemoUpdates } from "./updates"
 
 // The demo's debug layer, in two halves: the shell (startup, connection, crash loop, the
 // panel itself and which demo runs) and the states a terminal, an agent or the page can
@@ -70,6 +71,8 @@ export type DemoStates = {
   readonly updates: NonNullable<Backend["updates"]>
   // Tells `updates`' listeners of a release, as the Update group's actions do.
   readonly offer: (offer: UpdateOffer) => void
+  // What the Updates group plays an installed copy's updates with.
+  readonly updateControls: DemoUpdates
   readonly pickDirectory: NonNullable<Backend["pickDirectory"]>
   // The demo's conversations, with what the panel arms for the chat's next send.
   readonly chat: (

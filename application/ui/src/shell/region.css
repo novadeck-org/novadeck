@@ -1,7 +1,8 @@
 /* The region recipe: the app's chrome. The header (`.app-header`, with the `.brand`
    link home), the footer (`.app-footer`, its `.footer-running` count, the
    `.footer-navigate` note while the person navigates the workspace, `.footer-status`
-   and `.footer-action`, the update chip `.footer-update` with its `.update-panel`, and
+   and `.footer-action`, a portable copy's install chip `.footer-update` with its `.update-card`,
+   the floating `.update-progress` bar of an update downloading, and
    the account's subscriptions, `.footer-usage`, a pill each with its `.usage-popover`), the rail of sidebar toggles (`.sidebar-tools`) and the sidebar
    (`.sidebar`), which on narrow screens opens as a `.sidebar-drawer`. Each region is a
    ground with an edge toward the workspace.
@@ -226,11 +227,9 @@
   grid-column: 2 / 4;
 }
 
-/* The update's notice (FooterUpdate.tsx), a `.floating` surface: a plain panel above the footer's right end, not
-   a layer, so it never takes keys or focus. Its title, up to a few release notes (two
-   lines each, scrolling past a few), a link to the rest, then Later and the action, which
-   always stay in view. */
-.update-panel,
+/* The sandbox notice (FooterSandbox.tsx), a `.floating` surface: a plain panel above the footer's right end, not
+   a layer, so it never takes keys or focus. Its title, text and the action, which always
+   stay in view. */
 .sandbox-panel {
   position: absolute;
   right: 12px;
@@ -252,7 +251,6 @@
   text-transform: none;
   font-weight: 400;
 }
-.update-panel:focus,
 .sandbox-panel:focus {
   outline: none;
 }
@@ -262,43 +260,6 @@
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);
   font-weight: 600;
-}
-.update-notes {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 0;
-  max-height: min(12rem, 40vh);
-  margin: 0;
-  padding-inline-start: 16px;
-  padding-inline-end: 4px;
-  overflow-y: auto;
-  line-height: 1.45;
-  list-style: disc;
-}
-.update-notes > li > span {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
-}
-.update-more {
-  margin: 0;
-}
-.update-link {
-  height: auto;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.update-text {
-  margin: 0;
-}
-.update-error {
-  color: var(--color-danger-fg);
 }
 .update-actions {
   display: flex;
@@ -355,4 +316,95 @@
   background-color: var(--region-sidebar-bg, var(--color-shell));
   color: var(--region-sidebar-fg, var(--color-ink));
   box-shadow: var(--region-sidebar-shadow, var(--shadow-panel));
+}
+
+/* An update downloading (UpdateProgress.tsx) and a portable copy's card (PortableInstall.tsx),
+   `.floating` surfaces above the footer's right end: a title and the percent or a
+   dismissing ×, the bar where there is one, and a line of what is happening. The download
+   is information only, so it lets clicks through to what it covers; the card, which has
+   buttons, does not. Both rise in as they appear and fade out once finished. */
+.update-progress,
+.update-card {
+  position: absolute;
+  right: 12px;
+  bottom: calc(100% + 8px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 16rem;
+  max-width: calc(100vw - 24px);
+  padding: 10px 12px 12px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 400;
+  animation: update-progress-in var(--motion-state) var(--ease-interface);
+  transition: opacity var(--motion-state) var(--ease-interface);
+}
+.update-progress {
+  pointer-events: none;
+}
+.update-card:focus {
+  outline: none;
+}
+.update-progress[data-state="closed"],
+.update-card[data-state="closed"] {
+  opacity: 0;
+}
+.update-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+}
+.update-progress-title {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.update-progress-percent {
+  font-variant-numeric: tabular-nums;
+}
+.update-card-close {
+  align-self: center;
+  margin: -4px -6px -4px 0;
+}
+.update-card .update-progress-note {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.update-card-error {
+  color: var(--color-danger-fg);
+}
+.update-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.update-card-foot > :only-child {
+  margin-inline-start: auto;
+}
+.footer-update-dot {
+  width: 6px;
+  height: 6px;
+  margin-inline-end: 6px;
+  border-radius: 50%;
+  background-color: var(--color-strong);
+}
+.update-progress-note {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@keyframes update-progress-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }

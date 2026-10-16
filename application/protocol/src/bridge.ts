@@ -54,11 +54,6 @@ export type DesktopBridge = {
    */
   onUpdate?(listener: (update: UpdateOffer) => void): () => void
   /**
-   * Restarts the app into the downloaded update: the host lets every page finish its
-   * saves first, as quitting does. Does nothing unless the last offer was `ready`.
-   */
-  installUpdate?(): void
-  /**
    * Opens the release page of the last offer's version in the browser. The host builds
    * the address from its own release repository; the page never names one. Does
    * nothing before an offer.
@@ -91,19 +86,28 @@ export type DesktopBridge = {
   portable?(): Promise<PortableState>
   /**
    * Installs the app from this portable copy, keeping the person's workspace, which both
-   * share. On `installing` the host is about to save every page, end the shells, and
-   * start the installed copy in place of this one, so the page has nothing more to do.
-   * On `newer` an installed copy newer than this one exists and nothing was written;
-   * `openInstalled` starts that one. A second call while an install is under way does
-   * nothing more. From a copy that is not portable, or a sender that is not the app's
+   * share. On `installed` the installed copy is in place and this copy keeps running;
+   * the installed one takes effect when the person next opens Novadeck, and nothing
+   * restarts by itself. On `newer` an installed copy newer than this one exists and
+   * nothing was written; it takes effect when the person next opens Novadeck too. A
+   * second call while an install is under way does nothing more, and one after `installed`
+   * answers the same again. From a copy that is not portable, or a sender that is not the app's
    * own page, the answer is `failed`. See `InstallResult`.
    */
   installApp?(): Promise<InstallResult>
   /**
-   * Starts the installed copy that `installApp` found newer, in place of this one, after
-   * the same shutdown quitting runs. Does nothing before such an answer.
+   * Hears how far an install under way has got, until the returned function is called.
+   * Only some hosts report a download (`InstallProgress`); the page shows a wait without
+   * a size where there is none. Absent from hosts that do not report.
    */
-  openInstalled?(): void
+  onInstallProgress?(listener: (progress: InstallProgress) => void): () => void
+  /**
+   * Hears the portable state whenever it changes, until the returned function is called:
+   * an install that answered `installed` or `newer` makes `installed` true for the rest of
+   * the run, in every window. Absent from hosts that do not push; the page then asks
+   * `portable` again when it needs to.
+   */
+  onPortableState?(listener: (state: PortableState) => void): () => void
   /**
    * What uninstalling this copy of the app would do, or why it can't be done from here.
    * Absent from hosts that came before it. See `UninstallPlan`.
@@ -159,25 +163,42 @@ export type UninstallResult =
  * Whether the host runs as a portable copy. `version` is this build's, reported for
  * display and diagnostics. `run` names this run of the app and is new at each launch of it;
  * a page tells with it a window opened again within one run from a new launch, as on
- * macOS, where closing the window leaves the app running.
+ * macOS, where closing the window leaves the app running. `installed` is whether this run
+ * already installed the app.
  */
 export type PortableState =
   | { readonly portable: false }
-  | { readonly portable: true; readonly version: string; readonly run: string }
+  | {
+      readonly portable: true
+      readonly version: string
+      readonly run: string
+      /** Whether this run already installed the app (or found a newer one installed), so a window opened again shows it done. */
+      readonly installed: boolean
+    }
 
 /** What a run's name may be, as the host reports it: a UUID. */
 export const portableRunPattern = /^[0-9A-Fa-f-]{1,64}$/
 
 /**
- * How `installApp` went. `installing`: the install is written and the app is about to
- * restart into it. `newer`: an installed copy of this `version`, newer than this one,
+ * How `installApp` went. `installed`: the installed copy is in place; this copy keeps
+ * running, and the installed one takes effect when the person next opens Novadeck.
+ * `newer`: an installed copy of this `version`, newer than this one,
  * was left alone. `failed`: nothing was installed, for the short human-readable
  * `reason` given, such as a full disk or a folder that cannot be written.
  */
 export type InstallResult =
-  | { readonly kind: "installing" }
+  | { readonly kind: "installed" }
   | { readonly kind: "newer"; readonly version: string }
   | { readonly kind: "failed"; readonly reason: string }
+
+/**
+ * How far an install under way has got. `downloading`: the installer is being fetched,
+ * `percent` (a whole number from 0 to 100) along; only Windows reports this. `installing`:
+ * it is being put in place, which has no size to tell.
+ */
+export type InstallProgress =
+  | { readonly phase: "downloading"; readonly percent: number }
+  | { readonly phase: "installing" }
 
 /**
  * Whether the host runs with Electron's sandbox. It does not when started with
@@ -202,27 +223,21 @@ export const updateChannels: readonly UpdateChannel[] = ["stable", "early"]
 /**
  * An update the host tells the page of. `downloading`: a release the host is downloading,
  * `percent` (a whole number from 0 to 100) along; it turns `ready` once downloaded, or
- * `available` should the download fail. `ready`: downloaded, and installed by
- * `installUpdate` or when the app next quits. `available`: a newer release this build
- * cannot install itself, which the person installs from its release page, as for an
- * unsigned macOS app, an AppImage in a folder it cannot write, a portable copy, or after
- * an install failed. `notes` are the release's notes as plain-text lines, at most
- * `updateNotesLength` of them, each at most `updateNoteLength` long, without control
- * characters; empty when the release has none the host could read. `outdatedSince` is set
- * only for a portable copy: when this copy first learned that a newer release exists, as
- * an ISO 8601 date-time. The host remembers it across launches for as long as the running
- * version stays the same, so it does not restart with each newer release.
+ * `retrying` should the download fail. `ready`: downloaded, and installed when the app
+ * next quits. `retrying`: a download failed and the host will try again by itself, so the
+ * person has nothing to do and the page shows nothing for it. `available`: a newer release
+ * the person must fetch themselves, because this build cannot install it: an unsigned
+ * macOS app, an AppImage in a folder it cannot write, a portable copy, or an install that
+ * failed.
  */
 export type UpdateOffer = {
   readonly kind: UpdateOfferKind
   readonly version: string
-  readonly notes: readonly string[]
   /** Set only for `downloading`. */
   readonly percent?: number
-  readonly outdatedSince?: string
 }
 
-export type UpdateOfferKind = "downloading" | "ready" | "available"
+export type UpdateOfferKind = "downloading" | "ready" | "retrying" | "available"
 
 /** Whether `value` is how far along a download is: a whole percent from 0 to 100. */
 export const isUpdatePercent = (value: unknown): value is number =>
@@ -230,11 +245,6 @@ export const isUpdatePercent = (value: unknown): value is number =>
 
 /** What an update's version may be, as the host reports it: a release's semantic version. */
 export const updateVersionPattern = /^\d{1,9}\.\d{1,9}\.\d{1,9}(?:-[0-9A-Za-z.-]{1,64})?$/
-
-/** The most release-note lines an offer carries. */
-export const updateNotesLength = 12
-/** The longest release-note line an offer carries. */
-export const updateNoteLength = 200
 
 /** A desktop notification about one terminal; see `DesktopBridge.showNotice`. */
 export type DesktopNotice = {

@@ -35,7 +35,7 @@ import {
   withUsage,
 } from "./terminals"
 import type { DemoAction, DemoActionContext, DemoActionGroup, DemoStates } from "./types"
-import { createDemoUpdates, longestNotes, sampleNotes } from "./updates"
+import { createDemoUpdates } from "./updates"
 
 // How long an agent works before its turn ends, so the person can look elsewhere.
 const turnMs = 3000
@@ -309,10 +309,8 @@ const createNotificationActions = (verbs: DemoAgentVerbs): readonly [DemoAction,
 export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
   const { agents, openWelcome, failNext: failAgents, limitAntigravity } = createDemoAgents()
   const { notices, Notices } = createDemoNotices()
-  const { updates, offer, download, finish, failInstall } = createDemoUpdates()
-  // Each press offers a newer version than the last, so its notice comes up again.
-  let patch = 79
-  const nextVersion = (): string => `0.0.${(patch += 1)}`
+  const updateControls = createDemoUpdates()
+  const { updates, offer } = updateControls
   const { pickDirectory, failNext: failPick } = createDemoFolders()
   const chat = createDebugChat()
   const notificationActions = createNotificationActions(verbs)
@@ -568,64 +566,6 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
         },
       ],
     },
-    {
-      section: "App",
-      title: "Updates",
-      actions: [
-        {
-          label: "Ready",
-          hint: "4 notes, Restart now, Later",
-          run: () => offer({ kind: "ready", version: nextVersion(), notes: sampleNotes }),
-        },
-        {
-          label: "Ready, no notes",
-          hint: "Same notice, no notes",
-          run: () => offer({ kind: "ready", version: nextVersion(), notes: [] }),
-        },
-        {
-          label: "Available",
-          hint: "4 notes, Download, Later",
-          run: () => offer({ kind: "available", version: nextVersion(), notes: sampleNotes }),
-        },
-        {
-          label: "Long notes",
-          hint: "12 long notes; list scrolls, “and 7 more”",
-          run: () => offer({ kind: "ready", version: nextVersion(), notes: longestNotes }),
-        },
-        {
-          label: "Downloading",
-          hint: "Chip counts up, its card has Later only; then the Ready notice comes up",
-          run: () => download(nextVersion(), sampleNotes),
-        },
-        {
-          label: "Newer update",
-          hint: "Replaces the open or dismissed one",
-          run: () =>
-            offer({ kind: "ready", version: nextVersion(), notes: sampleNotes.slice(0, 2) }),
-        },
-        {
-          label: "Install failed",
-          hint: "Ready turns to Available, with Download; a download, quietly",
-          run: failInstall,
-        },
-        {
-          label: "Early builds on",
-          hint: "Shows in Preferences once reopened",
-          run: () => updates.channel?.set("early"),
-        },
-        {
-          label: "Early builds off",
-          hint: "Shows in Preferences once reopened",
-          run: () => updates.channel?.set("stable"),
-        },
-        {
-          label: "Finish restart",
-          reboots: true,
-          hint: "Reloads on the new version; update gone",
-          run: finish,
-        },
-      ],
-    },
   ]
   return {
     groups,
@@ -634,6 +574,7 @@ export const createDemoStates = (verbs: DemoAgentVerbs): DemoStates => {
     notices,
     updates,
     offer,
+    updateControls,
     pickDirectory,
     chat: chat.wrap,
     screens,

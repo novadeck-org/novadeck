@@ -811,21 +811,23 @@ App:
   (`--icon-guide-color` changes them), for checking how icons line up with their text;
   it stays on through the demo's boots and reloads in this tab.
 - **Portable:** boot again as a portable copy, which never updates itself and is the way to
-  install the app that does. "No release known" shows the quiet Install Novadeck chip (Install when
-  narrow), which never opens by itself; its panel offers Later and Install Novadeck, and
-  pressing it here never ends: the chip reads Installing…. "Update available"
-  adds a release this copy learned of two days ago: the chip reads Update available and its
-  notice, raised once per version, installs rather than downloads. "Stale
-  update" has known of a newer release for 20 days, so the notice comes up at every boot.
-  "Newer install exists" and "Install fails" arm the other ends of pressing
-  Install Novadeck: a panel saying a newer Novadeck is already installed with Open
-  Novadeck, or a panel giving the reason with Install Novadeck kept to retry. "Slow
-  host" makes the host take four seconds to say it is portable, to check the No
-  sandbox chip does not flash meanwhile. "Installed copy" boots as one. With
-  "No sandbox" set under Sandbox, the No sandbox chip stays away on a portable and the
-  install panel adds a line about it. `?portable=on` (with `&install=newer` or
-  `&install=failed`, `&update=available&outdated=recent` or `old`, and `&answer=late` for
-  a delayed portable answer) opens variants for specs.
+  install the app that does. Its corner card, the update bar's size and place, comes up by
+  itself once per boot and then only from the footer chip, which Escape or × folds it back
+  into. "No release known" shows the Portable copy card and the quiet Install Novadeck chip
+  (Install when narrow); "Update available" adds a release, so the card reads "Novadeck
+  0.0.80 is out" and the chip says Update available with a dot. Install takes four seconds
+  here, a download climbing to 100% and then the install, and ends as installed: the card says
+  it takes effect after a restart, fades after a few seconds and leaves Installed on the chip;
+  Novadeck never restarts itself. "Install never finishes" holds the Installing card and the
+  chip's Installing…. "Newer install exists" and "Install fails" arm the other ends: a card
+  saying a newer Novadeck is already installed, or one giving the reason with Try again.
+  "Already installed" is a window opened again after installing: no card, the chip reads
+  Installed. "Slow host" makes the host take four seconds to say it is portable, to check
+  the No sandbox chip does not flash meanwhile. "Installed copy" boots as one. With "No
+  sandbox" set under Sandbox, the No sandbox chip stays away on a portable and the card adds
+  a line about it. `?portable=on` (with `&install=newer`, `failed` or `never`, `&installed=on`,
+  `&progress=on`, `&update=available`, and `&answer=late` for a delayed portable answer) opens
+  variants for specs.
 - **Uninstall:** boot as a host that offers the About row's Uninstall…, and end the run as
   armed. "Not offered" has no row (a portable copy, or no host); "Homebrew copy" shows the
   brew command with Copy and no button; "Ready, no data folder" has no Keep my projects checkbox, as when the app runs with its own data folder; "Removed" goes through Removing… to Novadeck is
@@ -838,17 +840,15 @@ App:
   Preferences first to see them named in the dialog; Agents' "Fail next" makes a disconnect
   fail before the run. `?uninstall=` opens `unavailable`, `manual`, `removed`, `leftover`,
   `failed`, `stopped`, `trash`, `windows`, `windows-failed` or `no-data` for specs.
-- **Updates:** have an update downloaded, available (the app can't install it itself), with
-  no notes, or with notes at the caps, for the notice above the footer's "Update ready" or
-  "Update available" chip. Downloading counts the chip up in steps (its notice, opened from the
-  chip, shows the progress with Later alone), then brings up the Ready notice. Each press offers a newer version, so the notice comes up
-  again; Later leaves the chip, which opens it again. Install failed turns the update
-  waiting from ready to available, and the notice comes up again with Download; pressed
-  while Downloading counts, it turns the chip to Update available without a notice, as a
-  failed download does. Restart
-  now shows Restarting…, which stays until Finish restart reloads the demo, as the app
-  comes back on the new version; Download opens no page in the demo. Early builds on and
-  off set the channel Preferences' Updates switch shows once Preferences is reopened.
+- **Updates:** Download counts the floating progress bar above the footer's right end up in
+  steps, shows it ready for a few seconds, then fades it; Download, held stops it at 40% to
+  look at. Download failed holds the bar at 40% for a moment, or fails one already running, and
+  drops it with nothing in the footer, as the host tries again by itself (`retrying`). Release
+  to fetch shows the Update available chip alone, which opens the release page (nothing opens
+  in a browser). Ready at
+  launch offers an update downloaded before this run, which shows nothing, as at a launch.
+  Finish restart reloads the demo, as the app comes back on the new version. Early builds on
+  and off set the channel Preferences' Updates switch shows once Preferences is reopened.
   `?demo=update`, `?demo=update-available` and `?demo=update-downloading` open variants
   that already have one waiting, for specs.
 

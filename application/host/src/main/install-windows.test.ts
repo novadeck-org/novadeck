@@ -1,25 +1,38 @@
 import { createHash } from "node:crypto"
 import { EventEmitter } from "node:events"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { join } from "node:path"
 
 import { describe, expect, it } from "../test"
 import { newerCopy } from "./install-linux"
 import {
   findInstalledWindows,
   hashBody,
+  insideInstallFolder,
+  installedAtLeast,
   installedByInstaller,
   installerGuid,
   latestVersionOf,
+  powershellChecks,
+  powershellUsable,
   prepareSetup,
   readInstallRecord,
   registryValue,
+  reportPercents,
+  runSetup,
+  setupArguments,
+  SetupBusyError,
+  setupResult,
+  setupRunningReason,
   setupName,
   sha512Of,
+  sizeOf,
+  wholePercent,
   startDetached,
   uuidV5,
   type InstallRecord,
   type SetupHost,
 } from "./install-windows"
-import { leaveForNewerInstalled } from "./portable"
 
 const sha = (text: string): string => createHash("sha512").update(text).digest("base64")
 
@@ -208,25 +221,12 @@ describe("finding the installed Windows copies", () => {
   })
 
   it("is the newer copy a launch leaves for, and an unchecked one is not", async () => {
-    const asked: string[] = []
-    const check = (version: string | undefined, unchecked: boolean) => ({
-      portable: true,
-      version: "1.0.0",
-      find: async () => [{ image: `${folder}\\novadeck.exe`, version, unchecked }],
-      ask: async (v: string) => (asked.push(`ask ${v}`), true),
-      start: async (image: string) => (asked.push(`start ${image}`), true),
-      alert: async () => {},
-      quit: () => void asked.push("quit"),
-      log: () => {},
-    })
     expect(
       newerCopy(await find(async () => ({ location: folder, version: "1.1.0" })), "1.0.0")?.version,
     ).toBe("1.1.0")
-    expect(await leaveForNewerInstalled(check("1.1.0", false))).toBe(true)
-    expect(asked).toEqual(["ask 1.1.0", `start ${folder}\\novadeck.exe`])
-    asked.length = 0
-    expect(await leaveForNewerInstalled(check(undefined, true))).toBe(false)
-    expect(asked).toEqual([])
+    expect(
+      newerCopy(await find(async () => ({ location: folder, version: undefined })), "1.0.0"),
+    ).toBeUndefined()
   })
 })
 
@@ -290,6 +290,7 @@ describe("getting the setup ready", () => {
         return { file: "C:\\Temp\\novadeck-setup\\setup.exe", sha512: sha(body) }
       },
       remove: async (file) => void calls.push(`remove ${file}`),
+      progress: () => {},
       log: () => {},
       ...overrides,
     }
@@ -301,6 +302,7 @@ describe("getting the setup ready", () => {
     expect(await prepareSetup(host)).toEqual({
       kind: "ready",
       setup: "C:\\Temp\\novadeck-setup\\setup.exe",
+      version: "1.2.0",
     })
     expect(calls).toEqual([
       "text https://github.com/o/r/releases/latest/download/latest.yml",
@@ -442,12 +444,12 @@ describe("hashing a download", () => {
 })
 
 describe("starting a program in place of this one", () => {
-  const starting = (event: "spawn" | "error" | "throw", present = true) => {
+  const starting = (event: "spawn" | "error" | "throw", present = true, reclaimed = true) => {
     const calls: string[] = []
     const spawned: { file: string; args: readonly string[]; options: unknown }[] = []
     const result = startDetached({
       file: "C:\\Temp\\setup.exe",
-      args: ["/S", "--force-run"],
+      args: ["--updated"],
       spawn: (file, args, options) => {
         spawned.push({ file, args, options })
         if (event === "throw") throw new Error("EACCES")
@@ -458,6 +460,7 @@ describe("starting a program in place of this one", () => {
       },
       exists: () => present,
       releaseLock: () => void calls.push("release"),
+      reclaimLock: () => (calls.push("reclaim"), reclaimed),
       exit: () => void calls.push("exit"),
       log: (message) => void calls.push(`log ${message}`),
     })
@@ -471,17 +474,25 @@ describe("starting a program in place of this one", () => {
     expect(spawned).toEqual([
       {
         file: "C:\\Temp\\setup.exe",
-        args: ["/S", "--force-run"],
+        args: ["--updated"],
         options: { detached: true, stdio: "ignore" },
       },
     ])
   })
 
-  it("does not exit when the system refuses to start it", async () => {
+  it("does not exit, and takes the lock back, when the system refuses to start it", async () => {
     const { result, calls } = starting("error")
     expect(await result).toBe(false)
-    expect(calls).not.toContain("exit")
-    expect(await starting("throw").result).toBe(false)
+    expect(calls).toEqual(["release", "log The program did not start.", "reclaim"])
+    const thrown = starting("throw")
+    expect(await thrown.result).toBe(false)
+    expect(thrown.calls).toEqual(["release", "log The program did not start.", "reclaim"])
+  })
+
+  it("ends this process when the lock cannot be taken back, as another copy has it", async () => {
+    const { result, calls } = starting("error", true, false)
+    expect(await result).toBe(false)
+    expect(calls).toContain("exit")
   })
 
   it("spawns nothing and lets go of nothing for a missing file", async () => {
@@ -489,5 +500,262 @@ describe("starting a program in place of this one", () => {
     expect(await result).toBe(false)
     expect(spawned).toEqual([])
     expect(calls).toEqual(["log There is no program to start."])
+  })
+})
+
+describe("the setup's arguments", () => {
+  it("run it silently and start nothing after", () => {
+    expect([...setupArguments]).toEqual(["/S"])
+  })
+})
+
+describe("running the setup", () => {
+  const running = (
+    event: "exit" | "none" | "error" | "throw",
+    options: { present?: boolean; timeoutMs?: number } = {},
+  ) => {
+    const calls: string[] = []
+    const spawned: { args: readonly string[]; options: unknown }[] = []
+    const result = runSetup({
+      file: "C:\\Temp\\setup.exe",
+      spawn: (_file, args, spawnOptions) => {
+        spawned.push({ args, options: spawnOptions })
+        if (event === "throw") throw new Error("EACCES")
+        const child = new EventEmitter() as EventEmitter & { unref: () => void }
+        child.unref = () => void calls.push("unref")
+        queueMicrotask(() => {
+          if (event === "error") return void child.emit("error", new Error("blocked"))
+          child.emit("spawn")
+          if (event === "exit") child.emit("exit", 0)
+        })
+        return child
+      },
+      exists: () => options.present ?? true,
+      timeoutMs: options.timeoutMs ?? 5,
+      log: (message) => void calls.push(`log ${message}`),
+    })
+    return { result, calls, spawned }
+  }
+
+  it("spawns detached with /S, and resolves when the setup exits, touching no lock and not exiting", async () => {
+    const { result, calls, spawned } = running("exit")
+    expect(await result).toBe("exited")
+    expect(calls).toEqual(["unref"])
+    expect(spawned).toEqual([
+      { args: ["/S"], options: { detached: true, stdio: "ignore", windowsHide: true } },
+    ])
+  })
+
+  it("resolves at the timeout without killing a setup that still runs", async () => {
+    const { result, calls } = running("none")
+    expect(await result).toBe("timeout")
+    expect(calls).toEqual(["unref", "log The setup is still running."])
+  })
+
+  it("fails for a missing file, a refused start or a throw, without spawning for the first", async () => {
+    const missing = running("exit", { present: false })
+    expect(await missing.result).toBe("failed")
+    expect(missing.spawned).toEqual([])
+    expect(await running("error").result).toBe("failed")
+    expect(await running("throw").result).toBe("failed")
+  })
+})
+
+describe("what proves the setup did its work", () => {
+  const copy = (version: string | undefined) => ({
+    image: "C:\\novadeck\\novadeck.exe",
+    version,
+    unchecked: version === undefined,
+  })
+
+  it("is an installed copy of the expected version or a newer one", () => {
+    expect(installedAtLeast([copy("1.2.0")], "1.2.0")).toBeDefined()
+    expect(installedAtLeast([copy("1.3.0")], "1.2.0")).toBeDefined()
+  })
+
+  it("is not an older copy, one that cannot be checked, or none", () => {
+    expect(installedAtLeast([copy("1.1.0")], "1.2.0")).toBeUndefined()
+    expect(installedAtLeast([copy(undefined)], "1.2.0")).toBeUndefined()
+    expect(installedAtLeast([], "1.2.0")).toBeUndefined()
+  })
+})
+
+describe("a copy running inside the install folder", () => {
+  const folders = ["C:\\Users\\me\\AppData\\Local\\Programs\\novadeck", undefined]
+  const exe = (folder: string): string => `${folder}\\novadeck.exe`
+
+  it("is inside when its path starts with the folder, whatever the case or trailing separator", () => {
+    expect(
+      insideInstallFolder(
+        "c:\\users\\ME\\appdata\\local\\programs\\NOVADECK\\novadeck.exe",
+        folders,
+      ),
+    ).toBe(folders[0])
+    expect(insideInstallFolder(exe(`${folders[0]}\\resources`), folders)).toBe(folders[0])
+    expect(insideInstallFolder(exe(folders[0] ?? ""), [`${folders[0]}\\`])).toBe(`${folders[0]}\\`)
+  })
+
+  it("is inside for a sibling that merely starts with the same letters, as the installer's plain prefix check would stop it", () => {
+    expect(insideInstallFolder(exe(`${folders[0]}-portable`), folders)).toBe(folders[0])
+  })
+
+  it("is not inside elsewhere, or with no folder to compare", () => {
+    expect(insideInstallFolder(exe("D:\\Downloads\\novadeck"), folders)).toBeUndefined()
+    expect(insideInstallFolder(exe("D:\\Downloads"), [undefined, ""])).toBeUndefined()
+  })
+})
+
+describe("whether the installer can check for a running app by PowerShell", () => {
+  it("asks the installer's two questions and needs yes to both", async () => {
+    const asked: string[] = []
+    const answering = (answers: boolean[]) => async (command: string) => {
+      asked.push(command)
+      return answers[asked.length - 1] ?? false
+    }
+    expect(await powershellUsable(answering([true, true]))).toBe(true)
+    expect(asked).toEqual([...powershellChecks])
+    asked.length = 0
+    expect(await powershellUsable(answering([true, false]))).toBe(false)
+    asked.length = 0
+    expect(await powershellUsable(answering([false]))).toBe(false)
+    expect(asked).toHaveLength(1)
+  })
+})
+
+describe("the size latest.yml lists", () => {
+  it("is the bytes of the setup's files entry", () => {
+    const yaml = [
+      "files:",
+      "  - url: other.zip",
+      "    size: 5",
+      "  - url: novadeck-win-x64-setup.exe",
+      "    sha512: B",
+      "    size: 104857600",
+    ].join("\n")
+    expect(sizeOf(yaml, setupName)).toBe(104857600)
+    expect(sizeOf(yaml, "other.zip")).toBe(5)
+  })
+
+  it("is nothing when unlisted, absent, zero or not a number", () => {
+    expect(sizeOf("files:\n  - url: x.zip\n    size: 1\n", setupName)).toBeUndefined()
+    expect(sizeOf("files:\n  - url: novadeck-win-x64-setup.exe\n", setupName)).toBeUndefined()
+    expect(
+      sizeOf("files:\n  - url: novadeck-win-x64-setup.exe\n    size: 0\n", setupName),
+    ).toBeUndefined()
+    expect(
+      sizeOf("files:\n  - url: novadeck-win-x64-setup.exe\n    size: big\n", setupName),
+    ).toBeUndefined()
+  })
+})
+
+describe("download progress", () => {
+  it("is whole percents, clamped, and nothing without a total", () => {
+    expect(wholePercent(1, 3)).toBe(33)
+    expect(wholePercent(5, 3)).toBe(100)
+    expect(wholePercent(0, 10)).toBe(0)
+    expect(wholePercent(5, undefined)).toBeUndefined()
+    expect(wholePercent(5, 0)).toBeUndefined()
+  })
+
+  it("is reported once per percent, as the body's chunks arrive", async () => {
+    const seen: number[] = []
+    const report = reportPercents(10, (percent) => seen.push(percent))
+    const hash = await hashBody(
+      {
+        ok: true,
+        status: 200,
+        body: (async function* () {
+          for (const chunk of ["a", "bb", "c", "dddd", "e", "f"]) yield Buffer.from(chunk)
+        })(),
+      },
+      async () => {},
+      100,
+      report,
+    )
+    expect(hash).toBe(sha("abbcddddef"))
+    expect(seen).toEqual([10, 30, 40, 80, 90, 100])
+  })
+
+  it("reports nothing with no total", () => {
+    const seen: number[] = []
+    reportPercents(undefined, (percent) => seen.push(percent))(5)
+    expect(seen).toEqual([])
+  })
+})
+
+describe("the installer's PowerShell checks", () => {
+  // The commands are electron-builder's, from IS_POWERSHELL_AVAILABLE in
+  // app-builder-lib/templates/nsis/include/allowOnlyOneInstallerInstance.nsh (the two
+  // `nsExec::Exec ... -C "<command>"` lines). They are pinned here so an upgrade that
+  // changes them is noticed.
+  it("are the exact commands of the template, and the path check is the prefix one mirrored", () => {
+    expect(powershellChecks).toEqual([
+      "if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }",
+      "if ((Get-ExecutionPolicy -Scope Process) -eq 'Restricted') { exit 1 } else { exit 0 }",
+    ])
+    const store = join(process.cwd(), "..", "..", "node_modules", ".pnpm")
+    const found = existsSync(store)
+      ? readdirSync(store).find((name) => name.startsWith("app-builder-lib@"))
+      : undefined
+    // A missing template fails: the pin is worth nothing if it silently stops running.
+    if (found === undefined) throw new Error(`app-builder-lib is not installed under ${store}`)
+    const template = readFileSync(
+      join(
+        store,
+        found,
+        "node_modules/app-builder-lib/templates/nsis/include/allowOnlyOneInstallerInstance.nsh",
+      ),
+      "utf8",
+    )
+    for (const command of powershellChecks) expect(template).toContain(`-C "${command}"`)
+    // `insideInstallFolder` mirrors this plain case-insensitive prefix check of a process's
+    // path against the install folder.
+    expect(template).toContain("StartsWith('$INSTDIR', 'CurrentCultureIgnoreCase')")
+  })
+})
+
+describe("what the install answers once the setup has run", () => {
+  const found = { image: "C:\\novadeck\\novadeck.exe", version: "1.2.0", unchecked: false }
+
+  it("is the copy it left, whatever way the setup ended", () => {
+    for (const ran of ["exited", "timeout"] as const)
+      expect(setupResult(ran, found)).toEqual({ kind: "installed", image: found.image })
+  })
+
+  it("says the installer is still running when the wait ended with no copy", () => {
+    expect(setupResult("timeout", undefined)).toEqual({
+      kind: "failed",
+      reason: setupRunningReason,
+    })
+    expect(setupRunningReason).toContain("still running")
+  })
+
+  it("says it did not finish when it exited with no copy, and that it did not run when it never started", () => {
+    expect(setupResult("exited", undefined)).toMatchObject({
+      reason: "The installer did not finish installing Novadeck.",
+    })
+    expect(setupResult("failed", found)).toMatchObject({ kind: "failed" })
+    expect((setupResult("failed", found) as { reason: string }).reason).toContain("did not run")
+  })
+})
+
+describe("a retry while the earlier setup still runs", () => {
+  it("answers that it is still running, not that the person is offline", async () => {
+    const downloads = {
+      latest: "https://github.com/o/r/releases/latest/download/",
+      own: undefined,
+    }
+    const outcome = await prepareSetup({
+      downloads,
+      version: "1.0.0",
+      text: async () => latest(sha("setup")),
+      download: async () => {
+        throw new SetupBusyError("in use")
+      },
+      remove: async () => {},
+      progress: () => {},
+      log: () => {},
+    })
+    expect(outcome).toEqual({ kind: "failed", reason: setupRunningReason })
   })
 })

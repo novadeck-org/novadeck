@@ -298,10 +298,16 @@ describe("uninstalling on Linux", () => {
 })
 
 describe("uninstalling on macOS", () => {
+  // What an interrupted install may have left beside the app, which goes with it.
+  const leftovers = [
+    "remove folder /Applications/.Novadeck.app.old",
+    "remove folder /Applications/.Novadeck.app.new",
+  ]
+
   it("shuts down, then moves the app to the Trash, keeping the data", async () => {
     const { host, calls } = mac()
     expect(await uninstaller(host).uninstall({ keepData: true })).toEqual({ kind: "removed" })
-    expect(calls).toEqual(["trash /Applications/Novadeck.app", "shutdown"])
+    expect(calls).toEqual(["trash /Applications/Novadeck.app", ...leftovers, "shutdown"])
   })
 
   it("deletes the data after the app is in the Trash when asked", async () => {
@@ -309,6 +315,7 @@ describe("uninstalling on macOS", () => {
     await uninstaller(host).uninstall({ keepData: false })
     expect(calls).toEqual([
       "trash /Applications/Novadeck.app",
+      ...leftovers,
       "shutdown",
       `remove folder ${home}/Library/Application Support/novadeck`,
     ])
@@ -332,6 +339,7 @@ describe("uninstalling on macOS", () => {
     expect(await one.uninstall({ keepData: false })).toEqual({ kind: "removed" })
     expect(calls).toEqual([
       "trash /Applications/Novadeck.app",
+      ...leftovers,
       "shutdown",
       `remove folder ${home}/Library/Application Support/novadeck`,
     ])
@@ -340,7 +348,7 @@ describe("uninstalling on macOS", () => {
   it("moves the app to the Trash before the shutdown", async () => {
     const { host, calls } = mac()
     await uninstaller(host).uninstall({ keepData: true })
-    expect(calls).toEqual(["trash /Applications/Novadeck.app", "shutdown"])
+    expect(calls).toEqual(["trash /Applications/Novadeck.app", ...leftovers, "shutdown"])
   })
 
   it("tells the person to reopen the app when the data cannot be removed afterwards", async () => {

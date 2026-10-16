@@ -1,12 +1,11 @@
-import type { InstallResult } from "../../model/portable"
 import type { SandboxState } from "../../model/sandbox"
 import type { UpdateOffer } from "../../model/update"
 import type { Backend } from "../port"
 import { createContentDemo } from "./content"
-import { createDemoPortable } from "./debug/portable"
+import { createDemoPortable, type DemoPortable } from "./debug/portable"
 import { createDemoSandbox, sampleFix } from "./debug/sandbox"
 import { createDemoUninstall, uninstallScenarios } from "./debug/uninstall"
-import { createDemoUpdates, sampleNotes } from "./debug/updates"
+import { createDemoUpdates } from "./debug/updates"
 import { createDemoBackend } from "./index"
 import { visitorDemo } from "./visitor"
 
@@ -34,25 +33,17 @@ const requestedUpdate = (): UpdateOffer | undefined => {
         : demo === "update-downloading"
           ? "downloading"
           : undefined
-  // `&outdated=recent` or `&outdated=old` dates when this copy learned of the release,
-  // two or twenty days back.
-  const outdated = query.get("outdated")
-  const days = outdated === "recent" ? 2 : outdated === "old" ? 20 : undefined
-  const outdatedSince =
-    days === undefined ? undefined : new Date(Date.now() - days * 86_400_000).toISOString()
   return (
     kind && {
       kind,
       version: "0.0.80",
-      notes: sampleNotes,
-      ...(outdatedSince ? { outdatedSince } : {}),
     }
   )
 }
 
 const demoWithUpdate = (update: UpdateOffer): ReturnType<typeof createDemoBackend> => {
   const { updates, offer, download } = createDemoUpdates()
-  if (update.kind === "downloading") download(update.version, update.notes)
+  if (update.kind === "downloading") download(update.version)
   else offer(update)
   return { ...createDemoBackend(), updates }
 }
@@ -67,15 +58,21 @@ const requestedSandbox = (): SandboxState | undefined => {
   return undefined
 }
 
+const portableFlag = (name: string): boolean =>
+  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get(name) === "on"
+
 // Specs open the demo on a portable copy with `?portable=on`, and choose how installing
-// ends with `&install=newer` or `&install=failed`; it never ends otherwise.
-const requestedInstall = (): InstallResult | undefined => {
+// ends with `&install=newer`, `&install=failed` or `&install=never`; it ends as installed
+// at once otherwise. `&installed=on` opens it as a window opened again after installing, and
+// `&progress=on` makes the install report a download for three seconds before it ends.
+const requestedInstall = (): DemoPortable["install"] | undefined => {
   const query = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
   if (query.get("portable") !== "on") return undefined
   const install = query.get("install")
   if (install === "newer") return { kind: "newer", version: "0.0.99" }
   if (install === "failed") return { kind: "failed", reason: "There is no space left." }
-  return { kind: "installing" }
+  if (install === "never") return "never"
+  return { kind: "installed" }
 }
 
 // Specs open the demo on a host that offers uninstalling with `?uninstall=` one of the
@@ -142,7 +139,12 @@ export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   return install
     ? {
         ...withUninstall,
-        portable: createDemoPortable({ install, answerAfterMs: answerDelay() }).portable,
+        portable: createDemoPortable({
+          install,
+          answerAfterMs: answerDelay(),
+          installed: portableFlag("installed"),
+          ...(portableFlag("progress") && { progress: true, installAfterMs: 3000 }),
+        }).portable,
       }
     : withUninstall
 }

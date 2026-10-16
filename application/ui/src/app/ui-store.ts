@@ -1,5 +1,5 @@
 import type { Backend } from "../backend/port"
-import { readUpdateRaised, writeUpdateRaised } from "../backend/update-raised"
+import { readPortableCardRaised, writePortableCardRaised } from "../backend/portable-card-raised"
 import {
   agentWorking,
   finishGraceMs,
@@ -15,12 +15,12 @@ import type { SandboxState } from "../model/sandbox"
 import { activeProject } from "../model/state"
 import { createStore, type MutableStore, type Store } from "../model/store"
 import type { PreferencesValue, TerminalMetadata, Workspace } from "../model/types"
-import { noticeRaised, portableNagged, updateKey, type UpdateOffer } from "../model/update"
+import type { UpdateOffer } from "../model/update"
 import { writePreferences } from "../preferences/preferences-storage"
 import { noArrangement, type ProjectArrangement } from "../projects/project-arrangement"
 import { writeProjectArrangement } from "../projects/project-arrangement-storage"
 import { initialShell, resetPresentation, type ShellState } from "../shell/shell-state"
-import { writeSidebarCollapsed, writeUpdateSeen, writeWindowedView } from "../shell/shell-storage"
+import { writeSidebarCollapsed, writeWindowedView } from "../shell/shell-storage"
 import {
   chatKept,
   keepChatDrafts,
@@ -74,9 +74,7 @@ export type UiState = {
   // The update the desktop app last told of: downloaded, or to fetch from its release page.
   readonly update: UpdateOffer | null
   // Whether its notice is open, or waits to open once the footer shows.
-  readonly updateOpen: boolean
-  // The offer (`updateKey`) whose notice came up last, kept across launches: each comes up once.
-  readonly updateSeen: string | null
+  readonly portableCardOpen: boolean
   // Whether the desktop app runs in its security sandbox, as the host said at startup; null
   // until then, and where it does not say.
   readonly sandbox: SandboxState | null
@@ -119,13 +117,11 @@ export const initialUi = ({
   preferences,
   sidebarCollapsed = false,
   projectArrangement = noArrangement,
-  updateSeen = null,
 }: {
   location: UiLocation
   preferences: PreferencesValue
   sidebarCollapsed?: boolean
   projectArrangement?: ProjectArrangement
-  updateSeen?: string | null
 }): UiState => ({
   location,
   preferences,
@@ -137,8 +133,7 @@ export const initialUi = ({
   crashLoopDismissed: false,
   crashLoop: 0,
   update: null,
-  updateOpen: false,
-  updateSeen,
+  portableCardOpen: false,
   sandbox: null,
   sandboxOpen: false,
   portable: null,
@@ -179,7 +174,6 @@ export const persistUi = (ui: Store<UiState>, workspace: Store<Workspace>): (() 
     persist(ui, (state) => state.preferences, writePreferences),
     persist(ui, (state) => state.shell.sidebarCollapsed, writeSidebarCollapsed),
     persist(ui, (state) => state.projectArrangement, writeProjectArrangement),
-    persist(ui, (state) => state.updateSeen, writeUpdateSeen),
     persist(workspace, (snapshot) => currentState(snapshot).windowedView, writeWindowedView),
   ]
   return () => stops.forEach((stop) => stop())
@@ -261,67 +255,55 @@ export const watchCrashLoop = (crashes: Store<number> | undefined, ui: UiStore):
 }
 
 // The update the backend offers, kept for the footer; a later offer replaces the last.
-// One for a version not yet shown opens its notice, which waits while the footer is
-// hidden; so does a stale one for a portable copy (`noticeRaised`).
-// What counts as already raised is what the person was shown in this run of the app, which
-// the host names, kept beyond the page's life (`readUpdateRaised`, written as the notice
-// shows), so a reload, a window opened again or a new attempt at the backend does not
-// raise it again, while a notice held back does. (The demo's boots stand for launches and
-// clear it; the desktop app's retries do not.)
+// Only a portable copy has a notice, a corner card that comes up by itself once per launch,
+// with the offer or without one, and after that only from its footer chip. It waits while
+// the footer is hidden. A copy that updates itself raises nothing, as its downloads show as
+// a bar. An offer heard before the host says whether this is a portable copy is raised once
+// it does (`watchPortable`).
+// Once per launch is what the host's run name says, kept beyond the page's life
+// (`readPortableCardRaised`, written as the card shows), so a reload, a window opened again or a
+// new attempt at the backend does not raise it again, while a card held back does. (The
+// demo's boots stand for launches and clear it; the desktop app's retries do not.)
 export const watchUpdates = (updates: Backend["updates"], ui: UiStore): (() => void) =>
   updates?.onOffer((update) => {
-    const state = ui.getSnapshot()
-    const raise = noticeRaised(update, {
-      previous: state.update,
-      seen: state.updateSeen,
-      portable: state.portable?.portable === true,
-      shownThisRun: raisedThisRun(update, state.portable),
-      now: Date.now(),
-    })
-    ui.update((current) => ({ ...current, update, updateOpen: current.updateOpen || raise }))
+    const { portable } = ui.getSnapshot()
+    const raise = portable?.portable === true && !raisedThisRun(portable)
+    ui.update((current) => ({
+      ...current,
+      update,
+      portableCardOpen: current.portableCardOpen || raise,
+    }))
   }) ?? (() => {})
 
-// The run the host names for a portable copy; only such a copy is reminded of a stale release.
-const runOf = (portable: PortableState | null): string | undefined =>
-  portable?.portable ? portable.run : undefined
-
-// Notes that the notice of the offer with this `updateKey` showed, for the rest of the run.
-export const noteUpdateShown = (portable: PortableState | null, key: string): void => {
-  const run = runOf(portable)
-  if (run !== undefined) writeUpdateRaised(run, key)
+// Notes that the portable copy's card showed, for the rest of the run.
+export const notePortableCardShown = (portable: PortableState | null): void => {
+  if (portable?.portable) writePortableCardRaised(portable.run)
 }
 
-const raisedThisRun = (offer: UpdateOffer, portable: PortableState | null): boolean => {
-  const run = runOf(portable)
-  return run !== undefined && readUpdateRaised(run) === updateKey(offer)
-}
+// Whether this run of a portable copy has shown its card already.
+// A copy that installed the app already has nothing to raise.
+const raisedThisRun = (portable: PortableState): boolean =>
+  portable.portable && (portable.installed || readPortableCardRaised(portable.run))
 
 // Asks the backend once whether the app is a portable copy, and keeps the answer for the
-// footer. An offer heard before the answer, for a copy found stale, raises its notice now.
-// A host that fails to say is taken as not saying.
+// footer. A portable copy raises its card now, offer or not. A host that fails to say is
+// taken as not saying. A state the host pushes later (this run installed the app) replaces
+// it without raising anything, and wins over an answer that comes after it.
 export const watchPortable = (portable: Backend["portable"], ui: UiStore): (() => void) => {
   let live = true
+  let pushed = false
+  const stop = portable?.onState?.((portableState) => {
+    pushed = true
+    ui.update((state) => ({ ...state, portable: portableState }))
+  })
   void portable?.state().then(
     (portableState) => {
-      if (!live) return
-      const { update, updateOpen, updateSeen } = ui.getSnapshot()
-      // A notice already open when the answer comes was shown before the run was known.
-      if (
-        portableState.portable &&
-        update !== null &&
-        updateOpen &&
-        updateSeen === updateKey(update)
-      )
-        noteUpdateShown(portableState, updateSeen)
-      const raise =
-        portableState.portable &&
-        update !== null &&
-        portableNagged(update, Date.now()) &&
-        !raisedThisRun(update, portableState)
+      if (!live || pushed) return
+      const raise = portableState.portable && !raisedThisRun(portableState)
       ui.update((state) => ({
         ...state,
         portable: portableState,
-        updateOpen: state.updateOpen || raise,
+        portableCardOpen: state.portableCardOpen || raise,
       }))
     },
     // A host that fails to say is not one, so nothing waits on its answer.
@@ -331,6 +313,7 @@ export const watchPortable = (portable: Backend["portable"], ui: UiStore): (() =
   )
   return () => {
     live = false
+    stop?.()
   }
 }
 

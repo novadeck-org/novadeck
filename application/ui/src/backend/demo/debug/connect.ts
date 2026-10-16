@@ -1,7 +1,7 @@
 import type { SandboxState } from "../../../model/sandbox"
 import type { BootRehearsals } from "../../boot-rehearsal"
 import type { BackendConnection, ConnectBackend } from "../../port"
-import { clearUpdateRaised } from "../../update-raised"
+import { clearPortableCardRaised } from "../../portable-card-raised"
 import { keepVariant, rememberVariant, requestedVariant } from "../variants"
 import { bootFailures } from "./boot-failures"
 import { restoreIconGuides } from "./icon-guides"
@@ -26,16 +26,19 @@ export const connectDemo = (rehearsals: BootRehearsals): ConnectBackend => {
   let sandbox: SandboxState | undefined
   let portable: DemoPortable | undefined
   let uninstall: DemoUninstall | undefined
+  let play: DemoLaunch["play"]
   return async (signal, progress): Promise<BackendConnection> => {
     await rehearsals.beforeConnect(signal, unavailable)
     progress("loading")
     // Each demo boot stands for a launch of the app, retries and variant switches too (the
-    // desktop app's retries are not launches): a stale release's notice, shown once per
+    // desktop app's retries are not launches): a portable copy's card, raised once per
     // launch, is not held back as already shown by the boot before.
-    if (portable?.offer) clearUpdateRaised()
+    if (portable) clearPortableCardRaised()
     // An abandoned attempt leaves the arming for the next.
     const slow = slowAttach && !signal.aborted
     if (slow) slowAttach = false
+    const armed = signal.aborted ? undefined : play
+    if (armed) play = undefined
     const launch: DemoLaunch = {
       rehearsals,
       variant,
@@ -59,6 +62,12 @@ export const connectDemo = (rehearsals: BootRehearsals): ConnectBackend => {
         portable = next
         rehearsals.rehearse({ reboot: true })
       },
+      bootInstalled: (next) => {
+        portable = undefined
+        play = next
+        rehearsals.rehearse({ reboot: true })
+      },
+      play: armed,
       uninstall,
       setUninstall: (next) => {
         uninstall = next

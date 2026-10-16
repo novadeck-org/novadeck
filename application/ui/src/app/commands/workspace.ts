@@ -27,7 +27,7 @@ import {
   sameTarget,
   windowedDestination,
 } from "../selectors"
-import { noteUpdateShown } from "../ui-store"
+import { notePortableCardShown } from "../ui-store"
 import { createChatCommands, type ChatCommands } from "./chat"
 import { createCompanionCommands, type CompanionCommands } from "./companion"
 import type { CommandContext } from "./context"
@@ -96,13 +96,12 @@ export type WorkspaceCommands = ShellCommands &
     // next crash loop.
     readonly retryAfterCrashLoop: () => void
     readonly dismissCrashLoop: () => void
-    // Opens or closes the update's notice, which the footer's chip reopens after Later.
-    readonly setUpdateOpen: (open: boolean) => void
+    // Opens or closes the portable copy's card, which the footer's chip reopens once dismissed.
+    readonly setPortableCardOpen: (open: boolean) => void
     // Opens or closes the sandbox notice; opening it closes the update's, which shares its place.
     readonly setSandboxOpen: (open: boolean) => void
-    // Notes that the notice came up for this offer (`updateKey`), so a relaunch
-    // doesn't raise it again.
-    readonly updateShown: (key: string) => void
+    // Notes that the card came up in this run, so it isn't raised by itself again.
+    readonly portableCardShown: () => void
   }
 
 // The terminal created last stays highlighted this long.
@@ -498,21 +497,26 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       crashLoop?.retry()
     },
     dismissCrashLoop: () => ui.update((state) => ({ ...state, crashLoopDismissed: true })),
-    setUpdateOpen: (updateOpen) =>
+    setPortableCardOpen: (portableCardOpen) =>
       ui.update((state) =>
-        state.updateOpen === updateOpen && !(updateOpen && state.sandboxOpen)
+        state.portableCardOpen === portableCardOpen && !(portableCardOpen && state.sandboxOpen)
           ? state
-          : { ...state, updateOpen, sandboxOpen: updateOpen ? false : state.sandboxOpen },
+          : {
+              ...state,
+              portableCardOpen,
+              sandboxOpen: portableCardOpen ? false : state.sandboxOpen,
+            },
       ),
     setSandboxOpen: (sandboxOpen) =>
       ui.update((state) =>
-        state.sandboxOpen === sandboxOpen && !(sandboxOpen && state.updateOpen)
+        state.sandboxOpen === sandboxOpen && !(sandboxOpen && state.portableCardOpen)
           ? state
-          : { ...state, sandboxOpen, updateOpen: sandboxOpen ? false : state.updateOpen },
+          : {
+              ...state,
+              sandboxOpen,
+              portableCardOpen: sandboxOpen ? false : state.portableCardOpen,
+            },
       ),
-    updateShown: (updateSeen) => {
-      noteUpdateShown(ui.getSnapshot().portable, updateSeen)
-      ui.update((state) => (state.updateSeen === updateSeen ? state : { ...state, updateSeen }))
-    },
+    portableCardShown: () => notePortableCardShown(ui.getSnapshot().portable),
   }
 }
