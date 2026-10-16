@@ -17,7 +17,7 @@ import { homedir } from "node:os"
 import { basename, dirname, join, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
-import type { InstallProgress, UpdateChannel } from "@novadeck/protocol/bridge"
+import type { UpdateChannel } from "@novadeck/protocol/bridge"
 import { startHttpServer, type HttpServer } from "@novadeck/runner/http"
 import {
   app,
@@ -42,6 +42,7 @@ import {
   apiUrlArgumentPrefix,
   directoryPickerChannel,
   noticeClickChannel,
+  portableStateChannel,
   runnerPortChannel,
   versionChannel,
 } from "../bridge.js"
@@ -88,7 +89,8 @@ import {
   portableInstaller,
   redirectMarker,
   registerPortableIpc,
-  type PortableInstall,
+  type InstallStep,
+  type PlatformInstall,
   startAppImage,
 } from "./portable.js"
 import { quitOnShutdown, saveBeforeClose, saveOnSessionEnd, savePages } from "./quit.js"
@@ -442,7 +444,7 @@ const startUpdates = async (): Promise<void> => {
     failedVersion: state.installFailedOn,
     // Squirrel.Mac stages macOS updates; the others install from electron-updater's file.
     native: process.platform === "darwin" ? nativeUpdater : undefined,
-    offer: (kind, version, percent) => offers.offer(kind, version, { percent }),
+    offer: (offer) => offers.offer(offer),
     // Synchronous: a failed install on quit is reported as the app exits.
     installFailed: (version) => {
       try {
@@ -567,8 +569,8 @@ const bundleMachine = () => ({
 
 const installMacBundle = async (
   target: string | undefined,
-  progress: (progress: InstallProgress) => void,
-): Promise<PortableInstall> => {
+  progress: (step: InstallStep) => void,
+): Promise<PlatformInstall> => {
   progress({ phase: "installing" })
   return installBundle(target, {
     ...bundleMachine(),
@@ -756,8 +758,8 @@ const setupWaitMs = 5 * 60_000
 // silently while this copy keeps running, and the install is vouched for by the copy it
 // leaves; see `prepareSetup` and docs/auto-update.md. The setup starts nothing.
 const installWindowsSetup = async (
-  progress: (progress: InstallProgress) => void,
-): Promise<PortableInstall> => {
+  progress: (step: InstallStep) => void,
+): Promise<PlatformInstall> => {
   // The setup replaces what is in the install folder, and stops what runs from there.
   const record = await installRecord().catch(() => undefined)
   const inside = insideInstallFolder(process.execPath, [record?.location, defaultInstallFolder()])
@@ -840,8 +842,8 @@ const installedCopies = () =>
 // installer's path.
 const installAppImageOver = (
   target: string | undefined,
-  progress: (progress: InstallProgress) => void,
-): Promise<PortableInstall> => {
+  progress: (step: InstallStep) => void,
+): Promise<PlatformInstall> => {
   progress({ phase: "installing" })
   return installAppImage(
     process.env.APPIMAGE ?? "",
@@ -969,7 +971,7 @@ const launch = async (): Promise<void> => {
   // while this copy keeps running, and is told how the install goes.
   registerPortableIpc(ipcMain, {
     window: (event) => appWindow(event)?.webContents,
-    pages: () => appPages(BrowserWindow.getAllWindows()),
+    log: (message, error) => console.warn(message, error),
     installer: portableInstaller({
       portable,
       version: app.getVersion(),
@@ -987,6 +989,15 @@ const launch = async (): Promise<void> => {
           : process.platform === "win32"
             ? installWindowsSetup(progress)
             : installAppImageOver(target, progress),
+      changed: (state) => {
+        for (const page of appPages(BrowserWindow.getAllWindows())) {
+          try {
+            page.send(portableStateChannel, state)
+          } catch (error) {
+            console.warn("The portable state was not sent to a window.", error)
+          }
+        }
+      },
       stopping: () => stopping,
       log: (message, error) => console.warn(message, error),
     }),

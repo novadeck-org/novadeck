@@ -86,26 +86,19 @@ export type DesktopBridge = {
   portable?(): Promise<PortableState>
   /**
    * Installs the app from this portable copy, keeping the person's workspace, which both
-   * share. On `installed` the installed copy is in place and this copy keeps running;
-   * the installed one takes effect when the person next opens Novadeck, and nothing
-   * restarts by itself. On `newer` an installed copy newer than this one exists and
-   * nothing was written; it takes effect when the person next opens Novadeck too. A
-   * second call while an install is under way does nothing more, and one after `installed`
-   * answers the same again. From a copy that is not portable, or a sender that is not the app's
-   * own page, the answer is `failed`. See `InstallResult`.
+   * share. The host answers nothing here: it pushes how the install goes in
+   * `PortableState.install` to every window, through `onPortableState`. Once `installed`
+   * the installed copy is in place and this copy keeps running; the installed one takes
+   * effect when the person next opens Novadeck, and nothing restarts by itself. A call
+   * while an install is under way, or after one ended `installed` or `newer`, does nothing.
+   * From a copy that is not portable, or a sender that is not the app's own page, it does
+   * nothing either.
    */
-  installApp?(): Promise<InstallResult>
-  /**
-   * Hears how far an install under way has got, until the returned function is called.
-   * Only some hosts report a download (`InstallProgress`); the page shows a wait without
-   * a size where there is none. Absent from hosts that do not report.
-   */
-  onInstallProgress?(listener: (progress: InstallProgress) => void): () => void
+  installApp?(): void
   /**
    * Hears the portable state whenever it changes, until the returned function is called:
-   * an install that answered `installed` or `newer` makes `installed` true for the rest of
-   * the run, in every window. Absent from hosts that do not push; the page then asks
-   * `portable` again when it needs to.
+   * each step of an install (`PortableInstall`) in every window. Absent from hosts that do
+   * not push; the page then asks `portable` again when it needs to.
    */
   onPortableState?(listener: (state: PortableState) => void): () => void
   /**
@@ -163,8 +156,8 @@ export type UninstallResult =
  * Whether the host runs as a portable copy. `version` is this build's, reported for
  * display and diagnostics. `run` names this run of the app and is new at each launch of it;
  * a page tells with it a window opened again within one run from a new launch, as on
- * macOS, where closing the window leaves the app running. `installed` is whether this run
- * already installed the app.
+ * macOS, where closing the window leaves the app running. `install` is how installing the
+ * app from this copy stands in this run; the host owns it and pushes every change.
  */
 export type PortableState =
   | { readonly portable: false }
@@ -172,33 +165,35 @@ export type PortableState =
       readonly portable: true
       readonly version: string
       readonly run: string
-      /** Whether this run already installed the app (or found a newer one installed), so a window opened again shows it done. */
-      readonly installed: boolean
+      readonly install: PortableInstall
     }
+
+/**
+ * How installing the app from a portable copy stands in this run. `idle`: not asked yet.
+ * `downloading`: the installer is being fetched, `percent` (a whole number from 0 to 100)
+ * along; only Windows reports this. `installing`: it is being put in place, which has no
+ * size to tell. `installed`: the installed copy is in place; this copy keeps running, and
+ * the installed one takes effect when the person next opens Novadeck. `newer`: an installed
+ * copy of this `version`, newer than this one, was left alone, and takes effect the same
+ * way. `failed`: nothing was installed, for the short human-readable `reason` given, such
+ * as a full disk or a folder that cannot be written; asking again starts over.
+ */
+export type PortableInstall =
+  | { readonly phase: "idle" }
+  | { readonly phase: "downloading"; readonly percent: number }
+  | { readonly phase: "installing" }
+  | { readonly phase: "installed" }
+  | { readonly phase: "newer"; readonly version: string }
+  | { readonly phase: "failed"; readonly reason: string }
 
 /** What a run's name may be, as the host reports it: a UUID. */
 export const portableRunPattern = /^[0-9A-Fa-f-]{1,64}$/
 
-/**
- * How `installApp` went. `installed`: the installed copy is in place; this copy keeps
- * running, and the installed one takes effect when the person next opens Novadeck.
- * `newer`: an installed copy of this `version`, newer than this one,
- * was left alone. `failed`: nothing was installed, for the short human-readable
- * `reason` given, such as a full disk or a folder that cannot be written.
- */
-export type InstallResult =
-  | { readonly kind: "installed" }
-  | { readonly kind: "newer"; readonly version: string }
-  | { readonly kind: "failed"; readonly reason: string }
+/** The longest reason a failed install shows; a longer one is cut short with an ellipsis. */
+export const installReasonLength = 300
 
-/**
- * How far an install under way has got. `downloading`: the installer is being fetched,
- * `percent` (a whole number from 0 to 100) along; only Windows reports this. `installing`:
- * it is being put in place, which has no size to tell.
- */
-export type InstallProgress =
-  | { readonly phase: "downloading"; readonly percent: number }
-  | { readonly phase: "installing" }
+/** What the page shows for a failed install whose reason it cannot show. */
+export const unknownInstallReason = "Something went wrong."
 
 /**
  * Whether the host runs with Electron's sandbox. It does not when started with
@@ -230,14 +225,9 @@ export const updateChannels: readonly UpdateChannel[] = ["stable", "early"]
  * macOS app, an AppImage in a folder it cannot write, a portable copy, or an install that
  * failed.
  */
-export type UpdateOffer = {
-  readonly kind: UpdateOfferKind
-  readonly version: string
-  /** Set only for `downloading`. */
-  readonly percent?: number
-}
-
-export type UpdateOfferKind = "downloading" | "ready" | "retrying" | "available"
+export type UpdateOffer =
+  | { readonly kind: "downloading"; readonly version: string; readonly percent: number }
+  | { readonly kind: "ready" | "retrying" | "available"; readonly version: string }
 
 /** Whether `value` is how far along a download is: a whole percent from 0 to 100. */
 export const isUpdatePercent = (value: unknown): value is number =>
@@ -245,6 +235,73 @@ export const isUpdatePercent = (value: unknown): value is number =>
 
 /** What an update's version may be, as the host reports it: a release's semantic version. */
 export const updateVersionPattern = /^\d{1,9}\.\d{1,9}\.\d{1,9}(?:-[0-9A-Za-z.-]{1,64})?$/
+
+// Control and format characters, which include the marks that reorder text, and the line
+// and paragraph separators.
+const unwanted = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null
+
+const isVersion = (value: unknown): value is string =>
+  typeof value === "string" && updateVersionPattern.test(value)
+
+/**
+ * The offer when it is one the contract allows, else undefined. The host builds offers
+ * that obey it; the preload and the page both hold what crosses the bridge to it, should
+ * the host be wrong or tricked.
+ */
+export const parseUpdateOffer = (value: unknown): UpdateOffer | undefined => {
+  if (!isRecord(value)) return undefined
+  const { kind, version, percent } = value
+  if (!isVersion(version)) return undefined
+  if (kind === "downloading")
+    return isUpdatePercent(percent) ? { kind, version, percent } : undefined
+  if (kind === "ready" || kind === "retrying" || kind === "available") return { kind, version }
+  return undefined
+}
+
+/**
+ * A failed install's reason as one plain line the page can show: control, format and
+ * separator characters become spaces, runs of space collapse, and a reason longer than
+ * `installReasonLength` is cut short with an ellipsis. One left empty is
+ * `unknownInstallReason`.
+ */
+const reasonLine = (reason: unknown): string => {
+  if (typeof reason !== "string") return unknownInstallReason
+  const line = reason.replace(new RegExp(unwanted.source, "gu"), " ").replace(/\s+/g, " ").trim()
+  if (line === "") return unknownInstallReason
+  const points = Array.from(line)
+  if (points.length <= installReasonLength) return line
+  return `${points
+    .slice(0, installReasonLength - 1)
+    .join("")
+    .trimEnd()}…`
+}
+
+/** How an install stands when it is one the contract allows, else undefined. */
+export const parsePortableInstall = (value: unknown): PortableInstall | undefined => {
+  if (!isRecord(value)) return undefined
+  const { phase, percent, version, reason } = value
+  if (phase === "idle" || phase === "installing" || phase === "installed") return { phase }
+  if (phase === "downloading") return isUpdatePercent(percent) ? { phase, percent } : undefined
+  if (phase === "newer") return isVersion(version) ? { phase, version } : undefined
+  return phase === "failed" ? { phase, reason: reasonLine(reason) } : undefined
+}
+
+/**
+ * The portable state when it is one the contract allows, else undefined; each side picks
+ * what a broken answer counts as.
+ */
+export const parsePortableState = (value: unknown): PortableState | undefined => {
+  if (!isRecord(value)) return undefined
+  const { portable, version, run, install } = value
+  if (portable === false) return { portable: false }
+  if (portable !== true || !isVersion(version)) return undefined
+  if (typeof run !== "string" || !portableRunPattern.test(run)) return undefined
+  const parsed = parsePortableInstall(install)
+  return parsed ? { portable: true, version, run, install: parsed } : undefined
+}
 
 /** A desktop notification about one terminal; see `DesktopBridge.showNotice`. */
 export type DesktopNotice = {

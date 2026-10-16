@@ -143,7 +143,6 @@ describe("compiled desktop host", () => {
       expect(main).toContain("registerPortableIpc(")
       expect(preload).toContain("novadeck:portable")
       expect(preload).toContain("novadeck:install-app")
-      expect(preload).toContain("novadeck:install-progress")
       expect(preload).not.toContain("novadeck:open-installed")
     })
 

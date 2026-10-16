@@ -1,18 +1,15 @@
 import {
-  isUpdatePercent,
-  portableRunPattern,
+  parsePortableState,
+  parseUpdateOffer,
   runnerPortMessage,
   updateChannels,
   updateVersionPattern,
   type DesktopBridge,
   type DesktopHost,
-  type InstallProgress,
-  type InstallResult,
   type PortableState,
   type SandboxState,
   type UninstallPlan,
   type UninstallResult,
-  type UpdateOffer,
 } from "@novadeck/protocol/bridge"
 import { contextBridge, ipcRenderer, webUtils } from "electron"
 
@@ -21,7 +18,6 @@ import {
   appearanceChannel,
   directoryPickerChannel,
   installAppChannel,
-  installProgressChannel,
   portableStateChannel,
   noticeChannel,
   noticeClickChannel,
@@ -65,23 +61,6 @@ ipcRenderer.on(saveBeforeQuitChannel, () => {
 // and paragraph separators.
 const unwanted = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
 
-// The offer when it is one the contract allows, or undefined. The host builds offers
-// that obey it; this holds the page's side to it should the host be wrong or tricked.
-const offerOf = (value: unknown): UpdateOffer | undefined => {
-  if (typeof value !== "object" || value === null) return undefined
-  const { kind, version, percent } = value as Record<string, unknown>
-  if (kind !== "downloading" && kind !== "ready" && kind !== "retrying" && kind !== "available")
-    return undefined
-  // Only a download has a percent, and it has one always.
-  if (kind === "downloading" && !isUpdatePercent(percent)) return undefined
-  if (typeof version !== "string" || !updateVersionPattern.test(version)) return undefined
-  return {
-    kind,
-    version,
-    ...(kind === "downloading" && isUpdatePercent(percent) ? { percent } : {}),
-  }
-}
-
 // The longest fix command the page is given: one line, as the host builds it from a
 // repository name.
 const sandboxFixLength = 300
@@ -101,66 +80,14 @@ const sandboxOf = (value: unknown): SandboxState => {
 
 // The portable state when it is one the contract allows. Anything else counts as an
 // installed copy, so a broken answer never offers an install the host would not do.
-const portableStateOf = (value: unknown): PortableState => {
-  if (typeof value !== "object" || value === null) return { portable: false }
-  const { portable, version, run, installed } = value as Record<string, unknown>
-  if (
-    portable !== true ||
-    typeof version !== "string" ||
-    !updateVersionPattern.test(version) ||
-    typeof run !== "string" ||
-    !portableRunPattern.test(run)
-  )
-    return { portable: false }
-  return { portable: true, version, run, installed: installed === true }
-}
-
-// An install's progress when it is one the contract allows, else undefined.
-const installProgressOf = (value: unknown): InstallProgress | undefined => {
-  if (typeof value !== "object" || value === null) return undefined
-  const { phase, percent } = value as Record<string, unknown>
-  if (phase === "installing") return { phase }
-  if (phase === "downloading")
-    return typeof percent === "number" &&
-      Number.isInteger(percent) &&
-      percent >= 0 &&
-      percent <= 100
-      ? { phase, percent }
-      : undefined
-  return undefined
-}
-
-// The longest reason an install may give the page for failing: a sentence.
-const installReasonLength = 300
-
-// The result of an install when it is one the contract allows. Anything else is a
-// failure, as the page cannot tell what happened.
-const installResultOf = (value: unknown): InstallResult => {
-  const unknown: InstallResult = {
-    kind: "failed",
-    reason: "Something went wrong.",
-  }
-  if (typeof value !== "object" || value === null) return unknown
-  const { kind, version, reason } = value as Record<string, unknown>
-  if (kind === "installed") return { kind }
-  if (kind === "newer")
-    return typeof version === "string" && updateVersionPattern.test(version)
-      ? { kind, version }
-      : unknown
-  if (kind === "failed")
-    return typeof reason === "string" &&
-      reason !== "" &&
-      reason.length <= installReasonLength &&
-      !unwanted.test(reason)
-      ? { kind, reason }
-      : unknown
-  return unknown
-}
+const portableStateOf = (value: unknown): PortableState =>
+  parsePortableState(value) ?? { portable: false }
 
 // The longest command, folder list and folder path the page is given by an uninstall plan.
 const uninstallCommandLength = 300
 const uninstallFolders = 8
 const uninstallPathLength = 1_000
+const uninstallReasonLength = 300
 
 // A line of text the page may show: not empty, not too long, no control characters.
 const lineOf = (value: unknown, limit: number): value is string =>
@@ -192,7 +119,7 @@ const uninstallResultOf = (value: unknown): UninstallResult => {
   if (kind === "uninstalling") return { kind }
   if (kind === "removed")
     return lineOf(leftover, uninstallCommandLength) ? { kind, leftover } : { kind }
-  if (kind === "failed") return lineOf(reason, installReasonLength) ? { kind, reason } : unknown
+  if (kind === "failed") return lineOf(reason, uninstallReasonLength) ? { kind, reason } : unknown
   return unknown
 }
 
@@ -239,7 +166,7 @@ const bridge = {
   // as the page may have started listening after it arrived.
   onUpdate: (listener) => {
     const relay = (_event: unknown, value: unknown): void => {
-      const offer = offerOf(value)
+      const offer = parseUpdateOffer(value)
       if (offer) listener(offer)
     }
     ipcRenderer.on(updateOfferChannel, relay)
@@ -268,21 +195,17 @@ const bridge = {
   },
   sandbox: async () => sandboxOf(await ipcRenderer.invoke(sandboxChannel)),
   portable: async () => portableStateOf(await ipcRenderer.invoke(portableChannel)),
-  installApp: async () => installResultOf(await ipcRenderer.invoke(installAppChannel)),
-  // Only valid progress comes back.
-  onInstallProgress: (listener) => {
-    const relay = (_event: unknown, value: unknown): void => {
-      const progress = installProgressOf(value)
-      if (progress) listener(progress)
-    }
-    ipcRenderer.on(installProgressChannel, relay)
-    return () => {
-      ipcRenderer.removeListener(installProgressChannel, relay)
-    }
+  // The host answers nothing: every step comes back through `onPortableState`.
+  installApp: () => {
+    ipcRenderer.send(installAppChannel)
   },
-  // Only a valid state comes back, as `portable()` gives it.
+  // Only a valid state is passed on; a broken push is dropped, so it never hides a card
+  // mid-install the way `portable()`'s fallback would.
   onPortableState: (listener) => {
-    const relay = (_event: unknown, value: unknown): void => listener(portableStateOf(value))
+    const relay = (_event: unknown, value: unknown): void => {
+      const state = parsePortableState(value)
+      if (state) listener(state)
+    }
     ipcRenderer.on(portableStateChannel, relay)
     return () => {
       ipcRenderer.removeListener(portableStateChannel, relay)

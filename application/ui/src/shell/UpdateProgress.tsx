@@ -41,7 +41,7 @@ export const UpdateProgress = ({
   if (next?.version !== watched?.version || next?.moment !== watched?.moment) setWatched(next)
   const moment = watched?.moment ?? "gone"
   useLinger(moment, !hidden, (to) => setWatched((current) => current && { ...current, moment: to }))
-  const percent = moment === "progress" ? (offer?.percent ?? 0) : 100
+  const percent = moment === "progress" && offer?.kind === "downloading" ? offer.percent : 100
   const shown = moment !== "gone" && !hidden
   return (
     <>

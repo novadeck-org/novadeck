@@ -11,26 +11,21 @@ export type PortableState =
       readonly portable: true
       readonly version: string
       readonly run: string
-      // Whether this run already installed the app, so a window opened again shows it done.
-      readonly installed: boolean
+      // How installing the app from this copy stands in this run; the host owns it.
+      readonly install: PortableInstall
     }
 
-// How installing from a portable copy went; mirrors the protocol's `InstallResult`.
-// `installed`: the installed copy is in place; this copy keeps running, and the installed
-// one takes effect when the person next opens Novadeck. `newer`: an installed
-// copy of this `version`, newer than this one, was left alone, and also takes effect when
-// the person next opens Novadeck. `failed`: nothing was
-// installed, for the short `reason` given.
-export type InstallResult =
-  | { readonly kind: "installed" }
-  | { readonly kind: "newer"; readonly version: string }
-  | { readonly kind: "failed"; readonly reason: string }
-
-// How far an install under way has got; mirrors the protocol's `InstallProgress`. Only some
-// hosts report a download, with its whole `percent`; `installing` has no size to tell.
-export type InstallProgress =
+// How installing the app from a portable copy stands in this run; mirrors the protocol's
+// `PortableInstall`. `idle`: not asked yet. `downloading`: the installer is being fetched,
+// `percent` along (only Windows reports this). `installing`: being put in place, with no
+// size to tell. `installed`: in place; this copy keeps running and the installed one takes
+// effect when the person next opens Novadeck. `newer`: an installed copy of this newer
+// `version` was left alone, and takes effect the same way. `failed`: nothing was
+// installed, for the short `reason` given; asking again starts over.
+export type PortableInstall =
+  | { readonly phase: "idle" }
   | { readonly phase: "downloading"; readonly percent: number }
   | { readonly phase: "installing" }
-
-// The longest reason the page shows; the host's are a short line.
-export const maxReasonLength = 200
+  | { readonly phase: "installed" }
+  | { readonly phase: "newer"; readonly version: string }
+  | { readonly phase: "failed"; readonly reason: string }

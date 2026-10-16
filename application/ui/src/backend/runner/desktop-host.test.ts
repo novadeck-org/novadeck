@@ -1,16 +1,17 @@
 import type {
   DesktopHost,
   DesktopNotice,
-  InstallResult as BridgeInstall,
+  UpdateOffer as BridgeOffer,
   PortableState as BridgePortable,
   SandboxState as BridgeState,
   UninstallPlan as BridgePlan,
   UninstallResult as BridgeUninstall,
 } from "@novadeck/protocol/bridge"
 
-import type { InstallResult, PortableState } from "../../model/portable"
+import type { PortableState } from "../../model/portable"
 import type { SandboxState } from "../../model/sandbox"
 import type { UninstallPlan, UninstallResult } from "../../model/uninstall"
+import type { UpdateOffer } from "../../model/update"
 import { context, describe, expect, it } from "../../test"
 import {
   desktopNotices,
@@ -19,9 +20,7 @@ import {
   desktopUninstall,
   desktopUpdates,
   desktopVersion,
-  hostInstall,
   hostNotice,
-  hostPortable,
   hostSandbox,
   hostUninstallPlan,
   hostUninstallResult,
@@ -256,109 +255,107 @@ describe("a host's sandbox", () => {
   })
 })
 
+// A host's portable bridge that lets a test push states and counts the installs asked for.
+const portableHost = (first: unknown) => {
+  let push: ((state: unknown) => void) | undefined
+  let installs = 0
+  const bridge = {
+    portable: () => Promise.resolve(first),
+    installApp: () => void (installs += 1),
+    onPortableState: (listener: (state: unknown) => void) => {
+      push = listener
+      return () => {
+        push = undefined
+      }
+    },
+  } as unknown as DesktopHost
+  return { bridge, push: (state: unknown) => push?.(state), installs: () => installs }
+}
+
 describe("a host's portable copy", () => {
   it("fits the protocol's, which the page's own copy must keep to", () => {
-    const state: PortableState = {
-      portable: true,
-      version: "0.0.70",
-      run: "0a1b-2c3d",
-      installed: false,
-    }
-    const theirs: BridgePortable = state
-    const back: PortableState = theirs
-    const results: InstallResult[] = [
-      { kind: "installed" },
-      { kind: "newer", version: "0.0.80" },
-      { kind: "failed", reason: "x" },
+    const states: PortableState[] = [
+      { portable: false },
+      ...(
+        [
+          { phase: "idle" },
+          { phase: "downloading", percent: 40 },
+          { phase: "installing" },
+          { phase: "installed" },
+          { phase: "newer", version: "0.0.80" },
+          { phase: "failed", reason: "x" },
+        ] as const
+      ).map((install) => ({
+        portable: true as const,
+        version: "0.0.70",
+        run: "0a1b-2c3d",
+        install,
+      })),
     ]
-    const bridged: BridgeInstall[] = results
-    const home: InstallResult[] = bridged
-    expect([back, home]).toEqual([state, results])
+    const theirs: BridgePortable[] = states
+    const back: PortableState[] = theirs
+    const offers: UpdateOffer[] = [
+      { kind: "downloading", version: "0.0.80", percent: 4 },
+      { kind: "ready", version: "0.0.80" },
+    ]
+    const bridged: BridgeOffer[] = offers
+    const home: UpdateOffer[] = bridged
+    expect([back, home]).toEqual([states, offers])
   })
 
-  it("is portable with its version, or not", () => {
-    expect(hostPortable({ portable: false })).toEqual({ portable: false })
-    expect(
-      hostPortable({ portable: true, version: "0.0.70", run: "0a1b-2c3d", installed: true }),
-    ).toEqual({ portable: true, version: "0.0.70", run: "0a1b-2c3d", installed: true })
-  })
-
-  it("is not taken from an answer that is neither", () => {
-    expect(() => hostPortable(null)).toThrow()
-    expect(() => hostPortable({ portable: true })).toThrow()
-    expect(() => hostPortable({ portable: true, version: "0.0.70" })).toThrow()
-    expect(() => hostPortable({ portable: true, version: "0.0.70", run: "0a1b" })).toThrow()
-    expect(() =>
-      hostPortable({ portable: true, version: "0.0.70", run: "a b", installed: false }),
-    ).toThrow()
-    expect(() => hostPortable({ portable: true, version: "latest", run: "0a1b" })).toThrow()
-    expect(() => hostPortable({ portable: "yes", version: "0.0.70", run: "0a1b" })).toThrow()
-  })
-
-  it("takes an install's answer when it is one of the three", () => {
-    expect(hostInstall({ kind: "installed" })).toEqual({ kind: "installed" })
-    expect(hostInstall({ kind: "newer", version: "0.0.80" })).toEqual({
-      kind: "newer",
-      version: "0.0.80",
+  it("is portable with its version and install, or not", async () => {
+    const idle = { portable: true, version: "0.0.70", run: "0a1b-2c3d", install: { phase: "idle" } }
+    expect(await desktopPortable(portableHost({ portable: false }).bridge)!.state()).toEqual({
+      portable: false,
     })
-    expect(hostInstall({ kind: "failed", reason: " Disk\nfull " })).toEqual({
-      kind: "failed",
-      reason: "Disk full",
-    })
+    expect(await desktopPortable(portableHost(idle).bridge)!.state()).toEqual(idle)
   })
 
-  it("takes any other answer for a failure the person can read", () => {
-    const unknown = {
-      kind: "failed",
-      reason: "Something went wrong.",
-    }
-    expect(hostInstall(undefined)).toEqual(unknown)
-    expect(hostInstall({ kind: "newer", version: "soon" })).toEqual(unknown)
-    expect(hostInstall({ kind: "failed", reason: 7 })).toEqual(unknown)
-    expect(hostInstall({ kind: "failed", reason: "  " })).toEqual(unknown)
-    expect(hostInstall({ kind: "done" })).toEqual(unknown)
+  it("is not taken from an answer that is none of the contract's", async () => {
+    const state = (answer: unknown) => desktopPortable(portableHost(answer).bridge)!.state()
+    const run = { version: "0.0.70", run: "0a1b" }
+    await expect(state(null)).rejects.toThrow()
+    await expect(state({ portable: true })).rejects.toThrow()
+    await expect(state({ portable: true, ...run })).rejects.toThrow()
+    await expect(state({ portable: true, ...run, install: { phase: "done" } })).rejects.toThrow()
+    await expect(
+      state({ portable: true, ...run, install: { phase: "downloading", percent: 140 } }),
+    ).rejects.toThrow()
+    await expect(
+      state({ portable: true, ...run, run: "a b", install: { phase: "idle" } }),
+    ).rejects.toThrow()
+    await expect(
+      state({ portable: true, ...run, version: "latest", install: { phase: "idle" } }),
+    ).rejects.toThrow()
+    await expect(state({ portable: "yes", ...run, install: { phase: "idle" } })).rejects.toThrow()
   })
 
-  it("installs through the host and passes on the progress it can read", async () => {
-    let tell: (progress: unknown) => void = () => {}
-    const bridge = {
-      portable: () =>
-        Promise.resolve({ portable: true, version: "0.0.70", run: "0a1b-2c3d", installed: false }),
-      installApp: () => Promise.resolve({ kind: "newer", version: "0.0.80" }),
-      onInstallProgress: (listener: (progress: unknown) => void) => {
-        tell = listener
-        return () => {}
-      },
-    } as unknown as DesktopHost
+  it("asks the host to install, and hears each step it can read", () => {
+    const { bridge, push, installs } = portableHost({ portable: false })
     const portable = desktopPortable(bridge)!
-    expect(await portable.state()).toEqual({
-      portable: true,
-      version: "0.0.70",
-      run: "0a1b-2c3d",
-      installed: false,
-    })
-    expect(await portable.install()).toEqual({ kind: "newer", version: "0.0.80" })
+    portable.install()
+    expect(installs()).toBe(1)
     const heard: unknown[] = []
-    portable.onProgress!((progress) => heard.push(progress))
-    tell({ phase: "downloading", percent: 40 })
-    tell({ phase: "downloading", percent: 140 })
-    tell({ phase: "installing" })
-    tell({ phase: "done" })
-    expect(heard).toEqual([{ phase: "downloading", percent: 40 }, { phase: "installing" }])
-  })
-
-  it("fails an install the host throws on", async () => {
-    const bridge = {
-      portable: () =>
-        Promise.resolve({ portable: true, version: "0.0.70", run: "0a1b-2c3d", installed: false }),
-      installApp: () => Promise.reject(new Error("gone")),
-    } as unknown as DesktopHost
-    expect((await desktopPortable(bridge)!.install()).kind).toBe("failed")
+    const stop = portable.onState((state) => heard.push(state))
+    const run = { portable: true, version: "0.0.70", run: "0a1b-2c3d" }
+    push({ ...run, install: { phase: "downloading", percent: 40 } })
+    push({ ...run, install: { phase: "downloading", percent: 140 } })
+    push({ ...run, install: { phase: "installing" } })
+    push({ ...run, install: { phase: "done" } })
+    push({ ...run, install: { phase: "failed", reason: "Disk\nfull" } })
+    stop()
+    push({ ...run, install: { phase: "installed" } })
+    expect(heard).toEqual([
+      { ...run, install: { phase: "downloading", percent: 40 } },
+      { ...run, install: { phase: "installing" } },
+      { ...run, install: { phase: "failed", reason: "Disk full" } },
+    ])
   })
 
   it("is absent in a browser, or a host that came before it", () => {
     expect(desktopPortable(undefined)).toBeUndefined()
     expect(desktopPortable({} as DesktopHost)).toBeUndefined()
+    expect(desktopPortable({ portable: () => {}, installApp: () => {} } as never)).toBeUndefined()
   })
 })
 

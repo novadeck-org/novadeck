@@ -7,7 +7,6 @@ import {
   apiUrlArgumentPrefix,
   appearanceChannel,
   installAppChannel,
-  installProgressChannel,
   noticeChannel,
   noticeClickChannel,
   openUpdatePageChannel,
@@ -322,39 +321,69 @@ describe("the sandbox", () => {
   })
 })
 
+const portableState = (install: unknown) => ({
+  portable: true,
+  version: "1.2.3",
+  run: "0a1b-2c3d",
+  install,
+})
+
 describe("whether this copy is portable", () => {
   it("is what the host answers when it is a portable copy of a release version", async () => {
-    electron.answer = {
-      portable: true,
-      version: "1.2.3",
-      run: "0a1b-2c3d",
-      installed: true,
-      extra: "dropped",
-    }
-    expect(await electron.exposed.portable!()).toEqual({
-      portable: true,
-      version: "1.2.3",
-      run: "0a1b-2c3d",
-      installed: true,
-    })
+    electron.answer = { ...portableState({ phase: "installing" }), extra: "dropped" }
+    expect(await electron.exposed.portable!()).toEqual(portableState({ phase: "installing" }))
     expect(electron.sent).toEqual([portableChannel])
   })
 
-  it("is not installed unless the host says exactly so", async () => {
-    electron.answer = { portable: true, version: "1.2.3", run: "0a1b-2c3d", installed: "yes" }
-    expect(await electron.exposed.portable!()).toMatchObject({ installed: false })
+  it("carries each phase of the install the contract allows", async () => {
+    const installs = [
+      { phase: "idle" },
+      { phase: "downloading", percent: 42 },
+      { phase: "installing" },
+      { phase: "installed" },
+      { phase: "newer", version: "1.2.4" },
+      { phase: "failed", reason: "There is no space left on the disk." },
+    ]
+    const states = installs.map((install) => {
+      electron.answer = portableState({ ...install, extra: 1 })
+      return electron.exposed.portable!()
+    })
+    expect(await Promise.all(states)).toEqual(installs.map(portableState))
+  })
+
+  it("cleans a failure's reason into one short plain line, or shows an unknown one", async () => {
+    const reasons = [undefined, "", "  \n ", "bell\u0007 ring\nagain", "x".repeat(400)]
+    const states = reasons.map((reason) => {
+      electron.answer = portableState({ phase: "failed", reason })
+      return electron.exposed.portable!()
+    })
+    const reasonsSeen = (await Promise.all(states)).map((state) =>
+      state.portable && state.install.phase === "failed" ? state.install.reason : undefined,
+    )
+    expect(reasonsSeen).toEqual([
+      "Something went wrong.",
+      "Something went wrong.",
+      "Something went wrong.",
+      "bell ring again",
+      `${"x".repeat(299)}…`,
+    ])
   })
 
   it("is not portable when the host answers anything else", async () => {
     const answers = [
       undefined,
       "portable",
-      { portable: false, version: "1.2.3", run: "0a1b-2c3d" },
       { portable: true },
-      { portable: true, version: "1.2.3" },
-      { portable: true, version: "1.2.3", run: "not a run!" },
-      { portable: true, version: "v1", run: "0a1b-2c3d" },
-      { portable: "true", version: "1.2.3", run: "0a1b-2c3d" },
+      { portable: true, version: "1.2.3", install: { phase: "idle" } },
+      { ...portableState({ phase: "idle" }), run: "not a run!" },
+      { ...portableState({ phase: "idle" }), version: "v1" },
+      { ...portableState({ phase: "idle" }), portable: "true" },
+      { ...portableState({ phase: "idle" }), install: undefined },
+      portableState({ phase: "done" }),
+      portableState({ phase: "downloading" }),
+      portableState({ phase: "downloading", percent: 40.5 }),
+      portableState({ phase: "downloading", percent: 101 }),
+      portableState({ phase: "newer", version: "latest" }),
     ]
     const states = answers.map((answer) => {
       electron.answer = answer
@@ -365,70 +394,26 @@ describe("whether this copy is portable", () => {
 })
 
 describe("installing the app from a portable copy", () => {
-  it("asks the host, naming nothing, and passes on what the contract allows", async () => {
-    const answers = [
-      { kind: "installed" },
-      { kind: "newer", version: "1.2.4" },
-      { kind: "failed", reason: "There is no space left on the disk." },
-    ]
-    const results = answers.map((answer) => {
-      electron.answer = answer
-      return electron.exposed.installApp!()
-    })
-    expect(await Promise.all(results)).toEqual(answers)
-    expect(electron.sent).toEqual([installAppChannel, installAppChannel, installAppChannel])
-  })
-
-  it("is a failure when the host answers anything else", async () => {
-    const failed = { kind: "failed", reason: "Something went wrong." }
-    const answers = [
-      undefined,
-      "installed",
-      { kind: "installing" },
-      { kind: "done" },
-      { kind: "newer", version: "latest" },
-      { kind: "failed" },
-      { kind: "failed", reason: "bell\u0007" },
-      { kind: "failed", reason: "x".repeat(301) },
-    ]
-    const results = answers.map((answer) => {
-      electron.answer = answer
-      return electron.exposed.installApp!()
-    })
-    expect(await Promise.all(results)).toEqual(answers.map(() => failed))
-  })
-
-  it("passes on whole-percent progress and the install phase, until the page stops", () => {
-    const seen: unknown[] = []
-    const stop = electron.exposed.onInstallProgress!((progress) => seen.push(progress))
-    electron.renderer.emit(installProgressChannel, {}, { phase: "downloading", percent: 40, x: 1 })
-    electron.renderer.emit(installProgressChannel, {}, { phase: "installing" })
-    for (const bad of [
-      undefined,
-      "installing",
-      { phase: "downloading" },
-      { phase: "downloading", percent: 40.5 },
-      { phase: "downloading", percent: 101 },
-      { phase: "downloading", percent: -1 },
-      { phase: "done" },
-    ])
-      electron.renderer.emit(installProgressChannel, {}, bad)
-    stop()
-    electron.renderer.emit(installProgressChannel, {}, { phase: "installing" })
-    expect(seen).toEqual([{ phase: "downloading", percent: 40 }, { phase: "installing" }])
+  it("tells the host, naming nothing, and expects no answer", () => {
+    expect(electron.exposed.installApp!()).toBeUndefined()
+    expect(electron.sent).toEqual([installAppChannel])
+    expect(electron.messages).toEqual([])
   })
 })
 
 describe("the portable state, pushed", () => {
-  it("passes on a valid state until the page stops, and a broken one as not portable", () => {
+  it("passes on a valid state until the page stops, and drops a broken one", () => {
     const seen: unknown[] = []
     const stop = electron.exposed.onPortableState!((state) => seen.push(state))
-    const state = { portable: true, version: "1.2.3", run: "0a1b-2c3d", installed: true }
-    electron.renderer.emit(portableStateChannel, {}, { ...state, extra: 1 })
+    const downloading = portableState({ phase: "downloading", percent: 40 })
+    const installed = portableState({ phase: "installed" })
+    electron.renderer.emit(portableStateChannel, {}, { ...downloading, extra: 1 })
+    electron.renderer.emit(portableStateChannel, {}, installed)
     electron.renderer.emit(portableStateChannel, {}, { portable: true, version: "v1" })
+    electron.renderer.emit(portableStateChannel, {}, portableState({ phase: "downloading" }))
     stop()
-    electron.renderer.emit(portableStateChannel, {}, state)
-    expect(seen).toEqual([state, { portable: false }])
+    electron.renderer.emit(portableStateChannel, {}, installed)
+    expect(seen).toEqual([downloading, installed])
   })
 })
 

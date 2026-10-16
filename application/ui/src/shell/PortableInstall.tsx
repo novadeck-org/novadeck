@@ -1,7 +1,7 @@
 import { X } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react"
 
-import type { InstallProgress, InstallResult } from "../model/portable"
+import type { PortableInstall as InstallState } from "../model/portable"
 import type { UpdateOffer } from "../model/update"
 import { Progress } from "../ui-toolkit/Progress"
 import { useLinger } from "./linger"
@@ -12,20 +12,12 @@ export type FooterPortable = {
   // Whether the app runs without its security sandbox: installing puts it where the sandbox
   // can be turned on, which the panel says.
   readonly unsandboxed: boolean
-  // Installs the app, keeping the workspace.
-  readonly onInstall: () => Promise<InstallResult>
-  // Whether this run installed the app already, as when a window is opened again.
-  readonly installed: boolean
-  // Hears how far an install under way has got, where the host reports it.
-  readonly onProgress?: (listener: (progress: InstallProgress) => void) => () => void
+  // Asks the host to install the app, keeping the workspace; it answers nothing.
+  readonly onInstall: () => void
+  // Where installing stands in this run: the host owns it, so a window opened again, or
+  // another window's install, shows as it is.
+  readonly install: InstallState
 }
-
-// Where installing from a portable copy stands. `running` is the wait for the host's answer.
-// `installed` is the answer that the installed copy is in place; this copy keeps running.
-type Install =
-  | { readonly phase: "idle" | "running" | "installed" }
-  | { readonly phase: "newer"; readonly version: string }
-  | { readonly phase: "failed"; readonly reason: string }
 
 // A portable copy's install entry. A copy that updates itself has none: its downloads show
 // as a floating bar (UpdateProgress.tsx).
@@ -48,17 +40,18 @@ export type PortableInstallProps = {
 // What the card says of where installing stands, as its title and its one line.
 const cardWords = (
   offer: UpdateOffer | undefined,
-  install: Install,
-  progress: InstallProgress | null,
+  install: InstallState,
 ): { readonly title: string; readonly line: string } => {
   switch (install.phase) {
-    case "running":
-      return {
-        title: "Installing Novadeck",
-        line: progress?.phase === "downloading" ? "Downloading…" : "Keeps your workspace",
-      }
+    case "downloading":
+      return { title: "Installing Novadeck", line: "Downloading…" }
+    case "installing":
+      return { title: "Installing Novadeck", line: "Keeps your workspace" }
     case "installed":
-      return { title: "Novadeck installed", line: "Takes effect after you restart Novadeck" }
+      return {
+        title: "Novadeck installed",
+        line: "Takes effect after you restart Novadeck",
+      }
     case "newer":
       return {
         title: `Novadeck ${install.version} is already installed`,
@@ -68,8 +61,14 @@ const cardWords = (
       return { title: "Couldn't install", line: install.reason }
     case "idle":
       return offer
-        ? { title: `Novadeck ${offer.version} is out`, line: "This copy can't update itself." }
-        : { title: "Portable copy", line: "Updates need an installed Novadeck." }
+        ? {
+            title: `Novadeck ${offer.version} is out`,
+            line: "This copy can't update itself.",
+          }
+        : {
+            title: "Portable copy",
+            line: "Updates need an installed Novadeck.",
+          }
   }
 }
 
@@ -90,10 +89,6 @@ export const PortableInstall = ({
   readonly portable: PortableInstallProps | undefined
   readonly hidden: boolean
 }): React.JSX.Element => {
-  // Where installing from a portable copy stands.
-  const [started, setStarted] = useState<Install | null>(null)
-  // How far the install has got, as far as the host tells.
-  const [progress, setProgress] = useState<InstallProgress | null>(null)
   // Whether the card is saying an install is done, for a few seconds, before it fades away.
   const [lingering, setLingering] = useState<"finished" | "fading" | null>(null)
   const panel = useRef<HTMLElement>(null)
@@ -106,9 +101,13 @@ export const PortableInstall = ({
   const panelId = useId()
   const offer = card?.offer
   const portable = card?.portable
-  // A window opened again in a run that installed the app finds it done.
-  const install: Install = started ?? { phase: portable?.installed ? "installed" : "idle" }
-  const running = install.phase === "running"
+  // Where installing stands is the host's to say, and a window opened again finds it so.
+  const hosted: InstallState = portable?.install ?? { phase: "idle" }
+  // Whether the person dismissed the card on a failure: the page then shows the idle card
+  // for it, until the host's phase changes again.
+  const [forgotten, setForgotten] = useState(false)
+  const install: InstallState = forgotten && hosted.phase === "failed" ? { phase: "idle" } : hosted
+  const running = install.phase === "downloading" || install.phase === "installing"
   const wanted = (card?.open ?? false) && !hidden && !card?.blocked
   const overlay = useOverlayOpen(wanted)
   const blocked = (card?.blocked ?? false) || overlay
@@ -135,6 +134,7 @@ export const PortableInstall = ({
     requested.current = false
     opener.current = "auto"
     setLingering(null)
+    if (hosted.phase === "failed") setForgotten(true)
     card.onOpenChange(false)
     if (!inside) return
     if (back || !card.returnFocus()) chip.current?.focus()
@@ -149,24 +149,57 @@ export const PortableInstall = ({
     if (!portable || !card || running) return
     // The button pressed goes with the card's words; focus stays in the card.
     if (panel.current?.contains(document.activeElement)) panel.current.focus()
-    setStarted({ phase: "running" })
-    setProgress(null)
-    const stop = portable.onProgress?.(setProgress)
-    void portable.onInstall().then((result: InstallResult) => {
-      stop?.()
-      // The card comes back with the answer, without taking focus from where the person is.
-      setStarted(
-        result.kind === "installed"
-          ? { phase: "installed" }
-          : result.kind === "newer"
-            ? { phase: "newer", version: result.version }
-            : { phase: "failed", reason: result.reason },
-      )
-      if (result.kind === "installed") setLingering("finished")
-      card.onOpenChange(true)
-    })
+    setForgotten(false)
+    setAsked(true)
+    askedNow.current = true
+    portable.onInstall()
   }
-  const { title, line } = cardWords(offer, install, progress)
+  // An install this window asked for ends: a finished one lingers as the update bar does, and
+  // the card comes back with the outcome, without taking focus from where the person is.
+  const phase = hosted.phase
+  const [seen, setSeen] = useState(phase)
+  // Whether the host has said yet; a failure it says first happened before this page loaded,
+  // so it counts as dismissed. One this page watches happen shows.
+  const [known, setKnown] = useState(false)
+  // Whether the person pressed Install in this window: every window shows an install under
+  // way, but only the one that asked has the card come back with its end. `askedNow` is the
+  // same for the effect below.
+  const [asked, setAsked] = useState(false)
+  const askedNow = useRef(false)
+  // Whether the card was open, to see a failed one closed. Hiding or blocking it is not that.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (!known && portable) {
+    setKnown(true)
+    setSeen(phase)
+    if (phase === "failed") setForgotten(true)
+  } else if (seen !== phase) {
+    setSeen(phase)
+    setForgotten(false)
+    if (seen === "downloading" || seen === "installing") {
+      if (phase === "installed" && asked) setLingering("finished")
+      // A failure another window's person met is not this window's to show.
+      if (phase === "failed" && !asked) setForgotten(true)
+      if (phase === "installed" || phase === "newer" || phase === "failed") setAsked(false)
+    }
+  }
+  const open = card?.open ?? false
+  if (wasOpen !== open) {
+    setWasOpen(open)
+    // Only a failure already showing is dismissed by the close; one arriving with it is not.
+    if (!open && seen === "failed" && phase === "failed") setForgotten(true)
+  }
+  const was = useRef(phase)
+  const onOpenChange = card?.onOpenChange
+  useEffect(() => {
+    const before = was.current
+    was.current = phase
+    if (before !== "downloading" && before !== "installing") return
+    if (phase !== "installed" && phase !== "newer" && phase !== "failed") return
+    const raise = askedNow.current
+    askedNow.current = false
+    if (raise) onOpenChange?.(true)
+  }, [phase, onOpenChange, askedNow])
+  const { title, line } = cardWords(offer, install)
   const chipText = running ? "Installing…" : done ? "Installed" : word
   return (
     <>
@@ -207,8 +240,6 @@ export const PortableInstall = ({
               }
               requested.current = true
               opener.current = "chip"
-              // Opened again by the person, the card starts over without the last failure.
-              if (install.phase === "failed") setStarted({ phase: "idle" })
               card.onOpenChange(true)
             }}
           >
@@ -249,8 +280,8 @@ export const PortableInstall = ({
                 <span id={titleId} className="update-progress-title">
                   {title}
                 </span>
-                {progress?.phase === "downloading" && running && (
-                  <span className="update-progress-percent">{progress.percent}%</span>
+                {install.phase === "downloading" && (
+                  <span className="update-progress-percent">{install.percent}%</span>
                 )}
                 <button
                   type="button"
@@ -264,9 +295,7 @@ export const PortableInstall = ({
               {(running || installed) && (
                 <Progress
                   label={title}
-                  value={
-                    installed ? 100 : progress?.phase === "downloading" ? progress.percent : null
-                  }
+                  value={installed ? 100 : install.phase === "downloading" ? install.percent : null}
                   max={100}
                 />
               )}

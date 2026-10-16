@@ -31,7 +31,7 @@ describe("a portable copy's install card", () => {
 
   context("with no release known", () => {
     it("comes up by itself, saying what a portable copy lacks, without taking focus", async () => {
-      await openWorkspace("/?portable=on")
+      await openWorkspace("/?portable=no-release")
       await expect.element(quiet()).toBeVisible()
       await expect.element(quiet().getByText("Updates need an installed Novadeck.")).toBeVisible()
       await expect.element(quiet().getByText("Keeps your workspace")).toBeVisible()
@@ -44,7 +44,7 @@ describe("a portable copy's install card", () => {
     })
 
     it("folds into the chip on ×, and the chip opens it again with focus", async () => {
-      await openWorkspace("/?portable=on")
+      await openWorkspace("/?portable=no-release")
       await dismiss(quiet()).click()
       await expect.element(quiet()).not.toBeInTheDocument()
       await install().click()
@@ -53,7 +53,7 @@ describe("a portable copy's install card", () => {
     })
 
     it("folds on Escape from inside it and returns focus to the chip", async () => {
-      await openWorkspace("/?portable=on")
+      await openWorkspace("/?portable=no-release")
       await dismiss(quiet()).click()
       await install().click()
       await expect.element(quiet()).toHaveFocus()
@@ -63,17 +63,17 @@ describe("a portable copy's install card", () => {
     })
 
     it("does not come up by itself again after a page reload in the same launch", async () => {
-      await openWorkspace("/?portable=on")
+      await openWorkspace("/?portable=no-release")
       await expect.element(quiet()).toBeVisible()
       await cleanup()
-      await openWorkspace("/?portable=on")
+      await openWorkspace("/?portable=no-release")
       await expect.element(install()).toBeVisible()
       await expectStaysAbsent(quiet())
     })
 
     it("shortens the chip to Install on a narrow bar", async () => {
       await page.viewport(600, 800)
-      await openWorkspace("/?portable=on")
+      await openWorkspace("/?portable=no-release")
       await expect.element(install().getByText("Install", { exact: true })).toBeVisible()
       await expect
         .element(install().getByText("Install Novadeck", { exact: true }))
@@ -81,7 +81,7 @@ describe("a portable copy's install card", () => {
     })
 
     it("says nothing of the sandbox where the host runs sandboxed", async () => {
-      await openWorkspace("/?portable=on")
+      await openWorkspace("/?portable=no-release")
       await expect.element(quiet()).toBeVisible()
       await expect.element(quiet().getByText(/sandbox/)).not.toBeInTheDocument()
     })
@@ -89,7 +89,7 @@ describe("a portable copy's install card", () => {
 
   context("while installing", () => {
     it("shows Installing Novadeck with the chip reading Installing…", async () => {
-      await openWorkspace("/?portable=on&install=never")
+      await openWorkspace("/?portable=never")
       await primary(quiet()).click()
       await expect.element(installing()).toBeVisible()
       await expect.element(installing().getByText("Keeps your workspace")).toBeVisible()
@@ -98,7 +98,7 @@ describe("a portable copy's install card", () => {
     })
 
     it("folds into the chip on ×, which reopens it, and on Escape back to the chip", async () => {
-      await openWorkspace("/?portable=on&install=never")
+      await openWorkspace("/?portable=never")
       await primary(quiet()).click()
       await dismiss(installing()).click()
       await expect.element(installing()).not.toBeInTheDocument()
@@ -111,7 +111,7 @@ describe("a portable copy's install card", () => {
     })
 
     it("raises the card again with the answer once it was folded", async () => {
-      await openWorkspace("/?portable=on&progress=on")
+      await openWorkspace("/?portable=no-release&installMs=3000")
       await primary(quiet()).click()
       await dismiss(installing()).click()
       await expect.element(installing()).not.toBeInTheDocument()
@@ -121,7 +121,7 @@ describe("a portable copy's install card", () => {
 
   context("once installed", () => {
     it("says it takes effect after a restart, never restarts, then fades and leaves Installed", async () => {
-      await openWorkspace("/?portable=on")
+      await openWorkspace("/?portable=no-release")
       await primary(quiet()).click()
       await expect.element(done()).toBeVisible()
       await expect
@@ -134,7 +134,7 @@ describe("a portable copy's install card", () => {
     })
 
     it("lets the chip bring the line back until it is dismissed", async () => {
-      await openWorkspace("/?portable=on")
+      await openWorkspace("/?portable=no-release")
       await primary(quiet()).click()
       await expect.element(done(), { timeout: 8000 }).not.toBeInTheDocument()
       await installedChip().click()
@@ -149,7 +149,7 @@ describe("a portable copy's install card", () => {
 
   context("when the host reports a download", () => {
     it("shows the percent under Installing Novadeck, then the indeterminate bar", async () => {
-      await openWorkspace("/?portable=on&progress=on")
+      await openWorkspace("/?portable=no-release&installMs=3000")
       await primary(quiet()).click()
       await expect.element(installing().getByText("Downloading…")).toBeVisible()
       await expect.element(installing().getByText(/^\d+%$/)).toBeVisible()
@@ -168,7 +168,7 @@ describe("a portable copy's install card", () => {
 
   context("in a window opened again after installing", () => {
     it("raises no card and reads Installed on the chip", async () => {
-      await openWorkspace("/?portable=on&installed=on")
+      await openWorkspace("/?portable=installed")
       await expect.element(installedChip()).toBeVisible()
       await expectStaysAbsent(done())
       await installedChip().click()
@@ -178,7 +178,7 @@ describe("a portable copy's install card", () => {
 
   context("when the install ends otherwise", () => {
     it("says a newer Novadeck is already installed, taking effect after a restart, with no buttons", async () => {
-      await openWorkspace("/?portable=on&install=newer")
+      await openWorkspace("/?portable=newer")
       await primary(quiet()).click()
       const newer = page.getByRole("region", { name: "Novadeck 0.0.99 is already installed" })
       await expect.element(newer).toBeVisible()
@@ -193,16 +193,20 @@ describe("a portable copy's install card", () => {
     })
 
     it("says why it failed and offers Try again", async () => {
-      await openWorkspace("/?portable=on&install=failed")
+      await openWorkspace("/?portable=failed")
       const failed = page.getByRole("region", { name: "Couldn't install" })
       await primary(quiet()).click()
-      await expect.element(failed.getByRole("alert")).toHaveTextContent("There is no space left.")
+      await expect
+        .element(failed.getByRole("alert"))
+        .toHaveTextContent("There is no space left on the disk.")
       await failed.getByRole("button", { name: "Try again" }).click()
-      await expect.element(failed.getByRole("alert")).toHaveTextContent("There is no space left.")
+      await expect
+        .element(failed.getByRole("alert"))
+        .toHaveTextContent("There is no space left on the disk.")
     })
 
     it("does not show an earlier failure when the chip opens the card again", async () => {
-      await openWorkspace("/?portable=on&install=failed")
+      await openWorkspace("/?portable=failed")
       await primary(quiet()).click()
       const failed = page.getByRole("region", { name: "Couldn't install" })
       await expect.element(failed.getByRole("alert")).toBeVisible()
@@ -217,7 +221,7 @@ describe("a portable copy's install card", () => {
 
 describe("a portable copy with a release waiting", () => {
   it("turns the chip to Update available and raises the card with Install", async () => {
-    await openWorkspace("/?portable=on&update=available")
+    await openWorkspace("/?portable=update")
     await expect.element(offered()).toBeVisible()
     await expect.element(offered().getByText("This copy can't update itself.")).toBeVisible()
     await expect.element(primary(offered())).toBeVisible()
@@ -228,11 +232,11 @@ describe("a portable copy with a release waiting", () => {
   })
 
   it("raises the card once per launch, then only from the chip", async () => {
-    await openWorkspace("/?portable=on&update=available")
+    await openWorkspace("/?portable=update")
     await expect.element(offered()).toBeVisible()
     await dismiss(offered()).click()
     await cleanup()
-    await openWorkspace("/?portable=on&update=available")
+    await openWorkspace("/?portable=update")
     await expect.element(update()).toBeVisible()
     await expectStaysAbsent(offered())
     await update().click()
@@ -240,7 +244,7 @@ describe("a portable copy with a release waiting", () => {
   })
 
   it("installs from the card", async () => {
-    await openWorkspace("/?portable=on&update=available&install=never")
+    await openWorkspace("/?portable=never&update=available")
     await primary(offered()).click()
     await expect.element(installing()).toBeVisible()
     await expect.element(installingChip()).toBeVisible()
@@ -249,7 +253,7 @@ describe("a portable copy with a release waiting", () => {
 
 describe("the sandbox chip on a portable copy", () => {
   it("is not shown, and the card says what installing allows", async () => {
-    await openWorkspace("/?portable=on&sandbox=off")
+    await openWorkspace("/?portable=no-release&sandbox=off")
     await expect.element(install()).toBeVisible()
     await expectStaysAbsent(sandbox())
     expect(sandbox().query()).toBeNull()
@@ -259,7 +263,7 @@ describe("the sandbox chip on a portable copy", () => {
   })
 
   it("does not flash while the host has yet to say it is a portable copy", async () => {
-    await openWorkspace("/?portable=on&sandbox=off&answer=late")
+    await openWorkspace("/?portable=slow-host&sandbox=off")
     // Still waiting for the answer: no install chip yet, and no sandbox chip either.
     expect(install().query()).toBeNull()
     await expectStaysAbsent(sandbox(), { ms: 1000 })

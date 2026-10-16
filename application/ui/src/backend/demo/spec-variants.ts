@@ -1,5 +1,4 @@
 import type { SandboxState } from "../../model/sandbox"
-import type { UpdateOffer } from "../../model/update"
 import type { Backend } from "../port"
 import { createContentDemo } from "./content"
 import { createDemoPortable, type DemoPortable } from "./debug/portable"
@@ -7,6 +6,13 @@ import { createDemoSandbox, sampleFix } from "./debug/sandbox"
 import { createDemoUninstall, uninstallScenarios } from "./debug/uninstall"
 import { createDemoUpdates } from "./debug/updates"
 import { createDemoBackend } from "./index"
+import {
+  portableScenarios,
+  updateScenarios,
+  type PortableScenarioKey,
+  type UpdateScenario,
+  type UpdateScenarioKey,
+} from "./scenarios"
 import { visitorDemo } from "./visitor"
 
 // The demo's variants a spec asks for in its address, kept out of the file that chooses
@@ -18,34 +24,27 @@ import { visitorDemo } from "./visitor"
 const showcaseRequested = (): boolean =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("demo") === "showcase"
 
-// Specs open the demo on a host that has an update waiting with `?demo=update`, one the
-// host can't install itself with `?demo=update-available`, one downloading, then ready,
-// with `?demo=update-downloading`, or beside another variant with `&update=ready` or
-// `&update=available`.
-const requestedUpdate = (): UpdateOffer | undefined => {
-  const query = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
-  const demo = query.get("demo")
-  const kind =
-    demo === "update" || query.get("update") === "ready"
-      ? "ready"
-      : demo === "update-available" || query.get("update") === "available"
-        ? "available"
-        : demo === "update-downloading"
-          ? "downloading"
-          : undefined
-  return (
-    kind && {
-      kind,
-      version: "0.0.80",
-    }
-  )
+// Specs open the demo on a host that has an update with `?update=` one of the debug
+// panel's update scenarios (see backend/demo/scenarios.ts), beside any other variant.
+const requestedUpdate = (): UpdateScenario | undefined => {
+  const key = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("update")
+  return key && Object.hasOwn(updateScenarios, key)
+    ? updateScenarios[key as UpdateScenarioKey]
+    : undefined
 }
 
-const demoWithUpdate = (update: UpdateOffer): ReturnType<typeof createDemoBackend> => {
-  const { updates, offer, download } = createDemoUpdates()
-  if (update.kind === "downloading") download(update.version)
-  else offer(update)
-  return { ...createDemoBackend(), updates }
+// The updates a spec asks for: an explicit `?update=` wins, else the release a portable
+// scenario has waiting (as the debug panel offers it).
+const demoWithUpdate = (
+  scenario: UpdateScenario | undefined,
+  portable: DemoPortable | undefined,
+  demo: ReturnType<typeof createDemoBackend>,
+): ReturnType<typeof createDemoBackend> => {
+  if (!scenario && !portable?.offer) return demo
+  const controls = createDemoUpdates()
+  if (scenario) scenario.play(controls, "0.0.80")
+  else if (portable?.offer) controls.offer(portable.offer)
+  return { ...demo, updates: controls.updates }
 }
 
 // Specs open the demo on a host running without its security sandbox with `?sandbox=off`,
@@ -58,21 +57,17 @@ const requestedSandbox = (): SandboxState | undefined => {
   return undefined
 }
 
-const portableFlag = (name: string): boolean =>
-  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get(name) === "on"
-
-// Specs open the demo on a portable copy with `?portable=on`, and choose how installing
-// ends with `&install=newer`, `&install=failed` or `&install=never`; it ends as installed
-// at once otherwise. `&installed=on` opens it as a window opened again after installing, and
-// `&progress=on` makes the install report a download for three seconds before it ends.
-const requestedInstall = (): DemoPortable["install"] | undefined => {
+// Specs open the demo on a portable copy with `?portable=` one of the debug panel's
+// portable scenarios (see backend/demo/scenarios.ts). Installing takes no time there,
+// unless `&installMs=` says how long.
+const requestedPortable = (): DemoPortable | undefined => {
   const query = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
-  if (query.get("portable") !== "on") return undefined
-  const install = query.get("install")
-  if (install === "newer") return { kind: "newer", version: "0.0.99" }
-  if (install === "failed") return { kind: "failed", reason: "There is no space left." }
-  if (install === "never") return "never"
-  return { kind: "installed" }
+  const key = query.get("portable")
+  if (!key || !Object.hasOwn(portableScenarios, key)) return undefined
+  const portable = portableScenarios[key as PortableScenarioKey].setup("0.0.80")
+  if (!portable) return undefined
+  const installMs = Number(query.get("installMs"))
+  return { ...portable, installAfterMs: installMs > 0 ? installMs : 0 }
 }
 
 // Specs open the demo on a host that offers uninstalling with `?uninstall=` one of the
@@ -83,10 +78,6 @@ const requestedUninstall = (): Backend["uninstall"] => {
     ? createDemoUninstall(uninstallScenarios[name as keyof typeof uninstallScenarios]).uninstall
     : undefined
 }
-
-// `&answer=late` makes the host take 4 seconds to say it is a portable copy.
-const answerDelay = (): number =>
-  new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("answer") === "late" ? 4000 : 0
 
 // `&version=dev` makes the host a development build, which carries 0.0.0, and
 // `&version=none` one that gives no version.
@@ -131,20 +122,12 @@ export const createSpecBackend = (): ReturnType<typeof createDemoBackend> => {
   if (showcaseRequested()) return createContentDemo()
   const update = requestedUpdate()
   const sandbox = requestedSandbox()
-  const install = requestedInstall()
-  const demo = requestedVersion(update ? demoWithUpdate(update) : createDemoBackend())
+  const portable = requestedPortable()
+  const demo = requestedVersion(demoWithUpdate(update, portable, createDemoBackend()))
   const uninstall = requestedUninstall()
   const withSandbox = sandbox ? { ...demo, sandbox: createDemoSandbox(sandbox) } : demo
   const withUninstall = uninstall ? { ...withSandbox, uninstall } : withSandbox
-  return install
-    ? {
-        ...withUninstall,
-        portable: createDemoPortable({
-          install,
-          answerAfterMs: answerDelay(),
-          installed: portableFlag("installed"),
-          ...(portableFlag("progress") && { progress: true, installAfterMs: 3000 }),
-        }).portable,
-      }
+  return portable
+    ? { ...withUninstall, portable: createDemoPortable(portable).portable }
     : withUninstall
 }

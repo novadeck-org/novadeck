@@ -3,12 +3,9 @@
 // downloaded, and installed on a restart. `retrying`: a download failed and the app tries
 // again by itself, so nothing shows. `available`: a newer release the app can't install
 // itself, which the person gets from its release page.
-export type UpdateOffer = {
-  readonly kind: "downloading" | "ready" | "retrying" | "available"
-  readonly version: string
-  // Set only for `downloading`.
-  readonly percent?: number
-}
+export type UpdateOffer =
+  | { readonly kind: "downloading"; readonly version: string; readonly percent: number }
+  | { readonly kind: "ready" | "retrying" | "available"; readonly version: string }
 
 // Which releases the desktop app follows: stable ones, or every release as it is published.
 export type UpdateChannel = "stable" | "early"

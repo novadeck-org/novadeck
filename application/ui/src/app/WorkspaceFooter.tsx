@@ -116,8 +116,8 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
                 // The install entry covers the sandbox notice a portable copy would show.
                 unsandboxed: sandbox !== null && !sandbox.sandboxed,
                 onInstall: portableHost.install,
-                installed: portableState?.portable === true && portableState.installed,
-                ...(portableHost.onProgress && { onProgress: portableHost.onProgress }),
+                install:
+                  portableState?.portable === true ? portableState.install : { phase: "idle" },
               },
               open: portableCardOpen,
               blocked: asking || welcome || sandboxOpen,

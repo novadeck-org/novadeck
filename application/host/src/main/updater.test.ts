@@ -5,7 +5,7 @@ import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import type { UpdateChannel } from "@novadeck/protocol/bridge"
+import type { UpdateChannel, UpdateOffer } from "@novadeck/protocol/bridge"
 import type { IpcMainEvent } from "electron"
 import { afterEach, beforeEach, vi } from "vitest"
 
@@ -31,7 +31,6 @@ import {
   switchCheckMs,
   trackOffer,
   updatePlan,
-  updateVersionOf,
   type Updater,
   type UpdateBuild,
   type UpdateMode,
@@ -252,18 +251,6 @@ describe("the macOS app bundle", () => {
   })
 })
 
-describe("an update's version", () => {
-  it("is a release's semantic version", () => {
-    expect(updateVersionOf("1.2.3")).toBe("1.2.3")
-    expect(updateVersionOf("0.10.0-rc.1")).toBe("0.10.0-rc.1")
-  })
-
-  it("is nothing else", () => {
-    for (const value of [undefined, 3, "1.2", "v1.2.3", "1.2.3 ", "1.2.3\n<b>", "../1.2.3", ""])
-      expect(updateVersionOf(value)).toBeUndefined()
-  })
-})
-
 const page = () => {
   const sent: [string, unknown][] = []
   return {
@@ -276,7 +263,7 @@ describe("telling pages of an update", () => {
   it("tells every open page the offer", () => {
     const [first, second] = [page(), page()]
     const offers = trackOffer(() => [first, second])
-    offers.offer("ready", "1.2.3")
+    offers.offer({ kind: "ready", version: "1.2.3" })
     const offer = { kind: "ready", version: "1.2.3" }
     expect(first.sent).toEqual([[updateOfferChannel, offer]])
     expect(second.sent).toEqual([[updateOfferChannel, offer]])
@@ -288,7 +275,7 @@ describe("telling pages of an update", () => {
     const offers = trackOffer<ReturnType<typeof page>>(() => [])
     offers.request(late)
     expect(late.sent).toEqual([])
-    offers.offer("available", "1.2.3")
+    offers.offer({ kind: "available", version: "1.2.3" })
     offers.request(late)
     expect(late.sent).toEqual([[updateOfferChannel, { kind: "available", version: "1.2.3" }]])
   })
@@ -296,9 +283,9 @@ describe("telling pages of an update", () => {
   it("tells pages of a newer version, but not again of the one they know", () => {
     const open = page()
     const offers = trackOffer(() => [open])
-    offers.offer("available", "1.2.3")
-    offers.offer("available", "1.2.3")
-    offers.offer("available", "1.3.0")
+    offers.offer({ kind: "available", version: "1.2.3" })
+    offers.offer({ kind: "available", version: "1.2.3" })
+    offers.offer({ kind: "available", version: "1.3.0" })
     expect(open.sent.map(([, offer]) => (offer as { version: string }).version)).toEqual([
       "1.2.3",
       "1.3.0",
@@ -308,11 +295,11 @@ describe("telling pages of an update", () => {
   it("tells pages each percent a download reaches once, and carries it only for a download", () => {
     const open = page()
     const offers = trackOffer(() => [open])
-    offers.offer("downloading", "1.2.3", { percent: 0 })
-    offers.offer("downloading", "1.2.3", { percent: 0 })
-    offers.offer("downloading", "1.2.3", { percent: 7 })
-    offers.offer("downloading", "1.2.3", { percent: 7 })
-    offers.offer("ready", "1.2.3", { percent: 100 })
+    offers.offer({ kind: "downloading", version: "1.2.3", percent: 0 })
+    offers.offer({ kind: "downloading", version: "1.2.3", percent: 0 })
+    offers.offer({ kind: "downloading", version: "1.2.3", percent: 7 })
+    offers.offer({ kind: "downloading", version: "1.2.3", percent: 7 })
+    offers.offer({ kind: "ready", version: "1.2.3", percent: 100 } as UpdateOffer)
     expect(open.sent.map(([, offer]) => offer)).toEqual([
       { kind: "downloading", version: "1.2.3", percent: 0 },
       { kind: "downloading", version: "1.2.3", percent: 7 },
@@ -323,8 +310,8 @@ describe("telling pages of an update", () => {
   it("tells pages when a ready update could not be installed after all", () => {
     const open = page()
     const offers = trackOffer(() => [open])
-    offers.offer("ready", "1.2.3")
-    offers.offer("available", "1.2.3")
+    offers.offer({ kind: "ready", version: "1.2.3" })
+    offers.offer({ kind: "available", version: "1.2.3" })
     expect(offers.current()?.kind).toBe("available")
     expect(open.sent).toHaveLength(2)
   })
@@ -332,7 +319,7 @@ describe("telling pages of an update", () => {
   it("remembers and tells nothing that is not a version", () => {
     const open = page()
     const offers = trackOffer(() => [open])
-    offers.offer("ready", "latest; rm -rf")
+    offers.offer({ kind: "ready", version: "latest; rm -rf" })
     expect(open.sent).toEqual([])
     expect(offers.current()).toBeUndefined()
   })
@@ -484,8 +471,12 @@ describe("checking for updates", () => {
       channel: options.channel ?? "stable",
       failedVersion: options.failedVersion,
       native: options.native,
-      offer: (kind, version, percent) =>
-        void offered.push(percent === undefined ? [kind, version] : [kind, version, percent]),
+      offer: (offer) =>
+        void offered.push(
+          offer.kind === "downloading"
+            ? [offer.kind, offer.version, offer.percent]
+            : [offer.kind, offer.version],
+        ),
       installFailed: (version) => void failed.push(version),
       log: (message) => void logged.push(message),
     })

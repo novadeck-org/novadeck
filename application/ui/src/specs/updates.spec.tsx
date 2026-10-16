@@ -34,7 +34,7 @@ describe("the update progress bar", () => {
 
   context("for an update being downloaded", () => {
     it("shows the percent with nothing to press, and no chip in the footer", async () => {
-      await openWorkspace("/?demo=update-downloading")
+      await openWorkspace("/?update=download")
       await expect.element(updating()).toBeVisible()
       await expect.element(title("Downloading 0.0.80")).toBeVisible()
       await expect.element(percent()).toBeVisible()
@@ -45,7 +45,7 @@ describe("the update progress bar", () => {
     })
 
     it("says the update is ready when the download ends, then goes away", async () => {
-      await openWorkspace("/?demo=update-downloading")
+      await openWorkspace("/?update=download")
       await expect.element(finished(), slow).toBeVisible()
       await expect.element(title("100%")).toBeVisible()
       await expect.element(title("0.0.80 installs on the next restart")).toBeVisible()
@@ -57,7 +57,7 @@ describe("the update progress bar", () => {
     })
 
     it("never takes the keyboard's focus, so typing still reaches the terminal", async () => {
-      await openWorkspace("/?demo=update-downloading")
+      await openWorkspace("/?update=download")
       await expect.element(updating()).toBeVisible()
       await terminalTab("Dev server").click()
       await expect.element(typing()).toHaveFocus()
@@ -68,13 +68,13 @@ describe("the update progress bar", () => {
     })
 
     it("lets clicks through to what is under it", async () => {
-      await openWorkspace("/?demo=update-downloading")
+      await openWorkspace("/?update=download")
       await expect.element(updating()).toBeVisible()
       expect(getComputedStyle(bar()!).pointerEvents).toBe("none")
     })
 
     it("waits for Zen mode to end with the footer", async () => {
-      await openWorkspace("/?demo=update-downloading")
+      await openWorkspace("/?update=download")
       await expect.element(updating()).toBeVisible()
       await page.getByRole("button", { name: "Enter Zen mode" }).click()
       await expect.element(updating()).not.toBeInTheDocument()
@@ -84,7 +84,7 @@ describe("the update progress bar", () => {
 
   context("for an update the host can't install itself", () => {
     it("shows a quiet chip instead, with no bar, panel or dialog", async () => {
-      await openWorkspace("/?demo=update-available")
+      await openWorkspace("/?update=available")
       await expect.element(availableChip()).toBeVisible()
       expect(availableChip().element().hasAttribute("aria-expanded")).toBe(false)
       expect(bar()).toBeNull()
@@ -92,7 +92,7 @@ describe("the update progress bar", () => {
     })
 
     it("opens the release page on a press, and stays", async () => {
-      await openWorkspace("/?demo=update-available")
+      await openWorkspace("/?update=available")
       await availableChip().click()
       await expect.element(availableChip()).toBeVisible()
       expect(page.getByRole("dialog").query()).toBeNull()
@@ -102,7 +102,7 @@ describe("the update progress bar", () => {
     it("shortens to Update on a narrow bar", async () => {
       await page.viewport(600, 800)
       try {
-        await openWorkspace("/?demo=update-available")
+        await openWorkspace("/?update=available")
         await expect.element(availableChip().getByText("Update", { exact: true })).toBeVisible()
       } finally {
         await page.viewport(1440, 900)
@@ -112,7 +112,7 @@ describe("the update progress bar", () => {
 
   context("for an update that is not one to watch download", () => {
     it("shows nothing for one ready at launch", async () => {
-      await openWorkspace("/?demo=update")
+      await openWorkspace("/?update=ready")
       await expectStaysAbsent(finished())
       expect(bar()).toBeNull()
       expect(page.getByRole("button", { name: /update/i }).query()).toBeNull()
@@ -137,7 +137,7 @@ describe("Preferences' early builds", () => {
   })
 
   it("starts off, and stays on once turned on, also when Preferences opens again", async () => {
-    await openWorkspace("/?demo=update")
+    await openWorkspace("/?update=ready")
     await openPreferences()
     await expect.element(early()).toBeEnabled()
     await expect.element(early()).toHaveAttribute("aria-checked", "false")

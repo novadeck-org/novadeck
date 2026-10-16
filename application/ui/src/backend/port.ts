@@ -6,7 +6,7 @@ import type { AgentName } from "../model/harnesses"
 import type { Inbox } from "../model/inbox"
 import type { Messages } from "../model/messages"
 import type { Murmur } from "../model/murmur"
-import type { InstallProgress, InstallResult, PortableState } from "../model/portable"
+import type { PortableState } from "../model/portable"
 import type { SandboxState } from "../model/sandbox"
 import type { WorkspaceSeed } from "../model/seed"
 import type { WorkspaceAction } from "../model/state"
@@ -236,18 +236,17 @@ export type Backend = {
   // that does not say.
   readonly sandbox?: () => Promise<SandboxState>
   // Optional. Whether the desktop app is a portable copy, asked once at startup. A portable
-  // never updates itself; `install` puts the app that does in place, keeping the workspace,
-  // and on `installed` it is in place and takes effect when the person next opens Novadeck;
-  // so does a newer one found already installed (`newer`). Nothing restarts by itself.
-  // `onState`, where the host pushes it, hears the portable state change, as when this run
-  // installed the app from another window or before this page was reloaded.
-  // `onProgress`, where the host reports it, hears how far an install under way has got.
-  // Absent in a browser and in a host that has no portable copy.
+  // never updates itself; `install` asks the host to put the app that does in place,
+  // keeping the workspace, and answers nothing: the host owns how the install goes and
+  // `onState` hears each step of it (`PortableState.install`), in every window, including
+  // an install started from another window or before this page was reloaded. Once
+  // `installed` (or `newer`) the installed copy takes effect when the person next opens
+  // Novadeck. Nothing restarts by itself. Absent in a browser and in a host that has no
+  // portable copy.
   readonly portable?: {
     readonly state: () => Promise<PortableState>
-    readonly install: () => Promise<InstallResult>
-    readonly onState?: (listener: (state: PortableState) => void) => () => void
-    readonly onProgress?: (listener: (progress: InstallProgress) => void) => () => void
+    readonly onState: (listener: (state: PortableState) => void) => () => void
+    readonly install: () => void
   }
   // Optional. Removing the desktop app from this computer. `plan` says what that would do
   // here, asked each time Preferences opens; `run` removes the app, after the page has

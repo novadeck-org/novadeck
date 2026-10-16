@@ -450,7 +450,10 @@ const updateHost = () => {
   }
 }
 
-const offered = (version: string, kind: UpdateOffer["kind"] = "ready"): UpdateOffer => ({
+const offered = (
+  version: string,
+  kind: "ready" | "retrying" | "available" = "ready",
+): UpdateOffer => ({
   kind,
   version,
 })
@@ -522,10 +525,17 @@ describe("the sandbox", () => {
 })
 
 describe("a portable copy", () => {
-  const here = { portable: true, version: "0.0.70", run: "run-1", installed: false } as const
+  const here = {
+    portable: true,
+    version: "0.0.70",
+    run: "run-1",
+    install: { phase: "idle" },
+  } as const satisfies PortableState
+  const done = { ...here, install: { phase: "installed" } } as const satisfies PortableState
   const host = (state: PortableState = here) => ({
     state: () => Promise.resolve(state),
-    install: () => Promise.resolve({ kind: "installed" as const }),
+    onState: () => () => {},
+    install: () => {},
   })
   const available = offered("0.0.80", "available")
 
@@ -584,8 +594,8 @@ describe("a portable copy", () => {
 
   it("raises nothing when this run installed the app already", async () => {
     const ui = createUiStore(initial())
-    watchPortable(host({ ...here, installed: true }), ui)
-    await vi.waitFor(() => expect(ui.getSnapshot().portable).toEqual({ ...here, installed: true }))
+    watchPortable(host(done), ui)
+    await vi.waitFor(() => expect(ui.getSnapshot().portable).toEqual(done))
     expect(ui.getSnapshot().portableCardOpen).toBe(false)
   })
 
@@ -604,10 +614,10 @@ describe("a portable copy", () => {
       },
       ui,
     )
-    push({ ...here, installed: true })
+    push(done)
     answer(here)
     await Promise.resolve()
-    expect(ui.getSnapshot().portable).toEqual({ ...here, installed: true })
+    expect(ui.getSnapshot().portable).toEqual(done)
     expect(ui.getSnapshot().portableCardOpen).toBe(false)
   })
 

@@ -1,21 +1,14 @@
 import {
-  isUpdatePercent,
   noticeBodyLength,
   noticeIdPattern,
   noticeTitleLength,
-  portableRunPattern,
   updateChannels,
   updateVersionPattern,
   type DesktopHost,
-  type UpdateOffer,
+  parsePortableState,
+  parseUpdateOffer,
 } from "@novadeck/protocol/bridge"
 
-import {
-  maxReasonLength,
-  type InstallProgress,
-  type InstallResult,
-  type PortableState,
-} from "../../model/portable"
 import { maxFixLength, type SandboxState } from "../../model/sandbox"
 import {
   maxUninstallPath,
@@ -72,19 +65,6 @@ export const desktopNotices = (host: DesktopHost | undefined): Backend["notices"
   }
 }
 
-// An offer as the page takes it, or undefined for one that isn't a release's: a kind it
-// knows and a version that looks like a release's.
-export const hostOffer = (offer: unknown): UpdateOffer | undefined => {
-  if (typeof offer !== "object" || offer === null) return undefined
-  const { kind, version, percent } = offer as Record<string, unknown>
-  if (kind !== "downloading" && kind !== "ready" && kind !== "retrying" && kind !== "available") {
-    return undefined
-  }
-  if (kind === "downloading" && !isUpdatePercent(percent)) return undefined
-  if (typeof version !== "string" || !updateVersionPattern.test(version)) return undefined
-  return { kind, version, ...(kind === "downloading" ? { percent: percent as number } : {}) }
-}
-
 // The host's self-updates, where it has them: what crosses the bridge is checked, so the
 // page shows only what looks like a release's, and the channel only as one it knows.
 export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"] => {
@@ -96,7 +76,7 @@ export const desktopUpdates = (host: DesktopHost | undefined): Backend["updates"
   return {
     onOffer: (listener) =>
       listen((offer) => {
-        const checked = hostOffer(offer)
+        const checked = parseUpdateOffer(offer)
         if (checked) listener(checked)
       }),
     openPage: () => openPage(),
@@ -148,84 +128,26 @@ export const desktopSandbox = (host: DesktopHost | undefined): Backend["sandbox"
   return async () => hostSandbox(await ask())
 }
 
-// The host's account of whether it is a portable copy, as the page takes it: a boolean,
-// and for a portable one the build's version, as a release's, the name of the run and
-// whether this run installed the app already.
-export const hostPortable = (state: unknown): PortableState => {
-  if (typeof state !== "object" || state === null) throw new Error("Unknown portable state")
-  const { portable, version, run, installed } = state as Record<string, unknown>
-  if (portable === false) return { portable: false }
-  if (
-    portable !== true ||
-    typeof version !== "string" ||
-    !updateVersionPattern.test(version) ||
-    typeof run !== "string" ||
-    !portableRunPattern.test(run) ||
-    typeof installed !== "boolean"
-  ) {
-    throw new Error("Unknown portable state")
-  }
-  return { portable: true, version, run, installed }
-}
-
-// How an install went, as the page takes it. An answer that is none of the three is a
-// failure, with a reason the person can read.
-export const hostInstall = (result: unknown): InstallResult => {
-  const unknown: InstallResult = { kind: "failed", reason: "Something went wrong." }
-  if (typeof result !== "object" || result === null) return unknown
-  const { kind, version, reason } = result as Record<string, unknown>
-  if (kind === "installed") return { kind }
-  if (kind === "newer" && typeof version === "string" && updateVersionPattern.test(version)) {
-    return { kind, version }
-  }
-  if (kind !== "failed") return unknown
-  const text = typeof reason === "string" ? noticeText(reason, maxReasonLength) : ""
-  return text ? { kind, reason: text } : unknown
-}
-
-// How far an install has got, as the page takes it, or undefined for anything else.
-export const hostInstallProgress = (progress: unknown): InstallProgress | undefined => {
-  if (typeof progress !== "object" || progress === null) return undefined
-  const { phase, percent } = progress as Record<string, unknown>
-  if (phase === "installing") return { phase }
-  if (phase === "downloading" && isUpdatePercent(percent)) return { phase, percent }
-  return undefined
-}
-
-// The host's portable copy, where it has one: asked whether this is one and to install the
-// app from it, and, where it reports, how far the install has got.
+// The host's portable copy, where it has one: asked whether this is one, told how an
+// install stands, and asked to install the app from it. What crosses the bridge is checked;
+// a state that is none of the host's is not heard.
 export const desktopPortable = (host: DesktopHost | undefined): Backend["portable"] => {
   const ask = host?.portable
   const install = host?.installApp
-  const listen = host?.onInstallProgress
-  const listenState = host?.onPortableState
-  if (!ask || !install) return undefined
+  const listen = host?.onPortableState
+  if (!ask || !install || !listen) return undefined
   return {
-    state: async () => hostPortable(await ask()),
-    install: async () => {
-      try {
-        return hostInstall(await install())
-      } catch {
-        return hostInstall(undefined)
-      }
+    state: async () => {
+      const state = parsePortableState(await ask())
+      if (!state) throw new Error("Unknown portable state")
+      return state
     },
-    ...(listenState && {
-      onState: (listener: (state: PortableState) => void) =>
-        listenState((state) => {
-          try {
-            listener(hostPortable(state))
-          } catch {
-            /* A state that is none of the host's is not heard. */
-          }
-        }),
-    }),
-    ...(listen && {
-      onProgress: (listener: (progress: InstallProgress) => void) =>
-        listen((progress) => {
-          const heard = hostInstallProgress(progress)
-          if (heard) listener(heard)
-        }),
-    }),
+    onState: (listener) =>
+      listen((state) => {
+        const checked = parsePortableState(state)
+        if (checked) listener(checked)
+      }),
+    install: () => install(),
   }
 }
 
@@ -260,7 +182,10 @@ export const hostUninstallPlan = (plan: unknown): UninstallPlan => {
 // failure, with a reason the person can read; a leftover command that is not one plain
 // line is dropped.
 export const hostUninstallResult = (result: unknown): UninstallResult => {
-  const unknown: UninstallResult = { kind: "failed", reason: "Something went wrong." }
+  const unknown: UninstallResult = {
+    kind: "failed",
+    reason: "Something went wrong.",
+  }
   if (typeof result !== "object" || result === null) return unknown
   const { kind, leftover, reason } = result as Record<string, unknown>
   if (kind === "uninstalling") return { kind }

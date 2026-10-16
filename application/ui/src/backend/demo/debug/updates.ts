@@ -1,4 +1,5 @@
 import type { UpdateChannel, UpdateOffer } from "../../../model/update"
+import { updateScenarios } from "../scenarios"
 import type { DemoActionGroup, DemoStates } from "./types"
 import type { DemoLaunch } from "./with-debug"
 
@@ -100,37 +101,16 @@ export const updatesGroup = (launch: DemoLaunch, controls: DemoUpdates): DemoAct
     launch.portable
       ? { reboots: true as const, run: () => launch.bootInstalled(play) }
       : { run: () => play(controls) }
+  const scenarios = Object.values(updateScenarios).map(({ label, hint, play }) => ({
+    label,
+    hint,
+    ...installed((updates) => play(updates, nextVersion())),
+  }))
   return {
     section: "App",
     title: "Updates",
     actions: [
-      {
-        label: "Download",
-        hint: "Bar counts up, says ready, then fades",
-        ...installed(({ download }) => download(nextVersion())),
-      },
-      {
-        label: "Download, held",
-        hint: "Bar stays at 40% to look at",
-        ...installed(({ offer }) =>
-          offer({ kind: "downloading", version: nextVersion(), percent: 40 }),
-        ),
-      },
-      {
-        label: "Download failed",
-        hint: "Bar stands at 40% for a moment, then drops and nothing shows; the host retries later",
-        ...installed(({ failDownload }) => failDownload(nextVersion())),
-      },
-      {
-        label: "Release to fetch",
-        hint: "Footer chip, Update available; opens the release page",
-        ...installed(({ offer }) => offer({ kind: "available", version: nextVersion() })),
-      },
-      {
-        label: "Ready at launch",
-        hint: "No bar: downloaded before this run",
-        ...installed(({ offer }) => offer({ kind: "ready", version: nextVersion() })),
-      },
+      ...scenarios,
       {
         label: "Early builds on",
         hint: "Shows in Preferences once reopened",

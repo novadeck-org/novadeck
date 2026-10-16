@@ -1,65 +1,115 @@
-import { vi } from "vitest"
+import { afterEach, vi } from "vitest"
 
-import type { InstallProgress, InstallResult } from "../../../model/portable"
+import type { PortableState } from "../../../model/portable"
 import { describe, expect, it } from "../../../test"
 import { createDemoPortable, portableRun, portableVersion } from "./portable"
 
+const phases = (heard: PortableState[]): string[] =>
+  heard.map((state) => (state.portable ? state.install.phase : "installed copy"))
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 describe("demo portable copy", () => {
-  it("says it is portable, and ends every install as armed", async () => {
-    const { portable } = createDemoPortable({
-      install: { kind: "newer", version: "0.0.99" },
-    })
+  it("says it is portable, with the install idle until asked", async () => {
+    const { portable } = createDemoPortable({ ends: { phase: "newer", version: "0.0.99" } })
     expect(await portable.state()).toEqual({
       portable: true,
       version: portableVersion,
       run: portableRun,
-      installed: false,
-    })
-    expect(await portable.install()).toEqual({
-      kind: "newer",
-      version: "0.0.99",
+      install: { phase: "idle" },
     })
   })
 
-  it("answers after its delay, or never", async () => {
+  it("pushes the install, then how it ends, after its delay, or never ends", async () => {
     vi.useFakeTimers()
-    try {
-      const slow = createDemoPortable({ install: { kind: "installed" }, installAfterMs: 3000 })
-      const answers = vi.fn<(result: InstallResult) => void>()
-      void slow.portable.install().then(answers)
-      await vi.advanceTimersByTimeAsync(2999)
-      expect(answers).not.toHaveBeenCalled()
-      await vi.advanceTimersByTimeAsync(1)
-      expect(answers).toHaveBeenCalledExactlyOnceWith({ kind: "installed" })
-      const never = vi.fn<(result: InstallResult) => void>()
-      void createDemoPortable({ install: "never" }).portable.install().then(never)
-      await vi.advanceTimersByTimeAsync(60_000)
-      expect(never).not.toHaveBeenCalled()
-    } finally {
-      vi.useRealTimers()
-    }
+    const { portable } = createDemoPortable({
+      ends: { phase: "newer", version: "0.0.99" },
+      installAfterMs: 3000,
+    })
+    const heard: PortableState[] = []
+    portable.onState((state) => heard.push(state))
+    portable.install()
+    expect(phases(heard)).toEqual(["installing"])
+    await vi.advanceTimersByTimeAsync(2999)
+    expect(phases(heard)).toEqual(["installing"])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(heard.at(-1)).toMatchObject({ install: { phase: "newer", version: "0.0.99" } })
+    expect(await portable.state()).toEqual(heard.at(-1))
+
+    const never = createDemoPortable({ ends: "never" }).portable
+    const stuck: PortableState[] = []
+    never.onState((state) => stuck.push(state))
+    never.install()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(phases(stuck)).toEqual(["installing"])
   })
 
-  it("reports a download, then the install, before it answers, where it is told to", async () => {
+  it("answers the click with installing, then reports a download and the install, where it is told to", async () => {
     vi.useFakeTimers()
-    try {
-      const { portable } = createDemoPortable({
-        install: { kind: "installed" },
-        installAfterMs: 3000,
-        progress: true,
-      })
-      const heard: InstallProgress[] = []
-      const stop = portable.onProgress!((progress) => heard.push(progress))
-      void portable.install()
-      await vi.advanceTimersByTimeAsync(3000)
-      stop()
-      expect(heard.map((progress) => progress.phase)).toEqual([
-        ...Array<string>(5).fill("downloading"),
-        "installing",
-      ])
-      expect(heard[4]).toEqual({ phase: "downloading", percent: 100 })
-    } finally {
-      vi.useRealTimers()
-    }
+    const { portable } = createDemoPortable({
+      ends: { phase: "installed" },
+      installAfterMs: 3000,
+      progress: true,
+    })
+    const heard: PortableState[] = []
+    const stop = portable.onState((state) => heard.push(state))
+    portable.install()
+    await vi.advanceTimersByTimeAsync(3000)
+    stop()
+    expect(phases(heard)).toEqual([
+      "installing",
+      ...Array<string>(6).fill("downloading"),
+      "installing",
+      "installed",
+    ])
+    expect(heard[6]).toMatchObject({ install: { phase: "downloading", percent: 100 } })
+  })
+
+  it("ignores an install while under way or once done, and starts over after a failure", async () => {
+    vi.useFakeTimers()
+    const done = createDemoPortable({ ends: { phase: "installed" }, installAfterMs: 1000 })
+    const heard: PortableState[] = []
+    done.portable.onState((state) => heard.push(state))
+    done.portable.install()
+    done.portable.install()
+    await vi.advanceTimersByTimeAsync(1000)
+    done.portable.install()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(phases(heard)).toEqual(["installing", "installed"])
+
+    const failing = createDemoPortable({
+      ends: { phase: "failed", reason: "No space." },
+      installAfterMs: 1000,
+    })
+    const tries: PortableState[] = []
+    failing.portable.onState((state) => tries.push(state))
+    failing.portable.install()
+    await vi.advanceTimersByTimeAsync(1000)
+    failing.portable.install()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(phases(tries)).toEqual(["installing", "failed", "installing", "failed"])
+  })
+
+  it("opens as the window opened again after installing says, and answers late when slow", async () => {
+    vi.useFakeTimers()
+    const { portable } = createDemoPortable({
+      ends: { phase: "installed" },
+      opens: { phase: "installed" },
+      answerAfterMs: 4000,
+    })
+    const answered = vi.fn<(state: PortableState) => void>()
+    void portable.state().then(answered)
+    await vi.advanceTimersByTimeAsync(3999)
+    expect(answered).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(answered).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ install: { phase: "installed" } }),
+    )
+    const heard: PortableState[] = []
+    portable.onState((state) => heard.push(state))
+    portable.install()
+    expect(heard).toEqual([])
   })
 })

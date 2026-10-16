@@ -827,9 +827,9 @@ App:
   Installed. "Slow host" makes the host take four seconds to say it is portable, to check
   the No sandbox chip does not flash meanwhile. "Installed copy" boots as one. With "No
   sandbox" set under Sandbox, the No sandbox chip stays away on a portable and the card adds
-  a line about it. `?portable=on` (with `&install=newer`, `failed` or `never`, `&installed=on`,
-  `&progress=on`, `&update=available`, and `&answer=late` for a delayed portable answer) opens
-  variants for specs.
+  a line about it. For specs, `?portable=` opens any of these by key (`no-release`, `update`,
+  `never`, `newer`, `failed`, `installed`, `slow-host`, `installed-copy`); `&installMs=` sets
+  how long an install takes (none by default), and `&update=` adds an update scenario.
 - **Uninstall:** boot as a host that offers the About row's Uninstall…, and end the run as
   armed. "Not offered" has no row (a portable copy, or no host); "Homebrew copy" shows the
   brew command with Copy and no button; "Ready, no data folder" has no Keep my projects checkbox, as when the app runs with its own data folder; "Removed" goes through Removing… to Novadeck is
@@ -851,8 +851,8 @@ App:
   launch offers an update downloaded before this run, which shows nothing, as at a launch.
   Finish restart reloads the demo, as the app comes back on the new version. Early builds on
   and off set the channel Preferences' Updates switch shows once Preferences is reopened.
-  `?demo=update`, `?demo=update-available` and `?demo=update-downloading` open variants
-  that already have one waiting, for specs.
+  For specs, `?update=` opens any of these by key (`download`, `held`, `failed`, `available`,
+  `ready`). Both panels and the spec keys come from one record, `backend/demo/scenarios.ts`.
 
 ### Visitor build
 

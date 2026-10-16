@@ -2,11 +2,10 @@ import { dirname } from "node:path"
 import { isAbsolute, relative } from "node:path/posix"
 
 import {
+  parseUpdateOffer,
   updateChannels,
-  updateVersionPattern,
   type UpdateChannel,
   type UpdateOffer,
-  type UpdateOfferKind,
 } from "@novadeck/protocol/bridge"
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron"
 
@@ -158,12 +157,14 @@ export const bundleOf = (executable: string): string => dirname(dirname(dirname(
 export const developerIdSigned = (output: string): boolean =>
   /^Authority=Developer ID Application: /m.test(output)
 
-/** The version of an update when it is one the page may be told of, or undefined. */
-export const updateVersionOf = (value: unknown): string | undefined =>
-  typeof value === "string" && updateVersionPattern.test(value) ? value : undefined
-
 // The part of a window that telling it of an update uses.
 type Page = { send(channel: string, offer: UpdateOffer): void }
+
+// Whether two offers say the same to a page: the kind, the version and a download's percent.
+const sameOffer = (a: UpdateOffer, b: UpdateOffer): boolean =>
+  a.kind === b.kind &&
+  a.version === b.version &&
+  (a.kind !== "downloading" || (b.kind === "downloading" && a.percent === b.percent))
 
 /**
  * Remembers the last offer and tells every page of it: `offer` those open now, `request`
@@ -178,24 +179,11 @@ export const trackOffer = <P extends Page>(pages: () => readonly P[]) => {
   let last: UpdateOffer | undefined
   return {
     current: (): UpdateOffer | undefined => last,
-    offer: (
-      kind: UpdateOfferKind,
-      value: unknown,
-      { percent }: { readonly percent?: number | undefined } = {},
-    ): void => {
-      const version = updateVersionOf(value)
-      const progress = kind === "downloading" ? percent : undefined
-      if (
-        version === undefined ||
-        (last?.kind === kind && last.version === version && last.percent === progress)
-      )
-        return
-      last = {
-        kind,
-        version,
-        ...(progress === undefined ? {} : { percent: progress }),
-      }
-      for (const page of pages()) page.send(updateOfferChannel, last)
+    offer: (next: UpdateOffer): void => {
+      const offer = parseUpdateOffer(next)
+      if (offer === undefined || (last !== undefined && sameOffer(last, offer))) return
+      last = offer
+      for (const page of pages()) page.send(updateOfferChannel, offer)
     },
     request: (page: P): void => {
       if (last !== undefined) page.send(updateOfferChannel, last)
@@ -385,8 +373,7 @@ export const checkForUpdates = (
     /** The version installing failed on in an earlier launch, if it did. */
     readonly failedVersion?: string | undefined
     readonly native?: NativeUpdater | undefined
-    /** `percent` is given for `downloading` only. */
-    readonly offer: (kind: UpdateOfferKind, version: string, percent?: number) => void
+    readonly offer: (offer: UpdateOffer) => void
     readonly installFailed: (version: string) => void
     readonly log: (message: string, error: unknown) => void
   },
@@ -434,15 +421,15 @@ export const checkForUpdates = (
     staging = false
     updater.autoInstallOnAppQuit = false
     installFailed(downloaded.version)
-    offer("available", downloaded.version)
+    offer({ kind: "available", version: downloaded.version })
   })
   updater.on("update-available", (info) => {
-    if (mode === "tell") return offer("available", info.version)
+    if (mode === "tell") return offer({ kind: "available", version: info.version })
     // A release found while a download is under way waits for the next check.
     if (ended || loading !== undefined || info.version === downloaded?.version) return
     if (info.version === failedVersion) {
       // A ready update stays ready rather than give way to the release that failed.
-      if (downloaded === undefined) offer("available", info.version)
+      if (downloaded === undefined) offer({ kind: "available", version: info.version })
       return
     }
     const { version } = info
@@ -461,8 +448,9 @@ export const checkForUpdates = (
           // early retry failed too, the person is told to fetch it themselves, so a copy
           // whose downloads keep failing does not fall behind unseen; the schedule still
           // tries it, and a download that gets going takes the offer back.
-          if (retried.has(version)) offer("available", version)
-          else if (current.percent >= 0 || downloaded !== undefined) offer("retrying", version)
+          if (retried.has(version)) offer({ kind: "available", version })
+          else if (current.percent >= 0 || downloaded !== undefined)
+            offer({ kind: "retrying", version })
           downloaded = undefined
           if (!ended && !retried.has(version)) {
             retried.add(version)
@@ -484,7 +472,7 @@ export const checkForUpdates = (
     const whole = Math.min(100, Math.max(0, Math.floor(percent)))
     if (whole === loading.percent) return
     loading.percent = whole
-    offer("downloading", loading.version, whole)
+    offer({ kind: "downloading", version: loading.version, percent: whole })
   })
   updater.on("update-downloaded", (info) => {
     // Squirrel.Mac has the download staged, or soon will, and keeps it.
@@ -492,7 +480,7 @@ export const checkForUpdates = (
     downloaded = { version: info.version }
     const ready = (): void => {
       staging = false
-      offer("ready", info.version)
+      offer({ kind: "ready", version: info.version })
     }
     // electron-updater reports the download just before it hands the file to Squirrel,
     // so listening now is in time for the native event that follows.

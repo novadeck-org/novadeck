@@ -281,18 +281,19 @@ export const notePortableCardShown = (portable: PortableState | null): void => {
 }
 
 // Whether this run of a portable copy has shown its card already.
-// A copy that installed the app already has nothing to raise.
+// A copy whose install has begun or ended has nothing to raise: the card is already up or
+// has been.
 const raisedThisRun = (portable: PortableState): boolean =>
-  portable.portable && (portable.installed || readPortableCardRaised(portable.run))
+  portable.portable && (portable.install.phase !== "idle" || readPortableCardRaised(portable.run))
 
 // Asks the backend once whether the app is a portable copy, and keeps the answer for the
 // footer. A portable copy raises its card now, offer or not. A host that fails to say is
-// taken as not saying. A state the host pushes later (this run installed the app) replaces
+// taken as not saying. A state the host pushes later (each step of an install) replaces
 // it without raising anything, and wins over an answer that comes after it.
 export const watchPortable = (portable: Backend["portable"], ui: UiStore): (() => void) => {
   let live = true
   let pushed = false
-  const stop = portable?.onState?.((portableState) => {
+  const stop = portable?.onState((portableState) => {
     pushed = true
     ui.update((state) => ({ ...state, portable: portableState }))
   })

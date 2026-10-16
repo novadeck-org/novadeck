@@ -186,12 +186,17 @@ app running with no window) is not taken for a launch and the card does not come
 itself; the footer chip reopens it. `installApp` installs from the
 copy (`portable.ts`; `install-linux.ts` on Linux, `applications-folder.ts` on macOS,
 `install-windows.ts` on Windows) while this copy keeps running. Novadeck never restarts
-itself for the person: the answer is `installed`, the page says the installed copy "takes
-effect after you restart Novadeck", and nothing is quit, started or handed off. While it
-works the host sends `InstallProgress` to the app's pages (`onInstallProgress`): `installing`
-on every system, and on Windows whole-percent `downloading` before it. `PortableState.installed`
-is true once this run installed, or found a newer copy already installed, and a second request answers the same without installing
-again. On Linux:
+itself for the person: the install ends `installed`, the page says the installed copy "takes
+effect after you restart Novadeck", and nothing is quit, started or handed off. `installApp`
+answers nothing: the host owns the install's phase (`PortableState.install`, starting `idle`)
+and pushes the whole `PortableState` to every window at each change (`onPortableState`):
+`installing` at once, as the answer to the click; on Windows then `downloading` with each new
+whole percent and `installing` again while the setup runs; then `installed`, `newer` (with the
+installed version) or `failed` (with a reason). Only the window that asked raises its card with
+the answer; the others show it on the footer chip. A request
+while it downloads or installs, or after it ended `installed` or `newer`, does nothing; after
+`failed` it starts over. A copy that is not portable, or a sender that is not the app's own page,
+does nothing either. On Linux:
 
 - It installs from the running file, with no download: the AppImage is copied beside the
   install path as `.new` and renamed over it, so a failed copy leaves nothing half-written
@@ -409,8 +414,9 @@ kill the process tree and wait.
 `DesktopBridge` in `application/protocol/src/bridge.ts` carries `onUpdate` (an
 `UpdateOffer` with `kind` (`downloading`, `ready`, `retrying` or `available`), `version` and, for `downloading`, a whole `percent`), `openUpdatePage`,
 `updateChannel` and `setUpdateChannel`. The app shows no release notes. `onPortableState`
-pushes the `PortableState` to every window when it changes: an install answering
-`installed` or `newer` sets `installed` for the rest of the run. The preload checks every offer again before the page sees it. Requests count
+pushes the `PortableState` to every window when it changes, each step of an install included.
+The preload checks every offer and portable state again, with the protocol's parsers, before the
+page sees it: a bad offer is dropped, and so is a bad pushed state; a bad answer to `portable` counts as not portable. Requests count
 only from the main frame of the app's own page.
 
 ## Release assets

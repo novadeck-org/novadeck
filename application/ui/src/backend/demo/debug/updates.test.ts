@@ -52,7 +52,9 @@ describe("demo updates", () => {
     vi.useFakeTimers()
     const { updates, download, offer } = createDemoUpdates()
     const heard: string[] = []
-    updates.onOffer((each) => heard.push(`${each.kind} ${each.percent ?? ""}`.trim()))
+    updates.onOffer((each) =>
+      heard.push(`${each.kind} ${"percent" in each ? each.percent : ""}`.trim()),
+    )
     download("0.0.80")
     vi.advanceTimersByTime(downloadMs * 2)
     expect(heard).toEqual(["downloading 0", "downloading 10", "downloading 20"])
@@ -84,7 +86,7 @@ describe("demo updates", () => {
     const { updates, download, failDownload } = createDemoUpdates()
     const heard: string[] = []
     updates.onOffer((each) =>
-      heard.push(`${each.kind} ${each.version} ${each.percent ?? ""}`.trim()),
+      heard.push(`${each.kind} ${each.version} ${"percent" in each ? each.percent : ""}`.trim()),
     )
     failDownload("0.0.80")
     expect(heard).toEqual(["downloading 0.0.80 40"])

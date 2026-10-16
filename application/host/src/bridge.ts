@@ -64,20 +64,14 @@ export const sandboxChannel = "novadeck:sandbox"
 export const portableChannel = "novadeck:portable"
 
 /**
- * Renderer-to-main request to install the app from this portable copy; answers an
- * `InstallResult`. See main/portable.ts.
+ * Renderer-to-main request to install the app from this portable copy; answers nothing,
+ * as every step arrives on `portableStateChannel`. See main/portable.ts.
  */
 export const installAppChannel = "novadeck:install-app"
 
 /**
- * Main-to-renderer report of how an install under way goes, an `InstallProgress`; see
- * main/portable.ts.
- */
-export const installProgressChannel = "novadeck:install-progress"
-
-/**
- * Main-to-renderer report of the portable state, a `PortableState`, whenever it changes;
- * see main/portable.ts.
+ * Main-to-renderer report of the portable state, a `PortableState`, whenever it changes,
+ * which includes each step of an install; see main/portable.ts.
  */
 export const portableStateChannel = "novadeck:portable-state"
 
