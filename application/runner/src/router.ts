@@ -333,7 +333,7 @@ export const createRouter = (options: {
           throw apiError(error)
         }
       }),
-      install: authorized.voice.install.handler(({ input }) => voice.install(input.model)),
+      install: authorized.voice.install.handler(() => voice.install()),
       cancel: authorized.voice.cancel.handler(() => voice.cancel()),
       uninstall: authorized.voice.uninstall.handler(() => voice.uninstall()),
       set: authorized.voice.set.handler(({ input }) => voice.set(input)),
@@ -360,6 +360,7 @@ export const createRouter = (options: {
       cancel: authorized.murmur.cancel.handler(() => murmur.cancel()),
       uninstall: authorized.murmur.uninstall.handler(() => murmur.uninstall()),
       set: authorized.murmur.set.handler(({ input }) => murmur.set(input)),
+      noteOffered: authorized.murmur.noteOffered.handler(() => murmur.noteOffered()),
       gist: authorized.murmur.gist.handler(({ input }) =>
         terminals.gistWanted(input.terminalId, input.at),
       ),

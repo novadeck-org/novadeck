@@ -1,11 +1,13 @@
 @reference "../styles.css";
 
-/* The recipe for voice input's status line: a small pill above the window's foot while a
-   clip records or transcribes, and for a moment after a hint or a failure. It takes no
-   pointer and no focus.
+/* The recipe for voice input's status line, and for the setup of voice input that shares it:
+   a small pill above the window's foot while a clip records or transcribes, and for a
+   moment after a hint or a failure. It takes no focus. It takes no pointer either, apart
+   from the buttons of voice input's setup and the Addons button, which do.
 
-   Hooks: data-phase="idle" | "recording" | "transcribing" and, in idle, data-tone="hint" |
-   "error" on `.dictation-overlay`. Parts: `.dictation-icon`, `.dictation-hint`,
+   Hooks: data-phase="idle" | "recording" | "transcribing" | "setup" and, in idle,
+   data-tone="hint" | "error" on `.dictation-overlay`; in setup, data-setup="offer" |
+   "installing" | "ready" | "failed". Parts: `.dictation-icon`, `.dictation-hint`,
    `.dictation-meter` (its `i` is the level, from the `--dictation-level` property, 0 to
    1), `.dictation-elapsed`; the mic button's recording state is `.dictation-active` on a
    header action.
@@ -23,9 +25,19 @@
    "bottom". Parts: `.dictation-dot` (recording), `.dictation-wave` (its `i` bars, each
    from `--dictation-bar`, 0 to 1), `.dictation-text`, `.dictation-shimmer`,
    `.dictation-setup` (the Addons button), and the overlay's icon, hint and elapsed time,
-   whose `data-ending` marks a clip's last seconds.
+   whose `data-ending` marks a clip's last seconds. While a clip records or transcribes the
+   strip floats over the terminal's foot; in setup (data-phase="setup") it is a row of its
+   own and the terminal above it shrinks.
+   Setup's parts: `.dictation-link` (a quiet button), `.dictation-button` (the primary one),
+   `.dictation-muted` (the muted rest of a line), `.dictation-fixed` (a part that never
+   shrinks), `.dictation-long` and `.dictation-short` (the words, and their short form in
+   a narrow container), `.dictation-progress` (the inline bar), `.dictation-clamp` (an error
+   kept to its line).
    --dictation-strip-bg (the window header's bg), --dictation-strip-border-color (line):
-   the strip. --dictation-error-bg (danger-fg at 9% over the strip): a failure's strip. */
+   the strip. --dictation-error-bg (danger-fg at 9% over the strip; at 18% in a failed
+   setup, 14% over the pill's paper): a failure's strip or pill.
+   --dictation-error-border-color (danger-fg at 50% over the line): the border of a failed
+   setup. */
 
 @layer components {
   .dictation-overlay {
@@ -74,6 +86,7 @@
   }
 
   .dictation-strip {
+    container: dictation-strip / inline-size;
     --_bg: var(--dictation-strip-bg, var(--window-header-bg, var(--color-paper)));
     position: absolute;
     left: 0;
@@ -198,6 +211,133 @@
     transform: scaleX(var(--dictation-level, 0));
     transform-origin: left;
     transition: transform 80ms linear;
+  }
+  /* Voice input's setup in the strip and the overlay: its buttons take the pointer, the rest
+     of either still does not. `.dictation-link` is a quiet button, `.dictation-button` the
+     primary one, `.dictation-muted` the muted rest of a line, `.dictation-progress` the
+     inline bar, `.dictation-clamp` an error kept to its line. */
+  .dictation-strip button,
+  .dictation-overlay button {
+    pointer-events: auto;
+  }
+  .dictation-overlay[data-phase="setup"] {
+    max-width: min(40rem, calc(100vw - 2rem));
+  }
+  .dictation-muted {
+    color: var(--dictation-muted-fg, var(--color-muted));
+  }
+  /* The size and the step's numbers never give way to the words beside them. */
+  .dictation-fixed {
+    flex: none;
+  }
+  .dictation-short {
+    display: none;
+  }
+  /* The words sit together after the icon; the gap is before the buttons. */
+  .dictation-strip[data-phase="setup"] .dictation-text:not(.dictation-clamp),
+  .dictation-overlay[data-phase="setup"] .dictation-text:not(.dictation-clamp) {
+    flex: 0 1 auto;
+  }
+  .dictation-strip[data-phase="setup"] button:first-of-type,
+  .dictation-overlay[data-phase="setup"] button:first-of-type {
+    margin-inline-start: auto;
+  }
+  /* In a narrow tile, the long words give way to short ones. */
+  @container dictation-strip (max-width: 34rem) {
+    .dictation-long {
+      display: none;
+    }
+    .dictation-short {
+      display: inline;
+    }
+    .dictation-progress {
+      display: none;
+    }
+  }
+  /* Voice input's setup takes a row of its own, so the terminal above it shrinks to make
+     room instead of being covered: its last lines are the agent's input. Its height never
+     changes between the setup's states, so the terminal refits once per state, not per
+     tick of progress. */
+  .dictation-strip[data-phase="setup"] {
+    /* A row of one line's height, so a chat that cannot shrink further still fits. */
+    height: calc(var(--spacing) * 6);
+    position: relative;
+    inset: auto;
+    flex: none;
+  }
+  .dictation-strip[data-phase="setup"][data-edge="top"] {
+    order: -1;
+  }
+  .dictation-strip[data-setup="failed"] {
+    background-color: var(
+      --dictation-error-bg,
+      color-mix(in srgb, var(--color-danger-fg) 18%, var(--_bg))
+    );
+    border-color: var(
+      --dictation-error-border-color,
+      color-mix(in srgb, var(--color-danger-fg) 50%, var(--color-line))
+    );
+  }
+  .dictation-overlay[data-setup="failed"] {
+    background-color: var(
+      --dictation-error-bg,
+      color-mix(in srgb, var(--color-danger-fg) 14%, var(--color-paper))
+    );
+    border-color: var(
+      --dictation-error-border-color,
+      color-mix(in srgb, var(--color-danger-fg) 50%, var(--color-line-strong))
+    );
+  }
+  /* The pill at the app's foot stays one line and compact. */
+  .dictation-overlay[data-phase="setup"] {
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .dictation-overlay .dictation-text {
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dictation-overlay .dictation-progress {
+    width: calc(var(--spacing) * 12);
+  }
+  .dictation-link {
+    flex: none;
+    color: var(--dictation-muted-fg, var(--color-muted));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .dictation-link:hover {
+    color: var(--dictation-fg, var(--color-ink));
+  }
+  .dictation-strip .dictation-button,
+  .dictation-overlay .dictation-button {
+    flex: none;
+    height: calc(var(--spacing) * 5);
+    min-height: 0;
+    padding: 0 calc(var(--spacing) * 2.5);
+    font-size: var(--text-caption);
+    line-height: 1;
+  }
+  .dictation-link:focus-visible,
+  .dictation-button:focus-visible {
+    outline: 2px solid var(--color-strong);
+    outline-offset: 2px;
+  }
+  .dictation-progress {
+    display: inline-flex;
+    width: calc(var(--spacing) * 24);
+    flex: none;
+  }
+  .dictation-clamp {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dictation-strip[data-setup] .dictation-icon,
+  .dictation-overlay[data-setup] .dictation-icon {
+    flex: none;
   }
   /* The header's mic, tinted while its terminal records, with a dot that breathes. */
   .icon-button.dictation-active {

@@ -7,10 +7,22 @@ describe("the demo's voice input", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
+  const uninstalled = (step = 100) => createDemoVoice({ step, transcribe: 10 }, "uninstalled")
+
+  it("starts installed and on, as the try demo shows it", () => {
+    const voice = createDemoVoice()
+    expect(voice.state.getSnapshot()).toMatchObject({
+      installed: ["turbo"],
+      enabled: true,
+      wanted: true,
+      check: { model: "turbo" },
+    })
+  })
+
   it("installs through the engine, the model and a check, then turns on", async () => {
-    const voice = createDemoVoice({ step: 100, transcribe: 10 })
+    const voice = uninstalled()
     expect(voice.state.getSnapshot()).toMatchObject({ installed: [], enabled: false })
-    voice.install("turbo")
+    voice.install()
     await vi.advanceTimersByTimeAsync(50)
     expect(voice.state.getSnapshot().installing).toMatchObject({ model: "turbo", step: "engine" })
     await vi.advanceTimersByTimeAsync(100)
@@ -22,47 +34,30 @@ describe("the demo's voice input", () => {
       installing: null,
       installed: ["turbo"],
       enabled: true,
-      check: { model: "turbo", gpu: true },
+      check: { model: "turbo" },
     })
   })
 
-  it("leaves voice input off for another model when the person turned it off", async () => {
-    const voice = createDemoVoice({ step: 100, transcribe: 10 })
-    voice.install("turbo")
-    await vi.advanceTimersByTimeAsync(400)
-    voice.set({ enabled: false })
-
-    voice.install("small")
-    await vi.advanceTimersByTimeAsync(300)
-
-    expect(voice.state.getSnapshot()).toMatchObject({ model: "small", enabled: false })
-  })
-
   it("stops an install on cancel, and forgets everything on uninstall", async () => {
-    const voice = createDemoVoice({ step: 100, transcribe: 10 })
-    voice.install("small")
+    const voice = uninstalled()
+    voice.install()
     await vi.advanceTimersByTimeAsync(150)
     voice.cancel()
     await vi.advanceTimersByTimeAsync(1000)
     expect(voice.state.getSnapshot()).toMatchObject({ installing: null, installed: [] })
-    voice.install("small")
+    voice.install()
     await vi.advanceTimersByTimeAsync(400)
     voice.uninstall()
-    expect(voice.state.getSnapshot()).toMatchObject({ installed: [], enabled: false })
-  })
-
-  it("refuses a model that is not installed", () => {
-    const voice = createDemoVoice()
-    voice.set({ model: "small" })
     expect(voice.state.getSnapshot()).toMatchObject({
-      model: "turbo",
-      failure: "That model isn't installed.",
+      installed: [],
+      enabled: false,
+      wanted: false,
     })
   })
 
   it("keeps an off chosen during a first install, as the runner", async () => {
-    const voice = createDemoVoice({ step: 10, transcribe: 10 })
-    voice.install("turbo")
+    const voice = uninstalled(10)
+    voice.install()
     voice.set({ enabled: false })
     await vi.advanceTimersByTimeAsync(100)
     expect(voice.state.getSnapshot()).toMatchObject({
@@ -73,10 +68,100 @@ describe("the demo's voice input", () => {
   })
 
   it("is wanted until turned off, and turned on before an install is wanted again", () => {
-    const voice = createDemoVoice()
+    const voice = uninstalled()
     expect(voice.state.getSnapshot()).toMatchObject({ enabled: false, wanted: true })
     voice.set({ enabled: false })
     expect(voice.state.getSnapshot()).toMatchObject({ enabled: false, wanted: false })
+    voice.set({ enabled: true })
+    expect(voice.state.getSnapshot()).toMatchObject({ enabled: false, wanted: true })
+  })
+
+  it("shows each state of the offer on demand", async () => {
+    const voice = createDemoVoice({ step: 100, transcribe: 10 })
+    voice.show("declined")
+    expect(voice.state.getSnapshot()).toMatchObject({ installed: [], wanted: false })
+    // Each arms the next install, which the offer's Turn on starts.
+    voice.show("network-failure")
+    voice.install()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(voice.state.getSnapshot()).toMatchObject({
+      installed: [],
+      wanted: true,
+      installing: null,
+      failure: expect.stringContaining("connection dropped"),
+    })
+    voice.show("installing")
+    voice.install()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(voice.state.getSnapshot().installing).toMatchObject({ step: "model" })
+    voice.show("install-and-finish")
+    voice.install()
+    await vi.advanceTimersByTimeAsync(400)
+    expect(voice.state.getSnapshot()).toMatchObject({ installed: ["turbo"], enabled: true })
+    voice.show("uninstalled")
+    expect(voice.state.getSnapshot()).toMatchObject({ installed: [], wanted: true })
+  })
+
+  it("keeps the last check until a new one passes, and what an install got to when it stops", async () => {
+    const voice = createDemoVoice({ step: 100, transcribe: 10 })
+    const check = voice.state.getSnapshot().check
+    voice.install()
+    await vi.advanceTimersByTimeAsync(50)
+    expect(voice.state.getSnapshot().check).toEqual(check)
+    voice.cancel()
+
+    const fresh = createDemoVoice({ step: 100, transcribe: 10 }, "uninstalled")
+    fresh.install()
+    // Past the engine and the model: into the check.
+    await vi.advanceTimersByTimeAsync(250)
+    fresh.cancel()
+    expect(fresh.state.getSnapshot()).toMatchObject({
+      installing: null,
+      engineInstalled: true,
+      installed: ["turbo"],
+      check: null,
+    })
+  })
+
+  it("leaves the engine on disk when an install fails after its step", async () => {
+    const voice = createDemoVoice({ step: 100, transcribe: 10 })
+    voice.show("network-failure")
+    voice.install()
+    await vi.advanceTimersByTimeAsync(300)
+    expect(voice.state.getSnapshot()).toMatchObject({
+      engineInstalled: true,
+      installed: [],
+      installing: null,
+    })
+    expect(voice.state.getSnapshot().failure).not.toBeNull()
+  })
+
+  it("reaches the not-set-up state, which a retry only checks", async () => {
+    const voice = createDemoVoice({ step: 100, transcribe: 10 })
+    voice.show("cancelled-at-check")
+    expect(voice.state.getSnapshot()).toMatchObject({
+      engineInstalled: true,
+      installed: ["turbo"],
+      check: null,
+    })
+    voice.install()
+    await vi.advanceTimersByTimeAsync(150)
+    expect(voice.state.getSnapshot()).toMatchObject({ installed: ["turbo"], enabled: true })
+  })
+
+  it("keeps the aim at small through an uninstall under software rendering", () => {
+    const voice = createDemoVoice({ step: 100, transcribe: 10 })
+    voice.show("software-graphics")
+    voice.uninstall()
+    expect(voice.state.getSnapshot().aim).toBe("small")
+    voice.show("uninstalled")
+    voice.uninstall()
+    expect(voice.state.getSnapshot().aim).toBe("turbo")
+  })
+
+  it("only wants a model that never passed its check when it is turned on", () => {
+    const voice = createDemoVoice({ step: 100, transcribe: 10 })
+    voice.show("cancelled-at-check")
     voice.set({ enabled: true })
     expect(voice.state.getSnapshot()).toMatchObject({ enabled: false, wanted: true })
   })

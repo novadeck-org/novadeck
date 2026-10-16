@@ -64,7 +64,7 @@ const added = (html: string): Element => {
   return holder
 }
 
-const notice = (page: Rendered) => page.container.querySelector("section.update-card")
+const notice = (page: Rendered) => page.container.querySelector("section.portable-card")
 
 const chip = (page: Rendered) => page.container.querySelector<HTMLButtonElement>(".footer-update")!
 

@@ -10,6 +10,8 @@ export const voiceSourceArgumentPrefix = "--novadeck-voice-source="
 export const murmurEngineArgumentPrefix = "--novadeck-murmur-engine="
 /** Where the murmur engine's archive comes from: an https address ending in "/", or a folder. */
 export const murmurSourceArgumentPrefix = "--novadeck-murmur-source="
+/** Given as `software` when the host saw no graphics hardware, so murmur can't run and voice input goes straight to its small model; absent otherwise. */
+export const graphicsArgumentPrefix = "--novadeck-graphics="
 
 /** Renderer-to-main request for a runner port; the answer arrives on the same channel. */
 export const runnerPortChannel = "novadeck:runner-port"

@@ -794,6 +794,42 @@ App:
   buries a line under blank lines and spaces; its card counts the lines and marks what draws
   as nothing. "A new item arrives" adds the next kind not there
   yet, and "Clear the Inbox" empties it.
+- **Murmur:** the demo starts with it installed and on, as the try demo shows it, and never
+  offers it; `&murmur=uninstalled`, `unsupported`, `no-device`, `network-down` (the first install fails
+  on the network, the second works) or `offered-out` (the offer already shown in three sessions)
+  in the address starts it otherwise. The offer is a chip,
+  "Name it for me", beside the title of the first terminal whose agent finishes a turn (or the
+  selected one, from "Offer the chip now"); in a narrow window or Grid tile it shrinks to its
+  icon. Its popover has No thanks and Turn on. Turn on leads to a footer item: a ring and
+  "Murmur 42%", and a card above the footer's end with the step, the bar and Cancel (an update's
+  download bar stands aside while it shows). The actions
+  set Installed, Not installed, Offer the chip now, Installing, Checking this computer (a
+  turning ring), Install done ("Terminals name themselves now", then it leaves), Install fails
+  (network) (a danger item whose sheet opens once, with Try again and Not now, which only
+  hides it), Install ends Not available (the sheet says so, with Details), Next install ends
+  Not available, Not available, Not available, files left (Details and Check again by
+  Uninstall, no switch) and Not available (software rendering) (no Check again).
+- **Voice input:** the demo starts with it installed and on, as the try demo shows it, and
+  never offers it. `&voice=uninstalled` in the address starts it without, and
+  `&voice=failing` starts it without and makes its first install fail. Voice input's setup
+  lives in the dictation strip of the terminal the person reached from (the overlay at the
+  app's foot where none shows): the offer, the install's progress, the ready note and a
+  failure. The actions set:
+  - Installed: on; the mic and Ctrl+Shift+M dictate; no offer.
+  - Not installed: the mic of an agent's terminal, or Ctrl+Shift+M, opens the offer; typing,
+    another terminal or 15 s hides it and the next press offers again.
+  - Offer in the strip: opens it at once.
+  - Software rendering: the offer quotes small's size and Turn on installs small only.
+  - Installing: held at the model, half there, with Cancel.
+  - Install, then ready: follows the steps, then says it is ready for a few seconds.
+  - Install, turbo too slow: small's model and check follow turbo's.
+  - Cancelled at the check: the engine and the model are on disk, never checked; the offer
+    says no size, and Addons shows Install and Uninstall.
+  - Install fails (network): the failure with Try again, not a decline.
+  - Declined: no mic, Ctrl+Shift+M reaches the terminal, and Addons still offers it.
+
+  The install actions press the chord for you, once for the offer and again to turn it on.
+
 - **Startup:** "Hold the splash" keeps it until you press Escape; "Slow attach" counts
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for
   connecting agents again (no reboot).

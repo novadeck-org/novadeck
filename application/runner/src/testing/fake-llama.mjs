@@ -7,6 +7,7 @@
 //   "copy"          answers with the first example of the kind asked for, whatever it is asked
 //   "overflow"      answers 400 exceed_context_size_error, as the real server does for a request too big
 //   "hang"          never answers a completion
+//   "truncate"      answers 200 with a body cut off in the middle, as an engine that crashed while writing
 //   "garbage"       answers with something that isn't the JSON asked for
 //   "device"        puts the device it runs on in its title
 //   "project"       answers a title that opens with the project "shopdeck", for a test of its removal
@@ -88,6 +89,10 @@ const server = createServer(async (request, response) => {
     process.exit(3)
   }
   if (mode.includes("hang")) await new Promise(() => {})
+  if (mode.includes("truncate")) {
+    response.end('{"choices":[{"message":{"content":"{\\"tit')
+    return
+  }
   if (mode.includes("slow")) await new Promise((resolve) => setTimeout(resolve, 500))
   if (mode.includes("overflow")) {
     response.statusCode = 400

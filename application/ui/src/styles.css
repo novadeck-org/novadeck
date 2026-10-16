@@ -39,6 +39,8 @@
 @import "./terminals/companion/mail.css" layer(components);
 @import "./app/visitor.css" layer(components);
 @import "./shell/region.css" layer(components);
+@import "./shell/footer-murmur.css" layer(components);
+@import "./terminals/name-chip.css" layer(components);
 @import "./shell/panels.css" layer(components);
 @import "./shell/empty-state.css" layer(components);
 @import "./sidebar/sidebar.css" layer(components);

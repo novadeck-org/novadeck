@@ -102,6 +102,12 @@
 :where(.terminal-title) {
   @apply gap-2.5;
 }
+/* The title is a container, so what sits in it (Murmur's chip, name-chip.css) gives way to the
+   width the title has, measured where its text is drawn: a Canvas window scales its header's
+   chrome, which its heading does not. */
+.terminal-title {
+  container: terminal-title / inline-size;
+}
 :where(.terminal-actions) {
   @apply gap-1;
 }

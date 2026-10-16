@@ -61,6 +61,11 @@ export type RunnerOptions = {
     readonly source?: string
     readonly directory?: string
   }
+  /**
+   * The host saw only software rendering: murmur is not available on this computer, and
+   * voice input installs its small model without trying turbo.
+   */
+  softwareGraphics?: boolean
   /** Where agents are looked for and how their plugin commands run; for tests. */
   agents?: HarnessesOptions
 }
@@ -140,6 +145,7 @@ export const wire = (options: RunnerOptions) => {
     livePlan: (item) => terminals.livePlan(item),
   })
   const voice = new Voice(store, {
+    ...(options.softwareGraphics !== undefined && { softwareGraphics: options.softwareGraphics }),
     engine: options.voice?.engine,
     source: options.voice?.source,
     directory:
@@ -172,6 +178,7 @@ export const wire = (options: RunnerOptions) => {
       (options.database === undefined
         ? join(tmpdir(), `novadeck-murmur-${randomUUID()}`)
         : join(dirname(options.database), "murmur")),
+    ...(options.softwareGraphics !== undefined && { softwareGraphics: options.softwareGraphics }),
     // Voice input has priority over the GPU.
     voice: voice.activity,
   })

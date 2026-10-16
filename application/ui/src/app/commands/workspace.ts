@@ -96,6 +96,11 @@ export type WorkspaceCommands = ShellCommands &
     // next crash loop.
     readonly retryAfterCrashLoop: () => void
     readonly dismissCrashLoop: () => void
+    // Takes this run's one unasked offer for `addon`, which counts it where it is counted
+    // (Murmur's, with the runner); false where the other addon took it first.
+    readonly takeAddonOffer: (addon: "voice" | "murmur") => boolean
+    // Puts Murmur's offer chip on a terminal, or takes it away (null).
+    readonly offerNameTo: (target: { readonly context: string; readonly id: string } | null) => void
     // Opens or closes the portable copy's card, which the footer's chip reopens once dismissed.
     readonly setPortableCardOpen: (open: boolean) => void
     // Opens or closes the sandbox notice; opening it closes the update's, which shares its place.
@@ -121,6 +126,7 @@ const holding = (
 
 export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands => {
   const { workspace, ui, navigation, newTerminal, pickDirectory, crashLoop, effects } = ctx
+  const { murmur } = ctx
   const { go, navigateWorkspace } = navigation
   const { set, pulse } = shellEdits(ctx)
   const shell = createShellCommands(ctx)
@@ -497,6 +503,14 @@ export const createWorkspaceCommands = (ctx: CommandContext): WorkspaceCommands 
       crashLoop?.retry()
     },
     dismissCrashLoop: () => ui.update((state) => ({ ...state, crashLoopDismissed: true })),
+    offerNameTo: (nameOffer) => ui.update((state) => ({ ...state, nameOffer })),
+    takeAddonOffer: (addon) => {
+      const taken = ui.getSnapshot().addonOffer
+      if (taken !== null) return taken === addon
+      ui.update((state) => ({ ...state, addonOffer: addon }))
+      if (addon === "murmur") murmur?.noteOffered()
+      return true
+    },
     setPortableCardOpen: (portableCardOpen) =>
       ui.update((state) =>
         state.portableCardOpen === portableCardOpen && !(portableCardOpen && state.sandboxOpen)

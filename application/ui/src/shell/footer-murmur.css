@@ -1,0 +1,24 @@
+/* Murmur's footer item (FooterMurmur.tsx), the update chip's sibling: it reuses `.footer-update`
+   and `.update-card`, adds its tones (after the update chip's pressed look, which only holds
+   a class's specificity; `.footer-action`'s own `color: inherit` follows the tone recipe, so
+   the tone's colour is set here too), clamps a long failure in its sheet, and keeps the sheet
+   within the window, scrolling a long Details. Hooks: on the
+   chip, data-tone="danger" while the install failed, "success" as it is done. */
+.footer-murmur[data-tone="danger"] {
+  color: var(--color-danger-fg);
+}
+.footer-murmur[data-tone="success"] {
+  color: var(--color-success-fg, var(--color-ink));
+}
+.footer-murmur-error {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow-wrap: anywhere;
+}
+
+.footer-murmur-sheet {
+  max-height: calc(100dvh - 7rem);
+  overflow-y: auto;
+}

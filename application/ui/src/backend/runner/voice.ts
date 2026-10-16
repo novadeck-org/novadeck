@@ -7,8 +7,9 @@ import {
 } from "@novadeck/protocol"
 import { hasCode, type Runner } from "@novadeck/protocol/client"
 
+import type { Refusal } from "../../model/addon"
 import { createStore } from "../../model/store"
-import type { Voice, VoiceClip, VoiceModel, VoiceState } from "../../model/voice"
+import type { Voice, VoiceClip, VoiceState } from "../../model/voice"
 
 // The runner's voice input addon: its state as `voice.watch` streams it, installs and
 // settings as calls whose failures show in that state until the next snapshot, and clips
@@ -32,11 +33,14 @@ export const noVoice: VoiceState = {
   // Nothing is offered until the runner says it is wanted.
   wanted: false,
   model: "turbo",
+  aim: "turbo",
+  engineInstalled: false,
   language: "auto",
   sizes: { engine: 0, turbo: 0, small: 0 },
   installing: null,
   check: null,
   failure: null,
+  refused: null,
 }
 
 // How often a clip's audio goes up while it records: often enough that the end of a
@@ -116,7 +120,7 @@ export const createRunnerVoice = (
       try {
         for await (const snapshot of next) {
           if (stream !== next) return
-          state.update(() => snapshot)
+          state.update(() => ({ ...snapshot, refused: null }))
         }
       } catch {
         // The runner closed, or has no voice input.
@@ -126,11 +130,22 @@ export const createRunnerVoice = (
   }
 
   // Runs a call that changes the addon; the next snapshot shows its effect, and a
-  // rejection shows meanwhile as the failure.
-  const change = (what: string, call: () => Promise<void>): void => {
-    track(call()).catch((error: unknown) =>
-      state.update((current) => ({ ...current, failure: `Couldn't ${what}: ${reason(error)}` })),
-    )
+  // rejection shows meanwhile as the refusal of that call.
+  const change = (
+    which: Refusal["call"],
+    call: () => Promise<void>,
+    // Shown at once, and taken back if the call is refused.
+    optimistic?: (current: VoiceState) => VoiceState,
+  ): Promise<void> => {
+    if (optimistic) state.update(optimistic)
+    // Answers once the call is through, refused or not.
+    return track(call()).catch((error: unknown) => {
+      state.update((current) => ({
+        ...current,
+        ...(optimistic && { installing: null }),
+        refused: { call: which, message: reason(error) },
+      }))
+    })
   }
 
   const record = (): VoiceClip => {
@@ -200,10 +215,31 @@ export const createRunnerVoice = (
   return {
     voice: {
       state,
-      install: (model: VoiceModel) => change("install voice input", () => calls.install(model)),
-      cancel: () => change("cancel the install", () => calls.cancel()),
-      uninstall: () => change("uninstall voice input", () => calls.uninstall()),
-      set: (settings) => change("change voice input", () => calls.set(settings)),
+      // Shows as installing at once, so a second press before the runner's first snapshot of
+      // the install does not offer it again.
+      install: () =>
+        change(
+          "install",
+          () => calls.install(),
+          (current) =>
+            current.installing
+              ? current
+              : {
+                  ...current,
+                  failure: null,
+                  refused: null,
+                  installing: {
+                    origin: "person",
+                    model: current.aim,
+                    step: "engine",
+                    received: 0,
+                    total: current.sizes.engine,
+                  },
+                },
+        ),
+      cancel: () => change("cancel", () => calls.cancel()),
+      uninstall: () => change("uninstall", () => calls.uninstall()),
+      set: (settings) => change("set", () => calls.set(settings)),
       record,
     },
     follow,

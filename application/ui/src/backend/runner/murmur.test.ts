@@ -5,8 +5,10 @@ import { vi } from "vitest"
 import { context, describe, expect, it } from "../../test"
 import { createRunnerMurmur, noMurmur, type MurmurCalls } from "./murmur"
 
+// What the runner streams: the adapter's own `refused` is not on the wire.
+const { refused: _none, ...wireNone } = noMurmur
 const installed: MurmurState = {
-  ...noMurmur,
+  ...wireNone,
   installed: true,
   enabled: true,
   wanted: true,
@@ -35,6 +37,7 @@ const runner = (overrides: Partial<MurmurCalls> = {}) => {
     uninstall: vi.fn<MurmurCalls["uninstall"]>(async () => {}),
     set: vi.fn<MurmurCalls["set"]>(async () => {}),
     gist: vi.fn<MurmurCalls["gist"]>(async () => {}),
+    noteOffered: vi.fn<MurmurCalls["noteOffered"]>(async () => {}),
   }
   const calls = { ...mocks, ...overrides }
   const push = (state: MurmurState) => {
@@ -50,11 +53,13 @@ describe("the runner's murmur", () => {
     expect(murmur.state.getSnapshot()).toEqual(noMurmur)
     follow()
     push(installed)
-    await vi.waitFor(() => expect(murmur.state.getSnapshot()).toEqual(installed))
+    await vi.waitFor(() =>
+      expect(murmur.state.getSnapshot()).toEqual({ ...installed, refused: null }),
+    )
     push({
       ...installed,
       check: null,
-      failure: "Murmur needs a GPU on this computer.",
+      failure: "Murmur installed but did not pass its check on this computer.",
     })
     await vi.waitFor(() => expect(murmur.state.getSnapshot().check).toBeNull())
   })
@@ -77,18 +82,31 @@ describe("the runner's murmur", () => {
         },
       })
       follow()
-      murmur.install()
-      await vi.waitFor(() =>
-        expect(murmur.state.getSnapshot().failure).toBe("Couldn't install: Already installing."),
-      )
+      await murmur.install()
+      // The adapter's word, apart from what the runner says of its install.
+      expect(murmur.state.getSnapshot()).toMatchObject({
+        failure: null,
+        refused: { call: "install", message: "Already installing." },
+      })
       push(installed)
-      await vi.waitFor(() => expect(murmur.state.getSnapshot().failure).toBeNull())
+      await vi.waitFor(() => expect(murmur.state.getSnapshot().refused).toBeNull())
     })
+  })
+
+  it("counts a session the offer was shown in, and lets a refused count go", async () => {
+    const noteOffered = vi.fn<MurmurCalls["noteOffered"]>(async () => {
+      throw new RunnerError("CONFLICT", "No.")
+    })
+    const { murmur } = runner({ noteOffered })
+    murmur.noteOffered()
+    await vi.waitFor(() => expect(noteOffered).toHaveBeenCalledOnce())
+    await Promise.resolve()
+    expect(murmur.state.getSnapshot().refused).toBeNull()
   })
 
   it("passes installs, settings, cancels and uninstalls to the runner", () => {
     const { murmur, calls } = runner()
-    murmur.install()
+    void murmur.install()
     murmur.set({ enabled: true })
     murmur.cancel()
     murmur.uninstall()
@@ -122,6 +140,9 @@ describe("the runner's murmur", () => {
     await expect(murmur.uninstall()).resolves.toBeUndefined()
     calls.uninstall.mockRejectedValueOnce(new Error("Disk busy."))
     await expect(murmur.uninstall()).resolves.toBeUndefined()
-    expect(murmur.state.getSnapshot().failure).toBe("Couldn't uninstall: Disk busy.")
+    expect(murmur.state.getSnapshot().refused).toEqual({
+      call: "uninstall",
+      message: "Disk busy.",
+    })
   })
 })

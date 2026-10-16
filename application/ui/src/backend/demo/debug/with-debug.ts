@@ -10,11 +10,14 @@ import type {
   TerminalKey,
 } from "../../port"
 import { isDemoInbox } from "../inbox"
+import { isDemoMurmur } from "../murmur"
 import { demoTurns } from "../turns"
 import { createDemo, type DemoVariant } from "../variants"
+import { isDemoVoice } from "../voice"
 import { createDebugPanel } from "./DebugPanel"
 import { doorbellGroups } from "./doorbell"
 import { inboxGroups } from "./inbox"
+import { murmurGroups } from "./murmur"
 import { planGroups } from "./plans"
 import { createDemoPortable, type DemoPortable } from "./portable"
 import { createDemoSandbox } from "./sandbox"
@@ -22,6 +25,7 @@ import { createDemoStates } from "./states"
 import type { DemoActionContext } from "./types"
 import { createDemoUninstall, type DemoUninstall } from "./uninstall"
 import { updatesGroup, type DemoUpdates } from "./updates"
+import { voiceGroups } from "./voice"
 
 // What one connection to the demo knows of the boot that made it, and how the panel
 // asks for another.
@@ -192,6 +196,8 @@ export const createDebugDemo = (launch: DemoLaunch): Backend => {
           ...inboxGroups(isDemoInbox(inner.inbox) ? inner.inbox : undefined),
           ...planGroups(inner.companions),
           ...doorbellGroups(inner.messages),
+          ...murmurGroups(isDemoMurmur(inner.murmur) ? inner.murmur : undefined),
+          ...voiceGroups(isDemoVoice(inner.voice) ? inner.voice : undefined),
         ],
       },
       dispatch: () => sink?.dispatch,

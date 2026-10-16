@@ -202,6 +202,7 @@ describe("finish watch", () => {
     })
     const notices: Parameters<FinishNotify>[0][] = []
     const gists: [string, number][] = []
+    const completed: string[] = []
     const status = (terminalId: string, agent: AgentStatus) =>
       workspace.dispatch({
         type: "terminal/status",
@@ -224,12 +225,48 @@ describe("finish watch", () => {
       notify: (notice) => notices.push(notice),
       graceMs,
       unread: (terminalId, at) => gists.push([terminalId, at]),
+      finished: (where, id) => completed.push(`${where}/${id}`),
     })
     const unread = () => ui.getSnapshot().unread
     const finish = (at = 10, outcome: "completed" | "failed" | "interrupted" = "completed") =>
       status("02", { working: false, lastTurn: { outcome, reply: "All green.", at } })
-    return { workspace, ui, notices, gists, status, select, unread, finish, stop }
+    return { workspace, ui, notices, gists, completed, status, select, unread, finish, stop }
   }
+
+  context("when an agent's turn ends complete", () => {
+    it("tells the finish hook the terminal and its session, whoever looks at it", () => {
+      const { completed, finish, select, stop } = setup()
+      select("02")
+      finish()
+      expect(completed).toEqual(["project/initial/02"])
+      stop()
+    })
+
+    it("tells it once the end still stands after the grace, and not when the person's Escape turned it interrupted", () => {
+      vi.useFakeTimers()
+      try {
+        const { completed, finish, stop } = setup(true, 100)
+        finish(10)
+        expect(completed).toEqual([])
+        finish(10, "interrupted")
+        vi.advanceTimersByTime(150)
+        expect(completed).toEqual([])
+        finish(11)
+        vi.advanceTimersByTime(150)
+        expect(completed).toEqual(["project/initial/02"])
+        stop()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("tells it nothing of a turn that failed, or of an end shown when it started", () => {
+      const { completed, finish, stop } = setup()
+      finish(10, "failed")
+      expect(completed).toEqual([])
+      stop()
+    })
+  })
 
   context("when an agent finishes in a terminal the person isn't looking at", () => {
     it("marks it unread and shows one notification with the start of its reply", () => {

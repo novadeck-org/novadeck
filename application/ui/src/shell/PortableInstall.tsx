@@ -261,7 +261,7 @@ export const PortableInstall = ({
               id={panelId}
               data-workspace-notice
               aria-labelledby={titleId}
-              className="floating update-card"
+              className="floating update-card portable-card"
               data-state={lingering === "fading" ? "closed" : "open"}
               tabIndex={-1}
               // A click anywhere on it leaves focus where it was, in a terminal.
@@ -275,7 +275,7 @@ export const PortableInstall = ({
                 finish()
               }}
             >
-              <KeepFocus lost={lost} selector=".update-card" />
+              <KeepFocus lost={lost} selector=".portable-card" />
               <p className="update-progress-head">
                 <span id={titleId} className="update-progress-title">
                   {title}

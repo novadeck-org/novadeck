@@ -1141,4 +1141,39 @@ describe("murmur's settings", () => {
     reopened.saveMurmurCheck(null)
     expect(reopened.murmurCheck()).toBeNull()
   })
+
+  it("keep why this computer can't run murmur, until it is forgotten", ({ directory, store }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const workspace = store(path)
+    expect(workspace.murmurUnsupported()).toBeNull()
+    workspace.saveMurmurUnsupported({ reason: "No graphics device answered.", engine: "abc" })
+    workspace.close()
+    const reopened = store(path)
+    expect(reopened.murmurUnsupported()).toEqual({
+      reason: "No graphics device answered.",
+      engine: "abc",
+    })
+    reopened.saveMurmurUnsupported(null)
+    expect(reopened.murmurUnsupported()).toBeNull()
+  })
+
+  it("reads a voice check an earlier build saved with more in it", ({ directory, store }) => {
+    const path = join(directory(), "workspace.sqlite")
+    const workspace = store(path)
+    expect(workspace.voiceCheck()).toBeNull()
+    workspace.close()
+    const database = new DatabaseSync(path)
+    const save = (value: string) =>
+      database
+        .prepare(
+          "INSERT INTO settings (key, value) VALUES ('voice.check', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+        )
+        .run(value)
+    save(JSON.stringify({ model: "turbo", milliseconds: 2300, gpu: true, recommended: "turbo" }))
+    database.close()
+    const reopened = store(path)
+    expect(reopened.voiceCheck()).toEqual({ model: "turbo", milliseconds: 2300 })
+    reopened.saveVoiceCheck(null)
+    expect(reopened.voiceCheck()).toBeNull()
+  })
 })

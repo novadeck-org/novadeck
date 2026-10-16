@@ -5,6 +5,7 @@
 //   "slow"  takes half a second to answer
 //   "mute"  hears nothing
 //   "late"  takes half a second to listen, as a model loading
+//   "badload" exits at once, as when the model cannot be loaded
 import { readFileSync } from "node:fs"
 import { createServer } from "node:http"
 import { Readable } from "node:stream"
@@ -19,6 +20,11 @@ const base = process.argv.includes("--request-path") ? argument("--request-path"
 if (process.argv.includes("--exit-with-stdin")) {
   process.stdin.on("end", () => process.exit(0))
   process.stdin.resume()
+}
+
+if (behaviour.includes("badload")) {
+  console.error("whisper_init_from_file_with_params_no_state: failed to load model")
+  process.exit(2)
 }
 
 console.error(

@@ -23,7 +23,7 @@ export const engineArchive = (
     extras: { "check.wav": Buffer.alloc(3200) },
   })
 
-/** Models as small files in a folder, which a download copies; each says how the fake behaves. */
+/** Models as small files in a folder, which a download copies; each says how the fake behaves; turbo has no GPU unless it says so, so an install falls back to small. */
 export const modelCatalog = async (
   resources: Resources,
   behaviour: { turbo?: string; small?: string } = {},
@@ -36,7 +36,7 @@ export const modelCatalog = async (
   }
   return {
     models: {
-      turbo: await make("ggml-turbo.bin", behaviour.turbo ?? "turbo gpu"),
+      turbo: await make("ggml-turbo.bin", behaviour.turbo ?? "turbo"),
       small: await make("ggml-small.bin", behaviour.small ?? "small"),
     },
     vad: await make("ggml-vad.bin", "vad"),

@@ -72,6 +72,8 @@ export type WindowShellProps = {
   onRenameCancel: () => void
   // The window's own actions, on its header's right-click, as on its sidebar tab's.
   menu?: ContextMenuItem[]
+  // Beside the title, as Murmur's offer chip: it keeps its size while the name truncates.
+  titleExtra?: ReactNode
 }
 
 // The window every terminal shares, whatever program runs in it.
@@ -100,6 +102,7 @@ export const WindowShell = ({
   onRenameSave,
   onRenameCancel,
   menu,
+  titleExtra,
 }: WindowShellProps): React.JSX.Element => {
   const resizeLabel = large
     ? resizeView === "grid"
@@ -142,6 +145,9 @@ export const WindowShell = ({
     <header
       className="terminal-header flex shrink-0 touch-manipulation select-none flex-nowrap items-center justify-between whitespace-nowrap"
       onDoubleClick={(event) => {
+        // What a popover in a portal got (Murmur's offer) reaches here through React, but is not
+        // the header's.
+        if (!event.currentTarget.contains(event.target as Node)) return
         if (
           performance.now() < ignoreDoubleClickUntil.current ||
           (event.target as Element).closest("button, input")
@@ -159,6 +165,7 @@ export const WindowShell = ({
         headerDoubleAction()
       }}
       onPointerDown={(event) => {
+        if (!event.currentTarget.contains(event.target as Node)) return
         if (event.pointerType !== "touch") return
         if (!event.isPrimary || (event.target as Element).closest("button, input")) {
           headerPress.current = null
@@ -184,6 +191,7 @@ export const WindowShell = ({
         headerTap.current = null
       }}
       onPointerUp={(event) => {
+        if (!event.currentTarget.contains(event.target as Node)) return
         if (event.pointerType !== "touch") return
         const press = headerPress.current
         headerPress.current = null
@@ -259,6 +267,7 @@ export const WindowShell = ({
               </Tooltip>
             )}
           </span>
+          {!renaming && titleExtra}
           {rename && (
             <TerminalRenameInput
               id={terminal.id}
@@ -280,7 +289,7 @@ export const WindowShell = ({
           <Tooltip
             content={
               dictation.ready === false
-                ? "Dictate · set up in Addons"
+                ? "Dictate · turn on voice input"
                 : dictation.recording
                   ? "Stop and send"
                   : `Dictate · hold ${shortcutBindings().voice.display.join(" ")}`

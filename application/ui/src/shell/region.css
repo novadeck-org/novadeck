@@ -97,7 +97,8 @@
   padding: 3px 6px;
   border-radius: var(--radius-control);
 }
-.app-footer:not([data-tone]) .footer-update[aria-expanded="true"] {
+/* Specificity kept to a class and one more, so a chip's own tone (Murmur's) may follow it. */
+.app-footer:where(:not([data-tone])) .footer-update:where([aria-expanded="true"]) {
   background-color: var(--color-soft);
   color: var(--color-ink);
 }

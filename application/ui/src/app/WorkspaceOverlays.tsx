@@ -26,6 +26,7 @@ import { TerminalSwitcher } from "../terminals/TerminalSwitcher"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { useRouteDialog, type RouteDialog } from "./controller/useRouteDialog"
 import { Preferences, TerminalSearch } from "./deferred-views"
+import { NameOffer } from "./NameOffer"
 import {
   closeQuestion,
   crashLoopQuestion,
@@ -264,6 +265,7 @@ export const WorkspaceOverlays = memo((): React.JSX.Element => {
           terminalElement(id)?.querySelector<HTMLElement>("[data-terminal-input]") ?? null
         }
       />
+      <NameOffer />
       {switcher && (
         <TerminalSwitcher
           mode={switcher.mode}

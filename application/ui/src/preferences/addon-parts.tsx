@@ -43,6 +43,7 @@ export const InstallProgress = ({
   label,
   received,
   total,
+  indeterminate = false,
   onCancel,
 }: {
   readonly title: string
@@ -51,6 +52,8 @@ export const InstallProgress = ({
   readonly label: string
   readonly received: number
   readonly total: number
+  // Work with no size to show, as the check: the bar moves instead of standing empty.
+  readonly indeterminate?: boolean
   readonly onCancel: () => void
 }): React.JSX.Element => (
   <div
@@ -71,7 +74,7 @@ export const InstallProgress = ({
         Cancel
       </button>
     </div>
-    <Progress label={label} value={received} max={total} />
+    <Progress label={label} value={indeterminate ? null : received} max={total} />
   </div>
 )
 
@@ -80,4 +83,24 @@ export const AddonFailure = ({ children }: { readonly children: string }): React
   <p className="settings-note m-0 px-4 py-3 text-control leading-5" data-tone="danger" role="alert">
     {children}
   </p>
+)
+
+// Why an addon can't run on this computer, behind a disclosure: the words are technical.
+export const AddonDetails = ({
+  children,
+  action,
+}: {
+  readonly children: string
+  // A quiet action under the reason, as "Check again".
+  readonly action?: { readonly label: string; readonly onClick: () => void }
+}): React.JSX.Element => (
+  <details className={`${addonNoteClasses} px-4 pb-3`}>
+    <summary className="cursor-pointer select-none">Details</summary>
+    <p className="m-0 mt-1 break-words">{children}</p>
+    {action && (
+      <button type="button" className="button link addon-action" onClick={action.onClick}>
+        {action.label}
+      </button>
+    )}
+  </details>
 )

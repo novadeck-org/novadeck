@@ -55,6 +55,7 @@ import {
   relaunchIntoCopy,
 } from "./applications-folder.js"
 import { dataFolderName } from "./data-folder.js"
+import { detectSoftwareGraphics } from "./graphics.js"
 import {
   extractWithProcess,
   findInstalled,
@@ -918,12 +919,20 @@ const launch = async (): Promise<void> => {
     ).unref()
   channel = updateState.read().channel
   await appearance.restore(nativeTheme)
+  // The engines' manifests and the graphics verdict are looked up together. The verdict is
+  // asked on Windows only, where the GPU process answers once the app is ready.
+  const [voice, murmur, softwareGraphics] = await Promise.all([
+    voiceEngine(),
+    murmurEngine(),
+    detectSoftwareGraphics(app),
+  ])
   runner = startRunner({
     entry: join(currentDirectory, "runner.js"),
     database: join(app.getPath("userData"), "workspace.sqlite"),
     relay: relayPath(),
-    ...(await voiceEngine()),
-    ...(await murmurEngine()),
+    ...voice,
+    ...murmur,
+    softwareGraphics,
   })
   // A port is shell access: only the main frame of this app's own window showing its
   // own UI may ask for one.

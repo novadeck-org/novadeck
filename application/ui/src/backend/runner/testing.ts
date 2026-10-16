@@ -184,7 +184,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
     },
     voice: {
       watch: () => runner.voice.watch(),
-      install: (model) => note(`voice install ${model}`, () => runner.voice.install(model)),
+      install: () => note("voice install", () => runner.voice.install()),
       cancel: () => note("voice cancel", () => runner.voice.cancel()),
       uninstall: () => note("voice uninstall", () => runner.voice.uninstall()),
       set: (settings) =>
@@ -203,6 +203,7 @@ export const recordingRunner = (runner: Runner, io: string[]): RunnerApi => {
       set: (settings) =>
         note(`murmur set ${JSON.stringify(settings)}`, () => runner.murmur.set(settings)),
       gist: (terminalId, at) => note(`murmur gist ${at}`, () => runner.murmur.gist(terminalId, at)),
+      noteOffered: () => note("murmur noteOffered", () => runner.murmur.noteOffered()),
     },
     companions: {
       list: (input) => runner.companions.list(input),

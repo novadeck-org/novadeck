@@ -96,12 +96,12 @@ describe.skipIf(!engine || !model || !vad || !clip)("voice input with the real e
       store.close()
     })
 
-    await voice.install("small")
+    await voice.install()
     await voice.settled()
     const { check, failure } = voice.state()
     console.info("check", JSON.stringify(check), "failure", failure)
     expect(failure).toBeNull()
-    expect(check).toMatchObject({ model: "small" })
+    expect(check).not.toBeNull()
 
     await recorded(voice, "clip", clip ?? "")
     const started = performance.now()

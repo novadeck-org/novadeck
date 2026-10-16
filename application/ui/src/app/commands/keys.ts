@@ -295,9 +295,12 @@ export const createKeyCommands = (
       }),
     },
     "recent.cancelHeld": { run: handled(() => commands.setSwitcher(null)) },
-    // Handled even where the backend can't transcribe: unhandled, a terminal would read
-    // Ctrl+Shift+M as Ctrl+M and press Enter.
+    // Handled even before voice input is installed: reaching for it offers to install it.
+    // Where the person turned voice input off or said no thanks, or the backend has no voice
+    // input or has not yet said, the key goes on to the terminal unprevented; a terminal sends
+    // nothing for Ctrl+Shift+M, so that does no harm.
     "voice.press": {
+      available: () => dictation?.claims() ?? false,
       run: (input) => {
         dictation?.press(dictationTarget(), input.code)
         return "handled"

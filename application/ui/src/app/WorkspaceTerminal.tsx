@@ -23,6 +23,8 @@ import { DictationStrip } from "../voice/DictationStrip"
 import { useUiState, useWorkspaceServices, useWorkspaceState } from "./controller/context"
 import { DictationContext, useMicButton } from "./controller/dictation"
 import { useDockTarget } from "./dock-target"
+import { plainTitle } from "./murmur-offer"
+import { NameChip } from "./NameChip"
 import {
   currentContext,
   currentState,
@@ -190,6 +192,9 @@ export const WorkspaceTerminal = memo(
       ...useWindowFrame(terminal, controls),
       ...(lead ? { lead } : {}),
       ...(mic ? { dictation: mic } : {}),
+      ...(terminal.state === "running" && terminal.agent && plainTitle(terminal)
+        ? { titleExtra: <NameChip terminalId={terminalId} context={chatContext} /> }
+        : {}),
       icon: <Icon size={14} strokeWidth={1.5} />,
       ...(processWindow ? { processWindow } : {}),
     }

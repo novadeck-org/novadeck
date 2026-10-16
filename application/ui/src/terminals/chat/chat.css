@@ -76,6 +76,9 @@
   min-height: 0;
 }
 .chat-scroll {
+  /* The containing block of its rows' screen-reader text, so that text of rows out of view
+     stays in this scroller instead of making the window scroll. */
+  position: relative;
   height: 100%;
   overflow-x: hidden;
   overflow-y: auto;

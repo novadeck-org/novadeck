@@ -28,8 +28,7 @@ import {
   type TranscriptChange,
   type MurmurSettings,
   type MurmurState,
-  type VoiceModel,
-  type VoiceSettings,
+  type VoiceChange,
   type VoiceState,
   type VoiceTranscript,
   type WorkspaceSession,
@@ -389,14 +388,14 @@ export type Runner = {
      * runner closes, or on `return()`.
      */
     watch(): AsyncIterableIterator<VoiceState, undefined>
-    /** Starts installing the engine, if missing, and a model; `watch` shows progress. */
-    install(model: VoiceModel): Promise<void>
+    /** Starts installing the engine, if missing, and the model that suits this computer; `watch` shows progress. */
+    install(): Promise<void>
     /** Stops an install. */
     cancel(): Promise<void>
     /** Removes the engine and every model, and turns voice input off. */
     uninstall(): Promise<void>
     /** Changes the settings given; the others stay. */
-    set(settings: Partial<VoiceSettings>): Promise<void>
+    set(settings: VoiceChange): Promise<void>
     /**
      * Adds 16 kHz mono 16-bit little-endian PCM to a clip the caller names, at the byte
      * `offset` into it, in as many calls as it takes.
@@ -425,6 +424,8 @@ export type Runner = {
     uninstall(): Promise<void>
     /** Changes the settings given; the others stay. */
     set(settings: Partial<MurmurSettings>): Promise<void>
+    /** Counts a session of the app the one-time offer was shown in. */
+    noteOffered(): Promise<void>
     /**
      * Asks murmur to write the gist of the reply that ended the terminal's turn at `at`,
      * which the client shows unread; it arrives in the terminal's activity. Does nothing
@@ -1271,7 +1272,7 @@ export const connectRunner = async (
     voice: {
       watch: () =>
         new Resubscription(connection, (wire, signal) => wire.voice.watch(undefined, { signal })),
-      install: (model) => call((wire) => wire.voice.install({ model })),
+      install: () => call((wire) => wire.voice.install()),
       cancel: () => call((wire) => wire.voice.cancel()),
       uninstall: () => call((wire) => wire.voice.uninstall()),
       set: (settings) => call((wire) => wire.voice.set(settings)),
@@ -1296,6 +1297,7 @@ export const connectRunner = async (
       cancel: () => call((wire) => wire.murmur.cancel()),
       uninstall: () => call((wire) => wire.murmur.uninstall()),
       set: (settings) => call((wire) => wire.murmur.set(settings)),
+      noteOffered: () => call((wire) => wire.murmur.noteOffered()),
       gist: (terminalId, at) => call((wire) => wire.murmur.gist({ terminalId, at })),
     },
     settings: {

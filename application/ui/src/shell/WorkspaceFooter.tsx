@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 
 import type { UpdateOffer } from "../model/update"
+import { FooterMurmur, type FooterMurmurProps } from "./FooterMurmur"
 import { FooterSandbox, type FooterSandboxProps } from "./FooterSandbox"
 import { PortableInstall, type PortableInstallProps } from "./PortableInstall"
 import { UpdateAvailable, type FooterAvailable } from "./UpdateAvailable"
@@ -39,6 +40,7 @@ export const WorkspaceFooter = ({
   available,
   noticeOpen = false,
   sandbox,
+  murmur,
   usage,
 }: {
   readonly hidden: boolean
@@ -61,9 +63,13 @@ export const WorkspaceFooter = ({
   // Set while the app runs without its security sandbox: a chip beside the update's
   // opens the notice that says so.
   readonly sandbox?: FooterSandboxProps | undefined
+  // Murmur's install under way or just ended, beside the update's chip.
+  readonly murmur?: FooterMurmurProps | undefined
   // The account's subscriptions, at its end before the status.
   readonly usage?: ReactNode
 }): React.JSX.Element => {
+  // Murmur's sheet, in the place the download's bar would cover.
+  const [murmurSheet, setMurmurSheet] = useState(false)
   const [previous, setPrevious] = useState(status)
   const [recovered, setRecovered] = useState(false)
   if (status !== previous) {
@@ -102,9 +108,10 @@ export const WorkspaceFooter = ({
       <span className="flex items-center gap-4">
         {usage}
         <FooterSandbox sandbox={sandbox} hidden={hidden} />
+        <FooterMurmur murmur={murmur} hidden={hidden} onSheetChange={setMurmurSheet} />
         <PortableInstall portable={portable} hidden={hidden} />
         <UpdateAvailable available={available} />
-        <UpdateProgress offer={progress} hidden={hidden || noticeOpen} />
+        <UpdateProgress offer={progress} hidden={hidden || noticeOpen || murmurSheet} />
         <span className="footer-status flex items-center gap-1.5 font-bold">
           <span role="status" aria-live={current?.tone === "danger" ? "assertive" : "polite"}>
             {current?.text}

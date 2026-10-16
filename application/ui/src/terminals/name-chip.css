@@ -1,0 +1,67 @@
+/* Murmur's offer chip (NameChip.tsx), beside the title of the terminal whose agent finished
+   first: quiet, a soft outline with an icon and "Name it for me". It never pushes the name out:
+   it keeps its size while the name truncates, and where the title is too narrow for the words
+   it shrinks to the icon, which a tooltip and its accessible name carry. The title is the
+   container (`terminal-title`, declared in window.css).
+
+   Tokens, each optional (its fallback in brackets):
+   --name-chip-fg (muted), --name-chip-hover-fg (ink): its text and icon.
+   --name-chip-border-color (line): its outline. */
+.name-chip {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  border: var(--border-width) solid var(--name-chip-border-color, var(--color-line));
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--name-chip-fg, var(--color-muted));
+  font-size: var(--text-caption);
+  line-height: 1;
+  cursor: pointer;
+}
+.name-chip:hover,
+.name-chip[aria-expanded="true"] {
+  background-color: var(--color-soft);
+  color: var(--name-chip-hover-fg, var(--color-ink));
+}
+@container terminal-title (max-width: 18rem) {
+  .name-chip-label {
+    display: none;
+  }
+  .name-chip {
+    width: 20px;
+    justify-content: center;
+    padding: 0;
+  }
+}
+/* Its popover: a title (the footer notices', `.update-title`), two lines of words and the
+   answers, in their voice. */
+.name-popover {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 20rem;
+  max-width: calc(100vw - 24px);
+  padding: 12px 14px 14px;
+  color: var(--color-muted);
+  font-size: var(--text-control);
+  line-height: var(--text-control--line-height);
+}
+.name-popover-body {
+  display: contents;
+}
+.name-popover-quiet {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.name-popover-actions {
+  display: flex;
+  gap: 8px;
+  align-self: flex-end;
+  margin-top: 4px;
+}

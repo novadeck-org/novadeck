@@ -6,6 +6,7 @@ import type { MessagePortMain } from "electron"
 import {
   databaseArgumentPrefix,
   murmurEngineArgumentPrefix,
+  graphicsArgumentPrefix,
   murmurSourceArgumentPrefix,
   relayArgumentPrefix,
   voiceEngineArgumentPrefix,
@@ -23,6 +24,7 @@ const engine = argument(voiceEngineArgumentPrefix)
 const source = argument(voiceSourceArgumentPrefix)
 const murmurEngine = argument(murmurEngineArgumentPrefix)
 const murmurSource = argument(murmurSourceArgumentPrefix)
+const softwareGraphics = argument(graphicsArgumentPrefix) === "software"
 
 // Without `maxTerminals`, the desktop runner starts as many terminals as the user opens.
 // Its shell integration and pasted files live beside the database, in the app's own data
@@ -44,6 +46,8 @@ const runner = createRunner({
     ...(murmurEngine !== undefined && { engine: murmurEngine }),
     ...(murmurSource !== undefined && { source: murmurSource }),
   },
+  // Told only when the host saw no graphics hardware; otherwise the installs' checks decide.
+  ...(softwareGraphics && { softwareGraphics }),
 })
 
 process.parentPort.on(

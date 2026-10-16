@@ -20,7 +20,7 @@ import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
 import { createDemoInbox, isDemoInbox } from "./inbox"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
-import { createDemoMurmur } from "./murmur"
+import { createDemoMurmur, requestedMurmur } from "./murmur"
 import {
   createMockTerminal,
   defaultName,
@@ -35,7 +35,7 @@ import type { DemoSurfaceRuntime } from "./surface"
 import { terminalOf } from "./terminals"
 import { agentTranscripts, type DemoTranscript } from "./transcripts"
 import { demoTurns, type DemoTurns } from "./turns"
-import { createDemoVoice } from "./voice"
+import { createDemoVoice, requestedVoice } from "./voice"
 
 // Sample agents: Claude Code and Codex installed, Antigravity not.
 const sampleAgents: readonly AgentConnection[] = [
@@ -62,8 +62,10 @@ export const demoBackend = (
   const transcripts = createStore(true)
   const agents = createStore(sampleAgents)
   const welcomeOpen = createStore(welcome)
-  const voice = createDemoVoice()
-  const murmur = createDemoMurmur()
+  // Installed unless the address asks otherwise (`&voice=uninstalled`), as the try demo shows it.
+  const voice = createDemoVoice(undefined, requestedVoice())
+  // Installed unless the address asks otherwise (`&murmur=uninstalled`), as the try demo shows it.
+  const murmur = createDemoMurmur(undefined, requestedMurmur())
   // Standing in for the runner, it numbers each session's terminals itself, never
   // giving a number twice, from the workspace it last saw.
   const numbers = new Map(

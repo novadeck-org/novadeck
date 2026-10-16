@@ -51,6 +51,9 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
     backend.agents?.welcome.subscribe ?? always,
     () => backend.agents?.welcome.getSnapshot() ?? false,
   )
+  const murmurState = useSyncExternalStore(backend.murmur?.state.subscribe ?? always, () =>
+    backend.murmur?.state.getSnapshot(),
+  )
   const zen = useUiState((state) => Boolean(state.shell.zen))
   const navigate = useUiState((state) => state.shell.navigate)
   const { count, running } = useWorkspaceState((workspace) => {
@@ -128,6 +131,19 @@ export const WorkspaceFooter = memo((): React.JSX.Element => {
                 if (!selected) return false
                 commands.setKeyboardFocus({ id: selected, view })
                 return true
+              },
+            }
+          : undefined
+      }
+      murmur={
+        backend.murmur && murmurState
+          ? {
+              state: murmurState,
+              actions: backend.murmur,
+              blocked: asking || welcome || sandboxOpen || (portable && portableCardOpen),
+              returnFocus: () => {
+                const { selected, view } = currentState(store.getSnapshot())
+                if (selected) commands.setKeyboardFocus({ id: selected, view })
               },
             }
           : undefined

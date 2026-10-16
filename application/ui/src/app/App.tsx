@@ -3,6 +3,7 @@ import { HashRouter, MemoryRouter } from "react-router"
 
 import type { CreateBackend } from "../backend/port"
 import { sidebarToggle } from "../interaction/dom"
+import { dictationKeys } from "../interaction/shortcuts"
 import { cancelTerminalTransition } from "../layouts/transition"
 import { useDesktop } from "../shell/desktop"
 import { panelLabels, shownPanel } from "../shell/panels"
@@ -191,7 +192,7 @@ export const WorkspaceApp = (): React.JSX.Element => {
           </div>
           <WorkspaceFooter />
           <WorkspaceOverlays />
-          {voice && <DictationOverlay view={voice.view} level={voice.level} docks={voice.docks} />}
+          {voice && <DictationOverlay controller={voice} keys={dictationKeys()} />}
           <DebugSection />
         </main>
       </InboxHost>

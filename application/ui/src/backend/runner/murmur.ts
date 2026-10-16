@@ -1,11 +1,12 @@
 import type { MurmurState as WireMurmurState } from "@novadeck/protocol"
 import type { Runner } from "@novadeck/protocol/client"
 
+import type { Refusal } from "../../model/addon"
 import type { Murmur, MurmurState } from "../../model/murmur"
 import { createStore } from "../../model/store"
 
 // The runner's murmur addon: its state as `murmur.watch` streams it, and installs and
-// settings as calls whose failures show in that state until the next snapshot.
+// settings as calls whose refusals show in that state until the next snapshot.
 
 export type MurmurCalls = Runner["murmur"]
 
@@ -27,6 +28,9 @@ export const noMurmur: MurmurState = {
   sizes: { engine: 0, model: 0 },
   installing: null,
   check: null,
+  unsupported: null,
+  offers: 0,
+  refused: null,
   failure: null,
 }
 
@@ -55,7 +59,7 @@ export const createRunnerMurmur = (
       try {
         for await (const snapshot of next) {
           if (stream !== next) return
-          state.update(() => snapshot)
+          state.update(() => ({ ...snapshot, refused: null }))
         }
       } catch {
         // The runner closed, or has no murmur.
@@ -65,22 +69,24 @@ export const createRunnerMurmur = (
   }
 
   // Runs a call that changes the addon; the next snapshot shows its effect, and a
-  // rejection shows meanwhile as the failure. Settles once the call has, either way.
-  const change = (what: string, call: () => Promise<void>): Promise<void> =>
+  // rejection shows meanwhile as the refusal of that call. Settles once the call has, either way.
+  const change = (which: Refusal["call"], call: () => Promise<void>): Promise<void> =>
     track(call()).catch((error: unknown) => {
       state.update((current) => ({
         ...current,
-        failure: `Couldn't ${what}: ${reason(error)}`,
+        refused: { call: which, message: reason(error) },
       }))
     })
 
   return {
     murmur: {
       state,
-      install: () => void change("install", () => calls.install()),
-      cancel: () => void change("cancel the install", () => calls.cancel()),
+      install: () => change("install", () => calls.install()),
+      cancel: () => void change("cancel", () => calls.cancel()),
       uninstall: () => change("uninstall", () => calls.uninstall()),
-      set: (settings) => void change("change the setting", () => calls.set(settings)),
+      set: (settings) => void change("set", () => calls.set(settings)),
+      // Only counted: a count that is not kept is no refusal to show.
+      noteOffered: () => void track(calls.noteOffered()).catch(() => {}),
       // Murmur is extra: a gist that can't be asked for leaves the reply as it was.
       gist: (terminalId, at) => void track(calls.gist(terminalId, at)).catch(() => {}),
     },

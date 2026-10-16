@@ -36,6 +36,8 @@ export type CommandsOptions = {
   readonly panes?: CommandContext["panes"]
   // The agents' conversations, when the backend reads them.
   readonly conversations?: CommandContext["conversations"]
+  // Murmur, when the backend has it.
+  readonly murmur?: CommandContext["murmur"]
 }
 
 // Real stores, navigator, commands and store subscriptions over a fixture workspace, with effects that
@@ -59,6 +61,7 @@ export const openCommands = ({
   resetTitle,
   panes,
   conversations,
+  murmur,
 }: CommandsOptions = {}) => {
   const [pathname = "", query = ""] = url.split("?")
   const resolved = resolveRoute(workspace, { pathname, search: `?${query}` }, preferences, 0)
@@ -151,6 +154,7 @@ export const openCommands = ({
     resetTitle,
     panes,
     conversations,
+    murmur,
   }
   const commands = createWorkspaceCommands(context)
   // The subscriptions the provider attaches; nothing persists to storage here.

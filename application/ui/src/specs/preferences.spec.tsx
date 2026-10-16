@@ -205,16 +205,14 @@ describe("Preferences Addons", () => {
   }
 
   context("when voice input is not installed", () => {
-    it("offers the models with their sizes, and installs with progress until it is on", async () => {
-      await openWorkspace()
+    it("offers it with its size, and installs with progress until it is on", async () => {
+      await openWorkspace("/?voice=uninstalled")
       await showAddons()
 
       await expect.element(voiceCard().getByText(/never leaves it/)).toBeVisible()
-      await expect.element(voiceCard().getByText(/Most accurate, 99 languages/)).toBeVisible()
-      await expect.element(voiceCard().getByText(/Downloads 602 MB/)).toBeVisible()
-      await voiceCard().getByText("Small", { exact: true }).click()
-      await expect.element(voiceCard().getByText(/Faster without a GPU/)).toBeVisible()
-      await expect.element(voiceCard().getByText(/Downloads 218 MB/)).toBeVisible()
+      await expect.element(voiceCard().getByText(/Downloads 602 MB once/)).toBeVisible()
+      // The person never chooses a model.
+      await expect.element(voiceCard().getByText("Model", { exact: true })).not.toBeInTheDocument()
       await voiceCard().getByRole("button", { name: "Install" }).click()
 
       await expect.element(voiceCard().getByText(/Downloading engine/)).toBeVisible()
@@ -226,13 +224,12 @@ describe("Preferences Addons", () => {
       // The demo's install takes a few seconds, its three steps together.
       await expect.element(enabled, { timeout: 10_000 }).toHaveAttribute("aria-checked", "true")
       await expect.element(voiceCard().getByText(/Checked: a test clip took/)).toBeVisible()
-      await expect
-        .element(voiceCard().getByRole("button", { name: /Install · 574 MB/ }))
-        .toBeVisible()
+      await expect.element(voiceCard().getByText("Model", { exact: true })).not.toBeInTheDocument()
+      await expect.element(voiceCard().getByText(/Also install/)).not.toBeInTheDocument()
     })
 
     it("stops an install on Cancel", async () => {
-      await openWorkspace()
+      await openWorkspace("/?voice=uninstalled")
       await showAddons()
       await voiceCard().getByRole("button", { name: "Install" }).click()
 
@@ -244,17 +241,13 @@ describe("Preferences Addons", () => {
   })
 
   context("when voice input is installed", () => {
-    const install = async (): Promise<void> => {
-      await showAddons()
-      await voiceCard().getByRole("button", { name: "Install" }).click()
-      await expect
-        .element(voiceCard().getByRole("switch", { name: "Enabled" }), { timeout: 10_000 })
-        .toHaveAttribute("aria-checked", "true")
-    }
-
     it("turns off, and asks before uninstalling, saying what it frees", async () => {
+      // The demo starts it installed and on.
       await openWorkspace()
-      await install()
+      await showAddons()
+      await expect
+        .element(voiceCard().getByRole("switch", { name: "Enabled" }))
+        .toHaveAttribute("aria-checked", "true")
 
       await voiceCard().getByRole("switch", { name: "Enabled" }).click()
       await expect
@@ -280,11 +273,14 @@ describe("Preferences Addons", () => {
 
   context("when murmur is not installed", () => {
     it("says what it does and installs with progress until it is on", async () => {
-      await openWorkspace()
+      await openWorkspace("/?murmur=uninstalled")
       await showAddons()
 
       await expect.element(addons().getByText(/Names your terminals/)).toBeVisible()
-      await expect.element(murmurCard().getByText(/Downloads 1\.2 GB/)).toBeVisible()
+      await expect
+        .element(murmurCard().getByText("Downloads 1.2 GB once, then works offline."))
+        .toBeVisible()
+      await expect.element(murmurCard().getByText(/GPU/)).not.toBeInTheDocument()
       await expect
         .element(murmurCard().getByRole("switch", { name: "Enabled" }))
         .toHaveAttribute("aria-checked", "true")
@@ -294,6 +290,7 @@ describe("Preferences Addons", () => {
       await expect.element(murmurCard().getByRole("progressbar")).toBeVisible()
       await expect.element(murmurCard().getByRole("button", { name: "Cancel" })).toBeVisible()
       await expect.element(murmurCard().getByText(/Downloading model/)).toBeVisible()
+      await expect.element(murmurCard().getByText("Checking this computer")).toBeVisible()
       await expect
         .element(murmurCard().getByText("Runs on Intel Arc Graphics."), { timeout: 10_000 })
         .toBeVisible()
@@ -303,7 +300,7 @@ describe("Preferences Addons", () => {
     })
 
     it("stops an install on Cancel", async () => {
-      await openWorkspace()
+      await openWorkspace("/?murmur=uninstalled")
       await showAddons()
       await murmurCard().getByRole("button", { name: "Install" }).click()
 
@@ -314,9 +311,50 @@ describe("Preferences Addons", () => {
     })
   })
 
+  context("when this computer can't run murmur", () => {
+    it("says Not available in place of Install, with the reason behind Details", async () => {
+      await openWorkspace("/?murmur=unsupported")
+      await showAddons()
+
+      await expect.element(murmurCard().getByText("Not available on this computer")).toBeVisible()
+      await expect
+        .element(murmurCard().getByRole("button", { name: "Install" }))
+        .not.toBeInTheDocument()
+      await expect.element(murmurCard().getByText(/Vulkan driver/)).not.toBeVisible()
+      await murmurCard().getByText("Details").click()
+      await expect.element(murmurCard().getByText(/Vulkan driver/)).toBeVisible()
+    })
+
+    it("checks again from Details, which installs afresh", async () => {
+      await openWorkspace("/?murmur=unsupported")
+      await showAddons()
+      await murmurCard().getByText("Details").click()
+      await murmurCard().getByRole("button", { name: "Check again" }).click()
+
+      await expect.element(murmurCard().getByText(/Downloading/)).toBeVisible()
+      await expect
+        .element(murmurCard().getByText("Runs on Intel Arc Graphics."), { timeout: 10_000 })
+        .toBeVisible()
+    })
+
+    it("lands there when the install's check finds no device, with no error to try again", async () => {
+      await openWorkspace("/?murmur=no-device")
+      await showAddons()
+      await murmurCard().getByRole("button", { name: "Install" }).click()
+
+      await expect
+        .element(murmurCard().getByText("Not available on this computer"), { timeout: 10_000 })
+        .toBeVisible()
+      await expect
+        .element(murmurCard().getByRole("button", { name: "Try again" }))
+        .not.toBeInTheDocument()
+      await expect.element(murmurCard().getByRole("alert")).not.toBeInTheDocument()
+    })
+  })
+
   context("when murmur is installed", () => {
     it("turns off, and asks before uninstalling, saying what it frees", async () => {
-      await openWorkspace()
+      await openWorkspace("/?murmur=uninstalled")
       await showAddons()
       await murmurCard().getByRole("button", { name: "Install" }).click()
       const enabled = murmurCard().getByRole("switch", { name: "Enabled" })

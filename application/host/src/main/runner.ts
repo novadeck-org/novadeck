@@ -9,6 +9,7 @@ import {
 import {
   databaseArgumentPrefix,
   murmurEngineArgumentPrefix,
+  graphicsArgumentPrefix,
   murmurSourceArgumentPrefix,
   relayArgumentPrefix,
   runnerPortChannel,
@@ -43,6 +44,8 @@ export const startRunner = (options: {
   /** The same for murmur's engine. */
   murmurEngine: string
   murmurSource: string
+  /** The host saw only software rendering, so murmur can't run and voice input installs its small model. */
+  softwareGraphics?: boolean
 }): RunnerHost => {
   let child: UtilityProcess | undefined
   let closing: Promise<void> | undefined
@@ -56,6 +59,7 @@ export const startRunner = (options: {
         `${voiceSourceArgumentPrefix}${options.source}`,
         `${murmurEngineArgumentPrefix}${options.murmurEngine}`,
         `${murmurSourceArgumentPrefix}${options.murmurSource}`,
+        ...(options.softwareGraphics ? [`${graphicsArgumentPrefix}software`] : []),
       ],
       { serviceName: "Novadeck Runner" },
     )

@@ -5,6 +5,7 @@ import type { TerminalMetadata } from "../model/types"
 import { context, describe, expect, it } from "../test"
 import { terminalFixture } from "../test/fixtures"
 import { render } from "../test/render"
+import { Portal } from "../ui-toolkit/Portal"
 import { WindowShell, type WindowShellProps } from "./WindowShell"
 
 const unmounts: (() => void)[] = []
@@ -73,5 +74,31 @@ describe("terminal frame mic button", () => {
     })
     expect(mic(frame)!.getAttribute("aria-pressed")).toBe("true")
     expect(mic(frame)!.classList.contains("dictation-active")).toBe(true)
+  })
+})
+
+describe("terminal frame header and what a portal beside it holds", () => {
+  it("ignores a double-click in a popover that only sits in its React tree", () => {
+    const flown: string[] = []
+    const inPortal = createElement(
+      Portal,
+      null,
+      createElement("span", { id: "in-portal" }, "Offer"),
+    )
+    const frame = renderFrame(terminalFixture(1, "~/p"), {
+      onFlyTo: () => void flown.push("fly"),
+      titleExtra: inPortal,
+    })
+
+    document
+      .querySelector("#in-portal")!
+      .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+    expect(flown).toEqual([])
+
+    // The header itself still flies to the terminal.
+    frame
+      .querySelector(".terminal-actions")!
+      .dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+    expect(flown).toEqual(["fly"])
   })
 })

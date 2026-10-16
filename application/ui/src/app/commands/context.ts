@@ -1,6 +1,7 @@
 import type { Backend } from "../../backend/port"
 import type { CanvasHandle } from "../../layouts/canvas/types"
 import type { Rect } from "../../model/layout/spatial"
+import type { Murmur } from "../../model/murmur"
 import type { WorkspaceStore } from "../../model/store"
 import type { SidebarPanel } from "../../model/types"
 import type { Panes } from "../../terminals/companion/state"
@@ -62,6 +63,8 @@ export type CommandContext = {
   // Every terminal's companion pane, where the backend has companions.
   readonly panes?: Panes | undefined
   readonly canvas: { readonly current: CanvasHandle | null }
+  // Murmur, where the backend has it: the one-time offer is counted with it.
+  readonly murmur?: Pick<Murmur, "noteOffered"> | undefined
   // Voice input, where the backend transcribes.
   readonly dictation?: Dictation | undefined
   readonly effects: CommandEffects

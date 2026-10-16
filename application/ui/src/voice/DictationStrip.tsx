@@ -4,8 +4,10 @@ import { useEffect, useState, useSyncExternalStore } from "react"
 import type { Store } from "../model/store"
 import type { TerminalKey } from "../model/types"
 import { maxClipSeconds } from "../model/voice"
+import { Chord } from "../ui-toolkit/Chord"
 import { useShown } from "../ui-toolkit/shown"
 import { dictationKey, type DictationController } from "./dictation"
+import { VoiceSetupContent } from "./VoiceSetup"
 
 import "./dictation.css"
 
@@ -58,14 +60,6 @@ const useSeconds = (since: number): number => {
   return Math.max(0, Math.floor((now - since) / 1000))
 }
 
-const Keys = ({ keys }: { readonly keys: readonly string[] }): React.JSX.Element => (
-  <>
-    {keys.map((key) => (
-      <kbd key={key}>{key}</kbd>
-    ))}
-  </>
-)
-
 const Recording = ({
   level,
   mode,
@@ -91,7 +85,7 @@ const Recording = ({
           "Release to send"
         ) : (
           <>
-            <Keys keys={stopKeys} /> send · <Keys keys={["Esc"]} /> discard
+            <Chord keys={stopKeys} /> send · <Chord keys={["Esc"]} /> discard
           </>
         )}
       </span>
@@ -106,7 +100,8 @@ const Recording = ({
 // Voice input's status in a terminal's window: a strip along the edge of its content while
 // a clip for it records or transcribes, and for a moment after, saying what came of it.
 // It takes no focus, so typing and the keys that end a clip stay where they were; only
-// its Addons button takes the pointer. `edge` is where it docks: the foot of the
+// its buttons (Addons, and voice input's setup) take the pointer. The same strip carries
+// voice input's setup: its offer, install and how that ended. `edge` is where it docks: the foot of the
 // terminal's screen, or the top of its chat, whose message box is at the foot.
 export const DictationStrip = ({
   controller,
@@ -146,20 +141,31 @@ export const DictationStrip = ({
     view.subscribe,
     view.getSnapshot,
   )
+  const setup = useSyncExternalStore(controller.setup.subscribe, controller.setup.getSnapshot)
   const clip = phase !== "idle" && target !== null && dictationKey(target) === key
+  // Voice input's setup, on the terminal the person reached from.
+  const setupHere =
+    !clip && setup !== null && setup.target !== null && dictationKey(setup.target) === key
   const told =
-    !clip && notice !== null && notice.target !== null && dictationKey(notice.target) === key
+    !clip &&
+    !setupHere &&
+    notice !== null &&
+    notice.target !== null &&
+    dictationKey(notice.target) === key
   return (
     <div
       className="dictation-strip"
       role="status"
       aria-live="polite"
       data-edge={edge}
-      data-phase={clip ? phase : "idle"}
+      data-phase={clip ? phase : setupHere ? "setup" : "idle"}
+      data-setup={setupHere ? setup.kind : undefined}
       data-tone={told ? notice.tone : undefined}
-      hidden={!clip && !told}
+      hidden={!clip && !told && !setupHere}
     >
-      {clip && phase === "recording" ? (
+      {setupHere ? (
+        <VoiceSetupContent controller={controller} setup={setup} keys={stopKeys} />
+      ) : clip && phase === "recording" ? (
         <Recording
           key={startedAt}
           level={level}

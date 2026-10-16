@@ -16,6 +16,12 @@ export type PopoverProps = {
   tooltip?: string
   // Where it opens from its trigger: below by default, or above for one at the bottom.
   placement?: "bottom-start" | "top-end"
+  // Where focus lands when it opens, where the first control is not the one to press by reflex.
+  initialFocus?: () => HTMLElement | null
+  // False leaves where focus goes once it closes to its owner, instead of back to the trigger.
+  restoreFocus?: boolean
+  // A click or focus outside, which closes it: its owner may tell it from Esc.
+  onInteractOutside?: () => void
 }
 
 export const Popover = ({
@@ -27,6 +33,9 @@ export const Popover = ({
   className,
   tooltip,
   placement = "bottom-start",
+  initialFocus,
+  restoreFocus = true,
+  onInteractOutside,
 }: PopoverProps): React.JSX.Element => {
   // One id for the trigger, which a tooltip around it shares: the popover places itself
   // and hands focus back by it.
@@ -43,6 +52,9 @@ export const Popover = ({
         return active instanceof HTMLElement && content.current?.contains(active) ? active : null
       }}
       onOpenChange={({ open: next }) => onOpenChange(next)}
+      restoreFocus={restoreFocus}
+      {...(initialFocus ? { initialFocusEl: initialFocus } : {})}
+      {...(onInteractOutside ? { onInteractOutside: () => onInteractOutside() } : {})}
       positioning={{
         placement,
         strategy: "fixed",

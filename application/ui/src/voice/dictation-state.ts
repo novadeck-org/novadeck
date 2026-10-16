@@ -25,8 +25,12 @@ export type Dictating =
 
 export const idle: Dictating = { kind: "idle" }
 
-// Whether dictation can start now; if not, what to tell the person.
-export type Readiness = { readonly ready: true } | { readonly ready: false; readonly hint: string }
+// Whether dictation can start now; if not, what to tell the person, or `offer` where voice
+// input isn't installed and the person hasn't said no: reaching for it offers the install.
+export type Readiness =
+  | { readonly ready: true }
+  | { readonly ready: false; readonly offer: true }
+  | { readonly ready: false; readonly hint: string }
 
 export type DictationEvent =
   | {
@@ -53,6 +57,8 @@ export type DictationEvent =
 
 export type DictationEffect =
   | { readonly kind: "start"; readonly target: TerminalKey }
+  // Offers to install voice input, which the person reached for, on `target` where there is one.
+  | { readonly kind: "offer"; readonly target?: TerminalKey }
   // Ends the recording and transcribes it.
   | { readonly kind: "stop"; readonly target: TerminalKey }
   | { readonly kind: "discard" }
@@ -78,6 +84,8 @@ const begin = (
   now: number,
   readiness: Readiness,
 ): Step => {
+  if (!readiness.ready && "offer" in readiness)
+    return { state: idle, effects: [{ kind: "offer", ...(target && { target }) }] }
   if (!readiness.ready)
     return {
       state: idle,

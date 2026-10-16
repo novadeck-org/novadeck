@@ -56,7 +56,7 @@ export const download = async (options: {
           hash.update(chunk)
           received += chunk.length
           if (options.size !== undefined && received > options.size)
-            throw new DownloadError("The download is larger than expected. Try again.")
+            throw new DownloadError("The download is larger than expected.")
           options.progress(received)
           yield chunk
         }
@@ -65,9 +65,7 @@ export const download = async (options: {
       { signal },
     )
     if (hash.digest("hex") !== options.sha256)
-      throw new DownloadError(
-        "The download is damaged: its checksum is not the expected one. Try again.",
-      )
+      throw new DownloadError("The download is damaged: its checksum is not the expected one.")
     await rename(part, to)
   } catch (error) {
     await rm(part, { force: true })

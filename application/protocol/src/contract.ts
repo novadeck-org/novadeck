@@ -39,8 +39,7 @@ import {
   terminalSummary,
   terminalTitle,
   threadId,
-  voiceModel,
-  voiceSettings,
+  voiceChange,
   voiceState,
   voiceTranscript,
   voiceUnavailable,
@@ -387,21 +386,21 @@ export const contract = {
   voice: {
     // The addon's state, then again on each change.
     watch: procedure.input(z.void()).output(eventIterator(voiceState)),
-    // Downloads the engine, unless it is there, and a model, checks that they transcribe,
-    // and makes the model the one used. It returns once the install starts; `watch` shows
-    // its progress, and its end or failure. One already installing is a CONFLICT, and a
-    // build without an engine for this platform is VOICE_UNAVAILABLE, whose data says why
-    // (see `voiceUnavailable`).
-    install: procedure.input(z.strictObject({ model: voiceModel })).output(z.void()),
+    // Downloads the engine, unless it is there, and the model that suits this computer
+    // (turbo, or small where turbo would not run well), checks that they transcribe, and
+    // makes the model the one used. The person does not choose it. It returns once the
+    // install starts; `watch` shows its progress, and its end or failure. One already
+    // installing is a CONFLICT, and a build without an engine for this platform is
+    // VOICE_UNAVAILABLE, whose data says why (see `voiceUnavailable`).
+    install: procedure.input(z.void()).output(z.void()),
     // Stops an install, keeping what had finished before it. Nothing installing is fine.
     cancel: procedure.input(z.void()).output(z.void()),
     // Removes the engine and every model, and turns voice input off by choice: it is no
     // longer wanted, until the next install.
     uninstall: procedure.input(z.void()).output(z.void()),
     // Changes the settings given; the others stay. Turning voice input on before any
-    // install says it is wanted, for the install to turn on; turning it on with only
-    // another model installed, or choosing a model that is not installed, is a CONFLICT.
-    set: procedure.input(voiceSettings.partial()).output(z.void()),
+    // install says it is wanted, for the install to turn on.
+    set: procedure.input(voiceChange).output(z.void()),
     // Adds audio to a clip being recorded, which the client names: 16 kHz mono 16-bit
     // little-endian PCM, base64, at the byte `offset` into the clip. Audio past
     // `maxVoiceSeconds` is UPLOAD_TOO_LARGE, and a part past the start of a clip the
@@ -432,8 +431,10 @@ export const contract = {
     // The addon's state, then again on each change.
     watch: procedure.input(z.void()).output(eventIterator(murmurState)),
     // Downloads the engine and the model, unless they are there, and checks that they
-    // describe on a GPU. It returns once the install starts; `watch` shows its progress,
-    // and its end or failure. One already installing is a CONFLICT.
+    // describe on this computer's graphics. It returns once the install starts; `watch` shows
+    // its progress, and its end or failure. One already installing, or a computer the host
+    // saw only software rendering on, is a CONFLICT. An install's earlier `unsupported`
+    // verdict is cleared by installing again, which checks anew.
     install: procedure.input(z.void()).output(z.void()),
     // Stops an install, keeping what had finished before it. Nothing installing is fine.
     cancel: procedure.input(z.void()).output(z.void()),
@@ -443,6 +444,9 @@ export const contract = {
     // Changes the settings given; the others stay. Turning murmur on before any install
     // says it is wanted, for the install to turn on.
     set: procedure.input(murmurSettings.partial()).output(z.void()),
+    // Counts a session of the app the one-time offer of murmur was shown in, which it stops
+    // after three of.
+    noteOffered: procedure.input(z.void()).output(z.void()),
     // Asks murmur for the gist of the reply that ended the terminal's turn at `at`, which the
     // client shows unread. It lands on the terminal's `activity.lastTurn.gist`. Nothing happens
     // when murmur can't run, that end is no longer the last, or the terminal is unknown.

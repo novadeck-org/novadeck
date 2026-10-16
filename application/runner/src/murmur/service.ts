@@ -20,7 +20,7 @@ import {
 import { EngineError, engineFolder, exists, programFile } from "../engines/unpack.js"
 import { Watchers } from "../engines/watchers.js"
 import { DomainError } from "../errors.js"
-import type { MurmurSettingsChange } from "../workspaces/store.js"
+import type { MurmurSettingsChange, MurmurVerdict } from "../workspaces/store.js"
 import type {
   Description,
   Describer,
@@ -45,6 +45,12 @@ export type MurmurSettingsStore = {
   /** The last install's check, which outlives a restart; `null` when none passed. */
   murmurCheck(): MurmurCheck | null
   saveMurmurCheck(check: MurmurCheck | null): void
+  /** In how many sessions of the app the one-time offer was shown. */
+  murmurOffers(): number
+  saveMurmurOffers(offers: number): void
+  /** Why an install found this computer can't run murmur; `null` when it never did. */
+  murmurUnsupported(): MurmurVerdict | null
+  saveMurmurUnsupported(verdict: MurmurVerdict | null): void
 }
 
 /** The one model murmur uses, pinned by the commit of its repository. */
@@ -63,6 +69,11 @@ export type MurmurOptions = {
   readonly directory: string
   /** The model to download; the one Novadeck ships unless a test brings its own. */
   readonly model?: Artifact
+  /**
+   * Whether the host saw only software rendering, so no graphics hardware: murmur is then
+   * known not to run here, and nothing is downloaded. Unset when unsure.
+   */
+  readonly softwareGraphics?: boolean
   /** What voice input is doing: murmur gives way while it is busy. */
   readonly voice?: Activity
   readonly launch?: Launch
@@ -89,7 +100,31 @@ export type MurmurOptions = {
   readonly now?: () => number
 }
 
-const needsGpu = "Murmur needs a working GPU, and this computer has none it can use."
+// Why an install found that this computer can't run murmur, which a retry won't change:
+// shown behind a details view, so it is technical. Only a real incompatibility is one: the
+// engine ran and listed no device to use, or every device it was given answered with nothing
+// usable. A timeout, an out-of-memory (another program may hold the video memory), a crash,
+// a failed start or an error answer is an ordinary failure with Try again, and keeps the model.
+class Unsupported extends EngineError {}
+
+// A device ran the test and its reply was no usable title: the one failure of a device that
+// says it can't run the model, as the others may pass at another time.
+class Unusable extends EngineError {}
+
+const softwareOnly = "This computer reports only software rendering; no graphics hardware answered."
+
+const linuxHint =
+  process.platform === "linux" ? " On Linux, check that a Vulkan driver is installed." : ""
+
+// An exit that says a library the engine needs is not there: "error while loading shared
+// libraries" or "cannot open shared object file" on Linux, STATUS_DLL_NOT_FOUND (0xC0000135)
+// on Windows.
+const missingLibrary = (
+  run: { readonly code: number | null },
+  printed: string | undefined,
+): boolean =>
+  run.code === 0xc0_00_01_35 ||
+  /error while loading shared libraries|cannot open shared object file/i.test(printed ?? "")
 
 const unavailable = (message: string): DomainError => new DomainError("CONFLICT", message)
 
@@ -167,10 +202,11 @@ type Made = { title: Description; headline: Headline; gist: Gist }
 const priority: Record<Task, number> = { headline: 0, gist: 1, title: 2 }
 const parsers = { title: parseDescription, headline: parseHeadline, gist: parseGist } as const
 
-// What the install check takes for a working GPU: a reply that is a JSON object with a
-// title of at least two letters in a row (a broken backend writes junk the grammar still closes). The check asks whether the engine runs the model and writes its reply in the
-// format, not whether the title is one murmur would show (those rules change with the
-// prompt, and a check that shared them failed on every machine when they did).
+// What the install check takes for a working device: a reply that is a JSON object with a
+// title of at least two letters in a row, since a broken backend writes junk the grammar still
+// closes. The check asks whether the engine runs the model and writes its reply in the format,
+// not whether the title is one murmur would show: those rules change with the prompt, and a
+// check that shared them failed on every machine when they did.
 const parseCheck = (raw: string): Description | undefined => {
   try {
     const title = (JSON.parse(raw) as { title?: unknown } | null)?.title
@@ -204,17 +240,12 @@ const readVmStat = (signal: AbortSignal | undefined): Promise<number> =>
     )
   })
 
-// Shown, with Try again, when murmur is installed but no check passed: a check that was
-// cancelled, or a runner that restarted after one failed.
-const unchecked =
-  "Murmur is installed but has not passed its check on this computer's GPU yet. Try again."
-
 // How long the model stays loaded once nothing needs it.
 const defaultIdleMs = 2 * 60 * 1000
 
 /**
  * Murmur: the engine and model people install, the settings, and the describing of
- * terminals with them, on a GPU of this machine and nowhere else. It gives way to voice
+ * terminals with them, on this machine's graphics and nowhere else. It gives way to voice
  * input, to a computer short of memory, and to its own failures.
  */
 export class Murmur implements Describer {
@@ -366,11 +397,20 @@ export class Murmur implements Describer {
       sizes: { engine: this.manifest?.size ?? 0, model: this.model.size },
       installing: this.installing,
       check,
-      failure:
-        this.failure ??
-        this.runtimeFailure ??
-        (installed && check === null && !this.installing ? unchecked : null),
+      unsupported: this.unsupported(),
+      offers: this.settings.murmurOffers(),
+      failure: this.failure ?? this.runtimeFailure,
     }
+  }
+
+  // Why this computer can't run murmur, if the host or an install said so. An install's
+  // verdict is of the engine build it ran: another build's engine gives it no weight.
+  private unsupported(): MurmurState["unsupported"] {
+    if (this.options.softwareGraphics) return { reason: softwareOnly, source: "host" }
+    const verdict = this.settings.murmurUnsupported()
+    return verdict !== null && verdict.engine === this.manifest?.sha256
+      ? { reason: verdict.reason, source: "check" }
+      : null
   }
 
   /** The state now, then again after each change, until `signal` aborts or the owner is released. */
@@ -449,8 +489,11 @@ export class Murmur implements Describer {
     // `refresh` yielded: the runner may have closed, or another install may have started.
     this.assertOpen()
     if (this.manifest === undefined) throw unavailable("Murmur is not available in this build.")
+    if (this.options.softwareGraphics) throw unavailable("Murmur can't run on this computer.")
     if (this.running || this.uninstalling)
       throw new DomainError("CONFLICT", "Murmur is already installing.")
+    // Installing again is how an install's verdict is asked anew: it stands until the new check
+    // ends, passed (then it goes) or not.
     const controller = new AbortController()
     this.updateFailedAt = undefined
     this.failure = null
@@ -459,7 +502,7 @@ export class Murmur implements Describer {
     // Installing it says the person wants it, whatever they chose before; an off from then
     // on, during the install too, still holds.
     if (!this.installed()) this.settings.saveMurmurSettings({ enabled: null })
-    this.installing = { step: "engine", received: 0, total: this.manifest.size }
+    this.installing = { step: "engine", received: 0, total: this.manifest.size, origin: "person" }
     this.changed()
     this.running = { controller, done: this.run(this.manifest, controller.signal) }
   }
@@ -483,7 +526,7 @@ export class Murmur implements Describer {
       return
     const controller = new AbortController()
     this.failure = null
-    this.installing = { step: "engine", received: 0, total: manifest.size }
+    this.installing = { step: "engine", received: 0, total: manifest.size, origin: "update" }
     this.changed()
     this.running = { controller, done: this.run(manifest, controller.signal, true) }
   }
@@ -527,7 +570,7 @@ export class Murmur implements Describer {
       // The program is in use until it has exited, which Windows will not delete.
       await this.server.stop()
       try {
-        await removeContents(this.directory)
+        await this.whileReplacing(() => removeContents(this.directory))
       } catch (error) {
         throw new DomainError(
           "CONFLICT",
@@ -545,6 +588,15 @@ export class Murmur implements Describer {
       this.changed()
       if (!this.closed && (removed || turnedOff)) this.cleared()
     }
+  }
+
+  /** Counts a session of the app the one-time offer was shown in. */
+  async noteOffered(): Promise<void> {
+    this.assertOpen()
+    await this.ready()
+    this.assertOpen()
+    this.settings.saveMurmurOffers(this.settings.murmurOffers() + 1)
+    this.changed()
   }
 
   async set(change: MurmurSettingsChange): Promise<void> {
@@ -592,9 +644,23 @@ export class Murmur implements Describer {
     return modelPathOf(this.directory, this.model)
   }
 
-  private progress(install: MurmurInstall, force = false): void {
-    this.installing = install
+  // What an install is doing now; who started it stays as it was.
+  private progress(install: Omit<MurmurInstall, "origin">, force = false): void {
+    this.installing = { ...install, origin: this.installing?.origin ?? "person" }
     this.watchers.progress(force)
+  }
+
+  // Runs `work`, which takes engine files away or puts them in place: a look at the disk that
+  // spans it (a watch's refresh) is not believed, and cannot bring back what is going.
+  private async whileReplacing<T>(work: () => Promise<T>): Promise<T> {
+    this.replacing = true
+    this.swaps += 1
+    try {
+      return await work()
+    } finally {
+      this.replacing = false
+      this.swaps += 1
+    }
   }
 
   private async run(manifest: Manifest, signal: AbortSignal, engineOnly = false): Promise<void> {
@@ -604,48 +670,44 @@ export class Murmur implements Describer {
       if (!(await exists(join(engineFolder(this.directory, manifest.sha256), program)))) {
         const total = manifest.size
         this.progress({ step: "engine", received: 0, total }, true)
-        try {
-          await fetchEngine({
+        await this.whileReplacing(() =>
+          fetchEngine({
             manifest,
             source: this.source,
             directory: this.directory,
             program,
             signal,
             progress: (received) => this.progress({ step: "engine", received, total }),
-            // Unpacking removes the engines this one replaces; none may be running, and a
-            // refresh must not bring one back until the new one is there.
+            // Unpacking removes the engines this one replaces; none may be running.
             replacing: async () => {
-              this.replacing = true
-              this.swaps += 1
               this.engineDir = undefined
               this.changed()
               await this.server.stop()
             },
-          })
-        } finally {
-          this.replacing = false
-          this.swaps += 1
-        }
+          }),
+        )
         await this.refresh()
       }
       if (engineOnly) return
-      // No GPU is found before the model, 1.28 GB, is downloaded for nothing.
+      // No device is found before the model, 1.28 GB, is downloaded for nothing.
       const folder = this.engineDir
       if (folder === undefined) throw new EngineError("The murmur engine is missing.")
       const devices = candidates(await this.listDevices(folder, signal))
       signal.throwIfAborted()
-      if (devices.length === 0) throw new EngineError(needsGpu)
+      if (devices.length === 0) throw new Unsupported(`No graphics device answered.${linuxHint}`)
       await this.fetchModel(signal)
       this.progress({ step: "check", received: 0, total: 0 }, true)
       const check = await this.measure(signal, folder, devices)
       this.settings.saveMurmurCheck(check)
+      this.settings.saveMurmurUnsupported(null)
       this.resetBackoff()
       // Checked, so on, unless the person turned it off themselves.
       this.settings.saveMurmurSettings({ enabled: this.settings.murmurEnabledChoice() !== false })
       await this.refresh()
     } catch (error) {
+      if (error instanceof Unsupported && !signal.aborted) await this.giveUp(error.message)
       // Cancelling is the person's choice, not a failure.
-      if (!signal.aborted && !aborted(error)) {
+      else if (!signal.aborted && !aborted(error)) {
         this.failure = explain(error).slice(0, 1024)
         this.updateFailedAt = engineOnly ? this.clock() : undefined
       }
@@ -655,6 +717,22 @@ export class Murmur implements Describer {
       this.installing = null
       this.running = undefined
       this.changed()
+    }
+  }
+
+  // This computer can't run murmur: that is kept, and what the install downloaded goes, so
+  // the person is offered nothing to try again.
+  private async giveUp(reason: string): Promise<void> {
+    this.settings.saveMurmurUnsupported({
+      reason: reason.slice(0, 1024),
+      engine: this.manifest?.sha256 ?? "",
+    })
+    this.settings.saveMurmurCheck(null)
+    this.failure = null
+    try {
+      await this.whileReplacing(() => removeContents(this.directory))
+    } catch {
+      // Left behind, it only takes room; the verdict stands.
     }
   }
 
@@ -687,8 +765,14 @@ export class Murmur implements Describer {
     const devices = parseDevices(`${run.stdout}\n${run.stderr}`)
     if (devices.length === 0 && (run.failure !== undefined || run.code !== 0)) {
       const last = run.stderr.split(/\r?\n/).findLast((text) => text.trim() !== "")
-      const why = last?.trim() ?? run.failure ?? `it exited with code ${run.code}`
-      throw new EngineError(`Murmur's engine could not list the GPUs: ${why.slice(0, 300)}`)
+      const why = (last?.trim() ?? run.failure ?? `it exited with code ${run.code}`)
+        .slice(0, 300)
+        .replace(/\.+$/, "")
+      // An engine that can't load a library it needs will fail the same way every time: that
+      // is this computer's, with the hint. Any other failed start, or a timeout, is retried.
+      if (missingLibrary(run, last))
+        throw new Unsupported(`The engine could not list graphics devices: ${why}.${linuxHint}`)
+      throw new EngineError(`The engine could not list graphics devices: ${why}.${linuxHint}`)
     }
     return devices
   }
@@ -736,8 +820,9 @@ export class Murmur implements Describer {
     try {
       body = (await response.json()) as typeof body
     } catch (error) {
-      // An answer cut off by the time limit is a stuck engine, as much as no answer.
-      if (limit.aborted) throw error
+      // An answer cut off, by the time limit or by a crash, is the engine failing; it is never
+      // a reply that said nothing usable, which is what can condemn a device.
+      throw limit.aborted ? error : new EngineError("The engine's answer was cut off.")
     }
     const content = body?.choices?.[0]?.message?.content
     // The model is held to what it was shown: a text that copies an example is refused. A
@@ -788,8 +873,8 @@ export class Murmur implements Describer {
 
   /**
    * Runs the check description on each of `devices` in order, integrated first, and keeps
-   * the first that gives a valid one. None is a failure that says murmur needs a working
-   * GPU, and what the last device said. The test digest goes through the worker thread as
+   * the first that gives a valid one. If every device answered with nothing usable this
+   * computer can't run murmur (`Unsupported`); any other failure is an ordinary one. The test digest goes through the worker thread as
    * every digest does, so a worker that can't run fails the install, not the first job.
    */
   private async measure(
@@ -802,6 +887,7 @@ export class Murmur implements Describer {
     if (chat === undefined || typeof chat === "string")
       throw new EngineError(workerFailure[chat ?? "stopped"])
     let last: unknown
+    let unusable = 0
     for (const device of devices) {
       // Its own server, so a device that hangs or crashes ends with it.
       const server = this.makeServer(undefined)
@@ -814,11 +900,11 @@ export class Murmur implements Describer {
         // The first run loads the model and warms up the GPU, which later jobs do not pay for.
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
         if (!(await this.complete(config, server, chat, limit, "title", checkDigest, parseCheck)))
-          throw new EngineError("The model's reply was no usable title.")
+          throw new Unusable("The model's reply was no usable title.")
         const started = performance.now()
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
         if (!(await this.complete(config, server, chat, limit, "title", checkDigest, parseCheck)))
-          throw new EngineError("The model's reply was no usable title.")
+          throw new Unusable("The model's reply was no usable title.")
         return {
           device: device.name.slice(0, 256),
           integrated: device.kind === "igpu",
@@ -828,6 +914,7 @@ export class Murmur implements Describer {
         // Cancelling ends the check; any other failure is this device's, and the next is tried.
         signal.throwIfAborted()
         last = error
+        if (error instanceof Unusable) unusable += 1
       } finally {
         limit.removeEventListener("abort", stop)
         // eslint-disable-next-line no-await-in-loop -- One device at a time.
@@ -835,7 +922,11 @@ export class Murmur implements Describer {
       }
     }
     const cause = last instanceof Error ? ` ${last.message}`.slice(0, 700) : ""
-    throw new EngineError(`${needsGpu} None of its GPUs described a test terminal.${cause}`)
+    // Every device answered, wrongly: this computer can't run it. Any other end (a timeout,
+    // memory, a crash) leaves it a failure to try again.
+    if (unusable === devices.length)
+      throw new Unsupported(`No graphics device could run the model.${cause}`)
+    throw new EngineError(`Murmur's test did not finish on this computer.${cause}`)
   }
 
   // Waiting between jobs' looks at voice and memory: ends at once on a wake.
@@ -1089,7 +1180,7 @@ export class Murmur implements Describer {
       // The engine ran and lists no such GPU (a failure to list throws instead): that
       // check no longer stands.
       this.settings.saveMurmurCheck(null)
-      this.failure = "The GPU murmur was checked on is gone. Try again."
+      this.failure = "The graphics device murmur was checked on isn't there now."
       this.changed()
       return undefined
     }

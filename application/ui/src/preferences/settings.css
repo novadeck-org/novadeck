@@ -169,3 +169,15 @@
   color: var(--color-muted);
   opacity: var(--choice-card-tile-disabled-opacity, 0.7);
 }
+
+/* `.addon-action`: a quiet action under an addon's note, as Check again, on the link button
+   (`.button.link`): ink, not muted, underlined, flush with the text above it; its hover is the
+   link button's own. Token (its fallback in brackets): --addon-action-fg (ink). */
+.button.link.addon-action {
+  --_fg: var(--addon-action-fg, var(--color-ink));
+  display: block;
+  margin: 4px 0 0;
+  padding: 0;
+  min-height: 0;
+  text-decoration: underline;
+}

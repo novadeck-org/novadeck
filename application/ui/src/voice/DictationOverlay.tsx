@@ -2,7 +2,9 @@ import { Check, Loader, Mic, TriangleAlert } from "lucide-react"
 import { useEffect, useState, useSyncExternalStore } from "react"
 
 import type { Store } from "../model/store"
-import { dictationKey, type DictationView } from "./dictation"
+import type { TerminalKey } from "../model/types"
+import { dictationKey, type DictationController } from "./dictation"
+import { VoiceSetupContent } from "./VoiceSetup"
 
 import "./dictation.css"
 
@@ -39,36 +41,43 @@ const Meter = ({ level }: { readonly level: Store<number> }): React.JSX.Element 
 
 // A small status line at the app's foot while a clip records or transcribes, and for a
 // moment after, for what no terminal's window shows itself (`docks`): a terminal that
-// closed, or none chosen. It takes no focus and no pointer, so typing, and the
-// keys that end a clip, stay where they were; it is a live region, not a dialog, so
+// closed, or none chosen, and for voice input's setup, whose buttons take the pointer. It
+// takes no focus, so typing, and the keys that end a clip, stay where they were; it is a live region, not a dialog, so
 // keyboard routing doesn't count it among the overlays that hold keys.
 export const DictationOverlay = ({
-  view,
-  level,
-  docks,
+  controller,
+  keys,
 }: {
-  readonly view: Store<DictationView>
-  readonly level: Store<number>
-  readonly docks: Store<ReadonlyMap<string, number>>
+  readonly controller: DictationController
+  // The dictation shortcut's keys.
+  readonly keys: readonly string[]
 }): React.JSX.Element => {
+  const { view, level, docks } = controller
+  const setup = useSyncExternalStore(controller.setup.subscribe, controller.setup.getSnapshot)
   const { phase, target, mode, startedAt, notice } = useSyncExternalStore(
     view.subscribe,
     view.getSnapshot,
   )
   const docked = useSyncExternalStore(docks.subscribe, docks.getSnapshot)
   const about = phase !== "idle" ? target : notice?.target
-  const shown =
-    (phase !== "idle" || notice !== null) && !(about && (docked.get(dictationKey(about)) ?? 0) > 0)
+  const docksAt = (key: TerminalKey | null | undefined): boolean =>
+    key !== null && key !== undefined && (docked.get(dictationKey(key)) ?? 0) > 0
+  // Voice input's setup stands in here where its terminal is not on screen, or none is chosen.
+  const setupHere = phase === "idle" && setup !== null && !docksAt(setup.target)
+  const shown = setupHere || ((phase !== "idle" || notice !== null) && !docksAt(about))
   return (
     <div
       className="dictation-overlay"
       role="status"
       aria-live="polite"
-      data-phase={phase}
-      data-tone={phase === "idle" ? notice?.tone : undefined}
+      data-phase={setupHere ? "setup" : phase}
+      data-setup={setupHere ? setup.kind : undefined}
+      data-tone={phase === "idle" && !setupHere ? notice?.tone : undefined}
       hidden={!shown}
     >
-      {phase === "recording" ? (
+      {setupHere ? (
+        <VoiceSetupContent controller={controller} setup={setup} keys={keys} />
+      ) : phase === "recording" ? (
         <>
           <Mic size={14} className="dictation-icon" aria-hidden />
           <span>

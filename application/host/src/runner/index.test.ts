@@ -9,7 +9,7 @@ import { MessageChannel, Worker } from "node:worker_threads"
 import { connectRunner, messagePort } from "@novadeck/protocol/client"
 import { relayName, relayPath } from "@novadeck/relay"
 
-import { databaseArgumentPrefix, relayArgumentPrefix } from "../bridge"
+import { databaseArgumentPrefix, graphicsArgumentPrefix, relayArgumentPrefix } from "../bridge"
 import { context, describe, expect, it } from "../test"
 
 const entry = pathToFileURL(join(process.cwd(), "out", "main", "runner.js")).href
@@ -33,10 +33,10 @@ import(workerData.entry)
 // eslint-disable-next-line no-control-regex -- Terminal escape sequences.
 const title = /\u001b\][012];[^\u0007\u001b]*(?:\u0007|\u001b\\|\u001b?$)/g
 
-const start = (database: string) => {
+const start = (database: string, extra: readonly string[] = []) => {
   const worker = new Worker(utility, {
     eval: true,
-    argv: [`${databaseArgumentPrefix}${database}`, `${relayArgumentPrefix}${relayPath}`],
+    argv: [`${databaseArgumentPrefix}${database}`, `${relayArgumentPrefix}${relayPath}`, ...extra],
     workerData: { entry },
   })
   // Rejects if the runner fails to start, rather than leaving the handshake to time out.
@@ -202,5 +202,38 @@ describe("compiled desktop runner", () => {
         await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
       }
     }, 20_000)
+
+    it("tells murmur and voice input the host saw only software rendering", async () => {
+      const directory = await mkdtemp(join(tmpdir(), "novadeck-host-runner-"))
+      try {
+        const states: (string | null)[] = []
+        const aims: string[] = []
+        for (const extra of [[`${graphicsArgumentPrefix}software`], []]) {
+          const runner = start(join(directory, "workspace.sqlite"), extra)
+          // eslint-disable-next-line no-await-in-loop -- One runner at a time on the one database.
+          const client = await runner.connect()
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          for await (const state of client.murmur.watch()) {
+            states.push(state.unsupported?.reason ?? null)
+            break
+          }
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          for await (const state of client.voice.watch()) {
+            aims.push(state.aim)
+            break
+          }
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await client.close()
+          // eslint-disable-next-line no-await-in-loop -- As above.
+          await runner.close()
+        }
+        expect(states[0]).toEqual(expect.stringContaining("software"))
+        expect(states[1]).toBeNull()
+        // Voice input installs its small model straight away only where the host said so.
+        expect(aims).toEqual(["small", "turbo"])
+      } finally {
+        await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+      }
+    }, 30_000)
   })
 })
