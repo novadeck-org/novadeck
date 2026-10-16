@@ -128,10 +128,11 @@ const typeOnlyPackages: Record<string, readonly string[]> = {
   "interaction/": [],
 }
 // The files in model/ that read the wire package, each through one data-only entry: its
-// table of harnesses, and the key that tells pages apart.
+// table of harnesses, the key that tells pages apart, and what draws as nothing in a command.
 const protocolData: Record<string, string> = {
   "model/harnesses.ts": "@novadeck/protocol/harnesses",
   "model/pages.ts": "@novadeck/protocol/pages",
+  "model/command-text.ts": "@novadeck/protocol/text",
 }
 const testLayers = new Set(["specs/", "test/", "test.ts"])
 const vendors: Record<string, readonly string[]> = {

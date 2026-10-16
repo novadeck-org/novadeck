@@ -104,9 +104,6 @@ describe("An item's sheet", () => {
       await expect
         .element(sheet("Checkout review"))
         .toMatchTextContent("pnpm add -D @stripe/stripe-js")
-      await expect
-        .element(sheet("Checkout review").getByText("~/projects/storefront"))
-        .toBeVisible()
       await expect.element(row("Run pnpm add")).toHaveAttribute("aria-current", "true")
     })
 

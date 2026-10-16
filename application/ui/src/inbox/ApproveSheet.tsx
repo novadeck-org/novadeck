@@ -4,14 +4,7 @@ import { useState } from "react"
 import type { ChatAnswer, ChatDialogOption } from "../model/conversation"
 import type { HeldMessage } from "../model/inbox"
 import { HandleChip } from "../ui-toolkit/HandleChip"
-import {
-  agentName,
-  actionOf,
-  choicesOf,
-  setsStanding,
-  splitDetail,
-  type Choices,
-} from "./inbox-text"
+import { agentName, actionOf, choicesOf, setsStanding, type Choices } from "./inbox-text"
 import { Lead, Page, type SheetContentProps } from "./Page"
 import { CommandCard, Failure, QuietLink, ReplyBox, Sent, Text } from "./sheet-parts"
 
@@ -36,7 +29,6 @@ const Permission = (
   const agent = agentName(item.source.agent)
   const [denying, setDenying] = useState(false)
   const [words, setWords] = useState("")
-  const { folder, command } = splitDetail(detail)
   const answer = (option: ChatDialogOption, note: string, text?: string): void =>
     submit({ kind: "request", answer: choiceAnswer(dialog, option, text) }, note)
   // The words go with the no that takes them; with none, the plain no does.
@@ -54,7 +46,8 @@ const Permission = (
   return (
     <Page>
       <Lead {...props} subject={plan} />
-      <CommandCard folder={folder} command={command} />
+      {/* As the harness gave it: a first line set small as a folder could be the agent's own. */}
+      <CommandCard folder={null} command={detail} />
       {!sent && !denying && (
         <div className="inbox-actions">
           {choices.allow ? (

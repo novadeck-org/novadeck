@@ -13,6 +13,7 @@ import {
 import { HandleChip } from "../ui-toolkit/HandleChip"
 import { NovaMark } from "../ui-toolkit/NovaLogo"
 import { Tooltip } from "../ui-toolkit/Tooltip"
+import { commandView, markText } from "./command-view"
 import { codeParts } from "./inbox-text"
 
 // The small parts the sheets are made of.
@@ -105,7 +106,9 @@ export const Disclosure = ({
 }
 
 // A command or other text a person would copy, set large in a mono card with the folder
-// it runs in; `small` for one that is only to be read or copied.
+// it runs in; `small` for one that is only to be read or copied. Whatever in it draws as
+// nothing shows as a mark (`command-view.ts`), and a command of more than one line says how
+// many, so nothing Copy copies or Allow runs is out of sight.
 export const CommandCard = ({
   folder,
   command,
@@ -118,20 +121,39 @@ export const CommandCard = ({
   readonly copy?: boolean
   readonly small?: boolean
   readonly tone?: "waiting" | "urgent" | "calm"
-}): React.JSX.Element => (
-  <div className="inbox-command" data-small={small || undefined} data-urgency={tone}>
-    {folder && <span className="inbox-command-folder">{folder}</span>}
-    <span className="inbox-command-line">
-      {!command.includes("\n") && (
-        <span className="inbox-command-dollar" aria-hidden="true">
-          $
+}): React.JSX.Element => {
+  const view = commandView(command)
+  return (
+    <div className="inbox-command" data-small={small || undefined} data-urgency={tone}>
+      {(folder || view.lines > 1) && (
+        <span className="inbox-command-folder">
+          {folder}
+          {folder && view.lines > 1 && " · "}
+          {view.lines > 1 && `${view.lines} lines`}
         </span>
       )}
-      <span className="inbox-command-text">{command}</span>
-      {copy && <CopyButton text={command} label="Copy command" />}
-    </span>
-  </div>
-)
+      <span className="inbox-command-line">
+        {view.lines === 1 && (
+          <span className="inbox-command-dollar" aria-hidden="true">
+            $
+          </span>
+        )}
+        <span className="inbox-command-text">
+          {view.parts.map((part, index) =>
+            part.type === "text" ? (
+              <Fragment key={index}>{part.text}</Fragment>
+            ) : (
+              <span key={index} className="inbox-command-mark" data-mark={part.type}>
+                {markText(part)}
+              </span>
+            ),
+          )}
+        </span>
+        {copy && <CopyButton text={command} label="Copy command" />}
+      </span>
+    </div>
+  )
+}
 
 export const CopyButton = ({
   text,

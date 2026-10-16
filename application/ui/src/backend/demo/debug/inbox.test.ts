@@ -1,7 +1,7 @@
 import { vi } from "vitest"
 
 import { describe, expect, it } from "../../../test"
-import { createDemoInbox, demoInboxIds } from "../inbox"
+import { createDemoInbox, demoHiddenCommand, demoInboxIds } from "../inbox"
 import { inboxGroups } from "./inbox"
 import type { DemoActionContext } from "./types"
 
@@ -45,12 +45,21 @@ describe("the debug panel's Inbox group", () => {
   it("adds the next kind that is missing, until every kind is there", () => {
     const inbox = createDemoInbox(1, [])
     const notes: string[] = []
-    // Lifecycle controls change existing items rather than adding a kind.
-    const kinds = inboxGroups(inbox)[0]!.actions.length - 8
+    // Lifecycle controls and variants change or add items rather than adding a kind.
+    const kinds = inboxGroups(inbox)[0]!.actions.length - 9
     for (let each = 0; each < kinds; each += 1) run(inbox, "A new item arrives", notes)
     expect(inbox.state.getSnapshot().items).toHaveLength(kinds)
     run(inbox, "A new item arrives", notes)
     expect(notes).toEqual(["Every kind is in the Inbox already."])
+  })
+
+  it("adds a permission whose command hides a line, for the card to mark", () => {
+    const inbox = createDemoInbox(1, [])
+    run(inbox, "Command hiding lines")
+    const [item] = inbox.state.getSnapshot().items
+    expect(item?.kind === "request" && item.request.dialog?.type === "choices").toBe(true)
+    if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
+    expect(item.request.dialog.detail).toBe(demoHiddenCommand)
   })
 
   it("makes the next answer fail", () => {

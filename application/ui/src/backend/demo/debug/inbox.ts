@@ -1,5 +1,5 @@
 import type { InboxItem } from "../../../model/inbox"
-import { demoInboxIds, demoInboxItemsAll, type DemoInbox } from "../inbox"
+import { demoHiddenCommand, demoInboxIds, demoInboxItemsAll, type DemoInbox } from "../inbox"
 import type { DemoActionGroup } from "./types"
 
 type Named = keyof typeof demoInboxIds
@@ -129,6 +129,25 @@ export const inboxGroups = (inbox: DemoInbox | undefined): readonly DemoActionGr
             if (item) inbox.add(item)
           },
         })),
+        {
+          label: "Command hiding lines",
+          hint: "Approve row whose command buries a line under blank lines and spaces: the card counts its lines and marks them",
+          run: () => {
+            const item = fresh(demoInboxIds.plainDeny)
+            if (item?.kind !== "request" || item.request.dialog?.type !== "choices") return
+            inbox.add({
+              ...item,
+              request: {
+                ...item.request,
+                subject: "gh auth status",
+                dialog: {
+                  ...item.request.dialog,
+                  detail: demoHiddenCommand,
+                },
+              },
+            })
+          },
+        },
         {
           label: "Usage limit, reset passed",
           hint: "Trouble row for a 5-hour limit that has reset and Novadeck can't resume, offering Continue now",

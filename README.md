@@ -790,7 +790,9 @@ App:
   shows the delivery failure in its Inbox confirmation and Messages history. Reply boxes
   accept up to 4,096 characters and show the limit. Pausing messages between agents leaves
   your replies going through. "Usage limit, reset passed" adds the limit Novadeck can't resume, with its
-  window reset, offering Continue now. "A new item arrives" adds the next kind not there
+  window reset, offering Continue now. "Command hiding lines" adds a permission whose command
+  buries a line under blank lines and spaces; its card counts the lines and marks what draws
+  as nothing. "A new item arrives" adds the next kind not there
   yet, and "Clear the Inbox" empties it.
 - **Startup:** "Hold the splash" keeps it until you press Escape; "Slow attach" counts
   terminals attaching over about 3 s; "Welcome dialog" opens the first-run dialog for

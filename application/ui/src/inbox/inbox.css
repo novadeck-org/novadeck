@@ -432,12 +432,12 @@
   line-height: 20px;
   font-variant-ligatures: none;
 }
+/* Never folded: every line of a command shows, as Copy copies and Allow runs all of it; a long
+   one makes the sheet scroll, past it to the buttons below. */
 .inbox-command {
   --_rule: var(--inbox-waiting-fg, var(--color-warning-fg));
   gap: 6px;
-  max-height: 320px;
   padding: 16px 18px;
-  overflow: auto;
   border-left: 2px solid var(--_rule);
 }
 .inbox-command[data-urgency="urgent"] {
@@ -450,13 +450,14 @@
   padding: 12px 14px;
 }
 .inbox-command-folder {
+  overflow-wrap: anywhere;
   color: var(--color-muted);
   font-size: 11px;
   line-height: 16px;
 }
 .inbox-command-line {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   font-size: 16px;
   font-weight: 500;
@@ -470,11 +471,28 @@
   white-space: pre-wrap;
   word-break: break-all;
 }
+/* What draws as nothing in a command, said in its place: a run of blank lines on a row of
+   its own, a long run of spaces or an invisible character inline. */
+.inbox-command-mark {
+  margin: 0 2px;
+  padding: 0 4px;
+  border-radius: var(--radius-control);
+  background-color: var(--color-soft);
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.inbox-command-mark[data-mark="blank-lines"] {
+  display: inline-block;
+}
 .inbox-command-dollar {
   color: var(--color-muted);
   font-weight: 400;
 }
+/* At the command's end, so it is reached after the whole command, not beside its first line. */
 .inbox-copy {
+  align-self: flex-end;
   margin-left: auto;
 }
 .inbox-screen {

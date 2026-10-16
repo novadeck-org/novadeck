@@ -612,7 +612,13 @@ const ask: Tool<{ readonly id: string; readonly withdrawn?: boolean }> = {
             type: "object",
             properties: {
               type: { const: "action" },
-              command: { type: "string", maxLength: 4096 },
+              command: {
+                type: "string",
+                maxLength: 4096,
+                description:
+                  "What the user runs themselves, up to 40 lines, in characters that show: " +
+                  "Novadeck refuses one holding a character that draws as nothing.",
+              },
               directory: { type: "string", maxLength: 4096 },
               done_label: { type: "string", maxLength: 256 },
             },

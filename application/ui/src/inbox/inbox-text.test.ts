@@ -10,7 +10,6 @@ import {
   readLabel,
   recommended,
   resumesLabel,
-  splitDetail,
   standingOf,
   subjectOf,
   waitLabel,
@@ -344,19 +343,6 @@ describe("A permission's options", () => {
   it("has none where nothing says yes, or there are no options", () => {
     expect(choicesOf([option("a", "Continue"), option("b", "Stop")])).toBeNull()
     expect(choicesOf([])).toBeNull()
-  })
-})
-
-describe("What a dialog shows of what it asks", () => {
-  it("puts the folder over the command", () => {
-    expect(splitDetail("~/projects/app\n$ pnpm add x")).toEqual({
-      folder: "~/projects/app",
-      command: "pnpm add x",
-    })
-  })
-
-  it("keeps a detail with no folder as it is", () => {
-    expect(splitDetail("The plan")).toEqual({ folder: null, command: "The plan" })
   })
 })
 

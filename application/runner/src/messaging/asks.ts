@@ -3,6 +3,9 @@ import { randomUUID } from "node:crypto"
 import {
   agentAsk,
   askAnswer,
+  hiddenIn,
+  inboxLetter,
+  maxCommandLines,
   type AgentAsk,
   type AskAnswer,
   type InboxLetter,
@@ -76,6 +79,32 @@ const subject = z
       .refine((text) => !/[\r\n\x00-\x1f]/.test(text), "Use one line for the subject"),
   )
 const markdown = z.string().max(16_384)
+// A command an agent asks the person to run, kept as written, with every part of it in
+// sight: refused where it holds a character that draws as nothing, which could push the
+// rest past a run of blank rows, or more lines than the person reads before running it.
+// The Inbox marks long runs of blank lines and spaces where it shows one.
+const command = z
+  .string()
+  .transform((text) => cleanInboxText(text).trim())
+  .pipe(
+    z
+      .string()
+      .min(1)
+      .max(4096)
+      .superRefine((text, context) => {
+        const hidden = hiddenIn(text)
+        if (hidden)
+          context.addIssue({
+            code: "custom",
+            message: `The command holds a character that draws as nothing (${hidden}); use only characters that show`,
+          })
+        if (text.split("\n").length > maxCommandLines)
+          context.addIssue({
+            code: "custom",
+            message: `Keep the command to ${maxCommandLines} lines or fewer`,
+          })
+      }),
+  )
 const option = z.strictObject({
   label: subject,
   summary: z.string().transform(cleanInboxText).pipe(z.string().max(2048)).nullable().optional(),
@@ -91,11 +120,20 @@ const requestedShape = z.discriminatedUnion("type", [
   }),
   z.strictObject({
     type: z.literal("action"),
-    command: z.string().transform(cleanInboxText).pipe(z.string().trim().min(1).max(4096)),
+    command,
     directory: z
       .string()
       .transform(cleanInboxText)
-      .pipe(z.string().max(4096))
+      .pipe(
+        z
+          .string()
+          .max(1024)
+          // One line: the rule for what draws as nothing covers every control but a line feed.
+          .refine(
+            (text) => !text.includes("\n") && !hiddenIn(text),
+            "Use one plain line for the folder",
+          ),
+      )
       .nullable()
       .optional(),
     done_label: subject,
@@ -173,7 +211,13 @@ export class Asks {
     private readonly now = Date.now,
     { sweepMs = askSweepMs }: { readonly sweepMs?: number } = {},
   ) {
-    for (const letter of records.letters()) this.keep(letter)
+    // A letter stored before the wire's rules tightened would fail every listing it is in,
+    // so one the wire refuses now is dropped, not kept.
+    const stale: string[] = []
+    for (const letter of records.letters())
+      if (inboxLetter.shape.content.safeParse(letter.content).success) this.keep(letter)
+      else stale.push(letter.id)
+    if (stale.length > 0) records.removeLetters(stale)
     this.prune()
     if (sweepMs > 0) {
       this.sweeper = setInterval(() => {

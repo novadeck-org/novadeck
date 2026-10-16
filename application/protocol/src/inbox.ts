@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { agentName, id } from "./schemas.js"
+import { hiddenIn, maxCommandLines } from "./text.js"
 
 const line = z
   .string()
@@ -32,8 +33,16 @@ export const askShape = z.discriminatedUnion("type", [
     ),
   z.strictObject({
     type: z.literal("action"),
-    command: z.string().trim().min(1).max(4096),
-    directory: z.string().max(4096).nullable(),
+    // Everything in sight: nothing that draws as nothing, and no more lines than a person
+    // reads before running it (see `text.ts`).
+    command: z
+      .string()
+      .trim()
+      .min(1)
+      .max(4096)
+      .refine((text) => hiddenIn(text) === undefined, "Use only characters that show")
+      .refine((text) => text.split("\n").length <= maxCommandLines, "Keep the command short"),
+    directory: line.max(1024).nullable(),
     doneLabel: line,
   }),
 ])
