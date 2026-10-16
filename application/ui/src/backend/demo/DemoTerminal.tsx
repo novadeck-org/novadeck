@@ -191,7 +191,7 @@ const DemoTerminalSurface = ({
     <div
       ref={output}
       {...(session ? {} : root)}
-      className={`terminal-content demo-output min-h-0 flex-1 overflow-auto [&_strong]:font-semibold${session ? "" : " nodrag nopan"}${ending ? " mb-7" : ""}`}
+      className={`terminal-content demo-output min-h-0 flex-1 overflow-auto [:root[data-wheel-held]_&]:overflow-hidden [&_strong]:font-semibold${session ? "" : " nodrag nopan"}${ending ? " mb-7" : ""}`}
       onScroll={(event) => {
         const { scrollTop, scrollHeight, clientHeight } = event.currentTarget
         // A narrower layout can clamp the offset on its way out, so what is kept is that

@@ -917,10 +917,10 @@ error page too, so this is how the page tells a booted app from a failed load. T
 carries nothing sensitive; the page checks its origin and source. `?embed` means nothing
 outside the visitor build.
 
-A framed app takes no wheel until the visitor engages it: the wheel is taken before any
-part of the app sees it, so nothing scrolls or zooms, and handed to the page as `{ type:
-"novadeck:wheel", deltaX, deltaY }` in CSS pixels, for it to scroll with (a zoom gesture,
-ctrl or meta with the wheel, is taken and not handed on). The app has the wheel for the rest
+A framed app takes no wheel until the visitor engages it: the wheel is kept from every part
+of the app, so no canvas pans or zooms, but never cancelled, so the browser scrolls the page
+around the frame with it, at the visitor's own pace (a terminal with history above can still
+take an upward scroll first, as any scrollable box would). The app has the wheel for the rest
 of the page load once the visitor presses in it, or the page posts `{ type:
 "novadeck:engaged" }`, which the app accepts only from its parent window. The first click
 that completes in the app is told to the page once, as `{ type: "novadeck:clicked" }`,

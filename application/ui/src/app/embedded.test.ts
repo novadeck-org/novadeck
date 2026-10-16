@@ -40,60 +40,55 @@ const engage = (app: Window & typeof globalThis, source: Window): void => {
 describe("holdInputUntilEngaged", () => {
   afterEach(() => document.body.replaceChildren())
 
-  it("hands the wheel to the page around the app and keeps it from the app", () => {
-    const { held, app, posted } = framed()
+  // Whether a wheel at the app's body reaches the app's own handlers, and whether it was
+  // cancelled, which would keep the browser from scrolling the page with it.
+  const reach = (app: Window & typeof globalThis, init: WheelEventInit = {}) => {
     const reached = vi.fn<() => void>()
     app.document.body.addEventListener("wheel", reached)
-    holdInputUntilEngaged(held, app)
-    const event = wheel(app, { deltaX: 3, deltaY: 40 })
-    expect(event.defaultPrevented).toBe(true)
-    expect(reached).not.toHaveBeenCalled()
-    expect(posted).toHaveBeenCalledWith({ type: "novadeck:wheel", deltaX: 3, deltaY: 40 }, "*")
-  })
+    const event = wheel(app, init)
+    app.document.body.removeEventListener("wheel", reached)
+    return { reached: reached.mock.calls.length > 0, cancelled: event.defaultPrevented }
+  }
 
-  it("passes a wheel in lines or pages on as pixels", () => {
+  it("keeps the wheel from the app, and leaves its scroll to the page around it", () => {
     const { held, app, posted } = framed()
     holdInputUntilEngaged(held, app)
-    wheel(app, { deltaY: 3, deltaMode: 1 })
-    wheel(app, { deltaY: 1, deltaMode: 2 })
-    expect(posted).toHaveBeenNthCalledWith(
-      1,
-      { type: "novadeck:wheel", deltaX: 0, deltaY: 48 },
-      "*",
-    )
-    expect(posted).toHaveBeenNthCalledWith(
-      2,
-      { type: "novadeck:wheel", deltaX: 0, deltaY: app.innerHeight },
-      "*",
-    )
-  })
-
-  it("keeps a zoom gesture from the app without handing it up", () => {
-    const { held, app, posted } = framed()
-    holdInputUntilEngaged(held, app)
-    expect(wheel(app, { deltaY: -20, ctrlKey: true }).defaultPrevented).toBe(true)
-    expect(wheel(app, { deltaY: -20, metaKey: true }).defaultPrevented).toBe(true)
+    expect(reach(app, { deltaY: 40 })).toEqual({ reached: false, cancelled: false })
+    // A zoom gesture too: the page's, not the canvas's.
+    expect(reach(app, { deltaY: -20, ctrlKey: true })).toEqual({
+      reached: false,
+      cancelled: false,
+    })
     expect(posted).not.toHaveBeenCalled()
+  })
+
+  it("marks the app as holding the wheel, until it lets it go", () => {
+    const { held, app, parent } = framed()
+    const root = app.document.documentElement
+    holdInputUntilEngaged(held, app)
+    expect(root.dataset["wheelHeld"]).toBe("")
+    engage(app, parent)
+    expect(root.dataset["wheelHeld"]).toBeUndefined()
   })
 
   it("lets the app have the wheel for good once its page engages it", () => {
     const { held, app, parent, posted } = framed()
     holdInputUntilEngaged(held, app)
     engage(app, parent)
-    expect(wheel(app, { deltaY: 40 }).defaultPrevented).toBe(false)
+    expect(reach(app, { deltaY: 40 }).reached).toBe(true)
     expect(posted).not.toHaveBeenCalled()
     // A later hold, as a reboot makes, finds it engaged.
     holdInputUntilEngaged(held, app)
-    expect(wheel(app, { deltaY: 40 }).defaultPrevented).toBe(false)
+    expect(reach(app, { deltaY: 40 }).reached).toBe(true)
   })
 
   it("frees the wheel for good once the visitor presses in the app", () => {
     const { held, app, posted } = framed()
     holdInputUntilEngaged(held, app)
     app.document.body.dispatchEvent(new app.PointerEvent("pointerdown", { bubbles: true }))
-    expect(wheel(app, { deltaY: 40 }).defaultPrevented).toBe(false)
+    expect(reach(app, { deltaY: 40 }).reached).toBe(true)
     holdInputUntilEngaged(held, app)
-    expect(wheel(app, { deltaY: 40 }).defaultPrevented).toBe(false)
+    expect(reach(app, { deltaY: 40 }).reached).toBe(true)
     expect(posted).not.toHaveBeenCalled()
   })
 
@@ -104,7 +99,7 @@ describe("holdInputUntilEngaged", () => {
       app.document.body.dispatchEvent(
         new app.PointerEvent("pointerdown", { bubbles: true, button }),
       )
-    expect(wheel(app, { deltaY: 40 }).defaultPrevented).toBe(true)
+    expect(reach(app, { deltaY: 40 }).reached).toBe(false)
   })
 
   describe("telling the page of the first click", () => {
@@ -162,8 +157,8 @@ describe("holdInputUntilEngaged", () => {
         source: app.parent,
       }),
     )
-    expect(wheel(app, { deltaY: 40 }).defaultPrevented).toBe(true)
-    expect(posted).toHaveBeenCalledOnce()
+    expect(reach(app, { deltaY: 40 }).reached).toBe(false)
+    expect(posted).not.toHaveBeenCalled()
   })
 
   it("holds nothing where the app is not framed", () => {
