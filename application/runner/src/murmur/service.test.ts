@@ -2,6 +2,7 @@ import { chmod, readdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import type { MurmurState } from "@novadeck/protocol"
+import { vi } from "vitest"
 
 import { ActivityTracker } from "../engines/activity.js"
 import type { Launch } from "../engines/server.js"
@@ -16,6 +17,7 @@ import {
   processor,
   type FakeDevice,
 } from "../testing/murmur.js"
+import { redactionProbe } from "../testing/redaction-probe.js"
 import type { Resources } from "../testing/resources.js"
 import { WorkspaceStore } from "../workspaces/store.js"
 import type { AgentDigest, Digest, NoteDigest } from "./describer.js"
@@ -772,14 +774,27 @@ describe("a digest that takes too long to redact", () => {
         prepareScript: new URL("../testing/slow-worker.mjs", import.meta.url),
         now: () => 1_000,
       })
-      let ticks = 0
-      const timer = setInterval(() => (ticks += 1), 20)
-
-      const job = await context.murmur.describe({ ...digest, project: "hang" }, { terminal: "a" })
-      clearInterval(timer)
-
-      expect(job).toBeUndefined()
-      expect(ticks).toBeGreaterThan(8)
+      const probe = redactionProbe()
+      const hanging = { ...digest, project: "hang", redactionProbe: probe.buffer }
+      let finished = false
+      // Only the deadline is controlled; the worker and its main-loop acknowledgement
+      // stay real, without racing the host's timer cadence against 300 ms.
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      try {
+        const job = context.murmur.describe(hanging, { terminal: "a" }).then((result) => {
+          finished = true
+          return result
+        })
+        await probe.observe()
+        expect(finished).toBe(false)
+        await vi.advanceTimersByTimeAsync(299)
+        expect(finished).toBe(false)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(finished).toBe(true)
+        expect(await job).toBeUndefined()
+      } finally {
+        vi.useRealTimers()
+      }
       // Only that terminal is held off; another still gets a title.
       expect(
         await context.murmur.describe({ ...digest, project: "app" }, { terminal: "b" }),

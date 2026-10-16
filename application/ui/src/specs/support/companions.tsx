@@ -1,6 +1,7 @@
 import { expect } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
+import { noteBarDragTarget } from "./bar-drag"
 import { labelled, openWorkspace, terminal, terminalTab } from "./workspace"
 
 // Vocabulary for the companion taskbar along each terminal's bottom: its icons, their
@@ -117,12 +118,24 @@ const terminals = (): Element[] => page.getByRole("region", { name: / terminal$/
 /** A point in `view`, relative to it, where no terminal window covers it. */
 export const freeSpaceIn = (view: Locator): { x: number; y: number } => {
   const box = view.element().getBoundingClientRect()
-  for (let y = box.height - 40; y > 40; y -= 40)
-    for (let x = box.width - 40; x > 40; x -= 40) {
-      const hit = document.elementFromPoint(box.left + x, box.top + y)
-      if (hit && view.element().contains(hit) && !terminals().some((each) => each.contains(hit)))
-        return { x, y }
-    }
+  const occupied = terminals().map((each) => each.getBoundingClientRect())
+  // A shorter view can leave a free strip narrower than the first scan's inset.
+  for (const step of [40, 20])
+    for (let y = box.height - step; y > step; y -= step)
+      for (let x = box.width - step; x > step; x -= step) {
+        const clientX = box.left + x
+        const clientY = box.top + y
+        const hit = document.elementFromPoint(clientX, clientY)
+        // A Grid resize handle is a sibling of its terminal region, inside its rectangle.
+        const covered = occupied.some(
+          (each) =>
+            clientX >= each.left &&
+            clientX <= each.right &&
+            clientY >= each.top &&
+            clientY <= each.bottom,
+        )
+        if (hit && view.element().contains(hit) && !covered) return { x, y }
+      }
   throw new Error("No free space in the view")
 }
 
@@ -136,7 +149,13 @@ export const dragIconToFreeSpace = async (
   view: Locator,
   { one = false }: { one?: boolean } = {},
 ): Promise<void> => {
-  await drag(taskbarIcon(from, label), view, freeSpaceIn(view), one ? 1 : 12)
+  const at = freeSpaceIn(view)
+  noteBarDragTarget(
+    view.element(),
+    at,
+    terminals().map((each) => each.getBoundingClientRect()),
+  )
+  await drag(taskbarIcon(from, label), view, at, one ? 1 : 12)
 }
 
 /**

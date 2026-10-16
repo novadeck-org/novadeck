@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto"
 
 import { hookShellSlackMs } from "@novadeck/harness-core/harness"
+import type { ScreenText } from "@novadeck/harness-core/screen"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
+import type { TerminalEvent } from "@novadeck/protocol"
 import { vi } from "vitest"
 
 import { submitWindowMs } from "../messaging/delivery.js"
 import { describe, expect, it } from "../test.js"
-import { ptyOptions } from "../testing/pty.js"
+import { command, ptyOptions } from "../testing/pty.js"
 import type { Resources } from "../testing/resources.js"
 import { Terminals } from "./manager.js"
 
@@ -43,6 +45,7 @@ describe("settling a draft kept only by doubt", () => {
     settleBox: (record: unknown) => void
     messaging: {
       rooted: (id: string, changes: readonly unknown[]) => void
+      observe: (id: string, events: readonly unknown[]) => void
       keys: (id: string, kinds: readonly string[], asked: boolean) => void
       delivery: (id: string) => { state: string; epoch: number; box: { doubted: boolean } }
     }
@@ -59,7 +62,11 @@ describe("settling a draft kept only by doubt", () => {
    * ran their command, a /clear that took long: Drafting only by doubt. `reads` gives each
    * look at the screen, the last for the rest.
    */
-  const doubting = async (terminals: ReturnType<typeof fixture>, reads: unknown[]) => {
+  const doubting = async (
+    terminals: ReturnType<typeof fixture>,
+    reads: unknown[],
+    completed = false,
+  ) => {
     const manager = terminals.manager(ptyOptions)
     const terminal = await manager.create(
       { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
@@ -71,11 +78,6 @@ describe("settling a draft kept only by doubt", () => {
     const { messaging } = inside
     messaging.rooted(terminal.id, [root("a")])
     messaging.keys(terminal.id, ["content", "enter"], false)
-    messaging.rooted(terminal.id, [root("b")])
-    expect(messaging.delivery(terminal.id)).toMatchObject({
-      state: "drafting",
-      box: { doubted: true },
-    })
     let looked = 0
     inside.screenOf = () => Promise.resolve(reads[Math.min(looked++, reads.length - 1)])
     return {
@@ -85,6 +87,21 @@ describe("settling a draft kept only by doubt", () => {
       id: terminal.id,
       looks: () => looked,
       state: () => messaging.delivery(terminal.id)?.state,
+      start: () => {
+        // Start after the fake clock and screen reader are installed: delivery changes
+        // now start the manager's settling automatically, including a completed Stop.
+        if (completed) {
+          const identity = { agent: "agy", sessionId: "a", instance: null }
+          messaging.observe(terminal.id, [
+            { ...identity, type: "turn-started", cause: "prompt", startedAt: root("a").startedAt },
+            { ...identity, type: "turn-ended", outcome: "completed" },
+          ])
+        } else messaging.rooted(terminal.id, [root("b")])
+        expect(messaging.delivery(terminal.id)).toMatchObject({
+          state: "drafting",
+          box: { doubted: true },
+        })
+      },
     }
   }
 
@@ -95,8 +112,8 @@ describe("settling a draft kept only by doubt", () => {
     const between = await doubting(fixture(resources), [empty, typed, empty, typed])
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      settled.inside.settleBox(settled.record)
-      between.inside.settleBox(between.record)
+      settled.start()
+      between.start()
       await vi.advanceTimersByTimeAsync(0)
       expect(settled.state()).toBe("drafting")
       await vi.advanceTimersByTimeAsync(100)
@@ -109,17 +126,226 @@ describe("settling a draft kept only by doubt", () => {
     }
   })
 
+  it("automatically becomes Settled after a late prompt's completed turn and two empty reads", async ({
+    resources,
+  }) => {
+    const reading = await doubting(fixture(resources), [empty], true)
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+    try {
+      reading.start()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(reading.state()).toBe("drafting")
+      expect(reading.looks()).toBe(1)
+      await vi.advanceTimersByTimeAsync(100)
+      expect(reading.state()).toBe("settled")
+      expect(reading.looks()).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("settles a new doubt after the terminal restarts and its delivery epochs begin again", async ({
+    resources,
+  }) => {
+    const manager = fixture(resources).manager({ ...ptyOptions, transcripts: false })
+    const terminal = await manager.create(
+      { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+      "creator",
+    )
+    const inside = manager as unknown as Inside
+    const record = inside.records.get(terminal.id)!
+    const { messaging } = inside
+    const attach = () => {
+      const controller = new AbortController()
+      const stream = manager.attach(
+        { terminalId: terminal.id, mode: "observe" },
+        "observer",
+        controller.signal,
+      )
+      resources.defer(async () => {
+        controller.abort()
+        await stream.return(undefined)
+      })
+      return stream
+    }
+    const until = async (
+      stream: ReturnType<Terminals["attach"]>,
+      matches: (event: TerminalEvent, output: string) => boolean | Promise<boolean>,
+    ) => {
+      let output = ""
+      for (;;) {
+        // eslint-disable-next-line no-await-in-loop -- Leave the attachment open for the next read.
+        const result = await stream.next()
+        if (result.done) throw new Error("The terminal ended before the expected output or exit.")
+        const event = result.value
+        if (event.type === "attached") continue
+        if (event.type === "output" || event.type === "snapshot") output += event.data
+        manager.ack({ terminalId: terminal.id, sequence: event.sequence }, "observer")
+        // eslint-disable-next-line no-await-in-loop -- Each screen check follows its output event.
+        if (await matches(event, output)) return
+      }
+    }
+    const draw = async (stream: ReturnType<Terminals["attach"]>) => {
+      await until(stream, (_event, output) => output.includes("PTY_READY"))
+      // A real empty box on the runner's screen, not a replacement screen reader.
+      const drawing = `\x1b[2J\x1b[H${rule}\r\n> \r\n${rule}\x1b[2;3H`
+      manager.write(
+        { terminalId: terminal.id, data: command({ type: "write", data: drawing }) },
+        "creator",
+      )
+      await until(stream, async (event) => {
+        if (event.type !== "output") return false
+        const screen = (await inside.screenOf(terminal.id)) as ScreenText | undefined
+        return (
+          screen?.rows[0] === rule &&
+          screen.rows[2] === rule &&
+          screen.cursor.row === 1 &&
+          screen.cursor.column === 2
+        )
+      })
+    }
+    const settle = async (sessionId: string, next: string) => {
+      record.binding = { agent: "agy", sessionId, instance: null }
+      messaging.rooted(terminal.id, [root(sessionId)])
+      messaging.keys(terminal.id, ["content", "enter"], false)
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+      try {
+        messaging.rooted(terminal.id, [root(next)])
+        expect(messaging.delivery(terminal.id)).toMatchObject({
+          state: "drafting",
+          epoch: 2,
+          box: { doubted: true },
+        })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(messaging.delivery(terminal.id).state).toBe("drafting")
+        await vi.advanceTimersByTimeAsync(100)
+        expect(messaging.delivery(terminal.id)).toMatchObject({ state: "ready", epoch: 2 })
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    const first = attach()
+    await draw(first)
+    await settle("a", "b")
+    manager.write({ terminalId: terminal.id, data: command({ type: "exit", code: 0 }) }, "creator")
+    await until(first, (event) => event.type === "exited")
+    await first.return(undefined)
+    expect(messaging.delivery(terminal.id)).toBeUndefined()
+
+    await manager.restart({ terminalId: terminal.id, cols: 80, rows: 24 }, "creator")
+    expect(inside.records.get(terminal.id)).toBe(record)
+    expect(messaging.delivery(terminal.id).epoch).toBe(0)
+    const restarted = attach()
+    await draw(restarted)
+    await settle("c", "d")
+  })
+
+  it.for(["empty", "draft", "queued"] as const)(
+    "recovers a late post-interruption prompt only with an %s screen",
+    async (screen, { resources }) => {
+      const manager = fixture(resources).manager({ ...ptyOptions, platform: "win32" })
+      const terminal = await manager.create(
+        { id: randomUUID(), sessionId: "session", cwd, cols: 80, rows: 24 },
+        "creator",
+      )
+      const inside = manager as unknown as Inside
+      const record = inside.records.get(terminal.id)!
+      const identity = { agent: "codex", sessionId: "a", instance: null }
+      record.binding = identity
+      let reads = 0
+      inside.screenOf = () => {
+        reads += 1
+        return Promise.resolve(
+          screenWith({
+            rows: [
+              screen === "draft" ? "› another draft" : "› ",
+              screen === "queued" ? "Messages to be submitted after next tool call" : "",
+            ],
+            cursor: { row: 0, column: screen === "draft" ? 15 : 2 },
+          }),
+        )
+      }
+      const { messaging } = inside
+      const at = Date.now()
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
+      try {
+        messaging.rooted(terminal.id, [
+          {
+            type: "new",
+            root: { ...identity, source: "binding" },
+            guess: false,
+            ready: true,
+            startedAt: at,
+          },
+        ])
+        messaging.observe(terminal.id, [
+          { ...identity, type: "turn-started", cause: "harness", startedAt: at },
+        ])
+        vi.setSystemTime(at + 3432)
+        messaging.keys(terminal.id, ["escape"], false)
+        vi.setSystemTime(at + 7347)
+        messaging.keys(terminal.id, ["content"], false)
+        vi.setSystemTime(at + 7525)
+        messaging.keys(terminal.id, ["enter"], false)
+        vi.setSystemTime(at + 12433)
+        messaging.observe(terminal.id, [
+          {
+            ...identity,
+            type: "turn-started",
+            cause: "prompt",
+            startedAt: at + 12427.8293,
+            firedAt: at + 11996,
+          },
+        ])
+        vi.setSystemTime(at + 12977)
+        messaging.observe(terminal.id, [
+          { ...identity, type: "turn-ended", outcome: "completed", startedAt: at + 12974 },
+        ])
+        expect(messaging.delivery(terminal.id)).toMatchObject({
+          state: "drafting",
+          byPerson: false,
+          box: { doubted: true },
+        })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(reads).toBe(1)
+        expect(messaging.delivery(terminal.id).state).toBe("drafting")
+        await vi.advanceTimersByTimeAsync(100)
+        expect(messaging.delivery(terminal.id)).toMatchObject({
+          state: screen === "empty" ? "settled" : "drafting",
+          byPerson: false,
+        })
+        expect(reads).toBe(2)
+      } finally {
+        vi.useRealTimers()
+      }
+    },
+  )
+
   it("gives up after its window, leaving the draft", async ({ resources }) => {
     const drafted = await doubting(fixture(resources), [typed])
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      drafted.inside.settleBox(drafted.record)
+      drafted.start()
       await vi.advanceTimersByTimeAsync(5_200)
       const looked = drafted.looks()
       expect(looked).toBeGreaterThan(40)
       await vi.advanceTimersByTimeAsync(2_000)
       expect(drafted.looks()).toBe(looked)
       expect(drafted.state()).toBe("drafting")
+      // Another terminal change must not restart the same doubt's five-second budget.
+      drafted.inside.settleBox(drafted.record)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(drafted.looks()).toBe(looked)
+      // A later doubt has a new epoch and gets its own budget automatically.
+      drafted.inside.messaging.keys(drafted.id, ["content", "enter"], false)
+      drafted.inside.messaging.rooted(drafted.id, [root("c")])
+      expect(drafted.inside.messaging.delivery(drafted.id)).toMatchObject({
+        state: "drafting",
+        box: { doubted: true },
+      })
+      await vi.advanceTimersByTimeAsync(100)
+      expect(drafted.looks()).toBeGreaterThan(looked)
     } finally {
       vi.useRealTimers()
     }
@@ -129,7 +355,7 @@ describe("settling a draft kept only by doubt", () => {
     const reading = await doubting(fixture(resources), [typed])
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      reading.inside.settleBox(reading.record)
+      reading.start()
       await vi.advanceTimersByTimeAsync(500)
       expect(reading.looks()).toBeGreaterThan(1)
       const closing = reading.manager.close({ terminalId: reading.id })
@@ -147,7 +373,7 @@ describe("settling a draft kept only by doubt", () => {
     const reading = await doubting(fixture(resources), [typed, empty])
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] })
     try {
-      reading.inside.settleBox(reading.record)
+      reading.start()
       await vi.advanceTimersByTimeAsync(0)
       reading.inside.messaging.keys(reading.id, ["content"], false)
       await vi.advanceTimersByTimeAsync(1_000)
@@ -174,7 +400,7 @@ describe("settling a draft kept only by doubt", () => {
           await new Promise<void>((resolve) => (release = resolve))
         return screen
       }
-      reading.inside.settleBox(reading.record)
+      reading.start()
       await vi.advanceTimersByTimeAsync(100)
       expect(release).toBeDefined()
       // The person typed, pressed Enter, and a /clear's session bound late again.

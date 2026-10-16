@@ -5,6 +5,7 @@ import { vi } from "vitest"
 import { createSpecBackend } from "../backend/demo/spec-variants"
 import type { CreateBackend, TerminalSurfaceProps } from "../backend/port"
 import { context, describe, expect, it } from "../test"
+import { testPhases } from "../test/phases"
 import { render } from "../test/render"
 import {
   useWorkspaceServices,
@@ -26,6 +27,7 @@ vi.hoisted(() => {
 
 // The second terminal of the demo's storefront.
 const second = "storefront-initial-02"
+const phases = new WeakMap<HTMLElement, (phase: string) => void>()
 
 const Subject = ({ id }: { id: string }): React.JSX.Element => {
   const terminal = useWorkspaceState((workspace) =>
@@ -44,14 +46,18 @@ const Grab = ({ found }: { found: (services: WorkspaceServices) => void }): null
 const open = async (id: string) => {
   window.location.hash = "#/projects/storefront/sessions/initial/focus"
   const lifecycle = { mounted: 0, unmounted: 0 }
+  const phase = testPhases("process windows", () => lifecycle)
   const createBackend: CreateBackend = () => {
+    phase("before backend creation")
     const backend = createSpecBackend()
+    phase("after backend creation")
     const TerminalSurface = ({
       terminal,
       renderWindow,
     }: TerminalSurfaceProps): React.JSX.Element => {
       useEffect(() => {
         lifecycle.mounted += 1
+        phase("surface mounted")
         return () => {
           lifecycle.unmounted += 1
         }
@@ -72,6 +78,7 @@ const open = async (id: string) => {
   const handedOver = new Promise<WorkspaceServices>((resolve) => {
     found = resolve
   })
+  phase("before synchronous render")
   const page = render(
     createElement(
       HashRouter,
@@ -84,16 +91,21 @@ const open = async (id: string) => {
       ),
     ),
   )
+  phases.set(page.container, phase)
+  phase("after synchronous render")
   const services = await act(() => handedOver)
+  phase("after provider act")
   const target = { projectId: "storefront", workspaceSessionId: "initial" }
   const process = (program: string) =>
     act(() => {
+      phase(`before process ${program}`)
       services.workspace.dispatch({
         type: "terminal/process",
         target,
         terminalId: id,
         process: program,
       })
+      phase(`dispatched process ${program}`)
     })
   const fail = () =>
     act(() => {
@@ -117,12 +129,14 @@ const open = async (id: string) => {
 }
 
 const visibleWindow = (container: HTMLElement): HTMLElement => {
+  phases.get(container)?.("before window style queries")
   const windows = [...container.querySelectorAll<HTMLElement>("[data-terminal]")].filter(
     (window) =>
       getComputedStyle(window).display !== "none" &&
       getComputedStyle(window.parentElement!).display !== "none",
   )
   expect(windows).toHaveLength(1)
+  phases.get(container)?.("after window style queries")
   return windows[0]!
 }
 

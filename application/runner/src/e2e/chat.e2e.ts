@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { isEmpty } from "@novadeck/harness-core/box"
 import type { TranscriptItem } from "@novadeck/protocol"
 
 import { harnesses } from "../harnesses/registry.js"
@@ -198,8 +199,10 @@ for (const setup of setups) {
       for (const text of ["/clear", "see @src", "use $", "Hello\x15there", "\x1b[201~x"])
         await expect(t1.prompt(text)).rejects.toMatchObject({ code: "PROMPT_REFUSED" })
       await sleep(500)
-      const shown = await t1.screen()
-      for (const typed of ["@src", "/clear", "!ls"]) expect(shown).not.toContain(typed)
+      const shown = await t1.screenText()
+      const box = shown && harnesses[setup.agent].box.read(shown)
+      expect(box, JSON.stringify(shown?.rows)).toBeDefined()
+      expect(box && isEmpty(box), JSON.stringify(box)).toBe(true)
       expect(await texts(t1, "user")).toEqual([])
     })
 
@@ -260,39 +263,75 @@ for (const setup of setups) {
     it("gives its agent prompts back to back, awaited one by one and queued together", async ({
       e2e: run,
     }) => {
+      const pairs = [
+        { first: "First quick", second: "Second quick", reply: "Did first.", next: "Did second." },
+        { first: "Third one", second: "Fourth one", reply: "Did third.", next: "Did fourth." },
+        {
+          first: "Five\nlines\nof\nit\nhere",
+          second: "Then one",
+          reply: "Did five.",
+          next: "Did then.",
+        },
+      ].map((pair) => ({ ...pair, held: gate() }))
       run.model.use(
-        replies("First quick", "Did first."),
-        replies("Second quick", "Did second."),
-        // Given while the third's turn starts, the fourth may join it where the harness
-        // steers a running turn with what is queued: one call then holds both.
-        own((call) =>
-          setup.steers && asked(call, "Third one") && asked(call, "Fourth one")
-            ? { text: "Did third. Did fourth." }
-            : undefined,
+        ...pairs.map((pair) =>
+          own(async (call) => {
+            if (!asked(call, pair.first)) return undefined
+            await pair.held.opened
+            // A harness that steers can give one model call both queued prompts.
+            return {
+              text:
+                setup.steers && asked(call, pair.second)
+                  ? `${pair.reply} ${pair.next}`
+                  : pair.reply,
+            }
+          }),
         ),
-        replies("Third one", "Did third."),
-        replies("Fourth one", "Did fourth."),
-        replies("Five\nlines\nof\nit\nhere", "Did five."),
-        replies("Then one", "Did then."),
+        ...pairs.map((pair) => replies(pair.second, pair.next)),
       )
       const t1 = await start(run, setup)
+      const profile = harnesses[setup.agent].box!
+      for (const [index, pair] of pairs.entries()) {
+        const mark = t1.mark()
+        const calls = run.model.mark()
+        // Hold the response until the second prompt is actually queued or steered.
+        // The CI follow-up reached the harness queue around Stop but never the model;
+        // this scenario checks mid-turn queueing, with no race against a model reply.
+        if (index === 1) await Promise.all([t1.prompt(pair.first), t1.prompt(pair.second)])
+        else {
+          await t1.prompt(pair.first)
+          await t1.prompt(pair.second)
+        }
+        await run.model.waitFor((call) => !call.side && asked(call, pair.first), { after: calls })
+        await t1.poll(async () => {
+          const shown = await t1.screenText()
+          const steered = run.model.calls
+            .slice(calls)
+            .some((call) => !call.side && asked(call, pair.second))
+          return steered || (shown && profile.queued(shown)) ? true : undefined
+        }, "its second prompt to be queued or steered before the model replies")
+        pair.held.open()
+        await item(t1, "assistant", (text) => text.includes(pair.next))
+        await through(t1, ["working", "settled"], { after: mark })
+        await t1.poll(async () => {
+          const shown = await t1.screenText()
+          const box = shown && profile.read(shown)
+          return shown &&
+            box &&
+            isEmpty(box) &&
+            !profile.queued(shown) &&
+            t1.history().at(-1)?.delivery === "settled"
+            ? true
+            : undefined
+        }, "its settled prompt to show an empty box and no queued input")
+      }
 
-      // Each group goes back to back; between them the turns end, as an agent that is given
-      // a prompt as its turn ends may drop it from its queue (Antigravity 1.3.1 did, once).
-      await t1.prompt("First quick")
-      await t1.prompt("Second quick")
-      await item(t1, "assistant", (text) => text.includes("Did second."))
-      await Promise.all([t1.prompt("Third one"), t1.prompt("Fourth one")])
-      await item(t1, "assistant", (text) => text.includes("Did fourth."))
-      await t1.prompt("Five\nlines\nof\nit\nhere")
-      await t1.prompt("Then one")
-
-      for (const reply of ["Did first.", "Did second.", "Did third.", "Did fourth.", "Did then."])
+      for (const reply of pairs.flatMap((pair) => [pair.reply, pair.next]))
         await item(t1, "assistant", (text) => text.includes(reply))
       const users = await texts(t1, "user")
       // Each once, as its own prompt; or, where the harness steers, maybe in the turn it
       // joined.
-      for (const sent of ["First quick", "Second quick", "Third one", "Fourth one", "Then one"])
+      for (const sent of pairs.flatMap((pair) => [pair.first, pair.second]))
         expect(
           users.filter((text) => (setup.steers ? text.includes(sent) : text === sent)),
         ).toHaveLength(1)

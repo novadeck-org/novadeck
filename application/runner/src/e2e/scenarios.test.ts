@@ -6,7 +6,16 @@ import { describe, expect, it } from "../test.js"
 import { claude } from "./agents/claude.js"
 import { createHistory } from "./history.js"
 import type { Call } from "./model/script.js"
-import { deliveries, delivered, holds, lacking, prompted, ring, through } from "./scenarios.js"
+import {
+  deliveries,
+  delivered,
+  holds,
+  lacking,
+  prompted,
+  ring,
+  through,
+  withoutSandbox,
+} from "./scenarios.js"
 
 const message = (fields: Partial<Message> = {}): Message => ({
   id: "m-1",
@@ -59,6 +68,16 @@ const two = [
     text: "a < b && c > d",
   }),
 ]
+
+describe("tool output outside its sandbox path", () => {
+  it("strips native, forward-slash and JSON Windows paths without hiding typed text", () => {
+    const root = "C:\\Temp\\novadeck-e2e-abzz12"
+    for (const path of [root, root.replaceAll("\\", "/"), JSON.stringify(root).slice(1, -1)]) {
+      expect(withoutSandbox(`${path}/project`, root)).toBe("/project")
+      expect(withoutSandbox(`${path}/project zz`, root)).toBe("/project zz")
+    }
+  })
+})
 const expected = [
   { from: "moth", text: "What is your colour?" },
   { from: "owl", text: "a < b && c > d" },

@@ -11,7 +11,7 @@ import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, gated, supported } from "./fixture.js"
 import { text, type Rule } from "./model/script.js"
 import type { FakeModel } from "./model/server.js"
-import { answers, lacking, own, result, start } from "./scenarios.js"
+import { answers, lacking, own, result, start, withoutSandbox } from "./scenarios.js"
 
 // Answering an agent's requests from the chat, through the dialog in its TUI, the same for
 // every harness (see messaging.e2e.ts for the rule on parity): `agents.detail` shows each
@@ -242,13 +242,13 @@ for (const setup of setups) {
         expect(
           run.model.calls
             .slice(calls)
-            .filter((call) => result(call)?.replaceAll(run.sandbox.root, "").includes("zz")),
+            .filter((call) => withoutSandbox(result(call) ?? "", run.sandbox.root).includes("zz")),
         ).toEqual([])
         // Typed while the answer held their keys, they were dropped, not replayed into
         // what came next; typed once it was done, they arrive.
         await sleep(500)
         t1.press("qq")
-        await t1.until(/qq/)
+        await t1.until(/(?:^|\n)[❯›>]\s*qq\s*(?:\n|$)/)
       },
     )
 

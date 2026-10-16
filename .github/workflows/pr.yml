@@ -16,13 +16,11 @@ jobs:
   verify:
     name: Verify
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Check Out Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # pnpm is downloaded from the npm registry with a 30 s bound, which a slow runner
-      # misses now and then (seen on Windows CI); a second try follows a failed first.
       - name: Set Up Toolchain
         id: toolchain
         continue-on-error: true
@@ -31,6 +29,12 @@ jobs:
           runtime: node@26
           cache: true
           require-lockfile: true
+
+      # An immediate retry hit the same registry outage in the flake audit.
+      - name: Wait Before Retrying Toolchain
+        if: steps.toolchain.outcome == 'failure'
+        shell: bash
+        run: sleep 180
 
       - name: Set Up Toolchain Again
         if: steps.toolchain.outcome == 'failure'

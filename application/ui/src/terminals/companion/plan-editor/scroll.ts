@@ -97,23 +97,21 @@ export const followScroll = (view: EditorView, on: (scroll: PlanScroll) => void)
   return () => scroller.removeEventListener("scroll", note)
 }
 
-// Scrolls the pane back to where `scroll` says, at once, then again each frame while the
-// editor measures the lines that came into view, whose heights it had only estimated, or
-// an edit moves the place; `done` once it holds still, after half a second, or once the
-// person, or anything else, scrolls the pane. Holding still counts frames as well as time,
-// and half a second frames as well as time: a busy machine draws few of them, and the
-// editor measures and Canvas zooms the pane only in the ones it does (seen in CI, a restore
-// that ended before either and left the pane a few lines off). Out of sight, it waits until
-// the pane shows. Returns the finish, for an editor that closes or jumps elsewhere meanwhile.
+export type ScrollRestore = { readonly stop: () => void; readonly layout: () => void }
+
+// Keeps the saved line through layout changes until the person scrolls or the app jumps
+// elsewhere. Frames settle the editor's estimated heights, then sleep; a resize or a
+// CodeMirror geometry update wakes them again, even after a late font load or Canvas fit.
+// `done` hands ownership to the scroll follower only when the restore is stopped.
 export const restoreScroll = (
   view: EditorView,
   scroll: () => PlanScroll | null,
   done: () => void,
-): (() => void) => {
+): ScrollRestore => {
   const scroller = scrollerOf(view.dom)
   if (!scroller) {
     done()
-    return () => {}
+    return { stop: () => {}, layout: () => {} }
   }
   const target = (): number | null => {
     const now = scroll()
@@ -154,7 +152,11 @@ export const restoreScroll = (
       const top = scroller.scrollTop
       // The pane cut short as what it holds shrank for a moment isn't anyone's scroll.
       const clamped = top < placed && top >= scroller.scrollHeight - scroller.clientHeight - 1
-      if (!clamped && Math.abs(top - placed) >= 1) finish()
+      if (!clamped && Math.abs(top - placed) >= 1) {
+        // Layout and the browser's scroll anchoring can move the pane without input.
+        if (layoutOf() !== layout) resume()
+        else finish()
+      }
     },
     { signal, passive: true },
   )
@@ -172,7 +174,12 @@ export const restoreScroll = (
   let still = 0
   let layout = ""
   const settle = (now: number): void => {
-    if (began < 0) began = moved = now
+    frame = 0
+    if (!scroller.clientHeight) return
+    if (began < 0) {
+      began = moved = now
+      placed = scroller.scrollTop
+    }
     frames += 1
     const moving = go()
     const seen = layoutOf()
@@ -184,24 +191,19 @@ export const restoreScroll = (
     } else still += 1
     const held = now - moved >= 150 && still >= 8
     const late = (now - began >= 500 && frames >= 20) || now - began >= 3000
-    if (held || late) finish()
-    else frame = requestAnimationFrame(settle)
+    if (!held && !late) frame = requestAnimationFrame(settle)
   }
-  const start = (): void => {
-    placed = scroller.scrollTop
-    go()
-    layout = layoutOf()
+  const resume = (): void => {
+    if (signal.aborted || frame) return
+    began = -1
+    frames = still = 0
+    // Called from CodeMirror's update listener too, where reading layout is forbidden.
     frame = requestAnimationFrame(settle)
   }
-  if (scroller.clientHeight) start()
-  else {
-    const shows = new ResizeObserver(() => {
-      if (!scroller.clientHeight) return
-      shows.disconnect()
-      start()
-    })
-    shows.observe(scroller)
-    signal.addEventListener("abort", () => shows.disconnect())
-  }
-  return finish
+  const resize = new ResizeObserver(resume)
+  resize.observe(scroller)
+  resize.observe(view.dom)
+  signal.addEventListener("abort", () => resize.disconnect())
+  resume()
+  return { stop: finish, layout: resume }
 }

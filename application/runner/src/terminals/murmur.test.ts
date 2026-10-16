@@ -3000,7 +3000,7 @@ describe("murmur's headlines and gists", () => {
       const { murmur, describer, subjects, gisted } = create({ activity: ended(20), transcript })
       murmur.replied("a", 20)
       murmur.replied("a", 20)
-      await real()
+      await vi.waitFor(() => expect(gisted).toEqual(["Gist 1"]))
       expect(describer.notes.map(({ digest }) => digest)).toEqual([
         { kind: "reply", reply: "Fixed the rounding bug.", failed: false },
       ])
@@ -3017,7 +3017,7 @@ describe("murmur's headlines and gists", () => {
       const transcript = written(`assistant:text:${long}`)
       const { murmur, describer } = create({ activity: ended(20, "failed"), transcript })
       murmur.replied("a", 20)
-      await real()
+      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
       const digest = describer.notes[0]!.digest as { reply: string; failed: boolean }
       expect(digest.failed).toBe(true)
       expect(digest.reply).toBe(`${"a".repeat(4000)}\n…\n${"z".repeat(4000)}`)
@@ -3045,7 +3045,7 @@ describe("murmur's headlines and gists", () => {
       const { murmur, describer, change, gisted } = create({ activity: ended(20), transcript })
       describer.hold = true
       murmur.replied("a", 20)
-      await real()
+      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
       expect(describer.notes).toHaveLength(1)
       change({ activity: asking([]) })
       murmur.changed("a")
@@ -3066,11 +3066,11 @@ describe("murmur's headlines and gists", () => {
         }),
       )
       skipped.murmur.replied("a", 20)
-      await real()
+      // The first transcript read and skipped job must finish before changing usability.
+      await vi.waitFor(() => expect(skipped.describer.notes).toHaveLength(1))
       skipped.describer.setUsable(false)
       skipped.describer.setUsable(true)
-      await real()
-      expect(skipped.gisted).toEqual(["Did it"])
+      await vi.waitFor(() => expect(skipped.gisted).toEqual(["Did it"]))
     })
 
     it("drops a reply whose end stopped being the last while its transcript was read", async () => {
@@ -3093,8 +3093,7 @@ describe("murmur's headlines and gists", () => {
       await real()
       expect(describer.notes).toHaveLength(0)
       murmur.replied("a", 20)
-      await real()
-      expect(gisted).toEqual(["Gist 1"])
+      await vi.waitFor(() => expect(gisted).toEqual(["Gist 1"]))
     })
 
     it("keeps a gist that did not run for the catch-up when murmur is unusable as it is due", async () => {
@@ -3108,14 +3107,13 @@ describe("murmur's headlines and gists", () => {
         { retryMs: 150 },
       )
       murmur.replied("a", 20)
-      await real()
+      await vi.waitFor(() => expect(describer.notes).toHaveLength(1))
       describer.setUsable(false)
       // Its retry comes and goes while murmur can't run.
       await real(500)
       expect(gisted).toEqual([])
       describer.setUsable(true)
-      await real()
-      expect(gisted).toEqual(["Did it"])
+      await vi.waitFor(() => expect(gisted).toEqual(["Did it"]))
     })
 
     it("asks again after a job that did not run, and not after a refusal", async () => {
@@ -3130,17 +3128,16 @@ describe("murmur's headlines and gists", () => {
       )
       // Shown unread once: the same end is asked for again after a while on its own.
       skipped.murmur.replied("a", 20)
-      await real()
+      await vi.waitFor(() => expect(skipped.describer.notes).toHaveLength(1))
       expect(skipped.gisted).toEqual([])
-      await real(500)
-      expect(skipped.gisted).toEqual(["Did it"])
+      await vi.waitFor(() => expect(skipped.gisted).toEqual(["Did it"]))
 
       const refused = create(
         { activity: ended(20), transcript },
         new FakeDescriber({ note: () => null }),
       )
       refused.murmur.replied("a", 20)
-      await real()
+      await vi.waitFor(() => expect(refused.describer.notes).toHaveLength(1))
       refused.murmur.replied("a", 20)
       await real()
       expect(refused.describer.notes).toHaveLength(1)
@@ -3157,20 +3154,18 @@ describe("murmur's headlines and gists", () => {
         const done = create({ activity: ended(20), transcript })
         done.describer.hold = true
         done.murmur.replied("a", 20)
-        await real()
+        await vi.waitFor(() => expect(done.describer.notes).toHaveLength(1))
         expect(done.describer.notes).toHaveLength(1)
         done.describer.setUsable(false)
         expect(done.describer.notes[0]!.signal?.aborted).toBe(true)
         done.describer.setUsable(true)
-        await real()
-        expect(done.describer.notes).toHaveLength(2)
+        await vi.waitFor(() => expect(done.describer.notes).toHaveLength(2))
 
         const asked = create({ activity: asking([request()]) })
         asked.describer.setUsable(false)
         asked.murmur.changed("a")
         asked.describer.setUsable(true)
-        await real()
-        expect(asked.headlined).toEqual(["Headline 1"])
+        await vi.waitFor(() => expect(asked.headlined).toEqual(["Headline 1"]))
       } finally {
         rmSync(directory, { recursive: true, force: true })
       }

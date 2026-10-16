@@ -1,0 +1,177 @@
+name: Flaky capture
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/flaky-capture.yml
+      - scripts/flaky-capture/**
+      - application/runner/src/e2e/probes/agy-stop-boundary.e2e.ts
+      - application/runner/vitest.agy-capture.config.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  grid:
+    name: Grid capture (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+          - name: Windows
+            os: windows-latest
+    env:
+      NOVADECK_CAPTURE_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check Out Fixed PR Head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Record Checkout
+        run: |
+          mkdir -p "$RUNNER_TEMP/flaky-capture"
+          git rev-parse HEAD > "$RUNNER_TEMP/flaky-capture/checkout.txt"
+
+      - name: Set Up Toolchain
+        id: toolchain
+        continue-on-error: true
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      - name: Wait Before Retrying Toolchain
+        if: steps.toolchain.outcome == 'failure'
+        run: sleep 180
+
+      - name: Set Up Toolchain Again
+        if: steps.toolchain.outcome == 'failure'
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      - name: Record Tool Versions
+        run: |
+          node --version > "$RUNNER_TEMP/flaky-capture/node.txt"
+          pnpm --version > "$RUNNER_TEMP/flaky-capture/pnpm.txt"
+
+      - name: Build UI Protocol Dependency
+        run: pnpm --filter @novadeck/protocol build
+
+      - name: Locate Test Browser
+        id: playwright
+        run: |
+          echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright" >> "$GITHUB_ENV"
+          echo "version=$(pnpm --filter @novadeck/ui exec playwright --version | awk '{ print $2 }')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Test Browser
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Test Browser
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @novadeck/ui exec playwright install --with-deps chromium
+
+      - name: Capture Up To Five Companion Processes
+        timeout-minutes: 17
+        run: node scripts/flaky-capture/grid.ts --output "$RUNNER_TEMP/flaky-capture/grid" --attempts 5
+
+      - name: Upload Grid Capture And Controls
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: grid-capture-${{ runner.os }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/flaky-capture/
+          if-no-files-found: warn
+          include-hidden-files: false
+          retention-days: 7
+
+  agy:
+    name: Antigravity capture (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    env:
+      NOVADECK_CAPTURE_HEAD: ${{ github.event.pull_request.head.sha }}
+      NOVADECK_E2E_AGENTS: agy
+      NOVADECK_E2E_HARNESS: pinned
+      NOVADECK_E2E_CACHE: ${{ github.workspace }}/.e2e-cache
+    steps:
+      - name: Check Out Fixed PR Head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Record Checkout
+        run: |
+          mkdir -p "$RUNNER_TEMP/flaky-capture"
+          git rev-parse HEAD > "$RUNNER_TEMP/flaky-capture/checkout.txt"
+
+      - name: Set Up Toolchain
+        id: toolchain
+        continue-on-error: true
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      - name: Wait Before Retrying Toolchain
+        if: steps.toolchain.outcome == 'failure'
+        run: sleep 180
+
+      - name: Set Up Toolchain Again
+        if: steps.toolchain.outcome == 'failure'
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      - name: Record Tool Versions
+        run: |
+          node --version > "$RUNNER_TEMP/flaky-capture/node.txt"
+          pnpm --version > "$RUNNER_TEMP/flaky-capture/pnpm.txt"
+
+      - name: Build Protocol And Relay
+        run: pnpm --filter @novadeck/protocol --filter @novadeck/relay build
+
+      - name: Install Pinned Antigravity
+        run: node scripts/e2e/install/main.ts
+
+      - name: Capture Up To Five Stop Boundary Processes
+        timeout-minutes: 17
+        run: node scripts/flaky-capture/agy.ts --output "$RUNNER_TEMP/flaky-capture/agy" --attempts 5
+
+      - name: Upload Antigravity Capture And Controls
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agy-capture-Linux-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/flaky-capture/
+          if-no-files-found: warn
+          include-hidden-files: false
+          retention-days: 7

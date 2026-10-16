@@ -249,47 +249,69 @@ type Message = { readonly id?: unknown; readonly result?: unknown; readonly erro
  * request resolves to its result, or fails with its error, after `timeoutMs`, or as soon
  * as the app-server can't answer, as it failed to start or exited.
  */
-const appServer = (env: Readonly<Record<string, string>>, timeoutMs = 20_000) => {
+export const appServer = (env: Readonly<Record<string, string>>, timeoutMs = 20_000) => {
+  const began = Date.now()
+  const events: string[] = []
+  const record = (text: string) => {
+    events.push(`+${Date.now() - began} ms ${text}`)
+    if (events.length > 20) events.shift()
+  }
+  let stderr = ""
+  let buffered = ""
+  const diagnostic = (message: string) =>
+    new Error(
+      `${message}\n${events.join("\n")}\nstderr: ${stderr || "(empty)"}\npartial stdout: ${buffered.slice(-2000) || "(empty)"}`,
+    )
   // On Windows through cmd, as npm installs it as codex.cmd, which only cmd runs.
   const child =
     process.platform === "win32"
       ? spawn(env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", '"codex app-server"'], {
           env,
           cwd: env.HOME,
-          stdio: ["pipe", "pipe", "ignore"],
+          stdio: ["pipe", "pipe", "pipe"],
           windowsHide: true,
           windowsVerbatimArguments: true,
         })
-      : spawn("codex", ["app-server"], { env, cwd: env.HOME, stdio: ["pipe", "pipe", "ignore"] })
+      : spawn("codex", ["app-server"], { env, cwd: env.HOME, stdio: ["pipe", "pipe", "pipe"] })
   const pending = new Map<number, (message: Message | Error) => void>()
   // Why the app-server can't answer any more, once it can't.
   let gone: Error | undefined
   const fail = (error: Error) => {
-    gone ??= error
+    gone ??= diagnostic(error.message)
     for (const settle of pending.values()) settle(gone)
   }
   child.on("error", (error) => fail(new Error(`Codex's app-server failed: ${error.message}`)))
+  child.on("spawn", () => record(`spawned pid ${child.pid}`))
   // Once its output is all read, so an answer it gave before exiting still counts.
   child.on("close", (code, signal) =>
     fail(new Error(`Codex's app-server exited (${signal ?? `code ${code}`})`)),
   )
-  let buffered = ""
   let next = 1
+  child.stderr.setEncoding("utf8")
+  child.stderr.on("data", (chunk: string) => {
+    stderr = (stderr + chunk).slice(-4000)
+    record(`stderr ${chunk.length} chars`)
+  })
   child.stdout.setEncoding("utf8")
   child.stdout.on("data", (chunk: string) => {
+    record(`stdout ${chunk.length} chars`)
     buffered += chunk
     for (let end = buffered.indexOf("\n"); end >= 0; end = buffered.indexOf("\n")) {
       const line = buffered.slice(0, end)
       buffered = buffered.slice(end + 1)
       try {
         const message = JSON.parse(line) as Message
-        if (typeof message.id === "number") pending.get(message.id)?.(message)
+        if (typeof message.id === "number" && pending.has(message.id))
+          pending.get(message.id)!(message)
+        else record(`unmatched message id ${JSON.stringify(message.id)}`)
       } catch {
-        // Not JSON: something else it printed.
+        record(`non-JSON stdout: ${line.slice(0, 300)}`)
       }
     }
   })
-  child.stdin.on("error", () => {})
+  child.stdin.on("error", (error) =>
+    fail(new Error(`Codex's app-server stdin failed: ${error.message}`)),
+  )
   const send = (message: object) => child.stdin.write(`${JSON.stringify(message)}\n`)
   const request = (method: string, params: object): Promise<unknown> =>
     new Promise((resolve, reject) => {
@@ -300,7 +322,7 @@ const appServer = (env: Readonly<Record<string, string>>, timeoutMs = 20_000) =>
       const id = next++
       const timer = setTimeout(() => {
         pending.delete(id)
-        reject(new Error(`Codex's app-server didn't answer ${method} in ${timeoutMs} ms`))
+        reject(diagnostic(`Codex's app-server didn't answer ${method} in ${timeoutMs} ms`))
       }, timeoutMs)
       pending.set(id, (message) => {
         clearTimeout(timer)
@@ -310,6 +332,7 @@ const appServer = (env: Readonly<Record<string, string>>, timeoutMs = 20_000) =>
           reject(new Error(`${method} failed: ${JSON.stringify(message.error)}`))
         else resolve(message.result)
       })
+      record(`request ${id} ${method}`)
       send({ jsonrpc: "2.0", id, method, params })
     })
   return {

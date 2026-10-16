@@ -42,9 +42,10 @@ const hideValue = (value: string): string => {
 const mask = hide
 
 type Replacer = (...match: string[]) => string
-// A rule with `true` after it looks again from the next character whenever it leaves a match
-// as it was, since a name that is no secret must not hide one inside its value.
-type Rule = readonly [RegExp, Replacer] | readonly [RegExp, Replacer, true]
+// `true` scans inside an unchanged match. A value pattern instead reads a field's value
+// only when its name (the numbered group) sounds secret; ordinary fields can contain
+// nested secrets, but need no repeated parsing of their overlapping values.
+type Rule = readonly [RegExp, Replacer, (true | RegExp)?, number?]
 
 // Words that make a name a secret's wherever it is, and ones that do so only whole.
 const secretInside = /(secret|passw|passphrase|apikey|privatekey|credential|has[lł][oa])/
@@ -313,15 +314,13 @@ const rules: readonly Rule[] = [
   ],
   // NAME=value, where the name sounds secret.
   [
-    new RegExp(
-      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*=[ \\t]*)(${quoted}|[^\\s"',;&]{1,${valueCap}})`,
-      "gu",
-    ),
+    new RegExp(`(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*=[ \\t]*)`, "gu"),
     (all, name, joint, value, offset, text) =>
       sounds(name) && secretValue(value, true) && !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`
         : all,
-    true,
+    new RegExp(`${quoted}|[^\\s"',;&]{1,${valueCap}}`, "uy"),
+    1,
   ],
   // Polish: hasło: tajne, haslo=tajne
   [
@@ -342,27 +341,23 @@ const rules: readonly Rule[] = [
   // "name": "value", as JSON has it, and 'name': 'value'; in a string of a log line the
   // quotes are escaped: {\"name\":\"value\"}.
   [
-    new RegExp(
-      `(\\\\?)(["'])([\\p{L}_][\\p{L}\\p{N}_.-]*)\\1\\2([ \\t]*:[ \\t]*)(${quoted}|[^\\s,}\\]]+)`,
-      "gu",
-    ),
+    new RegExp(`(\\\\?)(["'])([\\p{L}_][\\p{L}\\p{N}_.-]*)\\1\\2([ \\t]*:[ \\t]*)`, "gu"),
     (all, slash, quote, name, joint, value, offset, text) =>
       sounds(name) && secretValue(value) && !closesLiteral(value, offset, text)
         ? `${slash}${quote}${name}${slash}${quote}${joint}${hideValue(value)}`
         : all,
-    true,
+    new RegExp(`${quoted}|[^\\s,}\\]]+`, "uy"),
+    3,
   ],
   // name: value, as YAML and headers have it.
   [
-    new RegExp(
-      `(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:[ \\t]+)(${quoted}|[^\\s"',;]{1,${valueCap}})`,
-      "gu",
-    ),
+    new RegExp(`(?<![\\p{L}\\p{N}_.-])([\\p{L}_][\\p{L}\\p{N}_.-]*)([ \\t]*:[ \\t]+)`, "gu"),
     (all, name, joint, value, offset, text) =>
       sounds(name) && secretValue(value, true) && !closesLiteral(value, offset, text)
         ? `${name}${joint}${hideValue(value)}`
         : all,
-    true,
+    new RegExp(`${quoted}|[^\\s"',;]{1,${valueCap}}`, "uy"),
+    1,
   ],
   // A hash of a secret is as good as the secret; a commit id or a file's checksum is not one.
   [
@@ -377,11 +372,26 @@ const rules: readonly Rule[] = [
   ],
 ]
 
-const scan = (text: string, pattern: RegExp, replace: Replacer): string => {
+const scan = (
+  text: string,
+  pattern: RegExp,
+  replace: Replacer,
+  valuePattern?: RegExp,
+  nameGroup = 1,
+): string => {
   let result = ""
   let last = 0
   pattern.lastIndex = 0
   for (let found = pattern.exec(text); found; found = pattern.exec(text)) {
+    if (valuePattern) {
+      if (!sounds(found[nameGroup] ?? "")) continue
+      valuePattern.lastIndex = pattern.lastIndex
+      const value = valuePattern.exec(text)?.[0]
+      if (value === undefined) continue
+      found[0] += value
+      found.push(value)
+      pattern.lastIndex += value.length
+    }
     const replaced = (replace as (...args: unknown[]) => string)(...found, found.index, text)
     if (replaced === found[0]) {
       // Look again from the match's value, the last thing in it: past the name, so that a
@@ -413,8 +423,10 @@ const scan = (text: string, pattern: RegExp, replace: Replacer): string => {
 /** `text` with each secret's characters replaced by sentinels, so it keeps its length. */
 const mark = (text: string): string => {
   let result = text.replaceAll(sentinel, "?")
-  for (const [pattern, replacement, again] of rules)
-    result = again ? scan(result, pattern, replacement) : result.replace(pattern, replacement)
+  for (const [pattern, replacement, again, name] of rules)
+    result = again
+      ? scan(result, pattern, replacement, again === true ? undefined : again, name)
+      : result.replace(pattern, replacement)
   return result
 }
 

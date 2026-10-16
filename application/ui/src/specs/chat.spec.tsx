@@ -1,8 +1,13 @@
-import { describe as context, describe, expect, it } from "vitest"
+import { describe as context, describe, expect, it, vi } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
 import { chatOf, composer, conversation, openChat, openChatDemo, requestCard } from "./support/chat"
 import { chooseView, commandInput, terminal, terminalTab } from "./support/workspace"
+
+// The scenario's answer and settlement delays. Specs use the selected backend through
+// the app, so they keep their timing expectations here rather than importing its adapter.
+const answerMs = 400
+const answeredMs = 500
 
 // Turns the chat view on or off in Preferences → Addons, and closes Preferences.
 const setChatView = async (on: boolean): Promise<void> => {
@@ -245,13 +250,22 @@ describe("A request that waits on the person", () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
       const card = requestCard(chat, /^Needs your permission/)
-      await card.getByRole("button", { name: "Yes, proceed" }).click()
-      await expect.element(card.getByText(/Answered\. Waiting for Codex/)).toBeVisible()
-      await expect
-        .element(card.getByRole("button", { name: "Yes, proceed" }))
-        .not.toBeInTheDocument()
-      await expect.element(card.getByRole("button", { name: "Answer in terminal" })).toBeVisible()
-      await expect.element(card).not.toBeInTheDocument()
+      // Settlement belongs to the agent. Hold it while inspecting the answered card,
+      // including when trace recording takes longer than the demo's transient state.
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      try {
+        await card.getByRole("button", { name: "Yes, proceed" }).click()
+        await vi.advanceTimersByTimeAsync(answerMs)
+        await expect.element(card.getByText(/Answered\. Waiting for Codex/)).toBeVisible()
+        await expect
+          .element(card.getByRole("button", { name: "Yes, proceed" }))
+          .not.toBeInTheDocument()
+        await expect.element(card.getByRole("button", { name: "Answer in terminal" })).toBeVisible()
+        await vi.advanceTimersByTimeAsync(answeredMs)
+        await expect.element(card).not.toBeInTheDocument()
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 
@@ -260,10 +274,17 @@ describe("A request that waits on the person", () => {
       await openChatDemo()
       const chat = await openChat("Checkout review")
       const card = requestCard(chat, /^Needs your permission/)
-      await card.getByRole("button", { name: "Yes, proceed" }).click()
-      await expect.element(card.getByText(/Answered\. Waiting for Codex/)).toHaveFocus()
-      await expect.element(card).not.toBeInTheDocument()
-      await expect.element(composer(chat)).toHaveFocus()
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      try {
+        await card.getByRole("button", { name: "Yes, proceed" }).click()
+        await vi.advanceTimersByTimeAsync(answerMs)
+        await expect.element(card.getByText(/Answered\. Waiting for Codex/)).toHaveFocus()
+        await vi.advanceTimersByTimeAsync(answeredMs)
+        await expect.element(card).not.toBeInTheDocument()
+        await expect.element(composer(chat)).toHaveFocus()
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 

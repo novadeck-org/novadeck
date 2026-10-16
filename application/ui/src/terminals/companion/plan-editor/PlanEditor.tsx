@@ -9,7 +9,13 @@ import { createKept } from "../kept"
 import type { Mark } from "../plan-doc"
 import { editorTheme } from "./editor-theme"
 import { currentAgentMarks, livePreview, setMarks } from "./live-preview"
-import { followScroll, restoreScroll, scrollLineToTop, type PlanScroll } from "./scroll"
+import {
+  followScroll,
+  restoreScroll,
+  scrollLineToTop,
+  type PlanScroll,
+  type ScrollRestore,
+} from "./scroll"
 import { lineChanges } from "./sync"
 
 // Markdown with GitHub's tables and task lists, and nothing embedded: plans don't need
@@ -32,6 +38,7 @@ type Followers = {
     readonly current: { readonly onChange: (text: string, marks: readonly Mark[]) => void }
   }
   scroll: PlanScroll | null
+  restore: ScrollRestore | null
 }
 const followersOf = new WeakMap<EditorView, Followers>()
 
@@ -62,7 +69,9 @@ const extensions = (readOnly: boolean) => [
   editorTheme,
   EditorView.updateListener.of((update) => {
     const followers = followersOf.get(update.view)
-    if (!followers || !update.docChanged) return
+    if (!followers) return
+    if (update.geometryChanged) followers.restore?.layout()
+    if (!update.docChanged) return
     const { scroll } = followers
     // Inserted right above, the line stays; rewritten, the place is where the rewrite starts.
     if (scroll)
@@ -121,7 +130,11 @@ export const PlanEditor = ({
       parent: host.current!,
       state: reopened?.state ?? EditorState.create({ doc, extensions: extensions(locked) }),
     })
-    const followers: Followers = { listeners: latest, scroll: reopened?.scroll ?? null }
+    const followers: Followers = {
+      listeners: latest,
+      scroll: reopened?.scroll ?? null,
+      restore: null,
+    }
     followersOf.set(editor, followers)
     editor.dispatch({ effects: setMarks.of(latest.current.marks) })
     // Where the pane is scrolled counts once it's back where it was left.
@@ -135,8 +148,10 @@ export const PlanEditor = ({
       })
     }
     let stopRestore = (): void => {}
-    if (followers.scroll) stopRestore = restoreScroll(editor, () => followers.scroll, follow)
-    else follow()
+    if (followers.scroll) {
+      followers.restore = restoreScroll(editor, () => followers.scroll, follow)
+      stopRestore = followers.restore.stop
+    } else follow()
     view.current = editor
     latest.current.onReady({
       // A jump from the outline wins over a restore still under way.

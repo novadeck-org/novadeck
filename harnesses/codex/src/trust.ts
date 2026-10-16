@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { readdir, stat } from "node:fs/promises"
 import { join } from "node:path"
 
@@ -59,10 +59,33 @@ const listHooks = (where: Asking, cwd: string, timeoutMs: number): Promise<unkno
           })
         : spawn(program, ["app-server"], { env: where.env, stdio: ["pipe", "pipe", "ignore"] })
     let buffered = ""
+    let finished = false
     const done = (value: unknown) => {
+      if (finished) return
+      finished = true
       clearTimeout(timer)
-      child.kill()
-      resolve(value)
+      const close = () => {
+        child.stdin.destroy()
+        child.stdout.destroy()
+        if (child.pid !== undefined && child.exitCode === null && child.signalCode === null)
+          child.kill()
+        resolve(value)
+      }
+      // Killing cmd alone leaves the npm launcher and app-server behind. Finish ending
+      // their tree before another check can start; a hung cleanup is bounded too.
+      if (
+        where.platform === "win32" &&
+        child.pid !== undefined &&
+        child.exitCode === null &&
+        child.signalCode === null
+      )
+        execFile(
+          "taskkill",
+          ["/PID", String(child.pid), "/T", "/F"],
+          { windowsHide: true, timeout: 3_000 },
+          close,
+        )
+      else close()
     }
     const timer = setTimeout(() => done(undefined), timeoutMs)
     child.on("error", () => done(undefined))
@@ -121,13 +144,9 @@ const stateOf = async (home: string): Promise<string> => {
   return [await changed(join(home, "config.toml")), ...hooks].join("|")
 }
 
-/** How long an answer Codex couldn't give is kept before it is asked again, in milliseconds. */
-export const failureMs = 60_000
-
 type Known = {
   readonly state: string
-  readonly trusted: boolean | undefined
-  readonly failedAt?: number
+  readonly trusted: boolean
 }
 const known = new Map<string, Known>()
 const asking = new Map<string, Promise<boolean | undefined>>()
@@ -136,29 +155,21 @@ const asking = new Map<string, Promise<boolean | undefined>>()
  * Whether Novadeck's Codex hooks run in `cwd`: Codex runs a plugin's hooks only once the
  * person trusts them, and no hook says when it doesn't, so its app-server is asked. The
  * answer is kept until Codex's configuration or Novadeck's hook definitions change.
- * Undefined when Codex couldn't answer (it couldn't start, or didn't answer within 10 s),
- * which is asked again only a minute later: unknown, never taken for untrusted. Asks
- * under way are shared.
+ * Undefined when Codex couldn't answer (it couldn't start, or didn't answer within 10 s):
+ * unknown, never taken for untrusted or cached, so a later check can recover. Asks under
+ * way are shared.
  */
 export const hooksTrusted = async (where: Asking, cwd: string): Promise<boolean | undefined> => {
   const home = where.env.CODEX_HOME || join(where.home, ".codex")
   const key = `${where.program ?? "codex"}\0${home}\0${cwd}`
   const state = await stateOf(home)
   const kept = known.get(key)
-  if (
-    kept?.state === state &&
-    (kept.failedAt === undefined || Date.now() - kept.failedAt < failureMs)
-  )
-    return kept.trusted
+  if (kept?.state === state) return kept.trusted
   const pending = asking.get(key)
   if (pending) return pending
   const ask = listHooks(where, cwd, 10_000).then((result) => {
     const trusted = result === undefined ? undefined : trustedIn(result)
-    known.set(key, {
-      state,
-      trusted,
-      ...(result === undefined && { failedAt: Date.now() }),
-    })
+    if (trusted !== undefined) known.set(key, { state, trusted })
     return trusted
   })
   asking.set(key, ask)

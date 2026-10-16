@@ -1,4 +1,4 @@
-import { afterEach, describe as context, describe, expect, it } from "vitest"
+import { afterEach, describe as context, describe, expect, it, vi } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
 import { escapeFrom, pressShortcut, newTerminalName } from "./support/keyboard"
@@ -110,6 +110,34 @@ describe("projects", () => {
 
       await expect.poll(listedProjects).toEqual(["storefront", "api-service", ...others])
       await expect.element(switchMenu().getByRole("button", { name: /^storefront / })).toHaveFocus()
+    })
+
+    it("keeps the moved project's focus when the popover's initial autofocus arrives later", async () => {
+      await openWorkspace()
+      const scheduled: FrameRequestCallback[] = []
+      const frame = window.requestAnimationFrame.bind(window)
+      // Exercise the installed Ark popover's deferred focus action after the user has
+      // already interacted, without delaying unrelated layout or pointer frames.
+      const frames = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+        if (new Error().stack?.includes("setInitialFocus")) {
+          scheduled.push(callback)
+          return frame(() => {})
+        }
+        return frame(callback)
+      })
+      try {
+        await workspaceSwitcher().click()
+        const storefront = switchMenu().getByRole("button", { name: /^storefront / })
+        storefront.element().focus()
+        await press("{Alt>}{ArrowDown}{/Alt}")
+        await expect.poll(listedProjects).toEqual(["api-service", "storefront", ...others])
+        await expect.element(storefront).toHaveFocus()
+        expect(scheduled.length).toBeGreaterThan(0)
+        for (const callback of scheduled) callback(performance.now())
+        await expect.element(storefront).toHaveFocus()
+      } finally {
+        frames.mockRestore()
+      }
     })
 
     it("pins the top project with Alt and Up when nothing is pinned", async () => {

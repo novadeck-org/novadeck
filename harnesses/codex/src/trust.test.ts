@@ -10,10 +10,10 @@ import {
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { afterEach, beforeEach, vi } from "vitest"
+import { afterEach, beforeEach } from "vitest"
 import { describe, expect, it } from "vitest"
 
-import { failureMs, forgetTrust, hooksTrusted, trustedIn } from "./trust.js"
+import { forgetTrust, hooksTrusted, trustedIn } from "./trust.js"
 
 // One hook as Codex's app-server lists it, as probed with 0.159.3.
 const hook = (
@@ -72,7 +72,7 @@ const standIn = (folder: string): string => {
       '  for (const line of buffered.split("\\n").slice(0, -1)) {',
       "    const message = JSON.parse(line)",
       '    if (message.id === 1) process.stdout.write(JSON.stringify({ id: 1, result: {} }) + "\\n")',
-      '    if (message.id === 2) process.stdout.write(JSON.stringify({ id: 2, result: answer }) + "\\n")',
+      '    if (message.id === 2 && !answer.silent) process.stdout.write(JSON.stringify({ id: 2, result: answer }) + "\\n")',
       "  }",
       '  buffered = buffered.slice(buffered.lastIndexOf("\\n") + 1)',
       "})",
@@ -117,7 +117,6 @@ describe.skipIf(process.platform === "win32")("asking Codex whether Novadeck's h
     }
   })
   afterEach(() => {
-    vi.useRealTimers()
     rmSync(folder, { recursive: true, force: true })
   })
 
@@ -153,17 +152,25 @@ describe.skipIf(process.platform === "win32")("asking Codex whether Novadeck's h
     expect(starts()).toBe(1)
   })
 
-  it("takes a program that can't start as unknown, never untrusted, asking again only a while later", async () => {
+  it("takes a program that can't start as unknown, never untrusted, and asks again once it recovers", async () => {
     const missing = { ...where, program: join(folder, "no-codex-here") }
-    vi.useFakeTimers({ toFake: ["Date"] })
     expect(await hooksTrusted(missing, "/work")).toBeUndefined()
     answer(trusted)
     expect(await hooksTrusted(where, "/work")).toBe(true)
-    // The same program and folder as the failure: kept for a while, then asked again.
-    expect(await hooksTrusted(missing, "/work")).toBeUndefined()
-    vi.setSystemTime(Date.now() + failureMs + 1)
+    // No configuration edit or clock advance: a transient failure is not cached.
     writeFileSync(missing.program, readFileSync(where.program!))
     chmodSync(missing.program, 0o755)
     expect(await hooksTrusted(missing, "/work")).toBe(true)
+  })
+
+  it("shares a timed-out query without keeping its failure once the helper recovers", async () => {
+    answer({ silent: true })
+    expect(await Promise.all([hooksTrusted(where, "/work"), hooksTrusted(where, "/work")])).toEqual(
+      [undefined, undefined],
+    )
+    expect(starts()).toBe(1)
+    answer(trusted)
+    expect(await hooksTrusted(where, "/work")).toBe(true)
+    expect(starts()).toBe(2)
   })
 })

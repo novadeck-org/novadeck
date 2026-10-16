@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { join } from "node:path"
 
+import type { ScreenText } from "@novadeck/harness-core/screen"
 import type {
   AgentActivity,
   AgentDetail,
@@ -18,6 +19,7 @@ import headless from "@xterm/headless"
 import { wire } from "../runner.js"
 import { shellPaths, type ShellPaths } from "../shell/scripts.js"
 import type { Terminals } from "../terminals/index.js"
+import { screenText } from "../terminals/screen.js"
 import type { WorkspaceStore } from "../workspaces/store.js"
 import { createHistory, type Reach, type ReachOptions, type Snapshot } from "./history.js"
 
@@ -29,7 +31,7 @@ const owner = "e2e"
  * draws spaces as cursor moves and colours as escapes, so it is replayed on a screen of
  * its own.
  */
-const render = async (snapshot: string, cols: number, rows: number): Promise<string> => {
+const render = async (snapshot: string, cols: number, rows: number): Promise<ScreenText> => {
   const screen = new headless.Terminal({
     cols,
     rows,
@@ -38,10 +40,7 @@ const render = async (snapshot: string, cols: number, rows: number): Promise<str
   })
   try {
     await new Promise<void>((resolve) => screen.write(snapshot, resolve))
-    const buffer = screen.buffer.active
-    return Array.from({ length: rows }, (_, row) =>
-      (buffer.getLine(buffer.viewportY + row)?.translateToString(true) ?? "").trimEnd(),
-    ).join("\n")
+    return screenText(screen)
   } finally {
     screen.dispose()
   }
@@ -54,6 +53,8 @@ export type DeckTerminal = {
   readonly handle: string
   /** Its screen's text now. */
   readonly screen: () => Promise<string>
+  /** Its rendered screen, including dim placeholders and cursor position for box readers. */
+  readonly screenText: () => Promise<ScreenText | undefined>
   /** Waits until its screen shows the text, and returns the screen. */
   readonly until: (text: string | RegExp, timeoutMs?: number) => Promise<string>
   /**
@@ -637,7 +638,10 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     name: "E2E",
   })
 
-  const screen = async ({ terminals }: Runner, terminalId: string): Promise<string> => {
+  const screen = async (
+    { terminals }: Runner,
+    terminalId: string,
+  ): Promise<ScreenText | undefined> => {
     const controller = new AbortController()
     const stream = terminals.attach({ terminalId, mode: "observe" }, "reader", controller.signal)
     try {
@@ -646,7 +650,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
         const { cols, rows } = terminals.get(terminalId)
         return await render(event.data, cols, rows)
       }
-      return ""
+      return undefined
     } finally {
       controller.abort()
       await stream.return(undefined)
@@ -660,11 +664,13 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
     // Its screen, read one look at a time: a terminal takes one reader at once, and a
     // failed wait may look while another wait still polls.
     let looking: Promise<unknown> = Promise.resolve()
-    const look = (): Promise<string> => {
+    const capture = (): Promise<ScreenText | undefined> => {
       const shown = looking.then(() => screen(on, id))
       looking = shown.catch(() => {})
       return shown
     }
+    const look = (): Promise<string> =>
+      capture().then((shown) => shown?.rows.map((row) => row.trimEnd()).join("\n") ?? "")
     void (async () => {
       try {
         for await (const listing of terminals.watchMessages(id, on.closing.signal))
@@ -722,6 +728,7 @@ export const createDeck = async (options: DeckOptions): Promise<Deck> => {
       handle: summary.handle,
       screen: look,
       until,
+      screenText: capture,
       // The text may be on screen already, as an earlier prompt: only one more of it
       // shows that this one landed.
       submit: async (text) => {

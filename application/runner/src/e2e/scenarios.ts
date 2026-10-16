@@ -238,6 +238,14 @@ export const result = (call: Call): string | undefined => {
   return last?.role === "tool" ? last.text : undefined
 }
 
+/** Removes the sandbox path as CLIs and JSON print it, before checking tool output. */
+export const withoutSandbox = (text: string, root: string): string => {
+  const forms = [root, root.replaceAll("\\", "/")]
+  for (const path of [...forms, ...forms.map((form) => JSON.stringify(form).slice(1, -1))])
+    text = text.replaceAll(path, "")
+  return text
+}
+
 /** Whether the call is the agent's next look after its `open_terminal` opened `handle`. */
 export const opened = (call: Call, handle: string): boolean => {
   const last = call.turns.at(-1)

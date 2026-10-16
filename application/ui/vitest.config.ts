@@ -53,6 +53,26 @@ export default mergeConfig(
             testTimeout: 30_000,
             browser: {
               enabled: true,
+              commands: {
+                // Native held-pointer gestures let specs inspect a drag before release.
+                pinPointer: async (
+                  { page, frame },
+                  action: "press" | "move" | "release",
+                  point?: { x: number; y: number },
+                ) => {
+                  if (action === "release") return page.mouse.up()
+                  const bounds = await (
+                    await frame()
+                  )
+                    .frameElement()
+                    .then((element) => element.boundingBox())
+                  if (!bounds || !point) throw new Error("Missing drag point or test frame")
+                  await page.mouse.move(bounds.x + point.x, bounds.y + point.y, {
+                    steps: action === "move" ? 16 : 1,
+                  })
+                  if (action === "press") await page.mouse.down()
+                },
+              },
               headless: true,
               screenshotFailures: ci,
               ...(trace

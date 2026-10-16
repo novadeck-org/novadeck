@@ -786,7 +786,8 @@ export class Messaging {
 
   /**
    * The terminal's screen shows its agent's box empty, where only a doubt kept its delivery
-   * Drafting (`Box.doubted`) in the `epoch` it was read in: it is Ready.
+   * Drafting (`Box.doubted`) in the `epoch` it was read in: Ready before its first turn,
+   * or Settled after one completed.
    */
   emptied(terminalId: string, epoch: number): void {
     const live = this.live.get(terminalId)

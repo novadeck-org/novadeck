@@ -153,6 +153,7 @@ export const useBarDrag = ({
       stopFollowing.current = undefined
       const { source } = event.operation
       const sortable = !event.canceled && isSortable(source)
+      const before = import.meta.env.MODE === "test" ? session.drag.getSnapshot() : null
       // Where the bar's own drag left it, so the bar stays as its DOM shows it.
       if (sortable && source.initialIndex !== source.index) move(source.initialIndex, source.index)
       const members = sortable ? slotOf(source.id)?.members : undefined
@@ -160,6 +161,22 @@ export const useBarDrag = ({
       const { nativeEvent } = event
       if (members && nativeEvent instanceof PointerEvent)
         follow(members, nativeEvent.clientX, nativeEvent.clientY)
+      // A failed browser gesture needs the release decision, which a later screenshot
+      // cannot recover. Only the behaviour tests collect this synchronous observation.
+      if (import.meta.env.MODE === "test")
+        window.dispatchEvent(
+          new CustomEvent("novadeck:test-bar-drop", {
+            detail: {
+              source: source?.id,
+              initialIndex: isSortable(source) ? source.initialIndex : undefined,
+              index: isSortable(source) ? source.index : undefined,
+              cancelled: event.canceled,
+              nativeEvent,
+              before,
+              after: session.drag.getSnapshot(),
+            },
+          }),
+        )
       finish(members, event.canceled)
     },
   }

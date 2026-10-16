@@ -1,4 +1,4 @@
-import { agreeing, ruledBox, type BoxProfile, type Markers } from "@novadeck/harness-core/box"
+import { agreeing, rule, ruledBox, type BoxProfile, type Markers } from "@novadeck/harness-core/box"
 
 /** The markers leading its box's first row: `❯` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: "❯", shell: "!" }
@@ -14,7 +14,7 @@ export const shellFooter = (rows: readonly string[]): boolean => {
 
 /** Whether its footer says one more Escape clears the box: "Esc again to clear". */
 export const clearPending = (rows: readonly string[]): boolean =>
-  rows.some((row) => /\bEsc again to clear\b/.test(row))
+  rows.slice(rows.findLastIndex(rule) + 1).some((row) => /^\s*Esc again to clear\b/.test(row))
 
 /**
  * Claude Code's input box: between two `─` rules, `❯ ` leading its first row and the rest

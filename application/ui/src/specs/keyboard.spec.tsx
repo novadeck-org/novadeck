@@ -6,6 +6,7 @@ import {
   expect,
   it,
   onTestFailed,
+  vi,
 } from "vitest"
 import { page, userEvent, type Locator } from "vitest/browser"
 
@@ -972,12 +973,25 @@ describe("typing in a terminal", () => {
 })
 
 // A microphone made of an oscillator, so the specs record without hardware or a permission
-// prompt, with a count of the tracks still live: a released microphone has none.
-const fakeMicrophone = (): { readonly live: () => number; readonly restore: () => void } => {
+// prompt. Count audio delivered by the capture worklet too: a live track alone doesn't
+// mean its asynchronously loaded worklet has started recording.
+const fakeMicrophone = () => {
   const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+  const Worklet = AudioWorkletNode
   const tracks: MediaStreamTrack[] = []
+  const contexts: AudioContext[] = []
+  let seconds = 0
+  window.AudioWorkletNode = class extends Worklet {
+    constructor(audio: BaseAudioContext, name: string, options?: AudioWorkletNodeOptions) {
+      super(audio, name, options)
+      this.port.addEventListener("message", (event: MessageEvent<unknown>) => {
+        if (event.data instanceof Float32Array) seconds += event.data.length / audio.sampleRate
+      })
+    }
+  }
   navigator.mediaDevices.getUserMedia = async () => {
     const audio = new AudioContext()
+    contexts.push(audio)
     const oscillator = audio.createOscillator()
     const destination = audio.createMediaStreamDestination()
     oscillator.connect(destination)
@@ -987,7 +1001,13 @@ const fakeMicrophone = (): { readonly live: () => number; readonly restore: () =
   }
   return {
     live: () => tracks.filter((track) => track.readyState === "live").length,
-    restore: () => void (navigator.mediaDevices.getUserMedia = original),
+    seconds: () => seconds,
+    restore: () => {
+      navigator.mediaDevices.getUserMedia = original
+      window.AudioWorkletNode = Worklet
+      for (const track of tracks) track.stop()
+      for (const audio of contexts) void audio.close()
+    },
   }
 }
 
@@ -1014,6 +1034,28 @@ const installVoice = async (): Promise<void> => {
 // Hold to dictate: Ctrl+Shift+M, on every platform.
 const dictateKeys = "{Control>}{Shift>}{M>}"
 const releaseKeys = "{/M}{/Shift}{/Control}"
+// Deliver an immediate tap through the real key router with a fixed gesture clock.
+// Automation RPCs or a stalled event handler otherwise turn it into a hold. The hold
+// test below uses native keys; the state tests cover both sides of the 300 ms threshold.
+const tapDictation = (): void => {
+  const target = document.activeElement ?? document.body
+  const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now())
+  try {
+    for (const type of ["keydown", "keyup"])
+      target.dispatchEvent(
+        new KeyboardEvent(type, {
+          key: "M",
+          code: "KeyM",
+          ctrlKey: true,
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
+  } finally {
+    clock.mockRestore()
+  }
+}
 /** The dictation status line, once it says `text`. */
 const saying = (text: string | RegExp): Locator =>
   page.getByRole("status").filter({ hasText: text })
@@ -1151,9 +1193,8 @@ describe("dictation", () => {
 
       await press(dictateKeys)
       await expect.element(saying("Release to send")).toBeVisible()
-      // Two seconds from the press: past the shortest clip kept, even when the microphone
-      // takes a while to start, as on a slow CI machine.
-      await expect.element(saying("0:02")).toBeVisible()
+      // Speech captured, rather than time since the shortcut or microphone permission.
+      await expect.poll(microphone.seconds).toBeGreaterThanOrEqual(0.5)
       expect(microphone.live()).toBe(1)
 
       // Modifiers may come up before the letter; the letter ends the hold.
@@ -1175,9 +1216,9 @@ describe("dictation", () => {
       await installVoice()
       await commandInput("Checkout implementation").click()
 
-      await press(`${dictateKeys}${releaseKeys}`)
+      tapDictation()
       await expect.element(saying("Esc discard")).toBeVisible()
-      await expect.element(saying("0:02")).toBeVisible()
+      await expect.poll(microphone.seconds).toBeGreaterThanOrEqual(0.5)
       expect(microphone.live()).toBe(1)
 
       await press(`${dictateKeys}${releaseKeys}`)

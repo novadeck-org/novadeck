@@ -1,4 +1,4 @@
-import { afterEach, describe as context, describe, expect, it } from "vitest"
+import { afterEach, describe as context, describe, expect, it, onTestFailed } from "vitest"
 
 import { pageScheme, saveFromAnotherWindow, systemScheme } from "./support/appearance"
 import {
@@ -17,17 +17,44 @@ import {
 // Transitions finish; a running terminal's spinner and header sweep loop for as long as
 // it runs, so they never count.
 const animationsFinished = async (): Promise<void> => {
+  let pending: unknown[] = []
+  onTestFailed(() =>
+    console.error(
+      "UI_PENDING_ANIMATIONS",
+      JSON.stringify({
+        visibility: document.visibilityState,
+        pending,
+      }),
+    ),
+  )
   await expect
-    .poll(
-      () =>
-        document
-          .getAnimations()
-          .filter(
-            (animation) =>
-              animation.playState === "running" &&
-              animation.effect?.getTiming().iterations !== Infinity,
-          ).length,
-    )
+    .poll(() => {
+      const animations = document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.playState === "running" &&
+            animation.effect?.getTiming().iterations !== Infinity,
+        )
+      // Preserve the final sample even if cleanup removes its elements before the
+      // failure hook. A count alone cannot identify a stuck transition or its clock.
+      pending = animations.map((animation) => {
+        const effect = animation.effect
+        const target = effect instanceof KeyframeEffect ? effect.target : null
+        return {
+          id: animation.id,
+          name: animation instanceof CSSAnimation ? animation.animationName : null,
+          target: target instanceof Element ? target.outerHTML.slice(0, 250) : String(target),
+          pseudo: effect instanceof KeyframeEffect ? effect.pseudoElement : null,
+          currentTime: animation.currentTime,
+          playbackRate: animation.playbackRate,
+          pending: animation.pending,
+          timing: effect?.getTiming(),
+          computed: effect?.getComputedTiming(),
+        }
+      })
+      return animations.length
+    })
     .toBe(0)
 }
 

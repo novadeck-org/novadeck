@@ -25,7 +25,12 @@
  */
 export type Delivery = Counts &
   (
-    | { readonly state: "unbound" | "fresh" | "drafting" }
+    | { readonly state: "unbound" | "fresh" }
+    | {
+        readonly state: "drafting"
+        /** When the last turn completed, if only its uncertain box prevents Settled. */
+        readonly completedAt?: number
+      }
     | {
         readonly state: "unknown"
         /**
@@ -113,10 +118,9 @@ export type Box = {
    */
   readonly draftWhileAsked: boolean
   /**
-   * Whether the box is a draft only by doubt: a new session announced at its prompt, when
-   * the person's Enter was too long before it to tell it ran their command (a slow /clear),
-   * and may have left text. The screen settles it: see the `emptied` event. Any key of the
-   * person's ends the doubt.
+   * Whether only a late hook keeps the box a draft: a new session at its prompt (a slow
+   * /clear), or a turn starting too long after the person's Enter to attribute it. The
+   * screen settles it once no turn runs: see `emptied`. Any key ends the doubt.
    */
   readonly doubted: boolean
 }
@@ -321,11 +325,11 @@ const ended = (delivery: Delivery, at: number): Delivery => {
   const next = {
     ...counts(delivery),
     continued: 0,
-    box: { ...box, queuing: false, doubted: false },
+    box: { ...box, queuing: false },
   }
   return box.empty && !box.queuing
     ? { ...next, state: "settled", since: at }
-    : { ...next, state: "drafting" }
+    : { ...next, state: "drafting", ...(box.doubted && { completedAt: at }) }
 }
 
 const working = (
@@ -552,16 +556,36 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
         event.by === "prompt" &&
         delivery.state !== "ringing" &&
         (pendingEnter(delivery, fired.at, fired.windowMs) !== undefined || box.queued)
+      // Its hook can arrive after the next prompt's Enter. That later submission
+      // belongs to another turn, queued while this one was already running.
+      const later = event.by === "prompt" && box.enteredAt !== null && box.enteredAt > fired.at
       // Only a prompt uses up the person's Enter, or the prompt they queued. Keys after
       // its hook started are a new draft.
-      const after: Box =
-        event.by === "prompt"
+      const after: Box = later
+        ? { ...box, queuing: true, queuingSince: box.queuingSince ?? box.enteredAt }
+        : event.by === "prompt"
           ? {
               ...box,
               enteredAt: null,
               typedAt: null,
               queued: false,
               strayed: false,
+              // An expired Enter cannot attribute this turn, but with no later keys or
+              // queued prompt the screen can still settle what that Enter left behind.
+              doubted:
+                !person &&
+                delivery.state !== "ringing" &&
+                !box.empty &&
+                box.enteredAt !== null &&
+                box.enteredAt <= fired.at &&
+                box.typedAt === null &&
+                box.escapedAt === null &&
+                !box.typedSinceEnter &&
+                !box.strayed &&
+                !box.draftWhileAsked &&
+                (!box.queuing ||
+                  (delivery.state === "unknown" && box.queuingSince === box.enteredAt)) &&
+                !box.queued,
               ...(person && {
                 empty: box.typedAt === null && !box.strayed,
                 queuing: false,
@@ -580,7 +604,7 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
         epoch: delivery.epoch + 1,
         continued: 0,
         byPerson: person,
-        box: { ...after, queuing: false, escapedAt: null },
+        box: later ? after : { ...after, queuing: false, escapedAt: null },
       })
       // The person's Escape after the Enter it answers and after its hook fired may have
       // cancelled the turn before any other hook ran: Unknown, its prompt back in the box.
@@ -681,9 +705,15 @@ export const transition = (delivery: Delivery, event: DeliveryEvent, slackMs = 0
     }
     case "emptied":
       // The screen shows the box empty where only a doubt kept it a draft: nothing was left
-      // in it. Not for one the person typed in since, or a session since.
+      // in it. Not for one the person typed in since, or a session since. A completed
+      // turn is Settled; a session announced before its first turn is Ready.
       return delivery.state === "drafting" && box.doubted && event.epoch === delivery.epoch
-        ? { ...counts(delivery), box: emptyBox, state: "ready", since: event.at }
+        ? {
+            ...counts(delivery),
+            box: emptyBox,
+            state: delivery.completedAt === undefined ? "ready" : "settled",
+            since: delivery.completedAt ?? event.at,
+          }
         : delivery
     case "asked-cleared":
       // What the person typed while it waited counts now, as typing outside a request.

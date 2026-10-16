@@ -1,3 +1,5 @@
+import { vi } from "vitest"
+
 import { describe, expect, it } from "../test.js"
 import type { AgentDigest, ShellDigest } from "./describer.js"
 import { redact, redactDigest, redacted } from "./redact.js"
@@ -863,6 +865,33 @@ const random = (): string =>
   ).join("")
 
 describe("the time redaction takes", () => {
+  it("does not repeatedly parse ordinary assignment values in a continued screen", () => {
+    const screen = rows(`${"a=b".repeat(133)}a`)
+    const exec = RegExp.prototype.exec
+    let characters = 0
+    const scanned = vi.spyOn(RegExp.prototype, "exec").mockImplementation(function (
+      this: RegExp,
+      text,
+    ) {
+      const found = exec.call(this, text)
+      characters += found?.[0].length ?? 0
+      return found
+    })
+    let result: ShellDigest
+    try {
+      result = redactDigest({
+        ...shell(screen),
+        continues: screen.map((_row, i) => i < screen.length - 1),
+      }) as ShellDigest
+    } finally {
+      scanned.mockRestore()
+    }
+    expect(result.screen).toEqual(screen)
+    // The overlapping row contexts are intentional. Re-reading 1024-character values
+    // at every '=' used to match over 240 million characters in this 24,000-char screen.
+    expect(characters).toBeLessThan(screen.join("").length * 80)
+  })
+
   const time = (screen: string[]): number => {
     const started = performance.now()
     redactDigest({ ...shell(screen), continues: screen.map((_row, i) => i < screen.length - 1) })
@@ -877,6 +906,32 @@ describe("the time redaction takes", () => {
   ])("is quick for a 60 by 400 continued screen of %s", { timeout: 5000 }, (_name, screen) => {
     // A budget to catch a blow-up (it was 13 s once), not to benchmark: a loaded runner is slow.
     expect(time(screen())).toBeLessThan(2000)
+  })
+})
+
+describe("secrets nested in ordinary fields", () => {
+  it("counts Unicode code points at the value cap when a nested secret is already masked", () => {
+    const emoji = "😀".repeat(513)
+    expect(redact(`password: ${emoji}=token=Hunter2xyz!`)).toBe(
+      `password: ${emoji}=token=${redacted}`,
+    )
+  })
+
+  it.each([
+    ["long assignments", `outer=${"a=b".repeat(800)}=PASSWORD=Hunter2xyz!`],
+    ["a quoted assignment", 'outer="before password=Hunter2xyz! after"'],
+    ["a YAML field", "outer: before token: Hunter2xyz! after"],
+    ["escaped JSON", String.raw`{"outer":"{\"password\":\"Hunter2xyz!\"}"}`],
+  ])("still masks the nested secret in %s", (_name, text) => {
+    expect(redact(text)).not.toContain("Hunter2xyz")
+    expect(redact(text)).toContain(redacted)
+  })
+
+  it("masks a nested assignment across continued rows after a long ordinary value", () => {
+    const { screen, continues } = chopped(`outer=${"a=b".repeat(800)}=PASSWORD=Hunter2xyz!`, 40)
+    const result = screenOf(shell(screen, continues)).join("")
+    expect(result).not.toMatch(/Hunter|2xyz/)
+    expect(result).toContain(redacted)
   })
 })
 

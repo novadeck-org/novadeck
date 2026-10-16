@@ -370,7 +370,7 @@ type Record = {
   /** The harness session holding the current shell's foreground; `summary.agent` shows it. */
   binding: Binding | null
   /**
-   * The last binding ended as its process was found gone (`endExited`): a late report of
+   * The last binding ended as its process was found gone or its pid reused: a late report of
    * that session from no process or from that one, as from a hook that outlived it, binds
    * it no more. It stays past later bindings, until another such end replaces it: what it
    * drops is only that session's reports from no process or from its dead pid, and an
@@ -407,7 +407,7 @@ type Record = {
   line: Line
   /** Whether a non-empty line was entered since the last prompt (an empty Enter runs no command). */
   lineEntered: boolean
-  /** How many titles that may tell a harness's prompt the terminal set, so a stale check is dropped. */
+  /** The title/input generation, so checks made stale by a title or the person's keys are dropped. */
   titles?: number
   /** The latest title the terminal set, which a trust check may read again. */
   title?: string
@@ -508,6 +508,8 @@ type Record = {
    * bound: its first prompt's hooks bind it, so until then nothing says it is idle.
    */
   readyEntered: boolean
+  /** The last delivery epoch whose uncertain box got a screen-settling window. */
+  boxDoubtEpoch?: number
   /** `performance.now()` at the last save of its screen, so saves take turns. */
   savedAt: number
 } & Omit<Started, "process" | "screen" | "serializer" | "startedAt">
@@ -892,11 +894,14 @@ export class Terminals {
             platform: this.options.platform,
             ...options.doorbell,
           })
-    // A Stop Novadeck continued whose lease lapsed ended its turn after all.
+    // A lapsed continuation ends its turn; a late prompt may leave only box doubt to settle.
     this.messaging.subscribe((change) => {
       if (change.kind !== "terminal") return
       const record = this.records.get(change.terminalId)
-      if (record) this.lapsed(record)
+      if (record) {
+        this.lapsed(record)
+        this.settleBox(record)
+      }
     })
     this.prompts = new Prompts(this.promptHost(), this.inputs, options.prompts)
     this.interrupts = new Interrupts(this.interruptHost(), {
@@ -1426,6 +1431,8 @@ export class Terminals {
     const queueKey = record.binding ? harnesses[record.binding.agent].messaging.queueKey : undefined
     const keys = keysOf(data, queueKey, this.reportingOf(record))
     if (keys.length === 0) return
+    // A prompt whose trust is still being checked is no longer known empty after a key.
+    record.titles = (record.titles ?? 0) + 1
     // Typing before the shell resumes its agent cancels the resume, so the shell gets
     // what was typed. A cancelled resume leaves its session free for another terminal.
     const claim = record.resumeClaim
@@ -2091,6 +2098,8 @@ export class Terminals {
           submitted: started.resumes,
           startupRuns: started.resumes,
           readyEntered: false,
+          // Delivery epochs start over with the new shell's registration.
+          boxDoubtEpoch: undefined,
           prompts: [],
           line: emptyLine,
           lineEntered: started.resumes,
@@ -3567,16 +3576,24 @@ export class Terminals {
     const disconnections = this.disconnections.get(report.agent)
     const observes =
       shown !== undefined || events.some((event) => event.type === "session-observed")
-    const [foreground, connected] = observes
-      ? await Promise.all([shellInForeground(child.pid), this.connected(report.agent)])
-      : [undefined, true]
+    const [foreground, connected, reused] = observes
+      ? await Promise.all([
+          shellInForeground(child.pid),
+          this.connected(report.agent),
+          this.reusedBinding(record, events, deadline),
+        ])
+      : [undefined, true, undefined]
     if (record.process !== child || record.exitQueued) return silent
     // A disconnection while this waited forgot what the report would bring back.
     if (this.disconnections.get(report.agent) !== disconnections) return silent
     // The bound agent process may have exited without the shell showing a prompt, as in
     // tmux or a nested shell: its binding ended with it, and a later process may bind.
     let changed = false
-    this.endExited(record)
+    if (reused !== undefined && record.binding === reused) {
+      record.left = reused
+      this.endLead(record)
+      this.endBinding(record)
+    } else this.endExited(record)
     const facts = {
       promptedAt: record.promptedAt,
       shellInForeground: foreground,
@@ -3941,6 +3958,8 @@ export class Terminals {
    * with the terminal's reports.
    */
   private screenTitled(record: Record, child: pty.IPty, title: string): void {
+    // Any newer title, including Working or a shell's, retires a pending prompt check.
+    const seq = (record.titles = (record.titles ?? 0) + 1)
     if (record.readyEntered && agents.some((agent) => harnesses[agent].titleWorking?.(title)))
       record.readyTurned = true
     for (const agent of agents) {
@@ -3953,8 +3972,6 @@ export class Terminals {
         continue
       // As for a report: Windows tells no foreground, so only once a line was entered.
       if (process.platform === "win32" && !record.submitted) continue
-      // A later title makes this one's answer stale.
-      const seq = (record.titles = (record.titles ?? 0) + 1)
       // As it came: the session it may replace, and whether a turn ran, as a spawned
       // agent's thread is made only within one.
       const replaced = binding?.agent === agent ? binding.sessionId : undefined
@@ -3981,18 +3998,44 @@ export class Terminals {
         )
       }
       void (async () => {
-        const found = await this.harnessIn(record, child, agent)
+        // A transient helper failure must not consume the only Ready observation. Ask at
+        // most three times, checking the foreground and staleness anew; Unknown never
+        // grants readiness or claims that the hooks are untrusted.
+        let found: Awaited<ReturnType<Terminals["harnessIn"]>> = null
+        let trust: Awaited<ReturnType<Terminals["promptTrust"]>> = "unknown"
+        let pid: number | undefined
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          if (attempt > 0)
+            // eslint-disable-next-line no-await-in-loop -- Bounded recovery of this one prompt observation.
+            await sleep(trustRecheckMs, undefined, { ref: false })
+          if (!current()) return
+          // eslint-disable-next-line no-await-in-loop -- Each retry checks the current foreground.
+          found = await this.harnessIn(record, child, agent)
+          if (!found || !current()) return
+          if (attempt === 0) pid = found.pid
+          else if (found.pid !== pid) return
+          // eslint-disable-next-line no-await-in-loop -- Unknown is retried only within this bounded observation.
+          trust = await this.promptTrust(record, agent, found.where)
+          if (!current()) return
+          if (trust !== "unknown") break
+        }
         if (!found) return
-        const trust = await this.promptTrust(record, agent, found.where)
+        // The helper (or a preceding queued report) may have waited while the harness
+        // exited into a chained command, without any new title, key or shell prompt.
+        // Check at the commit too, keeping the same harness process where the OS tells.
+        const inForeground = async () => {
+          if (!current()) return false
+          const now = await foregroundProcess(child.pid, agent)
+          return current() && now !== null && now?.pid === pid
+        }
         // Hooks its harness says don't run there: no message can reach it, as long as this
         // title still stands. A late answer marks no terminal the agent has left.
         if (trust === "untrusted" && !binding)
           return this.queue(
             record.summary.id,
-            () => {
-              if (current() && shown.startedAt > (record.promptedAt ?? 0))
+            async () => {
+              if ((await inForeground()) && shown.startedAt > (record.promptedAt ?? 0))
                 this.messaging.untrusted(record.summary.id, agent)
-              return Promise.resolve()
             },
             undefined,
           )
@@ -4013,12 +4056,11 @@ export class Terminals {
         }
         await this.queue(
           record.summary.id,
-          () => {
-            if (!current()) return Promise.resolve()
+          async () => {
+            if (!(await inForeground())) return
             // Ended in turn with the reports, so a session bound since is never touched.
             if (exited && record.binding === binding) this.endExited(record)
             this.showPrompt(record, shown, exited ? undefined : replaced)
-            return Promise.resolve()
           },
           undefined,
         )
@@ -4040,6 +4082,7 @@ export class Terminals {
   ): Promise<{
     readonly where: Install & { readonly program?: string }
     readonly group: readonly number[]
+    readonly pid: number | undefined
   } | null> {
     const found = await foregroundProcess(child.pid, agent)
     if (found === null || record.process !== child) return null
@@ -4057,6 +4100,7 @@ export class Terminals {
         ...(program !== undefined && { program }),
       },
       group: found?.group ?? [],
+      pid: found?.pid,
     }
   }
 
@@ -4094,15 +4138,21 @@ export class Terminals {
   }
 
   /**
-   * Looks at the screen while the terminal's delivery is Drafting only by doubt (a new
-   * session announced too long after the person's Enter to tell it ran their command, as a
-   * slow /clear on Windows): once the agent's box reads empty on two reads running, nothing
-   * was left in it, and the terminal is Ready. Gives up when the doubt ends or after
-   * `boxSettleMs`, leaving the draft; a later doubt in the same terminal has its own window.
+   * Looks at the screen while delivery is Drafting only by doubt after a late hook: once
+   * the agent's box reads empty on two reads running, nothing was left in it, and delivery
+   * is Ready before its first turn or Settled after one completed. Gives up when doubt
+   * ends or after `boxSettleMs`, leaving the draft; a later doubt has its own window.
    */
   private settleBox(record: Record): void {
     const id = record.summary.id
-    if (this.settling.has(id) || !this.messaging.delivery(id)?.box.doubted) return
+    const current = this.messaging.delivery(id)
+    if (
+      this.settling.has(id) ||
+      current?.state !== "drafting" ||
+      !current.box.doubted ||
+      record.boxDoubtEpoch === current.epoch
+    )
+      return
     this.settling.add(id)
     void (async () => {
       let until = 0
@@ -4117,6 +4167,7 @@ export class Terminals {
           // A new doubt starts anew: its own window, its own two reads.
           if (delivery.epoch !== epoch) {
             epoch = delivery.epoch
+            record.boxDoubtEpoch = epoch
             until = Date.now() + boxSettleMs
             seen = false
           }
@@ -4187,10 +4238,48 @@ export class Terminals {
   }
 
   /**
+   * A Windows pid can already name another process when the next agent reports. Only
+   * a known start after the bound session was observed proves that reuse: an unknown
+   * tree, a missing root or an older process leaves the nested-agent gate intact.
+   */
+  private async reusedBinding(
+    record: Record,
+    events: readonly HarnessEvent[],
+    deadline?: number,
+  ): Promise<Binding | undefined> {
+    const { binding } = record
+    if (this.options.platform !== "win32" || !binding?.instance) return undefined
+    if (
+      !events.some(
+        (event) =>
+          event.type === "session-observed" &&
+          event.instance !== null &&
+          (event.agent !== binding.agent ||
+            event.instance !== binding.instance ||
+            (event.evidence === "startup" && event.sessionId !== binding.sessionId)),
+      )
+    )
+      return undefined
+    // A late old hook can move this forward and hide reuse; it cannot prove a live
+    // original process is newer than its own hook.
+    const observed = record.agents[binding.agent]?.seq
+    if (observed === undefined) return undefined
+    // Leave an asking hook time to print its answer; a report has the relay's normal bound.
+    const timeoutMs =
+      deadline === undefined ? relayMs : Math.min(relayMs, deadline - Date.now() - 500)
+    if (timeoutMs <= 0) return undefined
+    const pid = Number(binding.instance)
+    const members = await this.trees.read(pid, timeoutMs)
+    const root = members?.find((member) => member.pid === pid)
+    // The two wall-clock samples may round differently; close starts prove nothing.
+    return root !== undefined && root.startedAt > observed + 50 ? binding : undefined
+  }
+
+  /**
    * Ends the binding of an agent process known to have exited without the shell showing
    * its prompt, as in tmux, a nested shell or `claude ; codex`: whatever shows or binds
-   * there next is another agent's. Whether it ended one. Where the platform hides the
-   * process (Windows), nothing tells, and the binding stays until the shell's prompt.
+   * there next is another agent's. Whether it ended one. Where its reports name no
+   * process, nothing tells, and the binding stays until the shell's prompt.
    */
   private endExited(record: Record): boolean {
     const { binding } = record

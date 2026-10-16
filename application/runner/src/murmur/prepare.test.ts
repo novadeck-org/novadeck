@@ -1,4 +1,7 @@
+import { vi } from "vitest"
+
 import { describe, expect, it } from "../test.js"
+import { redactionProbe } from "../testing/redaction-probe.js"
 import type { AgentDigest } from "./describer.js"
 import { Preparer } from "./prepare.js"
 
@@ -73,15 +76,26 @@ describe("preparing a digest in a thread", () => {
       const preparer = new Preparer({ script, deadlineMs: 300 })
       resources.defer(() => preparer.close())
       await preparer.prepare(digest("app"))
-      let ticks = 0
-      const timer = setInterval(() => (ticks += 1), 20)
-
-      const late = await preparer.prepare(digest("hang"))
-      clearInterval(timer)
-
-      expect(late).toBe("late")
-      // The loop kept going the whole while the thread was stuck.
-      expect(ticks).toBeGreaterThan(8)
+      const probe = redactionProbe()
+      const hanging = { ...digest("hang"), redactionProbe: probe.buffer }
+      let finished = false
+      // The regex deadline case below separately covers real-time termination.
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      try {
+        const late = preparer.prepare(hanging).then((result) => {
+          finished = true
+          return result
+        })
+        await probe.observe()
+        expect(finished).toBe(false)
+        await vi.advanceTimersByTimeAsync(299)
+        expect(finished).toBe(false)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(finished).toBe(true)
+        expect(await late).toBe("late")
+      } finally {
+        vi.useRealTimers()
+      }
       expect(preparer.running).toBe(false)
       expect(await preparer.prepare(digest("again"))).toEqual([
         { role: "system", content: "system" },

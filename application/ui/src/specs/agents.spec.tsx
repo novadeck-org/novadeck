@@ -3,6 +3,7 @@ import { page, userEvent, type Locator } from "vitest/browser"
 
 import { settled } from "./support/canvas"
 import { escapeFrom, expectFocusWithin, preferencesDialog } from "./support/keyboard"
+import { pinPointer } from "./support/pointer"
 import { workspaceSwitcher } from "./support/sessions"
 import {
   chooseView,
@@ -648,30 +649,27 @@ describe("A pinned project", () => {
       await expect
         .element(page.getByRole("dialog", { name: "Switch workspace" }))
         .toHaveAttribute("data-state", "open")
-      // What shows at the last move before the drag is let go, the bar dragging the pin the
-      // menu handed over.
-      let seen: {
-        readonly menu: boolean
-        readonly hint: boolean
-        readonly target: boolean
-      } | null = null
-      const moved = (): void => {
-        if (!document.querySelector('.pin[data-pin="docs-site"][data-dragging="true"]')) return
-        seen = {
-          // Open, rather than still in the page as it fades out.
-          menu:
-            page.getByRole("dialog", { name: "Switch workspace" }).query()?.dataset.state ===
-            "open",
-          hint: dropHint().checkVisibility({ visibilityProperty: true }),
-          target: document.querySelector('.pins-bar[data-receiving="true"]') !== null,
-        }
+      const from = await settled(() => switcherRow("docs-site").element().getBoundingClientRect())
+      const header = workspaceSwitcher().element().closest("header")!.getBoundingClientRect()
+      try {
+        await pinPointer("press", { x: from.left + 40, y: from.top + from.height / 2 })
+        await pinPointer("move", { x: window.innerWidth - 80, y: header.bottom + 16 })
+        // Observe the committed handoff while the pointer is still down, instead of a
+        // capture-phase sample that may precede the original drag's end and menu commit.
+        await expect
+          .poll(() => ({
+            menu:
+              page.getByRole("dialog", { name: "Switch workspace" }).query()?.dataset.state ===
+              "open",
+            dragging:
+              document.querySelector('.pin[data-pin="docs-site"][data-dragging="true"]') !== null,
+            hint: dropHint().checkVisibility({ visibilityProperty: true }),
+            target: document.querySelector('.pins-bar[data-receiving="true"]') !== null,
+          }))
+          .toEqual({ menu: false, dragging: true, hint: true, target: true })
+      } finally {
+        await pinPointer("release")
       }
-      window.addEventListener("pointermove", moved, true)
-
-      await dragOut("docs-site", undefined, 48)
-      window.removeEventListener("pointermove", moved, true)
-
-      expect(seen).toEqual({ menu: false, hint: true, target: true })
       await expect.element(pin("docs-site")).toHaveTextContent("1docs-site")
       await expect.poll(() => dropHint().checkVisibility({ visibilityProperty: true })).toBe(false)
       expect(document.querySelector('.pins-bar[data-receiving="true"]')).toBeNull()

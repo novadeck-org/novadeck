@@ -683,11 +683,14 @@ terminal escapes, controls, invisible separators and bidi marks before being sho
   person next submits.
   Untouched errs toward Drafting: any doubt (keys after an Enter, a turn nobody can
   attribute, a ring that didn't finish) counts as a draft. That costs a ring until the
-  person next submits, never a wrong Enter. One doubt the screen settles: a draft kept
-  only because the person's Enter came too long before a replacing session's hook to
-  tell it ran their command (a slow `/clear`). Once the agent's box reads empty on two
-  screen reads running, within 5 s of the doubt, nothing was left in it, and the terminal
-  is Ready. If the 5 s pass, it stays Drafting, and only a later doubt gets its own 5 s.
+  person next submits, never a wrong Enter. The screen settles a draft kept only because
+  the person's Enter came too long before a replacing session's hook (a slow `/clear`),
+  or a root prompt's hook, with no later keys or queued prompt. A late root prompt stays
+  unattributed: its submission window does not grow. Once its turn completes normally,
+  or the replacing session shows its prompt, the agent's box must read empty on two
+  screen reads running within 5 s. Delivery then becomes Settled after the completed
+  turn, keeping its completion time, or Ready before a first turn. If the 5 s pass, it
+  stays Drafting, and only a later doubt gets its own 5 s.
   Any key of the person's ends that doubt, Escape and a key while
   a request waits included. A prompt queued is never doubted: it stays a draft.
 - **The person submitted during a turn** when they sent Enter while a root turn ran and
@@ -765,7 +768,7 @@ facts above, so the prompt's emptiness is known before any message arrives:
 - **Drafting**: the person is busy: the prompt isn't known empty, or they queued a prompt Codex
   has yet to submit. No doorbell; their next submitted prompt's hook delivers. It ends
   with that submission; the one thing the screen returns it from is a draft kept by
-  doubt alone (a replacing session announced past the submission window), to Ready.
+  doubt alone after a late hook, to Ready before a first turn or Settled after a completed one.
 - **Unknown**: the last turn ended without a normal Stop (Esc, a denial, `StopFailure`,
   Claude Code's transcript recording an interrupt, Antigravity's status line saying idle
   with no root Stop since the turn began), or a ring failed after its paste. The
@@ -802,7 +805,7 @@ Transitions:
 | Any bound state                          | The binding ends (the instance exits)                                            | Unbound               |
 | Any bound state                          | Its harness announces a new session                                              | As from Unbound, but: |
 | Any bound state                          | A session replaces it at its prompt, box not known empty, no Enter just before   | Drafting              |
-| Drafting (by doubt only)                 | The screen shows the agent's box empty, on two reads running within 5 s          | Ready                 |
+| Drafting (by doubt only)                 | The screen shows the agent's box empty, on two reads running within 5 s          | Ready or Settled      |
 | Fresh, Ready, Settled, Drafting, Unknown | A root prompt                                                                    | Working               |
 | Working                                  | A normal root Stop, not continued, prompt known empty                            | Settled               |
 | Working                                  | A normal root Stop, not continued, prompt not known empty                        | Drafting              |
@@ -1124,7 +1127,10 @@ one run by its full path without `--no-daemon` runs its hooks in Codex's shared 
 which can't tell the terminal, so nothing of messaging reaches it. A Codex whose
 app-server can't answer `hooks/list` (it can't start, or takes over 10 s) has hooks of
 unknown trust: its prompt doesn't count, so nothing binds before its first prompt, but a
-`send` to it waits rather than being refused, and it is asked again a minute later. Only
+`send` to it waits rather than being refused. A failed answer is not cached. The same
+Ready observation is checked at most three times, one second apart, while its title,
+input, process and delivery epoch stay current. The foreground is checked again before
+the result applies, where the platform can identify it. Only
 a definite answer that Novadeck's hooks aren't trusted, for a title still current, makes
 `send` refuse it. Trusting them later in Codex's `/hooks` sets no new title (probed with
 0.159.3), so while they are untrusted each pause in the person's keys there asks again,

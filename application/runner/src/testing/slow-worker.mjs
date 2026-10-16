@@ -5,7 +5,19 @@
 import { parentPort } from "node:worker_threads"
 
 parentPort?.on("message", ({ id, digest }) => {
-  if (digest.project === "hang") for (;;);
+  if (digest.project === "hang") {
+    if (digest.redactionProbe instanceof SharedArrayBuffer) {
+      const progress = new Int32Array(digest.redactionProbe)
+      Atomics.store(progress, 0, 1)
+      Atomics.notify(progress, 0)
+      // A real main-thread callback must run while this worker is spinning.
+      while (Atomics.load(progress, 1) === 0);
+      Atomics.store(progress, 0, 2)
+      Atomics.notify(progress, 0)
+    }
+    // Acknowledging the callback never completes the hanging redaction.
+    for (;;);
+  }
   parentPort?.postMessage({
     id,
     chat: [

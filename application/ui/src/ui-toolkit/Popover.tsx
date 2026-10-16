@@ -1,6 +1,6 @@
 import { Popover as ArkPopover } from "@ark-ui/react/popover"
 import { Portal } from "@ark-ui/react/portal"
-import { useId, type ReactElement, type ReactNode } from "react"
+import { useId, useRef, type ReactElement, type ReactNode } from "react"
 
 import { Tooltip } from "./Tooltip"
 
@@ -31,10 +31,17 @@ export const Popover = ({
   // One id for the trigger, which a tooltip around it shares: the popover places itself
   // and hands focus back by it.
   const triggerId = useId()
+  const content = useRef<HTMLDivElement>(null)
   return (
     <ArkPopover.Root
       ids={{ trigger: triggerId }}
       open={open}
+      // Ark asks on a later frame. A person may already have focused or reordered a
+      // row by then; keep that deliberate focus instead of starting at the first row.
+      initialFocusEl={() => {
+        const active = content.current?.ownerDocument.activeElement
+        return active instanceof HTMLElement && content.current?.contains(active) ? active : null
+      }}
       onOpenChange={({ open: next }) => onOpenChange(next)}
       positioning={{
         placement,
@@ -57,6 +64,7 @@ export const Popover = ({
       <Portal>
         <ArkPopover.Positioner className="z-40">
           <ArkPopover.Content
+            ref={content}
             aria-label={label}
             className={`floating z-40 max-h-(--available-height) overflow-y-auto ${className ?? ""}`}
           >

@@ -12,6 +12,7 @@ import { afterEach, beforeAll, vi } from "vitest"
 import { createSpecBackend } from "../backend/demo/spec-variants"
 import { context, describe, expect, it } from "../test"
 import { itemFixture } from "../test/fixtures"
+import { testPhases } from "../test/phases"
 import { render } from "../test/render"
 import { WorkspaceApp } from "./App"
 import { useWorkspaceServices, type WorkspaceServices } from "./controller/context"
@@ -121,12 +122,14 @@ const Grab = ({ found }: { readonly found: (services: WorkspaceServices) => void
 
 // The whole workspace page over the default backend, with its services in reach.
 const open = async () => {
+  const phase = testPhases("workspace render scope", () => Object.fromEntries(renders))
   window.location.hash = `#/projects/storefront/sessions/initial/canvas?terminal=${first}`
   let found!: (services: WorkspaceServices) => void
   const handedOver = new Promise<WorkspaceServices>((resolve) => {
     found = resolve
   })
   // StrictMode, as main.tsx renders it: each render counts twice.
+  phase("before synchronous render")
   const page = render(
     createElement(
       StrictMode,
@@ -144,13 +147,20 @@ const open = async () => {
       ),
     ),
   )
+  phase("after synchronous render")
   mounted.add(page)
   // Canvas and search load on demand; wait until they have and the provider handed over.
   const services = await act(async () => {
+    phase("before Canvas import")
     await import("../layouts/canvas/Canvas")
+    phase("after Canvas import")
     await import("../search/TerminalSearch")
-    return handedOver
+    phase("after Search import")
+    const handed = await handedOver
+    phase("provider handed over")
+    return handed
   })
+  phase("after async act")
   return { page, services }
 }
 
