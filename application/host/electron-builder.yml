@@ -137,6 +137,8 @@ win:
 nsis:
   # One click, for the current user, into %LOCALAPPDATA%\Programs\novadeck, with no
   # administrator prompt; uninstalling keeps the projects and sessions in app data.
+  # resources/installer.nsh, which builder includes by name, replaces its running-app check
+  # so a portable copy running elsewhere is never stopped; see docs/auto-update.md.
   artifactName: novadeck-${os}-${arch}-setup.${ext}
 toolsets:
   appimage: 1.0.3

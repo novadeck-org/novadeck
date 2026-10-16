@@ -68,6 +68,8 @@ import {
   insideInstallFolder,
   installedAtLeast,
   installedByInstaller,
+  legacyPrefixFolder,
+  readLegacyUninstaller,
   powershellUsable,
   prepareSetup,
   readInstallRecord,
@@ -733,9 +735,9 @@ const downloadSetup = async (
   }
 }
 
-// Whether PowerShell can do what the installer's running-app check asks of it, as the
-// installer would run it: its stub is 32-bit, so the 32-bit PowerShell is the one it finds.
-const installerPowerShell = (): Promise<boolean> => {
+// LEGACY. Whether PowerShell passes the two tests of the old uninstaller's running-app check,
+// as it would run them: its stub is 32-bit, so the 32-bit PowerShell is the one it finds.
+const legacyInstallerPowerShell = (): Promise<boolean> => {
   const system = process.env.SystemRoot ?? "C:\\Windows"
   const wow = win32.join(system, "SysWOW64", "WindowsPowerShell", "v1.0", "powershell.exe")
   const file = existsSync(wow)
@@ -760,21 +762,34 @@ const setupWaitMs = 5 * 60_000
 const installWindowsSetup = async (
   progress: (step: InstallStep) => void,
 ): Promise<PlatformInstall> => {
-  // The setup replaces what is in the install folder, and stops what runs from there.
+  // The setup refuses to run while Novadeck runs from the install folder; say so up front
+  // to a copy unpacked there.
   const record = await installRecord().catch(() => undefined)
-  const inside = insideInstallFolder(process.execPath, [record?.location, defaultInstallFolder()])
-  if (inside !== undefined)
-    return {
-      kind: "failed",
-      reason: `Novadeck can't install while this copy runs from a folder whose name starts with ${inside}. Move this copy somewhere else, like Downloads, and try again.`,
-    }
-  // Without PowerShell the setup stops every novadeck.exe by name, this copy among them.
-  if (!(await installerPowerShell()))
+  const folders = [record?.location, defaultInstallFolder()]
+  if (insideInstallFolder(process.execPath, folders) !== undefined)
     return {
       kind: "failed",
       reason:
-        "Novadeck can't install itself while it runs on this PC. Quit Novadeck, then run the installer from the Releases page.",
+        "Novadeck can't install while this copy runs from its install folder. Move this copy somewhere else, like Downloads, and try again.",
     }
+  // LEGACY: an installed copy from before `resources/installer.nsh` has an uninstaller the
+  // new setup runs first, which stops by a plain path prefix, or every novadeck.exe by name
+  // without PowerShell, either of which can close this copy. Told by the registry, not by
+  // version: the new installer leaves `RunningCheck` beside the install record.
+  if (await readLegacyUninstaller(appId, queryRegistry)) {
+    const inside = legacyPrefixFolder(process.execPath, folders)
+    if (inside !== undefined)
+      return {
+        kind: "failed",
+        reason: `Novadeck can't install while this copy runs from a folder whose name starts with ${inside}. Move this copy somewhere else, like Downloads, and try again.`,
+      }
+    if (!(await legacyInstallerPowerShell()))
+      return {
+        kind: "failed",
+        reason:
+          "Novadeck can't install itself while it runs on this PC. Quit Novadeck, then run the installer from the Releases page.",
+      }
+  }
   const repository = await releaseRepository()
   const outcome = await prepareSetup({
     downloads: {

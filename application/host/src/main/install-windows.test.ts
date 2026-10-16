@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto"
 import { EventEmitter } from "node:events"
-import { existsSync, readdirSync, readFileSync } from "node:fs"
-import { join } from "node:path"
+import { readFileSync } from "node:fs"
+import { createRequire } from "node:module"
+import { dirname, join } from "node:path"
 
 import { describe, expect, it } from "../test"
 import { newerCopy } from "./install-linux"
@@ -13,6 +14,9 @@ import {
   installedByInstaller,
   installerGuid,
   latestVersionOf,
+  legacyPrefixFolder,
+  readLegacyUninstaller,
+  runningCheckValue,
   powershellChecks,
   powershellUsable,
   prepareSetup,
@@ -21,6 +25,7 @@ import {
   reportPercents,
   runSetup,
   setupArguments,
+  setupInUseExitCode,
   SetupBusyError,
   setupResult,
   setupRunningReason,
@@ -511,7 +516,7 @@ describe("the setup's arguments", () => {
 
 describe("running the setup", () => {
   const running = (
-    event: "exit" | "none" | "error" | "throw",
+    event: "exit" | "in-use" | "none" | "error" | "throw",
     options: { present?: boolean; timeoutMs?: number } = {},
   ) => {
     const calls: string[] = []
@@ -527,6 +532,7 @@ describe("running the setup", () => {
           if (event === "error") return void child.emit("error", new Error("blocked"))
           child.emit("spawn")
           if (event === "exit") child.emit("exit", 0)
+          if (event === "in-use") child.emit("exit", setupInUseExitCode)
         })
         return child
       },
@@ -544,6 +550,10 @@ describe("running the setup", () => {
     expect(spawned).toEqual([
       { args: ["/S"], options: { detached: true, stdio: "ignore", windowsHide: true } },
     ])
+  })
+
+  it("tells a setup that found Novadeck running from the install folder by its exit code", async () => {
+    expect(await running("in-use").result).toBe("in-use")
   })
 
   it("resolves at the timeout without killing a setup that still runs", async () => {
@@ -577,48 +587,6 @@ describe("what proves the setup did its work", () => {
     expect(installedAtLeast([copy("1.1.0")], "1.2.0")).toBeUndefined()
     expect(installedAtLeast([copy(undefined)], "1.2.0")).toBeUndefined()
     expect(installedAtLeast([], "1.2.0")).toBeUndefined()
-  })
-})
-
-describe("a copy running inside the install folder", () => {
-  const folders = ["C:\\Users\\me\\AppData\\Local\\Programs\\novadeck", undefined]
-  const exe = (folder: string): string => `${folder}\\novadeck.exe`
-
-  it("is inside when its path starts with the folder, whatever the case or trailing separator", () => {
-    expect(
-      insideInstallFolder(
-        "c:\\users\\ME\\appdata\\local\\programs\\NOVADECK\\novadeck.exe",
-        folders,
-      ),
-    ).toBe(folders[0])
-    expect(insideInstallFolder(exe(`${folders[0]}\\resources`), folders)).toBe(folders[0])
-    expect(insideInstallFolder(exe(folders[0] ?? ""), [`${folders[0]}\\`])).toBe(`${folders[0]}\\`)
-  })
-
-  it("is inside for a sibling that merely starts with the same letters, as the installer's plain prefix check would stop it", () => {
-    expect(insideInstallFolder(exe(`${folders[0]}-portable`), folders)).toBe(folders[0])
-  })
-
-  it("is not inside elsewhere, or with no folder to compare", () => {
-    expect(insideInstallFolder(exe("D:\\Downloads\\novadeck"), folders)).toBeUndefined()
-    expect(insideInstallFolder(exe("D:\\Downloads"), [undefined, ""])).toBeUndefined()
-  })
-})
-
-describe("whether the installer can check for a running app by PowerShell", () => {
-  it("asks the installer's two questions and needs yes to both", async () => {
-    const asked: string[] = []
-    const answering = (answers: boolean[]) => async (command: string) => {
-      asked.push(command)
-      return answers[asked.length - 1] ?? false
-    }
-    expect(await powershellUsable(answering([true, true]))).toBe(true)
-    expect(asked).toEqual([...powershellChecks])
-    asked.length = 0
-    expect(await powershellUsable(answering([true, false]))).toBe(false)
-    asked.length = 0
-    expect(await powershellUsable(answering([false]))).toBe(false)
-    expect(asked).toHaveLength(1)
   })
 })
 
@@ -683,34 +651,144 @@ describe("download progress", () => {
   })
 })
 
-describe("the installer's PowerShell checks", () => {
-  // The commands are electron-builder's, from IS_POWERSHELL_AVAILABLE in
-  // app-builder-lib/templates/nsis/include/allowOnlyOneInstallerInstance.nsh (the two
-  // `nsExec::Exec ... -C "<command>"` lines). They are pinned here so an upgrade that
-  // changes them is noticed.
-  it("are the exact commands of the template, and the path check is the prefix one mirrored", () => {
-    expect(powershellChecks).toEqual([
-      "if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }",
-      "if ((Get-ExecutionPolicy -Scope Process) -eq 'Restricted') { exit 1 } else { exit 0 }",
-    ])
-    const store = join(process.cwd(), "..", "..", "node_modules", ".pnpm")
-    const found = existsSync(store)
-      ? readdirSync(store).find((name) => name.startsWith("app-builder-lib@"))
-      : undefined
-    // A missing template fails: the pin is worth nothing if it silently stops running.
-    if (found === undefined) throw new Error(`app-builder-lib is not installed under ${store}`)
-    const template = readFileSync(
-      join(
-        store,
-        found,
-        "node_modules/app-builder-lib/templates/nsis/include/allowOnlyOneInstallerInstance.nsh",
-      ),
+describe("the installer's running-app check", () => {
+  // electron-builder only uses `customCheckAppRunning` where its template says so, and
+  // otherwise stops every novadeck.exe by name, a portable copy included. Pinned so an
+  // upgrade that drops the hook, or stops reaching it, is noticed. The templates are those
+  // of the app-builder-lib that electron-builder itself resolves.
+  const templates = join(
+    dirname(
+      createRequire(
+        createRequire(import.meta.url).resolve("electron-builder/package.json"),
+      ).resolve("app-builder-lib/package.json"),
+    ),
+    "templates",
+    "nsis",
+  )
+  const template = (file: string): string => readFileSync(join(templates, file), "utf8")
+
+  it("is replaced by our macro, which never stops a process by name", () => {
+    expect(template("include/allowOnlyOneInstallerInstance.nsh")).toMatch(
+      /!macro CHECK_APP_RUNNING[\s\S]*!ifmacrodef customCheckAppRunning\s+!insertmacro customCheckAppRunning/u,
+    )
+    const macro = readFileSync(join(process.cwd(), "resources", "installer.nsh"), "utf8")
+    expect(macro).toContain("!macro customCheckAppRunning")
+    expect(macro).not.toMatch(/^[^#\n]*(taskkill|\/IM\b|KILL_PROCESS)/mu)
+  })
+
+  it("leaves the marker the host reads in the key the uninstaller deletes whole", () => {
+    const macro = readFileSync(join(process.cwd(), "resources", "installer.nsh"), "utf8")
+    expect(macro).toContain(`"\${INSTALL_REGISTRY_KEY}" ${runningCheckValue} 1`)
+    expect(template("uninstaller.nsh")).toContain(
+      'DeleteRegKey SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}"',
+    )
+  })
+
+  it("is still included by name from the build resources, and its install hook still runs", () => {
+    const target = readFileSync(
+      join(templates, "..", "..", "out/targets/nsis/NsisTarget.js"),
       "utf8",
     )
-    for (const command of powershellChecks) expect(template).toContain(`-C "${command}"`)
-    // `insideInstallFolder` mirrors this plain case-insensitive prefix check of a process's
-    // path against the install folder.
-    expect(template).toContain("StartsWith('$INSTDIR', 'CurrentCultureIgnoreCase')")
+    expect(target).toContain('getResource(this.options.include, "installer.nsh")')
+    expect(target).toContain("addIncludeDir(packager.info.buildResourcesDir)")
+    // Read as LF, as a Windows checkout has CRLF.
+    const config = readFileSync(join(process.cwd(), "electron-builder.yml"), "utf8").replaceAll(
+      "\r\n",
+      "\n",
+    )
+    // `buildResources` sits under the top-level `directories:` and is exactly `resources`.
+    expect(config).toMatch(/^directories:\n(?: {2}.*\n)*? {2}buildResources: resources$/mu)
+    // No explicit `nsis.include`, which would replace the include by name.
+    // The `nsis:` block runs to the next top-level key; comments don't end it.
+    const nsis = /^nsis:[^\n]*\n((?:(?: .*|#.*|)\n)*)/mu.exec(config)?.[1]
+    expect(nsis).toContain("artifactName")
+    expect(nsis).not.toMatch(/^ {2}include:/mu)
+    expect(template("installSection.nsh")).toContain("!insertmacro customInstall")
+  })
+
+  it("is still reached by the installer and the uninstaller", () => {
+    expect(template("installSection.nsh")).toContain("!insertmacro CHECK_APP_RUNNING")
+    expect(template("uninstaller.nsh")).toContain("!insertmacro CHECK_APP_RUNNING")
+  })
+})
+
+describe("a copy running inside the install folder", () => {
+  const install = "C:\\Users\\me\\AppData\\Local\\Programs\\novadeck"
+  const folders = [install, undefined]
+  const exe = (folder: string): string => `${folder}\\novadeck.exe`
+
+  it("is inside in the folder or under it, whatever the case or trailing separator", () => {
+    expect(insideInstallFolder(exe(install.toUpperCase()), folders)).toBe(install)
+    expect(insideInstallFolder(exe(`${install}\\resources`), folders)).toBe(install)
+    expect(insideInstallFolder(exe(install), [`${install}\\`])).toBe(`${install}\\`)
+  })
+
+  it("is not inside for a sibling that merely starts with the same letters, or elsewhere", () => {
+    expect(insideInstallFolder(exe(`${install}-portable`), folders)).toBeUndefined()
+    expect(insideInstallFolder(exe("D:\\Downloads\\novadeck"), folders)).toBeUndefined()
+    expect(insideInstallFolder(exe("D:\\Downloads"), [undefined, ""])).toBeUndefined()
+  })
+})
+
+describe("the guard for installed copies with the old uninstaller", () => {
+  const install = "C:\\Users\\me\\AppData\\Local\\Programs\\novadeck"
+  const guid = installerGuid("dev.mzpk.novadeck")
+  // What `reg query` answers for the values the installer left; "" where there is none.
+  const registry = (values: Record<string, string>) => async (key: string, name: string) => {
+    if (!key.includes(guid)) throw new Error("other key")
+    const data = values[name]
+    return data === undefined ? "" : `\r\n${key}\r\n    ${name}    REG_SZ    ${data}\r\n`
+  }
+
+  it("applies to a recorded install without the marker, even when its executable is gone", async () => {
+    expect(
+      await readLegacyUninstaller(
+        "dev.mzpk.novadeck",
+        registry({ UninstallString: '"C:\\u.exe"' }),
+      ),
+    ).toBe(true)
+    expect(
+      await readLegacyUninstaller("dev.mzpk.novadeck", registry({ InstallLocation: install })),
+    ).toBe(true)
+  })
+
+  it("does not apply to an install the new installer made, or to no install", async () => {
+    expect(
+      await readLegacyUninstaller(
+        "dev.mzpk.novadeck",
+        registry({ UninstallString: "x", InstallLocation: install, [runningCheckValue]: "1" }),
+      ),
+    ).toBe(false)
+    expect(await readLegacyUninstaller("dev.mzpk.novadeck", registry({}))).toBe(false)
+  })
+
+  it("applies when the registry cannot be read", async () => {
+    expect(
+      await readLegacyUninstaller("dev.mzpk.novadeck", async () => {
+        throw new Error("reg.exe failed")
+      }),
+    ).toBe(true)
+  })
+
+  it("refuses a sibling folder by plain prefix, as the old uninstaller would stop it", () => {
+    const exe = `${install}-portable\\novadeck.exe`
+    expect(legacyPrefixFolder(exe, [install])).toBe(install)
+    expect(legacyPrefixFolder("D:\\Downloads\\novadeck.exe", [install, undefined])).toBeUndefined()
+  })
+
+  it("needs both PowerShell tests to pass, asking each in turn", async () => {
+    const asked: string[] = []
+    const answering = (answers: boolean[]) => async (command: string) => {
+      asked.push(command)
+      return answers[asked.length - 1] ?? false
+    }
+    expect(await powershellUsable(answering([true, true]))).toBe(true)
+    expect(asked).toEqual([...powershellChecks])
+    asked.length = 0
+    expect(await powershellUsable(answering([true, false]))).toBe(false)
+    asked.length = 0
+    expect(await powershellUsable(answering([false]))).toBe(false)
+    expect(asked).toHaveLength(1)
   })
 })
 
@@ -728,6 +806,13 @@ describe("what the install answers once the setup has run", () => {
       reason: setupRunningReason,
     })
     expect(setupRunningReason).toContain("still running")
+  })
+
+  it("says Novadeck runs from the install folder when the setup found it so", () => {
+    expect(setupResult("in-use", undefined)).toMatchObject({
+      kind: "failed",
+      reason: expect.stringContaining("install folder"),
+    })
   })
 
   it("says it did not finish when it exited with no copy, and that it did not run when it never started", () => {

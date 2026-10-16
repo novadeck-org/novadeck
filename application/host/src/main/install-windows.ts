@@ -91,13 +91,10 @@ const folderKey = (folder: string): string =>
     .toLowerCase()
 
 /**
- * The folder of `folders` that the executable `execPath` is inside of, or undefined if
- * none. The setup replaces everything in the install folder, and its running-app check
- * (`_CHECK_APP_RUNNING` in electron-builder's `allowOnlyOneInstallerInstance.nsh`) stops
- * every process whose path `StartsWith($INSTDIR, CurrentCultureIgnoreCase)`: a plain
- * case-insensitive prefix with no separator after it. So this mirrors that exactly, and a
- * sibling that starts with the same letters (`novadeck-portable`) counts as inside, since
- * the setup would stop it too.
+ * The folder of `folders` that the executable `execPath` is in or under, whole path
+ * segments only, or undefined if none. The setup replaces everything in the install
+ * folder and its running-app check refuses to run while Novadeck runs from there, so a
+ * copy unpacked into it can't install.
  */
 export const insideInstallFolder = (
   execPath: string,
@@ -106,8 +103,75 @@ export const insideInstallFolder = (
   const here = win32.normalize(execPath).toLowerCase()
   return folders.find((folder): folder is string => {
     if (folder === undefined || folder === "") return false
-    return here.startsWith(folderKey(folder))
+    const key = folderKey(folder)
+    return here.startsWith(`${key}\\`)
   })
+}
+
+/** The value `resources/installer.nsh` writes beside builder's `InstallLocation` of every install. */
+export const runningCheckValue = "RunningCheck"
+
+/**
+ * LEGACY. Whether the installed copy the registry records may carry builder's old
+ * running-app check in its uninstaller, which a new setup runs first
+ * (`uninstallOldVersion` in electron-builder's `installUtil.nsh`, `/S --updated`): there is
+ * a record of an install (an `UninstallString` or an `InstallLocation`, whether or not its
+ * executable is still there) without the `RunningCheck` marker of an install made by this
+ * installer. A registry that cannot be read counts as legacy, the safe answer.
+ */
+export const readLegacyUninstaller = async (
+  appId: string,
+  run: (key: string, name: string) => Promise<string>,
+): Promise<boolean> => {
+  const keys = registryKeys(appId)
+  try {
+    const [uninstall, location, marker] = await Promise.all([
+      run(keys.version, "UninstallString"),
+      run(keys.location, "InstallLocation"),
+      run(keys.location, runningCheckValue),
+    ])
+    const recorded =
+      registryValue(uninstall, "UninstallString") !== undefined ||
+      registryValue(location, "InstallLocation") !== undefined
+    return recorded && registryValue(marker, runningCheckValue) === undefined
+  } catch {
+    return true
+  }
+}
+
+/**
+ * LEGACY. The folder of `folders` whose name `execPath` merely starts with, a sibling such
+ * as `novadeck-portable` included. The old uninstaller's PowerShell path stops every
+ * process with `StartsWith($INSTDIR, CurrentCultureIgnoreCase)`, with no separator after it.
+ */
+export const legacyPrefixFolder = (
+  execPath: string,
+  folders: readonly (string | undefined)[],
+): string | undefined => {
+  const here = win32.normalize(execPath).toLowerCase()
+  return folders.find(
+    (folder): folder is string =>
+      folder !== undefined && folder !== "" && here.startsWith(folderKey(folder)),
+  )
+}
+
+/**
+ * LEGACY. The two PowerShell commands electron-builder's `IS_POWERSHELL_AVAILABLE` runs
+ * (see `allowOnlyOneInstallerInstance.nsh`), each answering by exit code 0 for yes. The old
+ * uninstaller stops only processes inside the install folder where both say yes, and
+ * otherwise every process named `novadeck.exe`, which would stop a portable copy.
+ */
+export const powershellChecks = [
+  "if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }",
+  "if ((Get-ExecutionPolicy -Scope Process) -eq 'Restricted') { exit 1 } else { exit 0 }",
+] as const
+
+/** LEGACY. Whether both `powershellChecks` pass, each asked by `run` as `powershell.exe -C <command>`. */
+export const powershellUsable = async (
+  run: (command: string) => Promise<boolean>,
+): Promise<boolean> => {
+  for (const command of powershellChecks) if (!(await run(command))) return false
+  return true
 }
 
 /**
@@ -326,7 +390,16 @@ export const setupResult = (
     }
   if (installed !== undefined) return { kind: "installed", image: installed.image }
   if (ran === "timeout") return { kind: "failed", reason: setupRunningReason }
-  return { kind: "failed", reason: "The installer did not finish installing Novadeck." }
+  if (ran === "in-use")
+    return {
+      kind: "failed",
+      reason:
+        "Novadeck can't install while something from its install folder is still running. Quit Novadeck there, or restart Windows, then try again.",
+    }
+  return {
+    kind: "failed",
+    reason: "The installer did not finish installing Novadeck.",
+  }
 }
 
 /** How getting the setup ready went: the file, or why not. */
@@ -538,13 +611,16 @@ export const startDetached = ({
  */
 export const setupArguments = ["/S"] as const
 
-/** How running the setup ended: it exited, it was still running at `timeoutMs`, or never started. */
-export type SetupRun = "exited" | "timeout" | "failed"
+/** How running the setup ended: it exited (or, with `setupInUseExitCode`, found Novadeck running from the install folder), it was still running at `timeoutMs`, or never started. */
+export type SetupRun = "exited" | "in-use" | "timeout" | "failed"
+
+/** The exit code `resources/installer.nsh` ends the setup with when Novadeck runs from the install folder. */
+export const setupInUseExitCode = 3
 
 /** The part of a child process that waiting for the setup uses. */
 export type SetupProcess = {
   once(event: "spawn", listener: () => void): unknown
-  once(event: "exit", listener: () => void): unknown
+  once(event: "exit", listener: (code: number | null) => void): unknown
   once(event: "error", listener: (error: Error) => void): unknown
   unref(): void
 }
@@ -600,7 +676,7 @@ export const runSetup = ({
           end("timeout")
         }, timeoutMs)
       })
-      child.once("exit", () => end("exited"))
+      child.once("exit", (code) => end(code === setupInUseExitCode ? "in-use" : "exited"))
     } catch (error) {
       log("The setup did not start.", error)
       end("failed")
@@ -620,26 +696,3 @@ export const installedAtLeast = (
     ({ version: found }) =>
       found !== undefined && (found === version || isNewerVersion(found, version)),
   )
-
-/**
- * The two PowerShell commands electron-builder's `IS_POWERSHELL_AVAILABLE` runs (see
- * `allowOnlyOneInstallerInstance.nsh`), each answering by exit code 0 for yes. The
- * installer's `_CHECK_APP_RUNNING` then stops only the processes running from its install
- * folder; where PowerShell is not available it stops every process named `novadeck.exe`
- * instead, which would stop this copy. So the setup is run only where both say yes.
- */
-export const powershellChecks = [
-  "if (Get-Command Get-CimInstance -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }",
-  "if ((Get-ExecutionPolicy -Scope Process) -eq 'Restricted') { exit 1 } else { exit 0 }",
-] as const
-
-/**
- * Whether the installer's running-app check can use PowerShell, which `run` asks by
- * running `powershell.exe -C <command>` and answering whether it exited 0.
- */
-export const powershellUsable = async (
-  run: (command: string) => Promise<boolean>,
-): Promise<boolean> => {
-  for (const command of powershellChecks) if (!(await run(command))) return false
-  return true
-}
