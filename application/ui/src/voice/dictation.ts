@@ -251,9 +251,10 @@ export const createDictation = (deps: DictationDeps): DictationController => {
         const said = text.trim()
         if (!said) return notify("Didn't catch anything.", "hint", target)
         if (typeInto(target, said)) return notify(`Typed ${wordCount(said)}`, "done", target)
-        // The terminal went while the engine worked. The words stay on the clipboard where
-        // that is allowed, and in the message where it is not, so they aren't lost.
-        const lost = "The terminal closed before the text arrived"
+        // The terminal went while the engine worked, or isn't taking input now: out of sight,
+        // or reconnecting. The words stay on the clipboard where that is allowed, and in the
+        // message where it is not, so they aren't lost.
+        const lost = "The terminal wasn't taking input when the text arrived"
         const clipboard = navigator.clipboard?.writeText(said)
         if (!clipboard) return notify(`${lost}: ${said}`, "error", target)
         clipboard.then(

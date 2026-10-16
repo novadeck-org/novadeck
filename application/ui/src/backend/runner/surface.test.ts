@@ -1,4 +1,4 @@
-import type { TerminalEvent } from "@novadeck/protocol"
+import type { TerminalEvent, TerminalExit } from "@novadeck/protocol"
 import { RunnerError, type AttachedTerminal } from "@novadeck/protocol/client"
 import { Terminal } from "@xterm/xterm"
 import { act, createElement, type ReactNode } from "react"
@@ -1014,33 +1014,39 @@ describe("runner terminal surface", () => {
 })
 
 describe("typing into a terminal's screen", () => {
-  // A running shell whose first screen is `data`, recording what is written to it.
-  const running = (data: string) => {
-    const { runtime } = starting()
+  // A running shell whose first screen is `data`, or one that exited as `exit` says,
+  // recording what is written to it. Each attachment draws that screen, then stays open
+  // until detached, as a live shell's.
+  const running = (data: string, exit: TerminalExit | null = null) => {
+    const { runtime, connection } = starting()
     const written: string[] = []
-    const attachment: AttachedTerminal = {
-      id: "01",
-      mode: "control",
-      [Symbol.asyncIterator]: () => attachment,
-      next: vi
-        .fn<AttachedTerminal["next"]>()
-        .mockResolvedValueOnce({
-          value: {
-            terminalId: "01",
-            sequence: 1,
-            type: "snapshot",
-            cols: 80,
-            rows: 24,
-            data,
-            exit: null,
-          },
-          done: false,
-        })
-        .mockImplementation(() => new Promise(() => {})),
-      return: async () => ({ value: undefined, done: true as const }),
-      write: async (text) => void written.push(text),
-      resize: async () => {},
-      detach: async () => {},
+    const attachments: AttachedTerminal[] = []
+    const attachmentOf = (): AttachedTerminal => {
+      let drawn = false
+      let end: () => void = () => {}
+      const closed = new Promise<void>((resolve) => {
+        end = resolve
+      })
+      const attachment: AttachedTerminal = {
+        id: "01",
+        mode: "control",
+        [Symbol.asyncIterator]: () => attachment,
+        next: async () => {
+          if (drawn) {
+            await closed
+            return { value: undefined, done: true as const }
+          }
+          drawn = true
+          const event = { terminalId: "01", sequence: 1, cols: 80, rows: 24, data, exit }
+          return { value: { ...event, type: "snapshot" as const }, done: false }
+        },
+        return: async () => ({ value: undefined, done: true as const }),
+        write: async (text) => void written.push(text),
+        resize: async () => {},
+        detach: vi.fn<AttachedTerminal["detach"]>(async () => end()),
+      }
+      attachments.push(attachment)
+      return attachment
     }
     const live = {
       ...runtime,
@@ -1050,25 +1056,80 @@ describe("typing into a terminal's screen", () => {
         closed: false,
         size: { cols: 80, rows: 24 },
       }),
-      attach: async () => attachment,
+      attach: async () => attachmentOf(),
     }
     const screens = createScreens(live)
     const Surface = createRunnerTerminal(live, screens)
-    const page = render(
-      createElement(Surface, {
-        terminalKey: key,
-        terminal: { ...terminalFixture(1, "~"), state: "running" },
-        projectName: "P",
-        fontSize: 13,
-        focusInput: false,
-        onInputFocused: () => {},
-        renderWindow: (content) => content,
-      }),
-    )
-    mounted.push(page)
+    const showAgain = () => {
+      const shown = render(
+        createElement(Surface, {
+          terminalKey: key,
+          terminal: { ...terminalFixture(1, "~"), state: "running" },
+          projectName: "P",
+          fontSize: 13,
+          focusInput: false,
+          onInputFocused: () => {},
+          renderWindow: (content) => content,
+        }),
+      )
+      mounted.push(shown)
+      return shown
+    }
+    const page = showAgain()
     const ready = () => vi.waitFor(() => expect(page.container.textContent).toContain("$"))
-    return { screens, written, ready }
+    // Out of sight long enough for its screen to stop following the shell.
+    const park = () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] })
+      try {
+        mounted.splice(mounted.indexOf(page), 1)
+        page.unmount()
+        vi.advanceTimersByTime(4_000)
+        expect(attachments[0]!.detach).not.toHaveBeenCalled()
+        vi.advanceTimersByTime(1_000)
+        expect(attachments[0]!.detach).toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+    return { screens, written, ready, park, showAgain, attachments, connection }
   }
+
+  it("types nothing into a terminal out of sight long enough to stop following it", async () => {
+    const { screens, written, ready, park } = running("$ ")
+    await ready()
+    park()
+    expect(screens.typeInto(key, "run the tests")).toBe(false)
+    expect(written).toEqual([])
+  })
+
+  it("types nothing into a shell that exited and waits for Enter", async () => {
+    const { screens, written, ready } = running("$ exit 1", { code: 1, signal: null, ranMs: 5_000 })
+    await ready()
+    expect(screens.typeInto(key, "run the tests")).toBe(false)
+    expect(written).toEqual([])
+  })
+
+  it("types nothing while the runner is out of reach", async () => {
+    const { screens, written, ready, connection } = running("$ ")
+    await ready()
+    connection.update(() => "reconnecting")
+    expect(screens.typeInto(key, "run the tests")).toBe(false)
+    connection.update(() => "unavailable")
+    expect(screens.typeInto(key, "run the tests")).toBe(false)
+    expect(written).toEqual([])
+  })
+
+  it("types into it again once shown and its screen has arrived", async () => {
+    const { screens, written, ready, park, showAgain, attachments } = running("$ ")
+    await ready()
+    park()
+    showAgain()
+    // Shown, but its screen isn't there yet.
+    expect(screens.typeInto(key, "too soon")).toBe(false)
+    await vi.waitFor(() => expect(attachments).toHaveLength(2))
+    await vi.waitFor(() => expect(screens.typeInto(key, "run the tests")).toBe(true))
+    expect(written).toEqual(["run the tests"])
+  })
 
   it("pastes plain text as typed, without Enter", async () => {
     const { screens, written, ready } = running("$ ")

@@ -7,6 +7,7 @@
    `.terminal-compact` (Grid, Canvas); a selected window is `.terminal-focused`, or sits
    in a `.grid-terminal.selected` or `.canvas-node.selected`. Parts: `.terminal-header`,
    `.terminal-heading` (whose ::before is the selection bar and ::after the phase line),
+   `.terminal-sweep` (the stretch that sweeps along the phase line while a program runs),
    `.terminal-title`, `.terminal-content` (the terminal's output, which a theme may
    filter), `.terminal-host` (the terminal's content, and
    `.terminal-stats` over it: what the agent runs on, its `.terminal-stats-runs` and its
@@ -33,8 +34,8 @@
    item's --item-selected-indicator-shadow, then none): a glow around it.
    --window-phase-border-width (1px): the phase line's weight.
    --window-phase-track-border-color (line): the line the running sweep travels along.
-   --window-phase-running-shadow (none): a filter over the running sweep, such as a
-   drop-shadow that glows along it as it moves.
+   --window-phase-running-shadow (none): a filter over the phase line while a program
+   runs, such as a drop-shadow that glows along it; the sweep moves over it unfiltered.
    --window-phase-running-border-color (strong), --window-phase-starting-border-color
    (muted), --window-phase-attention-border-color (warning-fg),
    --window-phase-ended-border-color (strong): the phase line in each phase.
@@ -345,23 +346,49 @@
   border-top: var(--window-phase-border-width, 1px) solid transparent;
   pointer-events: none;
 }
-@property --_terminal-sweep {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: -35%;
-}
+/* While a program runs, the line is a track a brighter stretch sweeps along: the line
+   holds still with its glow, and the stretch over it only moves, which the compositor
+   does on its own, so a busy page never stalls it nor redraws the line each frame. */
 .terminal-window[data-terminal-phase="running"] .terminal-heading::after {
+  border-top-color: var(--window-phase-track-border-color, var(--color-line));
+  filter: var(--window-phase-running-shadow, none);
+}
+.terminal-sweep {
+  display: none;
+}
+.terminal-window[data-terminal-phase="running"] .terminal-sweep {
+  display: block;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  /* Over the line, which as the heading's ::after paints after it. */
+  z-index: 2;
+  height: 0;
+  overflow-x: clip;
+  pointer-events: none;
+}
+/* Half the line wide: the track's colour at both ends, so it lies seamless on the line,
+   the sweep colour through its middle; it starts just past the left end and leaves past
+   the right. */
+.terminal-sweep::before {
   --_track: var(--window-phase-track-border-color, var(--color-line));
   --_sweep: var(--window-phase-running-border-color, var(--color-strong));
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 50%;
+  height: 0;
+  border-top: var(--window-phase-border-width, 1px) solid transparent;
   border-image: linear-gradient(
       to right,
-      var(--_track) calc(var(--_terminal-sweep) - 25%),
-      var(--_sweep) calc(var(--_terminal-sweep) - 10%),
-      var(--_sweep) calc(var(--_terminal-sweep) + 10%),
-      var(--_track) calc(var(--_terminal-sweep) + 25%)
+      var(--_track),
+      var(--_sweep) 30%,
+      var(--_sweep) 70%,
+      var(--_track)
     )
     1;
-  filter: var(--window-phase-running-shadow, none);
   animation: terminal-sweep 2.2s var(--ease-interface) infinite;
 }
 .terminal-window[data-terminal-phase="starting"] .terminal-heading::after {
@@ -399,8 +426,11 @@
   opacity: var(--window-ended-content-opacity, 0.55);
 }
 @keyframes terminal-sweep {
+  from {
+    transform: translateX(-120%);
+  }
   to {
-    --_terminal-sweep: 135%;
+    transform: translateX(220%);
   }
 }
 @keyframes terminal-pulse {
@@ -413,8 +443,10 @@
     animation: none;
   }
   .terminal-window[data-terminal-phase="running"] .terminal-heading::after {
-    border-image: none;
     border-top-color: var(--window-phase-running-border-color, var(--color-strong));
+  }
+  .terminal-window[data-terminal-phase="running"] .terminal-sweep {
+    display: none;
   }
 }
 .terminal-compact .terminal-content {

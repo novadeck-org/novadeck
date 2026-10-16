@@ -383,6 +383,7 @@ export const WindowShell = ({
     >
       <div className="terminal-heading relative shrink-0">
         {menu ? <ContextMenu label={`${label} actions`} items={menu} trigger={header} /> : header}
+        <span className="terminal-sweep" aria-hidden="true" />
       </div>
       {children}
     </section>

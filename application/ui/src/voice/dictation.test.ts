@@ -377,7 +377,7 @@ describe("dictation", () => {
     })
   })
 
-  context("when the terminal closed before the text arrived", () => {
+  context("when the terminal wasn't taking input as the text arrived", () => {
     const dictate = async (app: ReturnType<typeof setup>): Promise<void> => {
       app.controller.dictation.toggle(target)
       await app.speak(1)
@@ -396,7 +396,7 @@ describe("dictation", () => {
         await dictate(app)
         expect(writeText).toHaveBeenCalledWith("run the tests")
         expect(app.controller.view.getSnapshot().notice).toEqual({
-          text: "The terminal closed before the text arrived. The text is on your clipboard.",
+          text: "The terminal wasn't taking input when the text arrived. The text is on your clipboard.",
           tone: "error",
           target,
         })
@@ -411,7 +411,7 @@ describe("dictation", () => {
         const app = setup()
         await dictate(app)
         expect(app.controller.view.getSnapshot().notice).toEqual({
-          text: "The terminal closed before the text arrived: run the tests",
+          text: "The terminal wasn't taking input when the text arrived: run the tests",
           tone: "error",
           target,
         })

@@ -7,6 +7,10 @@ import { backgroundPointerHandlers } from "../background"
 import { useTerminalVisibility } from "../useTerminalVisibility"
 import { keptTerminals } from "./kept"
 
+// Focus offers its windows no layout controls; one object for all, so a window whose
+// terminal didn't change skips rendering again.
+const controls: TerminalLayoutControls = {}
+
 export const Focus = ({
   terminals,
   displayed,
@@ -56,7 +60,7 @@ export const Focus = ({
             aria-hidden={hidden[terminal.id]}
             inert={hidden[terminal.id]}
           >
-            <Shown value={shown && !hidden[terminal.id]}>{render(terminal, {})}</Shown>
+            <Shown value={shown && !hidden[terminal.id]}>{render(terminal, controls)}</Shown>
           </div>
         ))}
     </div>

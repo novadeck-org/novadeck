@@ -19,8 +19,8 @@ export type Screen = {
   // with whether it waits for Enter to start again.
   readonly exited: (waiting: boolean) => void
   // Whether a stream is drawing the current shell: true once its screen arrived, false
-  // once the stream ended, or while it takes up again after a reconnection
-  // (`resuming`). Input goes nowhere in between.
+  // once a park let go of the stream or it ended, or while it takes up again after a
+  // reconnection (`resuming`). Input goes nowhere in between.
   readonly live: (live: boolean, resuming?: boolean) => void
 }
 
@@ -29,6 +29,12 @@ export type FollowedTerminal = {
   readonly input: (data: string) => void
   // Tells the runner the size that fits now, if it changed.
   readonly refit: () => void
+  // Lets go of the stream while no view shows the terminal, so its output costs nothing
+  // here while the screen keeps what it last drew; `unpark` attaches again, and the
+  // runner's fresh screen brings it up to date. A fresh shell started meanwhile waits
+  // for it too.
+  readonly park: () => void
+  readonly unpark: () => void
   readonly stop: () => void
 }
 
@@ -47,6 +53,12 @@ export const followTerminal = (
   })
   let attachment: AttachedTerminal | undefined
   let sent: string | undefined
+  // Resolves once the stream may attach, as it may unless parked.
+  let unparked: Promise<void> | undefined
+  let wake: (() => void) | undefined
+  // A park ended the stream: the same shell runs on, so it attaches again, even when
+  // shown before the stream wound down.
+  let cut = false
   const refit = (): void => {
     const size = screen.fit()
     if (size) runtime.resized(key, size)
@@ -70,7 +82,8 @@ export const followTerminal = (
       screen.resize(event)
       sent = `${event.cols}x${event.rows}`
       await screen.write(event.data)
-      screen.live(true)
+      // A park that came while it drew has let go of this stream already.
+      if (!unparked) screen.live(true)
       runtime.screen(key, "shown")
       if (event.exit) {
         runtime.exited(key, event.exit)
@@ -86,14 +99,16 @@ export const followTerminal = (
       screen.resize(event)
     }
   }
-  const wanted = (entry: FollowedEntry): boolean => !stopped && !entry.closed
-  // Attaches, retrying after the runner comes back; undefined when it cannot.
+  const wanted = (entry: FollowedEntry): boolean => !stopped && !unparked && !entry.closed
+  // Attaches, retrying after the runner comes back; undefined when it cannot, or once
+  // parked, which marks the stream cut.
   const open = async (entry: FollowedEntry): Promise<AttachedTerminal | undefined> => {
     while (wanted(entry)) {
       try {
         // eslint-disable-next-line no-await-in-loop -- Retry after the runner comes back.
         const attached = await runtime.attach(key.terminalId)
         if (wanted(entry)) return attached
+        cut ||= Boolean(unparked)
         // eslint-disable-next-line no-await-in-loop -- Release before giving up.
         await attached.detach()
         return undefined
@@ -112,6 +127,7 @@ export const followTerminal = (
         await Promise.race([runtime.connected(), halted])
       }
     }
+    cut ||= Boolean(unparked)
     return undefined
   }
   const follow = async (attached: AttachedTerminal): Promise<void> => {
@@ -136,14 +152,23 @@ export const followTerminal = (
     while (running()) {
       const entry = runtime.entry(key)
       if (!entry || entry.closed) return
-      // Taken first, so a fresh shell started while this one attaches is not missed.
+      // eslint-disable-next-line no-await-in-loop -- Parked, it attaches once shown again.
+      if (unparked) await Promise.race([unparked, halted])
+      // Taken before attaching, so a fresh shell started meanwhile is not missed; and after
+      // a park, so one started while parked, which it attaches to, doesn't count again.
       const { revived } = entry
       // eslint-disable-next-line no-await-in-loop -- The shell must exist first.
       const ready = await Promise.race([entry.ready, halted])
+      // Parked while it started: it attaches once shown.
+      if (unparked) continue
       // eslint-disable-next-line no-await-in-loop -- Then attach to it.
       const attached = ready && (await runtime.track(open(entry)))
       // eslint-disable-next-line no-await-in-loop -- One attachment at a time.
       if (attached) await follow(attached)
+      if (cut || unparked) {
+        cut = false
+        continue
+      }
       // eslint-disable-next-line no-await-in-loop -- Wait for a fresh shell.
       await Promise.race([revived, halted])
     }
@@ -156,7 +181,8 @@ export const followTerminal = (
   const resume = async (attached: AttachedTerminal): Promise<void> => {
     const turn = (resumes += 1)
     screen.live(false, true)
-    const current = (): boolean => !stopped && attachment === attached && turn === resumes
+    const current = (): boolean =>
+      !stopped && !unparked && attachment === attached && turn === resumes
     while (current()) {
       const size = runtime.entry(key)?.size ?? screen.fit()
       try {
@@ -184,6 +210,22 @@ export const followTerminal = (
       void attachment.write(data).catch(() => {})
     },
     refit,
+    park: () => {
+      if (stopped || unparked) return
+      unparked = new Promise((resolve) => {
+        wake = resolve
+      })
+      if (!attachment) return
+      cut = true
+      // Nothing draws it from now on, though the stream ends a moment later.
+      screen.live(false)
+      void attachment.detach()
+    },
+    unpark: () => {
+      if (!unparked) return
+      unparked = undefined
+      wake?.()
+    },
     stop: () => {
       unsubscribe()
       stopped = true
