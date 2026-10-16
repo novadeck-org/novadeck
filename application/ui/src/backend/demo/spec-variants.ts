@@ -104,15 +104,28 @@ const requestedVersion = (
 }
 
 // Specs open the demo as a visitor's, with `?visitor=on`: what the app shows for one.
-// `&turnMs=` and `&nudgeMs=` shorten its agents' turns and the wait before Codex asks.
+// `&turnMs=` and `&nudgeMs=` shorten its agents' turns and the wait before Codex asks;
+// `&readingMs=` has Claude Code read that long before its plan comes, and none without. What
+// goes on at the desk by itself stays out of specs.
 const visitorRequested = (): boolean =>
   new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("visitor") === "on"
 
-const visitorTimings = (): { turnMs?: number; nudgeMs?: number } => {
+const visitorTimings = (): {
+  turnMs?: number
+  nudgeMs?: number
+  readingMs: number
+  ambient: false
+} => {
   const params = new URLSearchParams(window.location.hash.split("?")[1] ?? "")
   const turnMs = Number(params.get("turnMs"))
   const nudgeMs = Number(params.get("nudgeMs"))
-  return { ...(turnMs > 0 && { turnMs }), ...(nudgeMs > 0 && { nudgeMs }) }
+  const readingMs = Number(params.get("readingMs"))
+  return {
+    ...(turnMs > 0 && { turnMs }),
+    ...(nudgeMs > 0 && { nudgeMs }),
+    readingMs: readingMs > 0 ? readingMs : 0,
+    ambient: false,
+  }
 }
 
 // The demo a spec opens, as its address's hash asks.

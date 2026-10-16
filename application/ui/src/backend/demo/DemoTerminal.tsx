@@ -208,6 +208,7 @@ const DemoTerminalSurface = ({
             projectName={projectName}
             planned={opening.planned}
             reviewing={opening.reviewing}
+            reading={opening.reading ? { since: opening.at } : undefined}
           />
         ))}
       {entries.map((entry) => (

@@ -17,6 +17,10 @@ export type Opening = {
   readonly planned: boolean
   // Codex at work and asking nothing: its review is still under way.
   readonly reviewing: boolean
+  // Claude Code in plan mode still reading, asking nothing yet: the plan comes a moment
+  // later, which its screen plays out from `at`, when the terminal opened.
+  readonly reading: boolean
+  readonly at: number
 }
 
 const openingOf = (terminal: TerminalMetadata): Opening => ({
@@ -27,6 +31,13 @@ const openingOf = (terminal: TerminalMetadata): Opening => ({
     terminal.state === "running" &&
     terminal.agent?.working === true &&
     terminal.agent.attention === undefined,
+  reading:
+    demoAgent(terminal) === "claude" &&
+    terminal.state === "running" &&
+    terminal.agent?.planning === true &&
+    terminal.agent.working &&
+    terminal.agent.attention === undefined,
+  at: Date.now(),
 })
 
 export type DemoTerminalSnapshot = {
@@ -51,7 +62,7 @@ export type DemoEngine = {
 }
 
 const empty: DemoTerminalSnapshot = {
-  opening: { agent: undefined, planned: false, reviewing: false },
+  opening: { agent: undefined, planned: false, reviewing: false, reading: false, at: 0 },
   draft: "",
   scrollOffset: undefined,
   entries: [],

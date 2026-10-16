@@ -24,6 +24,15 @@ describe("the visitor's desk", () => {
     ])
   })
 
+  it("can open Claude Code on its way to the plan instead, asking nothing yet", () => {
+    const reading = visitorSeed(Date.now(), true).projects.flatMap((project) =>
+      project.sessions.flatMap((session) => session.terminals),
+    )
+    const claude = reading.find((terminal) => terminal.name === "Checkout implementation")
+    expect(claude).toMatchObject({ agent: { working: true, planning: true } })
+    expect(reading.filter((t) => t.state === "running" && t.agent?.attention)).toEqual([])
+  })
+
   it("keeps the other projects at rest, with nothing ended to read", () => {
     for (const { project, agent } of agents.filter((each) => each.project !== "storefront")) {
       expect(agent.working, project).toBe(false)

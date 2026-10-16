@@ -871,7 +871,7 @@ minutes.
 The Try workflow also writes four posters into the build before it deploys it, and
 `pnpm poster:try` does the same for a local build: `poster-light-1280.webp`,
 `poster-light-2560.webp`, `poster-dark-1280.webp` and `poster-dark-2560.webp`. Each is a
-screenshot of `?embed` at rest once the app has booted, in a 1280 × 640 window, captured
+screenshot of `?embed&still` (the desk held at its first frames, Claude Code just begun reading, so the live app picks up where the poster is and the plan arriving is the first thing to move), once the app has booted, in a 1280 × 640 window, captured
 at its own pixel density (1280 × 640 and 2560 × 1280 pixels) rather than scaled down, from
 `application/ui/scripts/poster.ts`. It needs Playwright's Chromium (`pnpm --filter
 @novadeck/ui exec playwright install chromium`). novadeck.dev's hero shows the one that
@@ -892,7 +892,12 @@ included.
 It runs the agents demo's storefront and its other projects as fixtures, with no debug
 panel, chat view, voice, murmur, agent connections, notices or updates, and no Welcome
 dialog; `backend/demo/visitor/` lists the backend's fields one by one, so nothing added to
-the agents demo reaches the page unasked. A strip above the header says the agents are
+the agents demo reaches the page unasked. The desk is never still: Claude Code reads for
+five seconds before it asks for its plan to be reviewed (`visitor/story.ts`), the dev server
+logs a hot update every 14 seconds and the tests rerun every 23, and Codex, reviewing, has
+subagents look into something for a few seconds now and then (`visitor/ambient.ts`). None
+of that asks for the visitor or marks a tab, it waits while the page is hidden, and where
+the visitor asked for less motion there is none of it and the plan waits from the start. A strip above the header says the agents are
 simulated and links to the download (`app/Visitor.tsx`); under 760 px wide a panel pointing
 to a desktop browser replaces the app, whose UI unmounts behind it and comes back on
 widening. Typing into a shell answers as a simulated one (`mockReply`). A page loaded
@@ -911,6 +916,18 @@ window, once per page load, with target origin `*`: the frame's `load` event fir
 error page too, so this is how the page tells a booted app from a failed load. The message
 carries nothing sensitive; the page checks its origin and source. `?embed` means nothing
 outside the visitor build.
+
+A framed app takes no wheel until the visitor engages it: the wheel is taken before any
+part of the app sees it, so nothing scrolls or zooms, and handed to the page as `{ type:
+"novadeck:wheel", deltaX, deltaY }` in CSS pixels, for it to scroll with (a zoom gesture,
+ctrl or meta with the wheel, is taken and not handed on). The app has the wheel for the rest
+of the page load once the visitor presses in it, or the page posts `{ type:
+"novadeck:engaged" }`, which the app accepts only from its parent window. The first click
+that completes in the app is told to the page once, as `{ type: "novadeck:clicked" }`,
+posted right after the app's own handlers have had it (a tap counts), so the page can
+engage then without the click landing elsewhere; it is not sent once the page has engaged
+the app. An app that is not framed has the wheel from the start and says nothing. `?still`
+holds the desk at its first frames: nothing moves on its own and the plan never comes.
 
 ## Repository map
 

@@ -50,10 +50,12 @@ const placed = (
     }
   })
 
-const planning = (now: number) => ({
+// Claude Code in plan mode: asking to have its plan reviewed, or, `reading`, still on its
+// way there (see `visitorStory`).
+const planning = (now: number, reading: boolean) => ({
   working: true,
   planning: true as const,
-  attention: { kind: "plan" as const, count: 1 },
+  ...(reading ? {} : { attention: { kind: "plan" as const, count: 1 } }),
   usage: {
     context: { occupied: 124_000, capacity: 200_000 },
     limits: [
@@ -71,6 +73,7 @@ const dotfiles = sampleProject("dotfiles")
 
 const desks = (
   now: number,
+  reading: boolean,
 ): readonly { readonly project: Project; readonly terminals: Placed[] }[] => [
   {
     project: storefront,
@@ -80,7 +83,7 @@ const desks = (
         slot: "01",
         command: "claude",
         process: "claude",
-        agent: planning(now),
+        agent: planning(now, reading),
         x: 80,
         y: 80,
         height: 430,
@@ -131,8 +134,9 @@ const canvasLayout = (terminals: readonly Placed[]): CanvasLayout => ({
   ),
 })
 
-export const visitorSeed = (now: number): WorkspaceSeed => ({
-  projects: desks(now).map(({ project, terminals }) => ({
+// `reading` opens Claude Code a few seconds before its plan, which the story then asks for.
+export const visitorSeed = (now: number, reading = false): WorkspaceSeed => ({
+  projects: desks(now, reading).map(({ project, terminals }) => ({
     ...project,
     sessions: [
       {

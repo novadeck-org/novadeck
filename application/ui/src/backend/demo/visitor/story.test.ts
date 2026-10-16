@@ -19,10 +19,16 @@ const codex = { ...session, terminalId: demoTerminalId(session, 4) }
 
 // The visitor's desk running against a workspace store, as the app runs it (see
 // `visitorDemo`), with its agents' turns to hand.
-const open = () => {
+const open = (readingMs = 0) => {
   const turns = demoTurns(turnMs)
-  const story = visitorStory(agentTranscripts(Date.now()), turns, nudgeMs)
-  const base = demoBackend(createDemoEngine(), false, undefined, undefined, visitorSeed(Date.now()))
+  const story = visitorStory(agentTranscripts(Date.now()), turns, nudgeMs, readingMs)
+  const base = demoBackend(
+    createDemoEngine(),
+    false,
+    undefined,
+    undefined,
+    visitorSeed(Date.now(), readingMs > 0),
+  )
   const backend = story.wrap(withConversations(base, story.transcripts, turns))
   const store = createWorkspaceStore(
     workspaceFromSeed(backend.seed, { view: "focus", windowedView: "grid", now: 0 }),
@@ -75,6 +81,24 @@ describe("the visitor's story", () => {
     await vi.advanceTimersByTimeAsync(turnMs + nudgeMs * 3)
     expect(asks(claude.terminalId)).toBeUndefined()
     expect(asks(codex.terminalId)).toBeUndefined()
+  })
+
+  it("has Claude Code read for a while before it asks for its plan, when the desk opens so", async () => {
+    const { asks, terminal } = open(3000)
+    expect(asks(claude.terminalId)).toBeUndefined()
+    expect(terminal(claude.terminalId)).toMatchObject({ agent: { working: true, planning: true } })
+    await vi.advanceTimersByTimeAsync(2900)
+    expect(asks(claude.terminalId)).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(asks(claude.terminalId)).toMatchObject({ kind: "plan", count: 1 })
+  })
+
+  it("asks no plan of a Claude Code the visitor stopped while it read, and still goes on", async () => {
+    const { chat, asks } = open(3000)
+    await chat.interrupt(claude)
+    await vi.advanceTimersByTimeAsync(3000 + nudgeMs)
+    expect(asks(claude.terminalId)).toBeUndefined()
+    expect(asks(codex.terminalId)).toMatchObject({ kind: "permission" })
   })
 
   it("shows no page when the visitor stops the build, and still goes on", async () => {

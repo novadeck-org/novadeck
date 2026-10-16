@@ -10,7 +10,8 @@ import type { DemoTurns, TurnEvent } from "../turns"
 
 // What happens on the visitor's desk, one step at a time, and only once the visitor has
 // dealt with what asks for them: nothing new turns up while something waits. Claude Code
-// waits on its plan from the start. Once its turn after the answer ends, it shows a
+// waits on its plan from the start, after a few seconds at its reading where the desk opens
+// that way, so something moves as the visitor first looks. Once its turn after the answer ends, it shows a
 // preview of the page it built, if the plan was approved; a moment later Codex, which
 // was reviewing all along, asks to run the checkout tests. Answered, it finishes, and
 // nothing else comes: the desk stays quiet.
@@ -21,6 +22,11 @@ const codex: TerminalKey = { ...session, terminalId: demoTerminalId(session, 4) 
 
 // How long Codex takes to ask after Claude Code's turn ends, in milliseconds.
 const visitorNudgeMs = 5000
+
+// How long Claude Code reads before it asks for its plan to be reviewed, in milliseconds:
+// long enough to see it work once the app is shown, which comes about two seconds after it
+// boots, and short enough not to keep the visitor waiting (see `readOpensMs`).
+export const visitorReadingMs = 5000
 
 const same = (a: TerminalKey, b: TerminalKey): boolean =>
   a.projectId === b.projectId &&
@@ -37,8 +43,17 @@ const asking = (workspace: Workspace): boolean =>
     ),
   )
 
+// Claude Code as the desk opened it with its plan still to come: working in plan mode, asking
+// nothing, not stopped or prompted.
+const reading = (terminal: TerminalMetadata | undefined): terminal is TerminalMetadata =>
+  terminal?.state === "running" &&
+  demoAgent(terminal) === "claude" &&
+  terminal.agent?.planning === true &&
+  terminal.agent.working &&
+  terminal.agent.attention === undefined
+
 // Still at work and asking nothing: Codex as the desk opened, not stopped or prompted.
-const reviewing = (terminal: TerminalMetadata | undefined): terminal is TerminalMetadata =>
+export const reviewing = (terminal: TerminalMetadata | undefined): terminal is TerminalMetadata =>
   terminal?.state === "running" &&
   demoAgent(terminal) === "codex" &&
   terminal.agent?.working === true &&
@@ -48,6 +63,9 @@ export const visitorStory = (
   agentTranscripts: Readonly<Record<string, DemoTranscript>>,
   turns: DemoTurns,
   nudgeMs = visitorNudgeMs,
+  // How long Claude Code reads before its plan comes, where the desk opens that way (see
+  // `visitorSeed`); none where it asks from the start.
+  readingMs = 0,
 ) => {
   let approved = false
   // Approving Claude Code's plan has it build the cart summary and show a preview of it.
@@ -114,12 +132,23 @@ export const visitorStory = (
     // The steps still to come: Claude Code's turn to end, then Codex to ask.
     let step: "plan" | "nudge" | "review" | "done" = "plan"
     let timer: ReturnType<typeof setTimeout> | undefined
+    let planTimer: ReturnType<typeof setTimeout> | undefined
     // Codex asks once nothing else does, as long as it still reviews.
     const nudge = (): void => {
       if (step !== "review" || !latest || asking(latest)) return
       step = "done"
       const terminal = terminalOf(latest, codex)
       if (reviewing(terminal)) turns.ask(codex, terminal, "permission", 1)
+    }
+    // Claude Code's plan comes, if it is still at its reading: the visitor may have stopped
+    // it, and the commit that opened the desk may not have come yet.
+    const plan = (): void => {
+      if (!latest) {
+        planTimer = setTimeout(plan, 100)
+        return
+      }
+      const terminal = terminalOf(latest, claude)
+      if (reading(terminal)) turns.ask(claude, terminal, "plan", 1)
     }
     const heard = (event: TurnEvent): void => {
       if (step !== "plan" || event.type !== "end" || !same(event.key, claude)) return
@@ -155,12 +184,15 @@ export const visitorStory = (
         sink = next
         const stop = backend.start?.(next)
         const unwatch = turns.watch(heard)
+        if (readingMs > 0 && Number.isFinite(readingMs) && step === "plan")
+          planTimer = setTimeout(plan, readingMs)
         // Stopped while Codex was about to ask: it asks once started again.
         if (step === "nudge") wait()
         return () => {
           stop?.()
           unwatch()
           clearTimeout(timer)
+          clearTimeout(planTimer)
           if (sink === next) sink = undefined
         }
       },
