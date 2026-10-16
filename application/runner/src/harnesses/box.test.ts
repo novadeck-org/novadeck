@@ -12,7 +12,7 @@ import {
   wrappedRows,
   type BoxProfile,
 } from "@novadeck/harness-core/box"
-import { type ScreenText } from "@novadeck/harness-core/screen"
+import type { ScreenText } from "@novadeck/harness-core/screen"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 import { screen as screenWith } from "@novadeck/harness-core/testing/screens"
 import headless from "@xterm/headless"
@@ -461,5 +461,154 @@ describe("the viewport of Claude Code's input box", () => {
   it("is what was probed on the screens it was, and never below one row on a small one", () => {
     expect([24, 40, 60].map((rows) => claude.viewport!(rows))).toEqual([7, 15, 25])
     for (const rows of [0, 4, 10, 11, 12]) expect(claude.viewport!(rows)).toBeGreaterThanOrEqual(1)
+  })
+})
+
+// Views of a harness that show an empty-looking box or field, probed 2026-10-16 in the e2e
+// sandbox (Claude Code 2.1.287, Codex 0.159.3, Antigravity 1.2.14): no ring may go there.
+describe("a view drawn beside an empty box", () => {
+  const rule = "─".repeat(60)
+  const shown = (...rows: string[]) => screenWith({ rows })
+
+  it("is Claude Code's agents view, prompt history search and transcript, never its prompt", () => {
+    const prompt = shown("● Warmed up.", rule, "❯ ", rule, "  ⏸ manual mode on · ← for agents")
+    expect(claude.overlay(prompt)).toBe(false)
+    const agents = screenWith({
+      rows: [
+        "Your conversation moved to the background — enter opens it · esc returns to it",
+        rule,
+        "❯ describe a task for a new session",
+        rule,
+        "  enter to return · space to reply · ctrl+x to delete · ? for shortcuts",
+      ],
+      cursor: { row: 2, column: 2 },
+    })
+    // Its field reads as an empty prompt box, which is why the screen is checked for the view.
+    expect(claude.read(agents)).toMatchObject({ mode: "prompt" })
+    expect(claude.overlay(agents)).toBe(true)
+    expect(
+      claude.overlay(
+        shown(
+          "  Search prompts · everywhere",
+          "  ↑/↓ to navigate · Enter to use · Esc to cancel · ctrl+s to scope",
+        ),
+      ),
+    ).toBe(true)
+    expect(
+      claude.overlay(shown("  Showing detailed transcript · ctrl+o to toggle · ↑↓ scroll")),
+    ).toBe(true)
+  })
+
+  it("is Codex's history search and shortcuts panel, never its prompt", () => {
+    const prompt = shown(
+      "• Warmed up.",
+      "› Ask Codex to do anything",
+      "  fake-model default · /tmp/p",
+      "  ? for shortcuts",
+    )
+    expect(codex.overlay(prompt)).toBe(false)
+    expect(
+      codex.overlay(
+        shown("› Ask Codex to do anything", "  fake-model default", "  reverse-i-search:"),
+      ),
+    ).toBe(true)
+    expect(
+      codex.overlay(shown("› Ask Codex to do anything", "  fake-model default", "  ? / esc close")),
+    ).toBe(true)
+    // A /side conversation's box is no root's, whichever way the keys are spelled.
+    for (const keys of ["ctrl+", "^"])
+      expect(
+        codex.overlay(
+          shown(
+            "› Ask Codex to do anything",
+            `  Side from main thread · ${keys}/ to switch · ${keys}c to close`,
+          ),
+        ),
+      ).toBe(true)
+  })
+
+  it("is Antigravity's shortcuts and artifacts panels, never its prompt", () => {
+    expect(agy.overlay(shown(rule, ">", rule, "? for shortcuts      Gemini 3.1 Pro · low"))).toBe(
+      false,
+    )
+    expect(
+      agy.overlay(
+        shown(
+          rule,
+          ">",
+          rule,
+          "Artifacts",
+          "  No artifacts",
+          "Keyboard: ↑/↓ Navigate  p preview  enter open  ctrl+g open in editor  esc Dismiss",
+        ),
+      ),
+    ).toBe(true)
+    expect(
+      agy.overlay(
+        shown(
+          rule,
+          ">",
+          rule,
+          "Keyboard Shortcuts",
+          "Keyboard: ↑/↓ Navigate  ←/→ Switch View  esc Close",
+        ),
+      ),
+    ).toBe(true)
+  })
+})
+
+describe("a view is told by the rows under the box, never by the conversation above", () => {
+  const rule = "─".repeat(60)
+  const shown = (...rows: string[]) => screenWith({ rows })
+
+  it("ignores a transcript that quotes a view's footer", () => {
+    const prompt = [rule, "❯ ", rule, "  ⏸ manual mode on · ← for agents"]
+    expect(
+      claude.overlay(shown("● the footer says: enter to return · space to reply", "", ...prompt)),
+    ).toBe(false)
+    expect(
+      codex.overlay(
+        shown(
+          "• it printed reverse-i-search: and ? / esc close",
+          ...Array(6).fill("• done"),
+          "› ",
+          "  ? for shortcuts",
+        ),
+      ),
+    ).toBe(false)
+    expect(
+      agy.overlay(
+        shown(
+          "Keyboard: ↑/↓ Navigate  esc Close",
+          ...Array(6).fill("done"),
+          rule,
+          ">",
+          rule,
+          "? for shortcuts",
+        ),
+      ),
+    ).toBe(false)
+  })
+})
+
+describe("a view's hint under a box with a long status line", () => {
+  const rule = "─".repeat(60)
+  it("is still found, as the rows from the box down are read, not the last four", () => {
+    const view = screenWith({
+      rows: [
+        "● Warmed up.",
+        rule,
+        "❯ describe a task for a new session",
+        rule,
+        "  enter to return · space to reply · ctrl+x to delete",
+        "  status one",
+        "  status two",
+        "  status three",
+        "  status four",
+        "  status five",
+      ],
+      cursor: { row: 2, column: 2 },
+    })
+    expect(claude.overlay(view)).toBe(true)
   })
 })

@@ -3,7 +3,7 @@
    the pause. A thread (`.mail-thread`) has its head, with a `.button.mail-release` while
    it's held, and its messages (`.mail-message`) as rows, not cards: what the terminal's
    own agent sent carries a rule down its left edge. The bars that say messaging is
-   paused (`.mail-paused`) or failed (`.mail-error`) take their tone from `data-tone`.
+   paused (`.mail-paused`), waiting on a screen the doorbell cannot ring (`.mail-waits`) or failed (`.mail-error`) take their tone from `data-tone`.
 
    Hooks: data-direction="sent" | "received" on a message; data-state="held" | "gone"
    (and the others a message passes through) on its state; aria-disabled="true" on the
@@ -34,6 +34,7 @@
 }
 /* The tone recipe paints the bars, their rule included. */
 .mail-paused,
+.mail-waits,
 .mail-error {
   margin: 0;
   padding: 6px 14px;

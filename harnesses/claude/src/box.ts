@@ -1,4 +1,12 @@
-import { agreeing, rule, ruledBox, type BoxProfile, type Markers } from "@novadeck/harness-core/box"
+import {
+  agreeing,
+  footerRows,
+  rule,
+  ruledBox,
+  type BoxProfile,
+  type Markers,
+} from "@novadeck/harness-core/box"
+import type { ScreenText } from "@novadeck/harness-core/screen"
 
 /** The markers leading its box's first row: `❯` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: "❯", shell: "!" }
@@ -15,6 +23,19 @@ export const shellFooter = (rows: readonly string[]): boolean => {
 /** Whether its footer says one more Escape clears the box: "Esc again to clear". */
 export const clearPending = (rows: readonly string[]): boolean =>
   rows.slice(rows.findLastIndex(rule) + 1).some((row) => /^\s*Esc again to clear\b/.test(row))
+
+/**
+ * Whether it shows a view over its conversation: the agents view Left opens, whose "describe
+ * a task for a new session" field reads as an empty box and whose Enter starts a session;
+ * the prompt history search Ctrl-R opens; the detailed transcript Ctrl-O toggles (probed
+ * 2.1.287 in the e2e sandbox, 2026-10-16).
+ */
+export const overlay = (screen: ScreenText): boolean =>
+  footerRows(screen).some((row) =>
+    /enter to return · space to reply|Esc to cancel · ctrl\+s to scope|Showing detailed transcript/.test(
+      row,
+    ),
+  )
 
 /**
  * Claude Code's input box: between two `─` rules, `❯ ` leading its first row and the rest
@@ -35,6 +56,7 @@ export const box: BoxProfile = {
   // more clears it: a second would land on the empty box and open the rewind picker (seen on
   // Windows CI, when the first pair was still being taken after half a second).
   clear: (_box, screen) => (clearPending(screen?.rows ?? []) ? "\x1b" : "\x1b\x1b"),
+  overlay,
   queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),
   collapses: (text) => text.split("\n").length > 3 || text.length > 900,
   room: (rows) => rows - 4,

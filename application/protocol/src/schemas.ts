@@ -900,12 +900,18 @@ export const messageThread = z.strictObject({
   messages: z.array(agentMessage).max(1000),
 })
 
-// `messages.list`: a terminal's handle, how its agent can take messages now, whether
-// messaging is paused, and every thread it is in, latest first.
+// Why the doorbell can't ring an idle agent whose messages wait, as its screen shows: text
+// in its input box (`draft`), a dialog, picker or other screen that isn't its prompt
+// (`dialog`), a question it waits on the person for (`asking`), rings that failed (`failed`), or a terminal not at the agent's prompt (`away`).
+export const deliveryWaits = z.enum(["draft", "dialog", "asking", "failed", "away"])
+
+// `messages.list`: a terminal's handle, how its agent can take messages now, why the doorbell
+// can't ring it if it is idle (`waits`), whether messaging is paused, and every thread it is in, latest first.
 export const terminalMessages = z.strictObject({
   terminalId: id,
   handle,
   delivery: deliveryState,
+  waits: deliveryWaits.nullable(),
   paused: z.boolean(),
   threads: z.array(messageThread).max(1000),
 })
@@ -951,6 +957,7 @@ export type MurmurState = z.infer<typeof murmurState>
 export type MurmurSettings = z.infer<typeof murmurSettings>
 export type MessageState = z.infer<typeof messageState>
 export type DeliveryState = z.infer<typeof deliveryState>
+export type DeliveryWaits = z.infer<typeof deliveryWaits>
 export type AgentMessage = z.infer<typeof agentMessage>
 export type MessageThread = z.infer<typeof messageThread>
 export type TerminalMessages = z.infer<typeof terminalMessages>

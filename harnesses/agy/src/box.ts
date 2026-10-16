@@ -1,4 +1,11 @@
-import { agreeing, rule, ruledBox, type BoxProfile, type Markers } from "@novadeck/harness-core/box"
+import {
+  agreeing,
+  footerRows,
+  rule,
+  ruledBox,
+  type BoxProfile,
+  type Markers,
+} from "@novadeck/harness-core/box"
 import type { ScreenText } from "@novadeck/harness-core/screen"
 
 /** The markers leading its box's first row: `>` as a prompt, `!` in its shell mode. */
@@ -79,6 +86,14 @@ export const interruptedShown = (screen: ScreenText): boolean | undefined => {
 }
 
 /**
+ * Whether it shows a panel under its box (the shortcuts `?` opens, the artifacts Ctrl-R
+ * opens), each with a "Keyboard: … esc Close|Dismiss" row and its empty box above (probed
+ * 1.2.14 in the e2e sandbox, 2026-10-16).
+ */
+export const overlay = (screen: ScreenText): boolean =>
+  footerRows(screen).some((row) => /^Keyboard: .*\besc (Close|Dismiss)\b/.test(row.trim()))
+
+/**
  * Antigravity's input box: between two `─` rules, `> ` leading its first row and the rest
  * indented (probed 1.2.14 and 1.3.1, fixtures/input-box.probe.json). Its history above
  * echoes the person's turns the same way, rules and all, so only the lowest pair is the
@@ -95,6 +110,7 @@ export const box: BoxProfile = {
   // Ctrl-U clears the line the cursor is on and Backspace joins the line before it; the
   // queued messages an Escape put back are one to a line (probed 2026-10-07).
   clear: ({ first, last }) => `${"\x15\x7f".repeat(last - first)}\x15`,
+  overlay,
   interrupted: interruptedShown,
   queued: (screen) => screen.rows.some((row) => row.includes("Press up to edit queued messages")),
   collapses: (text) => text.split("\n").length > 15 || (!text.includes("\n") && text.length > 1024),

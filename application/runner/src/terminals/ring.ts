@@ -90,7 +90,88 @@ export const checkPaste = (
   before: readonly string[],
   after: readonly string[],
   line: string,
-  { vanish = false }: { readonly vanish?: boolean } = {},
+  {
+    vanish = false,
+    ticking,
+  }: { readonly vanish?: boolean; readonly ticking?: ReadonlySet<number> } = {},
+): PasteCheck => {
+  const checked = checkRows(before, after, line, vanish)
+  if (!checked.accepted && checked.reason === "elsewhere") {
+    // One line of history gone as the box took text, the rest moving up behind it (Codex's
+    // "Tip" under a reply, drawn only while its box is empty): the history above is only
+    // ever lessened by that one line, never added to.
+    const patched = reflowed(before, after, line)
+    if (patched) {
+      const again = checkRows(patched, after, line, vanish)
+      if (again.accepted) return again
+    }
+  }
+  // Rows seen changing before the paste, with no paste to cause it (a clock, a timer, a
+  // subagent's output), may change during it too: compared blank. The line must still
+  // appear exactly once, and every other row change counts.
+  if (checked.accepted || checked.reason !== "elsewhere" || !ticking || ticking.size === 0)
+    return checked
+  const blanked = (rows: readonly string[]) => rows.map((row, at) => (ticking.has(at) ? "" : row))
+  return checkRows(blanked(before), blanked(after), line, vanish)
+}
+
+const trimmed = (rows: readonly string[], row: number): string => (rows[row] ?? "").trim()
+
+/**
+ * `before` with the history above the line's box replaced by `after`'s, where that history
+ * is `before`'s with one text line deleted (the rows below it moved up); undefined
+ * where it has anything new or more than one line less. Then only the box and what is near
+ * it differ between them.
+ */
+const reflowed = (
+  before: readonly string[],
+  after: readonly string[],
+  line: string,
+): readonly string[] | undefined => {
+  const found = findLine(after, line)
+  if (found.length !== 1) return undefined
+  const cut = found[0]!.first - nearRows
+  if (cut <= 0 || before.length !== after.length) return undefined
+  const lines = (rows: readonly string[]) =>
+    rows
+      .slice(0, cut)
+      .map((row) => row.trim())
+      .filter((row) => row !== "")
+  const was = lines(before)
+  const now = lines(after)
+  if (was.length - now.length !== 1) return undefined
+  // The line gone sits at the foot of the history, as a Tip does, with at most one line of
+  // text under it: a list that lost an item has more of its items below.
+  let gone = 0
+  while (gone < now.length && was[gone] === now[gone]) gone += 1
+  if (was.length - 1 - gone > 1) return undefined
+  // Every line left is one of `before`'s, in order.
+  let at = 0
+  for (const row of now) {
+    while (at < was.length && was[at] !== row) at += 1
+    if (at === was.length) return undefined
+    at += 1
+  }
+  // The line was deleted, not blanked where it stood: every row below it, down to the
+  // history's last, is the one that was under it, as a scroll up by one row does.
+  let first = 0
+  while (first < cut && trimmed(before, first) === trimmed(after, first)) first += 1
+  let moved = false
+  for (let row = first; row < cut - 1; row += 1) {
+    if (trimmed(after, row) !== trimmed(before, row + 1)) return undefined
+    if (trimmed(after, row) !== "") moved = true
+  }
+  // Something did move up: a line blanked where it stood, with nothing below, is a popup closing.
+  if (!moved) return undefined
+  if (trimmed(after, cut - 1) !== "") return undefined
+  return [...after.slice(0, cut), ...before.slice(cut)]
+}
+
+const checkRows = (
+  before: readonly string[],
+  after: readonly string[],
+  line: string,
+  vanish: boolean,
 ): PasteCheck => {
   if (findLine(before, line).length > 0) return { accepted: false, reason: "before" }
   const found = findLine(after, line)
@@ -181,4 +262,20 @@ export const gate = (
   if (facts.foreground === false) return "not-foreground"
   if (facts.inputBox === false) return "no-input-box"
   return "open"
+}
+
+/**
+ * The nonce of the doorbell line that is all a box holds (`text` as the box reader gives
+ * it, wrapped anywhere, whitespace aside), as a failed ring left it; else undefined. Any
+ * other text with it, or a second line, is not Novadeck's to submit.
+ */
+export const leftoverNonce = (text: string): string | undefined =>
+  /^\[Novadeck:automaticnotice,agentmessageswaiting,([A-Za-z0-9]+)\]$/.exec(compact(text))?.[1]
+
+/** The rows that differ between two reads of a screen. */
+export const changedRows = (a: readonly string[], b: readonly string[]): readonly number[] => {
+  const rows: number[] = []
+  for (let at = 0; at < Math.max(a.length, b.length); at += 1)
+    if (!same(a[at], b[at])) rows.push(at)
+  return rows
 }

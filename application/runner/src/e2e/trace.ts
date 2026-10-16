@@ -12,6 +12,7 @@ import type { ScreenText } from "@novadeck/harness-core/screen"
 import { agents, harnesses } from "../harnesses/registry.js"
 import type { DeliveryEvent } from "../messaging/delivery.js"
 import { Messaging } from "../messaging/messaging.js"
+import { tracer } from "../terminals/doorbell.js"
 import { Interrupts } from "../terminals/interrupts.js"
 import { Terminals } from "../terminals/manager.js"
 import { Prompts } from "../terminals/prompts.js"
@@ -715,10 +716,15 @@ export const startTrace = (name: string, model: FakeModel) => {
     }
   }
 
+  tracer.sink = (terminalId, line) => {
+    if (active) add(`doorbell ${named(terminalId)} ${line}`)
+  }
+
   return {
     /** Puts the runner back as it was. */
     stop: () => {
       active = false
+      delete tracer.sink
       titles.disable()
       reports.disable()
       clearInterval(calls)

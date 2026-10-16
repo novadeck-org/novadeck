@@ -155,7 +155,7 @@ describe("Pausing messaging", () => {
       )
     await pause.click()
     await expect.poll(() => textOf(items.nth(3))).toMatch(/Waiting/)
-    await expect.element(pane.getByRole("status")).not.toBeInTheDocument()
+    await expect.element(pane.getByText(/Messaging is paused/)).not.toBeInTheDocument()
     await expect
       .poll(() => description("Checkout review"))
       .toBe("Needs permission, 2 messages waiting, 2 subagents: 2 explorer")

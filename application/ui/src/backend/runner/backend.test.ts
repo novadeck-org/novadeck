@@ -617,6 +617,7 @@ describe("runner backend", () => {
           handle: expect.stringMatching(/^[a-z]{2,12}[0-9]*$/),
           // A plain shell: no agent takes messages there.
           agent: false,
+          waits: null,
           threads: [],
         }),
       )

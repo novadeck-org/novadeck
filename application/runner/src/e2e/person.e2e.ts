@@ -1,11 +1,14 @@
 import { readdirSync } from "node:fs"
 import { setTimeout as sleep } from "node:timers/promises"
 
+import { harnesses } from "../harnesses/registry.js"
+import { screenText } from "../terminals/screen.js"
 import { setups } from "./agents/index.js"
 import type { DeckTerminal } from "./deck.js"
 import { describe, e2e, expect, supported, type E2E } from "./fixture.js"
 import { asked, gate, latest, type Call } from "./model/script.js"
 import {
+  delivered,
   deliveries,
   holds,
   messages,
@@ -248,18 +251,21 @@ for (const setup of setups) {
       expect(carried(run, calls)).toEqual([prompt])
     })
 
-    it("takes a cursor key at an empty prompt as the person's input, never ringing what it opened", async ({
+    it("takes a cursor key at an empty prompt as the person's input, and rings once its screen shows the box empty", async ({
       e2e: run,
     }) => {
-      // No caret moves in an empty box, so what Home does there is the harness's own, as
+      // No caret moves in an empty box, so what Home does there is the harness's own, and
       // Claude Code's Left opens its agents view, whose field would take the ring's line
-      // and its Enter start a new session with it ("What counts"). That view's session
-      // outlives the deck, so the person presses Home here: the same rule.
+      // and its Enter start a new session with it ("What counts"): the terminal is
+      // Drafting. Nothing is opened here, so the screen shows the agent's own box empty,
+      // and it is rung; a view the key opened would read as no box
+      // (`harnesses/box.test.ts`). That view's session outlives the deck, so Home is
+      // pressed here.
       run.model.use(
         replies("Warm up", "Warmed up."),
         sends("Tell moth the news", "moth", "The build is green."),
         own((call) => (sent(call, "moth") ? { text: "Told moth." } : undefined)),
-        replies("What's new?", "The build is green, I hear."),
+        own((call) => (delivered(call, "fox") ? { text: "Noted the news." } : undefined)),
       )
       const t1 = await start(run, setup)
       const t2 = await start(run, setup)
@@ -267,26 +273,21 @@ for (const setup of setups) {
       const calls = run.model.mark()
       const mark = t1.mark()
 
-      // The person presses Home at t1's empty prompt, Settled: a draft.
+      // The person presses Home at t1's empty prompt, Settled: a draft by state alone.
       t1.press("\x1b[H")
       const drafting = await t1.reached("drafting", { after: mark })
 
-      // A message comes for t1: it waits, and t1 is never rung.
+      // A message comes for t1: its screen shows an empty box, and the doorbell rings it.
       await message(t2, t1, "Tell moth the news")
-      await unrungFor(t1, "fox", drafting.index)
-
-      // Their next prompt, which Home put nothing in front of, carries it.
-      await t1.submit("What's new?")
-      const prompt = await run.model.waitFor((call) => holding(call, "What's new?"), {
+      const carrying = await run.model.waitFor((call) => delivered(call, "fox"), {
         after: calls,
+        timeoutMs: 60_000,
       })
-      expect(deliveries(prompt)).toEqual([{ from: "fox", text: "The build is green." }])
-      await t1.until("The build is green, I hear.")
-      await through(t1, ["working", holds("fox", "moth", "delivered"), "settled"], {
+      expect(deliveries(carrying)).toEqual([{ from: "fox", text: "The build is green." }])
+      await t1.until("Noted the news.")
+      await through(t1, ["ringing", "working", holds("fox", "moth", "delivered"), "settled"], {
         after: drafting.index,
       })
-      expect(carried(run, calls)).toEqual([prompt])
-      expect(states(t1, mark)).not.toContain("ringing")
     })
 
     it("takes what the person types while the agent starts as a draft, and never rings it", async ({
@@ -314,11 +315,31 @@ for (const setup of setups) {
       t2.press("Hello")
       expect(t2.messages().delivery).toBe("unbound")
 
-      // Its prompt shows (or its session binds) as Drafting, never Ready nor rung.
+      // Its prompt shows (or its session binds) as Drafting, never Ready by a session's start.
       const drafting = await t2.reached("drafting", { timeoutMs: 60_000 })
       expect(states(t2).find((state) => state !== "unbound")).toBe("drafting")
       await prompted(t2, setup)
+      // What the keys came to is the harness's own: left in its box (a draft, never rung),
+      // or dropped as it started (Antigravity can), its box empty, which the screen shows
+      // and the doorbell rings.
+      await sleep(2_000)
+      // Whatever of the keys the harness took is in its box, as its own reader tells.
+      const live = (
+        run.deck.terminals as unknown as {
+          live(id: string): { screen: Parameters<typeof screenText>[0] }
+        }
+      ).live(t2.id)
+      const kept =
+        (harnesses[setup.agent].box.read(screenText(live.screen))?.text.trim() ?? "") !== ""
       await message(t1, t2, "Tell fox the news")
+      if (!kept) {
+        const carrying = await run.model.waitFor((call) => delivered(call, "moth"), {
+          after: calls,
+          timeoutMs: 60_000,
+        })
+        expect(deliveries(carrying)).toEqual([{ from: "moth", text: "The build is green." }])
+        return
+      }
       await unrungFor(t2, "moth", 0)
       expect(states(t2)).not.toContain("ready")
 

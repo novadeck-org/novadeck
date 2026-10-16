@@ -2,7 +2,12 @@ import { ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import { useEffect, useId, useRef, type ReactNode } from "react"
 
 import { handleText } from "../../model/handle"
-import type { AgentMessage, InboxHistory, MessageThread } from "../../model/messages"
+import {
+  waitsText,
+  type AgentMessage,
+  type InboxHistory,
+  type MessageThread,
+} from "../../model/messages"
 import { Switch } from "../../ui-toolkit/Switch"
 import { Tooltip } from "../../ui-toolkit/Tooltip"
 import type { MailHandle } from "./mail"
@@ -228,6 +233,11 @@ export const MessagesView = ({
       {mail.paused && (
         <p className="mail-paused" data-tone="warning" role="status">
           Messaging is paused between agents. Your replies still go through.
+        </p>
+      )}
+      {mail.mail?.waits && mail.badge?.kind === "waiting" && (
+        <p className="mail-waits" data-tone="warning" role="status">
+          {waitsText[mail.mail.waits]}
         </p>
       )}
       <div className="mail-scroll">

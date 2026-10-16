@@ -29,6 +29,7 @@ export type RunnerMessages = Messages & {
 export const mailOf = (listing: TerminalMessages): TerminalMail => ({
   handle: listing.handle,
   agent: listing.delivery !== "unbound",
+  waits: listing.waits,
   threads: listing.threads.map((thread) => ({
     id: thread.id,
     peer: thread.peer,

@@ -1,4 +1,11 @@
-import { agreeing, markedBox, type BoxProfile, type Markers } from "@novadeck/harness-core/box"
+import {
+  agreeing,
+  footerRows,
+  markedBox,
+  type BoxProfile,
+  type Markers,
+} from "@novadeck/harness-core/box"
+import type { ScreenText } from "@novadeck/harness-core/screen"
 
 /** The markers leading its box's first row: `›` as a prompt, `!` in its shell mode. */
 const markers: Markers = { prompt: "›", shell: "!" }
@@ -11,6 +18,19 @@ export const shellFooter = (rows: readonly string[]): boolean => {
   const last = rows.findLast((row) => row.trim() !== "")
   return last !== undefined && /(^|\s)Shell mode(\s|$)/.test(last.trim())
 }
+
+/**
+ * Whether it shows its history search (Ctrl-R: "reverse-i-search:" under its box, which
+ * then takes the line as its query), its shortcuts panel (`?`: "? / esc close"), or a
+ * `/side` conversation ("Side from main thread · ctrl+/ to switch · ctrl+c to close", `^`
+ * for ctrl in 0.161.0), whose turns are no root's: all drawn with its empty box on screen (probed 0.159.3 in the e2e sandbox, 2026-10-16).
+ */
+export const overlay = (screen: ScreenText): boolean =>
+  footerRows(screen).some((row) =>
+    /(^|\s)reverse-i-search:|\? \/ esc close|Side from main thread · (?:ctrl\+|\^)\/ to switch/.test(
+      row,
+    ),
+  )
 
 /**
  * Codex's input box: no frame, `› ` leading its first row, the rest indented, and the
@@ -29,6 +49,7 @@ export const box: BoxProfile = {
   // lines showed whole.
   // A queued message waits "to be submitted after next tool call", and an Escape sends it
   // at once as a steer, which a second Escape stops; the box stays empty (probed).
+  overlay,
   queued: (screen) =>
     screen.rows.some((row) => row.includes("Messages to be submitted after next tool call")),
   collapses: (text) => text.length > 1024,

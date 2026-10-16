@@ -2972,7 +2972,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       expect(sent).toEqual({
         ok: true,
         text: expect.stringMatching(
-          /^Message m-\S+ to @fox is queued: it reaches them when its agent's first turn starts\.\n/,
+          /^Message m-\S+ to @fox is queued: it reaches them ringing it once its box reads empty\.\n/,
         ),
       })
       // Codex's next prompt carries it, wrapped and attributed, never as the person.
@@ -4901,7 +4901,7 @@ const ringing = async (
       PATH: `${bin}:${process.env.PATH}`,
       CODEX_HOME: join(shell.home, ".codex"),
     },
-    doorbell: { calmMs: 200, settleMs: 300 },
+    doorbell: { calmMs: 200, settleMs: 300, watchMs: 100, boxCheck: false },
     hooksTrusted:
       typeof hooksTrusted === "boolean" ? () => Promise.resolve(hooksTrusted) : hooksTrusted,
   })
@@ -4989,7 +4989,7 @@ const leaving = async (shell: Fixture, next: string) => {
       PATH: `${bin}:${process.env.PATH}`,
       CODEX_HOME: join(shell.home, ".codex"),
     },
-    doorbell: { calmMs: 200, settleMs: 300 },
+    doorbell: { calmMs: 200, settleMs: 300, watchMs: 100, boxCheck: false },
     hooksTrusted: () => Promise.resolve(true),
   })
   const sender = await create(manager, shell)
@@ -5251,7 +5251,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       tui.type("my first thought")
       await expect.poll(tui.delivery).toBe("drafting")
       expect(await tui.send("Review a.ts")).toMatchObject({
-        text: reaches("when the user next submits a prompt there"),
+        text: reaches("ringing it once its box reads empty"),
       })
       await quiet()
       expect(pastes(tui.raw())).toEqual([])
@@ -5713,7 +5713,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
           PATH: `${bin}:${process.env.PATH}`,
           CODEX_HOME: join(shell.home, ".codex"),
         },
-        doorbell: { calmMs: 200, settleMs: 300 },
+        doorbell: { calmMs: 200, settleMs: 300, watchMs: 100, boxCheck: false },
         hooksTrusted: (agent) =>
           agent === "codex"
             ? new Promise((resolve) => setTimeout(() => resolve(true), 2_000))
@@ -5792,7 +5792,7 @@ describe.skipIf(process.platform === "win32" || !existsSync(bash))(
       const tui = await ringing(shell)
       await expect.poll(tui.delivery).toBe("fresh")
       expect(await tui.send("Review a.ts")).toMatchObject({
-        text: reaches("when its agent's first turn starts"),
+        text: reaches("ringing it once its box reads empty"),
       })
       await quiet()
       expect(pastes(tui.raw())).toEqual([])

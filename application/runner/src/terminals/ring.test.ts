@@ -3,7 +3,7 @@ import type { ScreenText } from "@novadeck/harness-core/screen"
 import { loadProbe } from "@novadeck/harness-core/testing/probes"
 
 import { describe, expect, it } from "../test.js"
-import { checkPaste, findLine, freshNonce, gate } from "./ring.js"
+import { changedRows, checkPaste, findLine, freshNonce, gate, leftoverNonce } from "./ring.js"
 
 type Pair = {
   readonly name: string
@@ -261,5 +261,126 @@ describe("the doorbell's gate", () => {
     const nonce = freshNonce()
     expect(nonce).toMatch(/^[A-Za-z0-9]{6}$/)
     expect(freshNonce()).not.toBe(nonce)
+  })
+})
+
+describe("the doorbell's test paste on a screen with a row that ticks", () => {
+  const rows = (clock: string, box: string) => [
+    `uptime ${clock}`,
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "> " + box,
+    "",
+    "footer",
+  ]
+
+  it("rejects a far row changing without anyone saying it ticks", () => {
+    expect(checkPaste(rows("1", ""), rows("2", line), line)).toEqual({
+      accepted: false,
+      reason: "elsewhere",
+    })
+  })
+
+  it("accepts the line once the ticking row is let be", () => {
+    expect(
+      checkPaste(rows("1", ""), rows("2", line), line, { ticking: new Set([0]) }),
+    ).toMatchObject({ accepted: true })
+  })
+
+  it("still wants every other row unchanged, and the line once, in the box", () => {
+    const other = rows("2", line)
+    other[3] = "popup"
+    expect(checkPaste(rows("1", ""), other, line, { ticking: new Set([0]) })).toEqual({
+      accepted: false,
+      reason: "elsewhere",
+    })
+    expect(checkPaste(rows("1", ""), rows("2", ""), line, { ticking: new Set([0]) })).toEqual({
+      accepted: false,
+      reason: "absent",
+    })
+  })
+
+  it("tells which rows changed between two reads", () => {
+    expect(changedRows(rows("1", ""), rows("2", ""))).toEqual([0])
+    expect(changedRows(rows("1", ""), rows("1", ""))).toEqual([])
+  })
+})
+
+describe("the line a failed ring left in a box", () => {
+  it("is told by its nonce when it is all the box holds, wrapped anywhere", () => {
+    expect(leftoverNonce(doorbellLine("n7Q2"))).toBe("n7Q2")
+    expect(leftoverNonce("[Novadeck: automatic notice,\nagent messages waiting, n7Q2]")).toBe(
+      "n7Q2",
+    )
+  })
+
+  it("is not told when the person's text is with it, or two lines, or none", () => {
+    expect(leftoverNonce(`${doorbellLine("n7Q2")} and then`)).toBeUndefined()
+    expect(leftoverNonce(`Hello ${doorbellLine("n7Q2")}`)).toBeUndefined()
+    expect(leftoverNonce(`${doorbellLine("n7Q2")}${doorbellLine("k3f9")}`)).toBeUndefined()
+    expect(leftoverNonce("")).toBeUndefined()
+  })
+})
+
+describe("the doorbell's test paste where a line of history goes as the box takes text", () => {
+  const history = (tip: boolean) => [
+    "• Next job done.",
+    ...(tip ? ["  └ Tip: Press ctrl+t to open the full transcript."] : []),
+    "",
+    "  Worked for <1s • 12:02",
+    ...(tip ? [] : [""]),
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]
+  const screenOf = (tip: boolean, box: string, footer: string) => [
+    ...history(tip),
+    "› " + box,
+    "  fake-model default",
+    footer,
+  ]
+  const was = screenOf(true, "Ask Codex to do anything", "  ? for shortcuts")
+  const after = screenOf(false, line, "")
+
+  it("accepts it: the Tip row is gone and the rows below moved up", () => {
+    expect(checkPaste(was, after, line)).toMatchObject({ accepted: true })
+  })
+
+  it("rejects it when two lines are gone, as a filtered list's", () => {
+    const more = [...after]
+    more[0] = ""
+    expect(checkPaste(was, more, line)).toEqual({ accepted: false, reason: "elsewhere" })
+  })
+
+  it("rejects a list above the box that lost one item, with more of its items below", () => {
+    const list = (items: readonly string[]) => [
+      "  Mentions",
+      ...items,
+      ...Array<string>(8 - items.length).fill(""),
+      "› box",
+      "  fake-model default",
+      "  ? for shortcuts",
+    ]
+    const wasList = list(["  item a", "  item b", "  item c", "  item d"])
+    const afterList = list(["  item a", "  item c", "  item d"])
+    afterList[8] = `› ${line}`
+    afterList[10] = ""
+    expect(checkPaste(wasList, afterList, line)).toEqual({ accepted: false, reason: "elsewhere" })
+  })
+
+  it("rejects it when a line was added or changed far above", () => {
+    const added = [...after]
+    added[5] = "popup"
+    expect(checkPaste(was, added, line)).toEqual({ accepted: false, reason: "elsewhere" })
+    const edited = [...after]
+    edited[0] = "• something else"
+    expect(checkPaste(was, edited, line)).toEqual({ accepted: false, reason: "elsewhere" })
   })
 })

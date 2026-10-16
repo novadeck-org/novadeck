@@ -3,6 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises"
 import { screen } from "@novadeck/harness-core/testing/screens"
 import { vi } from "vitest"
 
+import type { Waits } from "../messaging/delivery.js"
 import { describe, expect, it } from "../test.js"
 import { confirmMs, Doorbell, type DoorbellHost } from "./doorbell.js"
 import { InputQueue } from "./input-queue.js"
@@ -15,6 +16,20 @@ const terminal = (
   options: {
     takes?: "box" | "nothing" | "elsewhere"
     ringable?: boolean
+    /** Idle but Drafting, Unknown or Fresh, not ringable by state: what its screen reads as. */
+    stalled?: "empty" | "starting" | Waits
+    /** The pasted line shows only this long after it was written, in milliseconds. */
+    landMs?: number
+    /** The agent's activity says a turn runs. */
+    busy?: boolean
+    /** Idle with the line a failed ring left in the box, all it holds: its nonce. */
+    leftover?: string
+    /** A row far from the box changes by itself this often, in milliseconds. */
+    tickMs?: number
+    /** The screen changes this often, as output streaming, in milliseconds. */
+    streamMs?: number
+    /** What the box read says at each look, in turn, the last one standing. */
+    inputBox?: readonly boolean[]
     bracketedPaste?: boolean
     foreground?: boolean | undefined
     /** How long a hold lasts before it lapses by itself, in milliseconds. */
@@ -48,24 +63,72 @@ const terminal = (
   let pastedAt: number | undefined
   let resizedAt = 0
   let resizeAtForeground = options.resizeAtForeground ?? false
+  let stalled = options.stalled !== undefined
+  let reading: "empty" | "starting" | Waits = options.stalled ?? "empty"
+  const emptied: number[] = []
+  const blocks: (Waits | null)[] = []
+  let leftover = options.leftover
+  const oursReported: boolean[] = []
+  const ringLeftovers: string[] = []
+  let tick = 0
+  const ticker =
+    options.tickMs === undefined
+      ? undefined
+      : setInterval(() => {
+          tick += 1
+          rows[1] = `uptime ${tick}`
+        }, options.tickMs)
+  let stamp = 1
+  let screens = 0
+  let boxReads = 0
+  const emptiedAt: number[] = []
+  const streamer =
+    options.streamMs === undefined
+      ? undefined
+      : setInterval(() => (rows[2] = `output ${Math.random()}`), options.streamMs)
   const host: DoorbellHost = {
+    stamp: () => String(stamp),
+    ...(options.inputBox && {
+      inputBox: () => options.inputBox![((boxReads += 1) - 1) % options.inputBox!.length]!,
+    }),
+    leftover: () => leftover,
+    ringLeftover: (_, nonce) => {
+      ringLeftovers.push(nonce)
+      ringing = nonce
+      return true
+    },
+    stalled: () => stalled,
+    reading: () => reading,
+    emptied: (_, readAt) => {
+      emptied.push(readAt)
+      emptiedAt.push(Date.now())
+      stalled = false
+      ringable = true
+    },
+    blocked: (_, waits) => {
+      if (blocks.at(-1) !== waits) blocks.push(waits)
+    },
     ringable: () => ringable && ringing === undefined,
     settledSince: () => options.settledAt,
     ready: () => options.ready ?? false,
     ring: (_, nonce) => {
-      if (!ringable) return false
+      if (!ringable || options.busy) return false
       rings += 1
       ringable = false
       ringing = nonce
       return true
     },
     ringing: () => ringing,
-    ringFailed: (_, nonce) => {
+    ringFailed: (_, nonce, ours) => {
+      oursReported.push(ours === true)
       if (ringing !== nonce) return
       ringing = undefined
       failed.push(nonce)
+      // A failed ring leaves the terminal Unknown, idle with its messages waiting.
+      stalled = true
     },
     screen: async () => {
+      screens += 1
       if (options.screenThrowsWhileRinging && ringing !== undefined) throw new Error("no screen")
       const text = screen({ rows: [...rows], bracketedPaste: options.bracketedPaste ?? true })
       if (options.screenMs) await sleep(options.screenMs)
@@ -84,7 +147,10 @@ const terminal = (
       // eslint-disable-next-line no-control-regex -- A bracketed paste's markers.
       const pasted = /^\x1b\[200~(.*)\x1b\[201~$/.exec(data)?.[1]
       if (pasted) pastedAt ??= Date.now()
-      if (pasted && options.takes !== "nothing") rows[6] = `> ${pasted}`
+      if (pasted && options.takes !== "nothing") {
+        if (options.landMs) setTimeout(() => (rows[6] = `> ${pasted}`), options.landMs)
+        else rows[6] = `> ${pasted}`
+      }
       if (pasted && options.takes === "elsewhere") rows[0] = "popup closed"
       if (pasted && options.logo) rows[2] = ""
       return true
@@ -118,6 +184,21 @@ const terminal = (
     rows,
     written,
     failed,
+    emptied,
+    blocks,
+    ringLeftovers,
+    emptiedAt,
+    oursReported,
+    bump: () => (stamp += 1),
+    screens: () => screens,
+    stop: () => {
+      clearInterval(ticker)
+      clearInterval(streamer)
+    },
+    // The leftover line is gone, or was never Novadeck's.
+    clearLeftover: () => (leftover = undefined),
+    // What its screen reads as now, for a stalled terminal.
+    read: (next: "empty" | "starting" | Waits) => (reading = next),
     state: () => ({ ringing, holds, held, sizes, rings, pastedAt, resizedAt }),
     // The app resized its window now.
     resize: () => (resizedAt = Date.now()),
@@ -126,7 +207,16 @@ const terminal = (
   }
 }
 
-const fast = { calmMs: 30, pollMs: 5, pasteMs: 100, confirmMs: 100 }
+// Pinned to one platform, so the suite behaves alike on every host (the Windows paths have
+// tests of their own, which say so).
+const fast = {
+  calmMs: 30,
+  pollMs: 5,
+  pasteMs: 100,
+  confirmMs: 100,
+  watchMs: 10,
+  platform: "linux",
+} as const
 const enters = (written: readonly string[]) => written.filter((data) => data === "\r").length
 
 describe("a ring's wait for its doorbell prompt", () => {
@@ -342,6 +432,350 @@ describe("the doorbell", () => {
     const doorbell = new Doorbell(host, host.queue, fast)
     doorbell.changed("t")
     await vi.waitFor(() => expect(enters(written)).toBe(1))
+    doorbell.close()
+  })
+})
+
+describe("the doorbell on an idle terminal its state keeps from ringing", () => {
+  const recheck = { ...fast, recheckMs: 20, recheckMaxMs: 80 }
+
+  it("makes it Ready, then rings it, once its box reads empty on a calm screen", async () => {
+    const { host, written, emptied, blocks } = terminal({ ringable: false, stalled: "empty" })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(enters(written)).toBe(1))
+    expect(emptied).toHaveLength(1)
+    expect(blocks).toEqual([null])
+    doorbell.close()
+  })
+
+  it("never types over a draft: it says why, and rings once the box is emptied", async () => {
+    const { host, written, emptied, blocks, read } = terminal({
+      ringable: false,
+      stalled: "draft",
+    })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await sleep(250)
+    expect(written).toEqual([])
+    expect(emptied).toEqual([])
+    expect(blocks).toEqual(["draft"])
+    read("empty")
+    await vi.waitFor(() => expect(enters(written)).toBe(1))
+    expect(blocks).toEqual(["draft", null])
+    doorbell.close()
+  })
+
+  it.each(["dialog", "asking"] as const)("presses nothing while a %s is up", async (waits) => {
+    const { host, written, emptied, blocks } = terminal({ ringable: false, stalled: waits })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await sleep(200)
+    expect(written).toEqual([])
+    expect(emptied).toEqual([])
+    expect(blocks).toEqual([waits])
+    doorbell.close()
+  })
+
+  it("looks again with growing waits while it cannot ring, not on every tick", async () => {
+    const { host } = terminal({ ringable: false, stalled: "draft" })
+    let reads = 0
+    const counted = { ...host, reading: () => ((reads += 1), "draft" as const) }
+    const doorbell = new Doorbell(counted, host.queue, {
+      ...recheck,
+      recheckMs: 40,
+      recheckMaxMs: 160,
+    })
+    doorbell.changed("t")
+    await sleep(600)
+    // Waits of 40, 80, 160, 160 ms after the calm's 30 ms: a handful of looks, not dozens.
+    expect(reads).toBeGreaterThan(2)
+    expect(reads).toBeLessThan(9)
+    doorbell.close()
+  })
+
+  it("rings again after a failed ring leaves it Unknown, with longer waits each time", async () => {
+    const { host, written, failed, emptied, emptiedAt } = terminal({ takes: "nothing" })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed).toHaveLength(1), { interval: 1 })
+    const failedAt = Date.now()
+    // Unknown, idle, its box empty again: Ready and rung once more, not stranded, but not
+    // at once.
+    await vi.waitFor(() => expect(failed.length).toBeGreaterThanOrEqual(2), { timeout: 2_000 })
+    expect(emptied).toHaveLength(1)
+    // The wait is 40 ms; Windows' timers run in 15.6 ms ticks, so a little less may pass.
+    expect(emptiedAt[0]! - failedAt).toBeGreaterThanOrEqual(20)
+    expect(enters(written)).toBe(0)
+    doorbell.close()
+  })
+})
+
+describe("the doorbell on a screen with a row that ticks by itself", () => {
+  const ticking = { ...fast, watchMs: 250, pasteMs: 400 }
+
+  it("still submits the ring: a row far from the box changing is no sign of a popup", async () => {
+    const { host, written, stop } = terminal({ tickMs: 60 })
+    const doorbell = new Doorbell(host, host.queue, ticking)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(enters(written)).toBe(1), { timeout: 3_000 })
+    stop()
+    doorbell.close()
+  })
+
+  it("still fails a ring whose paste changed another row far from the box", async () => {
+    const { host, written, failed, stop } = terminal({ tickMs: 60, takes: "elsewhere" })
+    const doorbell = new Doorbell(host, host.queue, ticking)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed).toHaveLength(1), { timeout: 3_000 })
+    expect(enters(written)).toBe(0)
+    stop()
+    doorbell.close()
+  })
+})
+
+describe("the doorbell on the line a failed ring left in the box", () => {
+  const recheck = { ...fast, recheckMs: 20, recheckMaxMs: 80 }
+
+  it("submits it with Enter alone, pasting nothing, once the wait is over", async () => {
+    const { host, written, ringLeftovers } = terminal({
+      ringable: false,
+      stalled: "draft",
+      leftover: "k3f9Xz",
+    })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(enters(written)).toBe(1))
+    expect(ringLeftovers).toEqual(["k3f9Xz"])
+    expect(written).toEqual(["\r"])
+    doorbell.close()
+  })
+
+  it("leaves it alone once it is not Novadeck's: the person's key made it their draft", async () => {
+    const { host, written, ringLeftovers, clearLeftover } = terminal({
+      ringable: false,
+      stalled: "draft",
+      leftover: "k3f9Xz",
+    })
+    clearLeftover()
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await sleep(250)
+    expect(written).toEqual([])
+    expect(ringLeftovers).toEqual([])
+    doorbell.close()
+  })
+})
+
+describe("the doorbell's care with a terminal it looks at", () => {
+  const recheck = { ...fast, recheckMs: 20, recheckMaxMs: 40 }
+
+  it("counts the calm from when it began, so a key typed meanwhile is not forgotten", async () => {
+    const { host, emptied, emptiedAt, stop } = terminal({ ringable: false, stalled: "empty" })
+    const doorbell = new Doorbell(host, host.queue, { ...recheck, calmMs: 60 })
+    const began = Date.now()
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(emptied).toHaveLength(1))
+    // The read it rests on began at or before the calm's start, a calm long before the look.
+    expect(emptiedAt[0]! - emptied[0]!).toBeGreaterThanOrEqual(50)
+    expect(emptied[0]!).toBeGreaterThanOrEqual(began - 5)
+    stop()
+    doorbell.close()
+  })
+
+  it("looks at the box again as the ring begins, and gives the ring up if text came", async () => {
+    const { host, written, failed, stop } = terminal({ inputBox: [true, true, false] })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed.length).toBeGreaterThanOrEqual(1))
+    expect(written).toEqual([])
+    stop()
+    doorbell.close()
+  })
+
+  it("gives up after three failed rings, until something happens in the terminal", async () => {
+    const { host, failed, blocks, bump, stop } = terminal({ takes: "nothing" })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed).toHaveLength(3), { timeout: 3_000 })
+    await sleep(300)
+    expect(failed).toHaveLength(3)
+    expect(blocks.at(-1)).toBe("failed")
+    // A root turn event or a key of the person's: it tries again.
+    bump()
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed.length).toBeGreaterThan(3), { timeout: 3_000 })
+    stop()
+    doorbell.close()
+  })
+
+  it("does not count a ring given up before it pasted anything", async () => {
+    const { host, failed, blocks, stop } = terminal({ inputBox: [true, true, false] })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(failed.length).toBeGreaterThanOrEqual(3), { timeout: 3_000 })
+    expect(blocks).not.toContain("failed")
+    stop()
+    doorbell.close()
+  })
+
+  it("does not read the screen of a stalled terminal while output streams", async () => {
+    const { host, screens, stop } = terminal({ ringable: false, stalled: "draft", streamMs: 5 })
+    const doorbell = new Doorbell(host, host.queue, { ...recheck, calmMs: 50 })
+    // The screen's changes reach it as they come.
+    const changing = setInterval(() => doorbell.changed("t"), 5)
+    await sleep(200)
+    clearInterval(changing)
+    expect(screens()).toBeLessThanOrEqual(5)
+    stop()
+    doorbell.close()
+  })
+})
+
+describe("the doorbell's word on the line a failed ring left", () => {
+  it("calls it Novadeck's only where the paste check accepted it", async () => {
+    const swallowed = terminal({ takes: "nothing" })
+    const one = new Doorbell(swallowed.host, swallowed.host.queue, fast)
+    one.changed("t")
+    await vi.waitFor(() => expect(swallowed.failed).toHaveLength(1))
+    expect(swallowed.oursReported[0]).toBe(false)
+    one.close()
+    swallowed.stop()
+    // Accepted, then its hold lapsed before Enter: the line is alone in the box.
+    const lapsed = terminal({ holdMs: 1 })
+    const two = new Doorbell(lapsed.host, lapsed.host.queue, fast)
+    two.changed("t")
+    await vi.waitFor(() => expect(lapsed.failed.length).toBeGreaterThan(0))
+    expect(lapsed.oursReported[0]).toBe(true)
+    two.close()
+    lapsed.stop()
+  })
+})
+
+describe("the doorbell's word on every refusal and look", () => {
+  const recheck = { ...fast, recheckMs: 20, recheckMaxMs: 40 }
+
+  it("says the terminal is away when the agent does not hold it, and looks again", async () => {
+    const { host, written, blocks, stop } = terminal({ foreground: false })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(blocks).toContain("away"))
+    expect(written).toEqual([])
+    stop()
+    doorbell.close()
+  })
+
+  it("says why no box reads, as the screen shows, when the gate finds none", async () => {
+    const { host, written, blocks, stop } = terminal({
+      inputBox: [false],
+      stalled: "draft",
+      ringable: true,
+    })
+    // Ringable by state, its gate refuses: the reading names the draft.
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(blocks).toContain("draft"))
+    expect(written).toEqual([])
+    stop()
+    doorbell.close()
+  })
+
+  it("does not submit a leftover line while the agent does not hold the terminal", async () => {
+    const { host, written, ringLeftovers, blocks, stop } = terminal({
+      ringable: false,
+      stalled: "draft",
+      leftover: "k3f9Xz",
+      foreground: false,
+    })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(blocks).toContain("away"))
+    expect(written).toEqual([])
+    expect(ringLeftovers).toEqual([])
+    stop()
+    doorbell.close()
+  })
+
+  it("does not submit a leftover line while a request waits on the person", async () => {
+    const { host, written, ringLeftovers, blocks, stop } = terminal({
+      ringable: false,
+      stalled: "asking",
+      leftover: "k3f9Xz",
+    })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await vi.waitFor(() => expect(blocks).toContain("asking"))
+    expect(written).toEqual([])
+    expect(ringLeftovers).toEqual([])
+    stop()
+    doorbell.close()
+  })
+
+  it("pastes nothing when the ring is refused as the agent's activity says a turn runs", async () => {
+    const { host, written, stop } = terminal({ busy: true })
+    const doorbell = new Doorbell(host, host.queue, recheck)
+    doorbell.changed("t")
+    await sleep(250)
+    expect(written).toEqual([])
+    stop()
+    doorbell.close()
+  })
+
+  it("says a new session with no box waits for the person once it has shown none a while", async () => {
+    const { host, blocks, stop } = terminal({ ringable: false, stalled: "starting" })
+    const doorbell = new Doorbell(host, host.queue, { ...recheck, startMs: 80 })
+    doorbell.changed("t")
+    await sleep(60)
+    expect(blocks).not.toContain("dialog")
+    await vi.waitFor(() => expect(blocks).toContain("dialog"))
+    stop()
+    doorbell.close()
+  })
+
+  it("looks less often at a screen that keeps changing, up to its cap", async () => {
+    const { host, screens, stop } = terminal({ ringable: false, stalled: "draft", tickMs: 40 })
+    const doorbell = new Doorbell(host, host.queue, {
+      ...recheck,
+      calmMs: 100,
+      recheckMs: 40,
+      recheckMaxMs: 160,
+    })
+    const changing = setInterval(() => doorbell.changed("t"), 20)
+    await sleep(700)
+    clearInterval(changing)
+    expect(screens()).toBeLessThanOrEqual(5)
+    stop()
+    doorbell.close()
+  })
+})
+
+describe("the doorbell on a slow runner, and on a console that keeps redrawing", () => {
+  const recheck = { ...fast, recheckMs: 20, recheckMaxMs: 40 }
+
+  it("gives a line more time to show on Windows than elsewhere, before failing the ring", async () => {
+    // Shown 250 ms after it was written: past the default elsewhere (here 100 ms), within Windows'.
+    const slowWindows = terminal({ landMs: 250 })
+    const win = new Doorbell(slowWindows.host, slowWindows.host.queue, {
+      calmMs: 30,
+      pollMs: 5,
+      confirmMs: 100,
+      watchMs: 10,
+      platform: "win32",
+    })
+    win.changed("t")
+    await vi.waitFor(() => expect(enters(slowWindows.written)).toBe(1), { timeout: 5_000 })
+    win.close()
+    slowWindows.stop()
+  })
+
+  it("still looks at a stalled terminal whose console redraws more often than a calm window", async () => {
+    const { host, blocks, stop } = terminal({ ringable: false, stalled: "draft" })
+    const doorbell = new Doorbell(host, host.queue, { ...recheck, calmMs: 100 })
+    // Told of a change every 10 ms, though its text never changes.
+    const redraws = setInterval(() => doorbell.changed("t"), 10)
+    await vi.waitFor(() => expect(blocks).toContain("draft"), { timeout: 3_000 })
+    clearInterval(redraws)
+    stop()
     doorbell.close()
   })
 })

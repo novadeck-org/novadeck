@@ -65,6 +65,7 @@ const terminal = (
     queued: () =>
       typeof options.queued === "function" ? options.queued() : options.queued === true,
     collapses: () => false,
+    overlay: () => false,
     ...(options.viewport === undefined ? {} : { viewport: () => options.viewport! }),
     room: (rows) => rows - 3,
   }

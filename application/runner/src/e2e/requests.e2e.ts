@@ -47,13 +47,10 @@ const news: Rule[] = [
 ]
 
 /**
- * The model call that carries t2's news to t1 once the person left what hid t1's box: on
- * Windows t1 stayed Settled, no ring having started, so the doorbell rings it as soon as
- * its box shows again; elsewhere the failed ring left it Unknown, and the person's prompt
- * carries it.
+ * The model call that carries t2's news to t1 once the person left what hid t1's box: the
+ * doorbell rings it as soon as its box shows again.
  */
 const carried = async (model: FakeModel, t1: DeckTerminal, calls: number) => {
-  if (process.platform !== "win32") await t1.submit("Carry on")
   return await model.waitFor((call) => delivered(call, "fox"), { after: calls })
 }
 
@@ -228,7 +225,7 @@ for (const setup of setups) {
     )
 
     gated(it, lacking(setup, "rewind"))(
-      "rings into what Esc-Esc opened only as its harness takes the paste, pressing nothing else",
+      "rings into what Esc-Esc opened only where its harness leaves the box taking the paste, pressing nothing else",
       async ({ e2e: run }) => {
         const { shows, swallows } = setup.rewind!
         run.model.use(replies("Say hi", "Hi there."), replies("Carry on", "Carried on."), ...news)
@@ -251,52 +248,8 @@ for (const setup of setups) {
         await t2.submit("Tell moth the news")
 
         if (swallows) {
-          if (process.platform === "win32") {
-            // On Windows the doorbell's gate rings only where the agent's box shows, which
-            // what Esc-Esc opened hides: no ring starts, and nothing is pasted at all.
-            await through(t1, [holds("fox", "moth", "queued")], { after: mark })
-            await sleep(quiet)
-            expect(
-              t1
-                .history()
-                .slice(mark)
-                .map((one) => one.delivery),
-            ).not.toContain("ringing")
-          } else {
-            // It swallows the paste: the ring fails, nothing is pressed, Unknown.
-            await through(t1, [holds("fox", "moth", "queued"), "ringing", "unknown"], {
-              after: mark,
-            })
-            await sleep(quiet)
-            expect(t1.history().at(-1)?.delivery).toBe("unknown")
-          }
-          // It stays open as it was, no line in it, and the message waits.
-          const shown = await t1.screen()
-          expect(shown).toMatch(shows)
-          expect(shown).not.toMatch(ring)
-          expect(messages(t1).map((one) => one.state)).toEqual(["queued"])
-          expect(run.model.calls.slice(calls).filter((call) => ring.test(latest(call)))).toEqual([])
-
-          // The person leaves it and submits a prompt, whose hook delivers the message.
-          await t1.escape()
-          await t1.poll(
-            async () => (shows.test(await t1.screen()) ? undefined : true),
-            "Esc to close what Esc-Esc opened",
-          )
-          const next = t1.mark()
-          const carrying = await carried(run.model, t1, calls)
-          expect(latest(carrying)).toMatch(process.platform === "win32" ? ring : /Carry on/)
-          await through(t1, ["working", holds("fox", "moth", "delivered"), "settled"], {
-            after: next,
-          })
-          return
-        }
-
-        let rings = mark
-        if (process.platform === "win32") {
-          // On Windows a paste there would reach it as keys, its rewind among them: the
-          // doorbell's gate, which needs the agent's box taking a prompt, rings only once the
-          // person has left it.
+          // The doorbell's gate rings only where the agent's box shows, which what Esc-Esc
+          // opened hides: no ring starts, and nothing is pasted at all.
           await through(t1, [holds("fox", "moth", "queued")], { after: mark })
           await sleep(quiet)
           expect(
@@ -305,9 +258,41 @@ for (const setup of setups) {
               .slice(mark)
               .map((one) => one.delivery),
           ).not.toContain("ringing")
-          rings = t1.mark()
+          // It stays open as it was, no line in it, and the message waits.
+          const shown = await t1.screen()
+          expect(shown).toMatch(shows)
+          expect(shown).not.toMatch(ring)
+          expect(messages(t1).map((one) => one.state)).toEqual(["queued"])
+          expect(run.model.calls.slice(calls).filter((call) => ring.test(latest(call)))).toEqual([])
+
+          // The person leaves it, and the doorbell rings the box that shows again.
           await t1.escape()
+          await t1.poll(
+            async () => (shows.test(await t1.screen()) ? undefined : true),
+            "Esc to close what Esc-Esc opened",
+          )
+          const next = t1.mark()
+          const carrying = await carried(run.model, t1, calls)
+          expect(latest(carrying)).toMatch(ring)
+          await through(t1, ["ringing", "working", holds("fox", "moth", "delivered"), "settled"], {
+            after: next,
+          })
+          return
         }
+
+        // A paste there would be taken as keys by what Esc-Esc opened, its rewind among them:
+        // the doorbell's gate, which needs the agent's box taking a prompt, rings only once
+        // the person has left it.
+        await through(t1, [holds("fox", "moth", "queued")], { after: mark })
+        await sleep(quiet)
+        expect(
+          t1
+            .history()
+            .slice(mark)
+            .map((one) => one.delivery),
+        ).not.toContain("ringing")
+        const rings = t1.mark()
+        await t1.escape()
         // The paste leaves it and lands in the prompt: the ring goes on as at an empty
         // prompt, its own line the prompt, and nothing was rewound.
         await through(t1, ["ringing", "working", holds("fox", "moth", "delivered")], {
@@ -332,7 +317,7 @@ for (const setup of setups) {
     const it = e2e.seeded({ popup: true }, setup)
 
     gated(it, lacking(setup, "popup"))(
-      "never presses anything into a popup it raised after its Stop, and goes Unknown",
+      "never presses anything into a popup it raised after its Stop, and rings once it is closed",
       async ({ e2e: run }) => {
         const { reply, shows } = setup.popup!
         run.model.use(
@@ -355,23 +340,16 @@ for (const setup of setups) {
         const calls = run.model.mark()
         await t2.submit("Tell moth the news")
 
-        if (process.platform === "win32") {
-          // On Windows a paste may reach the harness as keys, so the doorbell's gate rings
-          // only where the agent's box shows: none starts, and nothing is pasted at all.
-          await through(t1, [holds("fox", "moth", "queued")], { after: mark })
-          await sleep(quiet)
-          expect(
-            t1
-              .history()
-              .slice(mark)
-              .map((one) => one.delivery),
-          ).not.toContain("ringing")
-        } else {
-          // The ring's test paste meets the popup and fails: nothing is pressed, Unknown.
-          await through(t1, [holds("fox", "moth", "queued"), "ringing", "unknown"], { after: mark })
-          await sleep(quiet)
-          expect(t1.history().at(-1)?.delivery).toBe("unknown")
-        }
+        // The doorbell's gate rings only where the agent's box shows: none starts, and
+        // nothing is pasted at all.
+        await through(t1, [holds("fox", "moth", "queued")], { after: mark })
+        await sleep(quiet)
+        expect(
+          t1
+            .history()
+            .slice(mark)
+            .map((one) => one.delivery),
+        ).not.toContain("ringing")
         expect(await t1.screen()).toMatch(shows)
         expect(messages(t1).map((one) => one.state)).toEqual(["queued"])
         expect(run.model.calls.slice(calls).filter((call) => ring.test(latest(call)))).toEqual([])
@@ -386,7 +364,7 @@ for (const setup of setups) {
         )
         const next = t1.mark()
         const carrying = await carried(run.model, t1, calls)
-        expect(latest(carrying)).toMatch(process.platform === "win32" ? ring : /Carry on/)
+        expect(latest(carrying)).toMatch(ring)
         expect(carrying.model).toBe(said.model)
         await t1.until("Noted the news.")
         await through(t1, ["working", holds("fox", "moth", "delivered"), "settled"], {

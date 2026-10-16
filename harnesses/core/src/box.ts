@@ -82,6 +82,13 @@ export type BoxProfile = {
    */
   readonly interrupted?: (screen: ScreenText) => boolean | undefined
   /**
+   * Whether the screen shows a view, panel or search of the harness beside or over its
+   * conversation whose field or footer looks like its input box, so an empty box read off
+   * it is not the agent's own prompt (probed per harness; see the doorbell's look at an
+   * idle terminal): a line pasted there would go to the view, and its Enter act in it.
+   */
+  readonly overlay: (screen: ScreenText) => boolean
+  /**
    * Whether the screen shows messages the person queued behind the running turn, which
    * the harness holds until the turn ends (or, for Codex, steers the turn with).
    */
@@ -236,6 +243,21 @@ const leads = (row: string | undefined, markers: Markers): boolean =>
  */
 export const agreeing = (box: InputBox | undefined, shell: boolean): InputBox | undefined =>
   box && !(shell && box.mode === "prompt") ? box : undefined
+
+/**
+ * The rows of a screen that show anything, from the one the cursor is on (in the box, or the
+ * field of a view) down, and at least the last `count` of them: the box's footer and what a
+ * view draws under it, where a harness says which view it is in (`BoxProfile.overlay`),
+ * however many rows a status line takes; never the conversation above. A cursor far above
+ * the foot (more than `reach` rows) is no anchor.
+ */
+export const footerRows = (screen: ScreenText, count = 4, reach = 12): readonly string[] => {
+  const shown = screen.rows.map((row, at) => ({ row, at })).filter(({ row }) => row.trim() !== "")
+  const below = shown.filter(({ at }) => at >= screen.cursor.row)
+  const near = screen.rows.length - screen.cursor.row <= reach
+  const last = shown.slice(-count)
+  return (near && below.length > last.length ? below : last).map(({ row }) => row)
+}
 
 /** Whether a row is a horizontal rule. */
 export const rule = (row: string | undefined): boolean => /^─{8,}$/.test((row ?? "").trim())

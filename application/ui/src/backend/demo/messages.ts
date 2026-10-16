@@ -4,6 +4,7 @@ import {
   noMail,
   type AgentMessage,
   type InboxHistory,
+  type MailWaits,
   type MailState,
   type MessageThread,
   type Messages,
@@ -41,6 +42,8 @@ export type DemoMailbox = {
     readonly terminalId: string
     readonly handle: string
     readonly agent: boolean
+    // Why the doorbell can't ring it, where the debug panel put it so.
+    readonly waits?: MailWaits | null
   }[]
   readonly threads: readonly DemoThread[]
 }
@@ -65,9 +68,11 @@ const mailOf = (
   handle: string,
   agent: boolean,
   paused: boolean,
+  waits: MailWaits | null,
 ): TerminalMail => ({
   handle,
   agent,
+  waits,
   threads: box.threads
     .filter((thread) => thread.between.includes(handle))
     .map((thread): MessageThread => {
@@ -89,9 +94,9 @@ const stateOf = (boxes: readonly DemoMailbox[], paused: boolean): MailState => (
   paused,
   terminals: Object.fromEntries(
     boxes.flatMap((box) =>
-      box.terminals.map(({ terminalId, handle, agent }) => [
+      box.terminals.map(({ terminalId, handle, agent, waits }) => [
         companionKeyId({ ...box.target, terminalId }),
-        mailOf(box, handle, agent, paused),
+        mailOf(box, handle, agent, paused, waits ?? null),
       ]),
     ),
   ),
@@ -256,6 +261,20 @@ export const createDemoMessages = (
         isPaused = next
         publish()
       }, pauseMs)
+    },
+    waits: (key, waits) => {
+      const id = companionKeyId(key)
+      let found = false
+      boxes = boxes.map((box) => ({
+        ...box,
+        terminals: box.terminals.map((each) => {
+          if (companionKeyId({ ...box.target, terminalId: each.terminalId }) !== id) return each
+          found = true
+          return { ...each, waits }
+        }),
+      }))
+      if (found) publish()
+      return found
     },
     // Thread ids are the demo's own, unique across its mailboxes.
     release: (thread) => {

@@ -760,6 +760,7 @@ describe("runner client messages", () => {
       terminalId: terminal.id,
       handle: "moth",
       delivery: "unbound",
+      waits: null,
       paused: false,
       threads: [],
     })
@@ -798,6 +799,7 @@ describe("runner client message watch", () => {
         terminalId: terminal.id,
         handle: "moth",
         delivery: "unbound",
+        waits: null,
         paused: false,
         threads: [],
       },

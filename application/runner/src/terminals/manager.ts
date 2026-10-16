@@ -110,6 +110,7 @@ import {
 import { pathKey, refreshPath } from "../shell/windows-path.js"
 import type { HintFacts } from "../voice/hint.js"
 import { Answers, type AnswerHost, type AnswerOptions } from "./answers.js"
+import { busy } from "./busy.js"
 import {
   allowClose,
   closeLimit,
@@ -122,7 +123,7 @@ import {
 import { coalesced } from "./coalesce.js"
 import { expectedAgent, promptIn } from "./commands.js"
 import { Dialogs, type DialogsHost, type DialogsOptions } from "./dialogs.js"
-import { Doorbell, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
+import { Doorbell, tracer, type DoorbellHost, type DoorbellOptions } from "./doorbell.js"
 import {
   foregroundProcess,
   foregroundRuns,
@@ -182,7 +183,7 @@ import {
   type TerminalIdentity,
   type TerminalRecords,
 } from "./records.js"
-import { freshNonce } from "./ring.js"
+import { freshNonce, leftoverNonce } from "./ring.js"
 import { screenText } from "./screen.js"
 import { snapshot } from "./snapshot.js"
 import { Subscription } from "./subscription.js"
@@ -1897,6 +1898,17 @@ export class Terminals {
     if (this.applyFact(record, fact)) this.publishAgent(record, false)
   }
 
+  /**
+   * Whether the activity says a turn or subagents run, where that outweighs what messaging
+   * knows: a Settled or Ready terminal made so by a Stop or a session's start stands against
+   * an activity that lingers; every other, and any made so by the screen alone, does not.
+   */
+  private working(terminalId: string, activity: Parameters<typeof busy>[0]): boolean {
+    const state = this.messaging.delivery(terminalId)?.state
+    const known = (state === "settled" || state === "ready") && !this.messaging.byScreen(terminalId)
+    return !known && busy(activity)
+  }
+
   /** What the doorbell asks of the terminals and messaging. */
   private ringHost(): DoorbellHost {
     const live = (terminalId: string) => this.live(terminalId)
@@ -1908,25 +1920,96 @@ export class Terminals {
         return (
           record !== undefined &&
           (record.activity?.pending.length ?? 0) === 0 &&
+          !this.working(terminalId, record.activity) &&
           !this.stopping &&
           this.messaging.ringable(terminalId)
         )
       },
       settledSince: (terminalId) => this.messaging.settledSince(terminalId),
-      ring: (terminalId, nonce) => this.messaging.ring(terminalId, nonce),
+      ring: (terminalId, nonce) => {
+        const record = live(terminalId)
+        return (
+          record !== undefined &&
+          !this.working(terminalId, record.activity) &&
+          this.messaging.ring(terminalId, nonce)
+        )
+      },
       ringing: (terminalId) => this.messaging.ringing(terminalId),
       ready: (terminalId) => this.messaging.ready(terminalId),
-      ringFailed: (terminalId, nonce) => this.messaging.ringFailed(terminalId, nonce),
+      // Idle but not Ready by its state, with messages waiting: its screen is looked at.
+      // Never while its activity says a turn or subagents run (a spinner is no calm), and
+      // for a Settled or Ready one only to say a request waits on the person.
+      stalled: (terminalId) => {
+        const record = live(terminalId)
+        if (!record) return false
+        if (this.working(terminalId, record.activity)) {
+          if (this.messaging.stalled(terminalId) || this.messaging.idleWaiting(terminalId))
+            tracer.sink?.(
+              terminalId,
+              `not looked at: activity ${record.activity?.state}, ${record.activity?.subagents.length ?? 0} subagents, background ${JSON.stringify(record.activity?.background)}`,
+            )
+          return false
+        }
+        return (
+          this.messaging.stalled(terminalId) ||
+          ((record.activity?.pending.length ?? 0) > 0 && this.messaging.idleWaiting(terminalId))
+        )
+      },
+      stamp: (terminalId) => this.messaging.stamp(terminalId),
+      barred: (terminalId) => this.messaging.queueBar(terminalId),
+      // The agent's own box, read by its harness off the calm screen: empty and taking a
+      // prompt makes an idle Fresh, Drafting or Unknown terminal Ready (see
+      // docs/agent-messaging.md, "The doorbell"); anything else says why it is not.
+      reading: (terminalId, screen) => {
+        const record = live(terminalId)
+        if (!record) return "dialog"
+        if ((record.activity?.pending.length ?? 0) > 0) return "asking"
+        if (this.working(terminalId, record.activity)) return "draft"
+        const profile = this.boxOf(record)
+        const box = profile?.read(screen)
+        if (!profile || profile.overlay(screen)) return "dialog"
+        // Before its prompt draws, a new session shows no box yet: nothing to say.
+        if (!box)
+          return this.messaging.delivery(terminalId)?.state === "fresh" ? "starting" : "dialog"
+        if (box.mode !== "prompt") return "draft"
+        // A picker's row starts with the box's marker too (`❯ 1. Yes`): not a box.
+        if (/^\d+[.)]\s/.test(box.text.trimStart())) return "dialog"
+        return isEmpty(box) && !profile.queued(screen) ? "empty" : "draft"
+      },
+      // The line a failed ring left, all the box holds, which the person has not touched.
+      leftover: (terminalId, screen) => {
+        const record = live(terminalId)
+        if (!record || !this.messaging.ours(terminalId)) return undefined
+        const profile = this.boxOf(record)
+        const box = profile?.read(screen)
+        if (!profile || !box || box.mode !== "prompt" || profile.overlay(screen)) return undefined
+        return leftoverNonce(box.text)
+      },
+      ringLeftover: (terminalId, nonce) => this.messaging.ringLeftover(terminalId, nonce),
+      emptied: (terminalId, readAt) => {
+        const delivery = this.messaging.delivery(terminalId)
+        const record = live(terminalId)
+        if (delivery && record && !this.working(terminalId, record.activity))
+          this.messaging.emptied(terminalId, delivery.epoch, readAt)
+      },
+      blocked: (terminalId, waits) => this.messaging.blocked(terminalId, waits),
+      ringFailed: (terminalId, nonce, ours) => this.messaging.ringFailed(terminalId, nonce, ours),
       screen: (terminalId) => this.screenOf(terminalId),
-      // On Windows a TUI that reads the console's keys gets a bracketed paste as keys: the
-      // agent's box must show, empty and taking a prompt, as a prompt's must.
-      ...(process.platform === "win32" && {
-        inputBox: (terminalId: string, screen: ScreenText) => {
-          const record = live(terminalId)
-          const box = record && this.boxOf(record)?.read(screen)
-          return box !== undefined && box.mode === "prompt" && isEmpty(box)
-        },
-      }),
+      // The agent's box must show, empty and taking a prompt, as a prompt's must: on Windows
+      // a TUI that reads the console's keys gets a bracketed paste as keys, and everywhere a
+      // key or a view since the calm may have left text there or something else in its
+      // place, so the ring looks again as it begins.
+      inputBox: (terminalId: string, screen: ScreenText) => {
+        const record = live(terminalId)
+        const profile = record && this.boxOf(record)
+        const box = profile?.read(screen)
+        return (
+          box !== undefined &&
+          box.mode === "prompt" &&
+          isEmpty(box) &&
+          profile?.overlay(screen) === false
+        )
+      },
       foreground: async (terminalId) => {
         const record = live(terminalId)
         if (!record) return undefined
@@ -4172,6 +4255,8 @@ export class Terminals {
             seen = false
           }
           if (Date.now() >= until) return
+          // The read counts from before it began: a key typed meanwhile is not forgotten.
+          const readAt = Date.now()
           // eslint-disable-next-line no-await-in-loop -- Each read waits for the one before.
           const screen = await this.screenOf(id)
           const profile = this.live(id) && this.boxOf(record)
@@ -4180,7 +4265,7 @@ export class Terminals {
           const empty =
             box !== undefined && box.mode === "prompt" && isEmpty(box) && !profile.queued(screen)
           if (empty && seen) {
-            this.messaging.emptied(id, delivery.epoch)
+            this.messaging.emptied(id, delivery.epoch, readAt)
             // Stale if the epoch changed during the read: a later doubt is polled anew.
             continue
           }

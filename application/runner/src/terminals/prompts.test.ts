@@ -32,6 +32,7 @@ const profileOf = (
   collapsed: ({ text }) => /^\[Pasted text #\d+ \+\d+ lines\]$/.test(text),
   shell: { expands, starts, footer: () => false, ...(command && { command }) },
   queued: () => false,
+  overlay: () => false,
   collapses: (text) => text.length > 500,
   room: (rows) => rows - 3,
 })
