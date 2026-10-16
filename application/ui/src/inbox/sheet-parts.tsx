@@ -354,7 +354,7 @@ export const ReplyBox = ({
           ? `Reply exceeds the 4,096 character limit by ${value.length - maximum}. Shorten it to send.`
           : value.length === maximum
             ? "4,096 character limit reached."
-            : "Up to 4,096 characters."}
+            : "Up to about 4,000 characters, fewer with emoji or some languages."}
       </p>
     </form>
   )

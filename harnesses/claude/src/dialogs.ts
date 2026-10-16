@@ -192,7 +192,7 @@ const permissionFooter = /^ Esc to cancel · Tab to amend$/
 
 /** Rows' text as the dialog quotes it: without the quote bar a command's rows carry. */
 const quoted = (rows: readonly string[]): string[] =>
-  rows.filter((each) => each !== "").map((each) => each.replace(/^ ?(?:│ )?/, "").trimEnd())
+  rows.filter((each) => each !== "").map((each) => each.replace(/^ ?(?:│(?: |$))?/, "").trimEnd())
 
 /**
  * Whether `rows` are `expected` as the terminal wrapped it: whitespace collapsed (never
@@ -560,7 +560,8 @@ const shows = (rows: readonly string[], title: number, facts: RequestFacts): str
       const shown = ruled(rows, title)
       if (!command || !shown || !header(shown.open, 3).includes("Bash command")) return undefined
       // Nothing but the command between its rules.
-      return wraps(quoted(shown.body), command) ? quoted(shown.body).join("\n") : undefined
+      // The request's own command, as it will run: not the screen's wrapped rows.
+      return wraps(quoted(shown.body), command) ? command : undefined
     }
     case "WebFetch": {
       const url = string(input.url)

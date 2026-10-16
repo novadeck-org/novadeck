@@ -903,7 +903,8 @@ export const waitReasons: Readonly<Record<Waits, string>> = {
 }
 
 /**
- * When a message sent now would reach the agent, in the words `send` answers with. A
+ * When a message sent now would reach the agent, in the words `send` answers with. An idle
+ * agent the doorbell can't ring (`waits`, as the Messages pane shows) says why and when. A
  * harness that sends nothing when a turn fails, as Codex, may only end its turn with its
  * next prompt. The lead's message (`midTurn`, the call its harness delivers it at, where
  * it does) reaches a running turn at the agent's next such call instead.
@@ -921,6 +922,7 @@ export const route = (
       return waits ? waitReasons[waits] : "ringing it once its box reads empty"
     case "ready":
     case "settled":
+      return waits ? waitReasons[waits] : "ringing it now"
     case "ringing":
       return "ringing it now"
     case "working":

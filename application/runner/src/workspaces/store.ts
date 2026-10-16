@@ -915,9 +915,19 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecor
   }
 
   letters(): Letter[] {
-    return (this.queries.all`SELECT record FROM asks ORDER BY at` as { record: string }[]).map(
-      ({ record }) => JSON.parse(record) as Letter,
-    )
+    const rows = this.queries.all`SELECT id, record FROM asks ORDER BY at` as {
+      id: string
+      record: string
+    }[]
+    // One unreadable row is skipped, so it can't empty every ask.
+    return rows.flatMap(({ id, record }) => {
+      try {
+        return [JSON.parse(record) as Letter]
+      } catch (error) {
+        console.error(`Novadeck could not read its Inbox item ${id}:`, error)
+        return []
+      }
+    })
   }
 
   saveLetter(letter: Letter): void {

@@ -300,7 +300,7 @@ handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `he
 `gone`), why it is held (`paused` or `release`), and when delivered. Inbox history
 adds optional `inbox: "ask" | "tell" | "answer"`; its person party is the handle `you`.
 Ask and tell traces also have `inboxState`: `open`, `answered`, `read`, `withdrawn`,
-`gone` (the asking session ended), or `undelivered` (the person's reply went gone before
+`gone` (the asking session ended, or did not come back within two minutes of a runner restart), or `undelivered` (the person's reply went gone before
 reaching the agent). A reply already delivered stays delivered when the session ends.
 Trace outcomes are separate from delivery state, so a withdrawn question remains an
 already-received history entry.

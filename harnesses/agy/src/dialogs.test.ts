@@ -109,6 +109,43 @@ describe("Antigravity's command confirmation", () => {
     }
   })
 
+  it("shows the call's own command as detail, with its lines, indent and blank lines", () => {
+    const multi = "if true; then\n\n    echo a\n\n\n\techo b\nfi"
+    const rows = command.pending.screen120!.rows
+    const at = rows.indexOf("   echo approved")
+    const shown = ["   if true; then", "", "       echo a", "", "", "   \techo b", "   fi"]
+    const found = read(
+      [...rows.slice(0, at), ...shown, ...rows.slice(at + 1)],
+      permission(run(multi)),
+    )
+    expect(found.dialog).toMatchObject({ detail: multi })
+  })
+
+  it("keeps the screen's text when the call is another, only alike once rows join", () => {
+    const rows = command.pending.screen120!.rows
+    const at = rows.indexOf("   echo approved")
+    const screen = [...rows.slice(0, at), "   echo a", "   rm -rf build", ...rows.slice(at + 1)]
+    // The queued call's command reads as the two rows joined, but is not what they show.
+    const found = read(screen, permission(run("echo a rm -rf build")))
+    expect(found.dialog).toMatchObject({ detail: "echo a\nrm -rf build" })
+    expect(read(screen, permission(run("echo a\nrm -rf build"))).dialog).toMatchObject({
+      detail: "echo a\nrm -rf build",
+    })
+  })
+
+  it("takes a long command wrapped where its row was full as the call's own", () => {
+    const rows = command.pending.screen60!.rows
+    const at = rows.indexOf("   echo approved")
+    const long = "echo approved and then some more words to fill up the narrow row quite well"
+    const screen = [
+      ...rows.slice(0, at),
+      "   echo approved and then some more words to fill up the",
+      "   narrow row quite well",
+      ...rows.slice(at + 1),
+    ]
+    expect(read(screen, permission(run(long))).dialog).toMatchObject({ detail: long })
+  })
+
   it("joins an option wrapped on a narrow screen", () => {
     const found = read(command.pending.screen60!.rows, permission(run("echo approved")))
     expect(found.dialog).toMatchObject({

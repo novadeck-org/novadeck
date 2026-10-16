@@ -112,6 +112,14 @@ const mount = (shape: keyof typeof shapes) => {
 }
 
 describe("An Inbox reply's length", () => {
+  it("promises no exact count, since the runner limits the encoded size", () => {
+    const sheet = mount("text")
+    expect(document.querySelector(".inbox-reply-limit")?.textContent).toBe(
+      "Up to about 4,000 characters, fewer with emoji or some languages.",
+    )
+    sheet.view.unmount()
+  })
+
   it("accepts 4,096 characters and names the limit", () => {
     const sheet = mount("text")
     expect(sheet.field().maxLength).toBe(4096)

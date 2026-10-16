@@ -207,8 +207,9 @@ export const agentCoverage = z.strictObject({
 // A readable dialog has an `id`, a fingerprint of what the runner read: an answer names
 // it, and is refused, pressing nothing, when the dialog on screen no longer reads the same
 // (an option renumbered as the terminal narrowed, another request's dialog in its place).
-// `detail` is what the dialog shows of what it asks about, as the terminal draws it (the
-// command, the tool's arguments, the permission asked for), for the person to read.
+// `detail` is what the dialog shows of what it asks about (the tool's arguments, the
+// permission asked for), as the terminal draws it, for the person to read. A command is the
+// exception: it is the request's own command, exactly as it will run.
 // Null while the dialog isn't on screen yet, or the request asks nothing on screen.
 const dialogOption = z.strictObject({
   id: z.string().max(64),

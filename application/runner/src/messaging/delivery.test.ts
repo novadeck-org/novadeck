@@ -820,6 +820,25 @@ describe("when a message would reach an agent", () => {
       "waits: it is asking the user a question, rung once answered",
     )
   })
+
+  it("gives the reason an idle agent the doorbell can't ring waits, not 'now'", () => {
+    const ready = transition(unbound, announced)
+    expect(route(settled, false, undefined, "dialog")).toBe(
+      "waits: a dialog or picker is open in its terminal, rung once it closes",
+    )
+    expect(route(ready, false, undefined, "away")).toBe(
+      "waits: its terminal is not at the agent's prompt, rung once it is",
+    )
+    expect(route(ready, false, undefined, "failed")).toBe(
+      "waits: its doorbell failed three times, rung again at its next prompt or key",
+    )
+    expect(route(settled, false, undefined, "draft")).toBe(
+      "waits: there's text in its box, rung once it is empty",
+    )
+    expect(route(ready, false, undefined, "asking")).toBe(
+      "waits: it is asking the user a question, rung once answered",
+    )
+  })
 })
 
 // Where a lead's message reaches a harness's running turn, from its profile.

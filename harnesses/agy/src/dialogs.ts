@@ -117,6 +117,8 @@ type Confirmation = {
   /** What it shows of the call: a command's text, or what stands above the question. */
   readonly shown: string
   readonly command: boolean
+  /** A command's rows as drawn (trailing space gone), and the screen's width. */
+  readonly drawn?: { readonly rows: readonly string[]; readonly width: number }
   /** A command's tool lines above its heading. */
   readonly history?: string
   /** The tool a file confirmation's header names. */
@@ -152,7 +154,11 @@ const confirmation = (rows: readonly string[]): Confirmation | undefined => {
             .slice(Math.max(0, heading - 6), heading)
             .filter((row) => row.startsWith("● ") || row.startsWith("○ "))
             .join("\n")
-    return shown === "" ? undefined : { question, options, shown, command: true, history }
+    const drawn = {
+      rows: lines.slice(start + 1, ask),
+      width: Math.max(0, ...lines.filter(rule).map((row) => row.trim().length)),
+    }
+    return shown === "" ? undefined : { question, options, shown, command: true, history, drawn }
   }
   // A file's: its header over a rule, then what it shows, down to the question.
   const ruleAt = lines.findLastIndex((row, index) => index < ask && rule(row))
@@ -180,6 +186,47 @@ const files: { readonly [header: string]: string } = {
 // remembered call) and no cut-off screen has been probed: it reads raw.
 const sameCommand = (shown: string, command: unknown): boolean =>
   typeof command === "string" && command.trim() !== "" && lined(shown) === lined(command)
+
+// Whether the screen shows `command` row for row: each line of it on its own row, or on
+// several where the terminal wrapped it. A break inside a line counts as a wrap only where
+// the row was full (the next word would not have fit), so two commands on two rows are never
+// read as one wrapped line. Without the screen's width nothing counts as wrapped.
+const drawnAs = ({ rows, width }: NonNullable<Confirmation["drawn"]>, command: string): boolean => {
+  const trimmedRows = rows.map((row) => ({ text: row.trim(), length: row.length }))
+  const first = trimmedRows.findIndex((row) => row.text !== "")
+  const last = trimmedRows.findLastIndex((row) => row.text !== "")
+  if (first < 0) return false
+  const shown = trimmedRows.slice(first, last + 1)
+  let at = 0
+  for (const line of command
+    .trim()
+    .split(/\r?\n/)
+    .map((each) => each.trim())) {
+    if (line === "") {
+      if (shown[at]?.text !== "") return false
+      at += 1
+      continue
+    }
+    let pos = 0
+    let previous: (typeof shown)[number] | undefined
+    while (pos < line.length) {
+      const row = shown[at]
+      if (!row || row.text === "") return false
+      if (previous) {
+        const spaced = line[pos] === " "
+        const word = /^\S+/.exec(row.text)?.[0].length ?? 0
+        const full = spaced ? previous.length + 1 + word > width : previous.length >= width
+        if (width === 0 || !full) return false
+        if (spaced) pos += 1
+      }
+      if (!line.startsWith(row.text, pos)) return false
+      pos += row.text.length
+      previous = row
+      at += 1
+    }
+  }
+  return at === shown.length
+}
 
 // Whether the screen's confirmation is about the call the request names.
 const matches = (read: Confirmation, input: unknown): boolean => {
@@ -218,6 +265,13 @@ const progressed = (before: string | undefined, now: string | undefined): boolea
   return is.ran > was.ran || is.waiting < was.waiting
 }
 
+const ownCommand = (read: Confirmation, input: unknown): string | undefined => {
+  const command = callOf(input)?.args.CommandLine
+  return read.command && read.drawn && typeof command === "string" && drawnAs(read.drawn, command)
+    ? command
+    : undefined
+}
+
 const confirmationRead = (
   rows: readonly string[],
   request: RequestFacts,
@@ -229,7 +283,10 @@ const confirmationRead = (
   const dialog: ReadDialog = {
     type: "choices",
     title: read.question,
-    detail: read.shown,
+    // A command shows as the call runs it, not as the screen drew and wrapped it.
+    // Only where the screen shows that very command, row for row: the request is the
+    // conversation's latest call, and a parallel call's could read alike once rows join.
+    detail: ownCommand(read, request.input) ?? read.shown,
     // Its No refuses and ends the turn (probed), so the person's words may follow it as
     // the next prompt, which the driver sends once the dialog is answered.
     options: read.options.map(({ number, label }) => ({

@@ -250,7 +250,8 @@ const readApproval = (lines: readonly string[], facts: RequestFacts): Parsed | u
     if (facts.tool !== "Bash" || typeof input?.command !== "string") return undefined
     const shown = shownCommand(body)
     if (!shown || !wrapped(shown, input.command)) return undefined
-    detail = collapse(input.command)
+    // As Codex will run it: its line breaks and characters stay, for the Inbox to show.
+    detail = input.command
   } else if (name === "Would you like to make the following edits?") {
     if (facts.tool !== "apply_patch" || typeof input?.command !== "string") return undefined
     const files = patched(input.command)

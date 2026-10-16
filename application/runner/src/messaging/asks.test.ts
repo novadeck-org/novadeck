@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { DatabaseSync } from "node:sqlite"
 
 import { maxCommandLines, terminalMessages } from "@novadeck/protocol"
 import { vi } from "vitest"
@@ -38,6 +39,9 @@ const setup = (
     readonly now?: () => number
     readonly sweepMs?: number
     readonly mailbox?: MailboxRecords
+    /** Whether the terminal's agent session binds at once (default), as it does not after a restart. */
+    readonly bound?: boolean
+    readonly resumeGraceMs?: number
   } = {},
 ) => {
   let kept = true
@@ -63,7 +67,7 @@ const setup = (
         ready: true,
       },
     ])
-  bind(identity.sessionId)
+  if (options.bound !== false) bind(identity.sessionId)
   const asks = new Asks(
     {
       owner: (id) => messaging.inboxOwner(id),
@@ -76,7 +80,10 @@ const setup = (
     },
     records,
     options.now ?? (() => 123),
-    { sweepMs: options.sweepMs ?? 0 },
+    {
+      sweepMs: options.sweepMs ?? 0,
+      ...(options.resumeGraceMs !== undefined && { resumeGraceMs: options.resumeGraceMs }),
+    },
   )
   const create = (request: unknown = letter) => {
     const result = asks.call(identity.terminalId, "ask", request)
@@ -1307,5 +1314,188 @@ describe("person response delivery budgets", () => {
     }
     expect(reason).toBe("That reply is too long. Shorten it and try again.")
     expect(run.asks.list().some((each) => each.id === expanded)).toBe(true)
+  })
+})
+
+describe("Inbox asks over a record failure", () => {
+  it("ends every open ask of a forgotten terminal although the records refuse each write", ({
+    resources,
+  }) => {
+    let full = false
+    const memory = memoryAsks()
+    const failing: AskRecords = {
+      ...memory,
+      saveLetter: (each) => {
+        if (full) throw new Error("disk full")
+        memory.saveLetter(each)
+      },
+      removeLetters: () => {
+        throw new Error("disk full")
+      },
+    }
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+    resources.defer(() => logged.mockRestore())
+    const run = setup(failing)
+    resources.defer(run.stop)
+    run.create()
+    run.create()
+    full = true
+    expect(run.asks.list()).toHaveLength(2)
+    expect(() => run.forget()).not.toThrow()
+    expect(run.asks.list()).toEqual([])
+    const history = run.asks.history(
+      identity.terminalId,
+      run.messaging.list(identity.terminalId, identity.handle),
+    )
+    expect(
+      history.threads.flatMap((thread) => thread.messages.map((each) => each.inboxState)),
+    ).toEqual(["gone", "gone"])
+    expect(logged).toHaveBeenCalledWith("Novadeck could not save its Inbox:", expect.any(Error))
+  })
+
+  it("tells the agent when a new ask can't be saved, but keeps later changes best effort", ({
+    resources,
+  }) => {
+    let failing = true
+    const records = memoryAsks()
+    const flaky: AskRecords = {
+      ...records,
+      saveLetter: (each) => {
+        if (failing) throw new Error("disk full")
+        records.saveLetter(each)
+      },
+    }
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+    resources.defer(() => logged.mockRestore())
+    const run = setup(flaky)
+    resources.defer(run.stop)
+    const refused = run.asks.call(identity.terminalId, "ask", letter)
+    expect(refused).toEqual({ ok: false, reason: "disk full" })
+    expect(run.asks.list()).toEqual([])
+    failing = false
+    const id = run.create()
+    failing = true
+    expect(run.asks.call(identity.terminalId, "ask", { withdraw: id }).ok).toBe(true)
+    expect(run.asks.list()).toEqual([])
+  })
+
+  it("skips a stored row it can't read, so the rest of the asks list", ({ resources }) => {
+    const folder = mkdtempSync(join(tmpdir(), "novadeck-bad-row-"))
+    resources.defer(() => rmSync(folder, { recursive: true, force: true }))
+    const path = join(folder, "workspace.sqlite")
+    const store = new WorkspaceStore(path)
+    const first = setup(store, store)
+    const id = first.create()
+    first.stop()
+    store.close()
+    const raw = new DatabaseSync(path)
+    raw
+      .prepare("INSERT INTO asks (id, project_id, terminal_id, at, record) VALUES (?, ?, ?, 0, ?)")
+      .run("bad", identity.projectId, identity.terminalId, "{not json")
+    raw.close()
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+    resources.defer(() => logged.mockRestore())
+    const reopened = new WorkspaceStore(path)
+    resources.defer(() => reopened.close())
+    expect(reopened.letters().map((each) => each.id)).toEqual([id])
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining("bad"), expect.any(Error))
+  })
+})
+
+describe("Inbox asks whose session does not come back after a restart", () => {
+  const restart = (records: AskRecords, clock: ReturnType<typeof inboxClock>) => {
+    const first = setup(records, undefined, clock)
+    const id = first.create()
+    first.stop()
+    return { id, next: setup(records, undefined, { ...clock, bound: false, resumeGraceMs: 1_000 }) }
+  }
+  const state = (run: ReturnType<typeof setup>, id: string) =>
+    run.asks
+      .history(identity.terminalId, run.messaging.list(identity.terminalId, identity.handle))
+      .threads.flatMap((thread) => thread.messages)
+      .find((message) => message.id === `m-${id.replaceAll("-", "")}`)?.inboxState
+
+  it("ends them as session-gone once the terminal has had no agent for the grace period", ({
+    resources,
+  }) => {
+    const clock = inboxClock()
+    const records = memoryAsks()
+    const { id, next } = restart(records, clock)
+    resources.defer(next.stop)
+    expect(state(next, id)).toBe("open")
+    clock.advance(999)
+    next.asks.prune()
+    expect(state(next, id)).toBe("open")
+    clock.advance(2)
+    next.asks.prune()
+    expect(state(next, id)).toBe("gone")
+    expect(records.letters()[0]?.state).toBe("gone")
+  })
+
+  it("keeps them answerable when the same session binds within the grace period", ({
+    resources,
+  }) => {
+    const clock = inboxClock()
+    const { id, next } = restart(memoryAsks(), clock)
+    resources.defer(next.stop)
+    clock.advance(900)
+    next.asks.prune()
+    next.bind(identity.sessionId)
+    next.asks.reconcile(identity.terminalId)
+    clock.advance(10_000)
+    next.asks.prune()
+    expect(next.asks.list().map((each) => each.id)).toEqual([id])
+    expect(state(next, id)).toBe("open")
+  })
+
+  it("reopens an ask the grace ended, as it was, when its session binds after all", ({
+    resources,
+  }) => {
+    const clock = inboxClock()
+    const created = clock.now()
+    const { id, next } = restart(memoryAsks(), clock)
+    resources.defer(next.stop)
+    clock.advance(1_001)
+    next.asks.prune()
+    expect(next.asks.list()).toEqual([])
+    expect(state(next, id)).toBe("gone")
+    next.bind(identity.sessionId)
+    next.asks.reconcile(identity.terminalId)
+    expect(next.asks.list().map((each) => each.id)).toEqual([id])
+    expect(next.asks.list()[0]!.at).toBe(created)
+    expect(state(next, id)).toBe("open")
+    next.asks.answer(id, { type: "reply", option: 0, text: "" })
+    expect(state(next, id)).toBe("answered")
+  })
+
+  it("keeps an ask the grace ended gone when another session binds", ({ resources }) => {
+    const clock = inboxClock()
+    const { id, next } = restart(memoryAsks(), clock)
+    resources.defer(next.stop)
+    clock.advance(1_001)
+    next.asks.prune()
+    next.bind("replacement")
+    next.asks.reconcile(identity.terminalId)
+    expect(next.asks.list()).toEqual([])
+    expect(state(next, id)).toBe("gone")
+  })
+
+  it("keeps an ask that a different session ended gone when the first session binds again", ({
+    resources,
+  }) => {
+    const run = setup()
+    resources.defer(run.stop)
+    const id = run.create()
+    run.bind("replacement")
+    run.asks.reconcile(identity.terminalId)
+    run.bind(identity.sessionId)
+    run.asks.reconcile(identity.terminalId)
+    expect(run.asks.list()).toEqual([])
+    expect(
+      run.asks
+        .history(identity.terminalId, run.messaging.list(identity.terminalId, identity.handle))
+        .threads.flatMap((thread) => thread.messages)
+        .find((message) => message.id === `m-${id.replaceAll("-", "")}`)?.inboxState,
+    ).toBe("gone")
   })
 })

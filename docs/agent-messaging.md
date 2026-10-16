@@ -312,9 +312,9 @@ like them, only inside Novadeck's terminals.
 - **`send(to, text)`** answers with the recipient's handle, the message id and one of:
   - `queued`, with the route it will take: "when its current turn ends", "when its next
     turn starts" (only background work runs after its Stop), "ringing it now" (Settled or
-    Ready), "ringing it once its box reads empty" (Fresh, Drafting or Unknown: the
+    Ready, and the doorbell isn't blocked), "ringing it once its box reads empty" (Fresh, Drafting or Unknown: the
     doorbell is looking at its screen), one of the `waits:` reasons when it looked and
-    can't ring ("waits: there's text in its box, rung once it is empty", "waits: a
+    can't ring, Settled or Ready included ("waits: there's text in its box, rung once it is empty", "waits: a
     dialog or picker is open in its terminal, rung once it closes", "waits: it is
     asking the user a question, rung once answered"), or "when its agent starts: rung
     once Novadeck sees it at its prompt, else at its first turn"
@@ -445,7 +445,13 @@ or starts a new session; it keeps the original agent attribution.
 The runner's `asks` table keeps these lifetimes and their Messages history. Every
 letter is bound to the terminal, project, workspace session and exact agent session.
 An ask clears when answered, withdrawn or its agent session ends. A runner restart
-keeps pending asks for the resumed session. A different session cannot receive their
+keeps pending asks for the resumed session; one whose terminal has had no agent bound for
+two minutes after the runner starts ends as `gone`, and reopens, with its id and time, if
+that session binds after all; one whose terminal binds another session ends for good at
+once (an agent that leaves at runtime ends its asks at once too). A new ask the store
+can't take is refused to the agent. Later changes are written best effort:
+a store failure is logged and the Inbox carries on from memory, except an answer, which
+is saved with the person's reply or refused. A different session cannot receive their
 answers. Each terminal may create ten asks or tells a minute, with withdrawal always
 available. It keeps up to fifty asks from its current session and fifty unread tells
 independently. A guessed root excludes other-session asks from its cap while keeping
@@ -844,7 +850,8 @@ on the person. The reason is in the answer to `send`'s `route` and in the termin
 line. A ring that
 fails waits the same doubling, from 2 s, before the terminal is rung again; a ring that
 confirms ends the count. The look has bounds: it is made at most once a calm window and never while output streams (each
-change pushes it back); never while the agent's activity says a turn or subagents run,
+change pushes it back; a screen that redraws the same text does not shorten the doubling
+wait, only a key of the person's or a turn event ends it); never while the agent's activity says a turn or subagents run,
 whatever its status line or spinner draws; and the box counts only from the start of the
 calm it rests on, so a key typed while the screen was read, or not yet drawn, makes the
 look stale. A row starting with the box's marker that is a numbered choice (`❯ 1. Yes`)

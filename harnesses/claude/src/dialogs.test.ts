@@ -144,6 +144,39 @@ const replace = (from: string | RegExp, to: string) => (rows: string[]) =>
   rows.map((row) => row.replace(from, to))
 
 describe("Claude Code's permission dialogs", () => {
+  it.each(sizes)("shows a Bash command as the request's own, at %s", (size) => {
+    const facts = factsOf("bash-long")
+    const found = need(readOf("bash-long", size))
+    expect(found.dialog).toMatchObject({ detail: (facts.input as { command: string }).command })
+  })
+
+  it("shows a multi-line, indented command with blank lines exactly as it will run", () => {
+    const command = "touch approved.txt && ls /tmp &&\n\n    echo a\n\n\n\techo b\nls"
+    const rows = screen("bash-long", "120x40")
+    const from = rows.findIndex((row) => row.startsWith(" │ touch"))
+    const shown = [
+      " │ touch approved.txt && ls /tmp &&",
+      " │ ",
+      " │     echo a",
+      " │ ",
+      " │ ",
+      " │ \techo b",
+      " │ ls",
+    ]
+    const custom = [
+      ...rows.slice(0, from),
+      ...shown,
+      ...rows.slice(rows.findLastIndex((row) => row.startsWith(" │ ")) + 1),
+    ]
+    const found = need(
+      dialogs.read(custom, {
+        ...factsOf("bash-long"),
+        input: { command, description: "Make a file" },
+      }),
+    )
+    expect(found.dialog).toMatchObject({ detail: command })
+  })
+
   it.each(sizes)("reads a Bash command's options at %s", (size) => {
     const dialog = need(readOf("bash-long", size))
     expect(dialog.dialog).toEqual({

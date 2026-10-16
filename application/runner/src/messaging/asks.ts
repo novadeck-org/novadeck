@@ -30,6 +30,8 @@ import {
 export type Letter = InboxLetter & {
   readonly state: "open" | "answered" | "read" | "withdrawn" | "gone"
   readonly settledAt?: number
+  /** Ended for want of its session after a restart, not by a different one: it reopens if it binds. */
+  readonly lapsed?: true
 }
 export type AskRecords = {
   letters(): readonly Letter[]
@@ -194,6 +196,12 @@ export const maxOpenAsks = 50
 export const maxUnreadTells = 50
 export const maxResolvedLetters = 100
 export const askSweepMs = 60_000
+/**
+ * How long after a runner starts an open ask waits for its terminal's session to come back
+ * before it ends: a restored terminal resumes its agent and binds the session again within
+ * seconds, or never. An ask it ended reopens if that session binds after all.
+ */
+export const askResumeGraceMs = 120_000
 
 export class Asks {
   private readonly byTerminal = new Map<string, Map<string, Letter>>()
@@ -204,20 +212,31 @@ export class Asks {
   private readonly sweeper: ReturnType<typeof setInterval> | undefined
   private readonly letters = new Map<string, Letter>()
   private readonly readers = new Set<Latest<InboxLetter[]>>()
+  /** Since when each terminal with open asks has had no agent bound (from the runner's start). */
+  private readonly unbound = new Map<string, number>()
+  private readonly resumeGraceMs: number
   private closed = false
   constructor(
     private readonly host: Host,
     private readonly records: AskRecords = memoryAsks(),
     private readonly now = Date.now,
-    { sweepMs = askSweepMs }: { readonly sweepMs?: number } = {},
+    {
+      sweepMs = askSweepMs,
+      resumeGraceMs = askResumeGraceMs,
+    }: { readonly sweepMs?: number; readonly resumeGraceMs?: number } = {},
   ) {
+    this.resumeGraceMs = resumeGraceMs
     // A letter stored before the wire's rules tightened would fail every listing it is in,
     // so one the wire refuses now is dropped, not kept.
     const stale: string[] = []
-    for (const letter of records.letters())
+    let stored: readonly Letter[] = []
+    this.save(() => {
+      stored = records.letters()
+    })
+    for (const letter of stored)
       if (inboxLetter.shape.content.safeParse(letter.content).success) this.keep(letter)
       else stale.push(letter.id)
-    if (stale.length > 0) records.removeLetters(stale)
+    if (stale.length > 0) this.save(() => records.removeLetters(stale))
     this.prune()
     if (sweepMs > 0) {
       this.sweeper = setInterval(() => {
@@ -327,7 +346,8 @@ export class Asks {
           `An agent may create ${rates.sender} Inbox asks or updates a minute. Withdrawals are still available; try again shortly.`,
         )
       const letter: Letter = { id: randomUUID(), ...owner, at, content, state: "open" }
-      this.put(letter)
+      // The first save of a new ask is not best effort: the agent is told if it can't be kept.
+      this.put(letter, false)
       this.sent.set(terminalId, times)
       this.maintain(terminalId)
       return { ok: true, id: letter.id }
@@ -387,6 +407,7 @@ export class Asks {
       ask.subject,
       text,
       (message) => {
+        // Atomic with the person's reply: a failure refuses the answer, retryable.
         this.records.answerLetter(answered, message)
         this.keep(answered)
       },
@@ -443,7 +464,13 @@ export class Asks {
     if (this.closed) return
     const owner = this.host.owner(terminalId)
     if (!owner) this.guesses.delete(terminalId)
-    for (const letter of this.byTerminal.get(terminalId)?.values() ?? [])
+    for (const letter of this.byTerminal.get(terminalId)?.values() ?? []) {
+      // The session an ask lapsed for is back: it is answerable again, as it was.
+      if (letter.state === "gone" && letter.lapsed && same(letter, owner)) {
+        const { settledAt: _settledAt, lapsed: _lapsed, ...reopened } = letter
+        this.put({ ...reopened, state: "open" })
+        continue
+      }
       if (
         letter.terminalId === terminalId &&
         letter.state === "open" &&
@@ -452,6 +479,7 @@ export class Asks {
           : !this.host.exists(terminalId))
       )
         this.put({ ...letter, state: "gone" })
+    }
     this.changed(terminalId)
     this.maintain(terminalId)
   }
@@ -527,9 +555,10 @@ export class Asks {
     const at = this.now()
     const gone: Letter[] = []
     const groups = terminalId
-      ? [this.byTerminal.get(terminalId)].filter((letters) => letters !== undefined)
-      : this.byTerminal.values()
-    for (const letters of groups) {
+      ? [...this.byTerminal].filter(([id]) => id === terminalId)
+      : [...this.byTerminal]
+    this.abandon(groups, at)
+    for (const [, letters] of groups) {
       const resolved = [...letters.values()]
         .filter((letter) => letter.state !== "open")
         .map((letter) => {
@@ -598,6 +627,36 @@ export class Asks {
     for (const reader of this.readers) reader.finish()
     this.readers.clear()
   }
+  /**
+   * Ends the open asks of a terminal that has had no agent bound for the grace period after
+   * the runner started: the session the restart left them with has not come back. They
+   * reopen if it binds later (see `reconcile`); one that binds another ends them for good.
+   */
+  private abandon(groups: readonly (readonly [string, Map<string, Letter>])[], at: number): void {
+    for (const [terminalId, letters] of groups) {
+      const asks = [...letters.values()].filter(
+        (letter) => letter.state === "open" && letter.content.kind === "ask",
+      )
+      if (asks.length === 0 || this.host.owner(terminalId) || this.guesses.has(terminalId)) {
+        this.unbound.delete(terminalId)
+        continue
+      }
+      const since = this.unbound.get(terminalId) ?? at
+      this.unbound.set(terminalId, since)
+      if (at - since < this.resumeGraceMs) continue
+      for (const letter of asks) this.put({ ...letter, state: "gone", lapsed: true })
+      this.unbound.delete(terminalId)
+    }
+    for (const id of this.unbound.keys()) if (!this.byTerminal.has(id)) this.unbound.delete(id)
+  }
+  /** Writes to the records; a failure is logged, and the Inbox carries on from memory. */
+  private save(work: () => void): void {
+    try {
+      work()
+    } catch (error) {
+      console.error("Novadeck could not save its Inbox:", error)
+    }
+  }
   private maintain(terminalId?: string): void {
     try {
       this.prune(terminalId)
@@ -613,19 +672,20 @@ export class Asks {
     if (letter.state === "open") this.open.set(letter.id, letter)
     else this.open.delete(letter.id)
   }
-  private put(letter: Letter): void {
+  private put(letter: Letter, guarded = true): void {
     const saved =
       letter.state !== "open" && this.letters.get(letter.id)?.state === "open"
         ? { ...letter, settledAt: this.now() }
         : letter
-    this.records.saveLetter(saved)
+    if (guarded) this.save(() => this.records.saveLetter(saved))
+    else this.records.saveLetter(saved)
     this.keep(saved)
     this.changed(saved.terminalId)
   }
   private remove(letters: readonly Letter[]): void {
     if (!letters.length) return
     const ids = letters.map((letter) => letter.id)
-    this.records.removeLetters(ids)
+    this.save(() => this.records.removeLetters(ids))
     this.host.forgetReplies(ids)
     const changed = new Set<string>()
     for (const letter of letters) {

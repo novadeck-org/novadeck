@@ -788,7 +788,7 @@ App:
   keeping the draft. "Ask withdrawn" and "Ask session ended" remove the sample preview ask
   and keep its outcome in Messages. "Next reply not delivered" queues the next reply, then
   shows the delivery failure in its Inbox confirmation and Messages history. Reply boxes
-  accept up to 4,096 characters and show the limit. Pausing messages between agents leaves
+  hint at about 4,000 characters, fewer with emoji or some languages, and stop at 4,096. Pausing messages between agents leaves
   your replies going through. "Usage limit, reset passed" adds the limit Novadeck can't resume, with its
   window reset, offering Continue now. "Command hiding lines" adds a permission whose command
   buries a line under blank lines and spaces; its card counts the lines and marks what draws

@@ -179,6 +179,8 @@ export class Doorbell {
   private readonly notBefore = new Map<string, number>()
   /** When each stalled terminal's screen was last looked at. */
   private readonly looked = new Map<string, number>()
+  /** The stamp each stalled terminal had when its screen was last looked at. */
+  private readonly lookedStamp = new Map<string, string>()
   /** Each terminal's screen text as last seen, and since when. */
   private readonly still = new Map<string, { readonly text: string; readonly since: number }>()
   /** Looks at each terminal changed, once a tick. */
@@ -243,6 +245,7 @@ export class Doorbell {
     this.failures.delete(terminalId)
     this.seen.delete(terminalId)
     this.looked.delete(terminalId)
+    this.lookedStamp.delete(terminalId)
     this.notBefore.delete(terminalId)
     this.starting.delete(terminalId)
     this.leftovers.delete(terminalId)
@@ -316,6 +319,7 @@ export class Doorbell {
       this.note(terminalId, `look: ringable ${ringable}, stalled ${stalled}, again ${again}`)
     if (!ringable && !stalled) {
       this.backoff.delete(terminalId)
+      this.notBefore.delete(terminalId)
       // A prompt the harness submits itself after a Stop has its hook late: the screen is
       // believed again once the bar has passed.
       const bar = this.host.barred?.(terminalId) ?? 0
@@ -334,8 +338,15 @@ export class Doorbell {
     // A stalled terminal's screen is read at most once a calm window, and after one that was
     // not calm, not before its growing wait is over: output that streams, or a terminal that
     // keeps redrawing (Windows' console does), is looked at less and less, never starved of a
-    // look by the changes themselves.
+    // look by the changes themselves. A key of the person's or a turn event (a new stamp) is
+    // a real change: it ends the wait, and the screen is read once a calm window has passed.
     if (stalled && !again) {
+      const news = this.lookedStamp.get(terminalId) !== this.host.stamp(terminalId)
+      // A key or a turn event starts the backing off over: what follows it is news.
+      if (news) {
+        this.backoff.delete(terminalId)
+        this.notBefore.delete(terminalId)
+      }
       const quiet = Math.max(
         (this.looked.get(terminalId) ?? Number.NEGATIVE_INFINITY) + this.calmMs,
         this.notBefore.get(terminalId) ?? Number.NEGATIVE_INFINITY,
@@ -347,7 +358,10 @@ export class Doorbell {
         return undefined
       }
     }
-    if (stalled) this.looked.set(terminalId, this.now())
+    if (stalled) {
+      this.looked.set(terminalId, this.now())
+      this.lookedStamp.set(terminalId, this.host.stamp(terminalId))
+    }
     const screen = await this.host.screen(terminalId)
     if (!screen) return undefined
     const now = this.now()
@@ -392,6 +406,7 @@ export class Doorbell {
     )
     if (verdict === "open") {
       this.backoff.delete(terminalId)
+      this.notBefore.delete(terminalId)
       this.host.blocked(terminalId, null)
       return now - calm
     }
@@ -406,6 +421,8 @@ export class Doorbell {
       this.recheckMaxMs,
     )
     this.backoff.set(terminalId, wait)
+    // Redraws that change nothing don't shorten it: the next look waits until it is over.
+    this.notBefore.set(terminalId, this.now() + wait)
     return wait
   }
 
@@ -526,6 +543,7 @@ export class Doorbell {
       }
       this.host.blocked(terminalId, null)
       this.backoff.delete(terminalId)
+      this.notBefore.delete(terminalId)
       this.note(terminalId, "box read empty: Ready")
       this.host.emptied(terminalId, calmSince)
       // Ready now: looked at again once this look is done, for the ring itself.
