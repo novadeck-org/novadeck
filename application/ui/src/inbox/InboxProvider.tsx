@@ -227,10 +227,9 @@ export const InboxProvider = ({
   const submit = useCallback(
     (item: InboxItem, answer: InboxAnswer, note: string): void => {
       setAnswered((record) => ({ ...record, [item.id]: { item, note } }))
-      setDraft(item.id, noDraft)
       inbox.answer(item.id, answer)
     },
-    [inbox, setDraft],
+    [inbox],
   )
 
   const change = useCallback(

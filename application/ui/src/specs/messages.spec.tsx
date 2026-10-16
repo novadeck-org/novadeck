@@ -127,7 +127,7 @@ describe("A terminal's messages", () => {
 })
 
 describe("Pausing messaging", () => {
-  it("holds every waiting message, says so in the pane and on the tabs, and resumes", async () => {
+  it("holds waiting messages between agents, says so in the pane and on the tabs, and resumes", async () => {
     await openMessagesDemo()
     const pane = await openMessages("Checkout review")
     const pause = pauseSwitch(pane)

@@ -28,6 +28,7 @@ import {
 
 import type { ItemRecord, ItemRecords, Placed, WindowRecord } from "../companions/records.js"
 import { DomainError } from "../errors.js"
+import type { AskRecords, Letter } from "../messaging/asks.js"
 import type { Message, Thread } from "../messaging/mailbox.js"
 import type { MailboxRecords } from "../messaging/records.js"
 import { nextHandle, wordOf } from "../terminals/handles.js"
@@ -171,7 +172,15 @@ const extras = `
     -- Whether its sender was its recipient's lead when it was sent.
     from_lead INTEGER NOT NULL,
     -- Whether its recipient was its sender's lead when it was sent.
-    to_lead INTEGER NOT NULL
+    to_lead INTEGER NOT NULL,
+    response TEXT
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS asks (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    terminal_id TEXT NOT NULL,
+    at REAL NOT NULL,
+    record TEXT NOT NULL
   ) STRICT;
   -- What agents show and the person attaches beside a terminal: pointers, never copies.
   -- Each item is held by one terminal's bar or one undocked window, and goes with it.
@@ -455,6 +464,7 @@ type MessageRow = {
   stopped: number
   from_lead: number
   to_lead: number
+  response: string | null
 }
 
 type ThreadRow = {
@@ -493,6 +503,9 @@ const messageOf = (row: MessageRow): Message => ({
   stopped: row.stopped === 1,
   fromLead: row.from_lead === 1,
   toLead: row.to_lead === 1,
+  ...(row.response !== null && {
+    response: JSON.parse(row.response) as NonNullable<Message["response"]>,
+  }),
 })
 
 /** Whether SQLite refused a write for a row it references that is not there. */
@@ -588,7 +601,7 @@ const windowOf = (row: WindowRow): WindowRecord => ({
 // The handles in rows selected for them.
 const column = (rows: unknown): string[] => (rows as { handle: string }[]).map((row) => row.handle)
 
-export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemRecords {
+export class WorkspaceStore implements TerminalRecords, MailboxRecords, AskRecords, ItemRecords {
   private readonly database: DatabaseSync
   private readonly queries: SQLTagStore
   private lastSave = 0
@@ -667,6 +680,7 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
         for (const sql of [
           "DELETE FROM messages WHERE project_id = ?",
           "DELETE FROM message_threads WHERE project_id = ?",
+          "DELETE FROM asks WHERE project_id = ?",
           `DELETE FROM terminals WHERE session_id IN (${sessions})`,
           `DELETE FROM session_handles WHERE session_id IN (${sessions})`,
           "DELETE FROM sessions WHERE project_id = ?",
@@ -900,6 +914,31 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
     }
   }
 
+  letters(): Letter[] {
+    return (this.queries.all`SELECT record FROM asks ORDER BY at` as { record: string }[]).map(
+      ({ record }) => JSON.parse(record) as Letter,
+    )
+  }
+
+  saveLetter(letter: Letter): void {
+    void this.queries.run`INSERT INTO asks (id, project_id, terminal_id, at, record)
+      VALUES (${letter.id}, ${letter.projectId}, ${letter.terminalId}, ${letter.at}, ${JSON.stringify(letter)})
+      ON CONFLICT (id) DO UPDATE SET record = excluded.record`
+  }
+
+  answerLetter(letter: Letter, message: Message): void {
+    this.transaction(() => {
+      this.saveMessage(message)
+      this.saveLetter(letter)
+    })
+  }
+
+  removeLetters(ids: readonly string[]): void {
+    this.forget(() => {
+      for (const id of ids) void this.queries.run`DELETE FROM asks WHERE id = ${id}`
+    })
+  }
+
   messages(): Message[] {
     return (this.queries.all`SELECT * FROM messages ORDER BY sent_at` as MessageRow[]).map(
       messageOf,
@@ -911,15 +950,16 @@ export class WorkspaceStore implements TerminalRecords, MailboxRecords, ItemReco
     void this.queries.run`
       INSERT INTO messages (id, project_id, thread_id, hop, from_terminal, from_handle, from_agent,
         from_session, to_terminal, to_handle, to_agent, to_session, text, sent_at, state,
-        delivered_at, notified, stopped, from_lead, to_lead)
+        delivered_at, notified, stopped, from_lead, to_lead, response)
       VALUES (${message.id}, ${message.projectId}, ${message.thread}, ${message.hop},
         ${from.terminalId}, ${from.handle}, ${from.agent}, ${from.sessionId}, ${to.terminalId},
         ${to.handle}, ${to.agent}, ${to.sessionId}, ${message.text}, ${message.sentAt},
         ${message.state}, ${message.deliveredAt}, ${message.notified ? 1 : 0},
-        ${message.stopped ? 1 : 0}, ${message.fromLead ? 1 : 0}, ${message.toLead ? 1 : 0})
+        ${message.stopped ? 1 : 0}, ${message.fromLead ? 1 : 0}, ${message.toLead ? 1 : 0},
+        ${message.response ? JSON.stringify(message.response) : null})
       ON CONFLICT (id) DO UPDATE SET to_session = excluded.to_session, state = excluded.state,
         delivered_at = excluded.delivered_at, notified = excluded.notified,
-        stopped = excluded.stopped
+        stopped = excluded.stopped, response = excluded.response
     `
   }
 

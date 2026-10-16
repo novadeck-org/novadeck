@@ -3,3 +3,4 @@ export { hasControlCharacters, normalisedText, promptRefusal, shellCommand } fro
 export { harnesses, harnessIds } from "./harnesses.js"
 export { pageKey } from "./pages.js"
 export * from "./schemas.js"
+export * from "./inbox.js"

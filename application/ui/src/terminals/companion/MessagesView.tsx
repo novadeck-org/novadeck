@@ -2,7 +2,7 @@ import { ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import { useEffect, useId, useRef, type ReactNode } from "react"
 
 import { handleText } from "../../model/handle"
-import type { AgentMessage, MessageThread } from "../../model/messages"
+import type { AgentMessage, InboxHistory, MessageThread } from "../../model/messages"
 import { Switch } from "../../ui-toolkit/Switch"
 import { Tooltip } from "../../ui-toolkit/Tooltip"
 import type { MailHandle } from "./mail"
@@ -20,6 +20,8 @@ const clock = (at: number): string => {
       })
 }
 
+const party = (handle: string): string => (handle === "you" ? "You" : handleText(handle))
+
 // Where a message is on its way, in a word or two.
 const stateText = (message: AgentMessage): string => {
   switch (message.state) {
@@ -32,8 +34,17 @@ const stateText = (message: AgentMessage): string => {
     case "held":
       return message.held === "release" ? "Held for release" : "Held while paused"
     case "gone":
-      return "Not delivered"
+      return message.inbox === "answer" ? "Reply not delivered" : "Not delivered"
   }
+}
+
+const historyText: Record<InboxHistory, string> = {
+  open: "Waiting for your answer",
+  answered: "Replied",
+  read: "Read",
+  withdrawn: "Withdrawn",
+  gone: "Agent session ended",
+  undelivered: "Reply not delivered",
 }
 
 const stateHint: Partial<Record<AgentMessage["state"], string>> = {
@@ -51,7 +62,11 @@ const MessageItem = ({
   const sent = message.from === handle
   const Direction = sent ? ArrowUpRight : ArrowDownLeft
   return (
-    <li className="mail-message" data-direction={sent ? "sent" : "received"}>
+    <li
+      className="mail-message"
+      data-direction={sent ? "sent" : "received"}
+      data-inbox={message.inbox}
+    >
       {/* The thread names the peer, so the arrow says which way it went; the words stay
           for screen readers. Delivered is the quiet default: only a message still on its
           way, held or lost shows its state. */}
@@ -59,9 +74,21 @@ const MessageItem = ({
         <span className="mail-message-direction">
           <Direction size={12} strokeWidth={1.75} aria-hidden />
           <span className="sr-only">
-            {sent ? `Sent to ${handleText(message.to)}` : `From ${handleText(message.from)}`}
+            {sent ? `Sent to ${party(message.to)}` : `From ${party(message.from)}`}
           </span>
         </span>
+        {message.inbox && (
+          <span>
+            {message.inbox === "ask" ? "Ask" : message.inbox === "tell" ? "Tell" : "Your reply"}
+          </span>
+        )}
+        {message.inboxState && (
+          <span className="mail-state" data-history={message.inboxState}>
+            {message.inboxState === "open" && message.inbox === "tell"
+              ? "Unread"
+              : historyText[message.inboxState]}
+          </span>
+        )}
         <time dateTime={new Date(message.sentAt).toISOString()}>{clock(message.sentAt)}</time>
         <Tooltip content={stateHint[message.state]}>
           <span
@@ -95,9 +122,11 @@ const ThreadItem = ({
   failure: string | undefined
   onRelease: () => void
 }): React.JSX.Element => {
-  const peer = peerName ?? handleText(thread.peer)
+  const peer = thread.peer === "you" ? "You" : (peerName ?? party(thread.peer))
   const label =
-    peerName === undefined ? handleText(thread.peer) : `${peerName} (${handleText(thread.peer)})`
+    thread.peer === "you" || peerName === undefined
+      ? party(thread.peer)
+      : `${peerName} (${party(thread.peer)})`
   const count = thread.messages.length
   const heading = useRef<HTMLHeadingElement>(null)
   const held = useRef(thread.held)
@@ -113,7 +142,7 @@ const ThreadItem = ({
         <h3 ref={heading} tabIndex={-1} className="mail-thread-peer">
           {peer}
         </h3>
-        {peerName !== undefined && <code>{handleText(thread.peer)}</code>}
+        {thread.peer !== "you" && peerName !== undefined && <code>{party(thread.peer)}</code>}
         <span className="mail-thread-count">
           {count} message{count === 1 ? "" : "s"}
         </span>
@@ -153,7 +182,7 @@ const ThreadItem = ({
 
 // A terminal's messages with the other agents in its session: a thread per peer, latest
 // first, each message with its direction, time, text and where it is on its way. The
-// header holds the pause, which holds every agent's messages.
+// header holds the pause for messages between agents; the person's replies go through.
 export const MessagesView = ({
   mail,
   peerName,
@@ -178,7 +207,8 @@ export const MessagesView = ({
             Pause all agents' messages
           </span>
           <span id={hint} className="sr-only">
-            In every project and session, until you resume.
+            Between agents in every project and session, until you resume. Your replies still go
+            through.
           </span>
           <Switch
             checked={mail.paused}
@@ -197,7 +227,7 @@ export const MessagesView = ({
       )}
       {mail.paused && (
         <p className="mail-paused" data-tone="warning" role="status">
-          Messaging is paused. Agents' messages wait, held, until you resume.
+          Messaging is paused between agents. Your replies still go through.
         </p>
       )}
       <div className="mail-scroll">

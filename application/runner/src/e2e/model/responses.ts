@@ -165,6 +165,7 @@ export const parse = (data: unknown, headers: Request["headers"] = {}): Call => 
     system: [request.instructions, ...system].filter(Boolean).join("\n"),
     turns,
     tools: request.tools.flatMap(namesOf),
+    rawTools: request.tools ?? [],
     side: sideOf(request, headers),
   }
 }

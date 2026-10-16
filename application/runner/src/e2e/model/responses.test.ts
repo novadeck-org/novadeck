@@ -77,6 +77,7 @@ describe("responses", () => {
 
   it("names an MCP server's tools by their namespace", () => {
     const call = called(turn)
+    expect(call.rawTools).toEqual(JSON.parse(turn.body).tools)
     expect(call.tools).toContain("exec_command")
     expect(call.tools).toContain("multi_agent_v1.spawn_agent")
     expect(tool(call, "send")).toBe("mcp__novadeck.send")

@@ -1,4 +1,4 @@
-import type { AgentDetail } from "@novadeck/protocol"
+import type { AgentDetail, InboxLetter } from "@novadeck/protocol"
 import { afterEach, beforeEach, vi } from "vitest"
 
 import type { ChatDialog } from "../../model/conversation"
@@ -118,6 +118,7 @@ const inputs = (
   unread: {},
   mail: noMail,
   requests: {},
+  letters: [],
   now: 10_000,
   ...more,
 })
@@ -584,7 +585,13 @@ afterEach(() => vi.useRealTimers())
 
 const setup = (workspace: Workspace, unread: InboxUnread = {}, mail: MailState = noMail) => {
   const details: ReturnType<typeof pushed<AgentDetail>>[] = []
+  const letters = pushed<InboxLetter[]>()
   const streams = {
+    asks: {
+      watch: vi.fn<InboxStreams["asks"]["watch"]>(() => letters.stream),
+      answer: vi.fn<InboxStreams["asks"]["answer"]>(async () => {}),
+      read: vi.fn<InboxStreams["asks"]["read"]>(async () => {}),
+    },
     detail: vi.fn<InboxStreams["detail"]>(() => {
       const next = pushed<AgentDetail>()
       details.push(next)
@@ -624,7 +631,18 @@ const setup = (workspace: Workspace, unread: InboxUnread = {}, mail: MailState =
   const binding: InboxBinding = { workspace: workspaceStore, unread: unreadStore, read }
   const stop = inbox.bind(binding)
   const ids = () => inbox.state.getSnapshot().items.map((item) => item.id)
-  return { inbox, streams, details, workspaceStore, unreadStore, mailStore, read, stop, ids }
+  return {
+    inbox,
+    streams,
+    details,
+    letters,
+    workspaceStore,
+    unreadStore,
+    mailStore,
+    read,
+    stop,
+    ids,
+  }
 }
 
 const attention: AgentStatus = { working: true, attention: { kind: "permission", count: 1 } }
@@ -800,6 +818,7 @@ describe("The runner's Inbox", () => {
 
       workspaceStore.update(() => workspaceOf(agentTerminal(1)))
       expect(ids()).toEqual([])
+      await settle()
       expect(inbox.state.getSnapshot().answering).toEqual({})
     })
 
@@ -1032,5 +1051,471 @@ describe("The runner's Inbox", () => {
       expect(streams.send).not.toHaveBeenCalled()
       expect(inbox.state.getSnapshot().answering).toEqual({})
     })
+  })
+})
+
+const letter = (change: Partial<InboxLetter> = {}): InboxLetter => ({
+  id: "letter-1",
+  terminalId: "01",
+  projectId: "p",
+  workspaceSessionId: "s",
+  agent: "claude",
+  sessionId: "harness-session",
+  handle: "moth",
+  at: 4000,
+  content: {
+    kind: "ask",
+    ask: {
+      subject: "Which route?",
+      body: "Choose a route.",
+      details: null,
+      hardToUndo: null,
+      shape: { type: "text" },
+    },
+  },
+  ...change,
+})
+
+const told = (id = "told-1"): InboxLetter =>
+  letter({ id, content: { kind: "tell", subject: "Preview ready", body: "Open the preview." } })
+
+describe("Inbox letters", () => {
+  it("follows one global stream while bound and closes it when unbound", async () => {
+    const { inbox, streams, letters, stop, ids } = setup(workspaceOf(agentTerminal(1)))
+    expect(streams.asks.watch).toHaveBeenCalledOnce()
+    letters.push([letter()])
+    await settle()
+    expect(ids()).toEqual(["letter-1"])
+    expect(inbox.state.getSnapshot().items[0]).toMatchObject({
+      kind: "ask",
+      stopped: true,
+      at: 4000,
+    })
+    stop()
+    expect(letters.returned).toHaveBeenCalledOnce()
+    expect(ids()).toEqual([])
+    letters.push([letter()])
+    await settle()
+    expect(ids()).toEqual([])
+  })
+
+  it("derives whether an ask waits from the agent's current working state", () => {
+    for (const agent of ["claude", "codex", "agy"] as const) {
+      for (const working of [true, false]) {
+        const items = inboxItems(
+          inputs(workspaceOf(agentTerminal(1, { working }, agent)), {
+            letters: [letter({ agent })],
+          }),
+        )
+        expect(items[0]).toMatchObject({ kind: "ask", stopped: !working, source: { agent } })
+      }
+    }
+  })
+
+  it("keeps the most urgent item and reveals a waiting letter once trouble clears", async () => {
+    const { letters, unreadStore, inbox, ids } = setup(
+      workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) })),
+      failed,
+    )
+    letters.push([letter(), told()])
+    await settle()
+    expect(ids()).toEqual(["trouble:01:100"])
+    unreadStore.update(() => ({}))
+    expect(ids()).toEqual(["letter-1"])
+    letters.push([told()])
+    await settle()
+    expect(inbox.state.getSnapshot().items[0]).toMatchObject({
+      kind: "update",
+      update: { type: "told" },
+    })
+  })
+
+  it("keeps an unread tell after its agent exits, with its original attribution", () => {
+    const exited: TerminalMetadata = {
+      ...agentTerminal(1),
+      state: "exited",
+      exitCode: 0,
+      signal: null,
+    }
+    const items = inboxItems(inputs(workspaceOf(exited), { letters: [letter(), told()] }))
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: "told-1",
+      kind: "update",
+      stopped: false,
+      source: { agent: "claude", handle: "moth" },
+      update: { type: "told" },
+    })
+    expect(inboxItems(inputs(workspaceOf(), { letters: [told()] }))).toEqual([])
+  })
+
+  it("keeps the old agent's tell beneath a new agent's ask until the tell is read", async () => {
+    const { letters, inbox, streams, ids } = setup(
+      workspaceOf(agentTerminal(1, { working: true }, "codex")),
+    )
+    const current = letter({ id: "new-ask", agent: "codex", sessionId: "new-session" })
+    letters.push([letter(), told(), current])
+    await settle()
+    expect(ids()).toEqual(["new-ask"])
+    letters.push([told()])
+    await settle()
+    expect(inbox.state.getSnapshot().items[0]).toMatchObject({
+      id: "told-1",
+      source: { agent: "claude" },
+    })
+    inbox.answer("told-1", { kind: "update", action: "read" })
+    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
+  })
+
+  it("reads a tell after its agent exited through mark all read", async () => {
+    const exited: TerminalMetadata = {
+      ...agentTerminal(1),
+      state: "exited",
+      exitCode: 0,
+      signal: null,
+    }
+    const { letters, inbox, streams, read } = setup(workspaceOf(exited))
+    letters.push([told()])
+    await settle()
+    inbox.readAll()
+    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it("keeps a current permission or plan ahead of an older stopped MCP ask", () => {
+    for (const kind of ["permission", "plan"] as const) {
+      const request = asked("gate", 8000)
+      const waiting = workspaceOf(
+        agentTerminal(1, { working: false, attention: { kind, count: 1 } }),
+      )
+      const items = inboxItems(
+        inputs(waiting, {
+          letters: [letter()],
+          requests: { "01": [{ ...request, request: { ...request.request, kind } }] },
+        }),
+      )
+      expect(items.map(({ id }) => id)).toEqual(["request:gate"])
+    }
+  })
+
+  it("keeps a gate's unread dialog grace instead of showing an MCP ask", () => {
+    const waiting = workspaceOf(agentTerminal(1, attention))
+    for (const requests of [{}, { "01": [asked("gate", 9500, null)] }]) {
+      expect(inboxItems(inputs(waiting, { letters: [letter()], requests }))).toEqual([])
+    }
+  })
+
+  it("keeps the oldest of two stopped questions", () => {
+    const question = asked("question", 8000)
+    const waiting = workspaceOf(
+      agentTerminal(1, { working: false, attention: { kind: "question", count: 1 } }),
+    )
+    const items = inboxItems(
+      inputs(waiting, {
+        letters: [letter()],
+        requests: { "01": [{ ...question, request: { ...question.request, kind: "question" } }] },
+      }),
+    )
+    expect(items.map(({ id }) => id)).toEqual(["letter-1"])
+  })
+
+  it("ignores letters for terminals outside their recorded ownership context", () => {
+    for (const change of [
+      { terminalId: "closed" },
+      { projectId: "elsewhere" },
+      { workspaceSessionId: "other" },
+      { handle: "old-handle" },
+      { agent: "codex" as const },
+    ]) {
+      expect(
+        inboxItems(inputs(workspaceOf(agentTerminal(1)), { letters: [letter(change)] })),
+      ).toEqual([])
+    }
+  })
+
+  it("sends an answer once and stays pending until the runner takes it", async () => {
+    const { letters, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    letters.push([letter()])
+    await settle()
+    let accepted: (() => void) | undefined
+    streams.asks.answer.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          accepted = resolve
+        }),
+    )
+    const answer = {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "Use /retry." },
+    } as const
+    inbox.answer("letter-1", answer)
+    inbox.answer("letter-1", answer)
+    expect(streams.asks.answer).toHaveBeenCalledExactlyOnceWith("letter-1", answer.answer)
+    letters.push([])
+    await settle()
+    expect(inbox.state.getSnapshot().answering["letter-1"]).toBe(true)
+    accepted!()
+    await settle()
+    expect(inbox.state.getSnapshot().answering).toEqual({})
+  })
+
+  it("keeps a hidden ask pending while its answer is unresolved", async () => {
+    const { letters, inbox, streams, unreadStore, workspaceStore } = setup(
+      workspaceOf(agentTerminal(1)),
+    )
+    letters.push([letter()])
+    await settle()
+    let accepted: (() => void) | undefined
+    streams.asks.answer.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          accepted = resolve
+        }),
+    )
+    inbox.answer("letter-1", {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "My reply" },
+    })
+    workspaceStore.update(() =>
+      workspaceOf(agentTerminal(1, { working: false, lastTurn: turn({ outcome: "failed" }) })),
+    )
+    unreadStore.update(() => failed)
+    expect(inbox.state.getSnapshot().items.map(({ id }) => id)).toEqual(["trouble:01:100"])
+    expect(inbox.state.getSnapshot().answering["letter-1"]).toBe(true)
+    unreadStore.update(() => ({}))
+    expect(inbox.state.getSnapshot().items.map(({ id }) => id)).toEqual(["letter-1"])
+    expect(inbox.state.getSnapshot().answering["letter-1"]).toBe(true)
+    accepted!()
+    await settle()
+  })
+
+  it("shows a stale answer's failure even if the letter disappears before the reply", async () => {
+    const { letters, inbox, streams } = setup(workspaceOf(agentTerminal(1)))
+    letters.push([letter()])
+    await settle()
+    let reject: ((error: Error) => void) | undefined
+    streams.asks.answer.mockImplementationOnce(
+      () =>
+        new Promise<void>((_, refuse) => {
+          reject = refuse
+        }),
+    )
+    inbox.answer("letter-1", {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "My reply" },
+    })
+    letters.push([])
+    await settle()
+    reject!(new Error("That ask is no longer available."))
+    await settle()
+    expect(inbox.state.getSnapshot().answering).toEqual({})
+    expect(inbox.state.getSnapshot().failed["letter-1"]).toBe("That ask is no longer available.")
+  })
+
+  it("reports an accepted reply that later cannot be delivered", async () => {
+    const { letters, inbox, mailStore } = setup(workspaceOf(agentTerminal(1)))
+    letters.push([letter()])
+    await settle()
+    inbox.answer("letter-1", {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "My reply" },
+    })
+    letters.push([])
+    await settle()
+    expect(inbox.state.getSnapshot().failed).toEqual({})
+    mailStore.update(() =>
+      mailOf(
+        thread({
+          id: "t-letter1",
+          peer: "you",
+          held: false,
+          messages: [
+            message({ from: "you", to: "moth", inbox: "answer", state: "gone", held: null }),
+          ],
+        }),
+      ),
+    )
+    expect(inbox.state.getSnapshot().failed["letter-1"]).toBe(
+      "Your reply was not delivered because the agent's session ended.",
+    )
+    mailStore.update(() => noMail)
+    expect(inbox.state.getSnapshot().failed["letter-1"]).toContain("not delivered")
+  })
+
+  it("reports an undelivered ask trace even if its reply is no longer listed", async () => {
+    const { letters, inbox, mailStore } = setup(workspaceOf(agentTerminal(1)))
+    letters.push([letter()])
+    await settle()
+    inbox.answer("letter-1", { kind: "ask", answer: { type: "done" } })
+    letters.push([])
+    await settle()
+    mailStore.update(() =>
+      mailOf(
+        thread({
+          id: "t-letter1",
+          peer: "you",
+          held: false,
+          messages: [
+            message({
+              inbox: "ask",
+              inboxState: "undelivered",
+              to: "you",
+              state: "delivered",
+              held: null,
+            }),
+          ],
+        }),
+      ),
+    )
+    expect(inbox.state.getSnapshot().failed["letter-1"]).toContain("Your reply was not delivered")
+  })
+
+  it("retires tracking after delivery is acknowledged", async () => {
+    const { letters, inbox, mailStore } = setup(workspaceOf(agentTerminal(1)))
+    letters.push([letter()])
+    await settle()
+    inbox.answer("letter-1", {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "My reply" },
+    })
+    letters.push([])
+    await settle()
+    const delivered = message({
+      from: "you",
+      to: "moth",
+      inbox: "answer",
+      state: "delivered",
+      held: null,
+      deliveredAt: 10_000,
+    })
+    mailStore.update(() =>
+      mailOf(thread({ id: "t-letter1", peer: "you", held: false, messages: [delivered] })),
+    )
+    mailStore.update(() =>
+      mailOf(
+        thread({
+          id: "t-letter1",
+          peer: "you",
+          held: false,
+          messages: [{ ...delivered, state: "gone", deliveredAt: null }],
+        }),
+      ),
+    )
+    expect(inbox.state.getSnapshot().failed["letter-1"]).toBeUndefined()
+  })
+
+  it("keeps failure visible after the terminal and its history disappear", async () => {
+    const { letters, inbox, workspaceStore } = setup(workspaceOf(agentTerminal(1)))
+    letters.push([letter()])
+    await settle()
+    inbox.answer("letter-1", {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "My reply" },
+    })
+    letters.push([])
+    await settle()
+    workspaceStore.update(() => workspaceOf())
+    expect(inbox.state.getSnapshot().failed["letter-1"]).toContain("Your reply was not delivered")
+    workspaceStore.update(() => workspaceOf(agentTerminal(1)))
+    expect(inbox.state.getSnapshot().failed["letter-1"]).toContain("Your reply was not delivered")
+  })
+
+  it("retires a reply when its previously observed history is evicted", async () => {
+    const { letters, inbox, mailStore } = setup(workspaceOf(agentTerminal(1)))
+    letters.push([letter()])
+    await settle()
+    inbox.answer("letter-1", {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "My reply" },
+    })
+    letters.push([])
+    await settle()
+    const response = message({
+      from: "you",
+      to: "moth",
+      inbox: "answer",
+      state: "queued",
+      held: null,
+    })
+    mailStore.update(() =>
+      mailOf(thread({ id: "t-letter1", peer: "you", held: false, messages: [response] })),
+    )
+    mailStore.update(() => noMail)
+    mailStore.update(() =>
+      mailOf(
+        thread({
+          id: "t-letter1",
+          peer: "you",
+          held: false,
+          messages: [{ ...response, state: "gone" }],
+        }),
+      ),
+    )
+    expect(inbox.state.getSnapshot().failed["letter-1"]).toBeUndefined()
+  })
+
+  it("bounds replies whose history has not arrived while keeping recent failures observable", async () => {
+    const { letters, inbox, mailStore } = setup(workspaceOf(agentTerminal(1)))
+    for (let index = 0; index <= 1000; index += 1) {
+      letters.push([letter({ id: `queued-${index}` })])
+      // eslint-disable-next-line no-await-in-loop -- Each ask must reach the Inbox before it can be answered.
+      await settle()
+      inbox.answer(`queued-${index}`, {
+        kind: "ask",
+        answer: { type: "reply", option: null, text: "My reply" },
+      })
+    }
+    letters.push([])
+    await settle()
+    const lost = message({ from: "you", to: "moth", inbox: "answer", state: "gone", held: null })
+    mailStore.update(() =>
+      mailOf(thread({ id: "t-queued0", peer: "you", held: false, messages: [lost] })),
+    )
+    expect(inbox.state.getSnapshot().failed["queued-0"]).toBeUndefined()
+    mailStore.update(() =>
+      mailOf(thread({ id: "t-queued1000", peer: "you", held: false, messages: [lost] })),
+    )
+    expect(inbox.state.getSnapshot().failed["queued-1000"]).toContain(
+      "Your reply was not delivered",
+    )
+  })
+
+  it("keeps a size rejection's error when the terminal later closes", async () => {
+    const { letters, inbox, streams, workspaceStore } = setup(workspaceOf(agentTerminal(1)))
+    letters.push([letter()])
+    await settle()
+    streams.asks.answer.mockRejectedValueOnce(
+      new Error("This reply exceeds the delivery size limit."),
+    )
+    inbox.answer("letter-1", {
+      kind: "ask",
+      answer: { type: "reply", option: null, text: "My reply" },
+    })
+    await settle()
+    workspaceStore.update(() => workspaceOf())
+    expect(inbox.state.getSnapshot().failed["letter-1"]).toBe(
+      "This reply exceeds the delivery size limit.",
+    )
+  })
+
+  it("reads a told update through the runner", async () => {
+    const { letters, inbox, streams, read } = setup(workspaceOf(agentTerminal(1)))
+    letters.push([told()])
+    await settle()
+    inbox.answer("told-1", { kind: "update", action: "read" })
+    expect(streams.asks.read).toHaveBeenCalledExactlyOnceWith(["told-1"])
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it("reads all known tells in batches, including those hidden by more urgent items", async () => {
+    const { letters, inbox, streams, ids } = setup(workspaceOf(agentTerminal(1)))
+    const tells = Array.from({ length: 1001 }, (_, index) => told(`tell-${index}`))
+    letters.push([letter(), ...tells])
+    await settle()
+    expect(ids()).toEqual(["letter-1"])
+    inbox.readAll()
+    expect(streams.asks.read.mock.calls.map(([batch]) => batch.length)).toEqual([1000, 1])
+    expect(streams.asks.answer).not.toHaveBeenCalled()
+    expect(ids()).toEqual(["letter-1"])
   })
 })

@@ -49,6 +49,8 @@ const callTypes = [
   "send",
   "agents",
   "summarize",
+  "ask",
+  "tell",
 ] as const
 export type CallType = (typeof callTypes)[number]
 
@@ -64,6 +66,8 @@ export const unansweredCalls = {
   close: { ok: false, reason: "Novadeck couldn't close the terminal." },
   send: { ok: false, reason: "Novadeck couldn't send the message." },
   agents: { ok: false, reason: "Novadeck couldn't list the terminals." },
+  ask: { ok: false, reason: "Novadeck couldn't save the ask." },
+  tell: { ok: false, reason: "Novadeck couldn't save the update." },
   summarize: { ok: false, reason: "Novadeck couldn't summarize the terminal." },
 } as const satisfies { readonly [type in CallType]: { ok: false; reason: string } }
 

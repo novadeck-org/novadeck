@@ -80,6 +80,7 @@ describe("anthropic", () => {
         { role: "tool", id: "toolu_1", text: "queued" },
       ],
       tools: ["Bash", "send"],
+      rawTools: conversation.tools,
       side: false,
     })
   })

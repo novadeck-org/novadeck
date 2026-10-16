@@ -12,8 +12,13 @@ import type { Store } from "./store"
 // (`held`), or no longer deliverable since its recipient's session ended (`gone`).
 export type MessageState = "queued" | "leased" | "delivered" | "held" | "gone"
 
+export type InboxHistory = "open" | "answered" | "read" | "withdrawn" | "gone" | "undelivered"
+
 export type AgentMessage = {
   readonly id: string
+  // Inbox letters and the person's replies share a thread with You.
+  readonly inbox?: "ask" | "tell" | "answer"
+  readonly inboxState?: InboxHistory
   // Its place in its thread, counted from 1.
   readonly hop: number
   // The sender's and recipient's handles, such as `moth`.
@@ -49,7 +54,7 @@ export type TerminalMail = {
 }
 
 // Every followed terminal's messages, by `companionKeyId`, and the one pause switch,
-// which holds every message waiting, across every project and session. `pending` while a
+// which holds messages between agents across every project and session. Person replies go through. `pending` while a
 // pause or resume is on its way to the backend, and `error` why the last one didn't take.
 // `releasing` the threads whose release is on its way, by whether the backend has only
 // been asked or has accepted it, until a listing shows them going
@@ -107,7 +112,7 @@ export const mailBadge = (mail: TerminalMail | undefined, paused: boolean): Mail
   if (!waiting.length) return null
   const kind = waiting.some((message) => message.held === "release")
     ? "held"
-    : paused
+    : paused && waiting.every((message) => message.inbox !== "answer")
       ? "paused"
       : "waiting"
   return { count: waiting.length, kind }

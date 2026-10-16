@@ -18,7 +18,7 @@ import { createDemoChat } from "./chat"
 import { createDemoTerminal } from "./DemoTerminal"
 import { createDemoEngine, type DemoEngine } from "./engine"
 import { demoHandle } from "./handles"
-import { createDemoInbox } from "./inbox"
+import { createDemoInbox, isDemoInbox } from "./inbox"
 import { checkoutMailboxes, createDemoMessages } from "./messages"
 import { createDemoMurmur } from "./murmur"
 import {
@@ -370,7 +370,9 @@ export const plainDemo = (
     transcripts,
     turns,
   )
-  return variant === "inbox" ? { ...conversing, inbox: createDemoInbox(now) } : conversing
+  if (variant !== "inbox") return conversing
+  const messages = createDemoMessages([])
+  return { ...conversing, messages, inbox: createDemoInbox(now, undefined, messages.record) }
 }
 
 // The variant the address's hash asks for, as specs do with `?demo=`, and how long an
@@ -380,11 +382,17 @@ export const createDemoBackend: CreateBackend = () => {
   const params = new URLSearchParams(window.location.hash.split("?")[1])
   const demo = params.get("demo")
   const turnMs = Number(params.get("turnMs"))
-  return plainDemo(
+  const backend = plainDemo(
     demo === "agents" || demo === "messages" || demo === "inbox" || demo === "welcome"
       ? demo
       : "plain",
     undefined,
     turnMs > 0 ? turnMs : undefined,
   )
+  if (isDemoInbox(backend.inbox)) {
+    const answer = params.get("inboxAnswer")
+    if (answer === "failed") backend.inbox.failNext()
+    if (answer === "stale") backend.inbox.failNext("That ask is no longer available.")
+  }
+  return backend
 }

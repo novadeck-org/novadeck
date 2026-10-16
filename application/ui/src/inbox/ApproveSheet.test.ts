@@ -81,7 +81,11 @@ const mount = (
       sent.push(answer)
       // An answer that doesn't take leaves the item and says why.
       if (failing)
-        state.update((current) => ({ ...current, failed: { [id]: "The agent didn't take that." } }))
+        return state.update((current) => ({
+          ...current,
+          failed: { [id]: "The agent didn't take that." },
+        }))
+      state.update((current) => ({ ...current, answering: { [id]: true } }))
     },
     see: () => {},
     readAll: () => {},
@@ -108,7 +112,12 @@ const mount = (
       set.call(field, text)
       field.dispatchEvent(new Event("input", { bubbles: true }))
     })
-  return { view, sent, press, type, state }
+  // A successful backend answer removes its item once it has taken.
+  const confirm = (): void =>
+    act(() => {
+      state.update((current) => ({ ...current, items: [], answering: {} }))
+    })
+  return { view, sent, press, type, state, confirm }
 }
 
 describe("A command permission's answers", () => {
@@ -216,8 +225,13 @@ describe("An item that takes the place of one answered", () => {
   it("shows as waiting, not as the old answer", () => {
     const sheet = mount(codex)
     sheet.press("Allow")
+    expect(document.querySelector(".inbox-sent")).toBeNull()
+    expect(
+      document.querySelector<HTMLButtonElement>(".inbox-sheet .button.primary")?.disabled,
+    ).toBe(true)
+    sheet.confirm()
     expect(document.querySelector(".inbox-sent")).not.toBeNull()
-    // The backend drops it; the same id arrives again, waiting from later.
+    // After confirmation, the same id arrives again, waiting from later.
     act(() => {
       sheet.state.update((current) => ({ ...current, items: [{ ...item(codex), at: 5000 }] }))
     })

@@ -1,5 +1,6 @@
 import type { WireClient } from "./contract.js"
 import { hasCode, normalize, RunnerError } from "./errors.js"
+import type { AskAnswer, InboxLetter } from "./inbox.js"
 import {
   maxUploadBytes,
   maxUploadPartLength,
@@ -356,6 +357,12 @@ export type Runner = {
     renameWindow(windowId: string, title: string): Promise<void>
     /** Gives a window its item's name again. */
     resetWindowTitle(windowId: string): Promise<void>
+  }
+  readonly asks: {
+    list(): Promise<InboxLetter[]>
+    watch(): AsyncIterableIterator<InboxLetter[], undefined>
+    answer(id: string, answer: AskAnswer): Promise<void>
+    read(ids: readonly string[]): Promise<void>
   }
   readonly messages: {
     /** A terminal's threads and messages with their states; `TERMINAL_NOT_FOUND` when unknown. */
@@ -1243,6 +1250,13 @@ export const connectRunner = async (
         call((wire) => wire.companions.renameWindow({ windowId, title })),
       resetWindowTitle: (windowId) =>
         call((wire) => wire.companions.resetWindowTitle({ windowId })),
+    },
+    asks: {
+      list: () => call((wire) => wire.asks.list()),
+      watch: () =>
+        new Resubscription(connection, (wire, signal) => wire.asks.watch(undefined, { signal })),
+      answer: (id, answer) => call((wire) => wire.asks.answer({ id, answer })),
+      read: (ids) => call((wire) => wire.asks.read({ ids: [...ids] })),
     },
     messages: {
       list: (terminalId) => call((wire) => wire.messages.list({ terminalId })),

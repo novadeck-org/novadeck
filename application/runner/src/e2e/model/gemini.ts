@@ -162,6 +162,7 @@ export const parse = (model: string, body: unknown): Call => {
     system,
     turns: conversation(request.contents),
     tools,
+    rawTools: request.tools ?? [],
     side: tools.length === 0,
   }
 }

@@ -293,6 +293,19 @@ export const createRouter = (options: {
         items.renameWindow(input.windowId, null),
       ),
     },
+    asks: {
+      list: authorized.asks.list.handler(() => terminals.inboxLetters()),
+      watch: authorized.asks.watch.handler(async function* ({ context, signal }) {
+        for await (const listing of terminals.watchAsks(signal)) {
+          if (context.connection.closed) return
+          yield listing
+        }
+      }),
+      answer: authorized.asks.answer.handler(({ input }) =>
+        terminals.answerAsk(input.id, input.answer),
+      ),
+      read: authorized.asks.read.handler(({ input }) => terminals.readTells(input.ids)),
+    },
     messages: {
       list: authorized.messages.list.handler(({ input }) => terminals.messages(input.terminalId)),
       watch: authorized.messages.watch.handler(async function* ({ input, context, signal }) {

@@ -267,6 +267,9 @@ export const ReplyBox = ({
   readonly onCancel?: () => void
 }): React.JSX.Element => {
   const field = useRef<HTMLTextAreaElement>(null)
+  const limit = useId()
+  const maximum = 4096
+  const allowed = canSend && value.length <= maximum
   // Opens as tall as the words it starts with.
   useLayoutEffect(() => {
     if (field.current) fit(field.current)
@@ -279,7 +282,7 @@ export const ReplyBox = ({
       className="inbox-reply"
       onSubmit={(event) => {
         event.preventDefault()
-        if (canSend) onSend()
+        if (allowed) onSend()
       }}
     >
       <div className="field inbox-reply-field">
@@ -287,6 +290,9 @@ export const ReplyBox = ({
           ref={field}
           className="field-input inbox-reply-input text-body"
           rows={minRows}
+          maxLength={maximum}
+          aria-describedby={limit}
+          aria-invalid={value.length > maximum || undefined}
           value={value}
           placeholder={placeholder}
           aria-label={label}
@@ -305,18 +311,29 @@ export const ReplyBox = ({
             if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return
             if (event.ctrlKey || event.metaKey || event.altKey) return
             event.preventDefault()
-            if (canSend) onSend()
+            if (allowed) onSend()
           }}
         />
         <button
           type="submit"
           className="button primary inbox-send text-control"
-          disabled={!canSend}
+          disabled={!allowed}
         >
           <Send size={12} aria-hidden />
           {sendLabel}
         </button>
       </div>
+      <p
+        id={limit}
+        className="inbox-reply-limit"
+        role={value.length >= maximum ? "status" : undefined}
+      >
+        {value.length > maximum
+          ? `Reply exceeds the 4,096 character limit by ${value.length - maximum}. Shorten it to send.`
+          : value.length === maximum
+            ? "4,096 character limit reached."
+            : "Up to 4,096 characters."}
+      </p>
     </form>
   )
 }

@@ -259,6 +259,26 @@ next part within a minute. A file past `maxUploadBytes` (32 MiB) is
 `UPLOAD_TOO_LARGE`, a `path` the runner isn't receiving `NOT_FOUND`, and an unknown
 terminal `TERMINAL_NOT_FOUND`.
 
+The MCP `ask` and `tell` tools add questions and updates to the Inbox. A client follows
+all active letters across projects and sessions, answers an ask, or marks tells read:
+
+```ts
+for await (const letters of runner.asks.watch()) showInbox(letters)
+const letters = await runner.asks.list()
+await runner.asks.answer(askId, { type: "reply", option: null, text: "Use green" })
+await runner.asks.answer(actionAskId, { type: "done" })
+await runner.asks.read(tellIds)
+```
+
+A letter includes its id, terminal, project and workspace session ids, exact agent
+session, handle, creation time and `content`: `{ kind: "ask", ask }` or
+`{ kind: "tell", subject, body }`. An ask's shape is text, up to three options, or an
+action for the person to run. Secret shapes are unavailable. `answer` rejects stale or
+already answered asks with `CONFLICT`, invalid answers with `ANSWER_FAILED`, and a
+full mailbox with `RESOURCE_LIMIT`. Resolving the ask and storing its answer are atomic;
+answers arrive later through ordinary mail delivery. `read` affects tells only and takes
+at most 1,000 ids per call. `watch` resubscribes with a fresh listing on reconnect.
+
 Agents in a project's terminals message each other (see
 [Agent messaging](agent-messaging.md)); the runner API lets a client see and steer it:
 
@@ -277,10 +297,22 @@ messaging is paused, and its threads, newest first, each with the other terminal
 handle, its hops so far and the hops it is allowed before the person must release it,
 whether it is held, whether the person stopped it, and its messages, oldest first: id, hop, sender and recipient
 handles and agents, text, when sent, state (`queued`, `leased`, `delivered`, `held` or
-`gone`), why it is held (`paused` or `release`), and when delivered. A terminal the
+`gone`), why it is held (`paused` or `release`), and when delivered. Inbox history
+adds optional `inbox: "ask" | "tell" | "answer"`; its person party is the handle `you`.
+Ask and tell traces also have `inboxState`: `open`, `answered`, `read`, `withdrawn`,
+`gone` (the asking session ended), or `undelivered` (the person's reply went gone before
+reaching the agent). A reply already delivered stays delivered when the session ends.
+Trace outcomes are separate from delivery state, so a withdrawn question remains an
+already-received history entry.
+Ask and tell entries are delivered history; answers show their real delivery state.
+These person threads have no agent hop-release or stop control. A terminal the
 runner doesn't hold is `TERMINAL_NOT_FOUND`. `messages.pause(paused)` pauses messaging
 across the whole runner, every project and session, keeping the switch across
-restarts: waiting messages are held, and wait in order again once resumed.
+restarts: waiting agent-to-agent messages are held, and wait in order again once resumed.
+Person replies to Inbox asks bypass the pause and have their own fifty-reply waiting
+capacity, independent of the fifty waiting peer messages. The person's note allows up
+to 4096 characters and must also fit the 8192-byte encoded delivery budget; a size error
+asks the person to shorten the reply and leaves the ask answerable.
 `messages.release(threadId)` lets a held thread's messages wait to be delivered and
 allows it 12 more hops, and a stopped thread no longer stopped; an unknown thread is
 `NOT_FOUND`. `messages.stop(threadId)` stops a thread: its messages not yet delivered or

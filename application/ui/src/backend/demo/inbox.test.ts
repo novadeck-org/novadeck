@@ -29,7 +29,7 @@ describe("the demo Inbox's items", () => {
       new Set(["request", "held", "ask", "trouble", "update"]),
     )
     const shapes = items.flatMap((each) => (each.kind === "ask" ? [each.ask.shape.type] : []))
-    expect(new Set(shapes)).toEqual(new Set(["options", "secret", "action", "text"]))
+    expect(new Set(shapes)).toEqual(new Set(["options", "action", "text"]))
     const troubles = items.flatMap((each) => (each.kind === "trouble" ? [each.trouble.type] : []))
     expect(new Set(troubles)).toEqual(new Set(["stuck", "limit", "failed"]))
     const requests = items.flatMap((each) => (each.kind === "request" ? [each.request.kind] : []))

@@ -475,6 +475,35 @@ export const startTrace = (name: string, model: FakeModel) => {
       const more = model.trail(40)
       mkdirSync(folder, { recursive: true })
       const file = `${name.replaceAll(/[^\w.-]+/g, "-").slice(0, 150)}.txt`
+      writeFileSync(
+        join(folder, file.replace(/\.txt$/, ".tools.json")),
+        JSON.stringify(
+          model.calls
+            .filter((call) => !call.side)
+            .map((call) => ({
+              api: call.api,
+              model: call.model,
+              tools: call.rawTools,
+              reads: call.turns.filter(
+                (turn) =>
+                  turn.role === "tool" &&
+                  call.turns.some(
+                    (entry) =>
+                      entry.role === "assistant" &&
+                      entry.calls.some(
+                        (tool) =>
+                          tool.id === turn.id &&
+                          tool.name === "view_file" &&
+                          /[/\\]mcp[/\\].*\.json$/.test(String(tool.input.AbsolutePath)),
+                      ),
+                  ),
+              ),
+              mcp: /<mcp_servers>[\s\S]*?<\/mcp_servers>/.exec(call.system)?.[0],
+            })),
+          null,
+          2,
+        ),
+      )
       writeFileSync(join(folder, file), `${name}\n\n${lines.join("\n")}\n\n${more}\n`)
     },
   }

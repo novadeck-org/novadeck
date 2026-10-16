@@ -58,6 +58,7 @@ export type RunnerApi = Pick<
   | "terminals"
   | "agents"
   | "messages"
+  | "asks"
   | "voice"
   | "murmur"
   | "settings"
@@ -999,6 +1000,7 @@ export const runnerBackend = (
   // agents that ask, once the app binds it to its workspace. Every runner backend has it.
   const inbox = createRunnerInbox(
     {
+      asks: runner.asks,
       detail: (terminalId) => runner.agents.detail(terminalId),
       answer: (key, request, answer) => conversations.answer(key, request, answer),
       send: (key, text) => conversations.send(key, text),

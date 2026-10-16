@@ -735,6 +735,20 @@ describe("runner client companion items", () => {
 })
 
 describe("runner client messages", () => {
+  it("lists and watches Inbox letters, rejects a stale answer, and reads tells through the authenticated API", async ({
+    resources,
+  }) => {
+    const app = await deployed(resources)
+    const client = await app.connect()
+    await expect(client.asks.list()).resolves.toEqual([])
+    const stream = client.asks.watch()
+    await expect(stream.next()).resolves.toEqual({ done: false, value: [] })
+    await expect(
+      client.asks.answer(crypto.randomUUID(), { type: "reply", option: null, text: "Go" }),
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    await expect(client.asks.read([crypto.randomUUID()])).resolves.toBeUndefined()
+    await stream.return?.()
+  })
   it("lists a terminal's messages, and keeps the pause across runner restarts", async ({
     resources,
   }) => {

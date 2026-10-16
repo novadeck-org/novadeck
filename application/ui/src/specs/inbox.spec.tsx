@@ -1,14 +1,15 @@
 import { afterEach, describe as context, describe, expect, it } from "vitest"
 import { page, userEvent } from "vitest/browser"
 
+import { openMessages } from "./support/messages"
 import { expectStaysAbsent, openWorkspace, sidebarPanel, terminal } from "./support/workspace"
 
 // The Inbox demo: the agents demo with an Inbox of hardcoded items across its projects, one
 // of each kind, waiting on the person.
 const inbox = "/?demo=inbox"
 
-const openInbox = async (): Promise<void> => {
-  await openWorkspace(inbox)
+const openInbox = async (route = inbox): Promise<void> => {
+  await openWorkspace(route)
   const skip = page.getByRole("button", { name: "Skip for now" })
   if (await skip.query()) await skip.click()
   await sidebarPanel("Inbox").click()
@@ -292,7 +293,7 @@ describe("An item's sheet", () => {
       )
       await open.getByRole("button", { name: "Send B" }).click()
 
-      await expect.element(confirmation()).toMatchTextContent("Sent to Codex in @fox")
+      await expect.element(confirmation()).toMatchTextContent("Reply queued for Codex in @fox")
     })
 
     it("keeps a reply it has not sent as a draft on the row", async () => {
@@ -306,6 +307,62 @@ describe("An item's sheet", () => {
       await userEvent.keyboard("{Escape}")
 
       await expect.element(rows().filter({ hasText: "webhooks" })).toMatchTextContent("Draft")
+    })
+  })
+
+  context("when a reply fails", () => {
+    it("keeps the text and selection for retry, and shows no success", async () => {
+      await openInbox(`${inbox}&inboxAnswer=failed`)
+      await row("How should failed payment webhooks retry").click()
+      const open = sheet("Dev server")
+      const option = open.getByRole("button", { name: /Our own retries/ })
+      const reply = open.getByRole("textbox", { name: "Reply to Codex" })
+      await option.click()
+      await userEvent.type(reply, "Within the hour.")
+      await open.getByRole("button", { name: "Send B" }).click()
+      await expect.element(open.getByRole("alert")).toMatchTextContent("Try again")
+      await expect.element(reply).toHaveValue("Within the hour.")
+      await expect.element(option).toHaveAttribute("aria-pressed", "true")
+      await expectStaysAbsent(confirmation())
+      await open.getByRole("button", { name: "Send B" }).click()
+      await expect.element(confirmation()).toMatchTextContent("Reply queued for Codex")
+    })
+
+    it("says a stale ask is no longer available", async () => {
+      await openInbox(`${inbox}&inboxAnswer=stale`)
+      await row("Should the preview show test or sample products").click()
+      const open = sheet("Checkout implementation")
+      await userEvent.type(open.getByRole("textbox", { name: "Reply to Claude" }), "Samples.")
+      await open.getByRole("button", { name: "Send", exact: true }).click()
+      await expect
+        .element(open.getByRole("alert"))
+        .toMatchTextContent("That ask is no longer available.")
+      await expectStaysAbsent(confirmation())
+    })
+  })
+
+  context("when looking at Inbox history", () => {
+    it("shows the ask and the person's reply in a thread named You", async () => {
+      await openInbox()
+      await row("Should the preview show test or sample products").click()
+      const open = sheet("Checkout implementation")
+      await userEvent.type(
+        open.getByRole("textbox", { name: "Reply to Claude" }),
+        "Sample products.",
+      )
+      await open.getByRole("button", { name: "Send", exact: true }).click()
+      await expect.element(confirmation()).toMatchTextContent("Reply queued")
+      await open.getByRole("button", { name: "Show terminal" }).click()
+      await sidebarPanel("Terminals").click()
+      const pane = await openMessages("Checkout implementation")
+      const history = pane.getByRole("region", { name: "Thread with You", exact: true })
+      await expect.element(history).toMatchTextContent("Ask")
+      await expect
+        .element(history)
+        .toMatchTextContent("Should the preview show test or sample products?")
+      await expect.element(history).toMatchTextContent("Your reply")
+      await expect.element(history).toMatchTextContent("Sample products.")
+      await expect.element(history).not.toMatchTextContent("@you")
     })
   })
 
@@ -367,19 +424,19 @@ describe("An item's sheet", () => {
     })
   })
 
-  context("when an agent needs a secret", () => {
-    it("takes it in a password field and says where it goes", async () => {
+  context("when an agent asks while working", () => {
+    it("takes a reply without claiming the agent resumed", async () => {
       await openInbox()
-      await row("Could you add a Stripe test key").click()
+      await row("Should the preview show test or sample products").click()
       const open = sheet("Checkout implementation")
-      const field = open.getByLabelText("STRIPE_SECRET_KEY")
+      await userEvent.type(
+        open.getByRole("textbox", { name: "Reply to Claude" }),
+        "Sample products.",
+      )
+      await open.getByRole("button", { name: "Send", exact: true }).click()
 
-      await expect.element(field).toHaveAttribute("type", "password")
-      await expect.element(open).toMatchTextContent("storefront/.env.local")
-      await userEvent.type(field, "sk_test_123")
-      await open.getByRole("button", { name: "Save" }).click()
-
-      await expect.element(confirmation()).toMatchTextContent("Saved STRIPE_SECRET_KEY")
+      await expect.element(confirmation()).toMatchTextContent("Reply queued for Claude in @moth.")
+      await expect.element(open).not.toMatchTextContent("working again")
     })
   })
 
@@ -392,7 +449,7 @@ describe("An item's sheet", () => {
       await expect.element(open.getByRole("button", { name: "Copy command" })).toBeVisible()
       await open.getByRole("button", { name: "I've logged in" }).click()
 
-      await expect.element(confirmation()).toMatchTextContent("Told Claude it's done.")
+      await expect.element(confirmation()).toMatchTextContent("Reply queued for Claude: it's done.")
     })
   })
 

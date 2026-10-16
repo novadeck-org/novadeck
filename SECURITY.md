@@ -186,3 +186,26 @@ never writes to the user's rc files or dotfiles. Only when the person connects a
 does it install Novadeck's plugin into that agent, through the agent's own plugin
 commands, and disconnecting removes it. The plugin's hook does nothing outside
 Novadeck's shells. On Linux and macOS its MCP server starts the launcher the terminal names in `NOVADECK_MCP`, as its hook starts `NOVADECK_HOOK`'s, and otherwise the launcher of the Novadeck that connected the agent; both are the user's own environment, so a process that changes them runs nothing it couldn't run already.
+
+Inbox asks and tells are authenticated terminal operations: an agent can create or
+withdraw only its own asks, and cannot name a sender or create a person response.
+Only the authenticated runner API used by the UI answers an ask. The runner binds the
+answer to the exact asking session and atomically saves it with the resolved ask before
+queuing delivery. Delivery says Novadeck relayed the response and adds a fresh person
+mark named by the outer note, distinct from its lead mark. The standing rules recognize
+only an Inbox response carrying that delivery's person mark as an approval exception;
+a delivery wrapper states the exception only when its person mark is present.
+Agent-written questions and choice/action labels
+are quoted separately from the person's own words; earlier marks are escaped data.
+Agent subjects, labels, option summaries, code paths and action instructions lose
+terminal controls, invisible separators, zero-width characters and bidi marks.
+The person's replies bypass the agent-messaging pause and have a separate bounded
+queue, so paused peer traffic cannot deny them delivery.
+Someone holding the runner's full token already has the UI's shell authority and can
+answer asks too; a terminal's report token cannot call that API. Asks, tells and replies
+remain in the workspace database as Messages history and can contain the person's
+words. Resolved history is capped at one hundred records per terminal and a day after
+resolution or the final reply outcome; pending replies retain their question until
+delivered or gone. A terminal
+may create ten asks or tells a minute, with independent fifty-item ask and tell caps.
+Secret ask shapes and writing secrets into project files are unavailable.

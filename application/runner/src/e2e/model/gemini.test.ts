@@ -122,6 +122,7 @@ describe("gemini", () => {
         "mcp_novadeck_novadeck_send",
       ],
       side: false,
+      rawTools: conversation.tools,
     })
   })
 

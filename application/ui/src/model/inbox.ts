@@ -30,7 +30,7 @@ export type InboxSource = {
   readonly projectName: string
 }
 
-// An agent's answer shapes for `ask`: at most one of options, a secret or an action;
+// An agent's answer shapes for `ask`: at most one of options or an action;
 // none asks for the person's words. The person may always write their own answer.
 export type AskOption = {
   readonly label: string
@@ -47,9 +47,6 @@ export type AskShape =
       readonly options: readonly AskOption[]
       readonly recommend: number | null
     }
-  // A value the agent needs, written as `name=value` to `file` in the project, which the
-  // agent is then told about; the value itself never reaches it as a message.
-  | { readonly type: "secret"; readonly name: string; readonly file: string }
   // Something only the person can do, as a login that opens a browser: the command, in
   // `directory`, and what the button that says it's done reads.
   | {
@@ -151,7 +148,7 @@ export const inboxType = (item: InboxContent): InboxType => {
 }
 
 // The person's answer to an item, by its source: a dialog's answer as the chat sends it;
-// a held thread released or stopped; an ask's option and/or words, its secret, or its
+// a held thread released or stopped; an ask's option and/or words, or its
 // action done; a stuck agent nudged with these words or stopped, auto-resume at a limit
 // turned on or off, or the agent continued once the limit has reset; an update read.
 export type InboxAnswer =
@@ -161,7 +158,6 @@ export type InboxAnswer =
       readonly kind: "ask"
       readonly answer:
         | { readonly type: "reply"; readonly option: number | null; readonly text: string }
-        | { readonly type: "secret"; readonly value: string }
         | { readonly type: "done" }
     }
   | {

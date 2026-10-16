@@ -11,6 +11,8 @@ export type Call = {
   readonly turns: readonly Turn[]
   /** The tools offered, by the names the harness gives them. */
   readonly tools: readonly string[]
+  /** Tool declarations exactly as the harness sent them, including parameter schemas. */
+  readonly rawTools?: readonly unknown[]
   /**
    * A call the harness makes for itself rather than for the agent's turn, such as a
    * title or a summary, as its API tells it; false when it can't tell.

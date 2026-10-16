@@ -101,6 +101,7 @@ export const parse = (body: unknown): Call => {
     system: system.join("\n"),
     turns,
     tools,
+    rawTools: request.tools ?? [],
     side: tools.length === 0,
   }
 }

@@ -76,6 +76,12 @@ describe("a terminal's badge", () => {
     })
   })
 
+  it("keeps the person's reply waiting while messages between agents are paused", () => {
+    const reply = message("reply", { from: "you", to: "moth", state: "queued", inbox: "answer" })
+    expect(mailBadge(mail([reply]), true)).toEqual({ count: 1, kind: "waiting" })
+    expect(mailBadge(mail([...inbound, reply]), true)).toEqual({ count: 3, kind: "waiting" })
+  })
+
   context("with a thread held for release", () => {
     it("says the person must release it, even while paused", () => {
       const held = message("held", { from: "fox", to: "moth", state: "held", held: "release" })

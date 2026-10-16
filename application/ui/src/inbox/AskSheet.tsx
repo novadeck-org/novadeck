@@ -1,4 +1,3 @@
-import { Lock } from "lucide-react"
 import { useState, type ReactNode } from "react"
 
 import type { ChatQuestion } from "../model/conversation"
@@ -12,7 +11,7 @@ import { Lead, Page, type SheetContentProps } from "./Page"
 import { CommandCard, Disclosure, Failure, QuietLink, ReplyBox, Sent, Text } from "./sheet-parts"
 
 // Ask: what the agent asks, as a letter, and the answer it asked for: its options as
-// cards, a secret, something only the person can do, or words. The person may always
+// cards, something only the person can do, or words. The person may always
 // write their own.
 
 const letters = "ABCDEFGHIJ"
@@ -124,7 +123,6 @@ const Asked = (props: SheetContentProps & { readonly ask: AgentAsk }): React.JSX
   const { item, ask, sent, answering, failed, onNext, submit } = props
   const { drafts, setDraft } = useInboxContext()
   const agent = agentName(item.source.agent)
-  const [secret, setSecret] = useState("")
   const [replying, setReplying] = useState(false)
   // What was started and not sent, which opening the item again finds as it was left.
   const draft = drafts[item.id] ?? noDraft
@@ -134,7 +132,7 @@ const Asked = (props: SheetContentProps & { readonly ask: AgentAsk }): React.JSX
   const reply = (option: number | null, words: string): void =>
     submit(
       { kind: "ask", answer: { type: "reply", option, text: words.trim() } },
-      `Sent to ${agent} in @${item.source.handle}. It's working again.`,
+      `Reply queued for ${agent} in @${item.source.handle}.`,
     )
   const { shape } = ask
   const footerReply = (
@@ -201,55 +199,6 @@ const Asked = (props: SheetContentProps & { readonly ask: AgentAsk }): React.JSX
             }))}
           />
         )}
-        {!sent && shape.type === "secret" && (
-          <>
-            <div className="inbox-card">
-              <label className="inbox-card-label" htmlFor={`secret-${item.id}`}>
-                {shape.name}
-              </label>
-              <form
-                className="inbox-secret"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  if (secret.trim() === "" || answering) return
-                  submit(
-                    { kind: "ask", answer: { type: "secret", value: secret.trim() } },
-                    `Saved ${shape.name} to ${shape.file}.`,
-                  )
-                }}
-              >
-                <input
-                  id={`secret-${item.id}`}
-                  className="field inbox-secret-input text-control"
-                  type="password"
-                  autoComplete="new-password"
-                  spellCheck={false}
-                  value={secret}
-                  onChange={(event) => setSecret(event.target.value)}
-                />
-                <button
-                  type="submit"
-                  className="button primary text-control"
-                  disabled={answering || secret.trim() === ""}
-                >
-                  Save
-                </button>
-              </form>
-              <span className="inbox-fine">
-                <Lock size={12} aria-hidden />
-                <span>
-                  Novadeck writes it to{" "}
-                  <code>
-                    {item.source.projectName}/{shape.file}
-                  </code>{" "}
-                  and tells {agent} it&apos;s there. It&apos;s never sent as a message, so it stays
-                  out of the conversation unless the agent reads the file.
-                </span>
-              </span>
-            </div>
-            {replyInstead}
-          </>
-        )}
         {!sent && shape.type === "action" && (
           <>
             <div className="inbox-card">
@@ -267,7 +216,10 @@ const Asked = (props: SheetContentProps & { readonly ask: AgentAsk }): React.JSX
                   className="button primary text-control"
                   disabled={answering}
                   onClick={() =>
-                    submit({ kind: "ask", answer: { type: "done" } }, `Told ${agent} it's done.`)
+                    submit(
+                      { kind: "ask", answer: { type: "done" } },
+                      `Reply queued for ${agent}: it's done.`,
+                    )
                   }
                 >
                   {shape.doneLabel}

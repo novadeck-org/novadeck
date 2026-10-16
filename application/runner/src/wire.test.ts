@@ -234,6 +234,13 @@ describe("WebSocket authentication and protocol", () => {
     const app = await fixture(resources)
     const { client } = await app.connect(false)
     await expect(client.projects.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+    await expect(client.asks.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" })
+    await expect(
+      client.asks.answer({
+        id: randomUUID(),
+        answer: { type: "reply", option: null, text: "Approve" },
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" })
     await expect(
       client.runner.handshake({ protocolVersion, token: "wrong" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" })

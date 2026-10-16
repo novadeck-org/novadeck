@@ -1,6 +1,7 @@
 import { eventIterator, oc, type ContractRouterClient } from "@orpc/contract"
 import { z } from "zod"
 
+import { askAnswer, inboxLetter } from "./inbox.js"
 import {
   agentDetail,
   agentIntegration,
@@ -354,6 +355,12 @@ export const contract = {
     resetWindowTitle: procedure.input(z.strictObject({ windowId: id })).output(z.void()),
   },
   // Messages between agents in Novadeck's terminals (see docs/agent-messaging.md).
+  asks: {
+    list: procedure.input(z.void()).output(z.array(inboxLetter)),
+    watch: procedure.input(z.void()).output(eventIterator(z.array(inboxLetter))),
+    answer: procedure.input(z.strictObject({ id, answer: askAnswer })).output(z.void()),
+    read: procedure.input(z.strictObject({ ids: z.array(id).max(1000) })).output(z.void()),
+  },
   messages: {
     // A terminal's threads and messages with their states. An unknown terminal is
     // TERMINAL_NOT_FOUND.

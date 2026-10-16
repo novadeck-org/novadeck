@@ -25,15 +25,20 @@ const SheetBody = ({ item }: { readonly item: InboxItem }): React.JSX.Element =>
   const { state, sent, now, phone, next, close, submit, change, reveal } = useInboxContext()
   const answered = sent[item.id]
   const failed = state.failed[item.id]
+  const present = state.items.some((each) => each.id === item.id)
+  const unavailable = item.kind === "ask" && failed !== undefined && !present
   // An answer that didn't take is no answer.
-  const confirmed = failed === undefined ? answered : undefined
+  const confirmed =
+    failed === undefined && !state.answering[item.id] && !present ? answered : undefined
   const type = inboxType(item)
   const Icon = confirmed ? CircleCheck : icons[type]
   const content: SheetContentProps = {
     item,
-    standing: standingOf(item, now, confirmed !== undefined),
+    standing: unavailable
+      ? { status: "reply not delivered", tone: "urgent" }
+      : standingOf(item, now, confirmed !== undefined),
     sent: confirmed,
-    answering: Boolean(state.answering[item.id]),
+    answering: Boolean(state.answering[item.id]) || unavailable,
     failed,
     onNext: nextItem(state.items, item.id, state) ? next : undefined,
     submit: (answer, note) => submit(item, answer, note),

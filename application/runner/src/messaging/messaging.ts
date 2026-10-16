@@ -245,8 +245,8 @@ const latest = (thread: MessageThread): number => thread.messages.at(-1)?.sentAt
 
 /** The bytes the largest of a message's deliveries on its own would print, in any harness. */
 const deliveredBytes = (message: Message): number => {
-  // As a lead's, which carries the longer note and a mark: it may be one when it arrives.
-  const text = wrap([message], () => true, "x".repeat(markLength))
+  // Agent mail uses the longer lead note. Person replies use their own note and nonce.
+  const text = wrap([message], () => message.response === undefined, "x".repeat(markLength))
   return Math.max(
     ...allAgents.flatMap((agent) => {
       const { messaging } = harnesses[agent]
@@ -276,6 +276,7 @@ export class Messaging {
   private readonly listeners = new Set<(change: MessagingChange) => void>()
   private readonly live = new Map<string, Live>()
   private readonly messages = new Map<string, Message>()
+  private readonly responses = new Map<string, string>()
   private readonly threads = new Map<string, Thread>()
   private readonly leases: Leases
   private paused: boolean
@@ -302,6 +303,7 @@ export class Messaging {
       this.threads.set(thread.id, thread)
     for (const message of this.read(() => this.records.messages(), [])) {
       this.messages.set(message.id, message)
+      if (message.response) this.responses.set(message.response.askId, message.id)
       // A lease held when the runner stopped is gone with it: its messages wait again.
       if (message.state === "leased" || message.state === "queued" || message.state === "held")
         this.wait(message)
@@ -401,6 +403,97 @@ export class Messaging {
     for (const message of this.messages.values())
       if (message.to.terminalId === terminalId && undelivered(message)) this.gone(message)
     this.live.delete(terminalId)
+  }
+
+  /** The exact agent session that an Inbox ask and its answer belong to. */
+  inboxOwner(terminalId: string):
+    | {
+        projectId: string
+        workspaceSessionId: string
+        terminalId: string
+        handle: string
+        agent: AgentName
+        sessionId: string
+      }
+    | undefined {
+    const live = this.live.get(terminalId)
+    if (!live?.root || this.closed) return undefined
+    return {
+      projectId: live.projectId,
+      workspaceSessionId: live.sessionId,
+      terminalId,
+      handle: live.handle,
+      agent: live.root.agent,
+      sessionId: live.root.sessionId,
+    }
+  }
+
+  /** Commits a person's answer before it becomes visible or deliverable. Not an agent operation. */
+  personReply(
+    terminalId: string,
+    askId: string,
+    subject: string,
+    text: string,
+    commit: (message: Message) => void,
+    choice?: { readonly option?: string; readonly action?: string },
+  ): void {
+    const owner = this.inboxOwner(terminalId)
+    if (!owner) throw new DomainError("CONFLICT", "The asking agent's session has ended.")
+    const message: Message = {
+      id: this.freshMessageId(),
+      projectId: owner.projectId,
+      thread: `t-${askId.replaceAll("-", "")}`,
+      hop: 2,
+      from: { terminalId: "you", handle: "you", agent: null, sessionId: null },
+      to: { terminalId, handle: owner.handle, agent: owner.agent, sessionId: owner.sessionId },
+      text: cleanText(text),
+      sentAt: this.now(),
+      state: "queued",
+      deliveredAt: null,
+      notified: true,
+      stopped: false,
+      fromLead: false,
+      toLead: false,
+      response: { askId, subject, ...choice },
+    }
+    const size = deliveredBytes(message)
+    if (message.text.length > 4096 || size > maxDeliveryBytes)
+      throw new DomainError("ANSWER_FAILED", "That reply is too long. Shorten it and try again.")
+    if (
+      [...this.messages.values()].filter(
+        (each) =>
+          each.response !== undefined && each.to.terminalId === terminalId && undelivered(each),
+      ).length >= maxUndelivered
+    )
+      throw new DomainError(
+        "RESOURCE_LIMIT",
+        "This agent already has 50 person replies waiting. Try again once they arrive.",
+      )
+    commit(message)
+    this.messages.set(message.id, message)
+    this.responses.set(askId, message.id)
+    this.changed(terminalId)
+  }
+
+  /** The reply for one Inbox ask, used to retain pending replies with their question. */
+  inboxReply(askId: string): Message | undefined {
+    const id = this.responses.get(askId)
+    return id ? this.messages.get(id) : undefined
+  }
+
+  /** Drops only resolved person replies whose questions have left retained history. */
+  forgetResponses(ids: readonly string[]): void {
+    const messages = ids.flatMap((id) => {
+      const message = this.inboxReply(id)
+      return message && !undelivered(message) ? [message] : []
+    })
+    if (!messages.length) return
+    this.records.removeMessages(messages.map((message) => message.id))
+    for (const message of messages) {
+      this.messages.delete(message.id)
+      this.responses.delete(message.response!.askId)
+      this.changed(message.to.terminalId)
+    }
   }
 
   /** The terminal's delivery state, while it runs. */
@@ -1028,7 +1121,7 @@ export class Messaging {
       )
     const { to, from } = message
     const waitingThere = [...this.messages.values()].filter(
-      (each) => each.to.terminalId === to.terminalId && undelivered(each),
+      (each) => !each.response && each.to.terminalId === to.terminalId && undelivered(each),
     ).length
     if (waitingThere >= maxUndelivered)
       return refused(
@@ -1113,11 +1206,16 @@ export class Messaging {
           fromAgent: message.from.agent,
           to: message.to.handle,
           toAgent: message.to.agent,
-          text: message.text,
+          text: message.response
+            ? [message.response.option ?? message.response.action, message.text]
+                .filter(Boolean)
+                .join("\n\n")
+            : message.text,
           sentAt: message.sentAt,
           state: message.state,
           held: message.state === "held" ? this.holdOf(message) : null,
           deliveredAt: message.deliveredAt,
+          ...(message.response && { inbox: "answer" as const }),
         })),
       }
     })
@@ -1147,7 +1245,8 @@ export class Messaging {
 
   /**
    * Pauses messaging across the whole runner, or resumes it, keeping the switch: waiting
-   * messages are held while paused, and wait in order again once resumed.
+   * agent messages are held while paused, and wait in order again once resumed. Person
+   * replies are unaffected, including after a restart or lost delivery lease.
    */
   pause(paused: boolean): void {
     this.write(() => this.records.pauseMessaging(paused))
@@ -1203,7 +1302,10 @@ export class Messaging {
    */
   forgetProject(projectId: string): void {
     for (const [id, message] of this.messages)
-      if (message.projectId === projectId) this.messages.delete(id)
+      if (message.projectId === projectId) {
+        this.messages.delete(id)
+        if (message.response) this.responses.delete(message.response.askId)
+      }
     for (const [id, thread] of this.threads)
       if (thread.projectId === projectId) this.threads.delete(id)
   }
@@ -1218,9 +1320,13 @@ export class Messaging {
       (message) =>
         !this.exists(message.from.terminalId) &&
         !this.exists(message.to.terminalId) &&
-        now - Math.max(message.sentAt, message.deliveredAt ?? 0) >= retentionMs,
+        now - Math.max(message.sentAt, message.deliveredAt ?? 0, message.response?.goneAt ?? 0) >=
+          retentionMs,
     )
-    for (const { id } of old) this.messages.delete(id)
+    for (const { id, response } of old) {
+      this.messages.delete(id)
+      if (response) this.responses.delete(response.askId)
+    }
     if (old.length > 0) this.write(() => this.records.removeMessages(old.map(({ id }) => id)))
     const kept = new Set([...this.messages.values()].map(({ thread }) => thread))
     const threads = [...this.threads.keys()].filter((id) => !kept.has(id))
@@ -1313,7 +1419,7 @@ export class Messaging {
   }
 
   private holdOf(message: Message): "paused" | "release" | null {
-    return holdOf(message, this.threads.get(message.thread), this.paused)
+    return message.response ? null : holdOf(message, this.threads.get(message.thread), this.paused)
   }
 
   /** Puts an undelivered message back to waiting: held for a reason, else queued. */
@@ -1325,12 +1431,16 @@ export class Messaging {
       this.put({ ...message, state: "gone", notified: false, stopped: true })
       return
     }
-    const state = waiting(message, thread, this.paused)
+    const state = message.response ? "queued" : waiting(message, thread, this.paused)
     if (state !== message.state) this.put({ ...message, state })
   }
 
   private gone(message: Message): void {
-    this.put({ ...message, state: "gone", notified: false })
+    const response =
+      message.response && message.state !== "gone" && message.deliveredAt === null
+        ? { ...message.response, goneAt: this.now() }
+        : message.response
+    this.put({ ...message, state: "gone", notified: false, ...(response && { response }) })
   }
 
   /**
@@ -1587,6 +1697,7 @@ export class Messaging {
   private put(message: Message): void {
     if (this.closed) return
     this.messages.set(message.id, message)
+    if (message.response) this.responses.set(message.response.askId, message.id)
     this.write(() => this.records.saveMessage(message))
     this.changed(message.to.terminalId)
     this.changed(message.from.terminalId)

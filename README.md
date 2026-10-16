@@ -244,7 +244,8 @@ taskbar, with that count, which opens its
 threads in the companion pane: one per peer, latest first, each message with its
 direction, time, state and the agent's text exactly as written, never formatted. A held
 thread has **Release**, and the pane's header has **Pause all agents' messages**, one
-switch for every project and session. It all updates as messages move. The content preview
+switch for every project and session. It pauses only messages between agents; your Inbox
+replies still go through. It all updates as messages move. The content preview
 (`pnpm dev:previews`) shows a thread between its two agents; the behaviour specs' demo
 (`?demo=messages`) has every state, a held thread and the pause.
 
@@ -291,10 +292,14 @@ runner.
 The Inbox (the bell on the sidebar rail, on by default on the runner) lists everything
 across every project and session that waits on you, one row per agent terminal: a dialog to
 answer, a message between agents held for you to release, a turn that failed, a usage
-limit, and a turn that finished while you looked elsewhere. Click a row to read it and
-answer in place, or reveal its terminal; a row clears itself once answered, once you view
-the terminal, or when its agent starts working again. A count badge on the bell, and on
-Zen's dock, tells how many wait on you, finishes not counted. A usage limit stays until
+limit, a question sent through the agent's `ask` tool, an update sent through `tell`,
+and a turn that finished while you looked elsewhere. Click a row to read it and
+answer in place, or reveal its terminal. An `ask` returns immediately so the agent can
+keep working; your answer reaches that exact agent session later as mail. Its ask clears
+when answered, withdrawn by the agent, or its session ends; a `tell` clears when marked
+read. Ask, Tell and Your reply remain in that terminal's Messages pane under **You**.
+Other rows clear once answered, once you view the terminal, or when the agent starts working again. A count badge on the bell, and on
+Zen's dock, tells how many wait on you; finishes and tells are not counted. A usage limit stays until
 the agent's next turn, so Continue is there after the reset. Where a backend has no Inbox,
 the bell opens the Notifications panel, which lists the questions, permissions and plans
 to review and the agents that finished while you looked elsewhere. With Murmur on, a
@@ -773,11 +778,18 @@ App:
 - **Inbox:** the actions show up in the `inbox` variant, whose Inbox holds hardcoded items. Each action adds one item of its kind to the Inbox,
   waiting from now and in place of the one of its kind already there: a stuck agent, Codex's
   command permission, an unreadable dialog, a held message, a decision with options, a
-  detected question, a secret request, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
+  detected question, an ask while its agent keeps working, a login request, the 5-hour limit, a usage limit Novadeck can't resume (no switch), a request whose dialog never read, a
   failed turn with no error, a held message whose sender is gone, a plan approval
   (its bypass-permissions yes a quiet link), a failed turn, a free-text ask, a permission
   whose Deny is a plain no, a heads-up and a finished turn. "Fail the next answer" makes
-  the next answer to any item fail, so its sheet shows why and keeps the item. "Usage limit, reset passed" adds the limit Novadeck can't resume, with its
+  the next answer to any item fail, so its sheet shows why and keeps the item and draft for retry. Ask, Tell and Your reply
+  also appear in the terminal's Messages pane under You; replies show queued and delivered states.
+  "Stale next answer" makes the next answer report that the ask is no longer available,
+  keeping the draft. "Ask withdrawn" and "Ask session ended" remove the sample preview ask
+  and keep its outcome in Messages. "Next reply not delivered" queues the next reply, then
+  shows the delivery failure in its Inbox confirmation and Messages history. Reply boxes
+  accept up to 4,096 characters and show the limit. Pausing messages between agents leaves
+  your replies going through. "Usage limit, reset passed" adds the limit Novadeck can't resume, with its
   window reset, offering Continue now. "A new item arrives" adds the next kind not there
   yet, and "Clear the Inbox" empties it.
 - **Startup:** "Hold the splash" keeps it until you press Escape; "Slow attach" counts

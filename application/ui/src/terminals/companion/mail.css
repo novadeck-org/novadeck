@@ -160,6 +160,13 @@
 .mail-state[data-state="gone"]::before {
   display: none;
 }
+.mail-message[data-inbox="answer"] .mail-state[data-state="gone"] {
+  color: var(--color-danger-fg);
+  text-decoration: none;
+}
+.mail-state:is([data-history="gone"], [data-history="undelivered"]) {
+  color: var(--color-danger-fg);
+}
 /* The agent's text, as it wrote it: its line breaks kept, nothing rendered. */
 .mail-text {
   margin: 2px 0 0;

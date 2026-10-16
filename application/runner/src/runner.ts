@@ -189,6 +189,7 @@ export const wire = (options: RunnerOptions) => {
     projectFolder: (sessionId) => store.project(store.session(sessionId).projectId).cwd,
     // Agents message each other within a project, and the mailbox is kept with it.
     mailbox: store,
+    asks: store,
     projectOf: (sessionId) => store.session(sessionId).projectId,
     items,
     // Without an engine nothing is described, so terminals have nothing to wait for.

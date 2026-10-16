@@ -1,4 +1,4 @@
-import { CheckCheck, CircleCheck } from "lucide-react"
+import { CheckCheck, CircleCheck, LoaderCircle } from "lucide-react"
 
 import { inboxType, type InboxItem } from "../model/inbox"
 import { sidebarListClasses } from "../sidebar/SidebarItem"
@@ -16,9 +16,10 @@ import { Text } from "./sheet-parts"
 const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
   const { state, view, now, drafts, ghosts, open } = useInboxContext()
   const type = inboxType(item)
-  // Answered: its drop by the backend still to come, or done.
-  const answering = Boolean(state.answering[item.id]) || item.id in ghosts
-  const Icon = answering ? CircleCheck : icons[type]
+  const pending = Boolean(state.answering[item.id])
+  const answered = item.id in ghosts && !pending && !state.failed[item.id]
+  const answering = pending || answered
+  const Icon = pending ? LoaderCircle : answered ? CircleCheck : icons[type]
   const current = view.open === item.id
   const extras = [
     started(drafts[item.id]) && !answering ? "Draft" : null,
@@ -31,7 +32,7 @@ const Row = ({ item }: { readonly item: InboxItem }): React.JSX.Element => {
       className="item inbox-row"
       data-inbox-item={item.id}
       data-type={type}
-      data-urgency={answering ? "answered" : toneOf(item)}
+      data-urgency={answered ? "answered" : toneOf(item)}
       data-seen={item.seen}
       data-arrived={view.arrived.includes(item.id)}
       data-selected={current}

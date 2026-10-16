@@ -23,6 +23,7 @@ import {
 } from "@novadeck/harness-core/harness"
 import { type Report } from "@novadeck/harness-core/report"
 import { type ScreenText } from "@novadeck/harness-core/screen"
+import type { AskAnswer, InboxLetter } from "@novadeck/protocol"
 import type {
   AgentDetail,
   AgentName,
@@ -83,6 +84,7 @@ import {
   type Telemetry,
 } from "../harnesses/telemetry.js"
 import { transcriptWaitMs, typedPromptStart } from "../harnesses/typed-prompts.js"
+import { Asks, type AskRecords } from "../messaging/asks.js"
 import { agentLabel } from "../messaging/mailbox.js"
 import {
   leaseMargin,
@@ -263,6 +265,7 @@ export type TerminalOptions = {
   openMs?: number
   /** Where agents' messages, their threads and the messaging pause are kept; in memory when omitted. */
   mailbox?: MailboxRecords
+  asks?: AskRecords
   /**
    * The project a session belongs to, whose terminals' agents message each other; each
    * session counts as its own when omitted, or when that cannot be told.
@@ -748,6 +751,7 @@ export class Terminals {
       | "transcripts"
       | "projectFolder"
       | "mailbox"
+      | "asks"
       | "projectOf"
       | "doorbell"
       | "prompts"
@@ -781,6 +785,7 @@ export class Terminals {
   private readonly reports = new Map<string, Promise<void>>()
   /** Agents' messages to each other, and how each terminal's agent takes them. */
   private readonly messaging: Messaging
+  private readonly asks: Asks
   /** What agents messaging each other, and the runner API about their messages, are answered. */
   private readonly peers: TerminalPeers
   /** Wakes idle agents for their messages; none when switched off. */
@@ -864,6 +869,19 @@ export class Terminals {
       exists: (terminalId) =>
         this.records.has(terminalId) || this.identity(terminalId) !== undefined,
     })
+    this.asks = new Asks(
+      {
+        owner: (id) => this.messaging.inboxOwner(id),
+        reply: (id, ask, subject, text, commit, choice) =>
+          this.messaging.personReply(id, ask, subject, text, commit, choice),
+        replyState: (id) => this.messaging.inboxReply(id),
+        forgetReplies: (ids) => this.messaging.forgetResponses(ids),
+        changed: (id) => this.mailChanged(id),
+        exists: (id) =>
+          !this.closedIds.has(id) && (this.records.has(id) || this.identity(id) !== undefined),
+      },
+      options.asks,
+    )
     this.inputs = new InputQueue({
       hold: (terminalId, budget) => this.holdInput(terminalId, budget),
     })
@@ -2162,6 +2180,7 @@ export class Terminals {
     // Shutting down meanwhile: the project, and what of its terminals was only saved, stay
     // for the next runner to remove.
     if (this.stopping) throw new DomainError("RUNTIME_CLOSING")
+    this.asks.forgetProject(projectId)
     this.messaging.forgetProject(projectId)
   }
 
@@ -2202,6 +2221,7 @@ export class Terminals {
     // Its items go first, so watchers hear of each before its record cascades them away.
     this.options.items?.terminalClosed(terminalId)
     this.messaging.unregister(terminalId)
+    this.asks.reconcile(terminalId)
     this.doorbell?.forget(terminalId)
     this.dialogs.forget(terminalId)
     this.murmur?.gone(terminalId)
@@ -2762,6 +2782,13 @@ export class Terminals {
         return this.open(call)
       case "close":
         return this.closePeer(call)
+      case "ask":
+      case "tell": {
+        const record = this.records.get(call.terminalId)
+        if (!record || record.exitQueued || !sameToken(record.token, call.token))
+          return Promise.resolve(unansweredCalls[call.type])
+        return Promise.resolve(this.asks.call(call.terminalId, call.type, call.request))
+      }
       case "send":
         return this.send(call)
       case "agents":
@@ -2822,9 +2849,22 @@ export class Terminals {
     this.peers.acknowledge(ack)
   }
 
+  inboxLetters(): InboxLetter[] {
+    return this.asks.list()
+  }
+  watchAsks(signal?: AbortSignal): AsyncGenerator<InboxLetter[]> {
+    return this.asks.watch(signal)
+  }
+  answerAsk(id: string, answer: AskAnswer): void {
+    this.asks.answer(id, answer)
+  }
+  readTells(ids: readonly string[]): void {
+    this.asks.read(ids)
+  }
+
   /** A terminal's threads and messages with their states. */
   messages(terminalId: string): TerminalMessages {
-    return this.peers.messages(terminalId)
+    return this.asks.history(terminalId, this.peers.messages(terminalId))
   }
 
   /**
@@ -3010,6 +3050,7 @@ export class Terminals {
       for (const readers of streams.values()) for (const reader of readers) reader.finish()
     for (const record of this.records.values()) this.unwatch(record)
     this.doorbell?.close()
+    this.asks.close()
     this.messaging.close()
     this.shutdownPromise = this.stop()
     return this.shutdownPromise
@@ -3800,6 +3841,7 @@ export class Terminals {
     record.root = root
     if (changes.length > 0) {
       this.messaging.rooted(id, changes)
+      this.asks.rooted(id, changes)
       this.settleBox(record)
     }
     // A new root session has yet to hear of the bar beside its terminal.
@@ -4631,6 +4673,7 @@ export class Terminals {
       this.unwatch(record)
       // An exited terminal takes no messages; its agent's are gone until it runs again.
       this.messaging.unregister(record.summary.id)
+      this.asks.reconcile(record.summary.id)
       this.doorbell?.forget(record.summary.id)
       this.dialogs.forget(record.summary.id)
       record.summary = {
@@ -4808,6 +4851,7 @@ export class Terminals {
       this.dispose(record)
       this.records.delete(record.summary.id)
       this.messaging.unregister(record.summary.id)
+      this.asks.reconcile(record.summary.id)
       this.doorbell?.forget(record.summary.id)
       this.dialogs.forget(record.summary.id)
       // Its record is let go, but the terminal is kept, saved, until it is closed.
