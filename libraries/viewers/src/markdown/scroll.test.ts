@@ -1,8 +1,9 @@
 import type { EditorView } from "@codemirror/view"
-import { afterEach, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { describe, expect, it } from "../../../test"
-import { restoreScroll } from "./scroll"
+import { restoreScroll } from "./scroll.js"
+
+const scrollers: HTMLElement[] = []
 
 // A measured editor whose line moves when a late font or resize changes its layout.
 const setup = () => {
@@ -30,6 +31,8 @@ const setup = () => {
   const scroller = document.createElement("div")
   scroller.style.overflowY = "auto"
   Object.defineProperties(scroller, {
+    // A plain number: a real element clamps it to what it can scroll, which it can't here.
+    scrollTop: { value: 0, writable: true },
     clientHeight: { value: 100 },
     scrollHeight: { get: () => lineTop + 800 },
   })
@@ -38,6 +41,9 @@ const setup = () => {
   }
   const dom = document.createElement("div")
   scroller.append(dom)
+  // Only an attached element has a computed style.
+  document.body.append(scroller)
+  scrollers.push(scroller)
   Object.defineProperty(dom, "offsetHeight", { value: 1000 })
   dom.getBoundingClientRect = () => ({ height: 1000 }) as DOMRect
   const view = {
@@ -69,9 +75,12 @@ const setup = () => {
   return { scroller, frames, observers, restore, done, settle, resize }
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  for (const scroller of scrollers.splice(0)) scroller.remove()
+})
 
-describe("restoring a plan's scroll", () => {
+describe("restoring a scroll", () => {
   it("keeps the saved line through a late layout change, without drawing idle frames", () => {
     const app = setup()
     app.settle()

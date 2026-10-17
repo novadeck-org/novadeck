@@ -8,6 +8,7 @@ import {
   noteInput,
   noteSafe,
   notesReopened,
+  resolveNotes,
   withoutEmptyNotes,
 } from "./notes"
 
@@ -118,5 +119,22 @@ describe("plan notes left empty when the editor closes", () => {
 
   it("leave a plan without them alone", () => {
     expect(withoutEmptyNotes("A\n<!-- novadeck: Hi -->", [])).toBeNull()
+  })
+})
+
+describe("plan notes the agent resolved", () => {
+  const text = "Intro\n<!-- novadeck: Use a grotesk. -->\nBody\n"
+
+  it("are removed with their line, keeping the marks on what the agent wrote", () => {
+    const resolved = resolveNotes(text, [{ from: text.indexOf("Body"), to: text.length }])
+    expect(resolved.resolved).toBe(1)
+    expect(resolved.text).toBe("Intro\nBody\n")
+    expect(resolved.text.slice(resolved.marks[0]!.from, resolved.marks[0]!.to)).toBe("Body\n")
+  })
+
+  it("leave a table row as it was before its note", () => {
+    const row = "| About | Contact |\n"
+    const noted = row.replace("Contact |", "Contact <!-- novadeck: Email only --> |")
+    expect(resolveNotes(noted, []).text).toBe(row)
   })
 })

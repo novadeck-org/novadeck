@@ -151,7 +151,6 @@ const vendors: Record<string, readonly string[]> = {
   "@ark-ui": ["ui-toolkit/"],
   "@xyflow/react": ["layouts/canvas/"],
   "@codemirror": ["terminals/companion/plan-editor/"],
-  "@lezer": ["terminals/companion/plan-editor/"],
   "react-grid-layout": ["layouts/grid/"],
   allotment: ["shell/"],
   // Terminals' tabs, windows and taskbars, the footer's subscriptions and the project

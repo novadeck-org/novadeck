@@ -1,34 +1,34 @@
 import { StateField, type ChangeSpec, type EditorState } from "@codemirror/state"
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view"
 
-import { addNote, noteIcon, noteLabel } from "./notes"
+import { rowAnnotations, type RowAnnotations } from "./annotations.js"
 import {
   addColumn,
   addRow,
-  addRowNote,
+  addRowAnnotation,
   cellSource,
   findTables,
   removeColumn,
   removeRow,
-  setRowNote,
+  setRowAnnotation,
   type Change,
   type Table,
-} from "./tables"
+} from "./tables.js"
 
 // Tables always read as tables. A cell edits in place, and leaving it writes just that
-// cell's text into the file. While a cell is being edited, a toolbar adds and removes
-// rows and columns. Each row takes a note, kept inside the row; the header's note is on
-// the whole table and goes after it.
+// cell's text into the text. While a cell is being edited, a toolbar adds and removes
+// rows and columns. Where the host sets row annotations, each row takes one, kept inside
+// the row; the header's is on the whole table and goes after it.
 
 type Place = { readonly row: number; readonly column: number }
 
-// What to focus once an edit has re-rendered its table: a cell, or a row's note.
-let pending: Place | { readonly row: number; readonly note: true } | null = null
+// What to focus once an edit has re-rendered its table: a cell, or a row's annotation.
+let pending: Place | { readonly row: number; readonly annotation: true } | null = null
 
 const texts = (table: Table): string =>
   JSON.stringify([
     table.rows.map((row) => row.map((cell) => cell.text)),
-    table.notes.map((note) => note?.text),
+    table.annotations.map((annotation) => annotation?.text),
   ])
 
 const columnsOf = (table: Table): number => Math.max(...table.rows.map((row) => row.length))
@@ -40,9 +40,11 @@ const placeCaret = (cell: HTMLTextAreaElement): void => {
 
 // The table starting at `at`, read afresh from the text.
 const tableAt = (view: EditorView, at: number): Table | undefined =>
-  findTables(view.state.doc.toString()).find((found) => found.from === at)
+  findTables(view.state.doc.toString(), view.state.facet(rowAnnotations)).find(
+    (found) => found.from === at,
+  )
 
-// Writes a cell's text into the file. The table's start doesn't move when one of its
+// Writes a cell's text into the text. The table's start doesn't move when one of its
 // cells changes, so it finds the table again from there.
 const commit = (view: EditorView, at: number, place: Place, text: string): boolean => {
   const cell = tableAt(view, at)?.rows[place.row]?.[place.column]
@@ -83,32 +85,37 @@ const deleteColumn: Reshape = (table, place) => ({
 const tool = (label: string, title: string): HTMLButtonElement => {
   const button = document.createElement("button")
   button.type = "button"
-  button.className = "cm-plan-table-tool"
+  button.className = "cm-md-table-tool"
   button.textContent = label
   button.title = title
   return button
 }
 
 class TableWidget extends WidgetType {
-  constructor(readonly table: Table) {
+  constructor(
+    readonly table: Table,
+    // Whether the viewer takes edits, which the table's fields follow.
+    readonly readOnly: boolean,
+  ) {
     super()
   }
   // Text edits elsewhere shift a table without changing it, so its DOM, and any cell
   // being edited, stays.
   override eq(other: TableWidget): boolean {
-    return texts(other.table) === texts(this.table)
+    return other.readOnly === this.readOnly && texts(other.table) === texts(this.table)
   }
   override toDOM(view: EditorView): HTMLElement {
     const wrapper = document.createElement("div")
-    wrapper.className = "cm-plan-table-widget"
-    if (view.state.readOnly) wrapper.dataset.readonly = "true"
+    wrapper.className = "cm-md-table-widget"
+    if (this.readOnly) wrapper.dataset.readonly = "true"
+    const annotations = view.state.facet(rowAnnotations)
     const table = document.createElement("table")
     const width = columnsOf(this.table)
     const height = this.table.rows.length
     const cells: HTMLTextAreaElement[][] = []
     const at = (): number => view.posAtDOM(wrapper)
-    // Where the table is, unless the editor already let go of it: an agent rewriting the
-    // table blurs the field being edited while its widget is being removed.
+    // Where the table is, unless the editor already let go of it: an outside rewrite of
+    // the table blurs the field being edited while its widget is being removed.
     const placed = (): number | null => {
       try {
         return view.posAtDOM(wrapper)
@@ -118,90 +125,94 @@ class TableWidget extends WidgetType {
     }
     // The cell being edited, and how to hand it over before the table changes.
     let active: { place: Place; text: () => string; leave: () => void } | null = null
-    const notes: HTMLTextAreaElement[] = []
+    const fields: HTMLTextAreaElement[] = []
 
-    // Writes the cell being edited, before a note changes the table under it.
+    // Writes the cell being edited, before an annotation changes the table under it.
     const flush = (start: number): boolean => {
       if (!active) return false
       active.leave()
       return commit(view, start, active.place, active.text())
     }
 
-    // Reshapes the table; a change the editor refused, as in a read-only plan, leaves
-    // no focus waiting for a table that isn't coming.
+    // Reshapes the table; a change the editor refused, as in a read-only one, leaves no
+    // focus waiting for a table that isn't coming.
     const dispatchReshape = (changes: ChangeSpec): void => {
       const before = view.state.doc
       view.dispatch({ changes })
       if (view.state.doc === before) pending = null
     }
 
-    // Opens a row's note, adding it if it has none. The header's note is on the whole
+    // Opens a row's annotation, adding it if it has none. The header's is on the whole
     // table, and goes after it.
-    const noteOn = (row: number): void => {
+    const annotate = (host: RowAnnotations, row: number): void => {
       const start = at()
-      pending = { row, note: true }
+      pending = { row, annotation: true }
       const committed = flush(start)
       if (!committed) pending = null
       if (row === 0) {
         pending = null
-        addNote(view, start)
+        host.addBeside(view, start)
         return
       }
       const current = tableAt(view, start)
       if (!current) return
-      if (current.notes[row]) {
+      if (current.annotations[row]) {
         if (!committed) {
-          const input = notes[row]
+          const input = fields[row]
           if (input) placeCaret(input)
         }
         return
       }
-      const added = addRowNote(current, row)
+      const added = addRowAnnotation(current, row, host)
       if (!added) return
-      pending = { row, note: true }
+      pending = { row, annotation: true }
       dispatchReshape(added.change)
     }
 
-    const rowNoteButton = (row: number): HTMLButtonElement => {
+    const annotateButton = (host: RowAnnotations, row: number): HTMLButtonElement => {
       const button = document.createElement("button")
       button.type = "button"
-      button.className = "icon-button cm-plan-row-note-add"
-      const label = row === 0 ? "Add a note on the table" : "Add a note on this row"
+      button.className = ["cm-md-annotation-add", host.buttonClass].filter(Boolean).join(" ")
+      const label = row === 0 ? host.addLabels.table : host.addLabels.row
       button.title = label
       button.setAttribute("aria-label", label)
-      button.append(noteIcon())
+      button.append(host.icon())
       // Act on press, keeping the press from the workspace, as the toolbar does.
       button.addEventListener("pointerdown", (event) => {
         event.preventDefault()
         event.stopPropagation()
-        noteOn(row)
+        annotate(host, row)
       })
       button.addEventListener("mousedown", (event) => event.preventDefault())
       button.addEventListener("click", (event) => {
-        if (event.detail === 0) noteOn(row)
+        if (event.detail === 0) annotate(host, row)
       })
       return button
     }
 
-    // A row's note, under the row, edited in place. Emptying it removes it.
-    const noteRow = (row: number, text: string): HTMLTableRowElement => {
+    // A row's annotation, under the row, edited in place. Emptying it removes it.
+    const annotationRow = (
+      host: RowAnnotations,
+      row: number,
+      text: string,
+    ): HTMLTableRowElement => {
       const line = document.createElement("tr")
-      line.className = "cm-plan-row-note"
+      line.className = "cm-md-annotation"
       const box = document.createElement("td")
       box.colSpan = width
-      const label = noteLabel()
+      const label = host.mark()
       const input = document.createElement("textarea")
-      input.className = "cm-plan-row-note-input"
-      input.readOnly = view.state.readOnly
+      input.className = "cm-md-annotation-input"
+      input.readOnly = this.readOnly
       input.rows = 1
       input.spellcheck = false
       input.value = text
-      input.setAttribute("aria-label", `Note on row ${row + 1}`)
+      input.setAttribute("aria-label", host.fieldLabel(row))
       let left = false
       const save = (): void => {
         left = true
         const current = tableAt(view, at())
-        const change = current && setRowNote(current, row, input.value)
+        const change = current && setRowAnnotation(current, row, input.value, host)
         if (!change) return
         if (change.insert === view.state.doc.sliceString(change.from, change.to)) return
         view.dispatch({ changes: change })
@@ -214,7 +225,7 @@ class TableWidget extends WidgetType {
           view.focus()
         } else if (event.key === "Escape") {
           event.preventDefault()
-          // A note never written is dropped; one already there keeps its text.
+          // One never written is dropped; one already there keeps its text.
           input.value = text
           save()
           view.focus()
@@ -229,14 +240,14 @@ class TableWidget extends WidgetType {
           left = false
           return
         }
-        // The table was rewritten under the note, which went with it.
+        // The table was rewritten under the annotation, which went with it.
         if (placed() === null) return
         save()
       })
-      notes[row] = input
-      // A bubble sized to its text, as notes elsewhere in the plan are.
+      fields[row] = input
+      // A bubble sized to its text.
       const bubble = document.createElement("span")
-      bubble.className = "cm-plan-row-note-bubble"
+      bubble.className = "cm-md-annotation-bubble"
       bubble.append(label, input)
       box.append(bubble)
       line.append(box)
@@ -259,7 +270,7 @@ class TableWidget extends WidgetType {
     }
 
     const toolbar = document.createElement("div")
-    toolbar.className = "cm-plan-table-tools"
+    toolbar.className = "cm-md-table-tools"
     const buttons = {
       addRow: tool("+ Row", "Add a row below"),
       addColumn: tool("+ Column", "Add a column to the right"),
@@ -298,9 +309,9 @@ class TableWidget extends WidgetType {
         // A text area, not editable markup: typing changes its value, not the DOM the
         // editor watches, so the editor never mistakes it for an edit of its own.
         const cell = document.createElement("textarea")
-        // A plan the backend can't write reads, but takes no edits.
-        cell.readOnly = view.state.readOnly
-        cell.className = "cm-plan-cell"
+        // A read-only viewer reads, but takes no edits.
+        cell.readOnly = this.readOnly
+        cell.className = "cm-md-cell"
         cell.rows = 1
         cell.spellcheck = false
         cell.value = row[column]?.text ?? ""
@@ -312,7 +323,7 @@ class TableWidget extends WidgetType {
         const leave = (): void => {
           left = true
         }
-        // Leaves the cell for another, or for the plan when there's no cell to go to.
+        // Leaves the cell for another, or for the text when there's no cell to go to.
         const move = (to: Place | null): void => {
           leave()
           // Committing re-renders the table at once, so say where focus goes first.
@@ -331,7 +342,7 @@ class TableWidget extends WidgetType {
           buttons.deleteColumn.disabled = width < 2
         })
         cell.addEventListener("keydown", (event) => {
-          // A cell is its own small editor: keys never reach the plan's.
+          // A cell is its own small editor: keys never reach the viewer's.
           event.stopPropagation()
           const lastColumn = column === width - 1
           if (event.key === "Tab") {
@@ -367,26 +378,27 @@ class TableWidget extends WidgetType {
             left = false
             return
           }
-          // The agent rewrote the table under the cell: its place is gone, and so is what
+          // The table was rewritten under the cell: its place is gone, and so is what
           // was typed in it.
           const start = placed()
           if (start !== null && cell.value !== original) commit(view, start, place, cell.value)
         })
         cells[rowIndex]!.push(cell)
         box.append(cell)
-        if (column === 0) box.append(rowNoteButton(rowIndex))
+        if (column === 0 && annotations) box.append(annotateButton(annotations, rowIndex))
         line.append(box)
       }
       table.append(line)
-      const note = this.table.notes[rowIndex]
-      if (note) table.append(noteRow(rowIndex, note.text))
+      const annotation = this.table.annotations[rowIndex]
+      if (annotation && annotations)
+        table.append(annotationRow(annotations, rowIndex, annotation.text))
     })
     wrapper.append(toolbar, table)
     const focus = pending
     pending = null
     if (focus)
       queueMicrotask(() => {
-        const target = "note" in focus ? notes[focus.row] : cells[focus.row]?.[focus.column]
+        const target = "annotation" in focus ? fields[focus.row] : cells[focus.row]?.[focus.column]
         if (target) placeCaret(target)
       })
     return wrapper
@@ -399,8 +411,8 @@ class TableWidget extends WidgetType {
 
 const build = (state: EditorState): DecorationSet =>
   Decoration.set(
-    findTables(state.doc.toString()).map((table) =>
-      Decoration.replace({ widget: new TableWidget(table), block: true }).range(
+    findTables(state.doc.toString(), state.facet(rowAnnotations)).map((table) =>
+      Decoration.replace({ widget: new TableWidget(table, state.readOnly), block: true }).range(
         table.from,
         table.to,
       ),
@@ -409,7 +421,13 @@ const build = (state: EditorState): DecorationSet =>
 
 export const tables = StateField.define<DecorationSet>({
   create: build,
+  // Also when the viewer starts or stops taking edits, or its host sets other annotations:
+  // a table's fields follow.
   update: (decorations, transaction) =>
-    transaction.docChanged ? build(transaction.state) : decorations,
+    transaction.docChanged ||
+    transaction.startState.readOnly !== transaction.state.readOnly ||
+    transaction.startState.facet(rowAnnotations) !== transaction.state.facet(rowAnnotations)
+      ? build(transaction.state)
+      : decorations,
   provide: (field) => EditorView.decorations.from(field),
 })

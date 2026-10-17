@@ -2,6 +2,7 @@ import { createKept, type ViewerState } from "@novadeck/viewers"
 import { mountCode, type CodeContent } from "@novadeck/viewers/code"
 import { mountImage, type ImageContent as Image } from "@novadeck/viewers/image"
 import { useViewer } from "@novadeck/viewers/react"
+import { outline } from "@novadeck/viewers/text"
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw } from "lucide-react"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
@@ -17,7 +18,7 @@ import {
 import { useShown } from "../../ui-toolkit/shown"
 import { isMarkdown } from "./artifact-icons"
 import { DocumentViewer } from "./DocumentViewer"
-import { headingsOf, titleOf } from "./plan-text"
+import { titleOf } from "./plan-text"
 import { createWebview, type WebviewElement } from "./webview"
 
 // Viewers for what an agent shows beside its terminal, as it loads from the file or page
@@ -344,7 +345,7 @@ export const ArtifactThumb = ({
     // A document in miniature, as a plan is: its title over its sections.
     <span className="peek-plan">
       <b>{titleOf(content.path, content.lines.join("\n"))}</b>
-      {headingsOf(content.lines.join("\n"))
+      {outline(content.lines.join("\n"))
         .slice(0, 4)
         .map((heading) => (
           <span key={heading.at}>{heading.text}</span>
